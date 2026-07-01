@@ -1,0 +1,331 @@
+/*
+  Design tokens
+  -------------
+  Palette: near-black stage with a warm coral accent (deliberately not
+  Spotify green — this is its own identity). Two-face type system: Space
+  Grotesk for anything with personality (brand, titles, headings), Inter
+  for interface text. Signature element: a small gradient "disc" per track
+  that spins while it's the one playing, standing in for missing artwork.
+*/
+:root {
+    --bh-bg: #0B0B0E;
+    --bh-surface: #17171D;
+    --bh-surface-2: #1F1F27;
+    --bh-border: #2A2A33;
+    --bh-text: #F3F2F5;
+    --bh-text-dim: #93919D;
+    --bh-accent: #FF5A36;
+    --bh-accent-soft: #FFB199;
+    --bh-bar-height: 84px;
+    --bh-radius: 12px;
+    --bh-radius-sm: 8px;
+    --bh-font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+    --bh-font-body: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.bh-container {
+    background-color: var(--bh-bg);
+    color: var(--bh-text);
+    font-family: var(--bh-font-body);
+    padding: 28px 24px;
+    padding-bottom: calc(var(--bh-bar-height) + 28px);
+    min-height: 50vh;
+}
+
+* { box-sizing: border-box; }
+
+/* ---------------- Header ---------------- */
+.bh-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+}
+
+.bh-brand {
+    font-family: var(--bh-font-display);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+.bh-brand span { color: var(--bh-accent); }
+
+.bh-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.bh-btn {
+    font-family: var(--bh-font-body);
+    font-weight: 600;
+    font-size: 13px;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 18px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.bh-btn:active { transform: scale(0.97); }
+.bh-btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+.bh-btn-primary { background: var(--bh-accent); color: #150705; }
+.bh-btn-primary:hover { background: var(--bh-accent-soft); }
+
+.bh-btn-outline { background: transparent; color: var(--bh-text); border: 1px solid var(--bh-border); }
+.bh-btn-outline:hover { border-color: var(--bh-text-dim); }
+
+.bh-btn-ghost { background: transparent; color: var(--bh-text-dim); }
+.bh-btn-ghost:hover { color: var(--bh-text); }
+
+/* Results button: only ever shown once an admin has actually published
+   results, so its appearance is itself an event worth marking — a warm
+   gold treatment and a slow glow set it apart from the everyday coral
+   accent used everywhere else. */
+.bh-btn-results {
+    background: linear-gradient(135deg, #FFDD8C, #F5A623);
+    color: #2A1600;
+    animation: bh-results-glow 2.6s ease-in-out infinite;
+}
+.bh-btn-results:hover { filter: brightness(1.06); }
+@keyframes bh-results-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.45); }
+    50%      { box-shadow: 0 0 16px 2px rgba(245, 166, 35, 0.45); }
+}
+
+.bh-link-muted {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--bh-border);
+}
+.bh-link-muted:hover { color: var(--bh-text); }
+
+/* ---------------- Track list ---------------- */
+.bh-tracklist { display: flex; flex-direction: column; }
+
+.bh-track-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 8px;
+    border-bottom: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.bh-track-row:hover { background-color: var(--bh-surface); }
+.bh-track-row:last-child { border-bottom: none; }
+
+/* Signature element: a deterministic gradient "disc" standing in for
+   missing artwork, spinning only while its track is the one playing. */
+.bh-disc {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 50% 50%, var(--bh-bg) 0 6px, transparent 7px),
+        conic-gradient(from 200deg,
+            hsl(var(--bh-hue, 20) 75% 58%),
+            hsl(calc(var(--bh-hue, 20) + 45) 70% 42%),
+            hsl(var(--bh-hue, 20) 75% 58%));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+.bh-disc.spinning { animation: bh-spin 2.6s linear infinite; }
+@keyframes bh-spin { to { transform: rotate(360deg); } }
+
+.bh-track-details { flex-grow: 1; min-width: 0; }
+.bh-track-title, .bh-track-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-track-title { font-family: var(--bh-font-display); font-weight: 600; font-size: 15px; }
+.bh-track-artist { color: var(--bh-text-dim); font-size: 13px; margin-top: 2px; }
+
+.bh-vote-btn {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    color: var(--bh-text);
+    border: 1px solid var(--bh-border);
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-family: var(--bh-font-body);
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.bh-vote-btn:hover { border-color: var(--bh-text-dim); }
+.bh-vote-btn .bh-check { display: none; }
+.bh-vote-btn.voted {
+    background: var(--bh-accent);
+    color: #150705;
+    border-color: var(--bh-accent);
+}
+.bh-vote-btn.voted .bh-check { display: inline-flex; }
+.bh-vote-btn:disabled { opacity: 0.6; cursor: default; }
+
+.bh-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--bh-text-dim);
+    font-family: var(--bh-font-display);
+    font-size: 15px;
+}
+
+/* ---------------- Now-playing bar ---------------- */
+.bh-now-playing-bar {
+    position: fixed;
+    bottom: 0; left: 0; width: 100%;
+    height: var(--bh-bar-height);
+    background-color: var(--bh-surface);
+    border-top: 1px solid var(--bh-border);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 0 28px;
+    z-index: 9999;
+}
+
+.bh-np-track { display: flex; align-items: center; gap: 12px; width: 240px; flex: 0 0 auto; overflow: hidden; }
+.bh-now-playing-bar .bh-disc { width: 36px; height: 36px; }
+.bh-np-info { font-size: 13px; line-height: 1.4; overflow: hidden; color: var(--bh-text-dim); }
+.bh-np-info strong { display: block; color: var(--bh-text); font-family: var(--bh-font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.bh-scrubber-container { flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.bh-time { font-size: 11px; color: var(--bh-text-dim); font-variant-numeric: tabular-nums; width: 32px; flex: 0 0 auto; }
+.bh-time:last-child { text-align: right; }
+
+.bh-scrubber {
+    width: 100%; cursor: pointer; -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 3px; background: var(--bh-border); touch-action: none;
+}
+.bh-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+    border-radius: 50%; background: var(--bh-accent); cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(255,90,54,0.2);
+}
+.bh-scrubber::-moz-range-thumb {
+    width: 13px; height: 13px; border: none; border-radius: 50%; background: var(--bh-accent); cursor: pointer;
+}
+
+.bh-play-pause {
+    flex: 0 0 auto;
+    background: var(--bh-accent); color: #150705;
+    border: none; border-radius: 50%; width: 42px; height: 42px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.bh-play-pause:hover { background: var(--bh-accent-soft); }
+.bh-play-pause:active { transform: scale(0.94); }
+
+/* ---------------- Modals ---------------- */
+.bh-modal {
+    display: none; position: fixed; inset: 0; background: rgba(6,6,8,0.82);
+    backdrop-filter: blur(2px);
+    z-index: 10000; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;
+}
+.bh-modal-content {
+    background: var(--bh-surface); padding: 36px; border-radius: var(--bh-radius);
+    border: 1px solid var(--bh-border);
+    width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px; position: relative; box-sizing: border-box;
+}
+.bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
+.bh-close { position: absolute; top: 16px; right: 20px; font-size: 22px; cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
+.bh-close:hover { color: var(--bh-text); }
+
+.bh-modal-content input, .bh-modal-content textarea {
+    padding: 12px 14px; background: var(--bh-surface-2); color: var(--bh-text);
+    border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm);
+    font-size: 16px; /* >=16px prevents iOS focus zoom */ font-family: var(--bh-font-body); box-sizing: border-box;
+}
+.bh-modal-content input:focus, .bh-modal-content textarea:focus {
+    outline: none; border-color: var(--bh-accent);
+}
+.bh-modal-content textarea { resize: vertical; }
+.bh-modal-content small { color: var(--bh-text-dim); font-size: 12px; margin-top: -6px; }
+
+.bh-modal-content .bh-btn { justify-content: center; padding: 12px; font-size: 14px; margin-top: 4px; }
+.bh-modal-content a { color: var(--bh-text-dim); text-decoration: none; font-size: 13px; }
+.bh-modal-content a:hover { color: var(--bh-text); }
+.bh-modal-content p { margin: 0; }
+
+.bh-file-label {
+    display: flex; align-items: center; padding: 12px 14px; background: var(--bh-surface-2);
+    border: 1px dashed var(--bh-border); border-radius: var(--bh-radius-sm);
+    color: var(--bh-text-dim); font-size: 13px; cursor: pointer; transition: border-color 0.15s ease;
+}
+.bh-file-label:hover { border-color: var(--bh-text-dim); }
+.bh-file-input { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; }
+
+/* Honeypot — hidden from people and screen readers, present for bots */
+.bh-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---------------- Results list ---------------- */
+.bh-results-list { list-style: none; margin: 0; padding: 0; }
+.bh-results-list li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--bh-border); }
+.bh-results-list li:last-child { border-bottom: none; }
+.bh-results-rank { font-family: var(--bh-font-display); font-weight: 700; color: var(--bh-accent); width: 32px; flex: 0 0 auto; }
+.bh-results-meta { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
+.bh-results-song { font-family: var(--bh-font-display); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-results-artist { color: var(--bh-text-dim); font-size: 12px; }
+.bh-results-votes { color: var(--bh-text-dim); font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
+.bh-results-empty { color: var(--bh-text-dim); }
+
+/* ---------------- Toast ---------------- */
+.bh-toast {
+    position: fixed; left: 50%; bottom: calc(var(--bh-bar-height) + 20px);
+    transform: translateX(-50%) translateY(10px);
+    background: var(--bh-surface-2); color: var(--bh-text); padding: 12px 20px; border-radius: var(--bh-radius-sm);
+    border: 1px solid var(--bh-border);
+    font-size: 13px; max-width: 90vw; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 10001;
+}
+.bh-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.bh-toast.error { border-color: var(--bh-accent); }
+
+/* ---------------- Accessibility ---------------- */
+.bh-btn:focus-visible, .bh-vote-btn:focus-visible, .bh-play-pause:focus-visible,
+.bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible {
+    outline: 2px solid var(--bh-accent-soft); outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bh-disc.spinning { animation: none; }
+    .bh-btn, .bh-vote-btn, .bh-play-pause { transition: none; }
+    .bh-btn-results { animation: none; }
+}
+
+/* ---------------- Mobile ---------------- */
+@media (max-width: 640px) {
+    :root { --bh-bar-height: 74px; }
+    .bh-container { padding: 16px; padding-bottom: calc(var(--bh-bar-height) + 16px); }
+    .bh-header { gap: 10px; }
+    .bh-header-actions { gap: 10px; }
+    .bh-btn { padding: 8px 14px; font-size: 12px; }
+    .bh-track-row { padding: 10px 4px; gap: 12px; }
+    .bh-disc { width: 34px; height: 34px; }
+    .bh-track-title { font-size: 14px; }
+    .bh-track-artist { font-size: 12px; }
+    .bh-vote-btn { padding: 6px 12px; font-size: 11px; }
+    .bh-now-playing-bar { padding: 0 14px; gap: 12px; }
+    .bh-np-track { width: 30%; gap: 8px; }
+    .bh-now-playing-bar .bh-disc { width: 30px; height: 30px; }
+    .bh-np-info { font-size: 11px; }
+    .bh-time { display: none; }
+    .bh-scrubber::-webkit-slider-thumb { width: 16px; height: 16px; }
+    .bh-scrubber::-moz-range-thumb { width: 16px; height: 16px; }
+    .bh-play-pause { width: 40px; height: 40px; }
+    .bh-modal-content { padding: 24px; max-width: 100%; }
+}
+
+@media (max-width: 380px) {
+    .bh-np-info { display: none; }
+}
