@@ -96,7 +96,7 @@ class BHPlayer {
                         </button>
                         <button class="bh-submit-btn bh-btn bh-btn-primary" style="display:none;">Submit a Song</button>
                         <button class="bh-login-btn bh-btn bh-btn-outline">Log In</button>
-                        <a href="#" class="bh-switch-btn bh-link-muted" style="display:none;">Switch account</a>
+                        <a href="#" class="bh-logout-btn bh-btn bh-btn-outline" style="display:none;">Log Out</a>
                     </div>
                 </div>
 
@@ -157,7 +157,7 @@ class BHPlayer {
     updateAuthUI() {
         this.q('.bh-submit-btn').style.display = this.loggedIn ? 'inline-flex' : 'none';
         this.q('.bh-login-btn').style.display  = this.loggedIn ? 'none' : 'inline-flex';
-        this.q('.bh-switch-btn').style.display = this.loggedIn ? 'inline-block' : 'none';
+        this.q('.bh-logout-btn').style.display = this.loggedIn ? 'inline-flex' : 'none';
     }
 
     bind() {
@@ -166,7 +166,7 @@ class BHPlayer {
         const openAuth = () => { this.setAuthMode(true); show('auth'); };
 
         this.q('.bh-login-btn').onclick   = openAuth;
-        this.q('.bh-switch-btn').onclick  = e => { e.preventDefault(); openAuth(); };
+        this.q('.bh-logout-btn').onclick  = e => { e.preventDefault(); this.logout(); };
         this.q('.bh-submit-btn').onclick  = () => show('submit');
         this.q('.bh-results-btn').onclick = () => this.loadResults();
         this.q('.bh-auth-submit').onclick = () => this.auth();
@@ -248,6 +248,16 @@ class BHPlayer {
         this.toast(body.message || 'Authentication failed.', true);
         btn.disabled = false;
         btn.innerText = label;
+    }
+
+    async logout() {
+        const btn = this.q('.bh-logout-btn');
+        btn.style.pointerEvents = 'none';
+        await this.req('logout', { method: 'POST' });
+        this.toast('Logged out.');
+        // Same reasoning as auth(): the session cookie just changed, so a
+        // reload is the only reliable way to pick up a matching nonce.
+        setTimeout(() => window.location.reload(), 300);
     }
 
     /* ---------- submission ---------- */
@@ -450,7 +460,7 @@ class BHPlayer {
         if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
 
         this._resultsCats = cats;
-        this._resultsActive = cats[0].slug;
+        this._resultsActive = cats.length > 1 ? 'all' : cats[0].slug;
         this.renderResultsBody();
     }
 
@@ -468,20 +478,49 @@ class BHPlayer {
             </li>`).join('')}</ol>`;
     }
 
+    // Every category's results flattened into one list, re-ranked by vote
+    // count across the whole contest, with a colored category badge per
+    // row (matching the tab colors) so it reads as "all of it in one
+    // place" rather than a confusing mash-up.
+    renderAllResultsList(cats) {
+        const rows = [];
+        cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
+        rows.sort((a, b) => b.votes - a.votes);
+        rows.forEach((r, i) => { r.rank = i + 1; });
+        const top = rows.slice(0, 20);
+        if (!top.length) return '<p class="bh-results-empty">No votes have been cast yet.</p>';
+
+        const medals = ['🥇', '🥈', '🥉'];
+        return `<ol class="bh-results-list">${top.map(r => `
+            <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
+                <span class="bh-results-rank">${r.rank <= 3 ? medals[r.rank - 1] : '#' + r.rank}</span>
+                <span class="bh-results-meta">
+                    <span class="bh-results-song">${this.esc(r.title)}</span>
+                    <span class="bh-results-artist">${this.esc(r.artist)}</span>
+                </span>
+                <span class="bh-results-cat" style="--bh-cat-color:${this.catColor(r.categorySlug)}">${this.esc(r.categoryName)}</span>
+                <span class="bh-results-votes">${r.votes} vote${r.votes === 1 ? '' : 's'}</span>
+            </li>`).join('')}</ol>`;
+    }
+
     renderResultsBody() {
         const out = this.q('.bh-results-body');
         const cats = this._resultsCats;
-        const active = cats.find(c => c.slug === this._resultsActive) || cats[0];
+        const tabDefs = cats.length > 1 ? [{ slug: 'all', name: 'All' }, ...cats] : cats;
 
-        const tabs = cats.length > 1
-            ? `<div class="bh-category-tabs bh-results-tabs">${cats.map(c => `
-                <button class="bh-cat-tab ${c.slug === active.slug ? 'active' : ''}" data-cat="${this.esc(c.slug)}">${this.esc(c.name)}</button>
+        const tabs = tabDefs.length > 1
+            ? `<div class="bh-category-tabs bh-results-tabs">${tabDefs.map(c => `
+                <button class="bh-cat-tab ${c.slug === this._resultsActive ? 'active' : ''}" data-cat="${this.esc(c.slug)}" style="--bh-cat-color:${c.slug === 'all' ? 'var(--bh-text-dim)' : this.catColor(c.slug)}">${this.esc(c.name)}</button>
               `).join('')}</div>`
             : '';
 
-        out.innerHTML = tabs + this.renderResultsList(active.results);
+        const body = this._resultsActive === 'all'
+            ? this.renderAllResultsList(cats)
+            : this.renderResultsList((cats.find(c => c.slug === this._resultsActive) || cats[0]).results);
 
-        if (cats.length > 1) {
+        out.innerHTML = tabs + body;
+
+        if (tabDefs.length > 1) {
             out.querySelectorAll('.bh-cat-tab').forEach(btn => {
                 btn.onclick = () => { this._resultsActive = btn.dataset.cat; this.renderResultsBody(); };
             });

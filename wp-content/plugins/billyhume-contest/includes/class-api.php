@@ -9,7 +9,13 @@ class BH_API {
         $idarg  = ['submission_id' => ['required' => true, 'sanitize_callback' => 'absint']];
         $carg   = [
             'contest'  => ['sanitize_callback' => 'sanitize_text_field'],
-            'category' => ['sanitize_callback' => 'sanitize_title'],
+            // Not a bare 'sanitize_title' reference: WordPress's REST
+            // framework calls sanitize_callback as (value, request, key) —
+            // sanitize_title() declares 3 params too, so those extra
+            // arguments silently land in its $fallback_title/$context
+            // slots instead of being ignored. Wrapping it forces exactly
+            // one argument through.
+            'category' => ['sanitize_callback' => function ($v) { return sanitize_title((string) $v); }],
         ];
 
         register_rest_route('bh/v1', '/tracks',  ['methods' => 'GET',  'callback' => [self::class, 'tracks'],  'args' => ['page' => ['sanitize_callback' => 'absint']] + $carg] + $pub);
@@ -258,25 +264,45 @@ class BH_API {
         return $out;
     }
 
-    // Admin-only: the true current tally for a SPECIFIC contest + category,
-    // live, regardless of whether results have been published. Includes
-    // vote velocity (last vote timestamp) and voter turnout so admins can
-    // gauge how a contest is going without tipping anything off publicly.
+    // Admin-only: the true current tally for a SPECIFIC contest, live,
+    // regardless of whether results have been published. Includes vote
+    // velocity (last vote timestamp) and voter turnout so admins can gauge
+    // how a contest is going without tipping anything off publicly.
+    // category=all returns every category's rows together (one row per
+    // submission+category, with the category name attached) instead of a
+    // single category's leaderboard.
     public static function admin_live($req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
 
-        $cat = $req->get_param('category');
-        $cat = ($cat === null || $cat === '') ? BH_Helpers::default_category($cid) : $cat;
+        // Check the raw query value directly for the 'all' sentinel rather
+        // than only the sanitized param — belt-and-suspenders against any
+        // future sanitize_callback change silently breaking this specific
+        // comparison the way the unwrapped sanitize_title() reference did.
+        $raw   = $req->get_query_params();
+        $param = $req->get_param('category');
+        $all   = ($param === 'all') || (($raw['category'] ?? '') === 'all');
+        $cat   = $all ? null : (($param === null || $param === '') ? BH_Helpers::default_category($cid) : $param);
 
         global $wpdb;
         $t = BH_Helpers::table();
 
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT submission_id, COUNT(id) votes FROM $t
-             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
-            $cid, $cat
-        ));
+        if ($all) {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT submission_id, category, COUNT(id) votes FROM $t
+                 WHERE contest_id = %d GROUP BY submission_id, category ORDER BY votes DESC",
+                $cid
+            ));
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT submission_id, COUNT(id) votes FROM $t
+                 WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
+                $cid, $cat
+            ));
+        }
+
+        $cat_names = [];
+        foreach (BH_Helpers::categories($cid) as $c) $cat_names[$c['slug']] = $c['name'];
 
         $out = [];
         $rank = 0;
@@ -285,7 +311,7 @@ class BH_API {
             $p = get_post($r->submission_id);
             if (!$p) continue;
             $votes = (int) $r->votes;
-            $out[] = [
+            $row = [
                 'rank'   => ++$rank,
                 'id'     => (int) $r->submission_id,
                 'title'  => $p->post_title,
@@ -295,16 +321,25 @@ class BH_API {
                 'plays'  => (int) get_post_meta($p->ID, '_bh_play_count', true),
                 'pct'    => round(($votes / $top) * 100, 1),
             ];
+            if ($all) $row['category'] = $r->category === '' ? '—' : ($cat_names[$r->category] ?? $r->category);
+            $out[] = $row;
         }
 
-        $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
-        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
-        $last_vote_at  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
+        // Totals are contest-wide for "all", category-scoped otherwise.
+        if ($all) {
+            $total_votes   = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE contest_id = %d", $cid));
+            $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM $t WHERE contest_id = %d", $cid));
+            $last_vote_at  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM $t WHERE contest_id = %d", $cid));
+        } else {
+            $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
+            $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
+            $last_vote_at  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
+        }
 
         return self::ok([
             'contest_id'        => $cid,
             'contest'           => get_the_title($cid),
-            'category'          => $cat,
+            'category'          => $all ? 'all' : $cat,
             'categories'        => BH_Helpers::categories($cid),
             'voting_open'       => BH_Helpers::is_voting_open($cid),
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',

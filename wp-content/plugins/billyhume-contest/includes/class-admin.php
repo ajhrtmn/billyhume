@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-class BH_Admin { 
+class BH_Admin {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
@@ -25,10 +25,16 @@ class BH_Admin {
         // contest they belong to, shown only on pages that have one.
         add_action('add_meta_boxes_page', [self::class, 'add_page_backlink_meta_box']);
 
-        // The core "Posts" menu is for blog posts, which this site isn't
-        // using — Contests/Submissions live under their own menu, and a
-        // second unrelated "Posts" item just confuses that mental model.
-        add_action('admin_menu', [self::class, 'hide_posts_menu'], 999);
+        // "Add New" sidebar links under our menu are clutter for both CPTs:
+        // Submissions is a dead end in wp-admin (audio upload, artist name,
+        // etc. aren't editable from the bare post editor — submissions can
+        // only come in properly through the front-end flow), and Contests
+        // already has its own "Add New" button at the top of the Contests
+        // list page itself, so the sidebar link is a redundant second copy.
+        // Creating a contest still works exactly the same either way —
+        // this only removes the shortcut, not the capability. Nothing
+        // about WordPress's own Posts menu is touched.
+        add_action('admin_menu', [self::class, 'remove_add_new_links'], 999);
 
         // Voters register as ordinary subscriber accounts (that's what
         // gives us name/email/history for free via WP's own user system),
@@ -205,10 +211,9 @@ class BH_Admin {
         }, 'page', 'side', 'high');
     }
 
-    public static function hide_posts_menu() {
-        if (apply_filters('bh_hide_posts_menu', true)) {
-            remove_menu_page('edit.php');
-        }
+    public static function remove_add_new_links() {
+        remove_submenu_page(BH_PostTypes::MENU_PARENT, 'post-new.php?post_type=bh_submission');
+        remove_submenu_page(BH_PostTypes::MENU_PARENT, 'post-new.php?post_type=bh_contest');
     }
 
     /* ================= Submissions list table ================= */
@@ -217,17 +222,28 @@ class BH_Admin {
         $new = [];
         foreach ($cols as $k => $v) {
             $new[$k] = $v;
-            if ($k === 'title') $new['bh_contest'] = 'Contest';
+            if ($k === 'title') {
+                $new['bh_contest'] = 'Contest';
+                $new['bh_notes']   = 'Notes';
+            }
         }
         return $new;
     }
 
     public static function submission_column_content($col, $post_id) {
-        if ($col !== 'bh_contest') return;
-        $cid = (int) get_post_meta($post_id, '_bh_contest_id', true);
-        if (!$cid || !get_post($cid)) { echo '<em>—</em>'; return; }
-        $url = get_edit_post_link($cid);
-        echo $url ? '<a href="' . esc_url($url) . '">' . esc_html(get_the_title($cid)) . '</a>' : esc_html(get_the_title($cid));
+        if ($col === 'bh_contest') {
+            $cid = (int) get_post_meta($post_id, '_bh_contest_id', true);
+            if (!$cid || !get_post($cid)) { echo '<em>—</em>'; return; }
+            $url = get_edit_post_link($cid);
+            echo $url ? '<a href="' . esc_url($url) . '">' . esc_html(get_the_title($cid)) . '</a>' : esc_html(get_the_title($cid));
+        }
+        if ($col === 'bh_notes') {
+            $note = get_post_meta($post_id, '_bh_admin_note', true);
+            if ($note === '') { echo '<em>—</em>'; return; }
+            // Full text on hover via title attribute — no need to open the
+            // submission just to read a note during a live contest stream.
+            echo '<span title="' . esc_attr($note) . '">' . esc_html(wp_html_excerpt($note, 60, '…')) . '</span>';
+        }
     }
 
     public static function submission_contest_filter($post_type) {
@@ -269,7 +285,18 @@ class BH_Admin {
 
         $cats = BH_Helpers::categories($cid);
         $cat  = isset($_GET['bh_category']) ? sanitize_title($_GET['bh_category']) : '';
-        if (!BH_Helpers::is_valid_category($cid, $cat)) $cat = BH_Helpers::default_category($cid);
+        $all  = false;
+        if ($cats) {
+            if (isset($_GET['bh_category']) && $_GET['bh_category'] === 'all') {
+                $all = true;
+            } elseif (!BH_Helpers::is_valid_category($cid, $cat)) {
+                // No valid category chosen yet (first visit) — default to
+                // the combined view rather than picking one arbitrarily.
+                $all = true;
+            }
+        } else {
+            $cat = ''; // single implicit category, unchanged from before categories existed
+        }
 
         // Contest (and, if it has any, category) picker — reloads the page
         // with ?contest_id=X&bh_category=Y so every section below (stats,
@@ -285,25 +312,39 @@ class BH_Admin {
         echo '</select></label>';
         if ($cats) {
             echo ' &nbsp; <label>Category: <select name="bh_category" onchange="this.form.submit()">';
+            echo '<option value="all" ' . selected($all, true, false) . '>All categories</option>';
             foreach ($cats as $c) {
-                echo '<option value="' . esc_attr($c['slug']) . '" ' . selected($cat, $c['slug'], false) . '>' . esc_html($c['name']) . '</option>';
+                echo '<option value="' . esc_attr($c['slug']) . '" ' . selected(!$all && $cat === $c['slug'], true, false) . '>' . esc_html($c['name']) . '</option>';
             }
             echo '</select></label>';
         }
         echo ' <noscript><button class="button">Go</button></noscript></form>';
 
         global $wpdb;
-        $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT submission_id, COUNT(id) votes FROM " . BH_Helpers::table() . "
-             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
-            $cid, $cat
-        ));
+        if ($all) {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT submission_id, category, COUNT(id) votes FROM " . BH_Helpers::table() . "
+                 WHERE contest_id = %d GROUP BY submission_id, category ORDER BY votes DESC",
+                $cid
+            ));
+        } else {
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT submission_id, COUNT(id) votes FROM " . BH_Helpers::table() . "
+                 WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
+                $cid, $cat
+            ));
+        }
 
-        $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
-        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d AND category = %s", $cid, $cat));
-        $voting_open   = BH_Helpers::is_voting_open($cid);
-        $published     = get_post_meta($cid, '_bh_results_published', true) === '1';
-        $cat_label     = $cats ? ' — category: <strong>' . esc_html(self::category_name($cats, $cat)) . '</strong>' : '';
+        if ($all) {
+            $total_votes   = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM " . BH_Helpers::table() . " WHERE contest_id = %d", $cid));
+            $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d", $cid));
+        } else {
+            $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
+            $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d AND category = %s", $cid, $cat));
+        }
+        $voting_open = BH_Helpers::is_voting_open($cid);
+        $published   = get_post_meta($cid, '_bh_results_published', true) === '1';
+        $cat_label   = $cats ? ' — category: <strong>' . ($all ? 'All' : esc_html(self::category_name($cats, $cat))) . '</strong>' : '';
 
         echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong>' . $cat_label . ' — voting is currently <strong>' . ($voting_open ? 'open' : 'closed') . '</strong>. '
            . 'This page is private to admins; the public results page for this contest is ' . ($published ? '<strong>currently published</strong>' : 'still <strong>hidden</strong>') . ' regardless of what you see here. '
@@ -318,15 +359,17 @@ class BH_Admin {
         echo '<p><label><input type="checkbox" id="bh-autorefresh" checked> Auto-refresh every 8s</label> '
            . '&nbsp;·&nbsp; <span id="bh-updated-at" style="color:#666;">Not yet refreshed live.</span></p>';
 
+        $cat_col = $all ? '<th>Category</th>' : '';
         echo '<p>Click the <strong>Votes</strong> or <strong>Plays</strong> headers to sort. (Sort resets on each live refresh.)</p>';
         echo '<table class="wp-list-table widefat striped" id="bh-results-table">';
-        echo '<thead><tr><th>Song &amp; Artist</th><th data-dir="desc">Votes</th><th data-dir="desc">Plays</th><th>Chart</th></tr></thead>';
+        echo '<thead><tr><th>Song &amp; Artist</th>' . $cat_col . '<th data-dir="desc">Votes</th><th data-dir="desc">Plays</th><th>Chart</th></tr></thead>';
         echo '<tbody id="bh-results-body">';
-        self::results_rows_html($rows);
+        self::results_rows_html($rows, $all ? $cats : null);
         echo '</tbody></table></div>';
 
         $rest  = esc_url_raw(rest_url('bh/v1/admin/live'));
         $nonce = wp_create_nonce('wp_rest');
+        $cat_param = $all ? 'all' : $cat;
 
         echo "<style>
         .bh-live-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#1DB954;margin-left:8px;vertical-align:middle;animation:bh-pulse 1.6s infinite;}
@@ -340,7 +383,7 @@ class BH_Admin {
 
         echo "<script>
         (function(){
-            const REST='" . esc_js($rest) . "', NONCE='" . esc_js($nonce) . "', CID='" . (int) $cid . "', CAT='" . esc_js($cat) . "';
+            const REST='" . esc_js($rest) . "', NONCE='" . esc_js($nonce) . "', CID='" . (int) $cid . "', CAT='" . esc_js($cat_param) . "', SHOW_CAT=" . ($all ? 'true' : 'false') . ";
             const dot=document.getElementById('bh-live-dot');
             const cb=document.getElementById('bh-autorefresh');
             const updatedAt=document.getElementById('bh-updated-at');
@@ -350,11 +393,14 @@ class BH_Admin {
 
             function renderRows(tracks){
                 const tb=document.getElementById('bh-results-body');
-                if(!tracks.length){tb.innerHTML='<tr><td colspan=\"4\">No votes yet.</td></tr>';return;}
+                const cols = SHOW_CAT ? 5 : 4;
+                if(!tracks.length){tb.innerHTML='<tr><td colspan=\"'+cols+'\">No votes yet.</td></tr>';return;}
                 const top=Math.max(1,...tracks.map(t=>t.votes));
                 tb.innerHTML=tracks.map(t=>{
                     const pct=((t.votes/top)*100).toFixed(1);
+                    const catCell = SHOW_CAT ? '<td>'+esc(t.category||'—')+'</td>' : '';
                     return '<tr><td><strong>'+esc(t.title)+'</strong><br><small>'+esc(t.artist)+'</small></td>'
+                        +catCell
                         +'<td>'+t.votes+'</td><td>'+t.plays+'</td>'
                         +'<td><div style=\"background:#e0e0e0;width:100%;height:20px;border-radius:3px;\">'
                         +'<div style=\"background:#1DB954;width:'+pct+'%;height:100%;border-radius:3px;\"></div></div></td></tr>';
@@ -388,8 +434,10 @@ class BH_Admin {
             start();
 
             // Existing click-to-sort still works on whatever the table currently shows.
+            // Column indices shift by one when the Category column is present.
+            const voteCol = SHOW_CAT ? 2 : 1, playCol = SHOW_CAT ? 3 : 2;
             document.querySelectorAll('#bh-results-table th').forEach((h,i)=>{
-                if(i!==1&&i!==2)return; h.style.cursor='pointer';
+                if(i!==voteCol&&i!==playCol)return; h.style.cursor='pointer';
                 h.addEventListener('click',()=>{
                     const tb=h.closest('table').querySelector('tbody');
                     const rows=Array.from(tb.querySelectorAll('tr'));
@@ -407,8 +455,13 @@ class BH_Admin {
         return '';
     }
 
-    private static function results_rows_html($rows) {
-        if (empty($rows)) { echo '<tr><td colspan="4">No votes yet.</td></tr>'; return; }
+    private static function results_rows_html($rows, $cats = null) {
+        $colspan = $cats ? 5 : 4;
+        if (empty($rows)) { echo '<tr><td colspan="' . $colspan . '">No votes yet.</td></tr>'; return; }
+
+        $cat_names = [];
+        if ($cats) foreach ($cats as $c) $cat_names[$c['slug']] = $c['name'];
+
         $max = max(1, (int) $rows[0]->votes);
         foreach ($rows as $r) {
             $p = get_post($r->submission_id);
@@ -417,10 +470,18 @@ class BH_Admin {
             $plays = (int) get_post_meta($p->ID, '_bh_play_count', true);
             $pct   = ($votes / $max) * 100;
 
+            $cat_cell = '';
+            if ($cats) {
+                $slug = isset($r->category) ? $r->category : '';
+                $name = $slug === '' ? '—' : ($cat_names[$slug] ?? $slug);
+                $cat_cell = '<td>' . esc_html($name) . '</td>';
+            }
+
             // Every dynamic value escaped on output (defends against a crafted
             // title/artist becoming stored XSS in the dashboard).
             echo '<tr>'
                . '<td><strong>' . esc_html($p->post_title) . '</strong><br><small>' . esc_html(BH_Helpers::artist_for($p)) . '</small></td>'
+               . $cat_cell
                . '<td>' . $votes . '</td><td>' . $plays . '</td>'
                . '<td><div style="background:#e0e0e0;width:100%;height:20px;border-radius:3px;">'
                . '<div style="background:#1DB954;width:' . esc_attr($pct) . '%;height:100%;border-radius:3px;"></div></div></td>'

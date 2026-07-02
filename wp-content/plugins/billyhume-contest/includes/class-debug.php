@@ -33,6 +33,11 @@ class BH_Debug {
     }
 
     public static function add_menu() {
+        // No point showing a menu item whose every action is already
+        // blocked by is_locked() — that's just clutter on a live site.
+        // Direct navigation to the page (if bookmarked) still hits the
+        // same lock via handle() and render()'s own checks.
+        if (self::is_locked()) return;
         add_submenu_page(
             BH_PostTypes::MENU_PARENT,
             'BH Debug Tools', '🛠 Debug Tools', 'manage_options', 'bh-debug',

@@ -257,6 +257,11 @@
     width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto;
     display: flex; flex-direction: column; gap: 14px; position: relative; box-sizing: border-box;
 }
+/* Results has more to show per row (rank, song, category badge, votes) —
+   the shared 400px form-modal width reads cramped once that badge shows
+   up, especially with the "All" combined view. Auth/submit stay narrow;
+   they're just forms. */
+.bh-results-modal .bh-modal-content { max-width: 560px; }
 .bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
 .bh-close { position: absolute; top: 16px; right: 20px; font-size: 22px; cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
 .bh-close:hover { color: var(--bh-text); }
@@ -290,11 +295,22 @@
 
 /* ---------------- Results list ---------------- */
 .bh-results-list { list-style: none; margin: 0; padding: 0; }
-.bh-results-list li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--bh-border); }
+.bh-results-list li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--bh-border); flex-wrap: wrap; }
 .bh-results-list li:last-child { border-bottom: none; }
 .bh-results-rank { font-family: var(--bh-font-display); font-weight: 700; color: var(--bh-accent); width: 32px; flex: 0 0 auto; font-size: 16px; text-align: center; }
 .bh-results-top { background: linear-gradient(90deg, rgba(245,166,35,0.10), transparent); border-radius: 8px; padding-left: 8px; margin-left: -8px; }
 .bh-results-top .bh-results-rank { font-size: 20px; }
+.bh-results-cat {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--bh-surface-2);
+    color: var(--bh-cat-color, var(--bh-text-dim));
+    border: 1px solid var(--bh-cat-color, var(--bh-border));
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
 .bh-results-meta { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
 .bh-results-song { font-family: var(--bh-font-display); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bh-results-artist { color: var(--bh-text-dim); font-size: 12px; }
