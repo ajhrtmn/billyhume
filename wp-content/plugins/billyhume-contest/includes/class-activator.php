@@ -5,8 +5,9 @@ class BH_Activator {
     const DB_VERSION = '1.3';
 
     public static function activate() {
-        self::create_or_update_schema();
-        update_option('bh_db_version', self::DB_VERSION);
+        if (self::create_or_update_schema()) {
+            update_option('bh_db_version', self::DB_VERSION);
+        }
         flush_rewrite_rules();
     }
 
@@ -14,12 +15,26 @@ class BH_Activator {
     // than only on activation — AJ's workflow is replacing plugin files
     // directly over FTP without deactivating/reactivating, so a schema
     // change can't rely on the activation hook firing again.
+    //
+    // Only persists bh_db_version if the migration actually succeeded
+    // (checked via $wpdb->last_error at each step) — marking it "done"
+    // unconditionally would mean a migration that fails partway through
+    // a flaky/cold database connection gets silently recorded as
+    // complete and never retried, leaving the schema stuck half-updated
+    // with nothing to surface that until something downstream breaks on
+    // a missing column or table much later.
     public static function maybe_upgrade() {
         if (version_compare(get_option('bh_db_version', '0'), self::DB_VERSION, '>=')) return;
-        self::create_or_update_schema();
-        update_option('bh_db_version', self::DB_VERSION);
+        if (self::create_or_update_schema()) {
+            update_option('bh_db_version', self::DB_VERSION);
+        }
     }
 
+    // Returns true only if every step here actually succeeded — see the
+    // note on maybe_upgrade() above for why this matters. $wpdb never
+    // throws on a failed query; it returns false/null and records the
+    // problem in $wpdb->last_error, so that's what's checked at each
+    // step rather than assuming success.
     private static function create_or_update_schema() {
         global $wpdb;
         $table   = $wpdb->prefix . 'bh_votes';
@@ -43,7 +58,15 @@ class BH_Activator {
         ) $charset;";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $wpdb->last_error = '';
         dbDelta($sql); // reliably adds the missing `category` column on upgrade
+        if ($wpdb->last_error !== '') return false;
+
+        // Confirm the table is actually queryable before going any
+        // further — dbDelta can report no error while still leaving the
+        // table missing/inaccessible if the connection dropped partway
+        // through on a flaky database.
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) return false;
 
         // dbDelta doesn't reliably rewrite an existing UNIQUE KEY's column
         // list, so the old 3-column key (if present from before category
@@ -53,12 +76,16 @@ class BH_Activator {
              WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = 'uniq_user_track' AND COLUMN_NAME = 'submission_id' AND SEQ_IN_INDEX = 3",
             DB_NAME, $table
         ));
+        if ($wpdb->last_error !== '') return false;
+
         if ($exists) {
             $wpdb->query("ALTER TABLE $table DROP INDEX uniq_user_track");
+            if ($wpdb->last_error !== '') return false;
             $wpdb->query("ALTER TABLE $table ADD UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id)");
+            if ($wpdb->last_error !== '') return false;
         }
 
-        self::create_or_update_profiles_table($charset);
+        return self::create_or_update_profiles_table($charset);
     }
 
     // One row per wp_users.ID — real name, platform handles, and a
@@ -85,6 +112,10 @@ class BH_Activator {
         ) $charset;";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $wpdb->last_error = '';
         dbDelta($sql);
+        if ($wpdb->last_error !== '') return false;
+
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 }

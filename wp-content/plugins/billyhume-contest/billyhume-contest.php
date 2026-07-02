@@ -2,12 +2,12 @@
 /**
  * Plugin Name: BillyHume Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     1.14.1
+ * Version:     1.14.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
-define('BH_VER',        '1.14.1');
+define('BH_VER',        '1.14.2');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
