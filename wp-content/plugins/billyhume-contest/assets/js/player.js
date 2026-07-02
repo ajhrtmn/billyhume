@@ -1,11 +1,16 @@
 const D = window.BHData || {};
 
 // One color per category, assigned by order (not hashed) so it stays
-// stable as long as the admin doesn't reorder the category list. First
-// color intentionally matches --bh-accent, so a contest with zero or one
-// category (tabs hidden entirely) looks pixel-identical to before this
-// feature existed.
-const CAT_COLORS = ['#FF5A36', '#2DD4BF', '#A78BFA', '#F472B6', '#38BDF8', '#A3E635', '#FBBF24', '#FB7185'];
+// stable as long as the admin doesn't reorder the category list. Each
+// slot resolves to a --bh-cat-N custom property set by BH_Settings (see
+// class-settings.php) — the actual hex values live in the Category
+// Colors panel on the Settings & Style admin page, not here. The literal
+// hexes below are only a fallback for the rare case that property isn't
+// defined (e.g. this script loaded outside the plugin's own CSS).
+const CAT_COLORS = [
+    'var(--bh-cat-1, #FF5A36)', 'var(--bh-cat-2, #2DD4BF)', 'var(--bh-cat-3, #A78BFA)', 'var(--bh-cat-4, #F472B6)',
+    'var(--bh-cat-5, #38BDF8)', 'var(--bh-cat-6, #A3E635)', 'var(--bh-cat-7, #FBBF24)', 'var(--bh-cat-8, #FB7185)',
+];
 
 class BHPlayer {
     // root: the specific .bh-player-root element for THIS instance. Every
@@ -18,6 +23,7 @@ class BHPlayer {
         this.nonce = D.nonce || '';
         this.loggedIn = !!D.loggedIn;
         this.maxBytes = D.maxBytes || 20971520;
+        this.brand = D.brand || { part1: 'Billy', part2: 'Hume' };
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
 
         this.tracks = [];
@@ -88,7 +94,7 @@ class BHPlayer {
         this.root.innerHTML = `
             <div class="bh-container">
                 <div class="bh-header">
-                    <div class="bh-brand">Billy<span>Hume</span></div>
+                    <div class="bh-brand">${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span></div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
@@ -126,6 +132,30 @@ class BHPlayer {
                     <input type="text" class="bh-user" placeholder="Username" autocomplete="username">
                     <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
                     <input type="email" class="bh-email" placeholder="Email (sign up only)" style="display:none;" autocomplete="email">
+                    <div class="bh-reg-extra" style="display:none;">
+                        <small>Optional — helps us credit you if you ever submit a track. Skip anything you'd rather not share.</small>
+                        <div class="bh-field-row">
+                            <input type="text" class="bh-reg-realname" placeholder="Real name">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-realname-pub"> public</label>
+                        </div>
+                        <div class="bh-field-row">
+                            <input type="text" class="bh-reg-discord" placeholder="Discord username">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-discord-pub"> public</label>
+                        </div>
+                        <div class="bh-field-row">
+                            <input type="text" class="bh-reg-twitch" placeholder="Twitch username">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-twitch-pub"> public</label>
+                        </div>
+                        <div class="bh-field-row">
+                            <input type="text" class="bh-reg-youtube" placeholder="YouTube channel">
+                            <label class="bh-pub-toggle"><input type="checkbox" class="bh-reg-youtube-pub"> public</label>
+                        </div>
+                        <select class="bh-reg-platform">
+                            <option value="">Where do you usually watch?</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="twitch">Twitch</option>
+                        </select>
+                    </div>
                     <input type="text" class="bh-website bh-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
                     <button class="bh-auth-submit bh-btn bh-btn-primary">Continue</button>
                     <p><a href="#" class="bh-toggle-auth">Need an account? Sign up</a></p>
@@ -137,6 +167,28 @@ class BHPlayer {
                     <input type="text" class="bh-sub-title" placeholder="Song title">
                     <input type="text" class="bh-sub-artist" placeholder="Artist name">
                     <textarea class="bh-sub-note" placeholder="Note to admins (optional)" rows="3"></textarea>
+                    <small class="bh-sub-fan-note">We need your real name and at least one way to reach you, so we can credit you properly.</small>
+                    <div class="bh-field-row">
+                        <input type="text" class="bh-sub-realname" placeholder="Real name">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-realname-pub"> public</label>
+                    </div>
+                    <div class="bh-field-row">
+                        <input type="text" class="bh-sub-discord" placeholder="Discord username">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-discord-pub"> public</label>
+                    </div>
+                    <div class="bh-field-row">
+                        <input type="text" class="bh-sub-twitch" placeholder="Twitch username">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-twitch-pub"> public</label>
+                    </div>
+                    <div class="bh-field-row">
+                        <input type="text" class="bh-sub-youtube" placeholder="YouTube channel">
+                        <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-youtube-pub"> public</label>
+                    </div>
+                    <select class="bh-sub-platform">
+                        <option value="">Where do you usually watch?</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="twitch">Twitch</option>
+                    </select>
                     <label class="bh-file-label">
                         <span class="bh-file-label-text">Choose an audio file…</span>
                         <input type="file" class="bh-sub-file bh-file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
@@ -167,7 +219,7 @@ class BHPlayer {
 
         this.q('.bh-login-btn').onclick   = openAuth;
         this.q('.bh-logout-btn').onclick  = e => { e.preventDefault(); this.logout(); };
-        this.q('.bh-submit-btn').onclick  = () => show('submit');
+        this.q('.bh-submit-btn').onclick  = () => { show('submit'); this.prefillSubmitProfile(); };
         this.q('.bh-results-btn').onclick = () => this.loadResults();
         this.q('.bh-auth-submit').onclick = () => this.auth();
         this.q('.bh-upload-btn').onclick  = () => this.upload();
@@ -177,6 +229,9 @@ class BHPlayer {
             const f = e.target.files[0];
             this.q('.bh-file-label-text').textContent = f ? f.name : 'Choose an audio file…';
         });
+
+        this.enhanceSelect(this.q('.bh-reg-platform'));
+        this.enhanceSelect(this.q('.bh-sub-platform'));
 
         // Close via X or backdrop click.
         this.qa('.bh-modal').forEach(m => {
@@ -215,7 +270,97 @@ class BHPlayer {
         this.isLogin = isLogin;
         this.q('.bh-auth-title').innerText = isLogin ? 'Log In' : 'Sign Up';
         this.q('.bh-email').style.display = isLogin ? 'none' : 'block';
+        this.q('.bh-reg-extra').style.display = isLogin ? 'none' : 'flex';
         this.q('.bh-toggle-auth').innerText = isLogin ? 'Need an account? Sign up' : 'Have an account? Log in';
+    }
+
+    // Shared by the sign-up form and the submit form — appends whichever
+    // profile fields have a value, plus their public/private checkbox, to
+    // an outgoing FormData using the given field prefix ('reg' or 'sub').
+    appendProfileFields(fd, prefix) {
+        const map = {
+            real_name: 'realname', discord_name: 'discord',
+            twitch_name: 'twitch', youtube_name: 'youtube',
+        };
+        for (const [serverKey, cls] of Object.entries(map)) {
+            const val = this.q(`.bh-${prefix}-${cls}`).value.trim();
+            if (val) {
+                fd.append(serverKey, val);
+                fd.append(`${serverKey}_public`, this.q(`.bh-${prefix}-${cls}-pub`).checked ? '1' : '0');
+            }
+        }
+        const platform = this.q(`.bh-${prefix}-platform`).value;
+        if (platform) fd.append('typical_platform', platform);
+    }
+
+    // Replaces a native <select>'s on-page presentation with a themed
+    // trigger + option list, while leaving the real <select> in the DOM
+    // as the actual source of truth (just visually hidden). Every other
+    // place in this file that reads `.value` or listens for 'change' on
+    // one of these selects keeps working exactly as before — this only
+    // changes what's drawn, not how the value is stored. Reusable for any
+    // future <select> the plugin adds, not just the two current ones.
+    enhanceSelect(select) {
+        if (!select || select.dataset.enhanced) return;
+        select.dataset.enhanced = '1';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'bh-select-wrap';
+        select.parentNode.insertBefore(wrap, select);
+        wrap.appendChild(select);
+        select.classList.add('bh-select-native');
+        select.tabIndex = -1; // the trigger button is what actually takes focus/tabbing
+
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'bh-select-trigger';
+        const label = document.createElement('span');
+        trigger.appendChild(label);
+        trigger.insertAdjacentHTML('beforeend',
+            '<svg class="bh-select-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>');
+        wrap.appendChild(trigger);
+
+        const menu = document.createElement('div');
+        menu.className = 'bh-select-menu';
+        wrap.appendChild(menu);
+
+        const syncLabel = () => {
+            const opt = select.options[select.selectedIndex];
+            label.textContent = opt ? opt.text : '';
+        };
+        const renderOptions = () => {
+            menu.innerHTML = '';
+            Array.from(select.options).forEach(opt => {
+                const item = document.createElement('div');
+                item.className = 'bh-select-option' + (opt.selected ? ' selected' : '');
+                item.textContent = opt.text;
+                item.onclick = () => {
+                    select.value = opt.value;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    syncLabel();
+                    renderOptions();
+                    wrap.classList.remove('open');
+                };
+                menu.appendChild(item);
+            });
+        };
+
+        trigger.onclick = (e) => {
+            e.stopPropagation();
+            const willOpen = !wrap.classList.contains('open');
+            document.querySelectorAll('.bh-select-wrap.open').forEach(w => w.classList.remove('open'));
+            if (willOpen) { renderOptions(); wrap.classList.add('open'); }
+        };
+        document.addEventListener('click', () => wrap.classList.remove('open'));
+
+        // Exposed so code elsewhere that sets select.value directly
+        // (bypassing the trigger, e.g. prefillSubmitProfile) can ask the
+        // visible label to catch up — a plain .value= write has no event
+        // for this component to observe on its own.
+        select.bhResync = () => { syncLabel(); renderOptions(); };
+
+        syncLabel();
+        renderOptions();
     }
 
     /* ---------- auth ---------- */
@@ -227,6 +372,7 @@ class BHPlayer {
         if (!this.isLogin) {
             fd.append('email', this.q('.bh-email').value.trim());
             fd.append('website', this.q('.bh-website').value); // honeypot
+            this.appendProfileFields(fd, 'reg');
         }
 
         btn.disabled = true;
@@ -261,6 +407,25 @@ class BHPlayer {
     }
 
     /* ---------- submission ---------- */
+    // Pulls whatever the person already gave us at sign-up so they don't
+    // have to retype it here — only empty fields stay editable-but-blank.
+    async prefillSubmitProfile() {
+        const { ok, body } = await this.req('profile');
+        if (!ok || !body.profile) return;
+        const p = body.profile;
+        const map = { real_name: 'realname', discord_name: 'discord', twitch_name: 'twitch', youtube_name: 'youtube' };
+        for (const [serverKey, cls] of Object.entries(map)) {
+            const input = this.q(`.bh-sub-${cls}`);
+            if (p[serverKey] && !input.value) input.value = p[serverKey];
+            this.q(`.bh-sub-${cls}-pub`).checked = !!p[`${serverKey}_public`];
+        }
+        if (p.typical_platform) {
+            const sel = this.q('.bh-sub-platform');
+            sel.value = p.typical_platform;
+            if (sel.bhResync) sel.bhResync();
+        }
+    }
+
     async upload() {
         const file = this.q('.bh-sub-file').files[0];
         const title = this.q('.bh-sub-title').value.trim();
@@ -276,11 +441,13 @@ class BHPlayer {
 
         const fd = new FormData();
         fd.append('title', title); fd.append('artist', artist); fd.append('note', note); fd.append('audio', file);
+        this.appendProfileFields(fd, 'sub');
 
         const { ok, body } = await this.req('submit', { method: 'POST', body: fd });
         if (ok) {
             this.q('.bh-submit-modal').style.display = 'none';
-            this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file').forEach(el => el.value = '');
+            this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube')
+                .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             this.toast('Track submitted! It will appear once an admin approves it.');
         } else {

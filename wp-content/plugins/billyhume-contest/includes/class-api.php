@@ -179,6 +179,22 @@ class BH_API {
         if (!$cid) return self::err('no_contest', 'No contest is accepting submissions right now.', 403);
         if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
 
+        // Fold in whatever profile fields rode along with this submission —
+        // registration may have already captured some of these; only what's
+        // present in THIS request gets written (see BH_Profiles::save).
+        $profile_fields = BH_Profiles::from_request($req);
+        if ($profile_fields) BH_Profiles::save($uid, $profile_fields);
+
+        $missing = BH_Profiles::missing_for_submission($uid);
+        if ($missing) {
+            return self::err(
+                'profile_incomplete',
+                'Please add your real name and at least one way to reach you (Discord, Twitch, or YouTube) before submitting.',
+                400,
+                ['missing' => $missing]
+            );
+        }
+
         $f = $req->get_file_params();
         if (empty($f['audio']['tmp_name'])) return self::err('file', 'Please attach an audio file.', 400);
         if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);

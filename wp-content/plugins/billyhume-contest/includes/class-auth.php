@@ -30,10 +30,14 @@ class BH_Auth {
 
     public static function register_routes() {
         $open = ['permission_callback' => '__return_true'];
+        $auth = ['permission_callback' => 'is_user_logged_in'];
         register_rest_route('bh/v1', '/session',  ['methods' => 'GET',  'callback' => [self::class, 'session']]  + $open);
         register_rest_route('bh/v1', '/login',    ['methods' => 'POST', 'callback' => [self::class, 'login']]    + $open);
         register_rest_route('bh/v1', '/register', ['methods' => 'POST', 'callback' => [self::class, 'register']] + $open);
         register_rest_route('bh/v1', '/logout',   ['methods' => 'POST', 'callback' => [self::class, 'logout']]   + $open);
+        // Lets the submit form pre-fill whatever profile data registration
+        // already captured, so a returning submitter isn't asked twice.
+        register_rest_route('bh/v1', '/profile',  ['methods' => 'GET',  'callback' => [self::class, 'profile']]  + $auth);
     }
 
     private static function ip() {
@@ -94,9 +98,18 @@ class BH_Auth {
             return new WP_Error('reg_failed', 'Could not create the account. Please try again.', ['status' => 400]);
         }
 
+        // All optional at signup — a pure voter never has to fill these.
+        // Anything left blank here can still be collected at submit time.
+        $profile_fields = BH_Profiles::from_request($req);
+        if ($profile_fields) BH_Profiles::save($id, $profile_fields);
+
         wp_set_current_user($id);
         wp_set_auth_cookie($id, true, is_ssl());
         return new WP_REST_Response(['success' => true], 200);
+    }
+
+    public static function profile() {
+        return new WP_REST_Response(['success' => true, 'profile' => BH_Profiles::get(get_current_user_id())], 200);
     }
 
     public static function logout() {

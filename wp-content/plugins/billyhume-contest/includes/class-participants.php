@@ -125,6 +125,38 @@ class BH_Participants {
         echo '</tbody></table>';
     }
 
+    // Real name / platform handles / consent flags, admin-only. Never
+    // exposed anywhere public — see BH_Profiles for that guarantee.
+    private static function render_profile($uid) {
+        $p = BH_Profiles::get($uid);
+        $rows = [
+            ['Real name', $p['real_name'], $p['real_name_public']],
+            ['Discord',   $p['discord_name'], $p['discord_public']],
+            ['Twitch',    $p['twitch_name'], $p['twitch_public']],
+            ['YouTube',   $p['youtube_name'], $p['youtube_public']],
+        ];
+        $rows = array_filter($rows, fn($r) => $r[1] !== '');
+
+        echo '<h3>Fan Profile</h3>';
+        if (!$rows && !$p['typical_platform']) {
+            echo '<p><em>No profile data collected yet.</em></p>';
+            return;
+        }
+        if (!$rows) {
+            echo '<p><em>No names on file yet.</em></p>';
+        } else {
+            echo '<table class="wp-list-table widefat striped"><thead><tr><th>Field</th><th>Value</th><th>Consent to share</th></tr></thead><tbody>';
+            foreach ($rows as [$label, $value, $public]) {
+                echo '<tr><td>' . esc_html($label) . '</td><td>' . esc_html($value) . '</td>'
+                   . '<td>' . ($public ? '&#10003; OK to share' : 'Keep private') . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        }
+        if ($p['typical_platform']) {
+            echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
+        }
+    }
+
     private static function render_detail($uid) {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
@@ -133,6 +165,8 @@ class BH_Participants {
         echo '<h2>' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
            . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . '">Edit WordPress profile</a></p>';
+
+        self::render_profile($uid);
 
         // Submissions
         $subs = get_posts(['post_type' => 'bh_submission', 'author' => $uid, 'post_status' => 'any', 'posts_per_page' => -1]);

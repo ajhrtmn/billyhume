@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Activator {
-    const DB_VERSION = '1.2';
+    const DB_VERSION = '1.3';
 
     public static function activate() {
         self::create_or_update_schema();
@@ -57,5 +57,34 @@ class BH_Activator {
             $wpdb->query("ALTER TABLE $table DROP INDEX uniq_user_track");
             $wpdb->query("ALTER TABLE $table ADD UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id)");
         }
+
+        self::create_or_update_profiles_table($charset);
+    }
+
+    // One row per wp_users.ID — real name, platform handles, and a
+    // per-field "OK to share publicly" consent flag. See BH_Profiles for
+    // how this is read and written; this table is never queried directly
+    // outside that class.
+    private static function create_or_update_profiles_table($charset) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bh_participant_profiles';
+
+        $sql = "CREATE TABLE $table (
+            user_id bigint(20) unsigned NOT NULL,
+            real_name varchar(190) NOT NULL DEFAULT '',
+            discord_name varchar(190) NOT NULL DEFAULT '',
+            twitch_name varchar(190) NOT NULL DEFAULT '',
+            youtube_name varchar(190) NOT NULL DEFAULT '',
+            typical_platform varchar(20) NOT NULL DEFAULT '',
+            real_name_public tinyint(1) unsigned NOT NULL DEFAULT 0,
+            discord_public tinyint(1) unsigned NOT NULL DEFAULT 0,
+            twitch_public tinyint(1) unsigned NOT NULL DEFAULT 0,
+            youtube_public tinyint(1) unsigned NOT NULL DEFAULT 0,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (user_id)
+        ) $charset;";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        dbDelta($sql);
     }
 }
