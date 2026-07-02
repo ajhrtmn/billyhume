@@ -84,6 +84,8 @@ class BH_Debug {
             echo '<li>Submissions: ' . BH_Helpers::submission_count($cid) . ' published, ' . BH_Helpers::submission_count($cid, 'pending') . ' pending</li>';
             echo '<li>Votes cast: ' . BH_Helpers::vote_count($cid) . '</li>';
             echo '<li>Shortcode: <code>' . esc_html(BH_Helpers::shortcode_for($cid)) . '</code></li>';
+            $cats = BH_Helpers::categories($cid);
+            echo '<li>Categories: ' . ($cats ? esc_html(implode(', ', wp_list_pluck($cats, 'name'))) : '<em>none — single ordinary vote</em>') . '</li>';
         }
         echo '</ul>';
 
@@ -105,6 +107,7 @@ class BH_Debug {
         echo '<h2>1. Contest</h2><p>Always creates a brand-new test contest with voting open right now — build as many as you need to test multiple contests running side by side.</p>';
         $btn('seed_contest', 'Create a new open test contest', '', '', false);
         $btn('close_contest', 'Close voting on the target contest');
+        $btn('seed_categories', 'Add 3 sample categories to target');
 
         echo '<h2>2. Submissions</h2><p>Adds fake published tracks to the <strong>target contest</strong> above, with fake artists/titles. No real audio file is attached — the player will list them and let you vote, but play will show "no audio file" (expected).</p>';
         $disabled = $cid ? '' : ' disabled';
@@ -161,6 +164,7 @@ class BH_Debug {
         switch ($action) {
             case 'seed_contest':      $newId = self::seed_contest(); self::redirect($newId, 'Created a new test contest (ID ' . $newId . '), voting open now.'); break;
             case 'close_contest':     $msg = self::close_contest($cid); break;
+            case 'seed_categories':   $msg = self::seed_categories($cid); break;
             case 'seed_submissions':  $msg = self::seed_submissions($cid, max(1, min(30, (int) ($_POST['count'] ?? 8)))); break;
             case 'seed_votes':        $msg = self::seed_votes($cid); break;
             case 'publish_results':   $msg = self::set_results($cid, true); break;
@@ -198,6 +202,13 @@ class BH_Debug {
         return 'Voting closed on "' . get_the_title($cid) . '".';
     }
 
+    private static function seed_categories($cid) {
+        if (!$cid) return 'No target contest selected.';
+        $cats = BH_Helpers::parse_categories_input("Best Vocals\nBest Original Song\nFan Favorite");
+        update_post_meta($cid, '_bh_categories', wp_json_encode($cats));
+        return 'Added 3 sample categories to "' . get_the_title($cid) . '". Existing votes on this contest count as "general" votes and won\'t show under the new categories.';
+    }
+
     private static function seed_submissions($cid, $count) {
         if (!$cid) return 'No target contest selected.';
 
@@ -231,6 +242,9 @@ class BH_Debug {
         $tracks = get_posts(['post_type' => 'bh_submission', 'post_status' => 'publish', 'meta_key' => '_bh_contest_id', 'meta_value' => $cid, 'posts_per_page' => -1, 'fields' => 'ids']);
         if (!$tracks) return 'No submissions to vote on yet in "' . get_the_title($cid) . '" — seed submissions first.';
 
+        $cats = BH_Helpers::categories($cid);
+        $cat_slugs = $cats ? wp_list_pluck($cats, 'slug') : [''];
+
         global $wpdb;
         $t = BH_Helpers::table();
         $voters = wp_rand(15, 30);
@@ -239,18 +253,25 @@ class BH_Debug {
         for ($i = 0; $i < $voters; $i++) {
             $uid = self::get_or_create_test_user('voter');
             $limit = BH_Helpers::vote_limit($uid, $cid); // some test users will "have submitted" if reused
-            $picks = (array) array_rand(array_flip($tracks), min($limit, count($tracks)));
-            foreach ($picks as $track_id) {
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM $t WHERE user_id=%d AND contest_id=%d AND submission_id=%d", $uid, $cid, $track_id
-                ));
-                if (!$exists) {
-                    $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'submission_id' => $track_id], ['%d', '%d', '%d']);
-                    $cast++;
+
+            // Each category gets its own independent picks — a track can
+            // win in more than one category, same as a real voter choosing
+            // different favorites per category.
+            foreach ($cat_slugs as $cat) {
+                $picks = (array) array_rand(array_flip($tracks), min($limit, count($tracks)));
+                foreach ($picks as $track_id) {
+                    $exists = $wpdb->get_var($wpdb->prepare(
+                        "SELECT id FROM $t WHERE user_id=%d AND contest_id=%d AND category=%s AND submission_id=%d", $uid, $cid, $cat, $track_id
+                    ));
+                    if (!$exists) {
+                        $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $track_id], ['%d', '%d', '%s', '%d']);
+                        $cast++;
+                    }
                 }
             }
         }
-        return "Cast $cast test votes from $voters fake voters on \"" . get_the_title($cid) . '".';
+        $cat_note = $cats ? ' across ' . count($cats) . ' categories' : '';
+        return "Cast $cast test votes from $voters fake voters$cat_note on \"" . get_the_title($cid) . '".';
     }
 
     private static function set_results($cid, $on) {

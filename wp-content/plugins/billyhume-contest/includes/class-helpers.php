@@ -103,6 +103,55 @@ class BH_Helpers {
         return self::contest_status($cid) === 'open';
     }
 
+    // Categories are stored on the contest as a simple JSON list — no new
+    // post type/taxonomy needed. Empty/absent = single implicit "general"
+    // category (slug ''), which is also what every vote cast before this
+    // feature existed already uses, so nothing needs migrating.
+    public static function categories($cid) {
+        $raw = get_post_meta($cid, '_bh_categories', true);
+        $list = $raw ? json_decode($raw, true) : [];
+        return is_array($list) ? $list : [];
+    }
+
+    // Only worth showing a switcher for 2+ categories — one category is
+    // the same as none, just with an unnecessary tab.
+    public static function has_multiple_categories($cid) {
+        return count(self::categories($cid)) >= 2;
+    }
+
+    // '' if the contest has no named categories, otherwise the first
+    // defined category — used as the default when a request doesn't
+    // specify one.
+    public static function default_category($cid) {
+        $cats = self::categories($cid);
+        return $cats ? $cats[0]['slug'] : '';
+    }
+
+    // A category value is valid if it's '' on a contest with no categories,
+    // or matches one of the contest's defined category slugs.
+    public static function is_valid_category($cid, $slug) {
+        $cats = self::categories($cid);
+        if (!$cats) return $slug === '';
+        foreach ($cats as $c) if ($c['slug'] === $slug) return true;
+        return false;
+    }
+
+    // Turns free-text (one category name per line) into a slug+name list,
+    // deduping slugs so two similarly-named categories don't collide.
+    public static function parse_categories_input($text) {
+        $out = [];
+        $seen = [];
+        foreach (preg_split('/[\r\n]+/', (string) $text) as $line) {
+            $name = trim($line);
+            if ($name === '') continue;
+            $slug = sanitize_title($name);
+            if (!$slug || isset($seen[$slug])) continue;
+            $seen[$slug] = true;
+            $out[] = ['slug' => $slug, 'name' => $name];
+        }
+        return $out;
+    }
+
     // Counts pending submissions too: submitting earns the bonus vote and
     // blocks a second entry the moment it is sent, before admin approval.
     public static function has_submitted($uid, $cid) {
@@ -119,15 +168,23 @@ class BH_Helpers {
         return !empty($q->posts);
     }
 
+    // Vote limit applies per category independently — submitting a track
+    // earns the bonus vote in every category, not just one. A contest can
+    // override the global base/bonus (see the Contest Rules metabox);
+    // leaving those fields blank falls back to the plugin-wide default.
     public static function vote_limit($uid, $cid) {
-        return BH_VOTE_BASE + (self::has_submitted($uid, $cid) ? BH_VOTE_BONUS : 0);
+        $base  = get_post_meta($cid, '_bh_vote_base', true);
+        $bonus = get_post_meta($cid, '_bh_vote_bonus', true);
+        $base  = ($base === '' || $base === false) ? BH_VOTE_BASE : max(0, (int) $base);
+        $bonus = ($bonus === '' || $bonus === false) ? BH_VOTE_BONUS : max(0, (int) $bonus);
+        return $base + (self::has_submitted($uid, $cid) ? $bonus : 0);
     }
 
-    public static function user_vote_count($uid, $cid) {
+    public static function user_vote_count($uid, $cid, $category = '') {
         global $wpdb;
         $t = self::table();
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d", $uid, $cid
+            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s", $uid, $cid, $category
         ));
     }
 
@@ -142,10 +199,22 @@ class BH_Helpers {
         ));
     }
 
-    public static function vote_count($cid) {
+    public static function vote_count($cid, $category = null) {
+        global $wpdb;
+        if ($category === null) {
+            return (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM " . self::table() . " WHERE contest_id = %d", $cid
+            ));
+        }
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM " . self::table() . " WHERE contest_id = %d AND category = %s", $cid, $category
+        ));
+    }
+
+    public static function user_total_votes($uid) {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM " . self::table() . " WHERE contest_id = %d", $cid
+            "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d", $uid
         ));
     }
 

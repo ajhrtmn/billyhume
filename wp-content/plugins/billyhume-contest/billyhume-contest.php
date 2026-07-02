@@ -15,16 +15,18 @@ define('BH_VOTE_BONUS', 1);                 // extra votes earned by submitting 
 define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'participants'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BH_Activator', 'activate']);
+add_action('plugins_loaded', ['BH_Activator', 'maybe_upgrade']);
 add_action('init',          ['BH_PostTypes', 'register']);
 add_action('init',          ['BH_Auth', 'init']);
 add_action('rest_api_init', ['BH_API', 'register_routes']);
 add_action('rest_api_init', ['BH_Auth', 'register_routes']);
 add_action('init',          ['BH_Admin', 'init']);
+add_action('init',          ['BH_Participants', 'init']);
 
 // Debug data-seeding tool: "Debug Tools" under Contests, visible to any
 // admin regardless of environment. The seeding/reset ACTIONS refuse to run

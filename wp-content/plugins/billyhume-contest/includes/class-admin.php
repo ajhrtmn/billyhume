@@ -29,6 +29,26 @@ class BH_Admin {
         // using — Contests/Submissions live under their own menu, and a
         // second unrelated "Posts" item just confuses that mental model.
         add_action('admin_menu', [self::class, 'hide_posts_menu'], 999);
+
+        // Voters register as ordinary subscriber accounts (that's what
+        // gives us name/email/history for free via WP's own user system),
+        // but a subscriber can still browse into wp-admin by default and
+        // see a near-empty dashboard, which is confusing for a site
+        // that's really just a voting page. Keep wp-admin for admins only.
+        add_action('admin_init', [self::class, 'restrict_dashboard_access']);
+        add_filter('show_admin_bar', [self::class, 'hide_admin_bar_for_voters']);
+    }
+
+    public static function restrict_dashboard_access() {
+        if (!apply_filters('bh_restrict_admin_access', true)) return;
+        if (wp_doing_ajax() || current_user_can('manage_options')) return;
+        wp_safe_redirect(home_url('/'));
+        exit;
+    }
+
+    public static function hide_admin_bar_for_voters($show) {
+        if (!apply_filters('bh_restrict_admin_access', true)) return $show;
+        return current_user_can('manage_options') ? $show : false;
     }
 
     public static function add_menus() {
@@ -247,8 +267,13 @@ class BH_Admin {
             return;
         }
 
-        // Contest picker — reloads the page with ?contest_id=X so every
-        // section below (stats, table, live poll) targets the same contest.
+        $cats = BH_Helpers::categories($cid);
+        $cat  = isset($_GET['bh_category']) ? sanitize_title($_GET['bh_category']) : '';
+        if (!BH_Helpers::is_valid_category($cid, $cat)) $cat = BH_Helpers::default_category($cid);
+
+        // Contest (and, if it has any, category) picker — reloads the page
+        // with ?contest_id=X&bh_category=Y so every section below (stats,
+        // table, live poll) targets the same combination.
         echo '<form method="get" style="margin-bottom:16px;">'
            . '<input type="hidden" name="post_type" value="bh_contest">'
            . '<input type="hidden" name="page" value="bh-results">'
@@ -257,21 +282,30 @@ class BH_Admin {
             echo '<option value="' . (int) $c->ID . '" ' . selected($cid, $c->ID, false) . '>'
                . esc_html($c->post_title) . ' — ' . esc_html(ucfirst(BH_Helpers::contest_status($c->ID))) . '</option>';
         }
-        echo '</select></label> <noscript><button class="button">Go</button></noscript></form>';
+        echo '</select></label>';
+        if ($cats) {
+            echo ' &nbsp; <label>Category: <select name="bh_category" onchange="this.form.submit()">';
+            foreach ($cats as $c) {
+                echo '<option value="' . esc_attr($c['slug']) . '" ' . selected($cat, $c['slug'], false) . '>' . esc_html($c['name']) . '</option>';
+            }
+            echo '</select></label>';
+        }
+        echo ' <noscript><button class="button">Go</button></noscript></form>';
 
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT submission_id, COUNT(id) votes FROM " . BH_Helpers::table() . "
-             WHERE contest_id = %d GROUP BY submission_id ORDER BY votes DESC",
-            $cid
+             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
+            $cid, $cat
         ));
 
         $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
-        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d", $cid));
+        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM " . BH_Helpers::table() . " WHERE contest_id = %d AND category = %s", $cid, $cat));
         $voting_open   = BH_Helpers::is_voting_open($cid);
         $published     = get_post_meta($cid, '_bh_results_published', true) === '1';
+        $cat_label     = $cats ? ' — category: <strong>' . esc_html(self::category_name($cats, $cat)) . '</strong>' : '';
 
-        echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong> — voting is currently <strong>' . ($voting_open ? 'open' : 'closed') . '</strong>. '
+        echo '<p><strong>' . esc_html(get_the_title($cid)) . '</strong>' . $cat_label . ' — voting is currently <strong>' . ($voting_open ? 'open' : 'closed') . '</strong>. '
            . 'This page is private to admins; the public results page for this contest is ' . ($published ? '<strong>currently published</strong>' : 'still <strong>hidden</strong>') . ' regardless of what you see here. '
            . 'Shortcode: <code>' . esc_html(BH_Helpers::shortcode_for($cid)) . '</code></p>';
 
@@ -306,7 +340,7 @@ class BH_Admin {
 
         echo "<script>
         (function(){
-            const REST='" . esc_js($rest) . "', NONCE='" . esc_js($nonce) . "', CID='" . (int) $cid . "';
+            const REST='" . esc_js($rest) . "', NONCE='" . esc_js($nonce) . "', CID='" . (int) $cid . "', CAT='" . esc_js($cat) . "';
             const dot=document.getElementById('bh-live-dot');
             const cb=document.getElementById('bh-autorefresh');
             const updatedAt=document.getElementById('bh-updated-at');
@@ -336,7 +370,7 @@ class BH_Admin {
 
             async function poll(){
                 try{
-                    const res=await fetch(REST+'?contest='+encodeURIComponent(CID),{headers:{'X-WP-Nonce':NONCE}});
+                    const res=await fetch(REST+'?contest='+encodeURIComponent(CID)+'&category='+encodeURIComponent(CAT),{headers:{'X-WP-Nonce':NONCE}});
                     if(!res.ok)return;
                     const body=await res.json();
                     renderRows(body.tracks||[]);
@@ -366,6 +400,11 @@ class BH_Admin {
             });
         })();
         </script>";
+    }
+
+    private static function category_name($cats, $slug) {
+        foreach ($cats as $c) if ($c['slug'] === $slug) return $c['name'];
+        return '';
     }
 
     private static function results_rows_html($rows) {
@@ -413,12 +452,27 @@ class BH_Admin {
             $start = self::dt_for_input(get_post_meta($post->ID, '_bh_start', true));
             $end   = self::dt_for_input(get_post_meta($post->ID, '_bh_end', true));
             $pub   = get_post_meta($post->ID, '_bh_results_published', true);
+            $base  = get_post_meta($post->ID, '_bh_vote_base', true);
+            $bonus = get_post_meta($post->ID, '_bh_vote_bonus', true);
 
             echo "<p>Voting Start: <input type='datetime-local' name='bh_start' value='" . esc_attr($start) . "'></p>";
             echo "<p>Voting End: &nbsp;&nbsp;<input type='datetime-local' name='bh_end' value='" . esc_attr($end) . "'></p>";
+            echo '<hr><p>Votes per category: '
+               . '<input type="number" name="bh_vote_base" min="0" max="20" style="width:56px;" value="' . esc_attr($base !== '' ? $base : BH_VOTE_BASE) . '"> base'
+               . ' + <input type="number" name="bh_vote_bonus" min="0" max="20" style="width:56px;" value="' . esc_attr($bonus !== '' ? $bonus : BH_VOTE_BONUS) . '"> bonus for submitting</p>';
+            echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default.</p>';
             echo '<hr><p><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
             echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
         }, 'bh_contest', 'side', 'default');
+
+        add_meta_box('bh_contest_categories', 'Voting Categories', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $cats = BH_Helpers::categories($post->ID);
+            $text = implode("\n", array_map(fn($c) => $c['name'], $cats));
+            echo '<p class="description">One category per line, e.g. "Best Vocals". Leave empty for a single, ordinary vote — this is optional.</p>';
+            echo '<textarea name="bh_categories" rows="5" style="width:100%;font-family:inherit;">' . esc_textarea($text) . '</textarea>';
+            echo '<p class="description">Voters get their normal 1 (or 2, if they submitted) vote in <em>each</em> category independently. All submissions are eligible in every category — there\'s no per-track assignment.</p>';
+        }, 'bh_contest', 'normal', 'default');
 
         add_meta_box('bh_contest_shortcode', 'Shortcode & Page', function ($post) {
             if ($post->post_status !== 'publish') {
@@ -441,6 +495,13 @@ class BH_Admin {
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');
+        if (isset($_POST['bh_vote_base']))  update_post_meta($post_id, '_bh_vote_base', max(0, (int) $_POST['bh_vote_base']));
+        if (isset($_POST['bh_vote_bonus'])) update_post_meta($post_id, '_bh_vote_bonus', max(0, (int) $_POST['bh_vote_bonus']));
+
+        if (isset($_POST['bh_categories'])) {
+            $cats = BH_Helpers::parse_categories_input(wp_unslash($_POST['bh_categories']));
+            update_post_meta($post_id, '_bh_categories', $cats ? wp_json_encode($cats) : '');
+        }
 
         self::maybe_create_contest_page($post_id);
     }

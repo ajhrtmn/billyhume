@@ -7,7 +7,10 @@ class BH_API {
         $auth   = ['permission_callback' => 'is_user_logged_in'];
         $admin  = ['permission_callback' => function () { return current_user_can('manage_options'); }];
         $idarg  = ['submission_id' => ['required' => true, 'sanitize_callback' => 'absint']];
-        $carg   = ['contest' => ['sanitize_callback' => 'sanitize_text_field']];
+        $carg   = [
+            'contest'  => ['sanitize_callback' => 'sanitize_text_field'],
+            'category' => ['sanitize_callback' => 'sanitize_title'],
+        ];
 
         register_rest_route('bh/v1', '/tracks',  ['methods' => 'GET',  'callback' => [self::class, 'tracks'],  'args' => ['page' => ['sanitize_callback' => 'absint']] + $carg] + $pub);
         register_rest_route('bh/v1', '/play',    ['methods' => 'POST', 'callback' => [self::class, 'play'],    'args' => $idarg] + $pub);
@@ -28,6 +31,8 @@ class BH_API {
         $cid  = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
 
+        $cats = BH_Helpers::categories($cid);
+
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
             'post_status'    => 'publish',
@@ -37,35 +42,44 @@ class BH_API {
             'meta_value'     => $cid,
         ]);
 
-        // Map of the current user's existing votes so the UI renders
-        // "Voted ✓" correctly on first load / refresh.
+        // Every category's vote state for the current user, fetched in one
+        // query and keyed as $mine[submission_id][category] — lets the
+        // front end switch between category tabs instantly with no extra
+        // round trip per tab.
         $mine = [];
         if (is_user_logged_in()) {
             global $wpdb;
-            $t   = BH_Helpers::table();
-            $ids = $wpdb->get_col($wpdb->prepare(
-                "SELECT submission_id FROM $t WHERE user_id = %d AND contest_id = %d",
+            $t    = BH_Helpers::table();
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT submission_id, category FROM $t WHERE user_id = %d AND contest_id = %d",
                 get_current_user_id(), $cid
             ));
-            $mine = array_flip(array_map('intval', $ids));
+            foreach ($rows as $r) $mine[(int) $r->submission_id][$r->category] = true;
         }
 
         $out = [];
         foreach ($q->posts as $p) {
+            $votes = [];
+            if ($cats) {
+                foreach ($cats as $c) $votes[$c['slug']] = isset($mine[$p->ID][$c['slug']]);
+            } else {
+                $votes[''] = isset($mine[$p->ID]['']);
+            }
             $out[] = [
                 'id'     => $p->ID,
                 'title'  => $p->post_title,
                 'artist' => BH_Helpers::artist_for($p),
                 'src'    => wp_get_attachment_url(get_post_meta($p->ID, '_bh_audio_id', true)),
-                'voted'  => isset($mine[$p->ID]),
+                'votes'  => $votes,
             ];
         }
         return self::ok([
-            'tracks'             => $out,
-            'total_pages'        => (int) $q->max_num_pages,
-            'contest_id'         => $cid,
-            'contest_title'      => get_the_title($cid),
-            'results_published'  => get_post_meta($cid, '_bh_results_published', true) === '1',
+            'tracks'            => $out,
+            'total_pages'       => (int) $q->max_num_pages,
+            'contest_id'        => $cid,
+            'contest_title'     => get_the_title($cid),
+            'categories'        => $cats,
+            'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
         ]);
     }
 
@@ -90,6 +104,12 @@ class BH_API {
             return self::err('closed', 'Voting is not open right now.', 403);
         }
 
+        $cat = (string) $req->get_param('category');
+        if ($cat === '' && $req->get_param('category') === null) $cat = BH_Helpers::default_category($cid);
+        if (!BH_Helpers::is_valid_category($cid, $cat)) {
+            return self::err('bad_category', 'That voting category does not exist.', 400);
+        }
+
         global $wpdb;
         $t     = BH_Helpers::table();
         $uid   = get_current_user_id();
@@ -104,8 +124,8 @@ class BH_API {
         }
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND submission_id = %d",
-            $uid, $cid, $sid
+            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d",
+            $uid, $cid, $cat, $sid
         ));
 
         // Toggle off.
@@ -113,7 +133,8 @@ class BH_API {
             $wpdb->delete($t, ['id' => $existing], ['%d']);
             return self::ok([
                 'action'     => 'removed',
-                'votes_left' => max(0, $limit - BH_Helpers::user_vote_count($uid, $cid)),
+                'category'   => $cat,
+                'votes_left' => max(0, $limit - BH_Helpers::user_vote_count($uid, $cid, $cat)),
                 'limit'      => $limit,
             ]);
         }
@@ -122,23 +143,24 @@ class BH_API {
         // can't both slip past the limit (InnoDB row/gap lock via FOR UPDATE).
         $wpdb->query('START TRANSACTION');
         $used = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d FOR UPDATE",
-            $uid, $cid
+            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s FOR UPDATE",
+            $uid, $cid, $cat
         ));
 
         if ($used >= $limit) {
             $wpdb->query('ROLLBACK');
             $msg = $limit === 1
-                ? 'You have used your vote. Submit a track to unlock a second, or tap your pick to switch.'
-                : 'You have used both of your votes. Tap one of your picks to free a vote, then choose again.';
+                ? 'You have used your vote in this category. Submit a track to unlock a second, or tap your pick to switch.'
+                : 'You have used both your votes in this category. Tap one of your picks to free a vote, then choose again.';
             return self::err('limit', $msg, 403, ['votes_left' => 0, 'limit' => $limit]);
         }
 
-        $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'submission_id' => $sid], ['%d', '%d', '%d']);
+        $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid], ['%d', '%d', '%s', '%d']);
         $wpdb->query('COMMIT');
 
         return self::ok([
             'action'     => 'added',
+            'category'   => $cat,
             'votes_left' => max(0, $limit - $used - 1),
             'limit'      => $limit,
         ]);
@@ -187,18 +209,36 @@ class BH_API {
         return self::ok();
     }
 
+    // Always returns a `categories` array — a contest with no named
+    // categories gets a single entry (slug '') so the client can treat
+    // both shapes uniformly and only render tabs when there's more than one.
     public static function results($req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid || get_post_meta($cid, '_bh_results_published', true) !== '1') {
             return self::err('hidden', 'Results have not been published yet.', 403);
         }
 
+        $cats = BH_Helpers::categories($cid);
+        if (!$cats) $cats = [['slug' => '', 'name' => '']];
+
+        $out = [];
+        foreach ($cats as $c) {
+            $out[] = [
+                'slug'    => $c['slug'],
+                'name'    => $c['name'],
+                'results' => self::category_results($cid, $c['slug']),
+            ];
+        }
+        return self::ok(['contest' => get_the_title($cid), 'categories' => $out]);
+    }
+
+    private static function category_results($cid, $category) {
         global $wpdb;
         $t    = BH_Helpers::table();
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT submission_id, COUNT(id) votes FROM $t
-             WHERE contest_id = %d GROUP BY submission_id ORDER BY votes DESC LIMIT 10",
-            $cid
+             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC LIMIT 10",
+            $cid, $category
         ));
 
         $out = [];
@@ -215,24 +255,27 @@ class BH_API {
                 'plays'  => (int) get_post_meta($p->ID, '_bh_play_count', true),
             ];
         }
-        return self::ok(['contest' => get_the_title($cid), 'results' => $out]);
+        return $out;
     }
 
-    // Admin-only: the true current tally for a SPECIFIC contest, live,
-    // regardless of whether results have been published. Includes vote
-    // velocity (last vote timestamp) and voter turnout so admins can gauge
-    // how a contest is going without tipping anything off publicly.
+    // Admin-only: the true current tally for a SPECIFIC contest + category,
+    // live, regardless of whether results have been published. Includes
+    // vote velocity (last vote timestamp) and voter turnout so admins can
+    // gauge how a contest is going without tipping anything off publicly.
     public static function admin_live($req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
+
+        $cat = $req->get_param('category');
+        $cat = ($cat === null || $cat === '') ? BH_Helpers::default_category($cid) : $cat;
 
         global $wpdb;
         $t = BH_Helpers::table();
 
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT submission_id, COUNT(id) votes FROM $t
-             WHERE contest_id = %d GROUP BY submission_id ORDER BY votes DESC",
-            $cid
+             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC",
+            $cid, $cat
         ));
 
         $out = [];
@@ -255,12 +298,14 @@ class BH_API {
         }
 
         $total_votes   = array_sum(wp_list_pluck($rows, 'votes'));
-        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM $t WHERE contest_id = %d", $cid));
-        $last_vote_at  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM $t WHERE contest_id = %d", $cid));
+        $unique_voters = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(DISTINCT user_id) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
+        $last_vote_at  = $wpdb->get_var($wpdb->prepare("SELECT MAX(created_at) FROM $t WHERE contest_id = %d AND category = %s", $cid, $cat));
 
         return self::ok([
             'contest_id'        => $cid,
             'contest'           => get_the_title($cid),
+            'category'          => $cat,
+            'categories'        => BH_Helpers::categories($cid),
             'voting_open'       => BH_Helpers::is_voting_open($cid),
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
             'total_votes'       => (int) $total_votes,

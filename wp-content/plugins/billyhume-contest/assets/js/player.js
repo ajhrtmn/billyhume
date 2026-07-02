@@ -1,5 +1,12 @@
 const D = window.BHData || {};
 
+// One color per category, assigned by order (not hashed) so it stays
+// stable as long as the admin doesn't reorder the category list. First
+// color intentionally matches --bh-accent, so a contest with zero or one
+// category (tabs hidden entirely) looks pixel-identical to before this
+// feature existed.
+const CAT_COLORS = ['#FF5A36', '#2DD4BF', '#A78BFA', '#F472B6', '#38BDF8', '#A3E635', '#FBBF24', '#FB7185'];
+
 class BHPlayer {
     // root: the specific .bh-player-root element for THIS instance. Every
     // DOM lookup below is scoped to root.querySelector(...), never the
@@ -14,6 +21,8 @@ class BHPlayer {
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
 
         this.tracks = [];
+        this.categories = [];
+        this.activeCategory = '';
         this.sound = null;
         this.playingIndex = -1;
         this.scrubbing = false; // true while dragging the scrubber
@@ -43,6 +52,11 @@ class BHPlayer {
     // no artwork needed, but the list still reads as visually varied.
     hue(id) { return (id * 47) % 360; }
 
+    catColor(slug) {
+        const i = this.categories.findIndex(c => c.slug === slug);
+        return CAT_COLORS[(i >= 0 ? i : 0) % CAT_COLORS.length];
+    }
+
     // One shared toast for the whole page — fine even with multiple player
     // instances, since only one action happens at a time.
     toast(msg, err = false) {
@@ -69,16 +83,6 @@ class BHPlayer {
         return { ok: res.ok, body };
     }
 
-    // After login/register/logout the auth cookie changed, so pull a fresh nonce.
-    // Shared across instances on the page (session is site-wide, not per-player).
-    async refreshSession() {
-        const { body } = await this.req('session');
-        if (body && typeof body.logged_in !== 'undefined') {
-            this.loggedIn = !!body.logged_in;
-            this.nonce = body.nonce || this.nonce;
-        }
-    }
-
     /* ---------- skeleton ---------- */
     renderSkeleton() {
         this.root.innerHTML = `
@@ -95,6 +99,8 @@ class BHPlayer {
                         <a href="#" class="bh-switch-btn bh-link-muted" style="display:none;">Switch account</a>
                     </div>
                 </div>
+
+                <div class="bh-category-tabs" style="display:none;"></div>
 
                 <div class="bh-tracklist">Loading tracks…</div>
 
@@ -228,15 +234,18 @@ class BHPlayer {
 
         const { ok, body } = await this.req(this.isLogin ? 'login' : 'register', { method: 'POST', body: fd });
         if (ok) {
-            this.q('.bh-auth-modal').style.display = 'none';
-            this.q('.bh-user').value = ''; this.q('.bh-pass').value = ''; this.q('.bh-email').value = '';
-            await this.refreshSession();
-            this.updateAuthUI();
-            await this.loadTracks(1);
             this.toast(this.isLogin ? 'Welcome back!' : 'Account created — you\'re now signed in.');
-        } else {
-            this.toast(body.message || 'Authentication failed.', true);
+            // Reload rather than patch state in place. WordPress rejects any
+            // REST request whose nonce doesn't match the CURRENT cookie
+            // session — and the browser applies this login's new session
+            // cookie before our very next request goes out, so an in-place
+            // "fetch a fresh nonce" call would itself be sent with the now-
+            // stale old nonce and get rejected. A reload sidesteps that
+            // race entirely: the server bakes in a correct nonce fresh.
+            setTimeout(() => window.location.reload(), 300);
+            return;
         }
+        this.toast(body.message || 'Authentication failed.', true);
         btn.disabled = false;
         btn.innerText = label;
     }
@@ -285,21 +294,68 @@ class BHPlayer {
         this.resultsPublished = !!body.results_published;
         this.q('.bh-results-btn').style.display = this.resultsPublished ? 'inline-flex' : 'none';
 
+        this.categories = body.categories || [];
+        if (!this.activeCategory || !this.categories.some(c => c.slug === this.activeCategory)) {
+            this.activeCategory = this.categories.length ? this.categories[0].slug : '';
+        }
+        this.renderCategoryTabs();
+
         this.tracks = body.tracks || [];
         if (!this.tracks.length) { list.innerHTML = '<div class="bh-empty">No tracks yet. Be the first to submit!</div>'; return; }
 
-        list.innerHTML = this.tracks.map((t, i) => `
+        this.renderTrackRows();
+    }
+
+    // A row of pill tabs, one per voting category — only shown when a
+    // contest actually defines 2+ of them. A single category is the same
+    // as none from the voter's perspective, so it stays hidden rather than
+    // adding a tab that never does anything.
+    renderCategoryTabs() {
+        const wrap = this.q('.bh-category-tabs');
+        if (this.categories.length < 2) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+
+        wrap.style.display = 'flex';
+        wrap.innerHTML = this.categories.map(c => `
+            <button class="bh-cat-tab ${c.slug === this.activeCategory ? 'active' : ''}" data-cat="${this.esc(c.slug)}" style="--bh-cat-color:${this.catColor(c.slug)}">${this.esc(c.name)}</button>
+        `).join('');
+        wrap.querySelectorAll('.bh-cat-tab').forEach(btn => {
+            btn.onclick = () => this.switchCategory(btn.dataset.cat);
+        });
+    }
+
+    // Switching categories never refetches — every category's vote state
+    // for every track came back in the initial /tracks call, so this is
+    // instant and reuses whatever's already in memory.
+    switchCategory(slug) {
+        if (slug === this.activeCategory) return;
+        this.activeCategory = slug;
+        this.renderCategoryTabs();
+        this.renderTrackRows();
+    }
+
+    activeCategoryName() {
+        const c = this.categories.find(c => c.slug === this.activeCategory);
+        return c ? c.name : '';
+    }
+
+    renderTrackRows() {
+        const list = this.q('.bh-tracklist');
+        const color = this.catColor(this.activeCategory);
+        list.innerHTML = this.tracks.map((t, i) => {
+            const voted = !!(t.votes && t.votes[this.activeCategory]);
+            return `
             <div class="bh-track-row" data-index="${i}">
                 <div class="bh-disc" style="--bh-hue:${this.hue(t.id)}"></div>
                 <div class="bh-track-details">
                     <div class="bh-track-title">${this.esc(t.title)}</div>
                     <div class="bh-track-artist">${this.esc(t.artist)}</div>
                 </div>
-                <button class="bh-vote-btn ${t.voted ? 'voted' : ''}" data-id="${t.id}" id="vote-${t.id}">
+                <button class="bh-vote-btn ${voted ? 'voted' : ''}" data-id="${t.id}" id="vote-${t.id}" style="--bh-cat-color:${color}">
                     <svg class="bh-check" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
-                    <span>${t.voted ? 'Voted' : 'Vote'}</span>
+                    <span>${voted ? 'Voted' : 'Vote'}</span>
                 </button>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     }
 
     play(index) {
@@ -348,22 +404,33 @@ class BHPlayer {
     /* ---------- voting ---------- */
     async vote(id) {
         if (!this.loggedIn) { this.setAuthMode(true); this.q('.bh-auth-modal').style.display = 'flex'; return this.toast('Log in to vote.'); }
+        const track = this.tracks.find(t => String(t.id) === String(id));
         const btn = this.q(`#vote-${id}`);
         if (btn) btn.disabled = true;
 
+        const catName = this.activeCategoryName();
+        const catSuffix = catName ? ` for ${catName}` : '';
+
         const { ok, body } = await this.req('vote', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ submission_id: id }),
+            body: JSON.stringify({ submission_id: id, category: this.activeCategory }),
         });
 
         if (ok && body.action === 'added') {
+            // Write the result back into the data model, not just the DOM —
+            // renderTrackRows() rebuilds from this.tracks on every tab
+            // switch, so without this the vote appeared to "disappear"
+            // the moment you switched away and back (it was never lost
+            // server-side, only in what got redrawn on screen).
+            if (track) { track.votes = track.votes || {}; track.votes[this.activeCategory] = true; }
             if (btn) { btn.classList.add('voted'); btn.querySelector('span').textContent = 'Voted'; }
             this.toast(body.votes_left > 0
-                ? `Vote counted — ${body.votes_left} vote${body.votes_left === 1 ? '' : 's'} left.`
-                : 'Vote counted — that was your last vote.');
+                ? `Vote counted${catSuffix} — ${body.votes_left} vote${body.votes_left === 1 ? '' : 's'} left.`
+                : `Vote counted${catSuffix} — that was your last vote here.`);
         } else if (ok) {
+            if (track && track.votes) track.votes[this.activeCategory] = false;
             if (btn) { btn.classList.remove('voted'); btn.querySelector('span').textContent = 'Vote'; }
-            this.toast('Vote removed — you can pick another track.');
+            this.toast(`Vote removed${catSuffix} — you can pick another track.`);
         } else {
             this.toast(body.message || 'Could not record your vote.', true);
         }
@@ -378,17 +445,47 @@ class BHPlayer {
 
         const { ok, body } = await this.req('results');
         if (!ok) { out.innerHTML = `<p class="bh-results-empty">${this.esc(body.message || 'Results are not available yet.')}</p>`; return; }
-        if (!body.results || !body.results.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
 
-        out.innerHTML = `<ol class="bh-results-list">${body.results.map(r => `
-            <li>
-                <span class="bh-results-rank">#${r.rank}</span>
+        const cats = body.categories || [];
+        if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
+
+        this._resultsCats = cats;
+        this._resultsActive = cats[0].slug;
+        this.renderResultsBody();
+    }
+
+    renderResultsList(results) {
+        if (!results || !results.length) return '<p class="bh-results-empty">No votes have been cast yet.</p>';
+        const medals = ['🥇', '🥈', '🥉'];
+        return `<ol class="bh-results-list">${results.map(r => `
+            <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
+                <span class="bh-results-rank">${r.rank <= 3 ? medals[r.rank - 1] : '#' + r.rank}</span>
                 <span class="bh-results-meta">
                     <span class="bh-results-song">${this.esc(r.title)}</span>
                     <span class="bh-results-artist">${this.esc(r.artist)}</span>
                 </span>
                 <span class="bh-results-votes">${r.votes} vote${r.votes === 1 ? '' : 's'}</span>
             </li>`).join('')}</ol>`;
+    }
+
+    renderResultsBody() {
+        const out = this.q('.bh-results-body');
+        const cats = this._resultsCats;
+        const active = cats.find(c => c.slug === this._resultsActive) || cats[0];
+
+        const tabs = cats.length > 1
+            ? `<div class="bh-category-tabs bh-results-tabs">${cats.map(c => `
+                <button class="bh-cat-tab ${c.slug === active.slug ? 'active' : ''}" data-cat="${this.esc(c.slug)}">${this.esc(c.name)}</button>
+              `).join('')}</div>`
+            : '';
+
+        out.innerHTML = tabs + this.renderResultsList(active.results);
+
+        if (cats.length > 1) {
+            out.querySelectorAll('.bh-cat-tab').forEach(btn => {
+                btn.onclick = () => { this._resultsActive = btn.dataset.cat; this.renderResultsBody(); };
+            });
+        }
     }
 }
 
