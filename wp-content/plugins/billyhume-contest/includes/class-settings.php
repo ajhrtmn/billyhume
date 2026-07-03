@@ -59,14 +59,13 @@ class BH_Settings {
         'font_body'           => 'Inter',
         'font_body_custom'    => '',
         // Scale multipliers and the handful of literal sizes that make
-        // sense as their own dial (radius, bar height, disc size) rather
-        // than a proportion of something else.
+        // sense as their own dial (radius, bar height) rather than a
+        // proportion of something else.
         'font_scale'  => '1',
         'space_scale' => '1',
         'radius'      => '12',
         'radius_sm'   => '8',
         'bar_height'  => '84',
-        'disc_size'   => '40',
     ];
 
     // Curated so every option is a real, known-good pairing rather than
@@ -381,7 +380,6 @@ class BH_Settings {
         $decls .= '--bh-radius:' . self::safe_number($s['radius'], 0, 32, 12) . 'px;';
         $decls .= '--bh-radius-sm:' . self::safe_number($s['radius_sm'], 0, 24, 8) . 'px;';
         $decls .= '--bh-bar-height:' . self::safe_number($s['bar_height'], 56, 140, 84) . 'px;';
-        $decls .= '--bh-disc-size:' . self::safe_number($s['disc_size'], 24, 72, 40) . 'px;';
 
         return ':root{' . $decls . '}';
     }
@@ -487,7 +485,6 @@ class BH_Settings {
         $data['radius']      = self::safe_number($_POST['radius']      ?? null, 0, 32, 12);
         $data['radius_sm']   = self::safe_number($_POST['radius_sm']   ?? null, 0, 24, 8);
         $data['bar_height']  = self::safe_number($_POST['bar_height']  ?? null, 56, 140, 84);
-        $data['disc_size']   = self::safe_number($_POST['disc_size']   ?? null, 24, 72, 40);
 
         update_option(self::OPTION, $data);
         wp_safe_redirect(add_query_arg(['page' => 'bh-settings', 'saved' => '1'], admin_url(BH_PostTypes::MENU_PARENT)));
@@ -760,12 +757,6 @@ class BH_Settings {
                                 ['label' => 'Tall',     'set' => ['bar_height' => '104'], 'swatch' => self::swatch_bar(13)],
                                 ['label' => 'XL',       'set' => ['bar_height' => '124'], 'swatch' => self::swatch_bar(16)],
                             ], $s); ?>
-                            <?php self::chip_group_visual('Track disc size', [
-                                ['label' => 'SM', 'set' => ['disc_size' => '28'], 'swatch' => self::swatch_circle(12)],
-                                ['label' => 'MD', 'set' => ['disc_size' => '40'], 'swatch' => self::swatch_circle(16)],
-                                ['label' => 'LG', 'set' => ['disc_size' => '52'], 'swatch' => self::swatch_circle(20)],
-                                ['label' => 'XL', 'set' => ['disc_size' => '64'], 'swatch' => self::swatch_circle(24)],
-                            ], $s); ?>
                             <details class="bh-group">
                                 <summary>Advanced <span class="bh-group-hint">exact values</span></summary>
                                 <div class="bh-group-body">
@@ -773,7 +764,6 @@ class BH_Settings {
                                     <?php self::slider_row('radius', 'Corner roundness (cards, modals)', $s, 0, 32, 1, 'px'); ?>
                                     <?php self::slider_row('radius_sm', 'Corner roundness (small elements)', $s, 0, 24, 1, 'px'); ?>
                                     <?php self::slider_row('bar_height', 'Now-playing bar height', $s, 56, 140, 2, 'px'); ?>
-                                    <?php self::slider_row('disc_size', 'Track disc size', $s, 24, 72, 2, 'px'); ?>
                                 </div>
                             </details>
                         </div>
@@ -843,7 +833,7 @@ class BH_Settings {
             // the '×' ones are unitless multipliers used inside calc().
             var SLIDER_VARS = {
                 font_scale: '--bh-font-scale', space_scale: '--bh-space-scale', radius: '--bh-radius',
-                radius_sm: '--bh-radius-sm', bar_height: '--bh-bar-height', disc_size: '--bh-disc-size',
+                radius_sm: '--bh-radius-sm', bar_height: '--bh-bar-height',
             };
 
             function fontValue(slot) {
@@ -1309,12 +1299,6 @@ class BH_Settings {
     // comfortably in the row.
     private static function swatch_bar($height_px) {
         return '<span style="display:block;width:28px;height:' . (int) $height_px . 'px;background:#6b7280;border-radius:2px;"></span>';
-    }
-
-    // A filled circle at the actual preview diameter — same idea as the
-    // radius swatch, direct rather than abstract.
-    private static function swatch_circle($diameter_px) {
-        return '<span style="display:block;width:' . (int) $diameter_px . 'px;height:' . (int) $diameter_px . 'px;border-radius:50%;background:#6b7280;"></span>';
     }
 
     // "Aa" set at the actual relative font size for that step.
