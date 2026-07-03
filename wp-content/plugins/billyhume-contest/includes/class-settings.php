@@ -501,122 +501,7 @@ class BH_Settings {
             <?php endif; ?>
             <p class="bh-settings-intro">Controls what visitors see in the player: the brand name, the color palette, and each category's pill color. The plugin itself stays named BillyHume Contest in the admin — this only changes the front end. The preview on the right is the plugin's real CSS, rendering live as you edit — mouse over its buttons and tabs to check hover states.</p>
 
-            <style>
-                .bh-settings-wrap .bh-settings-intro { max-width: 900px; color: #555; margin: 8px 0 16px; }
-                .bh-settings-layout { display: grid; grid-template-columns: minmax(340px, 520px) minmax(320px, 1fr); gap: 18px; align-items: start; }
-                @media (max-width: 1100px) { .bh-settings-layout { grid-template-columns: 1fr; } }
-
-                .bh-card {
-                    background: #fff; border: 1px solid #dcdcde; border-radius: 8px;
-                    padding: 16px 20px; margin: 0 0 14px;
-                }
-                .bh-card h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #1d2327; }
-                .bh-card p.bh-card-desc { color: #666; font-size: 12px; margin: 0 0 12px; line-height: 1.5; }
-                .bh-brand-row { display: flex; gap: 12px; flex-wrap: wrap; }
-                .bh-field { display: flex; flex-direction: column; gap: 4px; }
-                .bh-field label { font-weight: 600; font-size: 11px; color: #1d2327; }
-                .bh-color-grid {
-                    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-                    gap: 10px;
-                }
-                <?php echo self::swatch_css(); ?>
-                .bh-settings-form-col .submit { margin: 6px 0 0; padding: 0; }
-
-                .bh-logo-row { display: flex; align-items: center; gap: 14px; }
-                .bh-logo-preview {
-                    width: 72px; height: 72px; border-radius: 8px; border: 1px solid #dcdcde;
-                    background: #f6f7f7; display: flex; align-items: center; justify-content: center;
-                    overflow: hidden; flex: 0 0 auto;
-                }
-                .bh-logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-                .bh-logo-preview span { font-size: 11px; color: #888; }
-                .bh-logo-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-
-                /* Collapsible groups keep the default view short — most
-                   people never need to open anything past the theme
-                   picker and the preset chips. */
-                details.bh-group { border: 1px solid #dcdcde; border-radius: 6px; margin-bottom: 8px; }
-                details.bh-group:last-child { margin-bottom: 0; }
-                details.bh-group summary {
-                    padding: 9px 12px; cursor: pointer; font-weight: 600; font-size: 12px; color: #1d2327;
-                    list-style: none; display: flex; justify-content: space-between; align-items: center;
-                }
-                details.bh-group summary::-webkit-details-marker { display: none; }
-                details.bh-group summary::after { content: '▾'; font-size: 10px; color: #888; }
-                details.bh-group[open] summary::after { content: '▴'; }
-                details.bh-group summary .bh-group-hint { font-weight: 400; color: #888; font-size: 11px; margin-left: 8px; }
-                details.bh-group .bh-group-body { padding: 4px 12px 12px; border-top: 1px solid #eee; }
-
-                /* Theme presets — grouped dropdown (optgroups), like a
-                   paint-app palette picker, plus a small live swatch
-                   strip next to it showing bg/surface/accent at a glance
-                   for whichever theme is selected. */
-                .bh-theme-picker { display: flex; align-items: center; gap: 10px; }
-                .bh-theme-select { flex: 1; max-width: 320px; }
-                .bh-theme-swatch-preview {
-                    width: 64px; height: 32px; border-radius: 6px; flex: 0 0 auto;
-                    border: 1px solid #dcdcde; background: #f6f7f7;
-                }
-
-                /* Preset chips — replace most sliders with a handful of
-                   known-good values; the sliders themselves move into an
-                   Advanced group for anyone who wants an exact number. */
-                .bh-chip-group { margin-bottom: 12px; }
-                .bh-chip-group:last-child { margin-bottom: 0; }
-                .bh-chip-group > label { display: block; font-weight: 600; font-size: 11px; color: #1d2327; margin-bottom: 5px; }
-                .bh-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
-                .bh-chip {
-                    padding: 6px 12px; border: 1px solid #dcdcde; border-radius: 6px;
-                    background: #f6f7f7; cursor: pointer; font-size: 12px; color: #1d2327;
-                }
-                .bh-chip:hover { background: #eee; }
-                .bh-chip.active { background: #2271b1; color: #fff; border-color: #2271b1; }
-
-                /* Visual chips: swatch preview stacked above the label,
-                   in a taller card-like button rather than a plain text
-                   pill — reads more like a real design-token picker. */
-                .bh-chip-row-visual { align-items: flex-end; gap: 8px; }
-                .bh-chip-visual {
-                    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-                    gap: 6px; padding: 10px 12px; min-width: 56px; height: 64px;
-                }
-                .bh-chip-visual .bh-chip-swatch { display: flex; align-items: center; justify-content: center; height: 24px; }
-                .bh-chip-visual.active .bh-chip-swatch span { background: #fff !important; color: #2271b1 !important; }
-                .bh-chip-vlabel { font-size: 11px; font-weight: 600; }
-
-                .bh-slider-row { margin: 10px 0; }
-                .bh-slider-row label { display: flex; justify-content: space-between; font-weight: 600; font-size: 11px; color: #1d2327; margin-bottom: 4px; }
-                .bh-slider-row .bh-slider-val { font-weight: 700; color: #2271b1; }
-                .bh-slider-row input[type=range] { width: 100%; margin: 0; }
-                .bh-font-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
-                .bh-font-field select { max-width: 200px; }
-                .bh-font-field input[type=text] { max-width: 200px; margin-top: 2px; }
-
-                /* Preview panel — dark toolbar chrome per box (kept as
-                   originally designed), checkered canvas beneath so a
-                   transparent background is genuinely visible instead of
-                   reading as "just black". */
-                .bh-preview-col { position: sticky; top: 20px; }
-                .bh-preview-chrome {
-                    background: #18181b; border-radius: 10px; overflow: hidden;
-                    box-shadow: 0 8px 30px rgba(0,0,0,0.25); border: 1px solid #2a2a30;
-                    margin-bottom: 20px;
-                }
-                .bh-preview-toolbar {
-                    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-                    background: #1f1f24; border-bottom: 1px solid #2a2a30;
-                    font-family: -apple-system, sans-serif; font-size: 11px; color: #9a9aa2;
-                }
-                .bh-preview-dot { width: 7px; height: 7px; border-radius: 50%; background: #2DD4BF; box-shadow: 0 0 6px #2DD4BF; flex: 0 0 auto; }
-                .bh-preview-toolbar strong { color: #e4e4e7; font-weight: 600; }
-                .bh-preview-canvas {
-                    background-image: linear-gradient(45deg, #2a2a30 25%, transparent 25%), linear-gradient(-45deg, #2a2a30 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a30 75%), linear-gradient(-45deg, transparent 75%, #2a2a30 75%);
-                    background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
-                    background-color: #101012;
-                }
-                .bh-preview-canvas iframe { display: block; width: 100%; border: 0; }
-                .bh-preview-note { font-size: 11px; color: #888; margin: 6px 2px 0; }
-            </style>
+            <?php self::admin_page_css(); ?>
 
             <div class="bh-settings-layout">
                 <div class="bh-settings-form-col">
@@ -1415,6 +1300,131 @@ class BH_Settings {
             });
         })();
         ";
+    }
+
+    // Extracted from render() purely for readability — render() was a
+    // 500+ line function mixing this whole embedded stylesheet with the
+    // actual card markup. Static CSS, no logic; the one dynamic piece
+    // (swatch_css()) is unchanged from before.
+    private static function admin_page_css() {
+        ?>
+            <style>
+                .bh-settings-wrap .bh-settings-intro { max-width: 900px; color: #555; margin: 8px 0 16px; }
+                .bh-settings-layout { display: grid; grid-template-columns: minmax(340px, 520px) minmax(320px, 1fr); gap: 18px; align-items: start; }
+                @media (max-width: 1100px) { .bh-settings-layout { grid-template-columns: 1fr; } }
+
+                .bh-card {
+                    background: #fff; border: 1px solid #dcdcde; border-radius: 8px;
+                    padding: 16px 20px; margin: 0 0 14px;
+                }
+                .bh-card h2 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #1d2327; }
+                .bh-card p.bh-card-desc { color: #666; font-size: 12px; margin: 0 0 12px; line-height: 1.5; }
+                .bh-brand-row { display: flex; gap: 12px; flex-wrap: wrap; }
+                .bh-field { display: flex; flex-direction: column; gap: 4px; }
+                .bh-field label { font-weight: 600; font-size: 11px; color: #1d2327; }
+                .bh-color-grid {
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                    gap: 10px;
+                }
+                <?php echo self::swatch_css(); ?>
+                .bh-settings-form-col .submit { margin: 6px 0 0; padding: 0; }
+
+                .bh-logo-row { display: flex; align-items: center; gap: 14px; }
+                .bh-logo-preview {
+                    width: 72px; height: 72px; border-radius: 8px; border: 1px solid #dcdcde;
+                    background: #f6f7f7; display: flex; align-items: center; justify-content: center;
+                    overflow: hidden; flex: 0 0 auto;
+                }
+                .bh-logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                .bh-logo-preview span { font-size: 11px; color: #888; }
+                .bh-logo-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
+                /* Collapsible groups keep the default view short — most
+                   people never need to open anything past the theme
+                   picker and the preset chips. */
+                details.bh-group { border: 1px solid #dcdcde; border-radius: 6px; margin-bottom: 8px; }
+                details.bh-group:last-child { margin-bottom: 0; }
+                details.bh-group summary {
+                    padding: 9px 12px; cursor: pointer; font-weight: 600; font-size: 12px; color: #1d2327;
+                    list-style: none; display: flex; justify-content: space-between; align-items: center;
+                }
+                details.bh-group summary::-webkit-details-marker { display: none; }
+                details.bh-group summary::after { content: '▾'; font-size: 10px; color: #888; }
+                details.bh-group[open] summary::after { content: '▴'; }
+                details.bh-group summary .bh-group-hint { font-weight: 400; color: #888; font-size: 11px; margin-left: 8px; }
+                details.bh-group .bh-group-body { padding: 4px 12px 12px; border-top: 1px solid #eee; }
+
+                /* Theme presets — grouped dropdown (optgroups), like a
+                   paint-app palette picker, plus a small live swatch
+                   strip next to it showing bg/surface/accent at a glance
+                   for whichever theme is selected. */
+                .bh-theme-picker { display: flex; align-items: center; gap: 10px; }
+                .bh-theme-select { flex: 1; max-width: 320px; }
+                .bh-theme-swatch-preview {
+                    width: 64px; height: 32px; border-radius: 6px; flex: 0 0 auto;
+                    border: 1px solid #dcdcde; background: #f6f7f7;
+                }
+
+                /* Preset chips — replace most sliders with a handful of
+                   known-good values; the sliders themselves move into an
+                   Advanced group for anyone who wants an exact number. */
+                .bh-chip-group { margin-bottom: 12px; }
+                .bh-chip-group:last-child { margin-bottom: 0; }
+                .bh-chip-group > label { display: block; font-weight: 600; font-size: 11px; color: #1d2327; margin-bottom: 5px; }
+                .bh-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+                .bh-chip {
+                    padding: 6px 12px; border: 1px solid #dcdcde; border-radius: 6px;
+                    background: #f6f7f7; cursor: pointer; font-size: 12px; color: #1d2327;
+                }
+                .bh-chip:hover { background: #eee; }
+                .bh-chip.active { background: #2271b1; color: #fff; border-color: #2271b1; }
+
+                /* Visual chips: swatch preview stacked above the label,
+                   in a taller card-like button rather than a plain text
+                   pill — reads more like a real design-token picker. */
+                .bh-chip-row-visual { align-items: flex-end; gap: 8px; }
+                .bh-chip-visual {
+                    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+                    gap: 6px; padding: 10px 12px; min-width: 56px; height: 64px;
+                }
+                .bh-chip-visual .bh-chip-swatch { display: flex; align-items: center; justify-content: center; height: 24px; }
+                .bh-chip-visual.active .bh-chip-swatch span { background: #fff !important; color: #2271b1 !important; }
+                .bh-chip-vlabel { font-size: 11px; font-weight: 600; }
+
+                .bh-slider-row { margin: 10px 0; }
+                .bh-slider-row label { display: flex; justify-content: space-between; font-weight: 600; font-size: 11px; color: #1d2327; margin-bottom: 4px; }
+                .bh-slider-row .bh-slider-val { font-weight: 700; color: #2271b1; }
+                .bh-slider-row input[type=range] { width: 100%; margin: 0; }
+                .bh-font-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
+                .bh-font-field select { max-width: 200px; }
+                .bh-font-field input[type=text] { max-width: 200px; margin-top: 2px; }
+
+                /* Preview panel — dark toolbar chrome per box (kept as
+                   originally designed), checkered canvas beneath so a
+                   transparent background is genuinely visible instead of
+                   reading as "just black". */
+                .bh-preview-col { position: sticky; top: 20px; }
+                .bh-preview-chrome {
+                    background: #18181b; border-radius: 10px; overflow: hidden;
+                    box-shadow: 0 8px 30px rgba(0,0,0,0.25); border: 1px solid #2a2a30;
+                    margin-bottom: 20px;
+                }
+                .bh-preview-toolbar {
+                    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+                    background: #1f1f24; border-bottom: 1px solid #2a2a30;
+                    font-family: -apple-system, sans-serif; font-size: 11px; color: #9a9aa2;
+                }
+                .bh-preview-dot { width: 7px; height: 7px; border-radius: 50%; background: #2DD4BF; box-shadow: 0 0 6px #2DD4BF; flex: 0 0 auto; }
+                .bh-preview-toolbar strong { color: #e4e4e7; font-weight: 600; }
+                .bh-preview-canvas {
+                    background-image: linear-gradient(45deg, #2a2a30 25%, transparent 25%), linear-gradient(-45deg, #2a2a30 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a30 75%), linear-gradient(-45deg, transparent 75%, #2a2a30 75%);
+                    background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+                    background-color: #101012;
+                }
+                .bh-preview-canvas iframe { display: block; width: 100%; border: 0; }
+                .bh-preview-note { font-size: 11px; color: #888; margin: 6px 2px 0; }
+            </style>
+        <?php
     }
 
     private static function color_row($key, $label, $s, $allow_transparent_button = false) {

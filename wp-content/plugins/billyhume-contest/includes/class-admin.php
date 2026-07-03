@@ -91,10 +91,21 @@ class BH_Admin {
 
     public static function contest_column_content($col, $post_id) {
         if ($col === 'bh_status') {
+            // Submissions pill — "unscheduled" here genuinely means
+            // "always open" (see BH_Helpers::is_submission_open), so it's
+            // shown as green "Open", not the gray/ambiguous label voting
+            // uses for the same raw status string.
+            $sub = BH_Helpers::submission_status($post_id);
+            $sub_map   = ['open' => '#1DB954', 'unscheduled' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e'];
+            $sub_label = ['open' => 'Open', 'unscheduled' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed'];
+            echo '<div style="margin-bottom:4px;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Submit</span> '
+               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $sub_map[$sub] . ';color:#fff;font-size:11px;font-weight:600;">' . esc_html($sub_label[$sub]) . '</span></div>';
+
             $s = BH_Helpers::contest_status($post_id);
             $map   = ['open' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e', 'unscheduled' => '#8a8a8a'];
             $label = ['open' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed', 'unscheduled' => 'Not scheduled'];
-            echo '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;">' . esc_html($label[$s]) . '</span>';
+            echo '<div><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Vote</span> '
+               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;">' . esc_html($label[$s]) . '</span>';
 
             // One-click override so switching a contest's phase doesn't
             // require opening the edit screen and hand-editing date pickers.
@@ -110,6 +121,7 @@ class BH_Admin {
             };
             if ($s === 'upcoming' || $s === 'unscheduled') $quick('start', 'Start now');
             if ($s === 'open') $quick('end', 'End now');
+            echo '</div>';
         }
         if ($col === 'bh_shortcode') {
             $sc = BH_Helpers::shortcode_for($post_id);
@@ -526,19 +538,90 @@ class BH_Admin {
             $base  = get_post_meta($post->ID, '_bh_vote_base', true);
             $bonus = get_post_meta($post->ID, '_bh_vote_bonus', true);
 
-            echo '<p><strong>Submissions</strong></p>';
-            echo "<p>Opens: <input type='datetime-local' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
-            echo "<p>Closes: &nbsp;<input type='datetime-local' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
-            echo '<p class="description">Leave both blank to accept submissions any time the contest is published (the old behavior) — set either one to actually gate submissions to a window, e.g. so people can upload tracks for a week before voting opens.</p>';
-            echo '<hr><p><strong>Voting</strong></p>';
-            echo "<p>Opens: <input type='datetime-local' name='bh_start' value='" . esc_attr($start) . "'></p>";
-            echo "<p>Closes: &nbsp;<input type='datetime-local' name='bh_end' value='" . esc_attr($end) . "'></p>";
+            // A brand-new contest (nothing saved yet) naturally has both
+            // fields blank, so this defaults to checked — "submissions
+            // open the moment I publish" is the sensible out-of-the-box
+            // behavior, not something that has to be configured first.
+            $sub_always_open = ($sub_start === '' && $sub_end === '');
+
+            $phase = BH_Helpers::contest_phase_summary($post->ID);
+            echo '<div style="padding:8px 10px;border-radius:4px;background:' . esc_attr($phase['color']) . '1a;border:1px solid ' . esc_attr($phase['color']) . ';margin-bottom:14px;">'
+               . '<strong style="color:' . esc_attr($phase['color']) . ';font-size:12px;">' . esc_html($phase['label']) . '</strong></div>';
+
+            echo '<p style="display:flex;align-items:center;justify-content:space-between;"><strong>Submissions</strong> <span id="bh_sub_dot"></span></p>';
+            echo '<p><label><input type="checkbox" id="bh_sub_always_open" name="bh_sub_always_open" value="1" ' . checked($sub_always_open, true, false) . '> Open submissions the moment this contest is published</label></p>';
+            echo '<div id="bh_sub_dates" style="' . ($sub_always_open ? 'display:none;' : '') . '">';
+            echo "<p>Opens: <input type='datetime-local' id='bh_sub_start' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
+            echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
+            echo '</div>';
+
+            echo '<hr><p style="display:flex;align-items:center;justify-content:space-between;"><strong>Voting</strong> <span id="bh_vote_dot"></span></p>';
+            echo "<p>Opens: <input type='datetime-local' id='bh_start' name='bh_start' value='" . esc_attr($start) . "'> <button type=\"button\" class=\"button button-small\" id=\"bh_vote_start_now\">When submissions close</button></p>";
+            echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_end' name='bh_end' value='" . esc_attr($end) . "'></p>";
+
             echo '<hr><p>Votes per category: '
                . '<input type="number" name="bh_vote_base" min="0" max="20" style="width:56px;" value="' . esc_attr($base !== '' ? $base : BH_VOTE_BASE) . '"> base'
                . ' + <input type="number" name="bh_vote_bonus" min="0" max="20" style="width:56px;" value="' . esc_attr($bonus !== '' ? $bonus : BH_VOTE_BONUS) . '"> bonus for submitting</p>';
-            echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default.</p>';
+            echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default. Bonus only counts once a submission is approved.</p>';
             echo '<hr><p><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
             echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
+            ?>
+            <script>
+            (function () {
+                function dot(status) {
+                    var live = status === 'open';
+                    var label = status === 'open' ? 'Live now' : (status === 'upcoming' ? 'Not started' : (status === 'closed' ? 'Closed' : 'Not scheduled'));
+                    return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:' + (live ? '#1DB954' : '#b3261e') + ';">'
+                        + '<span style="width:7px;height:7px;border-radius:50%;background:' + (live ? '#1DB954' : '#b3261e') + ';"></span>' + label + '</span>';
+                }
+                function computeStatus(startEl, endEl, alwaysOpenIfBlank) {
+                    var sv = startEl ? startEl.value : '', ev = endEl ? endEl.value : '';
+                    if (!sv || !ev) return alwaysOpenIfBlank ? 'open' : 'unscheduled';
+                    var now = new Date(), start = new Date(sv), end = new Date(ev);
+                    if (now < start) return 'upcoming';
+                    if (now > end) return 'closed';
+                    return 'open';
+                }
+
+                var alwaysCb = document.getElementById('bh_sub_always_open');
+                var subDates = document.getElementById('bh_sub_dates');
+                var subStart = document.getElementById('bh_sub_start');
+                var subEnd = document.getElementById('bh_sub_end');
+                var subDot = document.getElementById('bh_sub_dot');
+                var voteStart = document.getElementById('bh_start');
+                var voteEnd = document.getElementById('bh_end');
+                var voteDot = document.getElementById('bh_vote_dot');
+
+                function refreshSubDot() {
+                    subDot.innerHTML = dot(alwaysCb.checked ? 'open' : computeStatus(subStart, subEnd, false));
+                }
+                function refreshVoteDot() {
+                    voteDot.innerHTML = dot(computeStatus(voteStart, voteEnd, false));
+                }
+
+                if (alwaysCb) alwaysCb.addEventListener('change', function () {
+                    subDates.style.display = alwaysCb.checked ? 'none' : '';
+                    refreshSubDot();
+                });
+                [subStart, subEnd].forEach(function (el) { if (el) el.addEventListener('input', refreshSubDot); });
+                [voteStart, voteEnd].forEach(function (el) { if (el) el.addEventListener('input', refreshVoteDot); });
+
+                var startNowBtn = document.getElementById('bh_vote_start_now');
+                if (startNowBtn) startNowBtn.addEventListener('click', function () {
+                    // "When submissions close" — copies the submission end
+                    // date/time straight into the voting start field, since
+                    // that's the overwhelmingly common intent (no gap
+                    // between the two phases) and otherwise means manually
+                    // re-typing a date you already entered two fields above.
+                    if (subEnd && subEnd.value) { voteStart.value = subEnd.value; refreshVoteDot(); }
+                    else if (subStart) { alert('Set a submissions close date first, or enter the voting start time directly.'); }
+                });
+
+                refreshSubDot();
+                refreshVoteDot();
+            })();
+            </script>
+            <?php
         }, 'bh_contest', 'side', 'default');
 
         add_meta_box('bh_contest_categories', 'Voting Categories', function ($post) {
@@ -697,8 +780,16 @@ class BH_Admin {
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        if (isset($_POST['bh_sub_start'])) update_post_meta($post_id, '_bh_sub_start', sanitize_text_field($_POST['bh_sub_start']));
-        if (isset($_POST['bh_sub_end']))   update_post_meta($post_id, '_bh_sub_end', sanitize_text_field($_POST['bh_sub_end']));
+        if (!empty($_POST['bh_sub_always_open'])) {
+            // Toggle checked — always-open, regardless of whatever might
+            // still be sitting in the (hidden, but still submitted)
+            // date fields from a previous explicit schedule.
+            update_post_meta($post_id, '_bh_sub_start', '');
+            update_post_meta($post_id, '_bh_sub_end', '');
+        } else {
+            if (isset($_POST['bh_sub_start'])) update_post_meta($post_id, '_bh_sub_start', sanitize_text_field($_POST['bh_sub_start']));
+            if (isset($_POST['bh_sub_end']))   update_post_meta($post_id, '_bh_sub_end', sanitize_text_field($_POST['bh_sub_end']));
+        }
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');

@@ -97,8 +97,6 @@
 .bh-btn-outline { background: transparent; color: var(--bh-text); border: 1px solid var(--bh-border); }
 .bh-btn-outline:hover { border-color: var(--bh-text-dim); }
 
-.bh-btn-ghost { background: transparent; color: var(--bh-text-dim); }
-.bh-btn-ghost:hover { color: var(--bh-text); }
 
 /* Results button: only ever shown once an admin has actually published
    results, so its appearance is itself an event worth marking — a warm
@@ -114,14 +112,6 @@
     0%, 100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.45); }
     50%      { box-shadow: 0 0 16px 2px rgba(245, 166, 35, 0.45); }
 }
-
-.bh-link-muted {
-    font-size: calc(12px * var(--bh-font-scale));
-    color: var(--bh-text-dim);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--bh-border);
-}
-.bh-link-muted:hover { color: var(--bh-text); }
 
 /* ---------------- Track list ---------------- */
 .bh-tracklist { display: flex; flex-direction: column; }
@@ -453,4 +443,54 @@
 
 @media (max-width: 380px) {
     .bh-np-info { display: none; }
+}
+
+/* ---------------- Listening Party ---------------- */
+.bh-listening { padding-bottom: calc(28px * var(--bh-space-scale)); } /* no fixed bar on this page, unlike the main player */
+.bh-listening-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: calc(16px * var(--bh-space-scale));
+}
+.bh-listening-card {
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
+    padding: calc(18px * var(--bh-space-scale));
+}
+.bh-listening-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(16px * var(--bh-font-scale)); }
+.bh-listening-artist { color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); margin-top: 2px; margin-bottom: calc(12px * var(--bh-space-scale)); }
+.bh-listening-audio { width: 100%; }
+
+/* ---------------- Results Reveal ---------------- */
+.bh-reveal-stage {
+    min-height: 70vh; display: flex; align-items: center; justify-content: center;
+    text-align: center;
+}
+.bh-reveal-loading { color: var(--bh-text-dim); font-size: calc(16px * var(--bh-font-scale)); }
+.bh-reveal-kicker {
+    font-family: var(--bh-font-body); text-transform: uppercase; letter-spacing: .08em;
+    font-size: calc(13px * var(--bh-font-scale)); color: var(--bh-accent); font-weight: 700;
+    margin-bottom: calc(8px * var(--bh-space-scale));
+}
+.bh-reveal-intro h1 {
+    font-family: var(--bh-font-display); font-size: calc(48px * var(--bh-font-scale));
+    color: var(--bh-text); margin: 0; animation: bh-reveal-pop 0.5s ease;
+}
+.bh-reveal-board { width: 100%; max-width: 640px; }
+.bh-reveal-entries { display: flex; flex-direction: column; gap: calc(10px * var(--bh-space-scale)); margin-top: calc(10px * var(--bh-space-scale)); }
+.bh-reveal-entry {
+    display: flex; align-items: center; gap: calc(16px * var(--bh-space-scale));
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
+    padding: calc(16px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale));
+    text-align: left;
+}
+.bh-reveal-medal { font-size: calc(28px * var(--bh-font-scale)); flex: 0 0 auto; }
+.bh-reveal-entry-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bh-reveal-entry-title { font-family: var(--bh-font-display); font-weight: 700; font-size: calc(18px * var(--bh-font-scale)); color: var(--bh-text); }
+.bh-reveal-entry-artist { color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); }
+.bh-reveal-entry-votes { font-weight: 700; color: var(--bh-text-dim); font-size: calc(14px * var(--bh-font-scale)); flex: 0 0 auto; }
+.bh-reveal-entry-new { animation: bh-reveal-pop 0.6s ease; border-color: var(--bh-accent); }
+.bh-reveal-entry-winner { border-color: var(--bh-accent); box-shadow: 0 0 0 1px var(--bh-accent), 0 0 30px color-mix(in srgb, var(--bh-accent) 40%, transparent); }
+.bh-reveal-entry-winner .bh-reveal-entry-votes { color: var(--bh-accent); }
+@keyframes bh-reveal-pop {
+    0% { opacity: 0; transform: scale(0.9) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
 }

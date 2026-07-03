@@ -124,6 +124,43 @@ class BH_Helpers {
         return self::contest_status($cid) === 'open';
     }
 
+    // One friendly sentence describing exactly where a contest currently
+    // sits across its whole lifecycle (draft → submissions → voting →
+    // results) — the single source of truth for the progress indicator
+    // in the metabox and (eventually) anywhere else that wants it,
+    // rather than each place re-deriving its own read of the same dates.
+    public static function contest_phase_summary($cid) {
+        if (get_post_status($cid) !== 'publish') {
+            return ['label' => 'Draft — not published yet', 'color' => '#8a8a8a'];
+        }
+
+        $sub_status = self::submission_status($cid);
+        $vote_status = self::contest_status($cid);
+        $published = get_post_meta($cid, '_bh_results_published', true) === '1';
+
+        if ($sub_status === 'open' || $sub_status === 'unscheduled') {
+            return ['label' => 'Accepting submissions', 'color' => '#1DB954'];
+        }
+        if ($sub_status === 'upcoming') {
+            return ['label' => 'Published — submissions open soon', 'color' => '#8a8a8a'];
+        }
+        // Submissions have closed from here down.
+        if ($vote_status === 'open') {
+            return ['label' => 'Voting open', 'color' => '#1DB954'];
+        }
+        if ($vote_status === 'upcoming') {
+            return ['label' => 'Submissions closed — voting opens soon', 'color' => '#8a8a8a'];
+        }
+        if ($vote_status === 'unscheduled') {
+            return ['label' => 'Submissions closed — voting not scheduled yet', 'color' => '#b3261e'];
+        }
+        // Voting has closed from here down.
+        if ($published) {
+            return ['label' => 'Complete — results published', 'color' => '#1DB954'];
+        }
+        return ['label' => 'Voting closed — awaiting results', 'color' => '#b3261e'];
+    }
+
     // Categories are stored on the contest as a simple JSON list — no new
     // post type/taxonomy needed. Empty/absent = single implicit "general"
     // category (slug ''), which is also what every vote cast before this
@@ -132,12 +169,6 @@ class BH_Helpers {
         $raw = get_post_meta($cid, '_bh_categories', true);
         $list = $raw ? json_decode($raw, true) : [];
         return is_array($list) ? $list : [];
-    }
-
-    // Only worth showing a switcher for 2+ categories — one category is
-    // the same as none, just with an unnecessary tab.
-    public static function has_multiple_categories($cid) {
-        return count(self::categories($cid)) >= 2;
     }
 
     // '' if the contest has no named categories, otherwise the first
@@ -189,16 +220,46 @@ class BH_Helpers {
         return !empty($q->posts);
     }
 
-    // Vote limit applies per category independently — submitting a track
-    // earns the bonus vote in every category, not just one. A contest can
-    // override the global base/bonus (see the Contest Rules metabox);
-    // leaving those fields blank falls back to the plugin-wide default.
+    // Deliberately NOT the same check as has_submitted() above. A pending
+    // (unapproved) submission still correctly blocks a second entry via
+    // has_submitted(), but it must NOT earn the bonus vote — otherwise
+    // anyone could submit junk, get the bonus instantly, and vote with
+    // it before an admin ever reviews the track. Only a post_status of
+    // 'publish' (i.e. actually approved — see class-admin.php) counts
+    // here.
+    public static function has_approved_submission($uid, $cid) {
+        $q = new WP_Query([
+            'post_type'      => 'bh_submission',
+            'author'         => $uid,
+            'post_status'    => 'publish',
+            'meta_key'       => '_bh_contest_id',
+            'meta_value'     => $cid,
+            'fields'         => 'ids',
+            'posts_per_page' => 1,
+            'no_found_rows'  => true,
+        ]);
+        return !empty($q->posts);
+    }
+
+    // Vote limit applies per category independently — an APPROVED
+    // submission earns the bonus vote in every category, not just one.
+    // A contest can override the global base/bonus (see the Contest
+    // Rules metabox); leaving those fields blank falls back to the
+    // plugin-wide default.
+    //
+    // Deliberately scoped to THIS contest only ($cid is part of both
+    // queries above) — a user's submission history in other contests,
+    // or across their lifetime on the site, has no bearing on their vote
+    // count here. If a future feature ever wants a cross-contest loyalty
+    // bonus, that would need to be a new, explicitly-named function
+    // (e.g. lifetime_bonus()) added deliberately — not something that
+    // should ever fall out of quietly removing the $cid scoping below.
     public static function vote_limit($uid, $cid) {
         $base  = get_post_meta($cid, '_bh_vote_base', true);
         $bonus = get_post_meta($cid, '_bh_vote_bonus', true);
         $base  = ($base === '' || $base === false) ? BH_VOTE_BASE : max(0, (int) $base);
         $bonus = ($bonus === '' || $bonus === false) ? BH_VOTE_BONUS : max(0, (int) $bonus);
-        return $base + (self::has_submitted($uid, $cid) ? $bonus : 0);
+        return $base + (self::has_approved_submission($uid, $cid) ? $bonus : 0);
     }
 
     public static function user_vote_count($uid, $cid, $category = '') {

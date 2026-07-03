@@ -8,6 +8,7 @@ class BH_Activator {
         if (self::create_or_update_schema()) {
             update_option('bh_db_version', self::DB_VERSION);
         }
+        self::maybe_create_default_pages();
         flush_rewrite_rules();
     }
 
@@ -28,6 +29,59 @@ class BH_Activator {
         if (self::create_or_update_schema()) {
             update_option('bh_db_version', self::DB_VERSION);
         }
+    }
+
+    // Listening Party ([bh_listening_party]) and Reveal Party
+    // ([bh_results_reveal]) are singleton, site-wide pages — unlike the
+    // per-contest player page, there's only ever one of each, so the
+    // "has it already been created" check is a simple stored option
+    // rather than per-contest post meta.
+    //
+    // Hooked to admin_init (see billyhume-contest.php), not the
+    // plugins_loaded-based maybe_upgrade() above — schema migrations
+    // genuinely need to run on every request (a front-end visitor could
+    // hit a broken query before an admin ever loads wp-admin again after
+    // a deploy), but page creation isn't blocking anything and only
+    // matters to whoever's running the site, so there's no reason to
+    // make every public page view pay for a check that's only ever
+    // useful to an admin. AJ's deploy workflow is replacing plugin files
+    // over FTP without deactivating/reactivating, so the real WordPress
+    // activation hook alone won't reach an already-installed site after
+    // a version bump — admin_init reliably fires the next time he's in
+    // wp-admin after a deploy, which he will be.
+    //
+    // Idempotent either way — once the option is set, maybe_create_
+    // singleton_page() below returns immediately without touching the
+    // database further, so running this on every wp-admin load never
+    // creates duplicates.
+    public static function maybe_create_default_pages() {
+        self::maybe_create_singleton_page('bh_listening_page_id', 'Listening Party', '[bh_listening_party]');
+        self::maybe_create_singleton_page('bh_reveal_page_id', 'Reveal Party', '[bh_results_reveal]');
+    }
+
+    // Trusts the stored option once set, rather than re-verifying the
+    // page's status the way the per-contest version does
+    // (BH_Admin::maybe_create_contest_page(), a separate mechanism in
+    // class-admin.php) — that one only runs at an actual publish event
+    // and can afford a get_post_status() check every time; this runs on
+    // every wp-admin page load (see admin_init in billyhume-contest.php),
+    // which is far less frequent than every front-end visit but still
+    // adds up over a long admin session, so it's worth staying cheap.
+    // The tradeoff: if someone manually trashes "Listening Party" or
+    // "Reveal Party", this won't notice and silently recreate it — a
+    // deliberate choice, since that's plausibly what they wanted.
+    private static function maybe_create_singleton_page($option_key, $title, $shortcode) {
+        if ((int) get_option($option_key, 0)) return;
+
+        $new_id = wp_insert_post([
+            'post_title'   => $title,
+            'post_type'    => 'page',
+            'post_status'  => 'publish',
+            'post_content' => $shortcode,
+        ], true);
+        if (is_wp_error($new_id)) return;
+
+        update_option($option_key, $new_id);
     }
 
     // Returns true only if every step here actually succeeded — see the

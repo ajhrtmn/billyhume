@@ -217,13 +217,27 @@ class BH_API {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
 
+        // The has_submitted() check above is a fast, friendly early
+        // rejection — good UX, but not race-safe on its own: two
+        // near-simultaneous requests from the same user (double-clicked
+        // submit, a retried request) could both pass it before either
+        // has actually inserted a post. add_option() is genuinely atomic
+        // (option_name is a unique key at the database level), so this
+        // is the real guarantee — the second concurrent request to reach
+        // this point fails here even though it already passed the
+        // earlier check.
+        $lock_key = 'bh_sub_lock_' . $uid . '_' . $cid;
+        if (!add_option($lock_key, time(), '', 'no')) {
+            return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
+        }
+
         $pid = wp_insert_post([
             'post_title'  => $title,
             'post_type'   => 'bh_submission',
             'post_status' => 'pending',
             'post_author' => $uid,
         ], true);
-        if (is_wp_error($pid)) return self::err('save', 'Could not save your submission.', 500);
+        if (is_wp_error($pid)) { delete_option($lock_key); return self::err('save', 'Could not save your submission.', 500); }
 
         update_post_meta($pid, '_bh_contest_id', $cid);
         update_post_meta($pid, '_bh_artist_name', sanitize_text_field($req->get_param('artist')));
@@ -232,6 +246,7 @@ class BH_API {
         $aid = media_handle_sideload($f['audio'], $pid);
         if (is_wp_error($aid)) {
             wp_delete_post($pid, true); // roll back so a bad upload doesn't lock the user out
+            delete_option($lock_key);   // upload genuinely failed — let them retry
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
         update_post_meta($pid, '_bh_audio_id', $aid);
@@ -261,7 +276,10 @@ class BH_API {
         return self::ok(['contest' => get_the_title($cid), 'categories' => $out]);
     }
 
-    private static function category_results($cid, $category) {
+    // Public so BH_Reveal can reuse the exact same ranked-results query
+    // rather than re-deriving it — one source of truth for "who's
+    // currently winning a category."
+    public static function category_results($cid, $category) {
         global $wpdb;
         $t    = BH_Helpers::table();
         $rows = $wpdb->get_results($wpdb->prepare(
