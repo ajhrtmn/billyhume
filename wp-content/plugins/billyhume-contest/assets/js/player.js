@@ -23,8 +23,23 @@ class BHPlayer {
         this.nonce = D.nonce || '';
         this.loggedIn = !!D.loggedIn;
         this.maxBytes = D.maxBytes || 20971520;
-        this.brand = D.brand || { part1: 'Billy', part2: 'Hume' };
+        this.brand = D.brand || { part1: 'Billy', part2: 'Hume', logoUrl: '' };
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
+
+        // Per-contest style override (accent + category colors + brand),
+        // set server-side only when a contest has "Override site
+        // styling" enabled (see BH_Settings::contest_style_payload).
+        // Applied as inline CSS custom properties directly on this root
+        // element so it only ever affects this one embedded instance —
+        // the site-wide theme and any other contest on the same page
+        // are untouched.
+        if (root.dataset.styleOverrides) {
+            try {
+                const ov = JSON.parse(root.dataset.styleOverrides);
+                if (ov.vars) Object.entries(ov.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+                if (ov.brand) this.brand = ov.brand;
+            } catch (e) { /* malformed override data — fall back to site defaults silently */ }
+        }
 
         this.tracks = [];
         this.categories = [];
@@ -94,7 +109,9 @@ class BHPlayer {
         this.root.innerHTML = `
             <div class="bh-container">
                 <div class="bh-header">
-                    <div class="bh-brand">${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span></div>
+                    <div class="bh-brand">${this.brand.logoUrl
+                        ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
+                        : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
@@ -166,7 +183,6 @@ class BHPlayer {
                     <h2>Submit Your Track</h2>
                     <input type="text" class="bh-sub-title" placeholder="Song title">
                     <input type="text" class="bh-sub-artist" placeholder="Artist name">
-                    <textarea class="bh-sub-note" placeholder="Note to admins (optional)" rows="3"></textarea>
                     <small class="bh-sub-fan-note">We need your real name and at least one way to reach you, so we can credit you properly.</small>
                     <div class="bh-field-row">
                         <input type="text" class="bh-sub-realname" placeholder="Real name">
@@ -189,6 +205,7 @@ class BHPlayer {
                         <option value="youtube">YouTube</option>
                         <option value="twitch">Twitch</option>
                     </select>
+                    <textarea class="bh-sub-note" placeholder="Note to admins (optional)" rows="3"></textarea>
                     <label class="bh-file-label">
                         <span class="bh-file-label-text">Choose an audio file…</span>
                         <input type="file" class="bh-sub-file bh-file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
@@ -327,6 +344,7 @@ class BHPlayer {
         const syncLabel = () => {
             const opt = select.options[select.selectedIndex];
             label.textContent = opt ? opt.text : '';
+            label.style.color = (opt && opt.value === '') ? 'var(--bh-text-dim)' : '';
         };
         const renderOptions = () => {
             menu.innerHTML = '';

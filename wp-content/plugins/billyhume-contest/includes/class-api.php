@@ -177,6 +177,13 @@ class BH_API {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
 
         if (!$cid) return self::err('no_contest', 'No contest is accepting submissions right now.', 403);
+        if (!BH_Helpers::is_submission_open($cid)) {
+            $status = BH_Helpers::submission_status($cid);
+            $msg = $status === 'upcoming'
+                ? 'Submissions haven\'t opened yet.'
+                : 'Submissions have closed for this contest.';
+            return self::err('sub_closed', $msg, 403);
+        }
         if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
 
         // Fold in whatever profile fields rode along with this submission —

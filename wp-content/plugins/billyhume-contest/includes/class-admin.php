@@ -6,6 +6,7 @@ class BH_Admin {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
+        add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
 
         // Contest list table: status pill, copyable shortcode, quick stats.
         add_filter('manage_bh_contest_posts_columns', [self::class, 'contest_columns']);
@@ -55,6 +56,13 @@ class BH_Admin {
     public static function hide_admin_bar_for_voters($show) {
         if (!apply_filters('bh_restrict_admin_access', true)) return $show;
         return current_user_can('manage_options') ? $show : false;
+    }
+
+    public static function enqueue_media($hook) {
+        global $post_type;
+        if (in_array($hook, ['post.php', 'post-new.php'], true) && $post_type === 'bh_contest') {
+            wp_enqueue_media();
+        }
     }
 
     public static function add_menus() {
@@ -510,14 +518,21 @@ class BH_Admin {
 
         add_meta_box('bh_contest_settings', 'Contest Rules & Results', function ($post) {
             wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $sub_start = self::dt_for_input(get_post_meta($post->ID, '_bh_sub_start', true));
+            $sub_end   = self::dt_for_input(get_post_meta($post->ID, '_bh_sub_end', true));
             $start = self::dt_for_input(get_post_meta($post->ID, '_bh_start', true));
             $end   = self::dt_for_input(get_post_meta($post->ID, '_bh_end', true));
             $pub   = get_post_meta($post->ID, '_bh_results_published', true);
             $base  = get_post_meta($post->ID, '_bh_vote_base', true);
             $bonus = get_post_meta($post->ID, '_bh_vote_bonus', true);
 
-            echo "<p>Voting Start: <input type='datetime-local' name='bh_start' value='" . esc_attr($start) . "'></p>";
-            echo "<p>Voting End: &nbsp;&nbsp;<input type='datetime-local' name='bh_end' value='" . esc_attr($end) . "'></p>";
+            echo '<p><strong>Submissions</strong></p>';
+            echo "<p>Opens: <input type='datetime-local' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
+            echo "<p>Closes: &nbsp;<input type='datetime-local' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
+            echo '<p class="description">Leave both blank to accept submissions any time the contest is published (the old behavior) — set either one to actually gate submissions to a window, e.g. so people can upload tracks for a week before voting opens.</p>';
+            echo '<hr><p><strong>Voting</strong></p>';
+            echo "<p>Opens: <input type='datetime-local' name='bh_start' value='" . esc_attr($start) . "'></p>";
+            echo "<p>Closes: &nbsp;<input type='datetime-local' name='bh_end' value='" . esc_attr($end) . "'></p>";
             echo '<hr><p>Votes per category: '
                . '<input type="number" name="bh_vote_base" min="0" max="20" style="width:56px;" value="' . esc_attr($base !== '' ? $base : BH_VOTE_BASE) . '"> base'
                . ' + <input type="number" name="bh_vote_bonus" min="0" max="20" style="width:56px;" value="' . esc_attr($bonus !== '' ? $bonus : BH_VOTE_BONUS) . '"> bonus for submitting</p>';
@@ -546,6 +561,135 @@ class BH_Admin {
             echo '<hr><p><strong>Page:</strong> ' . self::page_links_html($post->ID) . '</p>';
             echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
         }, 'bh_contest', 'side', 'default');
+
+        add_meta_box('bh_contest_style', 'Contest Branding & Style', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $on = get_post_meta($post->ID, '_bh_style_override', true);
+            $data = json_decode((string) get_post_meta($post->ID, '_bh_style_json', true), true);
+            if (!is_array($data)) $data = [];
+            $g = fn($k, $d = '') => $data[$k] ?? $d;
+            $defaults = BH_Settings::get(); // site-wide values, shown as placeholders
+
+            echo '<style>' . BH_Settings::swatch_css() . '
+                .bh-cat-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+            </style>';
+
+            echo '<p class="description">Off by default — this contest just uses the site-wide look from Settings &amp; Style. Turn this on to give '
+               . 'this one contest its own logo/brand text and accent colors (e.g. a sponsor or seasonal skin) without changing anything else site-wide.</p>';
+            echo '<p><label><input type="checkbox" id="bh_style_override" name="bh_style_override" value="1" ' . checked($on, '1', false) . '> <strong>Override site styling for this contest</strong></label></p>';
+
+            echo '<div id="bh_style_fields" style="' . ($on ? '' : 'display:none;') . ' margin-top:12px;">';
+
+            echo '<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">';
+            $logo_id  = (int) $g('brand_logo_id', 0);
+            $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
+            echo '<div id="bh_contest_logo_preview" style="width:64px;height:64px;border:1px solid #dcdcde;border-radius:6px;background:#f6f7f7;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">';
+            echo '<img id="bh_contest_logo_img" src="' . esc_url($logo_url) . '" style="max-width:100%;max-height:100%;object-fit:contain;' . ($logo_url ? '' : 'display:none;') . '">';
+            echo '<span id="bh_contest_logo_empty" style="font-size:11px;color:#888;' . ($logo_url ? 'display:none;' : '') . '">No logo</span>';
+            echo '</div>';
+            echo '<div>';
+            echo '<input type="hidden" id="bh_contest_logo_id" name="bh_style_logo_id" value="' . esc_attr($logo_id) . '">';
+            echo '<button type="button" class="button" id="bh_contest_logo_upload">Upload logo…</button> ';
+            echo '<button type="button" class="button" id="bh_contest_logo_remove" style="' . ($logo_url ? '' : 'display:none;') . '">Remove</button>';
+            echo '</div></div>';
+
+            // Quick pick — same THEME_GROUPS as Settings & Style, filtered
+            // to just the fields a contest is allowed to override. Fills
+            // every field below in one click; each stays editable
+            // afterward for fine-tuning.
+            echo '<p><label for="bh_style_theme_pick"><strong>Quick pick from a theme</strong></label><br>';
+            echo '<select id="bh_style_theme_pick" style="max-width:280px;">';
+            echo '<option value="">Choose a theme…</option>';
+            foreach (BH_Settings::THEME_GROUPS as $group_label => $themes) {
+                echo '<optgroup label="' . esc_attr($group_label) . '">';
+                foreach ($themes as $name => $colors) {
+                    $subset = array_intersect_key($colors, array_flip(BH_Settings::CONTEST_OVERRIDABLE));
+                    echo '<option value="' . esc_attr($name) . '" data-set=\'' . esc_attr(wp_json_encode($subset)) . '\'>' . esc_html($name) . '</option>';
+                }
+                echo '</optgroup>';
+            }
+            echo '</select></p>';
+
+            echo '<p style="margin-top:14px;"><strong>Brand text</strong> <span class="description">— leave either blank to use the site-wide text</span></p>';
+            echo '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">';
+            echo '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">First part<input type="text" name="bh_style_brand1" value="' . esc_attr($g('brand_part1')) . '" placeholder="' . esc_attr($defaults['brand_part1']) . '" style="width:120px;"></label>';
+            echo '<label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;">Accent part<input type="text" name="bh_style_brand2" value="' . esc_attr($g('brand_part2')) . '" placeholder="' . esc_attr($defaults['brand_part2']) . '" style="width:120px;"></label>';
+            echo '</div>';
+
+            echo '<p><strong>Base &amp; surfaces</strong></p>';
+            echo '<div class="bh-cat-swatch-grid" style="margin-bottom:14px;">';
+            BH_Settings::swatch_field('bh_style_bg', 'bh_style_bg', 'Background', $g('color_bg'), $defaults['color_bg']);
+            BH_Settings::swatch_field('bh_style_surface', 'bh_style_surface', 'Surface', $g('color_surface'), $defaults['color_surface']);
+            BH_Settings::swatch_field('bh_style_surface_2', 'bh_style_surface_2', 'Surface (raised)', $g('color_surface_2'), $defaults['color_surface_2']);
+            BH_Settings::swatch_field('bh_style_border', 'bh_style_border', 'Border', $g('color_border'), $defaults['color_border']);
+            BH_Settings::swatch_field('bh_style_text', 'bh_style_text', 'Text', $g('color_text'), $defaults['color_text']);
+            BH_Settings::swatch_field('bh_style_text_dim', 'bh_style_text_dim', 'Text (dim)', $g('color_text_dim'), $defaults['color_text_dim']);
+            echo '</div>';
+
+            echo '<p><strong>Accent</strong></p>';
+            echo '<div class="bh-cat-swatch-grid" style="margin-bottom:14px;">';
+            BH_Settings::swatch_field('bh_style_accent', 'bh_style_accent', 'Accent', $g('color_accent'), $defaults['color_accent']);
+            BH_Settings::swatch_field('bh_style_accent_soft', 'bh_style_accent_soft', 'Accent (soft)', $g('color_accent_soft'), $defaults['color_accent_soft']);
+            BH_Settings::swatch_field('bh_style_overlay', 'bh_style_overlay', 'Modal backdrop', $g('color_overlay'), $defaults['color_overlay']);
+            echo '</div>';
+
+            echo '<p><strong>Category colors</strong> <span class="description">— blank falls through to site-wide</span></p>';
+            echo '<div class="bh-cat-swatch-grid">';
+            for ($i = 1; $i <= 8; $i++) {
+                BH_Settings::swatch_field('bh_style_cat_' . $i, 'bh_style_cat_' . $i, 'Category ' . $i, $g('cat_color_' . $i), $defaults['cat_color_' . $i]);
+            }
+            echo '</div>';
+            echo '</div>';
+            ?>
+            <script>
+            <?php echo BH_Settings::swatch_js(); ?>
+            (function () {
+                var cb = document.getElementById('bh_style_override');
+                var fields = document.getElementById('bh_style_fields');
+                if (cb) cb.addEventListener('change', function () { fields.style.display = cb.checked ? '' : 'none'; });
+
+                var uploadBtn = document.getElementById('bh_contest_logo_upload');
+                var removeBtn = document.getElementById('bh_contest_logo_remove');
+                var idField = document.getElementById('bh_contest_logo_id');
+                var img = document.getElementById('bh_contest_logo_img');
+                var empty = document.getElementById('bh_contest_logo_empty');
+                var frame = null;
+                if (uploadBtn && window.wp && window.wp.media) {
+                    uploadBtn.addEventListener('click', function () {
+                        if (frame) { frame.open(); return; }
+                        frame = wp.media({ title: 'Choose a logo', button: { text: 'Use this image' }, library: { type: 'image' }, multiple: false });
+                        frame.on('select', function () {
+                            var att = frame.state().get('selection').first().toJSON();
+                            idField.value = att.id;
+                            img.src = (att.sizes && att.sizes.medium) ? att.sizes.medium.url : att.url;
+                            img.style.display = ''; empty.style.display = 'none'; removeBtn.style.display = '';
+                        });
+                        frame.open();
+                    });
+                }
+                if (removeBtn) removeBtn.addEventListener('click', function () {
+                    idField.value = ''; img.src = ''; img.style.display = 'none'; empty.style.display = ''; removeBtn.style.display = 'none';
+                });
+
+                var themePick = document.getElementById('bh_style_theme_pick');
+                if (themePick) {
+                    themePick.addEventListener('change', function () {
+                        var opt = themePick.options[themePick.selectedIndex];
+                        if (!opt || !opt.dataset.set) return;
+                        var data = JSON.parse(opt.dataset.set);
+                        Object.keys(data).forEach(function (key) {
+                            var fieldId = 'bh_style_' + (key.indexOf('cat_color_') === 0 ? 'cat_' + key.replace('cat_color_', '') : key.replace('color_', ''));
+                            var input = document.getElementById(fieldId);
+                            if (!input) return;
+                            input.value = data[key];
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        });
+                    });
+                }
+            })();
+            </script>
+            <?php
+        }, 'bh_contest', 'normal', 'default');
     }
 
     public static function save_contest_meta($post_id) {
@@ -553,6 +697,8 @@ class BH_Admin {
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
+        if (isset($_POST['bh_sub_start'])) update_post_meta($post_id, '_bh_sub_start', sanitize_text_field($_POST['bh_sub_start']));
+        if (isset($_POST['bh_sub_end']))   update_post_meta($post_id, '_bh_sub_end', sanitize_text_field($_POST['bh_sub_end']));
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');
@@ -563,6 +709,29 @@ class BH_Admin {
             $cats = BH_Helpers::parse_categories_input(wp_unslash($_POST['bh_categories']));
             update_post_meta($post_id, '_bh_categories', $cats ? wp_json_encode($cats) : '');
         }
+
+        update_post_meta($post_id, '_bh_style_override', isset($_POST['bh_style_override']) ? '1' : '');
+
+        // Only fields the admin actually filled in get stored — a blank
+        // field means "use the site-wide value", not "override with an
+        // empty string". See BH_Settings::contest_overrides().
+        $style = [];
+        if (!empty($_POST['bh_style_logo_id']))     $style['brand_logo_id']    = (int) $_POST['bh_style_logo_id'];
+        if (!empty($_POST['bh_style_brand1']))      $style['brand_part1']      = sanitize_text_field($_POST['bh_style_brand1']);
+        if (!empty($_POST['bh_style_brand2']))      $style['brand_part2']      = sanitize_text_field($_POST['bh_style_brand2']);
+        if (!empty($_POST['bh_style_bg']))          $style['color_bg']          = sanitize_text_field($_POST['bh_style_bg']);
+        if (!empty($_POST['bh_style_surface']))     $style['color_surface']     = sanitize_text_field($_POST['bh_style_surface']);
+        if (!empty($_POST['bh_style_surface_2']))   $style['color_surface_2']   = sanitize_text_field($_POST['bh_style_surface_2']);
+        if (!empty($_POST['bh_style_border']))      $style['color_border']      = sanitize_text_field($_POST['bh_style_border']);
+        if (!empty($_POST['bh_style_text']))        $style['color_text']        = sanitize_text_field($_POST['bh_style_text']);
+        if (!empty($_POST['bh_style_text_dim']))    $style['color_text_dim']    = sanitize_text_field($_POST['bh_style_text_dim']);
+        if (!empty($_POST['bh_style_accent']))      $style['color_accent']      = sanitize_text_field($_POST['bh_style_accent']);
+        if (!empty($_POST['bh_style_accent_soft'])) $style['color_accent_soft'] = sanitize_text_field($_POST['bh_style_accent_soft']);
+        if (!empty($_POST['bh_style_overlay']))     $style['color_overlay']     = sanitize_text_field($_POST['bh_style_overlay']);
+        for ($i = 1; $i <= 8; $i++) {
+            if (!empty($_POST['bh_style_cat_' . $i])) $style['cat_color_' . $i] = sanitize_text_field($_POST['bh_style_cat_' . $i]);
+        }
+        update_post_meta($post_id, '_bh_style_json', $style ? wp_json_encode($style) : '');
 
         self::maybe_create_contest_page($post_id);
     }

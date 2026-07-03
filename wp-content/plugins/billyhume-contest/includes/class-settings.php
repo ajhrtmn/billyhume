@@ -21,6 +21,10 @@ class BH_Settings {
     const DEFAULTS = [
         'brand_part1'  => 'Billy',
         'brand_part2'  => 'Hume',
+        // Attachment ID of an uploaded logo image. Empty (the default)
+        // means the text brand above is what renders; setting this
+        // switches the header to the image instead — see logo_url().
+        'brand_logo_id' => '',
         'color_bg'          => '#170807',
         'color_surface'     => '#220C0A',
         'color_surface_2'   => '#2C120E',
@@ -238,6 +242,12 @@ class BH_Settings {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bh_save_settings', [self::class, 'save']);
+        add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
+    }
+
+    public static function enqueue_media($hook) {
+        if (strpos($hook, 'bh-settings') === false) return;
+        wp_enqueue_media();
     }
 
     public static function add_menu() {
@@ -248,9 +258,95 @@ class BH_Settings {
         );
     }
 
-    public static function get() {
+    // Fields a single contest is allowed to override — brand identity and
+    // the two "who's running the show" colors, not the whole design
+    // system. Typography, spacing, and the base surface/text colors stay
+    // site-wide on purpose: a per-contest sponsor logo or accent color
+    // makes sense, a per-contest font size does not.
+    // Fields a single contest is allowed to override — the whole color
+    // palette plus brand identity. Typography, spacing, and component
+    // sizing (fonts, radius, bar height, disc size) stay site-wide only —
+    // those are "how the app feels" decisions that should stay
+    // consistent everywhere, whereas a full color re-skin (including
+    // background) per contest is a completely reasonable thing to want
+    // for a sponsor or seasonal look.
+    const CONTEST_OVERRIDABLE = [
+        'brand_part1', 'brand_part2', 'brand_logo_id',
+        'color_bg', 'color_surface', 'color_surface_2', 'color_border', 'color_text', 'color_text_dim',
+        'color_accent', 'color_accent_soft', 'color_overlay',
+        'cat_color_1', 'cat_color_2', 'cat_color_3', 'cat_color_4', 'cat_color_5', 'cat_color_6', 'cat_color_7', 'cat_color_8',
+    ];
+
+    // Pass a contest ID to layer that contest's own overrides (if it has
+    // "Override site styling" enabled) on top of the site-wide settings.
+    // Omit it (or pass 0/null) for the plain global settings, e.g. on the
+    // Settings & Style page itself.
+    public static function get($contest_id = null) {
         $saved = get_option(self::OPTION, []);
-        return array_merge(self::DEFAULTS, is_array($saved) ? $saved : []);
+        $settings = array_merge(self::DEFAULTS, is_array($saved) ? $saved : []);
+
+        if ($contest_id) {
+            $overrides = self::contest_overrides($contest_id);
+            if ($overrides) $settings = array_merge($settings, $overrides);
+        }
+
+        return $settings;
+    }
+
+    // Only the fields actually present in a contest's saved override data
+    // AND in CONTEST_OVERRIDABLE — a stray/old key in the stored JSON
+    // (e.g. from a future version) can't leak into a field this version
+    // doesn't intend to let contests touch.
+    public static function contest_overrides($contest_id) {
+        if (!get_post_meta($contest_id, '_bh_style_override', true)) return [];
+        $raw = get_post_meta($contest_id, '_bh_style_json', true);
+        $data = $raw ? json_decode($raw, true) : null;
+        if (!is_array($data)) return [];
+        return array_intersect_key($data, array_flip(self::CONTEST_OVERRIDABLE));
+    }
+
+    // Resolves brand_logo_id (an attachment ID) to an actual URL, or ''
+    // if unset/deleted — the front end falls back to the text brand
+    // whenever this comes back empty.
+    public static function logo_url($settings) {
+        $id = (int) ($settings['brand_logo_id'] ?? 0);
+        if (!$id) return '';
+        $url = wp_get_attachment_image_url($id, 'medium');
+        return $url ?: '';
+    }
+
+    // Small JSON-ready payload used by BH_Auth::render() to apply a
+    // contest's style override client-side, scoped to just that
+    // contest's rendered instance (see BHPlayer.constructor in
+    // player.js). Returns null when the contest has no override
+    // enabled, so the caller can skip the data attribute entirely —
+    // the overwhelmingly common case of "no per-contest override" adds
+    // zero extra markup or client-side work.
+    public static function contest_style_payload($contest_id) {
+        $overrides = self::contest_overrides($contest_id);
+        if (!$overrides) return null;
+
+        $merged = self::get($contest_id);
+        $var_names = [
+            'color_bg' => '--bh-bg', 'color_surface' => '--bh-surface', 'color_surface_2' => '--bh-surface-2',
+            'color_border' => '--bh-border', 'color_text' => '--bh-text', 'color_text_dim' => '--bh-text-dim',
+            'color_accent' => '--bh-accent', 'color_accent_soft' => '--bh-accent-soft', 'color_overlay' => '--bh-overlay',
+        ];
+        for ($i = 1; $i <= 8; $i++) $var_names['cat_color_' . $i] = '--bh-cat-' . $i;
+
+        $vars = [];
+        foreach ($var_names as $field => $css_var) {
+            if (isset($overrides[$field])) $vars[$css_var] = self::safe_color($merged[$field]);
+        }
+
+        return [
+            'vars'  => $vars,
+            'brand' => [
+                'part1'   => $merged['brand_part1'],
+                'part2'   => $merged['brand_part2'],
+                'logoUrl' => self::logo_url($merged),
+            ],
+        ];
     }
 
     // Inline <style> block that overrides the CSS custom properties the
@@ -373,6 +469,7 @@ class BH_Settings {
         $data = [];
         $data['brand_part1'] = sanitize_text_field($_POST['brand_part1'] ?? self::DEFAULTS['brand_part1']);
         $data['brand_part2'] = sanitize_text_field($_POST['brand_part2'] ?? self::DEFAULTS['brand_part2']);
+        $data['brand_logo_id'] = isset($_POST['brand_logo_id']) ? (int) $_POST['brand_logo_id'] : 0;
         foreach (self::DEFAULTS as $key => $default) {
             if (strpos($key, 'color_') !== 0 && strpos($key, 'cat_color_') !== 0) continue;
             $val = isset($_POST[$key]) ? sanitize_text_field($_POST[$key]) : $default;
@@ -425,25 +522,18 @@ class BH_Settings {
                     display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                     gap: 10px;
                 }
-                .bh-swatch-card {
-                    border: 1px solid #dcdcde; border-radius: 6px; padding: 8px; display: flex; gap: 10px; align-items: center;
-                }
-                .bh-swatch {
-                    width: 32px; height: 32px; border-radius: 6px; flex: 0 0 auto; border: 1px solid #dcdcde;
-                    background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
-                    background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0;
-                }
-                .bh-swatch-body { flex: 1; min-width: 0; }
-                .bh-swatch-body label { display: block; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
-                .bh-swatch-controls { display: flex; gap: 5px; align-items: center; }
-                .bh-swatch-controls input[type=text] { width: 100%; font-size: 12px; padding: 3px 6px; }
-                .bh-swatch-controls input[type=color] { width: 24px; height: 24px; padding: 0; border: 1px solid #dcdcde; cursor: pointer; }
-                .bh-transparent-btn {
-                    font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid #dcdcde;
-                    background: #f6f7f7; cursor: pointer; white-space: nowrap;
-                }
-                .bh-transparent-btn:hover { background: #eee; }
+                <?php echo self::swatch_css(); ?>
                 .bh-settings-form-col .submit { margin: 6px 0 0; padding: 0; }
+
+                .bh-logo-row { display: flex; align-items: center; gap: 14px; }
+                .bh-logo-preview {
+                    width: 72px; height: 72px; border-radius: 8px; border: 1px solid #dcdcde;
+                    background: #f6f7f7; display: flex; align-items: center; justify-content: center;
+                    overflow: hidden; flex: 0 0 auto;
+                }
+                .bh-logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                .bh-logo-preview span { font-size: 11px; color: #888; }
+                .bh-logo-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 
                 /* Collapsible groups keep the default view short — most
                    people never need to open anything past the theme
@@ -484,6 +574,18 @@ class BH_Settings {
                 }
                 .bh-chip:hover { background: #eee; }
                 .bh-chip.active { background: #2271b1; color: #fff; border-color: #2271b1; }
+
+                /* Visual chips: swatch preview stacked above the label,
+                   in a taller card-like button rather than a plain text
+                   pill — reads more like a real design-token picker. */
+                .bh-chip-row-visual { align-items: flex-end; gap: 8px; }
+                .bh-chip-visual {
+                    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+                    gap: 6px; padding: 10px 12px; min-width: 56px; height: 64px;
+                }
+                .bh-chip-visual .bh-chip-swatch { display: flex; align-items: center; justify-content: center; height: 24px; }
+                .bh-chip-visual.active .bh-chip-swatch span { background: #fff !important; color: #2271b1 !important; }
+                .bh-chip-vlabel { font-size: 11px; font-weight: 600; }
 
                 .bh-slider-row { margin: 10px 0; }
                 .bh-slider-row label { display: flex; justify-content: space-between; font-weight: 600; font-size: 11px; color: #1d2327; margin-bottom: 4px; }
@@ -527,8 +629,20 @@ class BH_Settings {
 
                         <div class="bh-card">
                             <h2>Brand</h2>
-                            <p class="bh-card-desc">Shown in the player header, first part plain, second part in the accent color.</p>
-                            <div class="bh-brand-row">
+                            <p class="bh-card-desc">A logo image replaces the text brand in the header when set. The text fields below still matter even with a logo — they're used as the image's alt text, and as the fallback anywhere a logo can't load.</p>
+                            <div class="bh-logo-row">
+                                <div class="bh-logo-preview" id="bh-logo-preview">
+                                    <?php $logo_url = self::logo_url($s); ?>
+                                    <img id="bh-logo-preview-img" src="<?php echo esc_url($logo_url); ?>" style="<?php echo $logo_url ? '' : 'display:none;'; ?>" alt="">
+                                    <span id="bh-logo-preview-empty" style="<?php echo $logo_url ? 'display:none;' : ''; ?>">No logo</span>
+                                </div>
+                                <div class="bh-logo-actions">
+                                    <input type="hidden" id="brand_logo_id" name="brand_logo_id" value="<?php echo esc_attr($s['brand_logo_id']); ?>">
+                                    <button type="button" class="button" id="bh-logo-upload">Upload logo…</button>
+                                    <button type="button" class="button" id="bh-logo-remove" style="<?php echo $logo_url ? '' : 'display:none;'; ?>">Remove</button>
+                                </div>
+                            </div>
+                            <div class="bh-brand-row" style="margin-top:14px;">
                                 <div class="bh-field">
                                     <label for="brand_part1">First part</label>
                                     <input type="text" id="brand_part1" name="brand_part1" value="<?php echo esc_attr($s['brand_part1']); ?>" class="regular-text">
@@ -608,10 +722,12 @@ class BH_Settings {
                                 <?php self::font_field('font_display', 'Display font', $s); ?>
                                 <?php self::font_field('font_body', 'Body font', $s); ?>
                             </div>
-                            <?php self::chip_group('Text size', [
-                                ['label' => 'Small',  'set' => ['font_scale' => '0.9']],
-                                ['label' => 'Medium', 'set' => ['font_scale' => '1']],
-                                ['label' => 'Large',  'set' => ['font_scale' => '1.15']],
+                            <?php self::chip_group_visual('Text size', [
+                                ['label' => 'XS', 'set' => ['font_scale' => '0.85'], 'swatch' => self::swatch_text(10)],
+                                ['label' => 'SM', 'set' => ['font_scale' => '0.925'], 'swatch' => self::swatch_text(11)],
+                                ['label' => 'MD', 'set' => ['font_scale' => '1'], 'swatch' => self::swatch_text(12)],
+                                ['label' => 'LG', 'set' => ['font_scale' => '1.1'], 'swatch' => self::swatch_text(13)],
+                                ['label' => 'XL', 'set' => ['font_scale' => '1.2'], 'swatch' => self::swatch_text(15)],
                             ], $s); ?>
                             <details class="bh-group">
                                 <summary>Advanced <span class="bh-group-hint">exact value</span></summary>
@@ -623,26 +739,32 @@ class BH_Settings {
 
                         <div class="bh-card">
                             <h2>Spacing &amp; Sizing</h2>
-                            <p class="bh-card-desc">These scale the existing layout's proportions without changing how anything is arranged.</p>
-                            <?php self::chip_group('Density', [
-                                ['label' => 'Compact',  'set' => ['space_scale' => '0.85']],
-                                ['label' => 'Cozy',     'set' => ['space_scale' => '1']],
-                                ['label' => 'Spacious', 'set' => ['space_scale' => '1.25']],
+                            <p class="bh-card-desc">A fixed scale, like a type or spacing scale in any real design system — each step moves every gap, corner, and size together in the same proportion, so nothing gets randomly out of sync with anything else.</p>
+                            <?php self::chip_group_visual('Spacing scale', [
+                                ['label' => 'XS', 'set' => ['space_scale' => '0.75'], 'swatch' => self::swatch_dots(2)],
+                                ['label' => 'SM', 'set' => ['space_scale' => '0.875'], 'swatch' => self::swatch_dots(3)],
+                                ['label' => 'MD', 'set' => ['space_scale' => '1'], 'swatch' => self::swatch_dots(4)],
+                                ['label' => 'LG', 'set' => ['space_scale' => '1.25'], 'swatch' => self::swatch_dots(5)],
+                                ['label' => 'XL', 'set' => ['space_scale' => '1.5'], 'swatch' => self::swatch_dots(6)],
                             ], $s); ?>
-                            <?php self::chip_group('Corners', [
-                                ['label' => 'Sharp',   'set' => ['radius' => '4',  'radius_sm' => '2']],
-                                ['label' => 'Rounded', 'set' => ['radius' => '12', 'radius_sm' => '8']],
-                                ['label' => 'Soft',    'set' => ['radius' => '22', 'radius_sm' => '14']],
+                            <?php self::chip_group_visual('Corners', [
+                                ['label' => 'None',    'set' => ['radius' => '0',  'radius_sm' => '0'],  'swatch' => self::swatch_radius(0)],
+                                ['label' => 'Subtle',  'set' => ['radius' => '6',  'radius_sm' => '4'],  'swatch' => self::swatch_radius(4)],
+                                ['label' => 'Rounded', 'set' => ['radius' => '12', 'radius_sm' => '8'],  'swatch' => self::swatch_radius(8)],
+                                ['label' => 'Soft',    'set' => ['radius' => '20', 'radius_sm' => '14'], 'swatch' => self::swatch_radius(11)],
+                                ['label' => 'Full',    'set' => ['radius' => '32', 'radius_sm' => '20'], 'swatch' => self::swatch_radius(14)],
                             ], $s); ?>
-                            <?php self::chip_group('Now-playing bar', [
-                                ['label' => 'Compact',  'set' => ['bar_height' => '72']],
-                                ['label' => 'Standard', 'set' => ['bar_height' => '84']],
-                                ['label' => 'Tall',     'set' => ['bar_height' => '100']],
+                            <?php self::chip_group_visual('Now-playing bar', [
+                                ['label' => 'Compact',  'set' => ['bar_height' => '64'],  'swatch' => self::swatch_bar(8)],
+                                ['label' => 'Standard', 'set' => ['bar_height' => '84'],  'swatch' => self::swatch_bar(10)],
+                                ['label' => 'Tall',     'set' => ['bar_height' => '104'], 'swatch' => self::swatch_bar(13)],
+                                ['label' => 'XL',       'set' => ['bar_height' => '124'], 'swatch' => self::swatch_bar(16)],
                             ], $s); ?>
-                            <?php self::chip_group('Track disc size', [
-                                ['label' => 'Small',  'set' => ['disc_size' => '32']],
-                                ['label' => 'Medium', 'set' => ['disc_size' => '40']],
-                                ['label' => 'Large',  'set' => ['disc_size' => '52']],
+                            <?php self::chip_group_visual('Track disc size', [
+                                ['label' => 'SM', 'set' => ['disc_size' => '28'], 'swatch' => self::swatch_circle(12)],
+                                ['label' => 'MD', 'set' => ['disc_size' => '40'], 'swatch' => self::swatch_circle(16)],
+                                ['label' => 'LG', 'set' => ['disc_size' => '52'], 'swatch' => self::swatch_circle(20)],
+                                ['label' => 'XL', 'set' => ['disc_size' => '64'], 'swatch' => self::swatch_circle(24)],
                             ], $s); ?>
                             <details class="bh-group">
                                 <summary>Advanced <span class="bh-group-hint">exact values</span></summary>
@@ -673,7 +795,7 @@ class BH_Settings {
                     // to be here about why scrollHeight-based auto-sizing
                     // silently produced wrong-height boxes.
                     $sections = [
-                        'player'  => ['label' => 'Player',           'height' => 560, 'body' => self::preview_body_player($s)],
+                        'player'  => ['label' => 'Player',           'height' => 480, 'body' => self::preview_body_player($s)],
                         'forms'   => ['label' => 'Forms & Modals',   'height' => 760, 'body' => self::preview_body_forms($s)],
                         'results' => ['label' => 'Results Modal',    'height' => 380, 'body' => self::preview_body_results($s)],
                     ];
@@ -841,6 +963,44 @@ class BH_Settings {
                 refreshPreview();
             }
 
+            var logoUploadBtn = document.getElementById('bh-logo-upload');
+            var logoRemoveBtn = document.getElementById('bh-logo-remove');
+            var logoField = document.getElementById('brand_logo_id');
+            var logoImg = document.getElementById('bh-logo-preview-img');
+            var logoEmpty = document.getElementById('bh-logo-preview-empty');
+            var logoFrame = null;
+
+            if (logoUploadBtn && window.wp && window.wp.media) {
+                logoUploadBtn.addEventListener('click', function () {
+                    if (logoFrame) { logoFrame.open(); return; }
+                    logoFrame = wp.media({
+                        title: 'Choose a logo',
+                        button: { text: 'Use this image' },
+                        library: { type: 'image' },
+                        multiple: false,
+                    });
+                    logoFrame.on('select', function () {
+                        var att = logoFrame.state().get('selection').first().toJSON();
+                        logoField.value = att.id;
+                        var previewUrl = (att.sizes && att.sizes.medium) ? att.sizes.medium.url : att.url;
+                        logoImg.src = previewUrl;
+                        logoImg.style.display = '';
+                        logoEmpty.style.display = 'none';
+                        logoRemoveBtn.style.display = '';
+                    });
+                    logoFrame.open();
+                });
+            }
+            if (logoRemoveBtn) {
+                logoRemoveBtn.addEventListener('click', function () {
+                    logoField.value = '';
+                    logoImg.src = '';
+                    logoImg.style.display = 'none';
+                    logoEmpty.style.display = '';
+                    logoRemoveBtn.style.display = 'none';
+                });
+            }
+
             var themeSelect = document.getElementById('bh-theme-select');
             var themeSwatch = document.getElementById('bh-theme-swatch-preview');
             if (themeSelect) {
@@ -901,7 +1061,7 @@ class BH_Settings {
     private static function preview_body_player($s) {
         ob_start();
         ?>
-<div class="bh-container" style="min-height:0;padding-bottom:calc(var(--bh-bar-height) + 20px);">
+<div class="bh-container">
     <div class="bh-header">
         <div class="bh-brand" id="bh-brand"><span id="bh-brand-1"><?php echo esc_html($s['brand_part1']); ?></span><span id="bh-brand-2"><?php echo esc_html($s['brand_part2']); ?></span></div>
         <div class="bh-header-actions">
@@ -944,7 +1104,7 @@ class BH_Settings {
         </div>
     </div>
 
-    <div class="bh-now-playing-bar" style="position:static;margin-top:8px;border-radius:var(--bh-radius-sm);">
+    <div class="bh-now-playing-bar">
         <div class="bh-np-track">
             <div class="bh-disc bh-np-disc spinning" style="--bh-hue:20;"></div>
             <div class="bh-np-info"><strong>Midnight Static</strong><br><small>Nova Bloom</small></div>
@@ -1102,30 +1262,64 @@ class BH_Settings {
         <?php
     }
 
-    // A row of preset buttons that each set one or more fields at once —
-    // e.g. one "Compact" chip can set both radius and radius_sm together.
-    // $chips is [['label' => ..., 'set' => [field => value, ...]], ...].
-    // The chip whose values already match the saved settings is marked
-    // active on page load so it's clear which preset (if any) is in use.
-    private static function chip_group($label, $chips, $s) {
+    // Same idea as chip_group() below, but each button also carries a
+    // small rendered preview of what that step actually looks like (a
+    // dot cluster for spacing, a rounded square for corners, etc.)
+    // instead of asking someone to interpret "LG" or "1.25×" in the
+    // abstract.
+    private static function chip_group_visual($label, $chips, $s) {
         ?>
         <div class="bh-chip-group">
             <label><?php echo esc_html($label); ?></label>
-            <div class="bh-chip-row">
+            <div class="bh-chip-row bh-chip-row-visual">
                 <?php foreach ($chips as $chip):
                     $is_active = true;
                     foreach ($chip['set'] as $field => $val) {
                         if ((string) ($s[$field] ?? '') !== (string) $val) { $is_active = false; break; }
                     }
                     ?>
-                    <button type="button" class="bh-chip<?php echo $is_active ? ' active' : ''; ?>"
+                    <button type="button" class="bh-chip bh-chip-visual<?php echo $is_active ? ' active' : ''; ?>"
                             data-set='<?php echo esc_attr(wp_json_encode($chip['set'])); ?>'>
-                        <?php echo esc_html($chip['label']); ?>
+                        <span class="bh-chip-swatch"><?php echo $chip['swatch']; ?></span>
+                        <span class="bh-chip-vlabel"><?php echo esc_html($chip['label']); ?></span>
                     </button>
                 <?php endforeach; ?>
             </div>
         </div>
         <?php
+    }
+
+    // Three dots whose gap grows with the spacing step — a direct,
+    // literal preview of "this is what more/less space looks like"
+    // rather than an abstract multiplier number.
+    private static function swatch_dots($gap) {
+        $dot = '<span style="width:5px;height:5px;border-radius:50%;background:#6b7280;display:inline-block;"></span>';
+        return '<span style="display:flex;align-items:center;gap:' . (int) $gap . 'px;">' . str_repeat($dot, 3) . '</span>';
+    }
+
+    // A rounded square at the actual corner radius (capped so "Full"
+    // doesn't just become a circle in a tiny box and stop reading as a
+    // radius at all).
+    private static function swatch_radius($radius_px) {
+        return '<span style="display:block;width:24px;height:24px;background:#6b7280;border-radius:' . (int) $radius_px . 'px;"></span>';
+    }
+
+    // A horizontal bar whose height stands in for the now-playing bar's
+    // own height, at a fixed reduced scale so all four steps fit
+    // comfortably in the row.
+    private static function swatch_bar($height_px) {
+        return '<span style="display:block;width:28px;height:' . (int) $height_px . 'px;background:#6b7280;border-radius:2px;"></span>';
+    }
+
+    // A filled circle at the actual preview diameter — same idea as the
+    // radius swatch, direct rather than abstract.
+    private static function swatch_circle($diameter_px) {
+        return '<span style="display:block;width:' . (int) $diameter_px . 'px;height:' . (int) $diameter_px . 'px;border-radius:50%;background:#6b7280;"></span>';
+    }
+
+    // "Aa" set at the actual relative font size for that step.
+    private static function swatch_text($font_px) {
+        return '<span style="font-size:' . (int) $font_px . 'px;font-weight:700;color:#6b7280;line-height:1;">Aa</span>';
     }
 
     private static function font_field($key, $label, $s) {
@@ -1161,24 +1355,86 @@ class BH_Settings {
         <?php
     }
 
-    private static function color_row($key, $label, $s, $allow_transparent_button = false) {
-        $val = $s[$key];
+    // Shared by Settings & Style and the per-contest style metabox, so a
+    // contest's override fields look and behave identically to the
+    // site-wide ones — not a parallel, lower-fidelity implementation.
+    public static function swatch_css() {
+        return '
+            .bh-swatch-card { border: 1px solid #dcdcde; border-radius: 6px; padding: 8px; display: flex; gap: 10px; align-items: center; }
+            .bh-swatch {
+                width: 32px; height: 32px; border-radius: 6px; flex: 0 0 auto; border: 1px solid #dcdcde;
+                background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
+                background-size: 10px 10px; background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+            }
+            .bh-swatch-body { flex: 1; min-width: 0; }
+            .bh-swatch-body label { display: block; font-weight: 600; font-size: 11px; margin-bottom: 3px; }
+            .bh-swatch-controls { display: flex; gap: 5px; align-items: center; }
+            .bh-swatch-controls input[type=text] { width: 100%; font-size: 12px; padding: 3px 6px; }
+            .bh-swatch-controls input[type=color] { width: 24px; height: 24px; padding: 0; border: 1px solid #dcdcde; cursor: pointer; }
+            .bh-transparent-btn { font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid #dcdcde; background: #f6f7f7; cursor: pointer; white-space: nowrap; }
+            .bh-transparent-btn:hover { background: #eee; }
+        ';
+    }
+
+    // Same swatch+text+picker UI as color_row() below, but with fully
+    // generic id/name/value — usable anywhere, not just on fields shaped
+    // like the site-wide settings array. $placeholder shows (as both the
+    // input's placeholder text and, when $value is blank, the swatch's
+    // own preview color) whatever the effective fallback is — e.g. a
+    // per-contest override field that's blank previews the site-wide
+    // default it'll actually fall back to, rather than showing nothing.
+    public static function swatch_field($id, $name, $label, $value, $placeholder = '', $extra_html = '') {
+        $display = $value !== '' ? $value : $placeholder;
         ?>
         <div class="bh-swatch-card">
-            <div class="bh-swatch" id="bh-swatch-<?php echo esc_attr($key); ?>" style="background:<?php echo esc_attr($val); ?>"></div>
+            <div class="bh-swatch" id="bh-swatch-<?php echo esc_attr($id); ?>" style="background:<?php echo esc_attr($display ?: '#f6f7f7'); ?>"></div>
             <div class="bh-swatch-body">
-                <label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label>
+                <label for="<?php echo esc_attr($id); ?>"><?php echo esc_html($label); ?></label>
                 <div class="bh-swatch-controls">
-                    <input type="text" id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>"
-                           value="<?php echo esc_attr($val); ?>" data-key="<?php echo esc_attr($key); ?>">
-                    <input type="color" id="bh-picker-<?php echo esc_attr($key); ?>"
-                           value="<?php echo esc_attr(strlen($val) === 7 && $val[0] === '#' ? $val : '#000000'); ?>" tabindex="-1">
-                    <?php if ($allow_transparent_button): ?>
-                        <button type="button" class="bh-transparent-btn" id="bh-set-transparent">None</button>
-                    <?php endif; ?>
+                    <input type="text" id="<?php echo esc_attr($id); ?>" name="<?php echo esc_attr($name); ?>"
+                           value="<?php echo esc_attr($value); ?>" placeholder="<?php echo esc_attr($placeholder); ?>" data-key="<?php echo esc_attr($id); ?>">
+                    <input type="color" id="bh-picker-<?php echo esc_attr($id); ?>"
+                           value="<?php echo esc_attr(strlen($display) === 7 && $display[0] === '#' ? $display : '#000000'); ?>" tabindex="-1">
+                    <?php echo $extra_html; ?>
                 </div>
             </div>
         </div>
         <?php
+    }
+
+    // JS that wires up any .bh-swatch-controls text input on the page to
+    // its paired swatch preview + color-picker dropper — generic over
+    // however many fields are present, so both Settings & Style (many
+    // fields, plus a live preview refresh) and the contest metabox (a
+    // handful of fields, no live preview) can each call this and layer
+    // their own extra behavior via $on_sync_js if they need to.
+    public static function swatch_js($on_sync_js = '') {
+        return "
+        (function () {
+            function isValidCssColor(v) {
+                var s = new Option().style;
+                s.color = '';
+                s.color = v;
+                return s.color !== '';
+            }
+            document.querySelectorAll('.bh-swatch-controls input[type=text]').forEach(function (input) {
+                var key = input.dataset.key;
+                var swatch = document.getElementById('bh-swatch-' + key);
+                var picker = document.getElementById('bh-picker-' + key);
+                function sync() {
+                    var v = input.value.trim() || input.placeholder;
+                    if (v && isValidCssColor(v)) swatch.style.background = v;
+                    $on_sync_js
+                }
+                input.addEventListener('input', sync);
+                if (picker) picker.addEventListener('input', function () { input.value = picker.value; sync(); });
+            });
+        })();
+        ";
+    }
+
+    private static function color_row($key, $label, $s, $allow_transparent_button = false) {
+        $extra = $allow_transparent_button ? '<button type="button" class="bh-transparent-btn" id="bh-set-transparent">None</button>' : '';
+        self::swatch_field($key, $key, $label, $s[$key], '', $extra);
     }
 }

@@ -25,7 +25,12 @@ class BH_Auth {
         }
 
         static $i = 0; $i++;
-        return '<div class="bh-player-root" id="bh-player-root-' . $i . '" data-contest="' . esc_attr($cid ?: '') . '"></div>';
+        $attrs = 'class="bh-player-root" id="bh-player-root-' . $i . '" data-contest="' . esc_attr($cid ?: '') . '"';
+        if ($cid) {
+            $payload = BH_Settings::contest_style_payload($cid);
+            if ($payload) $attrs .= ' data-style-overrides="' . esc_attr(wp_json_encode($payload)) . '"';
+        }
+        return '<div ' . $attrs . '></div>';
     }
 
     public static function register_routes() {

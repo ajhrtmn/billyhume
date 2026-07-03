@@ -84,6 +84,27 @@ class BH_Helpers {
         return 'open';
     }
 
+    // Same shape as contest_status(), but for the separate submission
+    // window. Unset (either date blank) means "no window configured" —
+    // treated as always-open, matching the plugin's original behavior
+    // from before submission windows existed, so older contests that
+    // never set these fields keep accepting submissions exactly as they
+    // always did.
+    public static function submission_status($cid) {
+        $start = self::normalize_dt(get_post_meta($cid, '_bh_sub_start', true));
+        $end   = self::normalize_dt(get_post_meta($cid, '_bh_sub_end', true));
+        if (!$start || !$end) return 'unscheduled';
+        $now = current_time('mysql');
+        if ($now < $start) return 'upcoming';
+        if ($now > $end)   return 'closed';
+        return 'open';
+    }
+
+    public static function is_submission_open($cid) {
+        $status = self::submission_status($cid);
+        return $status === 'open' || $status === 'unscheduled';
+    }
+
     // <input type="datetime-local"> submits "YYYY-MM-DDTHH:MM" (a literal T,
     // no seconds). current_time('mysql') returns "YYYY-MM-DD HH:MM:SS" (a
     // space, with seconds). Those two formats don't compare correctly as
