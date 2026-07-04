@@ -351,8 +351,8 @@ class BH_Settings {
     // Inline <style> block that overrides the CSS custom properties the
     // stylesheet already uses. Enqueued after bh-player.css so it wins the
     // cascade — the stylesheet itself never needs to change per site.
-    public static function inline_css() {
-        $s = self::get();
+    public static function inline_css($contest_id = null) {
+        $s = self::get($contest_id);
         $vars = [
             '--bh-bg'          => $s['color_bg'],
             '--bh-surface'     => $s['color_surface'],

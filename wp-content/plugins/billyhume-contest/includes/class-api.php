@@ -85,6 +85,7 @@ class BH_API {
             'contest_id'        => $cid,
             'contest_title'     => get_the_title($cid),
             'categories'        => $cats,
+            'contact_fields'    => BH_Helpers::contact_config($cid),
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
         ]);
     }
@@ -105,6 +106,11 @@ class BH_API {
     }
 
     public static function vote($req) {
+        $uid = get_current_user_id();
+        if (!BH_Auth::is_email_verified($uid)) {
+            return self::err('unverified', 'Please confirm your email before voting — check your inbox for the verification link.', 403);
+        }
+
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid || !BH_Helpers::is_voting_open($cid)) {
             return self::err('closed', 'Voting is not open right now.', 403);
@@ -118,7 +124,6 @@ class BH_API {
 
         global $wpdb;
         $t     = BH_Helpers::table();
-        $uid   = get_current_user_id();
         $sid   = (int) $req->get_param('submission_id');
         $limit = BH_Helpers::vote_limit($uid, $cid);
 
@@ -174,6 +179,10 @@ class BH_API {
 
     public static function submit($req) {
         $uid = get_current_user_id();
+        if (!BH_Auth::is_email_verified($uid)) {
+            return self::err('unverified', 'Please confirm your email before submitting — check your inbox for the verification link.', 403);
+        }
+
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
 
         if (!$cid) return self::err('no_contest', 'No contest is accepting submissions right now.', 403);
@@ -192,7 +201,7 @@ class BH_API {
         $profile_fields = BH_Profiles::from_request($req);
         if ($profile_fields) BH_Profiles::save($uid, $profile_fields);
 
-        $missing = BH_Profiles::missing_for_submission($uid);
+        $missing = BH_Profiles::missing_for_submission($uid, $cid);
         if ($missing) {
             return self::err(
                 'profile_incomplete',
@@ -250,6 +259,17 @@ class BH_API {
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
         update_post_meta($pid, '_bh_audio_id', $aid);
+
+        $user = get_userdata($uid);
+        if ($user && $user->user_email) {
+            $contest_title = get_the_title($cid);
+            wp_mail(
+                $user->user_email,
+                'We got your submission — ' . get_bloginfo('name'),
+                "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!"
+            );
+        }
+
         return self::ok();
     }
 
@@ -288,17 +308,24 @@ class BH_API {
             $cid, $category
         ));
 
-        $out = [];
-        $rank = 0;
+        $valid = [];
         foreach ($rows as $r) {
             $p = get_post($r->submission_id);
             if (!$p || $p->post_status !== 'publish') continue; // skip pending/deleted
+            $valid[] = ['post' => $p, 'votes' => (int) $r->votes];
+        }
+
+        $ranks = BH_Helpers::competition_ranks(array_column($valid, 'votes'));
+
+        $out = [];
+        foreach ($valid as $i => $v) {
+            $p = $v['post'];
             $out[] = [
-                'rank'   => ++$rank,
-                'id'     => (int) $r->submission_id,
+                'rank'   => $ranks[$i],
+                'id'     => $p->ID,
                 'title'  => $p->post_title,
                 'artist' => BH_Helpers::artist_for($p),
-                'votes'  => (int) $r->votes,
+                'votes'  => $v['votes'],
                 'plays'  => (int) get_post_meta($p->ID, '_bh_play_count', true),
             ];
         }
@@ -345,24 +372,29 @@ class BH_API {
         $cat_names = [];
         foreach (BH_Helpers::categories($cid) as $c) $cat_names[$c['slug']] = $c['name'];
 
-        $out = [];
-        $rank = 0;
-        $top = !empty($rows) ? max(1, (int) $rows[0]->votes) : 1;
+        $valid = [];
         foreach ($rows as $r) {
             $p = get_post($r->submission_id);
             if (!$p) continue;
-            $votes = (int) $r->votes;
+            $valid[] = ['post' => $p, 'votes' => (int) $r->votes, 'category' => $r->category ?? null];
+        }
+        $ranks = BH_Helpers::competition_ranks(array_column($valid, 'votes'));
+
+        $out = [];
+        $top = !empty($valid) ? max(1, $valid[0]['votes']) : 1;
+        foreach ($valid as $i => $v) {
+            $p = $v['post'];
             $row = [
-                'rank'   => ++$rank,
-                'id'     => (int) $r->submission_id,
+                'rank'   => $ranks[$i],
+                'id'     => $p->ID,
                 'title'  => $p->post_title,
                 'artist' => BH_Helpers::artist_for($p),
                 'status' => $p->post_status,
-                'votes'  => $votes,
+                'votes'  => $v['votes'],
                 'plays'  => (int) get_post_meta($p->ID, '_bh_play_count', true),
-                'pct'    => round(($votes / $top) * 100, 1),
+                'pct'    => round(($v['votes'] / $top) * 100, 1),
             ];
-            if ($all) $row['category'] = $r->category === '' ? '—' : ($cat_names[$r->category] ?? $r->category);
+            if ($all) $row['category'] = $v['category'] === '' ? '—' : ($cat_names[$v['category']] ?? $v['category']);
             $out[] = $row;
         }
 

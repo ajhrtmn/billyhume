@@ -155,6 +155,9 @@ class BH_Participants {
         if ($p['typical_platform']) {
             echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
         }
+        if ($p['phone'] !== '') {
+            echo '<p><strong>Phone</strong> (prize contact only, never shared): ' . esc_html($p['phone']) . '</p>';
+        }
     }
 
     private static function render_detail($uid) {

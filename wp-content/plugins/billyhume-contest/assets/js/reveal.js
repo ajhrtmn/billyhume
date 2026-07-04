@@ -34,7 +34,11 @@
         } else if (data.type === 'intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Results</div><h1>' + bhEsc(data.title) + '</h1></div>';
         } else if (data.type === 'category_intro') {
-            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Category</div><h1>' + bhEsc(data.category) + '</h1></div>';
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Category</div><h1>' + bhEsc(data.category) + '</h1>'
+                + '<p class="bh-reveal-subtext">' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
+        } else if (data.type === 'overall_intro') {
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Grand Finale</div><h1>Overall</h1>'
+                + '<p class="bh-reveal-subtext">Across all categories &mdash; ' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
         } else if (data.type === 'category_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">' + bhEsc(data.category) + '</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries, data.just_revealed_rank) + '</div></div>';
@@ -47,13 +51,46 @@
         stage.innerHTML = html;
     }
 
+    var stepping = false; // true while walking through a catch-up sequence — pauses regular polling so it can't overlap and race
+
     function poll() {
+        if (stepping) return;
         var url = rest + 'reveal/state' + (cid ? '?contest=' + encodeURIComponent(cid) : '');
         fetch(url).then(function (r) { return r.json(); }).then(function (data) {
-            if (data.index === lastIndex) return; // nothing changed — don't re-render/re-trigger animations
-            lastIndex = data.index;
-            render(data);
+            var target = data.authoritative_index;
+            if (target === lastIndex) return; // nothing changed
+
+            // First load, a single-step advance, or a rewind (Previous /
+            // Reset) — nothing to catch up on, just show it directly.
+            if (lastIndex === null || target <= lastIndex + 1) {
+                lastIndex = target;
+                render(data);
+                return;
+            }
+
+            // The admin advanced by more than one step since the last
+            // poll (a fast double-click, or just unlucky timing against
+            // the poll interval) — walk through each skipped step in
+            // turn with a real pause between them, rather than jumping
+            // straight to the end and silently skipping whatever
+            // suspense should have played out in between.
+            catchUp(lastIndex + 1, target);
         }).catch(function () { /* transient network hiccup — next poll will catch up */ });
+    }
+
+    function catchUp(from, to) {
+        stepping = true;
+        var i = from;
+        function next() {
+            if (i > to) { stepping = false; lastIndex = to; return; }
+            var url = rest + 'reveal/state?index=' + i + (cid ? '&contest=' + encodeURIComponent(cid) : '');
+            fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+                render(data);
+                i++;
+                setTimeout(next, 1800); // same pacing a human clicking through would produce
+            }).catch(function () { stepping = false; }); // give up the catch-up on a network hiccup — the next regular poll will resync from wherever things actually are
+        }
+        next();
     }
 
     poll();

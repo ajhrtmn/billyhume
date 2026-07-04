@@ -184,23 +184,24 @@ class BHPlayer {
                     <input type="text" class="bh-sub-title" placeholder="Song title">
                     <input type="text" class="bh-sub-artist" placeholder="Artist name">
                     <small class="bh-sub-fan-note">We need your real name and at least one way to reach you, so we can credit you properly.</small>
-                    <div class="bh-field-row">
+                    <div class="bh-field-row" data-field="real_name">
                         <input type="text" class="bh-sub-realname" placeholder="Real name">
                         <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-realname-pub"> public</label>
                     </div>
-                    <div class="bh-field-row">
+                    <div class="bh-field-row" data-field="discord_name">
                         <input type="text" class="bh-sub-discord" placeholder="Discord username">
                         <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-discord-pub"> public</label>
                     </div>
-                    <div class="bh-field-row">
+                    <div class="bh-field-row" data-field="twitch_name">
                         <input type="text" class="bh-sub-twitch" placeholder="Twitch username">
                         <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-twitch-pub"> public</label>
                     </div>
-                    <div class="bh-field-row">
+                    <div class="bh-field-row" data-field="youtube_name">
                         <input type="text" class="bh-sub-youtube" placeholder="YouTube channel">
                         <label class="bh-pub-toggle"><input type="checkbox" class="bh-sub-youtube-pub"> public</label>
                     </div>
-                    <select class="bh-sub-platform">
+                    <input type="tel" class="bh-sub-phone" data-field="phone" placeholder="Phone number (optional — for prize contact only, never shared)">
+                    <select class="bh-sub-platform" data-field="typical_platform">
                         <option value="">Where do you usually watch?</option>
                         <option value="youtube">YouTube</option>
                         <option value="twitch">Twitch</option>
@@ -308,6 +309,13 @@ class BHPlayer {
         }
         const platform = this.q(`.bh-${prefix}-platform`).value;
         if (platform) fd.append('typical_platform', platform);
+
+        // No public/private checkbox for this one — it only exists on
+        // the submit form (prize contact only matters for someone who
+        // could actually win), so the lookup is guarded rather than
+        // assumed present the way the fields above are.
+        const phoneEl = this.q(`.bh-${prefix}-phone`);
+        if (phoneEl && phoneEl.value.trim()) fd.append('phone', phoneEl.value.trim());
     }
 
     // Replaces a native <select>'s on-page presentation with a themed
@@ -323,6 +331,7 @@ class BHPlayer {
 
         const wrap = document.createElement('div');
         wrap.className = 'bh-select-wrap';
+        if (select.dataset.field) wrap.dataset.field = select.dataset.field;
         select.parentNode.insertBefore(wrap, select);
         wrap.appendChild(select);
         select.classList.add('bh-select-native');
@@ -442,6 +451,8 @@ class BHPlayer {
             sel.value = p.typical_platform;
             if (sel.bhResync) sel.bhResync();
         }
+        const phoneEl = this.q('.bh-sub-phone');
+        if (phoneEl && p.phone && !phoneEl.value) phoneEl.value = p.phone;
     }
 
     async upload() {
@@ -464,7 +475,7 @@ class BHPlayer {
         const { ok, body } = await this.req('submit', { method: 'POST', body: fd });
         if (ok) {
             this.q('.bh-submit-modal').style.display = 'none';
-            this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube')
+            this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
                 .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             this.toast('Track submitted! It will appear once an admin approves it.');
@@ -495,10 +506,44 @@ class BHPlayer {
         }
         this.renderCategoryTabs();
 
+        this.contactFields = body.contact_fields || {
+            show: ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'],
+            require_real_name: true, require_handle: true, require_phone: false,
+        };
+        this.applyContactFields();
+
         this.tracks = body.tracks || [];
         if (!this.tracks.length) { list.innerHTML = '<div class="bh-empty">No tracks yet. Be the first to submit!</div>'; return; }
 
         this.renderTrackRows();
+    }
+
+    // Shows/hides each contact field in the submit form per this
+    // contest's configuration (see BH_Helpers::contact_config() on the
+    // server), and rewrites the hint text to describe what's actually
+    // required here instead of a fixed sentence that might not match.
+    // Called after enhanceSelect() has already wrapped the platform
+    // <select> (that happens once, synchronously, during bind() at
+    // construction — this runs later, after the async tracks fetch
+    // resolves), so hiding "typical_platform" correctly targets the
+    // wrapper carrying that data-field, not the now-invisible raw select.
+    applyContactFields() {
+        const cfg = this.contactFields;
+        ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'].forEach(f => {
+            const el = this.q(`[data-field="${f}"]`);
+            if (el) el.style.display = cfg.show.includes(f) ? '' : 'none';
+        });
+
+        const parts = [];
+        if (cfg.require_real_name) parts.push('your real name');
+        if (cfg.require_handle) parts.push('at least one way to reach you (Discord, Twitch, or YouTube)');
+        if (cfg.require_phone) parts.push('a phone number');
+        const hint = this.q('.bh-sub-fan-note');
+        if (hint) {
+            hint.textContent = parts.length
+                ? 'We need ' + parts.join(' and ') + ' before you can submit.'
+                : 'Optional — fill in whatever you\'d like below.';
+        }
     }
 
     // A row of pill tabs, one per voting category — only shown when a
@@ -715,4 +760,27 @@ class BHPlayer {
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.bh-player-root').forEach(root => new BHPlayer(root));
+
+    // The email verification link redirects back here with this flag.
+    // Doesn't need a BHPlayer instance — toast() just appends a plain
+    // element to <body>, so a standalone version works the same way,
+    // best-effort on whatever page the redirect happened to land on
+    // (only actually visible if that page also has player.css loaded,
+    // i.e. has the contest shortcode — see is_email_verified()'s own
+    // notes on this in class-auth.php for the reasoning).
+    const params = new URLSearchParams(location.search);
+    if (params.has('bh_verified')) {
+        const ok = params.get('bh_verified') === '1';
+        const msg = ok ? 'Email confirmed — you can vote and submit now!' : 'That verification link is invalid or expired.';
+        let t = document.getElementById('bh-toast');
+        if (!t) { t = document.createElement('div'); t.id = 'bh-toast'; t.className = 'bh-toast'; document.body.appendChild(t); }
+        t.textContent = msg;
+        t.classList.toggle('error', !ok);
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3400);
+
+        params.delete('bh_verified');
+        const clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+        history.replaceState({}, '', clean);
+    }
 });

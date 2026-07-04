@@ -7,12 +7,15 @@ class BH_Admin {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
+        add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
         // Contest list table: status pill, copyable shortcode, quick stats.
         add_filter('manage_bh_contest_posts_columns', [self::class, 'contest_columns']);
         add_action('manage_bh_contest_posts_custom_column', [self::class, 'contest_column_content'], 10, 2);
         add_action('admin_post_bh_quick_schedule', [self::class, 'quick_schedule']);
         add_action('admin_post_bh_create_page', [self::class, 'create_page_action']);
+        add_action('admin_post_bh_export', [self::class, 'export_csv']);
+        add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
 
         // Submissions list: which contest each one belongs to, plus a filter
         // dropdown — the flat approval queue is unreadable once more than
@@ -140,6 +143,61 @@ class BH_Admin {
 
     // Sets a contest's start or end to "right now", instantly flipping its
     // status — for "Start now"/"End now" links in the contest list.
+    // A raw data export as a safety net — if a vote or a submission is
+    // ever disputed, or something needs auditing outside wp-admin
+    // entirely, this is the "pull everything" escape hatch rather than
+    // having no way to get the underlying data out at all.
+    public static function export_csv() {
+        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_export')) {
+            wp_die('Not allowed.');
+        }
+        $cid  = (int) ($_GET['contest_id'] ?? 0);
+        $type = sanitize_key($_GET['type'] ?? '');
+        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.');
+
+        $filename = 'bh-' . $type . '-contest-' . $cid . '-' . gmdate('Y-m-d') . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+
+        $out = fopen('php://output', 'w');
+
+        if ($type === 'submissions') {
+            fputcsv($out, ['Submission ID', 'Title', 'Artist', 'Author', 'Email', 'Status', 'Submitted']);
+            $subs = get_posts([
+                'post_type' => 'bh_submission', 'post_status' => 'any',
+                'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+                'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'ASC',
+            ]);
+            foreach ($subs as $p) {
+                $author = get_userdata($p->post_author);
+                fputcsv($out, [
+                    $p->ID, $p->post_title, BH_Helpers::artist_for($p),
+                    $author ? $author->user_login : '', $author ? $author->user_email : '',
+                    $p->post_status, $p->post_date,
+                ]);
+            }
+        } else {
+            global $wpdb;
+            $t = BH_Helpers::table();
+            $rows = $wpdb->get_results($wpdb->prepare(
+                "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC", $cid
+            ));
+            fputcsv($out, ['Voter', 'Category', 'Submission ID', 'Track Title', 'Voted At']);
+            foreach ($rows as $r) {
+                $voter = get_userdata($r->user_id);
+                $track = get_post($r->submission_id);
+                fputcsv($out, [
+                    $voter ? $voter->user_login : $r->user_id,
+                    $r->category === '' ? '(default)' : $r->category,
+                    $r->submission_id, $track ? $track->post_title : '(deleted)', $r->created_at,
+                ]);
+            }
+        }
+
+        fclose($out);
+        exit;
+    }
+
     public static function quick_schedule() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
             wp_die('Not allowed.');
@@ -154,6 +212,9 @@ class BH_Admin {
             // otherwise it would land on "unscheduled" instead of "open".
             if ($which === 'start' && !get_post_meta($cid, '_bh_end', true)) {
                 update_post_meta($cid, '_bh_end', gmdate('Y-m-d H:i:s', current_time('timestamp') + 7 * DAY_IN_SECONDS));
+            }
+            if ($which === 'start') {
+                BH_Discord::notify_voting_open($cid);
             }
         }
 
@@ -237,6 +298,87 @@ class BH_Admin {
     }
 
     /* ================= Submissions list table ================= */
+
+    // Deliberately separate from the "Publish Results" checkbox — that
+    // just makes results visible on the site; this is the loud part
+    // (Discord announcement + winner emails), and an admin might want a
+    // gap between the two, e.g. to publish, sanity-check the numbers
+    // look right, and only then announce — or to hold the announcement
+    // for a specific moment regardless of when results actually went
+    // live. Tracks a sent timestamp so accidentally clicking again shows
+    // a confirmation rather than silently re-notifying everyone.
+    public static function send_winner_notifications() {
+        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
+            wp_die('Not allowed.');
+        }
+        $cid = (int) ($_GET['contest_id'] ?? 0);
+        if ($cid && get_post_meta($cid, '_bh_results_published', true) === '1') {
+            BH_Discord::notify_results($cid);
+            self::email_winners($cid);
+            update_post_meta($cid, '_bh_winner_notifications_sent_at', current_time('mysql'));
+        }
+        wp_safe_redirect(wp_get_referer() ?: admin_url(BH_PostTypes::MENU_PARENT));
+        exit;
+    }
+
+    // Sends ONE email per winning user, combining every placement they
+    // earned (a category win plus an overall win, or multiple category
+    // wins) into a single message rather than firing off a separate
+    // email per placement — nobody wants three emails because they won
+    // three categories.
+    private static function email_winners($cid) {
+        $placements = []; // uid => [ [label, rank, votes, title], ... ]
+        $medal = ['🥇', '🥈', '🥉'];
+
+        $collect = function ($results, $label) use (&$placements) {
+            foreach ($results as $r) {
+                if ($r['rank'] > 3) continue;
+                $post = get_post($r['id']);
+                if (!$post) continue;
+                $uid = (int) $post->post_author;
+                $placements[$uid][] = ['label' => $label, 'rank' => $r['rank'], 'votes' => $r['votes'], 'title' => $r['title']];
+            }
+        };
+
+        foreach (BH_Helpers::categories($cid) as $cat) {
+            $collect(BH_API::category_results($cid, $cat['slug']), $cat['name']);
+        }
+        $collect(BH_Reveal::overall_results($cid), 'Overall');
+
+        $contest_title = get_the_title($cid);
+        foreach ($placements as $uid => $wins) {
+            $user = get_userdata($uid);
+            if (!$user || !$user->user_email) continue;
+
+            $lines = array_map(
+                fn($w) => ($medal[$w['rank'] - 1] ?? ('#' . $w['rank'])) . ' ' . $w['label'] . ' — "' . $w['title'] . '" (' . $w['votes'] . ' votes)',
+                $wins
+            );
+            $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
+                . implode("\n", $lines) . "\n\nWell done!";
+            wp_mail($user->user_email, "You placed in {$contest_title}!", $body);
+        }
+    }
+
+    // Fires the public "new entry approved" Discord notification at the
+    // moment an admin actually approves a submission (changes its status
+    // to Published), not when it was first submitted — this webhook is
+    // public-facing, so announcing something before anyone's reviewed it
+    // would mean the whole channel sees every submission, including any
+    // that get rejected. Guarded to the actual off-to-on transition so
+    // re-saving an already-published submission (editing its title,
+    // fixing a typo, etc.) doesn't re-announce it every time.
+    public static function maybe_notify_approval($new_status, $old_status, $post) {
+        if ($post->post_type !== 'bh_submission') return;
+        if ($new_status !== 'publish' || $old_status === 'publish') return;
+
+        $cid = (int) get_post_meta($post->ID, '_bh_contest_id', true);
+        if (!$cid) return;
+
+        $artist = get_post_meta($post->ID, '_bh_artist_name', true);
+        $aid    = (int) get_post_meta($post->ID, '_bh_audio_id', true);
+        BH_Discord::notify_submission($cid, $post->post_title, $artist, $aid ? wp_get_attachment_url($aid) : '');
+    }
 
     public static function submission_columns($cols) {
         $new = [];
@@ -555,6 +697,23 @@ class BH_Admin {
             echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
             echo '</div>';
 
+            $contact_cfg = BH_Helpers::contact_config($post->ID);
+            $field_labels = [
+                'real_name' => 'Real name', 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
+                'youtube_name' => 'YouTube', 'typical_platform' => 'Typical platform (dropdown)', 'phone' => 'Phone',
+            ];
+            echo '<hr><p><strong>Contact info collected at submission</strong></p>';
+            echo '<p class="description">Choose what this contest asks submitters for. Leave everything as-is for the default (all fields shown, real name + at least one handle required, phone optional).</p>';
+            foreach ($field_labels as $key => $label) {
+                $shown = in_array($key, $contact_cfg['show'], true);
+                echo '<label style="display:block;margin:2px 0;"><input type="checkbox" class="bh-contact-show" data-field="' . esc_attr($key) . '" name="bh_contact_show[]" value="' . esc_attr($key) . '" ' . checked($shown, true, false) . '> ' . esc_html($label) . '</label>';
+            }
+            echo '<p style="margin-top:10px;"><strong>Required</strong></p>';
+            echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_real_name" value="1" ' . checked(!empty($contact_cfg['require_real_name']), true, false) . ' class="bh-contact-require" data-requires="real_name"> Real name</label>';
+            echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_handle" value="1" ' . checked(!empty($contact_cfg['require_handle']), true, false) . '> At least one platform handle (Discord/Twitch/YouTube)</label>';
+            echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_phone" value="1" ' . checked(!empty($contact_cfg['require_phone']), true, false) . ' class="bh-contact-require" data-requires="phone"> Phone</label>';
+            echo '<p class="description">A field can only be required if it\'s also shown above — unchecking "shown" for a required field will un-require it automatically.</p>';
+
             echo '<hr><p style="display:flex;align-items:center;justify-content:space-between;"><strong>Voting</strong> <span id="bh_vote_dot"></span></p>';
             echo "<p>Opens: <input type='datetime-local' id='bh_start' name='bh_start' value='" . esc_attr($start) . "'> <button type=\"button\" class=\"button button-small\" id=\"bh_vote_start_now\">When submissions close</button></p>";
             echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_end' name='bh_end' value='" . esc_attr($end) . "'></p>";
@@ -565,7 +724,76 @@ class BH_Admin {
             echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default. Bonus only counts once a submission is approved.</p>';
             echo '<hr><p><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
             echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
+
+            if ($pub === '1') {
+                $sent_at = get_post_meta($post->ID, '_bh_winner_notifications_sent_at', true);
+                $send_url = wp_nonce_url(admin_url('admin-post.php?action=bh_send_winners&contest_id=' . $post->ID), 'bh_send_winners');
+                echo '<p>';
+                if ($sent_at) {
+                    echo '<span class="description">Winner notifications sent ' . esc_html(mysql2date('M j, g:ia', $sent_at)) . '.</span> ';
+                    echo '<a href="' . esc_url($send_url) . '" onclick="return confirm(\'Resend winner notifications? This posts to Discord and emails every winner again.\');">Resend</a>';
+                } else {
+                    echo '<a href="' . esc_url($send_url) . '" class="button button-primary" onclick="return confirm(\'Send winner notifications now? This posts to Discord and emails every winner immediately — make sure the results above are actually final.\');">Send Winner Notifications</a>';
+                }
+                echo '</p>';
+            }
+
+            $webhook = get_post_meta($post->ID, '_bh_discord_webhook', true);
+            echo '<hr><p><strong>Discord notifications</strong> <span class="description">(optional)</span></p>';
+            echo '<p><input type="url" name="bh_discord_webhook" value="' . esc_attr($webhook) . '" placeholder="https://discord.com/api/webhooks/..." style="width:100%;"></p>';
+            echo '<p class="description">Automatically posts when a track is submitted or voting starts. The results announcement is sent separately, on demand — see "Send Winner Notifications" above. Get a webhook URL from a Discord channel\'s Settings &rarr; Integrations &rarr; Webhooks. Leave blank for no notifications.</p>';
+
+            if ($webhook) {
+                $listen_url = ($lp = (int) get_option('bh_listening_page_id')) ? get_permalink($lp) : '';
+                $reveal_url = ($rp = (int) get_option('bh_reveal_page_id')) ? get_permalink($rp) : '';
+                echo '<p><strong>Announce to Discord</strong> <span class="description">— sends right away, independent of Save/Update</span></p>';
+                echo '<textarea id="bh_discord_message" rows="2" style="width:100%;" placeholder="e.g. Going live for the results reveal in 5 minutes!"></textarea>';
+                echo '<p style="margin:6px 0;">';
+                if ($listen_url) echo '<button type="button" class="button button-small" id="bh_discord_preset_listen">Fill: Come listen</button> ';
+                if ($reveal_url) echo '<button type="button" class="button button-small" id="bh_discord_preset_reveal">Fill: Going live for reveal</button> ';
+                echo '</p>';
+                echo '<p><button type="button" class="button" id="bh_discord_send">Send to Discord</button> <span id="bh_discord_status" style="margin-left:8px;font-size:12px;"></span></p>';
+            }
             ?>
+            <script>
+            (function () {
+                var listenUrl = <?php echo wp_json_encode($listen_url ?? ''); ?>;
+                var revealUrl = <?php echo wp_json_encode($reveal_url ?? ''); ?>;
+                var msgField = document.getElementById('bh_discord_message');
+                var presetListen = document.getElementById('bh_discord_preset_listen');
+                var presetReveal = document.getElementById('bh_discord_preset_reveal');
+                if (presetListen) presetListen.addEventListener('click', function () {
+                    msgField.value = '🎧 Come listen to all the entries before voting opens: ' + listenUrl;
+                });
+                if (presetReveal) presetReveal.addEventListener('click', function () {
+                    msgField.value = '📺 Going live for the results reveal — come watch: ' + revealUrl;
+                });
+
+                var sendBtn = document.getElementById('bh_discord_send');
+                if (sendBtn) sendBtn.addEventListener('click', function () {
+                    var msg = msgField.value.trim();
+                    var status = document.getElementById('bh_discord_status');
+                    if (!msg) { status.textContent = 'Type a message first.'; status.style.color = '#b3261e'; return; }
+                    sendBtn.disabled = true;
+                    status.textContent = 'Sending…'; status.style.color = '#787c82';
+                    fetch(<?php echo wp_json_encode(esc_url_raw(rest_url('bh/v1/discord/announce'))); ?>, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': <?php echo wp_json_encode(wp_create_nonce('wp_rest')); ?> },
+                        body: JSON.stringify({ contest: <?php echo (int) $post->ID; ?>, message: msg }),
+                    })
+                        .then(function (r) { return r.json(); })
+                        .then(function (data) {
+                            sendBtn.disabled = false;
+                            if (data.sent) { status.textContent = 'Sent!'; status.style.color = '#1DB954'; msgField.value = ''; }
+                            else { status.textContent = 'Could not send — check the webhook URL.'; status.style.color = '#b3261e'; }
+                        })
+                        .catch(function () {
+                            sendBtn.disabled = false;
+                            status.textContent = 'Network error — try again.'; status.style.color = '#b3261e';
+                        });
+                });
+            })();
+            </script>
             <script>
             (function () {
                 function dot(status) {
@@ -591,6 +819,35 @@ class BH_Admin {
                 var voteStart = document.getElementById('bh_start');
                 var voteEnd = document.getElementById('bh_end');
                 var voteDot = document.getElementById('bh_vote_dot');
+
+                // A "required" checkbox only makes sense if its field is
+                // also shown — unchecking "shown" un-checks "required"
+                // live, matching the same rule contact_config() enforces
+                // server-side, so the correction is visible immediately
+                // rather than only discovered after saving.
+                var handleFields = ['discord_name', 'twitch_name', 'youtube_name'];
+                document.querySelectorAll('.bh-contact-show').forEach(function (showCb) {
+                    showCb.addEventListener('change', function () {
+                        if (showCb.checked) return;
+                        var requireCb = document.querySelector('.bh-contact-require[data-requires="' + showCb.dataset.field + '"]');
+                        if (requireCb) requireCb.checked = false;
+
+                        // The composite "at least one handle" rule needs
+                        // ANY of the three to remain shown, not this one
+                        // specifically — only un-check it once all three
+                        // are gone.
+                        if (handleFields.indexOf(showCb.dataset.field) !== -1) {
+                            var anyHandleShown = handleFields.some(function (f) {
+                                var cb = document.querySelector('.bh-contact-show[data-field="' + f + '"]');
+                                return cb && cb.checked;
+                            });
+                            if (!anyHandleShown) {
+                                var requireHandleCb = document.querySelector('input[name="bh_require_handle"]');
+                                if (requireHandleCb) requireHandleCb.checked = false;
+                            }
+                        }
+                    });
+                });
 
                 function refreshSubDot() {
                     subDot.innerHTML = dot(alwaysCb.checked ? 'open' : computeStatus(subStart, subEnd, false));
@@ -795,6 +1052,26 @@ class BH_Admin {
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');
         if (isset($_POST['bh_vote_base']))  update_post_meta($post_id, '_bh_vote_base', max(0, (int) $_POST['bh_vote_base']));
         if (isset($_POST['bh_vote_bonus'])) update_post_meta($post_id, '_bh_vote_bonus', max(0, (int) $_POST['bh_vote_bonus']));
+
+        // Sanitized against the known field list rather than trusted
+        // as-is — a stray/unexpected value in bh_contact_show[] should
+        // never end up persisted just because it showed up in $_POST.
+        $shown = array_values(array_intersect(
+            (array) ($_POST['bh_contact_show'] ?? []),
+            BH_Helpers::CONTACT_FIELDS
+        ));
+        $contact_config = [
+            'show' => $shown,
+            'require_real_name' => !empty($_POST['bh_require_real_name']) && in_array('real_name', $shown, true),
+            'require_handle'    => !empty($_POST['bh_require_handle']),
+            'require_phone'     => !empty($_POST['bh_require_phone']) && in_array('phone', $shown, true),
+        ];
+        update_post_meta($post_id, '_bh_contact_config', wp_json_encode($contact_config));
+
+        if (isset($_POST['bh_discord_webhook'])) {
+            $webhook = esc_url_raw(trim($_POST['bh_discord_webhook']));
+            update_post_meta($post_id, '_bh_discord_webhook', $webhook);
+        }
 
         if (isset($_POST['bh_categories'])) {
             $cats = BH_Helpers::parse_categories_input(wp_unslash($_POST['bh_categories']));

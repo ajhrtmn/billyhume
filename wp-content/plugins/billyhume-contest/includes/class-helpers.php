@@ -165,6 +165,65 @@ class BH_Helpers {
     // post type/taxonomy needed. Empty/absent = single implicit "general"
     // category (slug ''), which is also what every vote cast before this
     // feature existed already uses, so nothing needs migrating.
+    // Basic flag, not fraud detection: a user who cast a lot of votes
+    // packed into an implausibly short window. Deliberately simple —
+    // this uses only the created_at timestamps already in the votes
+    // table (no IP tracking exists in this schema, and adding it would
+    // mean a migration for a "nice to have" rather than a core need), so
+    // it can't catch someone spacing out fake votes deliberately. It's
+    // meant to surface the obvious case (a script, or someone mashing
+    // the vote button across many tabs) for a human to actually look at,
+    // not to make an automated call.
+    public static function suspicious_voters($cid, $min_votes = 8, $window_seconds = 120) {
+        global $wpdb;
+        $t = self::table();
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT user_id, COUNT(*) AS vote_count, MIN(created_at) AS first_vote, MAX(created_at) AS last_vote,
+                    TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) AS span_seconds
+             FROM $t WHERE contest_id = %d
+             GROUP BY user_id
+             HAVING vote_count >= %d AND span_seconds <= %d
+             ORDER BY vote_count DESC",
+            $cid, $min_votes, $window_seconds
+        ));
+    }
+
+    // Which contact-info fields a contest asks for at submission, and
+    // which of those are actually required — configurable per contest
+    // (see the Contest Rules metabox) rather than one fixed rule for
+    // every contest. Defaults reproduce the plugin's original behavior
+    // exactly (all fields shown, real name + at least one platform
+    // handle required, phone optional) so a contest that's never touched
+    // this setting works exactly as it always has.
+    const CONTACT_FIELDS = ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'];
+
+    public static function contact_config($cid) {
+        $defaults = [
+            'show' => self::CONTACT_FIELDS,
+            'require_real_name' => true,
+            'require_handle' => true,
+            'require_phone' => false,
+        ];
+        $saved = json_decode((string) get_post_meta($cid, '_bh_contact_config', true), true);
+        if (!is_array($saved)) return $defaults;
+        $cfg = array_merge($defaults, $saved);
+        // A field that isn't shown can't sensibly be required — this is
+        // enforced here too, not just nudged toward in the admin UI, so
+        // a stale/hand-edited config can't quietly lock submitters out
+        // over a field they were never even shown a way to fill in.
+        if (!in_array('real_name', $cfg['show'], true)) $cfg['require_real_name'] = false;
+        if (!in_array('phone', $cfg['show'], true)) $cfg['require_phone'] = false;
+        // Same idea for the handle rule specifically: it's impossible to
+        // satisfy "at least one of Discord/Twitch/YouTube" if none of
+        // those three are even shown — that's not just meaningless, it's
+        // an unsatisfiable requirement that would block every submitter
+        // outright, so it's defused the same way as the two checks above.
+        if (!array_intersect(['discord_name', 'twitch_name', 'youtube_name'], $cfg['show'])) {
+            $cfg['require_handle'] = false;
+        }
+        return $cfg;
+    }
+
     public static function categories($cid) {
         $raw = get_post_meta($cid, '_bh_categories', true);
         $list = $raw ? json_decode($raw, true) : [];
@@ -302,6 +361,30 @@ class BH_Helpers {
 
     public static function allowed_audio() {
         return ['mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4'];
+    }
+
+    // Standard "competition ranking": ties share a rank, and the next
+    // distinct value skips ahead to reflect how many entries are ahead
+    // of it — 10,7,7,5 votes ranks as 1,2,2,4, same convention as an
+    // Olympic medal tie (two silvers means no bronze at all, not two
+    // silvers plus an extra bronze). $votes_desc must already be sorted
+    // highest-first; returns one rank per input position, same length
+    // and order. The one canonical implementation of this — every place
+    // that builds a ranked leaderboard (category results, overall
+    // results, the reveal sequence) calls this rather than each
+    // re-deriving its own notion of what a tie means.
+    public static function competition_ranks($votes_desc) {
+        $ranks = [];
+        $prev_votes = null;
+        $prev_rank = null;
+        foreach ($votes_desc as $i => $v) {
+            $position = $i + 1; // 1-indexed
+            $rank = ($prev_votes !== null && $v === $prev_votes) ? $prev_rank : $position;
+            $ranks[] = $rank;
+            $prev_votes = $v;
+            $prev_rank = $rank;
+        }
+        return $ranks;
     }
 
     public static function artist_for($post) {

@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Activator {
-    const DB_VERSION = '1.3';
+    const DB_VERSION = '1.4';
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -31,6 +31,17 @@ class BH_Activator {
         }
     }
 
+    // Same idea as DB_VERSION above: rather than re-checking both page
+    // options on literally every wp-admin load forever, one version flag
+    // gates the whole thing. After the pages exist, every subsequent
+    // admin_init pays for exactly one get_option() string comparison and
+    // returns — not two separate lookups that never had a reason to run
+    // again. Bump this only if the page-creation logic itself changes
+    // (e.g. a third singleton page gets added) and needs to re-run once;
+    // maybe_create_singleton_page() stays individually idempotent either
+    // way, so re-running only ever creates what's actually missing.
+    const PAGES_VERSION = '1';
+
     // Listening Party ([bh_listening_party]) and Reveal Party
     // ([bh_results_reveal]) are singleton, site-wide pages — unlike the
     // per-contest player page, there's only ever one of each, so the
@@ -49,27 +60,18 @@ class BH_Activator {
     // activation hook alone won't reach an already-installed site after
     // a version bump — admin_init reliably fires the next time he's in
     // wp-admin after a deploy, which he will be.
-    //
-    // Idempotent either way — once the option is set, maybe_create_
-    // singleton_page() below returns immediately without touching the
-    // database further, so running this on every wp-admin load never
-    // creates duplicates.
     public static function maybe_create_default_pages() {
+        if (get_option('bh_pages_version') === self::PAGES_VERSION) return;
+
         self::maybe_create_singleton_page('bh_listening_page_id', 'Listening Party', '[bh_listening_party]');
         self::maybe_create_singleton_page('bh_reveal_page_id', 'Reveal Party', '[bh_results_reveal]');
+
+        update_option('bh_pages_version', self::PAGES_VERSION);
     }
 
-    // Trusts the stored option once set, rather than re-verifying the
-    // page's status the way the per-contest version does
-    // (BH_Admin::maybe_create_contest_page(), a separate mechanism in
-    // class-admin.php) — that one only runs at an actual publish event
-    // and can afford a get_post_status() check every time; this runs on
-    // every wp-admin page load (see admin_init in billyhume-contest.php),
-    // which is far less frequent than every front-end visit but still
-    // adds up over a long admin session, so it's worth staying cheap.
-    // The tradeoff: if someone manually trashes "Listening Party" or
-    // "Reveal Party", this won't notice and silently recreate it — a
-    // deliberate choice, since that's plausibly what they wanted.
+    // No status/existence check needed here anymore — the version gate
+    // above already ensures this only ever runs once per PAGES_VERSION,
+    // so there's nothing left to optimize at this level.
     private static function maybe_create_singleton_page($option_key, $title, $shortcode) {
         if ((int) get_option($option_key, 0)) return;
 
@@ -156,6 +158,7 @@ class BH_Activator {
             discord_name varchar(190) NOT NULL DEFAULT '',
             twitch_name varchar(190) NOT NULL DEFAULT '',
             youtube_name varchar(190) NOT NULL DEFAULT '',
+            phone varchar(30) NOT NULL DEFAULT '',
             typical_platform varchar(20) NOT NULL DEFAULT '',
             real_name_public tinyint(1) unsigned NOT NULL DEFAULT 0,
             discord_public tinyint(1) unsigned NOT NULL DEFAULT 0,

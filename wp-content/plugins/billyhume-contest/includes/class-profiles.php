@@ -2,23 +2,32 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Participant identity data — real name and platform handles collected
- * alongside registration and/or submission, plus a per-field consent flag
- * for whether that name could be shared publicly if BillyHume ever
- * features participants elsewhere.
+ * Participant identity data — real name, platform handles, and an
+ * optional phone number collected alongside registration and/or
+ * submission, plus a per-field consent flag for whether a name could be
+ * shared publicly if BillyHume ever features participants elsewhere.
+ * Phone has no such consent flag at all — see TEXT_COLS below — it's
+ * collected purely for prize-coordination purposes and is never treated
+ * as shareable, unlike everything else in this table.
  *
  * Lives in its own table (one row per wp_users.ID) rather than user meta
  * so the shape is explicit and directly queryable from the Participants
  * admin screen, instead of scattered meta_key lookups.
  *
  * IMPORTANT: none of this data is ever exposed on any public-facing
- * output. It is read only by the Participants admin screen (manage_options
- * capability). Artist name and song title, stored per-submission as
- * before, remain the only participant-facing names shown publicly.
+ * output. It is read only by the Participants and Live Console admin
+ * screens (both manage_options capability). Artist name and song title,
+ * stored per-submission as before, remain the only participant-facing
+ * names shown publicly.
  */
 class BH_Profiles {
     const PLATFORMS  = ['youtube', 'twitch'];
-    const TEXT_COLS  = ['real_name', 'discord_name', 'twitch_name', 'youtube_name'];
+    // phone deliberately has no *_public counterpart in BOOL_COLS below —
+    // unlike Discord/Twitch/YouTube, there's no "OK to share" version of
+    // this field. It's collected purely so an admin has a way to reach a
+    // winner directly (prize coordination) and is never shown anywhere
+    // outside the private Live Console, full stop.
+    const TEXT_COLS  = ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'phone'];
     const BOOL_COLS  = ['real_name_public', 'discord_public', 'twitch_public', 'youtube_public'];
 
     public static function table() {
@@ -96,14 +105,31 @@ class BH_Profiles {
         return $fields;
     }
 
-    // The bar for "ready to submit a track": a real name plus at least one
-    // way to reach the person (Discord, Twitch, or YouTube). Voters never
-    // have to clear this — only checked at submission time.
-    public static function missing_for_submission($user_id) {
+    // The bar for "ready to submit a track" — now driven by the specific
+    // contest's own contact-field configuration (see
+    // BH_Helpers::contact_config()) rather than one fixed rule shared by
+    // every contest. Voters never have to clear this — only checked at
+    // submission time.
+    public static function missing_for_submission($user_id, $cid) {
+        $cfg = BH_Helpers::contact_config($cid);
         $p = self::get($user_id);
         $missing = [];
-        if ($p['real_name'] === '') $missing[] = 'real_name';
-        if ($p['discord_name'] === '' && $p['twitch_name'] === '' && $p['youtube_name'] === '') $missing[] = 'platform_handle';
+
+        if (!empty($cfg['require_real_name']) && $p['real_name'] === '') {
+            $missing[] = 'real_name';
+        }
+        if (!empty($cfg['require_handle'])) {
+            $handle_fields = array_intersect(['discord_name', 'twitch_name', 'youtube_name'], $cfg['show']);
+            $has_handle = false;
+            foreach ($handle_fields as $f) {
+                if ($p[$f] !== '') { $has_handle = true; break; }
+            }
+            if (!$has_handle) $missing[] = 'platform_handle';
+        }
+        if (!empty($cfg['require_phone']) && $p['phone'] === '') {
+            $missing[] = 'phone';
+        }
+
         return $missing;
     }
 }

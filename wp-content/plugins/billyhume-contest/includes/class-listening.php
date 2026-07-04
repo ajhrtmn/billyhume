@@ -13,6 +13,16 @@ if (!defined('ABSPATH')) exit;
  * to update live while someone's watching, so there's no reason to add
  * polling/fetch complexity here the way the Results Reveal genuinely
  * needs it for controller/display sync.
+ *
+ * Matches whatever theme the resolved contest actually uses, including
+ * a per-contest override if one is enabled — the enqueued global
+ * stylesheet only carries the site-wide palette, so this page embeds its
+ * own <style> block with that specific contest's effective colors
+ * directly in its output. That also sidesteps any risk of a late
+ * wp_add_inline_style() call landing after styles have already printed
+ * in wp_head — a plain <style> tag in the page body wins the cascade
+ * for :root custom properties purely by coming later in document order,
+ * regardless of where in the DOM it physically sits.
  */
 class BH_Listening {
     public static function init() {
@@ -37,6 +47,7 @@ class BH_Listening {
 
         ob_start();
         ?>
+        <style><?php echo BH_Settings::inline_css($cid); ?></style>
         <div class="bh-container bh-listening">
             <div class="bh-header">
                 <div class="bh-brand"><?php echo esc_html(get_the_title($cid)); ?></div>

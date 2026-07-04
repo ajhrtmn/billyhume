@@ -9,6 +9,12 @@ if (!defined('ABSPATH')) exit;
  * admin listening through entries can immediately see who they're
  * listening to without cross-referencing anything.
  *
+ * Also embeds the Results Reveal controls (see BH_Reveal::
+ * render_controls_widget()) directly on this page — everything needed to
+ * actually run the show, both the participant reference info and the
+ * buttons that drive what's on stream, colocated on one screen instead
+ * of split across two separate admin pages.
+ *
  * Deliberately never shown or linked anywhere near the public-facing
  * Listening Party or Results Reveal pages — this is the one place in the
  * whole plugin that's explicitly NOT safe to have visible in an OBS
@@ -29,8 +35,7 @@ class BH_Console {
 
     public static function render() {
         $contests = BH_Helpers::all_contests();
-        $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : 0;
-        if (!$cid && $contests) $cid = $contests[0]->ID;
+        $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : BH_Reveal::default_contest();
 
         echo '<div class="wrap"><h1>Live Console</h1>';
         echo '<p class="description">Private — never link or share this page. Real names and contact info are shown here specifically so you know who you\'re listening to; none of it belongs on stream.</p>';
@@ -50,8 +55,30 @@ class BH_Console {
         if (!$cid) { echo '</div>'; return; }
 
         $phase = BH_Helpers::contest_phase_summary($cid);
-        echo '<p><strong style="color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</strong> &middot; '
-           . '<a href="' . esc_url(admin_url('admin.php?page=bh-reveal&contest_id=' . $cid)) . '">Open Reveal Control</a></p>';
+        echo '<p><strong style="color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</strong> &middot; ';
+        $export_base = admin_url('admin-post.php?action=bh_export&contest_id=' . $cid);
+        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=submissions', 'bh_export')) . '">Export submissions (CSV)</a> &middot; ';
+        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . '">Export votes (CSV)</a></p>';
+
+        $suspicious = BH_Helpers::suspicious_voters($cid);
+        if ($suspicious) {
+            echo '<div style="background:#fef3e2;border:1px solid #e0a020;border-radius:8px;padding:12px 16px;margin-bottom:16px;max-width:640px;">';
+            echo '<strong style="color:#8a5a00;">⚠️ Rapid voting detected</strong> — worth a look, not necessarily a problem:';
+            echo '<ul style="margin:6px 0 0 18px;">';
+            foreach ($suspicious as $s) {
+                $u = get_userdata($s->user_id);
+                echo '<li>' . esc_html($u ? $u->user_login : 'User #' . $s->user_id) . ': ' . esc_html($s->vote_count) . ' votes in ' . esc_html($s->span_seconds) . 's</li>';
+            }
+            echo '</ul></div>';
+        }
+
+        // Reveal controls live right here, not on a separate admin page —
+        // everything needed to actually run the show (who's who, plus
+        // the buttons that drive what's on stream) stays on one screen.
+        echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:16px 20px;margin-bottom:20px;max-width:640px;">';
+        echo '<h2 style="margin-top:0;font-size:14px;text-transform:uppercase;letter-spacing:.04em;">Reveal Controls</h2>';
+        BH_Reveal::render_controls_widget($cid);
+        echo '</div>';
 
         $subs = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'any',
@@ -64,6 +91,7 @@ class BH_Console {
         global $wpdb;
         $t = BH_Helpers::table();
 
+        echo '<div style="overflow-x:auto;">';
         echo '<table class="wp-list-table widefat striped"><thead><tr>'
            . '<th>Track</th><th>Status</th><th>Identity</th><th>Live votes</th>'
            . '</tr></thead><tbody>';
@@ -87,16 +115,43 @@ class BH_Console {
             echo '</tr>';
         }
 
-        echo '</tbody></table></div>';
+        echo '</tbody></table></div></div>';
     }
 
+    // Splits into what's actually safe to say out loud on stream (only
+    // fields the participant explicitly marked public — see BH_Profiles)
+    // versus the full private reference underneath. Artist name is
+    // deliberately not part of this — that's already shown in the Track
+    // column and is always public by nature of being submitted; this is
+    // specifically about which of their *personal* names/handles they
+    // consented to have shared, which is a separate question entirely.
     private static function identity_cell($p) {
-        $lines = [];
-        if ($p['real_name'] !== '')     $lines[] = '<strong>' . esc_html($p['real_name']) . '</strong>';
-        if ($p['discord_name'] !== '')  $lines[] = 'Discord: ' . esc_html($p['discord_name']);
-        if ($p['twitch_name'] !== '')   $lines[] = 'Twitch: ' . esc_html($p['twitch_name']);
-        if ($p['youtube_name'] !== '')  $lines[] = 'YouTube: ' . esc_html($p['youtube_name']);
-        if (!$lines) return '<em style="color:#8a8a8a;">No profile on file</em>';
-        return implode('<br>', $lines);
+        $fields = [
+            ['real_name', 'real_name_public', ''],
+            ['discord_name', 'discord_public', 'Discord: '],
+            ['twitch_name', 'twitch_public', 'Twitch: '],
+            ['youtube_name', 'youtube_public', 'YouTube: '],
+        ];
+
+        $public = [];
+        $all = [];
+        foreach ($fields as [$name_key, $public_key, $prefix]) {
+            if ($p[$name_key] === '') continue;
+            $line = $prefix . esc_html($p[$name_key]);
+            $all[] = $line;
+            if ((int) $p[$public_key] === 1) $public[] = $line;
+        }
+        // Phone has no public/private toggle at all — it's never a
+        // candidate for the "OK on stream" list above, only the private
+        // reference below (prize-contact purposes only).
+        if ($p['phone'] !== '') $all[] = 'Phone: ' . esc_html($p['phone']);
+
+        if (!$all) return '<em style="color:#8a8a8a;">No profile on file</em>';
+
+        $html = '<div style="margin-bottom:4px;"><strong style="color:#1DB954;">OK on stream:</strong> '
+              . ($public ? implode(', ', $public) : '<em style="color:#8a8a8a;">nothing — don\'t say any name for them</em>')
+              . '</div>';
+        $html .= '<div style="color:#787c82;font-size:11px;">' . implode('<br>', $all) . '</div>';
+        return $html;
     }
 }

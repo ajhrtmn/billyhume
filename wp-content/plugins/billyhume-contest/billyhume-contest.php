@@ -2,20 +2,21 @@
 /**
  * Plugin Name: BillyHume Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     1.21.1
+ * Version:     1.28.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
-define('BH_VER',        '1.21.1');
+define('BH_VER',        '1.28.0');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
 define('BH_VOTE_BONUS', 1);                 // extra votes earned by submitting a track
 define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
+define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'profiles', 'settings', 'auth', 'api', 'admin', 'debug', 'participants', 'console', 'listening', 'reveal'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'profiles', 'settings', 'auth', 'api', 'admin', 'debug', 'participants', 'console', 'listening', 'reveal', 'discord'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -32,6 +33,7 @@ add_action('init',          ['BH_Settings', 'init']);
 add_action('init',          ['BH_Console', 'init']);
 add_action('init',          ['BH_Listening', 'init']);
 add_action('init',          ['BH_Reveal', 'init']);
+add_action('init',          ['BH_Discord', 'init']);
 
 // Debug data-seeding tool: "Debug Tools" under Contests, visible to any
 // admin regardless of environment. The seeding/reset ACTIONS refuse to run

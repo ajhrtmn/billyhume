@@ -474,6 +474,7 @@
     font-family: var(--bh-font-display); font-size: calc(48px * var(--bh-font-scale));
     color: var(--bh-text); margin: 0; animation: bh-reveal-pop 0.5s ease;
 }
+.bh-reveal-subtext { color: var(--bh-text-dim); font-size: calc(15px * var(--bh-font-scale)); margin-top: calc(8px * var(--bh-space-scale)); }
 .bh-reveal-board { width: 100%; max-width: 640px; }
 .bh-reveal-entries { display: flex; flex-direction: column; gap: calc(10px * var(--bh-space-scale)); margin-top: calc(10px * var(--bh-space-scale)); }
 .bh-reveal-entry {
