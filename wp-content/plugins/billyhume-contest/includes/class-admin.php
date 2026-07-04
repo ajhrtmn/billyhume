@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-class BH_Admin { 
+class BH_Admin {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
