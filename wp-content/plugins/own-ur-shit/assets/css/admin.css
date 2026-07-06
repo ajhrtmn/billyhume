@@ -1,0 +1,9 @@
+.ous-dashboard .ous-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 20px; }
+.ous-card { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 18px 20px; }
+.ous-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.ous-card-desc { color: #555; font-size: 13px; margin-bottom: 10px; }
+.ous-card-meta { color: #787c82; font-size: 12px; margin-bottom: 10px; }
+.ous-badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; }
+.ous-badge-active { background: #1DB954; color: #fff; }
+.ous-badge-inactive { background: #f0e6c8; color: #8a5a00; }
+.ous-badge-missing { background: #f0f0f1; color: #787c82; }

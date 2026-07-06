@@ -1,0 +1,167 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+/**
+ * The person list and detail view — built entirely on shared identity
+ * (BHI_Profiles) plus whatever any OTHER active plugin optionally
+ * contributes. This plugin never queries bh-contest's or bh-streaming's
+ * own tables directly; it only knows about two filters, so it works
+ * identically whether zero, one, or several other plugins are active.
+ *
+ * A plugin contributes in two places, entirely from its own bootstrap:
+ *
+ * 1. Who belongs on the list at all — anyone with profile data filled
+ *    in already qualifies, but a plugin can add people who are active
+ *    with it specifically even without profile data (e.g. someone who's
+ *    voted but never filled in a real name):
+ *
+ *        add_filter('bh_crm_active_user_ids', function ($ids) {
+ *            global $wpdb;
+ *            return array_merge($ids, $wpdb->get_col(
+ *                "SELECT DISTINCT user_id FROM {$wpdb->prefix}bh_votes"
+ *            ));
+ *        });
+ *
+ * 2. What shows up in that person's activity section on their detail
+ *    page — a short summary line plus a callback that renders the full
+ *    detail table when expanded:
+ *
+ *        add_filter('bh_crm_activity_summary', function ($sections, $user_id) {
+ *            $votes = BH_Helpers::user_total_votes($user_id);
+ *            if (!$votes) return $sections;
+ *            $sections[] = [
+ *                'plugin'  => 'BH Contest',
+ *                'summary' => "$votes votes cast",
+ *                'render'  => fn() => BH_Participants_Activity::render_detail($user_id),
+ *            ];
+ *            return $sections;
+ *        }, 10, 2);
+ *
+ * Both are harmless to add even if this CRM plugin is never installed —
+ * an add_filter() call on a filter nobody applies just sits unused,
+ * which is what keeps this a genuine peer relationship rather than a
+ * dependency in either direction.
+ */
+class BHCRM_People {
+    // No add_menu() here anymore — this page is registered as a submenu
+    // of Own Ur Shit instead of its own top-level menu (see the 'bh-crm'
+    // entry in the core's class-registry.php, applied by OUS_MenuMerge).
+    // render() below is unchanged either way; only where WordPress hangs
+    // it in the admin sidebar changed.
+
+    /* ---------------- who's on the list ---------------- */
+
+    // Anyone with profile data on file, plus anyone any active plugin
+    // considers "active" via the filter — a person who's voted but
+    // never filled in a real name still shows up if bh-contest is
+    // active and contributes their ID, but a bare list of every WP
+    // subscriber with zero activity anywhere would just be noise.
+    private static function active_user_ids() {
+        global $wpdb;
+        $with_profile = $wpdb->get_col("SELECT user_id FROM {$wpdb->prefix}bhi_profiles WHERE real_name != '' OR discord_name != '' OR twitch_name != '' OR youtube_name != ''");
+        $contributed = apply_filters('bh_crm_active_user_ids', []);
+        return array_unique(array_map('intval', array_merge($with_profile, $contributed)));
+    }
+
+    /* ---------------- page ---------------- */
+
+    public static function render() {
+        $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
+        echo '<div class="wrap"><h1>People/CRM</h1>';
+        if (isset($_GET['bhcrm_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhcrm_msg']))) . '</p></div>';
+        $uid ? self::render_detail($uid) : self::render_list();
+        echo '</div>';
+    }
+
+    private static function render_list() {
+        $ids = self::active_user_ids();
+        if (!$ids) {
+            echo '<p>No one has a profile on file or any recorded activity yet. This list fills in on its own — nothing to configure.</p>';
+            return;
+        }
+
+        $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
+        if ($tag_filter) $ids = array_filter($ids, fn($id) => in_array($tag_filter, BHCRM_Tags::get($id), true));
+
+        echo '<p>Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
+
+        $all_tags = BHCRM_Tags::all_in_use();
+        if ($all_tags) {
+            echo '<p><strong>Filter by tag:</strong> ';
+            echo '<a href="' . esc_url(remove_query_arg('tag')) . '">All</a> ';
+            foreach ($all_tags as $t) {
+                echo '&middot; <a href="' . esc_url(add_query_arg('tag', $t)) . '"' . ($tag_filter === $t ? ' style="font-weight:700;"' : '') . '>' . esc_html($t) . '</a> ';
+            }
+            echo '</p>';
+        }
+
+        $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
+        echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV</a></p>';
+
+        echo '<table class="wp-list-table widefat striped"><thead><tr><th>Name</th><th>Email</th><th>Tags</th><th>Activity</th><th>Registered</th></tr></thead><tbody>';
+        foreach ($ids as $uid) {
+            $user = get_userdata($uid);
+            if (!$user) continue;
+            $summary = array_map(fn($s) => $s['summary'], apply_filters('bh_crm_activity_summary', [], $uid));
+            echo '<tr>'
+               . '<td><a href="' . esc_url(add_query_arg('user_id', $uid)) . '"><strong>' . esc_html($user->display_name) . '</strong></a></td>'
+               . '<td>' . esc_html($user->user_email) . '</td>'
+               . '<td>' . esc_html(implode(', ', BHCRM_Tags::get($uid))) . '</td>'
+               . '<td>' . esc_html($summary ? implode(' &middot; ', $summary) : '—') . '</td>'
+               . '<td>' . esc_html(mysql2date('M j, Y', $user->user_registered)) . '</td>'
+               . '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+
+    // Real name / platform handles / consent flags, admin-only. Never
+    // exposed anywhere public — see BHI_Profiles for that guarantee.
+    private static function render_profile($uid) {
+        $p = BHI_Profiles::get($uid);
+        $rows = array_filter([
+            ['Real name', $p['real_name'], $p['real_name_public']],
+            ['Discord',   $p['discord_name'], $p['discord_public']],
+            ['Twitch',    $p['twitch_name'], $p['twitch_public']],
+            ['YouTube',   $p['youtube_name'], $p['youtube_public']],
+        ], fn($r) => $r[1] !== '');
+
+        echo '<h3>Profile</h3>';
+        if (!$rows && !$p['typical_platform'] && $p['phone'] === '') {
+            echo '<p><em>No profile data collected yet.</em></p>';
+            return;
+        }
+        if ($rows) {
+            echo '<table class="wp-list-table widefat striped"><thead><tr><th>Field</th><th>Value</th><th>Consent to share</th></tr></thead><tbody>';
+            foreach ($rows as [$label, $value, $public]) {
+                echo '<tr><td>' . esc_html($label) . '</td><td>' . esc_html($value) . '</td>'
+                   . '<td>' . ($public ? '&#10003; OK to share' : 'Keep private') . '</td></tr>';
+            }
+            echo '</tbody></table>';
+        }
+        if ($p['typical_platform']) echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
+        if ($p['phone'] !== '') echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
+    }
+
+    private static function render_detail($uid) {
+        $user = get_userdata($uid);
+        if (!$user) { echo '<p>User not found.</p>'; return; }
+
+        echo '<p><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
+        echo '<h2>' . esc_html($user->display_name) . '</h2>';
+        echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
+           . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . '">Edit WordPress profile</a></p>';
+
+        self::render_profile($uid);
+        BHCRM_Tags::render_editor($uid);
+        BHCRM_Notes::render_editor($uid);
+
+        $sections = apply_filters('bh_crm_activity_summary', [], $uid);
+        if ($sections) {
+            echo '<h3>Activity</h3>';
+            foreach ($sections as $section) {
+                echo '<h4>' . esc_html($section['plugin']) . '</h4><p>' . esc_html($section['summary']) . '</p>';
+                if (!empty($section['render'])) call_user_func($section['render']);
+            }
+        }
+    }
+}
