@@ -143,14 +143,34 @@ class BHY_Gallery {
             . '</head><body>' . $payload['html'] . '</body></html>';
     }
 
+    // A small, always-visible strip of sample chips that directly apply
+    // every scale/shape token (radius, radius_sm, bar_height, font_scale,
+    // space_scale) to real elements right here in the controls panel.
+    // Exists because no single registered preview surface is guaranteed
+    // to visibly use every token at once (e.g. the default Player surface
+    // never shows --bh-radius without opening a modal) — this gives every
+    // slider instant, surface-independent feedback instead.
+    private static function render_token_preview($s) {
+        echo '<div class="bhy-token-preview" id="bhy-token-preview">';
+        echo '<div class="bhy-token-chip bhy-token-chip-radius">Card <span>radius</span></div>';
+        echo '<div class="bhy-token-chip bhy-token-chip-radius-sm">Chip <span>radius_sm</span></div>';
+        echo '<button type="button" class="bhy-token-pill">Pill button</button>';
+        echo '<div class="bhy-token-bar" title="bar_height"><span>Now-playing bar height</span></div>';
+        echo '<div class="bhy-token-text"><strong>Aa</strong> font_scale &amp; space_scale</div>';
+        echo '</div>';
+    }
+
     private static function render_controls($s) {
         echo '<div class="bhy-controls">';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="bhy-form">';
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
+        echo '<h2>Live token preview</h2>';
+        self::render_token_preview($s);
+
         echo '<h2>Brand</h2>';
-        echo '<p><input type="text" name="brand_part1" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" name="brand_part2" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p>';
+        echo '<p><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p>';
 
         echo '<h2>Quick theme</h2>';
         echo '<select id="bhy-theme-select"><option value="">Choose a theme…</option>';
@@ -199,6 +219,7 @@ class BHY_Gallery {
     private static function render_script($surfaces, $s) {
         ?>
         <style><?php echo BHY_UI::admin_page_css(); ?></style>
+        <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css()); ?></style>
         <script>
         <?php echo BHY_UI::swatch_js("refreshAllFrames();"); ?>
         (function () {
@@ -217,15 +238,57 @@ class BHY_Gallery {
             // Live-edits apply to EVERY registered surface at once, not
             // just the one currently visible — switching stories after
             // adjusting a color shouldn't show the old value on the
-            // surface you hadn't looked at yet.
+            // surface you hadn't looked at yet. This rebuilds the FULL
+            // token set every time (colors, fonts, scale, radius, bar
+            // height) rather than just colors — writing a partial :root
+            // block into #bhy-vars would blow away whatever tokens
+            // aren't included, since this replaces that tag's entire
+            // textContent rather than patching individual declarations.
             window.refreshAllFrames = function () {
                 var css = buildCssText();
+                var brand1 = document.getElementById('brand_part1');
+                var brand2 = document.getElementById('brand_part2');
                 frames.forEach(function (f) {
                     var doc = f.contentDocument;
-                    if (doc) { var tag = doc.getElementById('bhy-vars'); if (tag) tag.textContent = css; }
+                    if (!doc) return;
+                    var tag = doc.getElementById('bhy-vars');
+                    if (tag) tag.textContent = css;
+                    // Best-effort: surfaces that render the brand wordmark
+                    // with these specific ids (e.g. bh-contest's player
+                    // header) get it updated live too. Surfaces without
+                    // these ids simply no-op here.
+                    if (brand1) { var b1 = doc.getElementById('bh-brand-1'); if (b1) b1.textContent = brand1.value.trim() || brand1.placeholder; }
+                    if (brand2) { var b2 = doc.getElementById('bh-brand-2'); if (b2) b2.textContent = brand2.value.trim() || brand2.placeholder; }
                 });
+                // The always-visible token preview strip lives in the main
+                // document (not an iframe), so it gets the same rebuilt
+                // token text, just scoped to .bhy-token-preview instead of
+                // :root — every slider stays visible regardless of which
+                // registered surface happens (or doesn't) to use that token.
+                var previewTag = document.getElementById('bhy-preview-vars');
+                if (previewTag) previewTag.textContent = css.replace(':root', '.bhy-token-preview');
             };
 
+            // Mirrors BHY_Style::font_family() — if a select is set to
+            // "Custom", use its paired text field (falling back to the
+            // same defaults BHY_Style::DEFAULTS uses if that's empty
+            // too); otherwise use the picked font name directly.
+            function pickedFontFamily(slot, fallback) {
+                var select = document.getElementById('font_' + slot);
+                if (!select) return fallback;
+                if (select.value === 'Custom') {
+                    var custom = document.getElementById('font_' + slot + '_custom');
+                    var val = custom ? custom.value.trim() : '';
+                    return val !== '' ? val : fallback;
+                }
+                return select.value;
+            }
+
+            // Builds the exact same set of CSS custom properties
+            // BHY_Style::inline_css() computes server-side — colors,
+            // font families, and every slider-controlled token — so the
+            // live preview never drifts from what a save would actually
+            // produce.
             function buildCssText() {
                 var vars = {};
                 document.querySelectorAll('.bhy-swatch-controls input[type=text]').forEach(function (input) {
@@ -239,11 +302,59 @@ class BHY_Gallery {
                     var cssVar = cssVarMap[input.dataset.key];
                     if (cssVar) vars[cssVar] = input.value.trim() || input.placeholder;
                 });
+
+                var displayFamily = pickedFontFamily('display', 'Space Grotesk').replace(/["{};]/g, '').trim();
+                var bodyFamily = pickedFontFamily('body', 'Inter').replace(/["{};]/g, '').trim();
+                vars['--bh-font-display'] = '"' + displayFamily + '", sans-serif';
+                vars['--bh-font-body'] = '"' + bodyFamily + '", sans-serif';
+
+                var sliderVarMap = {
+                    font_scale: ['--bh-font-scale', ''], space_scale: ['--bh-space-scale', ''],
+                    radius: ['--bh-radius', 'px'], radius_sm: ['--bh-radius-sm', 'px'], bar_height: ['--bh-bar-height', 'px'],
+                };
+                Object.keys(sliderVarMap).forEach(function (key) {
+                    var input = document.getElementById(key);
+                    if (!input) return;
+                    vars[sliderVarMap[key][0]] = input.value + sliderVarMap[key][1];
+                });
+
                 var out = ':root{';
                 Object.keys(vars).forEach(function (k) { out += k + ':' + vars[k] + ';'; });
                 out += '}';
                 return out;
             }
+
+            // Range sliders: update their own value label and push the
+            // change to every preview frame. Previously these had no JS
+            // at all — moving one did nothing.
+            document.querySelectorAll('.bhy-slider-row input[type=range]').forEach(function (input) {
+                var valSpan = document.getElementById(input.id + '_val');
+                input.addEventListener('input', function () {
+                    if (valSpan) valSpan.textContent = input.value + (input.dataset.unit || '');
+                    refreshAllFrames();
+                });
+            });
+
+            // Font selects: toggle the paired "Custom…" text field via
+            // its data-custom-target attribute (previously rendered but
+            // never read by anything) and refresh the preview.
+            document.querySelectorAll('.bhy-font-field select[data-custom-target]').forEach(function (select) {
+                var target = document.getElementById(select.dataset.customTarget);
+                select.addEventListener('change', function () {
+                    if (target) target.style.display = select.value === 'Custom' ? '' : 'none';
+                    refreshAllFrames();
+                });
+            });
+
+            // Custom-font text fields.
+            document.querySelectorAll('.bhy-font-field input[type=text]').forEach(function (input) {
+                input.addEventListener('input', refreshAllFrames);
+            });
+
+            // Brand wordmark fields.
+            document.querySelectorAll('.bhy-brand-input').forEach(function (input) {
+                input.addEventListener('input', refreshAllFrames);
+            });
 
             var themeSelect = document.getElementById('bhy-theme-select');
             if (themeSelect) themeSelect.addEventListener('change', function () {

@@ -38,12 +38,13 @@ class BHS_CRMIntegration {
 
     private static function render_detail($playlists) {
         if (!$playlists) return;
+        echo '<div style="overflow-x:auto;">';
         echo '<table class="wp-list-table widefat striped"><thead><tr><th>Playlist</th><th>Tracks</th></tr></thead><tbody>';
         foreach ($playlists as $p) {
             $ids = json_decode((string) get_post_meta($p->ID, '_bhs_track_ids', true), true);
             $count = is_array($ids) ? count($ids) : 0;
             echo '<tr><td>' . esc_html($p->post_title) . '</td><td>' . $count . '</td></tr>';
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></div>';
     }
 }

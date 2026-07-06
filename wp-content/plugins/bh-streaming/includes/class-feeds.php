@@ -5,15 +5,24 @@ if (!defined('ABSPATH')) exit;
  * The actual "aggregator, gatekept by the artist" mechanism.
  *
  * IMPORT: an admin adds a bhs_feed_source post with an external feed
- * URL — any standard podcast/audio RSS feed, including another
- * bh-streaming site's own export (below), or a Funkwhale channel's RSS.
- * Uses fetch_feed(), WordPress core's own feed parser (built on
- * SimplePie) — not custom XML parsing, because WordPress already solved
- * that problem. Imported tracks become real bh_track posts flagged
- * _bhs_source = 'external', so the rest of the catalog/player code never
- * needs a separate code path for "local" vs "aggregated" — it's all
- * just tracks. Nothing gets pulled in without an admin explicitly
- * adding that feed URL first — this is curation, not open following.
+ * URL — deliberately restricted to the open RSS/Atom podcast-feed
+ * standard (RSS 2.0 + the iTunes/Podcasting-2.0 enclosure convention),
+ * NOT any single platform's proprietary API. That standard happens to be
+ * exactly what Funkwhale itself publishes for every channel, so a
+ * Funkwhale channel's RSS link is a first-class citizen here — but so is
+ * any other server that speaks the same open feed format (including
+ * another bh-streaming site's own export, below). This plugin is not,
+ * and should never become, Funkwhale-exclusive; Funkwhale is simply the
+ * reference example of a server built on this open standard.
+ * validate_is_open_feed() below is what actually enforces "open standard
+ * feed, not an arbitrary URL" at save/sync time. Uses fetch_feed(),
+ * WordPress core's own feed parser (built on SimplePie) — not custom XML
+ * parsing, because WordPress already solved that problem. Imported
+ * tracks become real bh_track posts flagged _bhs_source = 'external', so
+ * the rest of the catalog/player code never needs a separate code path
+ * for "local" vs "aggregated" — it's all just tracks. Nothing gets
+ * pulled in without an admin explicitly adding that feed URL first —
+ * this is curation, not open following.
  *
  * EXPORT: this site's own catalog, re-served as a standard RSS feed
  * with real <enclosure> audio tags and iTunes-namespace metadata, so
@@ -28,10 +37,65 @@ class BHS_Feeds {
         add_action('save_post_bhs_feed_source', [self::class, 'save_feed_source']);
         add_action('admin_post_bhs_sync_feed', [self::class, 'handle_manual_sync']);
         add_action(self::CRON_HOOK, [self::class, 'sync_all']);
+        // "Share your feed" panel — this site's own export URL plus a
+        // scannable QR code — shown on the Feed Sources list screen so
+        // getting connected with another artist/instance is a copy-paste
+        // or a phone-camera away, not a support ticket.
+        add_action('admin_notices', [self::class, 'render_share_panel']);
 
         if (!wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time(), 'twicedaily', self::CRON_HOOK);
         }
+    }
+
+    /* ---------- open-standard enforcement ---------- */
+
+    // Restricts feed sources to the open RSS/Atom podcast-feed standard
+    // (what fetch_feed() itself parses) rather than trusting any URL that
+    // merely responds with SOME content — a 200 OK from an arbitrary API
+    // isn't "an open feed," it's just a URL. Requires at least one item
+    // with a real enclosure (the actual open-standard signal for "this is
+    // a media feed"), which is exactly what Funkwhale channels, other
+    // Podcasting-2.0 feeds, and this plugin's own export all provide.
+    private static function validate_is_open_feed($feed) {
+        if (is_wp_error($feed)) return false;
+        $items = $feed->get_items(0, 5);
+        foreach ($items as $item) {
+            if ($item->get_enclosure() && $item->get_enclosure()->get_link()) return true;
+        }
+        return false;
+    }
+
+    // This site's own subscribable feed URL — the thing to hand another
+    // artist, another bh-streaming instance, or a Funkwhale/podcast app.
+    public static function own_feed_url() {
+        return esc_url_raw(rest_url('bhs/v1/feed.xml'));
+    }
+
+    public static function render_share_panel() {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        if (!$screen || $screen->post_type !== 'bhs_feed_source') return;
+
+        $url = self::own_feed_url();
+        // A public QR-image service, not a bundled dependency — this
+        // only ever runs in wp-admin (never on a visitor-facing page),
+        // and avoids shipping/maintaining a QR-rendering library for one
+        // small convenience. If offline/no-outbound-requests hosting
+        // becomes a real requirement later, swap this for a bundled PHP
+        // QR encoder without changing anything else here — the URL this
+        // encodes is the only thing that matters.
+        $qr_src = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' . rawurlencode($url);
+
+        echo '<div class="notice notice-info" style="padding:16px;">';
+        echo '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">';
+        echo '<img src="' . esc_url($qr_src) . '" width="120" height="120" alt="QR code for this site\'s feed" style="border:1px solid #dcdcde;border-radius:6px;">';
+        echo '<div style="flex:1;min-width:240px;">';
+        echo '<p style="margin-top:0;"><strong>Share your feed</strong> — this is the open-standard (RSS/Podcasting-2.0) link to your own catalog. '
+           . 'Any Funkwhale channel, podcast app, or another bh-streaming site can subscribe to it directly, or scan the QR code from a phone.</p>';
+        echo '<p><input type="text" readonly value="' . esc_attr($url) . '" onclick="this.select();" style="width:100%;max-width:480px;font-family:monospace;font-size:12px;padding:6px;"></p>';
+        echo '<p class="description">To add SOMEONE ELSE\'S feed instead, use "Add New" below with their feed\'s RSS link — '
+           . 'on Funkwhale that\'s the "RSS feed" link on the artist\'s channel page; most other open, artist-hosted platforms expose the same kind of link on their channel/show page.</p>';
+        echo '</div></div></div>';
     }
 
     public static function register_routes() {
@@ -51,8 +115,14 @@ class BHS_Feeds {
         $url = get_post_meta($post->ID, '_bhs_feed_url', true);
         $last = get_post_meta($post->ID, '_bhs_last_synced', true);
 
+        $invalid = get_post_meta($post->ID, '_bhs_feed_invalid', true);
+
         echo '<p><label><strong>Feed URL</strong><br><input type="url" name="bhs_feed_url" value="' . esc_attr($url) . '" style="width:100%;" placeholder="https://example.com/feed.xml" required></label></p>';
-        echo '<p class="description">Any standard podcast/audio RSS feed — including another bh-streaming site\'s own feed at <code>/wp-json/bhs/v1/feed.xml</code>.</p>';
+        echo '<p class="description">Must be an open-standard RSS/Podcasting-2.0 feed with real audio enclosures — the same format Funkwhale publishes for every channel, and what this site\'s own export at <code>' . esc_html(self::own_feed_url()) . '</code> produces. '
+           . 'On Funkwhale: open the artist\'s channel page → "RSS feed" link. Not a proprietary API URL or a plain web page link.</p>';
+        if ($invalid) {
+            echo '<div class="notice notice-error inline"><p>Last sync rejected this URL — it didn\'t look like an open podcast/audio feed (no items with a real audio enclosure). Double-check it\'s the channel\'s RSS link, not its regular profile page.</p></div>';
+        }
         echo '<p>' . ($last ? 'Last synced: ' . esc_html($last) : '<em>Never synced — save this post to sync for the first time.</em>') . '</p>';
 
         if ($post->ID) {
@@ -101,7 +171,11 @@ class BHS_Feeds {
     private static function sync_one($feed_source_id, $url) {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
-        if (is_wp_error($feed)) return;
+        if (!self::validate_is_open_feed($feed)) {
+            update_post_meta($feed_source_id, '_bhs_feed_invalid', '1');
+            return;
+        }
+        delete_post_meta($feed_source_id, '_bhs_feed_invalid');
 
         $items = $feed->get_items(0, 30); // a reasonable cap per sync — this isn't meant to backfill someone's entire archive on every run
         foreach ($items as $item) {

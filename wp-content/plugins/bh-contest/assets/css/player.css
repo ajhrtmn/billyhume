@@ -40,6 +40,24 @@
     --bh-disc-size: 40px;
 }
 
+/* ---------------- Theme-isolation reset ----------------
+   This renders straight into whatever WP theme is active (a shortcode
+   in normal page content, not an iframe), so leakage runs both ways:
+   an aggressive theme stylesheet can bleed INTO these components
+   (global a/button/ul/h1-h6 resets, oversized base font-size, etc.),
+   and — the bug this replaces — an unscoped `* { box-sizing }` here
+   used to leak OUT and silently change box-sizing for the ENTIRE page,
+   not just this widget. Everything below is scoped under .bh-container
+   specifically so neither direction of leakage happens. */
+.bh-container, .bh-container * { box-sizing: border-box; }
+.bh-container :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
+.bh-container :where(a) { text-decoration: none; color: inherit; }
+.bh-container :where(button, input, select, textarea) {
+    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
+    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+}
+.bh-container { line-height: 1.4; }
+
 .bh-container {
     background-color: var(--bh-bg);
     color: var(--bh-text);
@@ -47,8 +65,6 @@
     padding: calc(28px * var(--bh-space-scale)) calc(24px * var(--bh-space-scale));
     padding-bottom: calc(var(--bh-bar-height) + 28px * var(--bh-space-scale));
 }
-
-* { box-sizing: border-box; }
 
 /* ---------------- Header ---------------- */
 .bh-header {
@@ -439,6 +455,9 @@
     .bh-scrubber::-moz-range-thumb { width: 16px; height: 16px; }
     .bh-play-pause { width: 40px; height: 40px; }
     .bh-modal-content { padding: 24px; max-width: 100%; }
+    .bh-reveal-intro h1 { font-size: calc(32px * var(--bh-font-scale)); }
+    .bh-reveal-entry { padding: 12px 14px; gap: 12px; }
+    .bh-reveal-medal { font-size: calc(22px * var(--bh-font-scale)); }
 }
 
 @media (max-width: 380px) {

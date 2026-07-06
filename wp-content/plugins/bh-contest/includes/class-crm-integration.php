@@ -40,6 +40,7 @@ class BH_CRMIntegration {
     private static function render_detail($uid) {
         $subs = get_posts(['post_type' => 'bh_submission', 'author' => $uid, 'post_status' => 'any', 'posts_per_page' => -1]);
         if ($subs) {
+            echo '<div class="bhy-table-wrap">';
             echo '<table class="wp-list-table widefat striped"><thead><tr><th>Title</th><th>Contest</th><th>Status</th><th>Plays</th></tr></thead><tbody>';
             foreach ($subs as $p) {
                 $cid   = (int) get_post_meta($p->ID, '_bh_contest_id', true);
@@ -51,7 +52,7 @@ class BH_CRMIntegration {
                    . '<td>' . (int) get_post_meta($p->ID, '_bh_play_count', true) . '</td>'
                    . '</tr>';
             }
-            echo '</tbody></table>';
+            echo '</tbody></table></div>';
         }
 
         global $wpdb;
@@ -70,6 +71,7 @@ class BH_CRMIntegration {
             $cat_names = [];
             foreach (BH_Helpers::categories($cid) as $c) $cat_names[$c['slug']] = $c['name'];
 
+            echo '<div class="bhy-table-wrap">';
             echo '<table class="wp-list-table widefat striped"><thead><tr><th>Track</th><th>Category</th><th>When</th></tr></thead><tbody>';
             foreach ($vs as $v) {
                 $track    = get_post($v->submission_id);
@@ -80,7 +82,7 @@ class BH_CRMIntegration {
                    . '<td>' . esc_html(mysql2date('M j, Y g:ia', $v->created_at)) . '</td>'
                    . '</tr>';
             }
-            echo '</tbody></table>';
+            echo '</tbody></table></div>';
         }
     }
 }

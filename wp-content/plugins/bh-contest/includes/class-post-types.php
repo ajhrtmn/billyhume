@@ -21,7 +21,13 @@ class BH_PostTypes {
             'show_ui'      => true,
             'show_in_menu' => true, // this CPT IS the top-level anchor
             'menu_icon'    => 'dashicons-awards',
-            'supports'     => ['title', 'editor'],
+            // No 'editor' — a contest has no free-text body content of
+            // its own; everything that actually matters (dates, contact
+            // fields, categories, shortcode, branding) already lives in
+            // this CPT's dedicated meta boxes (see BH_Admin::
+            // add_meta_boxes()). Keeping the default block editor around
+            // just added an empty, unused content area above those boxes.
+            'supports'     => ['title'],
         ]);
 
         register_post_type('bh_submission', [

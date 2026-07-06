@@ -67,10 +67,10 @@ class BHCRM_People {
 
     public static function render() {
         $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
-        echo '<div class="wrap"><h1>People/CRM</h1>';
+        BHY_UI::shell_open('People/CRM');
         if (isset($_GET['bhcrm_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhcrm_msg']))) . '</p></div>';
         $uid ? self::render_detail($uid) : self::render_list();
-        echo '</div>';
+        BHY_UI::shell_close();
     }
 
     private static function render_list() {
@@ -98,6 +98,7 @@ class BHCRM_People {
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
         echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV</a></p>';
 
+        echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped"><thead><tr><th>Name</th><th>Email</th><th>Tags</th><th>Activity</th><th>Registered</th></tr></thead><tbody>';
         foreach ($ids as $uid) {
             $user = get_userdata($uid);
@@ -111,7 +112,7 @@ class BHCRM_People {
                . '<td>' . esc_html(mysql2date('M j, Y', $user->user_registered)) . '</td>'
                . '</tr>';
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></div>';
     }
 
     // Real name / platform handles / consent flags, admin-only. Never
@@ -131,12 +132,13 @@ class BHCRM_People {
             return;
         }
         if ($rows) {
+            echo '<div class="bhy-table-wrap">';
             echo '<table class="wp-list-table widefat striped"><thead><tr><th>Field</th><th>Value</th><th>Consent to share</th></tr></thead><tbody>';
             foreach ($rows as [$label, $value, $public]) {
                 echo '<tr><td>' . esc_html($label) . '</td><td>' . esc_html($value) . '</td>'
                    . '<td>' . ($public ? '&#10003; OK to share' : 'Keep private') . '</td></tr>';
             }
-            echo '</tbody></table>';
+            echo '</tbody></table></div>';
         }
         if ($p['typical_platform']) echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
         if ($p['phone'] !== '') echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';

@@ -5,6 +5,12 @@ class BH_Admin {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
+        // The branding/style override box is an opt-in, per-contest
+        // feature most contests never touch (the site-wide theme from
+        // Settings & Style already applies by default) — starting it
+        // collapsed when a contest hasn't turned the override on keeps
+        // it out of the way without hiding or removing it.
+        add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
@@ -454,10 +460,11 @@ class BH_Admin {
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : 0;
         if (!$cid || get_post_type($cid) !== 'bh_contest') $cid = BH_Helpers::active_contest();
 
-        echo '<div class="wrap"><h1>Contest Results <span id="bh-live-dot" class="bh-live-dot" title="Auto-refreshing"></span></h1>';
+        BHY_UI::shell_open('Contest Results <span id="bh-live-dot" class="bh-live-dot" title="Auto-refreshing"></span>');
 
         if (!$contests) {
-            echo '<p>No contests yet. Create one under Contests → Add New.</p></div>';
+            echo '<p>No contests yet. Create one under Contests → Add New.</p>';
+            BHY_UI::shell_close();
             return;
         }
 
@@ -539,11 +546,13 @@ class BH_Admin {
 
         $cat_col = $all ? '<th>Category</th>' : '';
         echo '<p>Click the <strong>Votes</strong> or <strong>Plays</strong> headers to sort. (Sort resets on each live refresh.)</p>';
+        echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped" id="bh-results-table">';
         echo '<thead><tr><th>Song &amp; Artist</th>' . $cat_col . '<th data-dir="desc">Votes</th><th data-dir="desc">Plays</th><th>Chart</th></tr></thead>';
         echo '<tbody id="bh-results-body">';
         self::results_rows_html($rows, $all ? $cats : null);
         echo '</tbody></table></div>';
+        BHY_UI::shell_close();
 
         $rest  = esc_url_raw(rest_url('bh/v1/admin/live'));
         $nonce = wp_create_nonce('wp_rest');
@@ -668,6 +677,16 @@ class BH_Admin {
     }
 
     /* ================= Meta boxes ================= */
+
+    // Adds WordPress's own "closed" postbox class when this contest's
+    // style override isn't enabled yet — the box is still fully present
+    // and expandable, just not competing for attention by default the
+    // way it would if it always opened expanded.
+    public static function maybe_collapse_style_box($classes) {
+        global $post;
+        if ($post && !get_post_meta($post->ID, '_bhy_style_override', true)) $classes[] = 'closed';
+        return $classes;
+    }
 
     public static function add_meta_boxes() {
         add_meta_box('bh_approval', 'Submission Details & Approval', function ($post) {

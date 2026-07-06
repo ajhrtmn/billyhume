@@ -1,3 +1,18 @@
+/* ---------------- Theme-isolation reset ----------------
+   Same reasoning as bh-contest's player.css: this renders straight into
+   whatever WP theme is active, not an iframe, so it needs to be
+   defensive against theme-level a/button/ul/h1-h6 resets bleeding in —
+   scoped entirely under .bhs-app so it can't leak back out onto the
+   rest of the theme's page either. */
+.bhs-app, .bhs-app * { box-sizing: border-box; }
+.bhs-app :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
+.bhs-app :where(a) { text-decoration: none; color: inherit; }
+.bhs-app :where(button, input, select, textarea) {
+    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
+    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+}
+.bhs-app { line-height: 1.4; }
+
 .bhs-app { font-family: var(--bh-font-body); color: var(--bh-text); background: var(--bh-bg); min-height: 100vh; padding-bottom: 110px; position: relative; }
 .bhs-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
 

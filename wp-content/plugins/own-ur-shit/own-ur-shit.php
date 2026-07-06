@@ -48,6 +48,8 @@ add_action('init',          ['BHI_Auth', 'init']);
 add_action('rest_api_init', ['BHI_Auth', 'register_routes']);
 
 add_action('init', ['BHY_Gallery', 'init']);
+add_action('init', ['BHY_UI', 'init_shared_admin_assets']);
+BHY_UI::pin_hidden_submenus_to_bottom();
 
 /**
  * Hub role: unchanged in spirit, reduced in scope now that identity and
@@ -61,5 +63,6 @@ add_action('admin_post_ous_activate', ['OUS_Dashboard', 'handle_activate']);
 add_action('admin_post_ous_activate_all', ['OUS_Dashboard', 'handle_activate_all']);
 add_action('admin_post_ous_activate_file', ['OUS_Dashboard', 'handle_activate_file']);
 add_action('admin_post_ous_install',  ['OUS_Dashboard', 'handle_install']);
+add_action('init',          ['OUS_Banner', 'init']);
 add_action('admin_head',    ['OUS_Banner', 'maybe_print']);
 add_action('admin_enqueue_scripts', ['OUS_Dashboard', 'enqueue_assets']);

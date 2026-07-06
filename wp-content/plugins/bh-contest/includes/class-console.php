@@ -37,34 +37,34 @@ class BH_Console {
         $contests = BH_Helpers::all_contests();
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : BH_Reveal::default_contest();
 
-        echo '<div class="wrap"><h1>Live Console</h1>';
-        echo '<p class="description">Private — never link or share this page. Real names and contact info are shown here specifically so you know who you\'re listening to; none of it belongs on stream.</p>';
+        BHY_UI::shell_open('Live Console', 'Private — never link or share this page. Real names and contact info are shown here specifically so you know who you\'re listening to; none of it belongs on stream.');
 
         if (!$contests) {
-            echo '<p>No contests yet.</p></div>';
+            echo '<p>No contests yet.</p>';
+            BHY_UI::shell_close();
             return;
         }
 
-        echo '<form method="get" style="margin:14px 0;"><input type="hidden" name="page" value="bh-console">';
+        echo '<form method="get" style="margin:0 0 var(--bhy-space-4);"><input type="hidden" name="page" value="bh-console">';
         echo '<select name="contest_id" onchange="this.form.submit()">';
         foreach ($contests as $c) {
             echo '<option value="' . esc_attr($c->ID) . '" ' . selected($cid, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
         }
         echo '</select></form>';
 
-        if (!$cid) { echo '</div>'; return; }
+        if (!$cid) { BHY_UI::shell_close(); return; }
 
         $phase = BH_Helpers::contest_phase_summary($cid);
-        echo '<p><strong style="color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</strong> &middot; ';
+        echo '<p><span class="bhy-badge bhy-badge-dot" style="background:' . esc_attr($phase['color']) . '1a;color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</span> &middot; ';
         $export_base = admin_url('admin-post.php?action=bh_export&contest_id=' . $cid);
         echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=submissions', 'bh_export')) . '">Export submissions (CSV)</a> &middot; ';
         echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . '">Export votes (CSV)</a></p>';
 
         $suspicious = BH_Helpers::suspicious_voters($cid);
         if ($suspicious) {
-            echo '<div style="background:#fef3e2;border:1px solid #e0a020;border-radius:8px;padding:12px 16px;margin-bottom:16px;max-width:640px;">';
-            echo '<strong style="color:#8a5a00;">⚠️ Rapid voting detected</strong> — worth a look, not necessarily a problem:';
-            echo '<ul style="margin:6px 0 0 18px;">';
+            echo '<div class="bhy-alert bhy-alert-warning">';
+            echo '<strong>⚠️ Rapid voting detected</strong> — worth a look, not necessarily a problem:';
+            echo '<ul style="margin:var(--bhy-space-2) 0 0 18px;">';
             foreach ($suspicious as $s) {
                 $u = get_userdata($s->user_id);
                 echo '<li>' . esc_html($u ? $u->user_login : 'User #' . $s->user_id) . ': ' . esc_html($s->vote_count) . ' votes in ' . esc_html($s->span_seconds) . 's</li>';
@@ -75,8 +75,8 @@ class BH_Console {
         // Reveal controls live right here, not on a separate admin page —
         // everything needed to actually run the show (who's who, plus
         // the buttons that drive what's on stream) stays on one screen.
-        echo '<div style="background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:16px 20px;margin-bottom:20px;max-width:640px;">';
-        echo '<h2 style="margin-top:0;font-size:14px;text-transform:uppercase;letter-spacing:.04em;">Reveal Controls</h2>';
+        echo '<div class="bhy-card" style="max-width:640px;">';
+        echo '<h2>Reveal Controls</h2>';
         BH_Reveal::render_controls_widget($cid);
         echo '</div>';
 
@@ -86,12 +86,12 @@ class BH_Console {
             'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'ASC',
         ]);
 
-        if (!$subs) { echo '<p>No submissions for this contest yet.</p></div>'; return; }
+        if (!$subs) { echo '<p>No submissions for this contest yet.</p>'; BHY_UI::shell_close(); return; }
 
         global $wpdb;
         $t = BH_Helpers::table();
 
-        echo '<div style="overflow-x:auto;">';
+        echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped"><thead><tr>'
            . '<th>Track</th><th>Status</th><th>Identity</th><th>Live votes</th>'
            . '</tr></thead><tbody>';
@@ -106,16 +106,19 @@ class BH_Console {
             ));
 
             echo '<tr>';
-            echo '<td><strong>' . esc_html($p->post_title) . '</strong><br><span style="color:#787c82;">' . esc_html($artist) . '</span>';
+            echo '<td><strong>' . esc_html($p->post_title) . '</strong><br><span style="color:var(--bhy-ink-dim);">' . esc_html($artist) . '</span>';
             if ($url) echo '<br><audio controls preload="none" src="' . esc_url($url) . '" style="height:32px;margin-top:6px;max-width:240px;"></audio>';
             echo '</td>';
-            echo '<td>' . ($p->post_status === 'publish' ? '<span style="color:#1DB954;">Approved</span>' : '<span style="color:#b3261e;">Pending</span>') . '</td>';
+            echo '<td>' . ($p->post_status === 'publish'
+                ? '<span class="bhy-badge bhy-badge-success">Approved</span>'
+                : '<span class="bhy-badge bhy-badge-danger">Pending</span>') . '</td>';
             echo '<td>' . self::identity_cell($profile) . '</td>';
             echo '<td style="font-weight:600;">' . esc_html($votes) . '</td>';
             echo '</tr>';
         }
 
-        echo '</tbody></table></div></div>';
+        echo '</tbody></table></div>';
+        BHY_UI::shell_close();
     }
 
     // Splits into what's actually safe to say out loud on stream (only
@@ -146,12 +149,12 @@ class BH_Console {
         // reference below (prize-contact purposes only).
         if ($p['phone'] !== '') $all[] = 'Phone: ' . esc_html($p['phone']);
 
-        if (!$all) return '<em style="color:#8a8a8a;">No profile on file</em>';
+        if (!$all) return '<em style="color:var(--bhy-ink-dim);">No profile on file</em>';
 
-        $html = '<div style="margin-bottom:4px;"><strong style="color:#1DB954;">OK on stream:</strong> '
-              . ($public ? implode(', ', $public) : '<em style="color:#8a8a8a;">nothing — don\'t say any name for them</em>')
+        $html = '<div style="margin-bottom:4px;"><span class="bhy-badge bhy-badge-success">OK on stream</span> '
+              . ($public ? implode(', ', $public) : '<em style="color:var(--bhy-ink-dim);">nothing — don\'t say any name for them</em>')
               . '</div>';
-        $html .= '<div style="color:#787c82;font-size:11px;">' . implode('<br>', $all) . '</div>';
+        $html .= '<div style="color:var(--bhy-ink-dim);font-size:var(--bhy-text-xs);">' . implode('<br>', $all) . '</div>';
         return $html;
     }
 }

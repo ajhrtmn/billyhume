@@ -113,31 +113,33 @@ class OUS_Debug {
         $notice = isset($_GET['ous_msg']) ? sanitize_text_field(wp_unslash($_GET['ous_msg'])) : '';
         $env = function_exists('wp_get_environment_type') ? wp_get_environment_type() : 'unknown';
 
-        echo '<div class="wrap"><h1>Debug Tools</h1>';
+        BHY_UI::shell_open('Debug Tools');
         if (self::is_locked()) {
-            echo '<p style="color:#b3261e;"><strong>Locked.</strong> Detected environment: <code>' . esc_html($env) . '</code>. '
+            echo '<div class="bhy-alert bhy-alert-danger"><strong>Locked.</strong> Detected environment: <code>' . esc_html($env) . '</code>. '
                . 'Seeding/reset actions are blocked because this looks like production. '
-               . 'To unlock, add <code>define(\'OUS_DEBUG_TOOLS_FORCE\', true);</code> to wp-config.php, or set <code>WP_ENVIRONMENT_TYPE</code> to <code>local</code>/<code>development</code>/<code>staging</code>.</p>';
+               . 'To unlock, add <code>define(\'OUS_DEBUG_TOOLS_FORCE\', true);</code> to wp-config.php, or set <code>WP_ENVIRONMENT_TYPE</code> to <code>local</code>/<code>development</code>/<code>staging</code>.</div>';
         } else {
-            echo '<p style="color:#1DB954;"><strong>Unlocked.</strong> Detected environment: <code>' . esc_html($env) . '</code>. Safe to seed test data.</p>';
+            echo '<div class="bhy-alert bhy-alert-success"><strong>Unlocked.</strong> Detected environment: <code>' . esc_html($env) . '</code>. Safe to seed test data.</div>';
         }
         if ($notice) echo '<div class="notice notice-success"><p>' . esc_html($notice) . '</p></div>';
 
         $tools = apply_filters('ous_debug_tools', []);
         if (!$tools) {
-            echo '<p class="description">No plugin has registered any debug tools yet.</p></div>';
+            echo '<p class="description">No plugin has registered any debug tools yet.</p>';
+            BHY_UI::shell_close();
             return;
         }
 
         foreach ($tools as $key => $tool) {
-            echo '<div class="ous-debug-section"><h2>' . esc_html($tool['label']) . '</h2>';
+            echo '<div class="bhy-card ous-debug-section"><h2>' . esc_html($tool['label']) . '</h2>';
             if (!empty($tool['render'])) call_user_func($tool['render'], $key);
             echo '</div>';
         }
 
-        echo '<h2>Reset everything</h2><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
+        echo '<div class="bhy-card"><h2>Reset everything</h2><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
         self::button('__all__', 'reset_all', 'Wipe all test data (every plugin)', '', 'Delete ALL test data from every plugin? This cannot be undone.', false);
         echo '</div>';
+        BHY_UI::shell_close();
     }
 
     /* ---------------- dispatch ---------------- */
