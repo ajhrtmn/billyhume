@@ -45,7 +45,7 @@ if (!defined('ABSPATH')) exit;
  *                // relocated as direct submenus under Own Ur Shit.
  *                'admin_menus' => [
  *                    ['slug' => 'bh-lyrics-settings', 'label' => 'Lyrics Settings',
- *                     'callback' => ['BHL_Admin', 'render'], 'old_parent' => 'edit.php?post_type=bh_track'],
+ *                     'callback' => ['BHL_Admin', 'render'], 'old_parent' => 'edit.php?post_type=bhs_track'],
  *                ],
  *            ];
  *            return $plugins;
@@ -131,9 +131,29 @@ class OUS_Registry {
             'file' => 'bh-streaming/bh-streaming.php',
             'depends_on' => [],
             'check_class' => 'BHS_Player',
-            'description' => 'The artist\'s own streaming library and aggregator.',
-            'dashboard_link' => 'edit.php?post_type=bh_track',
+            'description' => 'The artist\'s own streaming library and aggregator — shuffle/queue, shared-listening Jam sessions, and an aggregate metrics dashboard.',
+            'dashboard_link' => 'edit.php?post_type=bhs_track',
             'bundled_zip' => 'bh-streaming.zip',
+        ],
+        // A third-party WordPress.org plugin, not ours to author or
+        // bundle — same 'wporg_slug' shape the docblock above documents
+        // for WooCommerce, installed live from WordPress.org rather than
+        // a local zip extraction. Exists on this dashboard purely as an
+        // easy on-ramp: video (and any other media) in bh-streaming or
+        // bh-courses is regular WordPress media-library content under
+        // the hood, so a transparent offload-to-cloud plugin needs zero
+        // code changes in either of those plugins to work — it rewrites
+        // wp_get_attachment_url() and friends, which is the one API
+        // surface every plugin in this ecosystem already goes through
+        // for media. No check_class since this plugin's real class
+        // names aren't part of this ecosystem's own contract — the
+        // WordPress.org file path is enough for install/activate status.
+        'advanced-media-offloader' => [
+            'label' => 'Advanced Media Offloader',
+            'file' => 'advanced-media-offloader/advanced-media-offloader.php',
+            'wporg_slug' => 'advanced-media-offloader',
+            'depends_on' => [],
+            'description' => 'Optional: offload media (course videos/images, streaming audio/artwork) to Cloudflare R2 or another S3-compatible bucket instead of this server\'s own disk — zero-egress-fee delivery via R2 in particular, and zero code changes needed in bh-streaming or bh-courses since it works at the WordPress media-library layer. Needs your own cloud storage account/credentials, entered on that plugin\'s own Settings screen after install (never a wp-config.php constant this ecosystem would need to define on your behalf) — this just wires up the one-click install.',
         ],
     ];
 
@@ -152,6 +172,23 @@ class OUS_Registry {
                 'depends_on' => [], 'check_class' => '', 'description' => '',
                 'dashboard_link' => '', 'bundled_zip' => '', 'wporg_slug' => '', 'admin_menus' => [],
             ], $info);
+        }
+        return $plugins;
+    }
+
+    // Same list as all(), minus any plugin that wants to stay off the
+    // dashboard specifically in production while it's still being
+    // built out — bh-streaming today, via BHS_Env::hidden_in_production()
+    // (only consulted if that class happens to be loaded; a plugin that
+    // doesn't opt into this convention is simply always shown, same as
+    // before). Deliberately only used for the dashboard CARD listing —
+    // activation/dependency/menu-merge logic still uses all() so
+    // installing or activating a hidden-in-prod plugin from another
+    // route (direct URL, WP-CLI) keeps working exactly as it always has.
+    public static function visible_cards() {
+        $plugins = self::all();
+        if (class_exists('BHS_Env') && BHS_Env::hidden_in_production()) {
+            unset($plugins['bh-streaming']);
         }
         return $plugins;
     }

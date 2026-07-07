@@ -50,8 +50,27 @@ class BHI_Auth {
             return new WP_Error('locked_out', 'Too many failed attempts. Please try again in 15 minutes.', ['status' => 429]);
         }
 
+        // A 2FA code, if this request included one, needs to reach
+        // BHI_TwoFactor::gate_login() — which runs inside WordPress's
+        // own 'authenticate' filter chain, the same chain wp_signon()
+        // below triggers for BOTH this REST endpoint and the classic
+        // wp-login.php form. Populating $_POST here (rather than
+        // duplicating the code-check logic in this method too) keeps
+        // 2FA enforcement a single implementation living in one place.
+        if ($req->get_param('code')) {
+            $_POST['bhcore_2fa_code'] = sanitize_text_field((string) $req->get_param('code'));
+        }
+
         $user = wp_signon(['user_login' => $username, 'user_password' => (string) $req->get_param('password'), 'remember' => true], is_ssl());
         if (is_wp_error($user)) {
+            // A 2FA challenge is a different thing than a wrong password
+            // — it doesn't count against the brute-force lockout (the
+            // password was already right), and the client needs to know
+            // to prompt for a code rather than show "invalid
+            // credentials" and give up.
+            if ($user->get_error_code() === 'bhcore_2fa_required') {
+                return new WP_Error('requires_2fa', 'Enter the 6-digit code from your authenticator app.', ['status' => 401, 'requires_2fa' => true]);
+            }
             set_transient($fail_key, (int) get_transient($fail_key) + 1, 15 * MINUTE_IN_SECONDS);
             return new WP_Error('login_failed', 'Invalid username or password.', ['status' => 401]);
         }

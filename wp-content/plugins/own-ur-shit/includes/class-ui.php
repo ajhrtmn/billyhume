@@ -220,6 +220,103 @@ class BHY_UI {
      * --------------------------------------------------------------- */
     public static function init_shared_admin_assets() {
         add_action('admin_head', [self::class, 'print_design_system_css']);
+        add_action('admin_footer', [self::class, 'print_design_system_js']);
+    }
+
+    /**
+     * Three small, dependency-free behaviors any ecosystem admin screen
+     * opts into just by using the right class/data-attribute — no
+     * per-plugin JS file to write or enqueue:
+     *
+     *   - `input.bhy-table-search[data-target="#some-table-id"]` — typing
+     *     filters that table's tbody rows by plain substring match
+     *     against the row's own text.
+     *   - `table.bhy-sortable` with `<th data-sort>` column headers —
+     *     clicking a header sorts by that column (numeric-aware, toggles
+     *     asc/desc on repeat clicks).
+     *   - `button.bhy-copy-btn[data-copy-target="#some-id"]` — copies
+     *     that element's value (inputs) or text content (everything
+     *     else) to the clipboard, with brief visual confirmation.
+     *
+     * Plain vanilla JS, no jQuery/build step, matching this ecosystem's
+     * existing convention (see OUS_Notifications' admin-bar bell for the
+     * same "own script handle, no assumed dependency" shape).
+     */
+    public static function print_design_system_js() {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        $id = $screen ? $screen->id : '';
+        // Broadened from a literal 'bh-' substring match: real screen ids
+        // in this ecosystem take several shapes WordPress itself derives
+        // (edit-bh_course, edit-bhs_feed_source, bhs_track_page_bhm-
+        // settings, own-ur-shit_page_ous-debug, etc.) — a strict 'bh-'
+        // check missed most of them, silently never printing this CSS/JS
+        // on exactly the screens that use it. Matching the bare 'bh'
+        // prefix (every post type/slug in this ecosystem starts with it)
+        // plus 'ous' (own-ur-shit's own non-'bh' pages) is safe: no core
+        // WordPress screen id contains either as a substring.
+        if ($id !== '' && strpos($id, 'bh') === false && strpos($id, 'ous') === false && strpos($id, 'own-ur-shit') === false) return;
+        ?>
+        <script>
+        (function () {
+            document.addEventListener('input', function (e) {
+                if (!e.target.matches('input.bhy-table-search')) return;
+                var target = document.querySelector(e.target.getAttribute('data-target'));
+                if (!target) return;
+                var q = e.target.value.trim().toLowerCase();
+                target.querySelectorAll('tbody tr').forEach(function (row) {
+                    row.style.display = (!q || row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+                });
+            });
+
+            document.addEventListener('click', function (e) {
+                var th = e.target.closest('table.bhy-sortable thead th[data-sort]');
+                if (th) {
+                    var table = th.closest('table');
+                    var tbody = table.querySelector('tbody');
+                    var idx = Array.prototype.indexOf.call(th.parentNode.children, th);
+                    var asc = !th.classList.contains('bhy-sort-asc');
+                    th.parentNode.querySelectorAll('th').forEach(function (t) { t.classList.remove('bhy-sort-asc', 'bhy-sort-desc'); });
+                    th.classList.add(asc ? 'bhy-sort-asc' : 'bhy-sort-desc');
+
+                    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                    rows.sort(function (a, b) {
+                        var av = (a.children[idx] ? a.children[idx].textContent : '').trim();
+                        var bv = (b.children[idx] ? b.children[idx].textContent : '').trim();
+                        var an = parseFloat(av.replace(/[^0-9.\-]/g, '')), bn = parseFloat(bv.replace(/[^0-9.\-]/g, ''));
+                        var cmp = (!isNaN(an) && !isNaN(bn) && String(an) === av.replace(/[^0-9.\-]/g, ''))
+                            ? (an - bn) : av.localeCompare(bv, undefined, {numeric: true, sensitivity: 'base'});
+                        return asc ? cmp : -cmp;
+                    });
+                    rows.forEach(function (r) { tbody.appendChild(r); });
+                    return;
+                }
+
+                var btn = e.target.closest('.bhy-copy-btn');
+                if (btn) {
+                    var target2 = document.querySelector(btn.getAttribute('data-copy-target'));
+                    if (!target2) return;
+                    var text = ('value' in target2) ? target2.value : target2.textContent;
+                    var done = function () {
+                        var original = btn.textContent;
+                        btn.textContent = 'Copied!';
+                        btn.classList.add('bhy-copied');
+                        setTimeout(function () { btn.textContent = original; btn.classList.remove('bhy-copied'); }, 1500);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(done);
+                    } else {
+                        // Fallback for non-HTTPS/older-browser contexts
+                        // where the modern Clipboard API isn't available.
+                        var tmp = document.createElement('textarea');
+                        tmp.value = text; document.body.appendChild(tmp); tmp.select();
+                        document.execCommand('copy'); document.body.removeChild(tmp);
+                        done();
+                    }
+                }
+            });
+        })();
+        </script>
+        <?php
     }
 
     public static function print_design_system_css() {
@@ -229,7 +326,16 @@ class BHY_UI {
         // admin pages), identified by the "page_" hook suffix WordPress
         // gives submenu pages — never on core WP or unrelated plugin
         // screens, so this can't collide with theme/plugin admin CSS.
-        if ($id !== '' && strpos($id, 'bh-') === false && strpos($id, 'own-ur-shit') === false) return;
+        // Broadened from a literal 'bh-' substring match: real screen ids
+        // in this ecosystem take several shapes WordPress itself derives
+        // (edit-bh_course, edit-bhs_feed_source, bhs_track_page_bhm-
+        // settings, own-ur-shit_page_ous-debug, etc.) — a strict 'bh-'
+        // check missed most of them, silently never printing this CSS/JS
+        // on exactly the screens that use it. Matching the bare 'bh'
+        // prefix (every post type/slug in this ecosystem starts with it)
+        // plus 'ous' (own-ur-shit's own non-'bh' pages) is safe: no core
+        // WordPress screen id contains either as a substring.
+        if ($id !== '' && strpos($id, 'bh') === false && strpos($id, 'ous') === false && strpos($id, 'own-ur-shit') === false) return;
         echo '<style>' . self::design_system_css() . '</style>';
     }
 
@@ -293,12 +399,73 @@ class BHY_UI {
                horizontal-scroll behavior, and (via container query) a
                denser padding once its own available width drops below
                a comfortable reading width, rather than only reacting to
-               the whole browser window\'s size. */
-            .bhy-table-wrap { container-type: inline-size; overflow-x: auto; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
-            .bhy-table-wrap table.wp-list-table { border: none; margin: 0; }
-            .bhy-table-wrap table.wp-list-table thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; }
+               the whole browser window\'s size. Covers both real
+               WP_List_Table output (.wp-list-table) and the plainer
+               .widefat tables several plugins build by hand (BH
+               Courses\' Student Progress — genuinely one column per
+               lesson, the actual worst-case width in this whole
+               ecosystem — and the Job Queue debug table) — the default
+               posture everywhere in this ecosystem is "just use core
+               WordPress admin styling as-is," this wrapper is the one
+               deliberate deviation, and only because a wide data table
+               with no horizontal-scroll affordance is a genuinely bad
+               experience on anything narrower than a desktop, not
+               because plain admin tables needed a makeover. */
+            /* max-height caps every wrapped table at a reasonable number
+               of visible rows before IT scrolls internally, rather than
+               the table pushing the whole admin page taller and taller
+               the more rows it happens to have. overflow-y: auto here
+               (not just overflow-x) makes THIS wrapper the nearest
+               scrolling ancestor, which is also what makes the sticky
+               header below correctly stick to the top of the wrapper\'s
+               own scroll — not the outer page\'s.
+
+               Two sizes, not one, because "how much scroll room does
+               this table deserve" genuinely depends on what else is on
+               the same screen: the DEFAULT (~10-12 rows, 420px) is for
+               a table that\'s one of several cards on the same page —
+               bh-streaming\'s four stats tables, the Debug Tools page\'s
+               several plugin sections, a CRM detail view\'s activity
+               list — where giving any one of them a tall scroll area
+               would just push its siblings further down for no reason.
+               .bhy-table-wrap--tall (~20-24 rows, 760px) opts in for the
+               opposite case: a page whose ENTIRE reason for existing is
+               that one list — Reports/moderation queue, Registry
+               Submissions review, a People directory — where the table
+               IS the page, and cramming it into the same small window
+               as a multi-card dashboard would waste most of the screen. */
+            .bhy-table-wrap { container-type: inline-size; overflow-x: auto; overflow-y: auto; max-height: 420px; -webkit-overflow-scrolling: touch; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
+            .bhy-table-wrap.bhy-table-wrap--tall { max-height: 760px; }
+            .bhy-table-wrap table.wp-list-table, .bhy-table-wrap table.widefat { border: none; margin: 0; }
+            .bhy-table-wrap table.wp-list-table thead th, .bhy-table-wrap table.widefat thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; white-space: nowrap; }
+            /* Hover highlight — makes a dense, striped table easier to
+               scan/track across columns on a single row; doesn\'t fight
+               .striped\'s own alternating background since this is just
+               a slightly darker overlay on whichever row the pointer is
+               actually over. */
+            .bhy-table-wrap table.wp-list-table tbody tr:hover, .bhy-table-wrap table.widefat tbody tr:hover { background: var(--bhy-subtle); }
+            /* Sortable column headers (see BHY_UI\'s shared JS) — a plain
+               visual affordance (pointer cursor, a caret hinting "this
+               is clickable") on any <th data-sort> inside a
+               table.bhy-sortable, so a plugin opts in by adding one class
+               and one data attribute per column, no separate JS to write. */
+            table.bhy-sortable thead th[data-sort] { cursor: pointer; user-select: none; }
+            table.bhy-sortable thead th[data-sort]::after { content: "\2195"; opacity: .35; margin-left: 4px; font-size: var(--bhy-text-xs); }
+            table.bhy-sortable thead th[data-sort].bhy-sort-asc::after { content: "\2191"; opacity: 1; }
+            table.bhy-sortable thead th[data-sort].bhy-sort-desc::after { content: "\2193"; opacity: 1; }
+            /* Search box above a sortable/filterable table — same card-
+               adjacent look as everything else, not a bare unstyled
+               <input>. */
+            input.bhy-table-search { width: 100%; max-width: 320px; margin-bottom: var(--bhy-space-3); padding: 6px 10px; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius-sm); font-size: var(--bhy-text-base); }
+            /* Copy-to-clipboard button — a small icon-ish button that
+               sits right next to a URL/code value instead of relying on
+               "click the box, select all, ctrl+c" as the only way to
+               grab it. */
+            .bhy-copy-btn { font-size: var(--bhy-text-xs); padding: 2px 8px; margin-left: var(--bhy-space-2); cursor: pointer; }
+            .bhy-copy-btn.bhy-copied { color: var(--bhy-success); border-color: var(--bhy-success); }
             @container (max-width: 640px) {
-                .bhy-table-wrap table.wp-list-table th, .bhy-table-wrap table.wp-list-table td { padding: 6px 8px; font-size: var(--bhy-text-sm); }
+                .bhy-table-wrap table.wp-list-table th, .bhy-table-wrap table.wp-list-table td,
+                .bhy-table-wrap table.widefat th, .bhy-table-wrap table.widefat td { padding: 6px 8px; font-size: var(--bhy-text-sm); white-space: nowrap; }
             }
 
             /* Range slider — same "detented" feel the quick-theme swatch
@@ -375,7 +542,14 @@ class BHY_UI {
     // a primary destination — filterable so a future plugin (its own
     // debug/maintenance page) can opt in without touching this file.
     public static function hidden_submenu_slugs() {
-        return apply_filters('bhy_hidden_submenu_slugs', ['ous-debug']);
+        // 'ous-debug' itself used to live here too, back when Debug Tools
+        // was a submenu under the main "Own Ur Shit" hub — it's now its
+        // own top-level "OUS Debug" menu (see class-debug.php), so
+        // there's no longer a hub submenu entry for it to pin. API Docs
+        // still hangs under THAT top-level menu (alongside Debug Tools'
+        // own auto-relabeled first item) and stays pinned to the bottom
+        // of it.
+        return apply_filters('bhy_hidden_submenu_slugs', ['ous-api-docs']);
     }
 
     public static function reorder_hidden_submenus() {

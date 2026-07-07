@@ -42,7 +42,7 @@ class OUS_Dashboard {
             echo '<div class="notice notice-error"><p>' . esc_html(self::error_message($_GET['ous_error'])) . '</p></div>';
         }
 
-        $registry = OUS_Registry::all();
+        $registry = OUS_Registry::visible_cards();
         $any_actionable = array_filter(array_keys($registry), fn($key) => OUS_Registry::status($key) !== 'active');
         if (count($any_actionable) > 1) {
             $url = wp_nonce_url(admin_url('admin-post.php?action=ous_activate_all'), 'ous_activate_all');

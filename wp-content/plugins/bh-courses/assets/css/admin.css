@@ -1,0 +1,10 @@
+.bhc-step-editor { border: 1px solid #ccd0d4; background: #fff; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+.bhc-step-editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bhc-question-editor { border-top: 1px solid #eee; margin-top: 10px; padding-top: 10px; }
+.bhc-choice-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.bhc-choice-row input[type="text"] { flex: 1; }
+.bhc-image-thumb { display: inline-block; background: #f0f0f1; padding: 4px 8px; border-radius: 3px; margin-right: 6px; }
+.bhc-video-upload-row, .bhc-video-url-row { margin: 8px 0; }
+.bhc-video-preview { display: inline-block; margin-right: 8px; color: #646970; }
+.bhc-add-row { margin-top: 10px; }
+#bhc-lesson-order-list .bhc-order-item:hover { background: #f6f7f7; }

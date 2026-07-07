@@ -98,8 +98,20 @@ class BHCRM_People {
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
         echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV</a></p>';
 
-        echo '<div class="bhy-table-wrap">';
-        echo '<table class="wp-list-table widefat striped"><thead><tr><th>Name</th><th>Email</th><th>Tags</th><th>Activity</th><th>Registered</th></tr></thead><tbody>';
+        // Search + sortable columns — see BHY_UI::print_design_system_js()
+        // for the shared, dependency-free behavior. Genuinely useful here
+        // specifically: a real directory is exactly the case where
+        // "find one person by name" and "sort by most recently
+        // registered" matter, unlike a small fixed-size stats table.
+        echo '<input type="text" class="bhy-table-search" data-target="#bhcrm-people-table" placeholder="Filter by name, email, or tag&hellip;">';
+
+        // --tall: this table IS the whole page (a directory, not one of
+        // several colocated cards) — see BHY_UI's own docblock on why
+        // that distinction gets it more scroll room than the default.
+        echo '<div class="bhy-table-wrap bhy-table-wrap--tall">';
+        echo '<table id="bhcrm-people-table" class="wp-list-table widefat striped bhy-sortable"><thead><tr>'
+           . '<th data-sort>Name</th><th data-sort>Email</th><th>Tags</th><th>Activity</th><th data-sort>Registered</th>'
+           . '</tr></thead><tbody>';
         foreach ($ids as $uid) {
             $user = get_userdata($uid);
             if (!$user) continue;
@@ -144,11 +156,44 @@ class BHCRM_People {
         if ($p['phone'] !== '') echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
     }
 
+    // Same avatar/banner/bio header the public profile page renders
+    // (BHI_Profiles is the one shared source, own-ur-shit's
+    // BHI_PublicProfile is the OTHER renderer of it) — admin-only
+    // context here just adds the public/private state and a direct
+    // link out to the live page when one exists, since staff often
+    // need to check "what does this actually look like."
+    private static function render_identity_header($uid) {
+        if (!class_exists('BHI_Profiles')) return;
+        $p = BHI_Profiles::get($uid);
+        $avatar = $p['avatar_id'] ? wp_get_attachment_image_url((int) $p['avatar_id'], 'thumbnail') : '';
+        if (!$avatar) $avatar = get_avatar_url($uid, ['size' => 96]);
+        $banner = $p['banner_id'] ? wp_get_attachment_image_url((int) $p['banner_id'], 'medium_large') : '';
+
+        echo '<div class="bhcrm-identity-header" style="position:relative;margin-bottom:16px;">';
+        if ($banner) {
+            echo '<div style="height:120px;background:url(' . esc_url($banner) . ') center/cover;border-radius:8px;margin-bottom:-40px;"></div>';
+        }
+        echo '<div style="display:flex;align-items:flex-end;gap:14px;padding:0 12px;">';
+        echo '<img src="' . esc_url($avatar) . '" width="80" height="80" style="border-radius:50%;object-fit:cover;border:3px solid #fff;background:#eee;" />';
+        echo '<div>';
+        if ($p['profile_public'] && class_exists('BHI_PublicProfile')) {
+            echo '<a href="' . esc_url(BHI_PublicProfile::profile_url($uid)) . '" target="_blank">View public profile page &rarr;</a>';
+        } else {
+            echo '<span style="color:#777;">Profile page not public</span>';
+        }
+        echo '</div></div>';
+        if ($p['bio']) {
+            echo '<p style="margin-top:10px;padding:0 12px;color:#555;">' . esc_html(wp_trim_words($p['bio'], 40)) . '</p>';
+        }
+        echo '</div>';
+    }
+
     private static function render_detail($uid) {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
 
         echo '<p><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
+        self::render_identity_header($uid);
         echo '<h2>' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
            . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . '">Edit WordPress profile</a></p>';

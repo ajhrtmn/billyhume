@@ -56,14 +56,48 @@ class OUS_Debug {
      */
     public static function is_locked() {
         if (defined('OUS_DEBUG_TOOLS_FORCE') && OUS_DEBUG_TOOLS_FORCE) return false;
-        return !function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production';
+        if (!function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production') {
+            // wp_get_environment_type() defaults to 'production' unless
+            // WP_ENVIRONMENT_TYPE is explicitly set in wp-config.php —
+            // which almost nobody's local dev tool (Local, MAMP, Valet,
+            // etc.) does out of the box. Without this fallback, a real
+            // local install would get treated as production and lose
+            // API Docs / seed-data tooling for no reason other than a
+            // wp-config constant nobody thought to add. A well-known
+            // local-only hostname pattern is a reasonable, low-risk
+            // second signal — none of these TLDs/hosts are ever valid on
+            // the public internet, so this can't accidentally unlock a
+            // real production site.
+            $host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+            $looks_local = (bool) preg_match('/(^localhost$|^127\.0\.0\.1$|\.(test|local|localhost)$)/i', $host);
+            if (!$looks_local) return true;
+        }
+        return false;
     }
 
+    // Its own top-level menu ("OUS Debug"), separate from the main "Own
+    // Ur Shit" hub — dev/debug tooling (seed data, Console & Logs, Test
+    // Runner, and API Docs — see class-api-docs.php, which hangs its own
+    // page off THIS parent now too) is a genuinely different audience
+    // and use case than the hub's install/dashboard/reports pages, and
+    // deserves its own clearly-labeled place in the sidebar rather than
+    // being buried at the bottom of the hub's submenu. add_menu_page()
+    // auto-creates a first submenu item labeled after the top-level menu
+    // title — the add_submenu_page() call right after it, using the SAME
+    // slug, is the standard WP trick to relabel that first item
+    // "Debug Tools" instead of a redundant second "OUS Debug".
     public static function add_menu() {
-        // No point showing a menu item whose every action is already
-        // blocked by is_locked() — that's just clutter on a live site.
-        if (self::is_locked()) return;
-        add_submenu_page('own-ur-shit', 'Debug Tools', '🛠 Debug Tools', 'manage_options', 'ous-debug', [self::class, 'render']);
+        // Used to hide this whole page on production (is_locked()) —
+        // loosened, because Console & Logs and the Test Runner (see
+        // class-debug-log.php / class-test-runner.php) are genuinely
+        // useful for an admin troubleshooting a LIVE site, not just a
+        // dev environment, and hiding the whole page hid those too.
+        // manage_options is the actual gate now (same as every other
+        // admin-only page in this ecosystem); the seed/reset "fake test
+        // data" actions specifically stay blocked in production via
+        // is_locked(), checked per-section in handle() below.
+        add_menu_page('Debug Tools', 'OUS Debug', 'manage_options', 'ous-debug', [self::class, 'render'], 'dashicons-admin-tools', 99);
+        add_submenu_page('ous-debug', 'Debug Tools', 'Debug Tools', 'manage_options', 'ous-debug', [self::class, 'render']);
     }
 
     /* ---------------- shared UI helpers every registered plugin's render() can use ---------------- */
@@ -150,12 +184,20 @@ class OUS_Debug {
             wp_die('Not allowed.');
         }
 
-        if (self::is_locked()) {
-            self::redirect('Blocked: this looks like a production environment. Add define(\'OUS_DEBUG_TOOLS_FORCE\', true) to wp-config.php to override.');
-        }
-
         $action = sanitize_key($_POST['ous_debug_action'] ?? '');
         $tools = apply_filters('ous_debug_tools', []);
+
+        // The production lock now applies PER SECTION, not to the whole
+        // page: seeding fake test data or wiping real tables is exactly
+        // what "this looks like production" should block, but Console &
+        // Logs (clearing a log table) and the Test Runner (running pure
+        // logic assertions) do nothing a live site needs protecting
+        // from — a section opts out of the lock by setting
+        // 'safe_in_production' => true on its own ous_debug_tools entry.
+        $safe = ($plugin_key !== '__all__') && !empty($tools[$plugin_key]['safe_in_production']);
+        if (self::is_locked() && !$safe) {
+            self::redirect('Blocked: this looks like a production environment. Add define(\'OUS_DEBUG_TOOLS_FORCE\', true) to wp-config.php to override.');
+        }
 
         if ($plugin_key === '__all__' && $action === 'reset_all') {
             $messages = [];

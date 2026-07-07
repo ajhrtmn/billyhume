@@ -1,0 +1,79 @@
+/* ---------------- Theme-isolation reset ----------------
+   Same reasoning as bh-streaming's player.css / bh-contest's own CSS:
+   renders straight into whatever WP theme is active, not an iframe, so
+   it defends against theme-level a/button/ul/h1-h6 resets bleeding in —
+   scoped entirely under .bhc-catalog / .bhc-course-view / .bhc-lesson so
+   it can't leak back out onto the rest of the theme's page either. */
+.bhc-catalog, .bhc-catalog *,
+.bhc-course-view, .bhc-course-view *,
+.bhc-lesson, .bhc-lesson * { box-sizing: border-box; }
+.bhc-catalog :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
+.bhc-course-view :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
+.bhc-lesson :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
+.bhc-catalog :where(a), .bhc-course-view :where(a), .bhc-lesson :where(a) { text-decoration: none; color: inherit; }
+.bhc-catalog :where(button, input, select, textarea),
+.bhc-course-view :where(button, input, select, textarea),
+.bhc-lesson :where(button, input, select, textarea) {
+    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
+    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+}
+
+.bhc-catalog, .bhc-course-view, .bhc-lesson {
+    font-family: var(--bh-font-body); color: var(--bh-text); line-height: 1.4;
+}
+.bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
+
+/* ---- catalog ---- */
+.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+.bhc-course-card {
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.bhc-course-card img { width: 100%; border-radius: 6px; object-fit: cover; }
+.bhc-course-card h3 { font-family: var(--bh-font-heading); font-size: 17px; }
+.bhc-course-card h3 a:hover { color: var(--bh-accent); }
+.bhc-course-card.bhc-locked { opacity: 0.7; }
+.bhc-lock { font-size: 13px; }
+.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); }
+
+.bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
+.bhc-progress-fill { height: 100%; background: var(--bh-accent); }
+.bhc-progress-label { font-size: 12px; color: var(--bh-text-dim); }
+
+/* ---- course lesson list ---- */
+.bhc-lesson-list li {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 14px; border-bottom: 1px solid var(--bh-border);
+}
+.bhc-lesson-list li a:hover { color: var(--bh-accent); }
+.bhc-lesson-list li.bhc-lesson-done { color: var(--bh-text-dim); }
+.bhc-lesson-progress { font-size: 12px; color: var(--bh-text-dim); }
+.bhc-check { color: var(--bh-accent); }
+.bhc-lesson-list li.bhc-lesson-locked { color: var(--bh-text-dim); }
+.bhc-drip-notice { font-size: 12px; }
+.bhc-drip-locked { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+.bhc-attempts-note { font-size: 13px; color: var(--bh-text-dim); margin: 8px 0; }
+
+/* ---- lesson step walker ---- */
+.bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
+.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+.bhc-step-text { font-size: 15px; }
+.bhc-step-text p { margin-bottom: 12px; }
+.bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
+.bhc-step-video { width: 100%; max-height: 480px; border-radius: 6px; margin-bottom: 8px; background: #000; }
+.bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
+.bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
+
+.bhc-btn {
+    background: var(--bh-accent); color: var(--bh-accent-contrast, #fff); border: none;
+    border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
+}
+.bhc-btn:hover { background: var(--bh-accent-soft); }
+.bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
+
+.bhc-quiz-question { border: none; margin-bottom: 16px; }
+.bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
+.bhc-quiz-choice { display: block; padding: 6px 0; cursor: pointer; }
+.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+.bhc-quiz-result.bhc-pass { background: var(--bh-accent-soft); }
+.bhc-quiz-result.bhc-fail { background: var(--bh-border); }

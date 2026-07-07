@@ -1,14 +1,14 @@
 <?php
 /**
  * Plugin Name: BH Streaming
- * Description: An iTunes-like personal streaming library — releases, genres, playlists, likes, a content-based recommendation engine, and a gatekept RSS aggregator — installable as a PWA with reliable background audio.
- * Version:     0.3.0
+ * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
+ * Version:     0.5.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHS_VER',  '0.3.0');
+define('BHS_VER',  '0.5.0');
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 
@@ -19,7 +19,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration'] as $f) {
+foreach (['env', 'activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -29,6 +29,34 @@ foreach (['activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', '
 // features, so there's nothing here that can fatal-error even if the
 // dependency below turns out to be missing.
 register_activation_hook(__FILE__, ['BHS_Activator', 'activate']);
+
+// AIFF isn't in WordPress core's default allowed-upload mime list (core
+// ships mp3/m4a/ogg/wav/wma but not aif/aiff) — without this, an
+// artist's or listener's .aif/.aiff file is silently rejected by both
+// wp.media's audio picker (Quality Encodes, track audio) and
+// class-import.php's media_handle_upload() call, with no obvious reason
+// why. A plain global filter, safe to register unconditionally (no
+// dependency on the core plugin or any class from it) — it only ever
+// widens what WordPress itself will accept.
+add_filter('upload_mimes', function ($mimes) {
+    $mimes['aif|aiff'] = 'audio/aiff';
+    return $mimes;
+});
+
+// Belt-and-suspenders alongside upload_mimes above: some PHP fileinfo
+// builds don't confidently sniff .aiff's real content type, which can
+// make wp_check_filetype_and_ext() (the deeper check media_handle_upload
+// runs, independent of the extension whitelist above) still reject an
+// otherwise-legitimate AIFF as a mismatch. If the extension is aif/aiff
+// and core's own sniffing came back empty, trust the extension rather
+// than blocking a real, common lossless format artists actually use.
+add_filter('wp_check_filetype_and_ext', function ($data, $file, $filename) {
+    if (empty($data['ext']) && preg_match('/\.aiff?$/i', $filename)) {
+        $data['ext'] = 'aiff';
+        $data['type'] = 'audio/aiff';
+    }
+    return $data;
+}, 10, 3);
 
 /**
  * Gated behind plugins_loaded rather than checked directly here at
@@ -61,11 +89,24 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_Feeds', 'init']);
     add_action('init',          ['BHS_StyleSurface', 'init']);
     add_action('init',          ['BHS_CRMIntegration', 'init']);
+    add_action('init',          ['BHS_Stats', 'init']);
     add_action('rest_api_init', ['BHS_API', 'register_routes']);
+    add_action('rest_api_init', ['BHS_API', 'add_cors_headers']);
     add_action('rest_api_init', ['BHS_PWA', 'register_routes']);
     add_action('rest_api_init', ['BHS_Likes', 'register_routes']);
     add_action('rest_api_init', ['BHS_Playlists', 'register_routes']);
     add_action('rest_api_init', ['BHS_Recommendations', 'register_routes']);
     add_action('rest_api_init', ['BHS_Feeds', 'register_routes']);
+    add_action('rest_api_init', ['BHS_Import', 'register_routes']);
+    add_action('rest_api_init', ['BHS_Jam', 'register_routes']);
     add_action('wp_head',       ['BHS_PWA', 'print_head_tags']);
+
+    // Optional: if the core's job queue is active, each feed source's
+    // sync runs as its own queued job instead of all of them running
+    // inline in one cron tick — see BHS_Feeds::sync_all()'s docblock.
+    // A plain class_exists() guard, never a hard dependency — this
+    // plugin works identically on a core version without OUS_Jobs.
+    if (class_exists('OUS_Jobs')) {
+        OUS_Jobs::register('bhs_sync_one_feed', ['BHS_Feeds', 'sync_one_job']);
+    }
 });

@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: Own Ur Shit
- * Description: The ecosystem core — shared accounts/profiles, shared design tokens with a Storybook-patterned live preview gallery, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.0.0
+ * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
+ * Version:     3.2.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
-define('OUS_VER',  '3.0.0');
+define('OUS_VER',  '3.2.0');
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
 
@@ -38,14 +38,36 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'profiles', 'auth', 'identity-activator', 'style', 'ui', 'style-gallery'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'test-runner', 'core-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHI_Activator', 'activate']);
+register_activation_hook(__FILE__, ['OUS_Roles', 'activate']);
+register_deactivation_hook(__FILE__, function () {
+    // Only the cron schedule this plugin itself created — never touches
+    // any other plugin's scheduled events, and the job queue TABLE (and
+    // anything still pending in it) is left completely alone, so
+    // reactivating later picks up right where it left off.
+    $timestamp = wp_next_scheduled(OUS_Jobs::CRON_HOOK);
+    if ($timestamp) wp_unschedule_event($timestamp, OUS_Jobs::CRON_HOOK);
+});
 add_action('plugins_loaded', ['BHI_Activator', 'maybe_upgrade']);
 add_action('init',          ['BHI_Auth', 'init']);
 add_action('rest_api_init', ['BHI_Auth', 'register_routes']);
+add_action('init',          ['BHI_PublicProfile', 'init']);
+add_action('init',          ['BHI_Reports', 'init']);
+add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
+add_action('init',          ['BHI_TwoFactor', 'init']);
+
+add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
+add_action('init',          ['OUS_Jobs', 'init']);
+add_action('init',          ['OUS_Notifications', 'init']);
+add_action('init',          ['OUS_Roles', 'init']);
+add_action('init',          ['OUS_DebugLog', 'init']);
+add_action('init',          ['OUS_TestRunner', 'init']);
+add_action('init',          ['OUS_CoreTestSuite', 'init']);
+add_action('init',          ['OUS_ApiDocs', 'init']);
 
 add_action('init', ['BHY_Gallery', 'init']);
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);

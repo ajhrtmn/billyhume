@@ -21,7 +21,7 @@ class BHS_Recommendations {
     public static function get_related($req) {
         $track_id = (int) $req->get_param('id');
         $track = get_post($track_id);
-        if (!$track || $track->post_type !== 'bh_track') {
+        if (!$track || $track->post_type !== 'bhs_track') {
             return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
         }
 
@@ -35,7 +35,7 @@ class BHS_Recommendations {
         // than needing its own index — fine at the scale this plugin
         // will realistically see for a while.
         $candidates = get_posts([
-            'post_type' => 'bh_track', 'post_status' => 'publish', 'posts_per_page' => -1,
+            'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
             'post__not_in' => [$track_id], 'fields' => 'ids',
         ]);
 

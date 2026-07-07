@@ -4,30 +4,84 @@ if (!defined('ABSPATH')) exit;
 /**
  * Genre selection needs no code here at all — registering bhs_genre as
  * a non-hierarchical taxonomy with show_ui true (see class-post-types.php)
- * already gives every bh_track edit screen a standard tag-style picker
+ * already gives every bhs_track edit screen a standard tag-style picker
  * for free. Only the things WordPress doesn't already have a UI for —
  * audio/artwork upload, the release picker — need custom metaboxes.
  */
 class BHS_Admin {
     public static function init() {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
-        add_action('save_post_bh_track', [self::class, 'save_track']);
-        add_action('save_post_bh_release', [self::class, 'save_release']);
+        add_action('save_post_bhs_track', [self::class, 'save_track']);
+        add_action('save_post_bhs_track', [self::class, 'save_quality']);
+        add_action('save_post_bhs_track', [self::class, 'save_lyrics']);
+        add_action('save_post_bhs_release', [self::class, 'save_release']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
 
-        add_filter('manage_bh_track_posts_columns', [self::class, 'columns']);
-        add_action('manage_bh_track_posts_custom_column', [self::class, 'column_content'], 10, 2);
+        add_filter('manage_bhs_track_posts_columns', [self::class, 'columns']);
+        add_action('manage_bhs_track_posts_custom_column', [self::class, 'column_content'], 10, 2);
     }
 
     public static function enqueue_media($hook) {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
-        if (!in_array(get_post_type(), ['bh_track', 'bh_release'], true)) return;
+        if (!in_array(get_post_type(), ['bhs_track', 'bhs_release'], true)) return;
         wp_enqueue_media();
     }
 
+    // Quality Encodes offers a small, fixed set of TIERS rather than an
+    // arbitrary add-your-own-label list — three meaningfully different
+    // levels (lossless source, a high-bitrate compressed encode, a
+    // smaller standard encode) covers what a listener's quality picker
+    // actually needs to choose between. Each tier accepts whatever
+    // format an artist actually has for it — WAV, AIFF, or FLAC for
+    // lossless; MP3 (or another lossy format) for the compressed tiers
+    // — the file picker doesn't force a specific format, only a
+    // specific role. An artist who only has one MP3 and nothing else
+    // just fills in 'standard' and leaves the other two empty; the
+    // track's plain _bhs_audio_id (set in the metabox above) remains
+    // the fallback whenever no tier has been filled in at all.
+    const QUALITY_LABELS = ['lossless' => 'Lossless (WAV / AIFF / FLAC)', 'high' => 'High (e.g. 320kbps MP3)', 'standard' => 'Standard (e.g. 128–192kbps MP3)'];
+
     public static function add_meta_boxes() {
-        add_meta_box('bhs_track_details', 'Track Details', [self::class, 'render_track_metabox'], 'bh_track', 'normal', 'high');
-        add_meta_box('bhs_release_details', 'Release Details', [self::class, 'render_release_metabox'], 'bh_release', 'normal', 'high');
+        add_meta_box('bhs_track_details', 'Track Details', [self::class, 'render_track_metabox'], 'bhs_track', 'normal', 'high');
+        add_meta_box('bhs_track_quality', 'Quality Encodes', [self::class, 'render_quality_metabox'], 'bhs_track', 'normal', 'default');
+        add_meta_box('bhs_track_lyrics', 'Lyrics', [self::class, 'render_lyrics_metabox'], 'bhs_track', 'normal', 'default');
+        add_meta_box('bhs_track_monetization', 'Monetization', [self::class, 'render_track_monetization_metabox'], 'bhs_track', 'normal', 'default');
+        add_meta_box('bhs_release_details', 'Release Details', [self::class, 'render_release_metabox'], 'bhs_release', 'normal', 'high');
+        add_meta_box('bhs_release_monetization', 'Monetization', [self::class, 'render_release_monetization_metabox'], 'bhs_release', 'normal', 'default');
+    }
+
+    /* ---------- monetization extension point (bh-monetization-woo hooks in here) ---------- */
+
+    // This metabox renders NOTHING of its own — it's purely a hook point
+    // an entirely separate, optional plugin (bh-monetization-woo) uses
+    // to inject its own UI, following the same one-directional,
+    // zero-required-changes extension-point convention as
+    // class-crm-integration.php. Using plain actions rather than one of
+    // the four core filters (ous_registered_plugins, bhy_style_surfaces,
+    // ous_debug_tools, bh_crm_*) because those are about REGISTERING
+    // something into a shared hub screen; this is closer to WordPress's
+    // own add_meta_box pattern — "let another plugin render markup
+    // directly into this exact spot" — so a plain do_action() is the
+    // more honest fit than forcing it through a filter that would just
+    // be used to return an HTML string anyway.
+    //
+    // If bh-monetization-woo (or anything else) is never installed, this
+    // do_action() call is a complete no-op — nothing renders, nothing
+    // breaks, and the metabox simply shows its own one-line fallback.
+    public static function render_track_monetization_metabox($post) {
+        if (!has_action('bhs_track_monetization_ui')) {
+            echo '<p class="description">No monetization plugin is active. Install <strong>BH Monetization (WooCommerce)</strong> to sell this track, gate it behind a supporter tier, or accept tips.</p>';
+            return;
+        }
+        do_action('bhs_track_monetization_ui', $post);
+    }
+
+    public static function render_release_monetization_metabox($post) {
+        if (!has_action('bhs_release_monetization_ui')) {
+            echo '<p class="description">No monetization plugin is active. Install <strong>BH Monetization (WooCommerce)</strong> to sell this release, gate it behind a supporter tier, or accept tips.</p>';
+            return;
+        }
+        do_action('bhs_release_monetization_ui', $post);
     }
 
     /* ---------- track metabox ---------- */
@@ -50,7 +104,7 @@ class BHS_Admin {
 
         echo '<p><strong>Release</strong> <span class="description">(optional — groups this track into an album/EP)</span></p>';
         echo '<select name="bhs_release_id"><option value="">— None —</option>';
-        foreach (get_posts(['post_type' => 'bh_release', 'post_status' => 'publish', 'posts_per_page' => -1]) as $r) {
+        foreach (get_posts(['post_type' => 'bhs_release', 'post_status' => 'publish', 'posts_per_page' => -1]) as $r) {
             echo '<option value="' . esc_attr($r->ID) . '" ' . selected($release_id, $r->ID, false) . '>' . esc_html($r->post_title) . '</option>';
         }
         echo '</select>';
@@ -68,6 +122,79 @@ class BHS_Admin {
         echo '<p><button type="button" class="button" id="bhs_artwork_upload">Choose artwork…</button></p>';
 
         self::render_media_picker_script();
+    }
+
+    /* ---------- quality encodes metabox ---------- */
+
+    public static function render_quality_metabox($post) {
+        $is_external = get_post_meta($post->ID, '_bhs_source', true) === 'external';
+        if ($is_external) {
+            echo '<p class="description">Not available for externally-imported tracks — this site doesn\'t host their audio at all, so there\'s nothing here to attach an alternate encode to.</p>';
+            return;
+        }
+        wp_nonce_field('bhs_save_quality', 'bhs_quality_nonce');
+        $qualities = json_decode((string) get_post_meta($post->ID, '_bhs_audio_qualities', true), true);
+        if (!is_array($qualities)) $qualities = [];
+
+        foreach (self::QUALITY_LABELS as $key => $label) {
+            $aid = (int) ($qualities[$key] ?? 0);
+            $aurl = $aid ? wp_get_attachment_url($aid) : '';
+            echo '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #dcdcde;">';
+            echo '<p><strong>' . esc_html($label) . '</strong></p>';
+            echo '<input type="hidden" id="bhs_quality_' . esc_attr($key) . '" name="bhs_quality[' . esc_attr($key) . ']" value="' . esc_attr($aid) . '">';
+            echo '<div id="bhs_quality_' . esc_attr($key) . '_preview">' . ($aurl ? "<audio controls src='" . esc_url($aurl) . "' style='width:100%;'></audio>" : '<p><em>Not set — falls back to the main audio file above.</em></p>') . '</div>';
+            echo '<p><button type="button" class="button bhs-quality-upload" data-key="' . esc_attr($key) . '">Choose file…</button> '
+               . '<button type="button" class="button-link bhs-quality-clear" data-key="' . esc_attr($key) . '" style="color:#b3261e;">Remove</button></p>';
+            echo '</div>';
+        }
+        ?>
+        <script>
+        (function () {
+            if (!window.wp || !window.wp.media) return;
+            document.querySelectorAll('.bhs-quality-upload').forEach(function (btn) {
+                if (btn.dataset.bhsBound) return;
+                btn.dataset.bhsBound = '1';
+                var key = btn.dataset.key;
+                var frame = null;
+                btn.addEventListener('click', function () {
+                    if (frame) { frame.open(); return; }
+                    frame = wp.media({ title: 'Choose an audio file', button: { text: 'Use this' }, multiple: false, library: { type: 'audio' } });
+                    frame.on('select', function () {
+                        var att = frame.state().get('selection').first().toJSON();
+                        document.getElementById('bhs_quality_' + key).value = att.id;
+                        document.getElementById('bhs_quality_' + key + '_preview').innerHTML =
+                            '<audio controls src="' + att.url + '" style="width:100%;"></audio>';
+                    });
+                    frame.open();
+                });
+            });
+            document.querySelectorAll('.bhs-quality-clear').forEach(function (btn) {
+                if (btn.dataset.bhsBound) return;
+                btn.dataset.bhsBound = '1';
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var key = btn.dataset.key;
+                    document.getElementById('bhs_quality_' + key).value = '';
+                    document.getElementById('bhs_quality_' + key + '_preview').innerHTML = '<p><em>Not set — falls back to the main audio file above.</em></p>';
+                });
+            });
+        })();
+        </script>
+        <?php
+    }
+
+    /* ---------- lyrics metabox ---------- */
+
+    public static function render_lyrics_metabox($post) {
+        wp_nonce_field('bhs_save_lyrics', 'bhs_lyrics_nonce');
+        $plain = (string) get_post_meta($post->ID, '_bhs_lyrics_text', true);
+        $lrc = (string) get_post_meta($post->ID, '_bhs_lyrics_lrc', true);
+
+        echo '<p><strong>Synced lyrics (LRC format)</strong> <span class="description">— optional; one <code>[mm:ss.xx]</code>-prefixed line per line. Only source this from lyrics the artist/importer actually supplied with timing — this is not a lookup against a third-party lyrics database.</span></p>';
+        echo '<textarea name="bhs_lyrics_lrc" rows="6" style="width:100%;font-family:monospace;">' . esc_textarea($lrc) . '</textarea>';
+
+        echo '<p style="margin-top:12px;"><strong>Plain-text lyrics</strong> <span class="description">— shown as a fallback whenever synced timing isn\'t available.</span></p>';
+        echo '<textarea name="bhs_lyrics_text" rows="8" style="width:100%;">' . esc_textarea($plain) . '</textarea>';
     }
 
     /* ---------- release metabox ---------- */
@@ -133,6 +260,45 @@ class BHS_Admin {
         }
         if (isset($_POST['bhs_artwork_id']))  update_post_meta($post_id, '_bhs_artwork_id', (int) $_POST['bhs_artwork_id']);
         if (isset($_POST['bhs_release_id']))  update_post_meta($post_id, '_bhs_release_id', (int) $_POST['bhs_release_id']);
+
+        // The save-side counterpart to render_track_monetization_metabox()
+        // above — whatever fields bh-monetization-woo's own UI rendered
+        // via 'bhs_track_monetization_ui', it verifies its OWN nonce and
+        // saves its OWN meta here. bh-streaming never sees those field
+        // names; a no-op if nothing's hooked in.
+        do_action('bhs_track_monetization_save', $post_id);
+    }
+
+    // Separate nonce/hook from save_track() since this metabox is its
+    // own add_meta_box() registration with its own nonce field — keeps
+    // each concern (core track fields vs. quality encodes) independently
+    // toggleable/removable without the two save paths tangled together.
+    public static function save_quality($post_id) {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (!isset($_POST['bhs_quality_nonce']) || !wp_verify_nonce($_POST['bhs_quality_nonce'], 'bhs_save_quality')) return;
+        if (!current_user_can('edit_post', $post_id)) return;
+        if (get_post_meta($post_id, '_bhs_source', true) === 'external') return; // metabox isn't even rendered for these — belt and suspenders
+
+        $submitted = $_POST['bhs_quality'] ?? [];
+        if (!is_array($submitted)) return;
+
+        $qualities = [];
+        foreach (array_keys(self::QUALITY_LABELS) as $key) {
+            $aid = (int) ($submitted[$key] ?? 0);
+            if ($aid) $qualities[$key] = $aid;
+        }
+        update_post_meta($post_id, '_bhs_audio_qualities', wp_json_encode($qualities));
+    }
+
+    public static function save_lyrics($post_id) {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (!isset($_POST['bhs_lyrics_nonce']) || !wp_verify_nonce($_POST['bhs_lyrics_nonce'], 'bhs_save_lyrics')) return;
+        if (!current_user_can('edit_post', $post_id)) return;
+
+        // sanitize_textarea_field strips tags but preserves line breaks —
+        // exactly what both plain lyrics and LRC's line-based format need.
+        if (isset($_POST['bhs_lyrics_lrc']))  update_post_meta($post_id, '_bhs_lyrics_lrc', sanitize_textarea_field($_POST['bhs_lyrics_lrc']));
+        if (isset($_POST['bhs_lyrics_text'])) update_post_meta($post_id, '_bhs_lyrics_text', sanitize_textarea_field($_POST['bhs_lyrics_text']));
     }
 
     public static function save_release($post_id) {
@@ -142,6 +308,8 @@ class BHS_Admin {
 
         if (isset($_POST['bhs_release_artist']))     update_post_meta($post_id, '_bhs_release_artist', sanitize_text_field($_POST['bhs_release_artist']));
         if (isset($_POST['bhs_release_artwork_id'])) update_post_meta($post_id, '_bhs_release_artwork_id', (int) $_POST['bhs_release_artwork_id']);
+
+        do_action('bhs_release_monetization_save', $post_id);
     }
 
     /* ---------- list table ---------- */
@@ -150,7 +318,7 @@ class BHS_Admin {
         $new = [];
         foreach ($cols as $k => $v) {
             $new[$k] = $v;
-            if ($k === 'title') { $new['bhs_artist'] = 'Artist'; $new['bhs_audio'] = 'Audio'; $new['bhs_plays'] = 'Plays'; }
+            if ($k === 'title') { $new['bhs_artist'] = 'Artist'; $new['bhs_audio'] = 'Audio'; $new['bhs_plays'] = 'Plays'; $new['bhs_flags'] = 'Flags'; }
         }
         return $new;
     }
@@ -162,5 +330,6 @@ class BHS_Admin {
             echo $has_audio ? '<span style="color:#1DB954;">&#10003; attached</span>' : '<span style="color:#b3261e;">missing</span>';
         }
         if ($col === 'bhs_plays') echo esc_html((int) get_post_meta($post_id, '_bhs_play_count', true));
+        if ($col === 'bhs_flags' && class_exists('BHS_AudioHash')) echo BHS_AudioHash::flag_notice_html($post_id);
     }
 }

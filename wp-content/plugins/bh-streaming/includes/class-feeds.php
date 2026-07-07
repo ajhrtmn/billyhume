@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
  * feed, not an arbitrary URL" at save/sync time. Uses fetch_feed(),
  * WordPress core's own feed parser (built on SimplePie) — not custom XML
  * parsing, because WordPress already solved that problem. Imported
- * tracks become real bh_track posts flagged _bhs_source = 'external', so
+ * tracks become real bhs_track posts flagged _bhs_source = 'external', so
  * the rest of the catalog/player code never needs a separate code path
  * for "local" vs "aggregated" — it's all just tracks. Nothing gets
  * pulled in without an admin explicitly adding that feed URL first —
@@ -92,7 +92,8 @@ class BHS_Feeds {
         echo '<div style="flex:1;min-width:240px;">';
         echo '<p style="margin-top:0;"><strong>Share your feed</strong> — this is the open-standard (RSS/Podcasting-2.0) link to your own catalog. '
            . 'Any Funkwhale channel, podcast app, or another bh-streaming site can subscribe to it directly, or scan the QR code from a phone.</p>';
-        echo '<p><input type="text" readonly value="' . esc_attr($url) . '" onclick="this.select();" style="width:100%;max-width:480px;font-family:monospace;font-size:12px;padding:6px;"></p>';
+        echo '<p><input type="text" id="bhs-own-feed-url" readonly value="' . esc_attr($url) . '" onclick="this.select();" style="width:100%;max-width:480px;font-family:monospace;font-size:12px;padding:6px;"> '
+           . '<button type="button" class="button bhy-copy-btn" data-copy-target="#bhs-own-feed-url">Copy</button></p>';
         echo '<p class="description">To add SOMEONE ELSE\'S feed instead, use "Add New" below with their feed\'s RSS link — '
            . 'on Funkwhale that\'s the "RSS feed" link on the artist\'s channel page; most other open, artist-hosted platforms expose the same kind of link on their channel/show page.</p>';
         echo '</div></div></div>';
@@ -160,17 +161,118 @@ class BHS_Feeds {
     // after the scheduled time, it isn't a true background daemon, so
     // a manual option alongside it means an admin isn't purely at the
     // mercy of site traffic patterns to refresh a feed right now.
+    //
+    // If the core's job queue is active (own-ur-shit 3.2.0+ — see
+    // OUS_Jobs, and bh-registry's BHR_Verification::recheck_all() for
+    // the first place this exact pattern got proven out), each feed
+    // source gets queued as its own job instead of all of them fetching
+    // inline in one cron tick — a real, not cosmetic, improvement here
+    // specifically: fetch_feed() is a network call to someone else's
+    // server, and one slow or hanging feed currently delays every OTHER
+    // feed source behind it in the loop. Falls back to the original
+    // all-inline behavior if the job queue isn't there — same
+    // class_exists()-guarded optional-integration shape every other
+    // cross-plugin touch in this ecosystem uses.
     public static function sync_all() {
         $sources = get_posts(['post_type' => 'bhs_feed_source', 'post_status' => 'publish', 'posts_per_page' => -1]);
-        foreach ($sources as $source) {
-            $url = get_post_meta($source->ID, '_bhs_feed_url', true);
-            if ($url) self::sync_one($source->ID, $url);
+
+        if (class_exists('OUS_Jobs')) {
+            foreach ($sources as $source) {
+                OUS_Jobs::enqueue('bhs_sync_one_feed', ['feed_id' => $source->ID]);
+            }
+        } else {
+            foreach ($sources as $source) {
+                $url = get_post_meta($source->ID, '_bhs_feed_url', true);
+                if ($url) self::sync_one($source->ID, $url);
+            }
         }
+
+        // Not per-feed work — a lightweight pass over already-imported
+        // external tracks, unrelated to any single feed's own fetch —
+        // so it stays a plain inline call either way rather than being
+        // queued itself.
+        self::check_external_track_health();
+    }
+
+    // The per-feed-source unit of work OUS_Jobs actually calls — see
+    // bh-streaming.php's bootstrap for the guarded registration.
+    public static function sync_one_job($args) {
+        $feed_id = (int) ($args['feed_id'] ?? 0);
+        if (!$feed_id || get_post_status($feed_id) !== 'publish') return;
+        $url = get_post_meta($feed_id, '_bhs_feed_url', true);
+        if ($url) self::sync_one($feed_id, $url);
+    }
+
+    /* ---------- source-down handling (task 39) ---------- */
+    // This ecosystem never re-hosts a featured artist's audio (see the
+    // note on _bhs_external_audio_url above) — which means an external
+    // track's playability depends entirely on THEIR host staying up,
+    // something this site has zero control over. Silently 404ing mid-
+    // playback with no explanation is a bad experience; the alternative
+    // of downloading and re-hosting the file would break the whole
+    // "your media stays yours" premise. This is the honest middle
+    // ground: periodically check, and when a source is unreliable, SAY
+    // SO — in the catalog and in the player — rather than pretending
+    // everything's fine until a listener hits play and it just fails.
+    //
+    // Explicitly NOT this plugin's problem to solve: a track someone
+    // actually bought/downloaded (bh-monetization-woo's purchase +
+    // lossless/compressed delivery) is a real local file transferred to
+    // the listener — that keeps working forever regardless of what
+    // happens to any external host. This health check only ever applies
+    // to STREAMING an externally-aggregated track, never to a completed
+    // download already in someone's hands.
+    const HEALTH_DOWN_AFTER_FAILS = 3; // consecutive failures before a track is treated as actually unavailable, not just a blip
+
+    public static function check_external_track_health() {
+        $tracks = get_posts([
+            'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
+            'meta_key' => '_bhs_source', 'meta_value' => 'external', 'fields' => 'ids',
+        ]);
+        foreach ($tracks as $track_id) {
+            $url = get_post_meta($track_id, '_bhs_external_audio_url', true);
+            if (!$url) continue;
+
+            // HEAD first (cheap); some hosts don't implement HEAD
+            // correctly for media files, so fall back to a tiny ranged
+            // GET rather than wrongly flagging a perfectly fine host.
+            $resp = wp_remote_head($url, ['timeout' => 6, 'redirection' => 3]);
+            $ok = !is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) < 400;
+            if (!$ok) {
+                $resp = wp_remote_get($url, ['timeout' => 6, 'redirection' => 3, 'headers' => ['Range' => 'bytes=0-0']]);
+                $ok = !is_wp_error($resp) && (int) wp_remote_retrieve_response_code($resp) < 400;
+            }
+
+            $fails = (int) get_post_meta($track_id, '_bhs_source_fail_count', true);
+            $fails = $ok ? 0 : $fails + 1;
+            update_post_meta($track_id, '_bhs_source_fail_count', $fails);
+            update_post_meta($track_id, '_bhs_source_checked_at', current_time('mysql'));
+            update_post_meta($track_id, '_bhs_source_health', $fails === 0 ? 'ok' : ($fails >= self::HEALTH_DOWN_AFTER_FAILS ? 'down' : 'degraded'));
+        }
+    }
+
+    // Read by BHS_API::track_payload() so the player can show a real
+    // status rather than the listener just discovering it by a failed
+    // play. 'ok' when never checked yet — a brand-new import isn't
+    // treated as suspect before its first health pass ever runs.
+    public static function source_health($track_id) {
+        $health = get_post_meta($track_id, '_bhs_source_health', true);
+        return $health ?: 'ok';
     }
 
     private static function sync_one($feed_source_id, $url) {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
+
+        if (is_wp_error($feed) && class_exists('OUS_DebugLog')) {
+            // A network call to someone else's server, failing — this is
+            // exactly the class of "not this site's bug, but this site's
+            // problem to notice" error the console exists for, so an
+            // admin sees "this feed's been failing" without having to
+            // manually re-check every feed source one by one.
+            OUS_DebugLog::log('warning', 'Feed fetch failed: ' . $feed->get_error_message(), ['feed_source_id' => $feed_source_id, 'url' => $url], 'BH Streaming');
+        }
+
         if (!self::validate_is_open_feed($feed)) {
             update_post_meta($feed_source_id, '_bhs_feed_invalid', '1');
             return;
@@ -178,32 +280,48 @@ class BHS_Feeds {
         delete_post_meta($feed_source_id, '_bhs_feed_invalid');
 
         $items = $feed->get_items(0, 30); // a reasonable cap per sync — this isn't meant to backfill someone's entire archive on every run
+        $imported = 0;
         foreach ($items as $item) {
-            $enclosure = $item->get_enclosure();
-            if (!$enclosure || !$enclosure->get_link()) continue; // no audio, nothing to import
+            try {
+                $enclosure = $item->get_enclosure();
+                if (!$enclosure || !$enclosure->get_link()) continue; // no audio, nothing to import
 
-            $guid = $item->get_id();
-            $existing = get_posts([
-                'post_type' => 'bh_track', 'post_status' => 'any', 'posts_per_page' => 1,
-                'meta_key' => '_bhs_source_guid', 'meta_value' => $guid, 'fields' => 'ids',
-            ]);
-            if ($existing) continue; // already imported, don't duplicate on re-sync
+                $guid = $item->get_id();
+                $existing = get_posts([
+                    'post_type' => 'bhs_track', 'post_status' => 'any', 'posts_per_page' => 1,
+                    'meta_key' => '_bhs_source_guid', 'meta_value' => $guid, 'fields' => 'ids',
+                ]);
+                if ($existing) continue; // already imported, don't duplicate on re-sync
 
-            $artist = $item->get_author() ? $item->get_author()->get_name() : '';
-            $pid = wp_insert_post([
-                'post_title' => $item->get_title() ?: 'Untitled',
-                'post_type' => 'bh_track', 'post_status' => 'publish',
-            ], true);
-            if (is_wp_error($pid)) continue;
+                $artist = $item->get_author() ? $item->get_author()->get_name() : '';
+                $pid = wp_insert_post([
+                    'post_title' => $item->get_title() ?: 'Untitled',
+                    'post_type' => 'bhs_track', 'post_status' => 'publish',
+                ], true);
+                if (is_wp_error($pid)) {
+                    if (class_exists('OUS_DebugLog')) {
+                        OUS_DebugLog::log('warning', 'Feed import: wp_insert_post failed — ' . $pid->get_error_message(), ['feed_source_id' => $feed_source_id, 'guid' => $guid], 'BH Streaming');
+                    }
+                    continue;
+                }
 
-            update_post_meta($pid, '_bhs_artist', sanitize_text_field($artist));
-            update_post_meta($pid, '_bhs_source', 'external');
-            update_post_meta($pid, '_bhs_source_feed_id', $feed_source_id);
-            update_post_meta($pid, '_bhs_source_guid', $guid);
-            // Audio stays a remote URL rather than being downloaded and
-            // re-hosted — this is a link to featured content, not a copy
-            // of it. The originating site remains the source of truth.
-            update_post_meta($pid, '_bhs_external_audio_url', esc_url_raw($enclosure->get_link()));
+                update_post_meta($pid, '_bhs_artist', sanitize_text_field($artist));
+                update_post_meta($pid, '_bhs_source', 'external');
+                update_post_meta($pid, '_bhs_source_feed_id', $feed_source_id);
+                update_post_meta($pid, '_bhs_source_guid', $guid);
+                // Audio stays a remote URL rather than being downloaded and
+                // re-hosted — this is a link to featured content, not a copy
+                // of it. The originating site remains the source of truth.
+                update_post_meta($pid, '_bhs_external_audio_url', esc_url_raw($enclosure->get_link()));
+                $imported++;
+            } catch (\Throwable $e) {
+                // One malformed feed item (an unexpected shape from a
+                // less-standard third-party feed) must not abort the
+                // whole sync and lose every OTHER item in the same feed.
+                if (class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('error', 'Feed import: unexpected error on one item — ' . $e->getMessage(), ['feed_source_id' => $feed_source_id], 'BH Streaming');
+                }
+            }
         }
 
         update_post_meta($feed_source_id, '_bhs_last_synced', current_time('mysql'));
@@ -230,7 +348,7 @@ class BHS_Feeds {
         $channel->appendChild($doc->createElement('link', home_url('/')));
         $channel->appendChild($doc->createElement('description', get_bloginfo('description')));
 
-        $tracks = get_posts(['post_type' => 'bh_track', 'post_status' => 'publish', 'posts_per_page' => 50, 'orderby' => 'date', 'order' => 'DESC']);
+        $tracks = get_posts(['post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => 50, 'orderby' => 'date', 'order' => 'DESC']);
         foreach ($tracks as $p) {
             $aid = (int) get_post_meta($p->ID, '_bhs_audio_id', true);
             $external_url = get_post_meta($p->ID, '_bhs_external_audio_url', true);
