@@ -1,0 +1,42 @@
+/* Storefront browse/collection/listing styling — draws on BHY_Style's
+ * design tokens (--bhy-* custom properties) rather than a second,
+ * disconnected visual language, same rule BH_Studio's own canvas CSS
+ * follows. Plain flex/grid throughout, no absolute positioning. */
+
+.bhm-storefront-wrap { max-width:1200px; margin:0 auto; padding:32px 20px; }
+.bhm-collection-title { font-size:28px; margin:0 0 8px; }
+.bhm-collection-desc { color:var(--bhy-color-text-muted, #646970); margin:0 0 24px; }
+
+.bhm-product-filter {
+    display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;
+    padding:16px; margin-bottom:24px; border:1px solid var(--bhy-color-border, #e2e2e2);
+    border-radius:8px; background:var(--bhy-color-surface, #fafafa);
+}
+.bhm-product-filter label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--bhy-color-text-muted, #646970); }
+.bhm-product-filter input, .bhm-product-filter select { padding:6px 8px; border:1px solid var(--bhy-color-border, #ccc); border-radius:4px; font-size:14px; }
+.bhm-product-filter .button { align-self:flex-end; }
+
+.bhm-product-grid {
+    display:grid;
+    grid-template-columns:repeat(var(--bhm-grid-cols, 4), 1fr);
+    gap:20px;
+}
+.bhm-product-grid[aria-busy="true"] { opacity:.5; pointer-events:none; }
+
+@media (max-width:900px) { .bhm-product-grid { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:520px) { .bhm-product-grid { grid-template-columns:1fr; } }
+
+.bhm-product-card {
+    display:flex; flex-direction:column; gap:8px; text-decoration:none; color:inherit;
+    border:1px solid var(--bhy-color-border, #e2e2e2); border-radius:8px; overflow:hidden;
+    background:var(--bhy-color-surface, #fff); transition:box-shadow .15s ease;
+}
+.bhm-product-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); }
+.bhm-product-card-image img { width:100%; height:auto; display:block; aspect-ratio:1/1; object-fit:cover; }
+.bhm-product-card-title { padding:0 12px; font-weight:600; font-size:14px; }
+.bhm-product-card-price { padding:0 12px 12px; color:var(--bhy-color-accent, #2271b1); font-weight:600; }
+
+.bhm-studio-block-placeholder {
+    padding:16px; border:1px dashed var(--bhy-color-border, #ccc); border-radius:6px;
+    background:var(--bhy-color-surface, #f6f7f7); font-size:13px; color:var(--bhy-color-text-muted, #646970);
+}

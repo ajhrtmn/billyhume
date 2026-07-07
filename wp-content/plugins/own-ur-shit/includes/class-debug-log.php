@@ -3,17 +3,26 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * The "aggregate console" the whole ecosystem was missing: one place
- * that catches PHP fatals, WordPress's own doing_it_wrong()/deprecated
- * notices, anything any plugin explicitly logs via OUS_DebugLog::log(),
- * AND front-end/admin JS errors — all landing in one table, visible on
- * the same Debug Tools page as everything else, with zero CLI and zero
- * separate log-file hunting.
+ * that catches PHP fatals/uncaught exceptions, WordPress's own
+ * doing_it_wrong()/deprecated notices, anything any plugin explicitly
+ * logs via OUS_DebugLog::log(), AND front-end/admin JS errors — all
+ * landing in one table, visible on the same Debug Tools page as
+ * everything else, with zero CLI and zero separate log-file hunting.
+ *
+ * v2 (this pass): every row now carries a real, structured stack trace
+ * (file/line/column where the language/runtime exposes it — PHP gives
+ * file+line reliably, column only where a Throwable's trace frames
+ * happen to include it; JS gives all three from the browser's own
+ * error.stack), plus request context (URL, method, user) and real
+ * filters on the admin table (level/source/user/date), not just level.
  *
  * USAGE, from any plugin (core or peer, all class_exists()-guarded the
  * same as OUS_Jobs/OUS_Notifications):
  *
  *   if (class_exists('OUS_DebugLog')) {
- *       OUS_DebugLog::log('error', 'Feed sync failed', ['feed_id' => $id, 'error' => $e->getMessage()], 'BH Streaming');
+ *       OUS_DebugLog::log('error', 'Feed sync failed', ['feed_id' => $id], 'BH Streaming');
+ *       // or, with a real exception for a full trace:
+ *       OUS_DebugLog::log_exception($e, 'BH Streaming');
  *   }
  *
  * Levels: 'error', 'warning', 'info' — kept to three, not a full PSR-3
@@ -43,28 +52,91 @@ class OUS_DebugLog {
             self::log('warning', "Deprecated function: $function_name" . ($replacement ? " (use $replacement instead)" : ''), [], 'WordPress');
         }, 10, 2);
 
-        // Fatal errors don't fire normal WordPress hooks (the request is
-        // already dying) — a shutdown function is the one reliable place
-        // to still catch and record one before the process actually
-        // ends.
+        // Uncaught exceptions carry a full, real stack trace (every
+        // frame's file/line, function/class/args) — a strictly richer
+        // signal than the fatal-on-shutdown catch below, which only ever
+        // sees error_get_last()'s single file/line with no call chain.
+        // Chains to any previously-registered handler rather than
+        // replacing it outright, since WordPress core or another plugin
+        // may already have one installed.
+        $previous_exception_handler = set_exception_handler([self::class, 'capture_uncaught_exception']);
+        self::$previous_exception_handler = $previous_exception_handler;
+
+        // Fatal errors (parse errors, E_ERROR, out-of-memory, etc.)
+        // don't fire normal WordPress hooks OR the exception handler
+        // above (the request is already dying) — a shutdown function is
+        // the one reliable place to still catch and record one before
+        // the process actually ends.
         register_shutdown_function([self::class, 'capture_fatal_on_shutdown']);
     }
+
+    private static $previous_exception_handler = null;
 
     private static function table() {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_debug_log';
     }
 
-    public static function log($level, $message, $context = [], $source = '') {
+    /**
+     * $trace, when provided, is a plain array of frames shaped like
+     * ['file' => ..., 'line' => ..., 'function' => ..., 'class' => ...]
+     * — the same shape debug_backtrace()/Throwable::getTrace() already
+     * produce, so callers can pass either straight through. $file/$line/
+     * $col are the single "where this actually happened" pointer shown
+     * as the row's headline location; $trace is the full call chain,
+     * shown expanded.
+     */
+    public static function log($level, $message, $context = [], $source = '', $file = '', $line = 0, $col = 0, $trace = null) {
         global $wpdb;
         $wpdb->insert(self::table(), [
             'level' => sanitize_key($level) ?: 'info',
             'source' => sanitize_text_field($source),
             'message' => (string) $message,
             'context' => $context ? wp_json_encode($context) : '',
+            'file' => sanitize_text_field($file),
+            'line' => (int) $line,
+            'col' => (int) $col,
+            'trace' => $trace ? wp_json_encode($trace) : '',
+            'url' => self::current_url(),
+            'request_method' => isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '',
+            'user_id' => get_current_user_id(),
             'created_at' => current_time('mysql', true),
         ]);
         self::maybe_trim();
+    }
+
+    // Convenience wrapper — pulls file/line/trace straight off a real
+    // Throwable rather than making every catch{} block hand-assemble
+    // those three arguments itself.
+    public static function log_exception(\Throwable $e, $source = '', $level = 'error') {
+        self::log(
+            $level,
+            get_class($e) . ': ' . $e->getMessage(),
+            [],
+            $source,
+            $e->getFile(),
+            $e->getLine(),
+            0, // PHP's own trace frames don't carry column info — file+line is the real granularity PHP exposes
+            $e->getTrace()
+        );
+    }
+
+    public static function capture_uncaught_exception(\Throwable $e) {
+        try {
+            self::log_exception($e, 'PHP (uncaught)');
+        } catch (\Throwable $inner) {
+            // Logging the exception must never become a second, more
+            // confusing uncaught exception of its own.
+        }
+        if (self::$previous_exception_handler && is_callable(self::$previous_exception_handler)) {
+            call_user_func(self::$previous_exception_handler, $e);
+        }
+    }
+
+    private static function current_url() {
+        if (empty($_SERVER['HTTP_HOST']) || empty($_SERVER['REQUEST_URI'])) return '';
+        $scheme = is_ssl() ? 'https' : 'http';
+        return esc_url_raw($scheme . '://' . sanitize_text_field($_SERVER['HTTP_HOST']) . sanitize_text_field($_SERVER['REQUEST_URI']));
     }
 
     // Opportunistic, not scheduled — every ~50th write pays the tiny
@@ -89,9 +161,14 @@ class OUS_DebugLog {
 
         // wpdb may or may not still be usable this late in shutdown —
         // guard defensively so a failed fatal-log attempt never becomes
-        // a second, more confusing fatal of its own.
+        // a second, more confusing fatal of its own. error_get_last()
+        // only ever gives one file/line, never a call chain — PHP simply
+        // doesn't retain a trace by the time a fatal reaches shutdown,
+        // which is exactly why the uncaught-exception handler above is
+        // the richer signal whenever the failure is a thrown exception
+        // rather than a true fatal (parse error, out-of-memory, etc.).
         try {
-            self::log('error', 'PHP fatal: ' . $error['message'], ['file' => $error['file'], 'line' => $error['line']], 'PHP');
+            self::log('error', 'PHP fatal: ' . $error['message'], [], 'PHP', $error['file'], $error['line']);
         } catch (\Throwable $e) {
             // Nothing more we can do here — the original fatal is the
             // one that matters, and we're already in shutdown.
@@ -108,12 +185,60 @@ class OUS_DebugLog {
         if (!is_user_logged_in() || !current_user_can('manage_options')) return;
         $ajax_url = admin_url('admin-ajax.php');
         $nonce = wp_create_nonce('ous_log_js_error');
-        $js = "window.addEventListener('error', function(e){"
-            . "try{var d=new FormData();d.append('action','ous_log_js_error');d.append('_wpnonce','" . esc_js($nonce) . "');"
-            . "d.append('message',e.message||'');d.append('source',(e.filename||'')+':'+(e.lineno||''));"
-            . "navigator.sendBeacon ? navigator.sendBeacon('" . esc_js($ajax_url) . "', d) : fetch('" . esc_js($ajax_url) . "',{method:'POST',body:d,credentials:'same-origin'});"
-            . "}catch(err){}"
-            . "});";
+        // Captures three separate JS failure modes into one shared
+        // sender: (1) thrown/uncaught errors via 'error', (2) unhandled
+        // promise rejections via 'unhandledrejection' — a real gap in
+        // the v1 capture, since a rejected fetch()/async function never
+        // fires window.onerror at all, and (3) explicit console.error/
+        // console.warn calls, by wrapping them rather than only reacting
+        // to thrown errors — a lot of real bugs get reported via
+        // console.error without ever throwing. error.stack (when present)
+        // already carries file/line/column from the browser's own
+        // engine — parsed here into a structured frame list rather than
+        // stored as an opaque blob, so it's filterable/expandable the
+        // same way a PHP trace is.
+        $js = "(function(){"
+            . "var AJAX_URL='" . esc_js($ajax_url) . "', NONCE='" . esc_js($nonce) . "';"
+            . "function parseStack(stack){"
+            . "  if(!stack) return [];"
+            . "  return stack.split('\\n').slice(1).map(function(line){"
+            . "    var m=line.match(/at (?:(.*?) \\()?(?:(.+?):(\\d+):(\\d+))\\)?\$/);"
+            . "    if(!m) return {raw: line.trim()};"
+            . "    return {function: m[1]||'(anonymous)', file: m[2]||'', line: m[3]?parseInt(m[3],10):0, col: m[4]?parseInt(m[4],10):0};"
+            . "  }).filter(function(f){return f.file || f.raw;});"
+            . "}"
+            . "function send(payload){"
+            . "  try{"
+            . "    var d=new FormData();"
+            . "    d.append('action','ous_log_js_error');d.append('_wpnonce',NONCE);"
+            . "    d.append('message',payload.message||'');"
+            . "    d.append('file',payload.file||'');d.append('line',payload.line||0);d.append('col',payload.col||0);"
+            . "    d.append('trace',JSON.stringify(payload.trace||[]));"
+            . "    d.append('level',payload.level||'error');"
+            . "    navigator.sendBeacon ? navigator.sendBeacon(AJAX_URL, d) : fetch(AJAX_URL,{method:'POST',body:d,credentials:'same-origin'});"
+            . "  }catch(err){}"
+            . "}"
+            . "window.addEventListener('error', function(e){"
+            . "  var err=e.error;"
+            . "  send({message: e.message||'', file: e.filename||(err&&err.fileName)||'', line: e.lineno||0, col: e.colno||0, trace: err&&err.stack?parseStack(err.stack):[], level:'error'});"
+            . "});"
+            . "window.addEventListener('unhandledrejection', function(e){"
+            . "  var reason=e.reason;"
+            . "  var msg = (reason && (reason.message||reason.toString&&reason.toString())) || 'Unhandled promise rejection';"
+            . "  send({message:'Unhandled rejection: '+msg, trace: reason&&reason.stack?parseStack(reason.stack):[], level:'error'});"
+            . "});"
+            . "['error','warn'].forEach(function(method){"
+            . "  var original = console[method];"
+            . "  console[method] = function(){"
+            . "    try{"
+            . "      var args=Array.prototype.slice.call(arguments);"
+            . "      var msg=args.map(function(a){try{return typeof a==='string'?a:JSON.stringify(a);}catch(e){return String(a);}}).join(' ');"
+            . "      send({message: msg, trace: parseStack((new Error()).stack), level: method==='error'?'error':'warning'});"
+            . "    }catch(err){}"
+            . "    return original.apply(console, arguments);"
+            . "  };"
+            . "});"
+            . "})();";
         wp_register_script('ous-debug-log-js-capture', false, [], OUS_VER, true);
         wp_enqueue_script('ous-debug-log-js-capture');
         wp_add_inline_script('ous-debug-log-js-capture', $js);
@@ -123,11 +248,25 @@ class OUS_DebugLog {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'ous_log_js_error')) {
             wp_send_json_error('', 403);
         }
+        $level = sanitize_key($_POST['level'] ?? 'error');
+        if (!in_array($level, ['error', 'warning', 'info'], true)) $level = 'error';
+
+        $trace_raw = $_POST['trace'] ?? '';
+        $trace = null;
+        if ($trace_raw) {
+            $decoded = json_decode(wp_unslash($trace_raw), true);
+            if (is_array($decoded)) $trace = $decoded;
+        }
+
         self::log(
-            'error',
+            $level,
             sanitize_text_field($_POST['message'] ?? '(no message)'),
-            ['location' => sanitize_text_field($_POST['source'] ?? '')],
-            'JavaScript'
+            [],
+            'JavaScript',
+            sanitize_text_field($_POST['file'] ?? ''),
+            (int) ($_POST['line'] ?? 0),
+            (int) ($_POST['col'] ?? 0),
+            $trace
         );
         wp_send_json_success();
     }
@@ -148,37 +287,143 @@ class OUS_DebugLog {
         return $tools;
     }
 
+    // Builds the WHERE clause + params for every filter this page
+    // supports, shared between the row query and the "copy all
+    // currently-filtered rows" dump so the two never drift apart.
+    private static function build_filters() {
+        $where = [];
+        $params = [];
+
+        $level = isset($_GET['ous_log_level']) ? sanitize_key($_GET['ous_log_level']) : '';
+        if ($level) { $where[] = 'level = %s'; $params[] = $level; }
+
+        $source = isset($_GET['ous_log_source']) ? sanitize_text_field($_GET['ous_log_source']) : '';
+        if ($source) { $where[] = 'source = %s'; $params[] = $source; }
+
+        $user_id = isset($_GET['ous_log_user']) ? absint($_GET['ous_log_user']) : 0;
+        if ($user_id) { $where[] = 'user_id = %d'; $params[] = $user_id; }
+
+        $since = isset($_GET['ous_log_since']) ? sanitize_text_field($_GET['ous_log_since']) : '';
+        if ($since && preg_match('/^\d{4}-\d{2}-\d{2}$/', $since)) { $where[] = 'created_at >= %s'; $params[] = $since . ' 00:00:00'; }
+
+        return [
+            'level' => $level, 'source' => $source, 'user_id' => $user_id, 'since' => $since,
+            'where_sql' => $where ? ('WHERE ' . implode(' AND ', $where)) : '',
+            'params' => $params,
+        ];
+    }
+
     public static function render_debug_section() {
-        $level_filter = isset($_GET['ous_log_level']) ? sanitize_key($_GET['ous_log_level']) : '';
         global $wpdb;
         $table = self::table();
+        $filters = self::build_filters();
 
-        echo '<form method="get" style="margin-bottom:12px;">';
-        foreach (['page' => 'ous-debug'] as $k => $v) echo '<input type="hidden" name="' . esc_attr($k) . '" value="' . esc_attr($v) . '">';
+        // Distinct sources currently in the table, for the source
+        // dropdown — cheap enough at MAX_ROWS=1000 rows to run on every
+        // page view rather than caching separately.
+        $known_sources = $wpdb->get_col("SELECT DISTINCT source FROM $table WHERE source != '' ORDER BY source ASC");
+
+        echo '<form method="get" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+        echo '<input type="hidden" name="page" value="ous-debug">';
+
         echo '<select name="ous_log_level" onchange="this.form.submit()">';
         echo '<option value="">All levels</option>';
         foreach (['error', 'warning', 'info'] as $lvl) {
-            echo '<option value="' . esc_attr($lvl) . '"' . selected($level_filter, $lvl, false) . '>' . esc_html(ucfirst($lvl)) . '</option>';
+            echo '<option value="' . esc_attr($lvl) . '"' . selected($filters['level'], $lvl, false) . '>' . esc_html(ucfirst($lvl)) . '</option>';
         }
-        echo '</select></form>';
+        echo '</select>';
 
-        if ($level_filter) {
-            $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table WHERE level = %s ORDER BY id DESC LIMIT 100", $level_filter), ARRAY_A);
-        } else {
-            $rows = $wpdb->get_results("SELECT * FROM $table ORDER BY id DESC LIMIT 100", ARRAY_A);
+        echo '<select name="ous_log_source" onchange="this.form.submit()">';
+        echo '<option value="">All sources</option>';
+        foreach ($known_sources as $src) {
+            echo '<option value="' . esc_attr($src) . '"' . selected($filters['source'], $src, false) . '>' . esc_html($src) . '</option>';
         }
+        echo '</select>';
+
+        echo '<input type="number" min="1" name="ous_log_user" placeholder="User ID" value="' . esc_attr($filters['user_id'] ?: '') . '" style="width:100px;">';
+        echo '<input type="date" name="ous_log_since" value="' . esc_attr($filters['since']) . '">';
+        echo '<button type="submit" class="button">Filter</button>';
+        if ($filters['level'] || $filters['source'] || $filters['user_id'] || $filters['since']) {
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug')) . '">Clear filters</a>';
+        }
+        echo '</form>';
+
+        $rows = $wpdb->get_results(
+            $filters['params']
+                ? $wpdb->prepare("SELECT * FROM $table {$filters['where_sql']} ORDER BY id DESC LIMIT 100", $filters['params'])
+                : "SELECT * FROM $table {$filters['where_sql']} ORDER BY id DESC LIMIT 100",
+            ARRAY_A
+        );
+
+        self::print_copy_script_once();
+        self::print_expand_script_once();
 
         if (!$rows) {
-            echo '<p class="description">No log entries yet' . ($level_filter ? " at level \"$level_filter\"" : '') . '. Nothing to triage — that\'s a good sign.</p>';
+            echo '<p class="description">No log entries match these filters. Nothing to triage — that\'s a good sign.</p>';
         } else {
             $colors = ['error' => '#d63638', 'warning' => '#dba617', 'info' => '#2271b1'];
-            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">Level</th><th style="width:120px;">Source</th><th>Message</th><th style="width:140px;">When</th></tr></thead><tbody>';
+
+            // Plain-text dump of exactly the rows currently visible
+            // (respects every filter above) — one line per entry, newest
+            // first, same order as the table, including the file/line
+            // pointer and a JSON trace tail — for pasting a triage
+            // session into a chat/ticket without hand-copying rows out
+            // of the table one at a time.
+            $dump_lines = [];
             foreach ($rows as $r) {
+                $location = $r['file'] ? (' (' . $r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '') . ')') : '';
+                $line = '[' . strtoupper($r['level']) . '] ' . ($r['source'] ?: '(no source)') . ' — ' . $r['message'] . $location;
+                if ($r['context']) $line .= ' ' . $r['context'];
+                if ($r['url']) $line .= ' [' . $r['request_method'] . ' ' . $r['url'] . ']';
+                if ($r['trace']) $line .= ' trace=' . $r['trace'];
+                $line .= ' (' . $r['created_at'] . ')';
+                $dump_lines[] = $line;
+            }
+            echo '<p><button type="button" class="button button-small" onclick="bhCopyToClipboard(\'ous-log-dump\', this)">Copy ' . count($rows) . ' log ' . (count($rows) === 1 ? 'entry' : 'entries') . '</button></p>';
+            echo '<textarea id="ous-log-dump" style="position:absolute;left:-9999px;">' . esc_textarea(implode("\n", $dump_lines)) . '</textarea>';
+
+            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">Level</th><th style="width:120px;">Source</th><th>Message</th><th style="width:80px;">User</th><th style="width:140px;">When</th></tr></thead><tbody>';
+            $i = 0;
+            foreach ($rows as $r) {
+                $i++;
                 $color = $colors[$r['level']] ?? '#646970';
-                echo '<tr><td><span style="color:#fff;background:' . esc_attr($color) . ';padding:2px 8px;border-radius:3px;font-size:11px;">' . esc_html(strtoupper($r['level'])) . '</span></td>';
+                $has_detail = $r['trace'] || $r['file'] || $r['url'];
+                $detail_id = 'ous-log-detail-' . $i;
+
+                echo '<tr' . ($has_detail ? ' style="cursor:pointer;" onclick="bhToggleLogDetail(\'' . esc_js($detail_id) . '\')"' : '') . '>';
+                echo '<td><span style="color:#fff;background:' . esc_attr($color) . ';padding:2px 8px;border-radius:3px;font-size:11px;">' . esc_html(strtoupper($r['level'])) . '</span></td>';
                 echo '<td>' . esc_html($r['source'] ?: '&#8212;') . '</td>';
-                echo '<td>' . esc_html($r['message']) . ($r['context'] ? ' <code style="font-size:11px;color:#646970;">' . esc_html($r['context']) . '</code>' : '') . '</td>';
+                echo '<td>' . esc_html($r['message']);
+                if ($r['file']) {
+                    echo ' <code style="font-size:11px;color:#646970;">' . esc_html($r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '')) . '</code>';
+                }
+                if ($has_detail) echo ' <span style="color:#2271b1;font-size:11px;">[details &#9662;]</span>';
+                echo '</td>';
+                echo '<td>' . ($r['user_id'] ? esc_html(get_userdata($r['user_id']) ? get_userdata($r['user_id'])->user_login : ('#' . $r['user_id'])) : '&#8212;') . '</td>';
                 echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td></tr>';
+
+                if ($has_detail) {
+                    echo '<tr id="' . esc_attr($detail_id) . '" style="display:none;"><td colspan="5" style="background:#f6f7f7;">';
+                    if ($r['url']) echo '<p style="margin:4px 0;"><strong>Request:</strong> ' . esc_html($r['request_method']) . ' <code>' . esc_html($r['url']) . '</code></p>';
+                    if ($r['context']) echo '<p style="margin:4px 0;"><strong>Context:</strong> <code>' . esc_html($r['context']) . '</code></p>';
+                    if ($r['trace']) {
+                        $trace = json_decode($r['trace'], true);
+                        echo '<p style="margin:4px 0;"><strong>Stack trace:</strong></p><ol style="margin:0 0 0 20px;font-family:monospace;font-size:12px;">';
+                        if (is_array($trace)) {
+                            foreach ($trace as $frame) {
+                                $fn = $frame['function'] ?? '';
+                                $cls = $frame['class'] ?? '';
+                                $file = $frame['file'] ?? ($frame['raw'] ?? '');
+                                $fl = isset($frame['line']) ? $frame['line'] : '';
+                                $fc = isset($frame['col']) ? $frame['col'] : '';
+                                $loc = $file ? ($file . ($fl !== '' ? ':' . $fl : '') . ($fc ? ':' . $fc : '')) : '';
+                                echo '<li>' . esc_html(($cls ? $cls . '::' : '') . ($fn ?: '(anonymous)')) . ($loc ? ' &mdash; <code>' . esc_html($loc) . '</code>' : '') . '</li>';
+                            }
+                        }
+                        echo '</ol>';
+                    }
+                    echo '</td></tr>';
+                }
             }
             echo '</tbody></table></div>';
         }
@@ -201,5 +446,63 @@ class OUS_DebugLog {
         global $wpdb;
         $wpdb->query("TRUNCATE TABLE " . self::table());
         return 'Console/error log cleared.';
+    }
+
+    // Same window.bhCopyToClipboard helper class-test-runner.php prints
+    // for its own "copy failures" buttons — guarded on the JS side
+    // (typeof check) so whichever section renders first on the shared
+    // Debug Tools page wins and the other is a no-op, not a redefinition.
+    private static function print_copy_script_once() {
+        static $printed = false;
+        if ($printed) return;
+        $printed = true;
+        ?>
+        <script>
+        if (typeof window.bhCopyToClipboard !== 'function') {
+            window.bhCopyToClipboard = function (textareaId, btn) {
+                var el = document.getElementById(textareaId);
+                if (!el) return;
+                var text = el.value;
+                var done = function (ok) {
+                    if (!btn) return;
+                    var original = btn.textContent;
+                    btn.textContent = ok ? 'Copied!' : 'Copy failed';
+                    setTimeout(function () { btn.textContent = original; }, 1500);
+                };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+                } else {
+                    el.style.position = 'static';
+                    el.select();
+                    var ok = false;
+                    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                    el.style.position = 'absolute';
+                    el.style.left = '-9999px';
+                    done(ok);
+                }
+            };
+        }
+        </script>
+        <?php
+    }
+
+    // Toggles a log row's expandable detail row (trace/context/request)
+    // — guarded the same way print_copy_script_once() is, one shared
+    // definition regardless of section render order.
+    private static function print_expand_script_once() {
+        static $printed = false;
+        if ($printed) return;
+        $printed = true;
+        ?>
+        <script>
+        if (typeof window.bhToggleLogDetail !== 'function') {
+            window.bhToggleLogDetail = function (id) {
+                var el = document.getElementById(id);
+                if (!el) return;
+                el.style.display = (el.style.display === 'none' || !el.style.display) ? 'table-row' : 'none';
+            };
+        }
+        </script>
+        <?php
     }
 }

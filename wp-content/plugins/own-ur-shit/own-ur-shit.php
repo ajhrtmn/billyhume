@@ -38,7 +38,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'test-runner', 'core-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'test-runner', 'core-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -67,6 +67,13 @@ add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_TestRunner', 'init']);
 add_action('init',          ['OUS_CoreTestSuite', 'init']);
+// BH_Studio's own init() registers this pass's default block types with
+// BH_Content — must fire after 'content' (BH_Content itself) has loaded,
+// which own-ur-shit.php's require order above already guarantees, and
+// after (or during) the same 'init' hook everything else here uses, so
+// no separate hook priority juggling is needed.
+add_action('init',          ['BH_Studio', 'init']);
+add_action('init',          ['OUS_StudioTestSuite', 'init']);
 add_action('init',          ['OUS_ApiDocs', 'init']);
 
 add_action('init', ['BHY_Gallery', 'init']);
@@ -88,3 +95,22 @@ add_action('admin_post_ous_install',  ['OUS_Dashboard', 'handle_install']);
 add_action('init',          ['OUS_Banner', 'init']);
 add_action('admin_head',    ['OUS_Banner', 'maybe_print']);
 add_action('admin_enqueue_scripts', ['OUS_Dashboard', 'enqueue_assets']);
+
+/**
+ * New cross-cutting interfaces (ROADMAP-platform-evolution.md Section 2/6):
+ * BH_Content (content-block interface), BH_Commerce (commerce interface,
+ * WooCommerce-backed today), BHI_Portal (the custom user-facing account
+ * shell + wp-admin exclusion rollout). All three use the plain `BH_`/`BHI_`
+ * prefixes already established for this ecosystem's shared, foundational
+ * pieces — see each class's own docblock for the full contract.
+ */
+add_action('init', ['BH_Content', 'init']);
+add_action('init', ['BHI_Portal', 'init']);
+register_activation_hook(__FILE__, function () {
+    // BHI_Portal::add_rewrite() also runs on every 'init', but the
+    // rewrite rule needs an explicit flush once so /account/ resolves
+    // immediately on activation rather than waiting for WordPress's own
+    // rewrite cache to naturally regenerate.
+    BHI_Portal::add_rewrite();
+    flush_rewrite_rules();
+});

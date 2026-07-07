@@ -66,8 +66,17 @@ class BHC_Steps {
             } elseif ($type === 'video') {
                 $source = ($step['source'] ?? '') === 'url' ? 'url' : 'upload';
                 if ($source === 'url') {
+                    // esc_url_raw() only SANITIZES characters (strips
+                    // disallowed ones, encodes the rest) — it does not
+                    // reject a string that was never a real URL to begin
+                    // with. 'not a url' silently became a syntactically
+                    // "valid" http://not%20a%20url and was accepted.
+                    // filter_var(..., FILTER_VALIDATE_URL) after
+                    // esc_url_raw() is the actual validation step; both
+                    // together give "sanitized AND confirmed to parse as
+                    // a URL" rather than either alone.
                     $url = esc_url_raw($step['video_url'] ?? '');
-                    if (!$url) continue; // a URL source with no URL is nothing to render
+                    if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) continue; // no URL, or not a real one — nothing to render either way
                     $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? '')];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);

@@ -43,7 +43,10 @@ class BHM_CRMIntegration {
         }
 
         $purchase_count = count(array_filter($entitlements, fn($e) => $e->type === 'purchase'));
-        $refund_count = class_exists('BHM_Products') ? BHM_Products::refund_count_recent($user_id) : 0;
+        // BHM_Fraud (refund/velocity fraud-pattern detection) was split
+        // out of BHM_Products in the DRY/SOLID refactor pass — see
+        // includes/class-fraud.php.
+        $refund_count = class_exists('BHM_Fraud') ? BHM_Fraud::refund_count_recent($user_id) : 0;
         $flagged = get_user_meta($user_id, '_bhm_refund_flagged', true) === '1';
         $shared_device_flagged = get_user_meta($user_id, '_bhm_refund_shared_device_flagged', true) === '1';
         $velocity_flagged = get_user_meta($user_id, '_bhm_velocity_flagged', true) === '1';

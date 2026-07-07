@@ -36,6 +36,21 @@ class BHC_Debug {
         }
         echo OUS_Debug::button('bh-courses', 'seed_student_progress', 'Create a test student, partway through the seeded course (1 lesson done, mid-quiz on the next)');
 
+        echo '<h4>Edge-case lessons</h4>';
+        echo '<p class="description">Adds ONE lesson to the seeded course containing exactly the malformed/boundary step data BHC_Steps::save() is supposed to defend against — same cases the PHPUnit/Test Runner suites assert on, but visible/clickable in the real admin UI and front end instead of only asserted in code. Pick a preset, click seed, then open the lesson to see what actually got saved after sanitization.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin:4px 8px 4px 0;">';
+        echo '<input type="hidden" name="action" value="ous_debug_action">';
+        echo '<input type="hidden" name="ous_plugin" value="bh-courses">';
+        echo '<input type="hidden" name="ous_debug_action" value="seed_edge_case">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr(wp_create_nonce('ous_debug_bh-courses')) . '">';
+        echo '<select name="preset">';
+        foreach (self::edge_case_presets() as $key => $preset) {
+            echo '<option value="' . esc_attr($key) . '">' . esc_html($preset['label']) . '</option>';
+        }
+        echo '</select> ';
+        echo '<button class="button button-primary">Seed edge-case lesson</button>';
+        echo '</form>';
+
         echo '<h4>Wipe / reseed</h4>';
         echo OUS_Debug::button('bh-courses', 'reseed', 'Wipe test data and reseed from scratch', '', '', false);
         echo OUS_Debug::button('bh-courses', 'reset', 'Wipe all BH Courses test data (course, lessons, progress, test student)', '', 'Delete all BH Courses test data? This cannot be undone.', false);
@@ -56,6 +71,9 @@ class BHC_Debug {
 
             case 'seed_student_progress':
                 return self::seed_student_progress();
+
+            case 'seed_edge_case':
+                return self::seed_edge_case($post['preset'] ?? '');
 
             case 'reseed':
                 self::wipe();
@@ -150,6 +168,103 @@ class BHC_Debug {
 
         $percent = BHC_Progress::course_percent($student_id, $course->ID);
         return "Test student #$student_id (user_login: see Users list, tagged bhcore_is_test=bhc_student) is now {$percent}% through \"" . esc_html($course->post_title) . "\".";
+    }
+
+    /**
+     * The named edge-case presets, one raw (pre-sanitization) step array
+     * per preset — deliberately the exact same shapes BHC_TestSuite's
+     * assertions and the PHPUnit suite in tests/ already cover, so a
+     * failure surfaced in either place has a matching "go look at it for
+     * real" button here rather than living only as a pass/fail row.
+     * Keyed so new presets can be added without renumbering anything.
+     */
+    private static function edge_case_presets() {
+        return [
+            'empty_lesson' => [
+                'label' => 'Empty lesson (zero steps)',
+                'steps' => [],
+            ],
+            'unknown_step_type' => [
+                'label' => 'Unknown step type + no-type-key step (both should be dropped)',
+                'steps' => [
+                    ['type' => 'gif', 'content' => 'a type this plugin has never heard of'],
+                    ['content' => '<p>this step has no "type" key at all</p>'],
+                    ['type' => 'text', 'content' => '<p>this ordinary step should be the ONLY one that survives</p>'],
+                ],
+            ],
+            'quiz_boundaries' => [
+                'label' => 'Quiz with out-of-range correct_index + passing_score (should clamp)',
+                'steps' => [
+                    ['type' => 'quiz', 'passing_score' => 150, 'max_attempts' => -5, 'questions' => [
+                        ['question' => 'correct_index way too high', 'choices' => ['A', 'B'], 'correct_index' => 99],
+                        ['question' => 'correct_index negative', 'choices' => ['A', 'B'], 'correct_index' => -3],
+                    ]],
+                    ['type' => 'quiz', 'passing_score' => -20, 'questions' => [
+                        ['question' => 'passing_score below zero', 'choices' => ['A', 'B'], 'correct_index' => 0],
+                    ]],
+                ],
+            ],
+            'quiz_zero_questions' => [
+                'label' => 'Quiz step with zero questions (should be dropped entirely)',
+                'steps' => [
+                    ['type' => 'quiz', 'passing_score' => 70, 'questions' => []],
+                    ['type' => 'text', 'content' => '<p>this text step should be the only survivor</p>'],
+                ],
+            ],
+            'quiz_missing_passing_score' => [
+                'label' => 'Quiz step with no passing_score key (should default to 70)',
+                'steps' => [
+                    ['type' => 'quiz', 'questions' => [
+                        ['question' => 'No passing_score was set on this step', 'choices' => ['A', 'B'], 'correct_index' => 0],
+                    ]],
+                ],
+            ],
+            'video_urls' => [
+                'label' => 'Video steps: empty URL + malformed URL (both should be dropped)',
+                'steps' => [
+                    ['type' => 'video', 'source' => 'url', 'video_url' => ''],
+                    ['type' => 'video', 'source' => 'url', 'video_url' => 'not a url'],
+                    ['type' => 'video', 'source' => 'url', 'video_url' => 'https://example.com/real-video.mp4'],
+                ],
+            ],
+            'image_invalid_ids' => [
+                'label' => 'Image step with zero/negative/non-numeric attachment IDs (should be filtered out)',
+                'steps' => [
+                    ['type' => 'image', 'attachment_ids' => [0, -1, 'not-a-number'], 'caption' => 'every ID here is invalid'],
+                ],
+            ],
+            'text_xss' => [
+                'label' => 'Text step containing a <script> tag (should be stripped by wp_kses_post)',
+                'steps' => [
+                    ['type' => 'text', 'content' => '<p>Hello</p><script>alert(1)</script><p>World</p>'],
+                ],
+            ],
+        ];
+    }
+
+    private static function seed_edge_case($preset_key) {
+        $presets = self::edge_case_presets();
+        if (!isset($presets[$preset_key])) return 'Unknown preset.';
+
+        $course = self::find_seeded_course();
+        if (!$course) {
+            $course_id = self::seed_course('Songwriting Fundamentals ' . self::SEED_TAG, false);
+            $course = get_post($course_id);
+            if (!$course) return 'Could not seed a course to attach this lesson to.';
+        }
+
+        $label = $presets[$preset_key]['label'];
+        $lesson_id = self::seed_lesson($course->ID, 'Edge case: ' . $label, $presets[$preset_key]['steps']);
+        if (!$lesson_id) return 'Could not create the edge-case lesson.';
+
+        $order = (array) get_post_meta($course->ID, '_bhc_lesson_order', true);
+        $order[] = $lesson_id;
+        update_post_meta($course->ID, '_bhc_lesson_order', array_values(array_unique($order)));
+
+        $saved = BHC_Steps::get($lesson_id);
+        $sent = count($presets[$preset_key]['steps']);
+        $kept = count($saved);
+        return "Seeded lesson #$lesson_id (\"$label\") on \"" . esc_html($course->post_title) . "\" — sent $sent raw step(s), BHC_Steps::save() kept $kept after sanitization. Open the lesson (or the course front end) to see the actual saved result.";
     }
 
     private static function find_seeded_course() {

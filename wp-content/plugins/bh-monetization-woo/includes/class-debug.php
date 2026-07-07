@@ -62,6 +62,11 @@ class BHM_Debug {
         } else {
             echo '<p class="description">Install WooCommerce to test the real order-completion path — until then, the buttons above exercise entitlement/wallet logic directly, which covers most of what actually matters for gating.</p>';
         }
+
+        if (class_exists('BHM_Storefront')) {
+            echo '<h4>Storefront</h4>';
+            echo OUS_Debug::button('bh-monetization-woo', 'seed_storefront_collection', 'Create 1 test collection + 1 test product');
+        }
     }
 
     public static function handle_action($action, $post) {
@@ -70,15 +75,43 @@ class BHM_Debug {
 
         switch ($action) {
             case 'seed_tiers':
-                foreach ([['Fan ' . self::SEED_TAG, 300], ['Supporter ' . self::SEED_TAG, 800]] as $t) {
+                // Benefit keys deliberately differ per tier, not just
+                // price — real coverage for the "orthogonal to price
+                // rank" case BHM_Tiers::benefit_registry() exists for
+                // (see its own docblock): the cheaper tier grants
+                // 'courses', the pricier one grants 'streaming' +
+                // 'downloads' but NOT 'courses' — so testing "is the
+                // cheap tier's course access actually independent of the
+                // pricier tier's streaming access" is possible
+                // immediately after seeding, not just theoretically true.
+                foreach ([
+                    ['Fan ' . self::SEED_TAG, 300, ['courses']],
+                    ['Supporter ' . self::SEED_TAG, 800, ['streaming', 'downloads', 'merch_discount']],
+                ] as $t) {
                     $id = wp_insert_post(['post_title' => $t[0], 'post_type' => BHM_Tiers::CPT, 'post_status' => 'publish']);
                     if (!is_wp_error($id)) {
                         update_post_meta($id, '_bhm_price_cents', $t[1]);
                         update_post_meta($id, '_bhm_benefits', 'Test tier — safe to delete.');
+                        update_post_meta($id, '_bhm_benefit_keys', $t[2]);
                         if (class_exists('WooCommerce')) BHM_Products::sync_tier_wc_product($id, $t[0], $t[1]);
                     }
                 }
-                return '2 test tiers created.';
+                return '2 test tiers created (with different benefit keys each, not just different prices — see class-debug.php\'s own comment on this).';
+
+            case 'seed_storefront_collection':
+                if (!class_exists('BHM_Storefront') || !post_type_exists('product')) return 'WooCommerce isn\'t active — nothing to attach a collection/product to yet.';
+                $term = wp_insert_term('Test Collection ' . self::SEED_TAG, BHM_Storefront::TAXONOMY);
+                if (is_wp_error($term)) return 'Could not create test collection: ' . $term->get_error_message();
+                $product_id = wp_insert_post(['post_title' => 'Test Product ' . self::SEED_TAG, 'post_type' => 'product', 'post_status' => 'publish']);
+                if (!is_wp_error($product_id)) {
+                    wp_set_object_terms($product_id, [$term['term_id']], BHM_Storefront::TAXONOMY);
+                    if (function_exists('wc_get_product')) {
+                        $p = wc_get_product($product_id);
+                        if ($p) { $p->set_regular_price('19.99'); $p->save(); }
+                    }
+                }
+                $created_term = get_term($term['term_id']);
+                return 'Test collection + 1 test product created — visit /' . BHM_Storefront::REWRITE_SLUG . '/' . ($created_term ? $created_term->slug : '') . '/ to see the auto-generated collection landing page.';
 
             case 'grant_top_tier':
                 $tiers = BHM_Tiers::all();
@@ -166,6 +199,26 @@ class BHM_Debug {
 
         $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhm_wallet_ledger WHERE reason LIKE %s", $like));
 
-        return count($tier_ids) . ' test tier(s) and their WooCommerce products removed; test wallet ledger entries cleared. Entitlements/wallet balances created via the buttons above on your OWN account are left as-is (they\'re real account state, not tagged test data) — use "Revoke all tier entitlements" / "Zero out wallet" above to clear those specifically.';
+        $removed_products = 0;
+        if (post_type_exists('product')) {
+            $product_ids = $wpdb->get_col($wpdb->prepare("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND post_title LIKE %s", $like));
+            foreach ($product_ids as $id) {
+                if (function_exists('wc_get_product')) {
+                    $p = wc_get_product($id);
+                    if ($p) { $p->delete(true); $removed_products++; continue; }
+                }
+                wp_delete_post($id, true);
+                $removed_products++;
+            }
+        }
+        $removed_terms = 0;
+        if (class_exists('BHM_Storefront') && taxonomy_exists(BHM_Storefront::TAXONOMY)) {
+            $terms = get_terms(['taxonomy' => BHM_Storefront::TAXONOMY, 'hide_empty' => false, 'name__like' => self::SEED_TAG]);
+            if (!is_wp_error($terms)) {
+                foreach ($terms as $term) { wp_delete_term($term->term_id, BHM_Storefront::TAXONOMY); $removed_terms++; }
+            }
+        }
+
+        return count($tier_ids) . ' test tier(s), ' . $removed_products . ' test product(s), and ' . $removed_terms . ' test collection(s) removed; test wallet ledger entries cleared. Entitlements/wallet balances created via the buttons above on your OWN account are left as-is (they\'re real account state, not tagged test data) — use "Revoke all tier entitlements" / "Zero out wallet" above to clear those specifically.';
     }
 }

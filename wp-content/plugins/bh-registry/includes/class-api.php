@@ -249,9 +249,8 @@ class BHR_API {
         }
         set_transient($rl_key, 1, MINUTE_IN_SECONDS);
 
-        global $wpdb;
         $link_id = (int) $req->get_param('link_id');
-        $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_links WHERE id = %d", $link_id));
+        $link = BHR_Links::find($link_id);
         if (!$link) return new WP_Error('not_found', 'Submission not found.', ['status' => 404]);
 
         $verified = BHR_Verification::verify_link($link);

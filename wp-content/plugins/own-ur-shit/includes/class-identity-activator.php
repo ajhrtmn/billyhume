@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.4'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php
+    const DB_VERSION = '1.6'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -126,6 +126,13 @@ class BHI_Activator {
         // Aggregate console/error log — see class-debug-log.php. Same
         // "core owns it, any plugin logs into it with one call" shape as
         // notifications/jobs above.
+        // v1.6 added the structured-trace columns below (file/line/col/
+        // trace/url/user_id/request_method) so a row carries a real,
+        // filterable stack trace down to file/line/column instead of
+        // whatever happened to be stuffed into the free-text 'context'
+        // column — see class-debug-log.php v2. dbDelta() handles adding
+        // these to an existing table on upgrade the same way it handles
+        // fresh installs; no separate ALTER TABLE needed.
         $debug_log = $wpdb->prefix . 'bhcore_debug_log';
         $sql5 = "CREATE TABLE $debug_log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -133,11 +140,38 @@ class BHI_Activator {
             source varchar(60) NOT NULL DEFAULT '',
             message text,
             context text,
+            file varchar(500) NOT NULL DEFAULT '',
+            line int(11) NOT NULL DEFAULT 0,
+            col int(11) NOT NULL DEFAULT 0,
+            trace longtext,
+            url varchar(500) NOT NULL DEFAULT '',
+            request_method varchar(10) NOT NULL DEFAULT '',
+            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            KEY level (level)
+            KEY level (level),
+            KEY source (source),
+            KEY user_id (user_id),
+            KEY created_at (created_at)
         ) $charset;";
         dbDelta($sql5);
+
+        // BH_Content's non-post storage backend — see class-content.php.
+        // A document attached to a real WP post lives in that post's own
+        // post_content (Gutenberg's existing block format); anything
+        // else (a lesson step tree, a tier's benefit list) lives here as
+        // plain JSON, one row per (context_type, context_id) pair.
+        $content = $wpdb->prefix . 'bhcore_content';
+        $sql6 = "CREATE TABLE $content (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            context_type varchar(60) NOT NULL,
+            context_id bigint(20) unsigned NOT NULL,
+            blocks longtext,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY context (context_type, context_id)
+        ) $charset;";
+        dbDelta($sql6);
 
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
@@ -145,6 +179,7 @@ class BHI_Activator {
         $notif_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $notifications));
         $jobs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $jobs));
         $log_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $debug_log));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log;
+        $content_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $content));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content;
     }
 }

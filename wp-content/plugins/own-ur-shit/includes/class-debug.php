@@ -48,6 +48,37 @@ class OUS_Debug {
     }
 
     /**
+     * Optional convenience wrapper around the raw
+     * add_filter('ous_debug_tools', ...) pattern shown in this class's
+     * own docblock above — every current registrant (bh-contest,
+     * bh-streaming, bh-courses, bh-registry, bh-crm, bh-monetization-woo)
+     * hand-rolls an identically-shaped closure, so this collapses that
+     * boilerplate to one call for anything written against it going
+     * forward. Purely additive: existing add_filter() registrations are
+     * untouched and keep working exactly as before — this was added in
+     * the DRY/SOLID refactor pass specifically so future registrants
+     * don't have to duplicate the pattern, not to force a rewrite of
+     * every plugin that already registers directly (a live QA pass
+     * against a real WordPress install, which this static-analysis-only
+     * refactor doesn't have available, would be needed to safely retrofit
+     * every existing call site without risking a regression).
+     *
+     * Usage, from any plugin's own bootstrap:
+     *   OUS_Debug::register('bh-lyrics', 'BH Lyrics',
+     *       ['BHL_Debug', 'render_section'], ['BHL_Debug', 'handle_action'],
+     *       ['BHL_Debug', 'reset']);
+     */
+    public static function register($key, $label, $render, $handle, $reset = null, $safe_in_production = false) {
+        add_filter('ous_debug_tools', function ($tools) use ($key, $label, $render, $handle, $reset, $safe_in_production) {
+            $tools[$key] = [
+                'label' => $label, 'render' => $render, 'handle' => $handle, 'reset' => $reset,
+                'safe_in_production' => $safe_in_production,
+            ];
+            return $tools;
+        });
+    }
+
+    /**
      * True if this looks like a production install. wp_get_environment_type()
      * defaults to 'production' unless WP_ENVIRONMENT_TYPE is set, so this
      * fails safe: unknown = blocked. Override with

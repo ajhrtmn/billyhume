@@ -41,13 +41,43 @@ class OUS_ApiDocs {
     // menu, or to be reachable at all once "which routes exist" isn't a
     // question anyone actively developing against this install is asking.
     public static function add_menu() {
-        if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) return;
+        if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) {
+            // Previously a silent return — a site owner clicking a
+            // stale/bookmarked link to this page while it's gated had no
+            // way to tell "this page doesn't exist right now" apart from
+            // "something is actually broken." Logging it here means the
+            // very bug report that triggered this fix (a 404 with no
+            // obvious cause) shows up in Console & Logs next time, one
+            // click away, instead of requiring a re-read of this file.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'API Docs admin menu not registered — OUS_Debug::is_locked() returned true for this request (environment detected as production, or a non-local host).', [
+                    'host' => wp_parse_url(home_url(), PHP_URL_HOST),
+                    'environment_type' => function_exists('wp_get_environment_type') ? wp_get_environment_type() : '(unknown — function unavailable)',
+                ], 'API Docs');
+            }
+            return;
+        }
         // Lives under the dedicated "OUS Debug" top-level menu (see
         // class-debug.php) alongside Debug Tools — both are dev/debug
         // tooling for the same audience, not part of the main "Own Ur
         // Shit" hub's own submenu. WordPress doesn't require the parent's
         // own add_menu_page() call to have run first; both just need to
         // fire during the same admin_menu hook, which they do.
+        //
+        // NOTE on the "wp-admin/ous-api-docs 404" bug report this fix
+        // responds to: this registration is correct as written — a
+        // submenu registered this way is always rendered by WordPress
+        // core as admin.php?page=ous-api-docs, never as a bare
+        // /wp-admin/ous-api-docs path. No code anywhere in this ecosystem
+        // was found (across all seven plugins) that constructs that bare
+        // URL. The two realistic causes on a real install: (1) this
+        // is_locked() gate above was silently true for that request —
+        // now logged, see above — or (2) a stale browser-cached menu /
+        // stale bookmark from before this page existed at all. If Console
+        // & Logs shows no matching entry after reproducing the 404, the
+        // cause is almost certainly (2): hard-refresh the wp-admin
+        // sidebar or re-navigate from the OUS Debug menu itself rather
+        // than a saved link.
         add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
     }
 

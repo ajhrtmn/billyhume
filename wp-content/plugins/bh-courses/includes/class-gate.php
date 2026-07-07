@@ -20,12 +20,30 @@ class BHC_Gate {
         return (int) get_post_meta($course_id, '_bhm_required_tier', true);
     }
 
+    // Fine-grained alternative to required_tier() — set on a course
+    // whose access should be sold as "any tier granting the 'courses'
+    // benefit" rather than "any tier at or above a specific price rank"
+    // (see BHM_Tiers::benefit_registry()'s own docblock for why those
+    // are genuinely different questions). A course author picks ONE of
+    // these two meta keys, not both — required_benefit(), when set,
+    // takes priority in user_can_access_course() below.
+    public static function required_benefit($course_id) {
+        $key = get_post_meta($course_id, '_bhm_required_benefit', true);
+        return $key ? sanitize_key($key) : '';
+    }
+
     // A lesson is gated by ITS course's tier, not its own — matches how
     // an individual track inherits its release's gating in bh-streaming
     // where relevant, and keeps authoring simple (set the tier once, on
     // the course).
     public static function user_can_access_course($user_id, $course_id) {
         if (!class_exists('BHM_Gate')) return true; // bh-monetization-woo not active: nothing gates anything
+
+        $benefit = self::required_benefit($course_id);
+        if ($benefit) {
+            return BHM_Gate::user_has_benefit($user_id, $benefit, $course_id);
+        }
+
         $tier = self::required_tier($course_id);
         return BHM_Gate::user_has_tier_access($user_id, $tier, $course_id);
     }
@@ -60,13 +78,34 @@ class BHC_Gate {
         return $v ?: null;
     }
 
+    // QA fix: the whole file used to compare current_time('timestamp')
+    // (WordPress's site-timezone-adjusted "now") against strtotime() of
+    // raw stored strings, which PHP interprets in the server's default
+    // timezone — not necessarily the site's configured one. On a site
+    // whose WP timezone setting differs from the server's PHP default,
+    // a drip date's boundary and "opens in N days" countdown could be
+    // off by the difference between the two. Fixed by resolving
+    // _bhc_available_on_date (a calendar date the admin picked in the
+    // site's own timezone) against wp_timezone() explicitly, and by
+    // comparing enrolled_at (a raw UTC `CURRENT_TIMESTAMP` value from
+    // MySQL, same convention WordPress's own *_gmt columns use) against
+    // raw UTC time() rather than the site-offset-adjusted current_time().
+    private static function on_date_timestamp_utc($on_date) {
+        try {
+            $dt = new DateTime($on_date . ' 00:00:00', wp_timezone());
+            return $dt->getTimestamp();
+        } catch (Exception $e) {
+            return strtotime($on_date . ' 00:00:00'); // malformed date: best-effort fallback
+        }
+    }
+
     public static function lesson_is_open($user_id, $lesson_id) {
         $after_days = self::drip_after_days($lesson_id);
         $on_date = self::drip_on_date($lesson_id);
         if ($after_days === null && $on_date === null) return true; // no drip rule set at all
 
         if ($on_date !== null) {
-            return current_time('timestamp') >= strtotime($on_date . ' 00:00:00');
+            return time() >= self::on_date_timestamp_utc($on_date);
         }
 
         // Relative delay needs an enrollment date to count from — a
@@ -80,7 +119,7 @@ class BHC_Gate {
         $enrolled_at = BHC_Progress::enrolled_at($user_id, $course_id);
         if (!$enrolled_at) return true;
 
-        return current_time('timestamp') >= (strtotime($enrolled_at) + $after_days * DAY_IN_SECONDS);
+        return time() >= (strtotime($enrolled_at . ' UTC') + $after_days * DAY_IN_SECONDS);
     }
 
     // Human-readable reason a locked-by-drip lesson is locked, for the
@@ -88,14 +127,14 @@ class BHC_Gate {
     public static function drip_notice($user_id, $lesson_id) {
         $on_date = self::drip_on_date($lesson_id);
         if ($on_date !== null) {
-            return 'This lesson opens on ' . esc_html(date_i18n(get_option('date_format'), strtotime($on_date))) . '.';
+            return 'This lesson opens on ' . esc_html(date_i18n(get_option('date_format'), self::on_date_timestamp_utc($on_date))) . '.';
         }
         $after_days = self::drip_after_days($lesson_id);
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
         $enrolled_at = BHC_Progress::enrolled_at($user_id, $course_id);
         if ($after_days !== null && $enrolled_at) {
-            $opens = strtotime($enrolled_at) + $after_days * DAY_IN_SECONDS;
-            return 'This lesson opens ' . esc_html(human_time_diff(current_time('timestamp'), $opens)) . ' from now.';
+            $opens = strtotime($enrolled_at . ' UTC') + $after_days * DAY_IN_SECONDS;
+            return 'This lesson opens ' . esc_html(human_time_diff(time(), $opens)) . ' from now.';
         }
         return 'This lesson isn\'t available yet.';
     }

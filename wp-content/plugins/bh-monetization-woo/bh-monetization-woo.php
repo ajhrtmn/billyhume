@@ -41,7 +41,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   own parallel recurring-billing logic (which would directly violate
  *   the ecosystem's "don't reinvent what already exists" principle).
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'admin', 'products', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'storefront', 'test-suite'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -76,5 +76,12 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_StyleSurface', 'init']);
     add_action('init',          ['BHM_Debug', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);
+    // Portal panel is a class_exists()-guarded consumer of BHI_Portal's
+    // filter, not a hard dependency — add_filter() on a filter nobody
+    // applies (core not present/too old to have BHI_Portal) is harmless,
+    // same convention as every other cross-plugin registration here.
+    add_action('init',          ['BHM_PortalPanel', 'init']);
+    add_action('init',          ['BHM_Storefront', 'init']);
+    add_action('init',          ['BHM_TestSuite', 'init']);
     add_action('rest_api_init', ['BHM_Frontend', 'register_routes']);
 });

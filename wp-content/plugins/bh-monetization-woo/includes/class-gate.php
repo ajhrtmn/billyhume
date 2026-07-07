@@ -95,6 +95,115 @@ class BHM_Gate {
         return (bool) apply_filters('bhm_extra_entitlement_check', false, $user_id, $required_tier, $object_id);
     }
 
+    /**
+     * The fine-grained sibling to user_has_tier_access() (see
+     * BHM_Tiers::benefit_registry()'s own docblock for why price-rank
+     * alone isn't enough once tiers grant orthogonal things rather than
+     * strictly nested ones). USAGE, for a content type that wants "any
+     * tier granting THIS specific benefit," not "any tier at or above
+     * a price":
+     *
+     *   update_post_meta($post_id, '_bhm_required_benefit', 'courses');
+     *   if (!BHM_Gate::user_has_benefit(get_current_user_id(), 'courses', $post_id)) { ... }
+     *
+     * A post using `_bhm_required_benefit` and a post using the older
+     * `_bhm_required_tier` are two independent, non-conflicting gating
+     * mechanisms — a content type picks whichever model actually fits
+     * how its access is sold (bh-courses uses this one when a specific
+     * benefit key is set on a course, and falls back to the price-tier
+     * model otherwise — see BHC_Gate::user_can_access_course()).
+     */
+    public static function user_has_benefit($user_id, $benefit_key, $object_id = null) {
+        if (!$benefit_key) return true;
+        if (!$user_id) return apply_filters('bhm_extra_entitlement_check', false, 0, 0, $object_id);
+
+        $tier_ids = BHM_Tiers::ids_granting_benefit($benefit_key);
+        if ($tier_ids) {
+            global $wpdb;
+            $t = $wpdb->prefix . 'bhm_entitlements';
+            $now = current_time('mysql');
+            $placeholders = implode(',', array_fill(0, count($tier_ids), '%d'));
+            $sql = "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier')
+                    AND object_id IN ($placeholders) AND (expires_at IS NULL OR expires_at > %s)";
+            $args = array_merge([$user_id], $tier_ids, [$now]);
+            if ((int) $wpdb->get_var($wpdb->prepare($sql, $args))) return true;
+        }
+
+        // A one-time purchase of this specific object still unlocks it
+        // directly, same as user_has_tier_access() above — buying the
+        // thing outright doesn't care which gating model the content
+        // happened to be using.
+        if ($object_id) {
+            global $wpdb;
+            $t = $wpdb->prefix . 'bhm_entitlements';
+            $owns = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type = 'purchase' AND object_id = %d", $user_id, $object_id
+            ));
+            if ($owns) return true;
+        }
+
+        return (bool) apply_filters('bhm_extra_entitlement_check', false, $user_id, 0, $object_id);
+    }
+
+    /* ---------------- tier upgrade/downgrade (ROADMAP-platform-evolution.md Section 4) ---------------- */
+
+    /**
+     * Best-effort, plain-WooCommerce proration for a mid-cycle downgrade
+     * or cancellation-with-credit — deliberately NOT reimplementing real
+     * subscription proration math. If WooCommerce Subscriptions is
+     * active, ITS OWN switch/proration handling is the correct, already-
+     * tested mechanism (see the WC_Subscriptions_Switcher class that
+     * extension ships) — this method explicitly steps aside when that's
+     * available, rather than fighting it with a second, competing
+     * proration calculation. Without WC Subscriptions (the common case
+     * for the "one-time purchase = 30 days of access" tier model this
+     * plugin already documents elsewhere), this is a simple day-based
+     * credit: unused whole days on the old tier, valued at the old
+     * tier's own daily rate, credited to the wallet — a real, honest
+     * number, just not full accounting-grade proration (no partial-day
+     * rounding beyond whole days, no tax adjustment).
+     */
+    // Extracted as a pure function (no DB, no WordPress calls) specifically
+    // so it's unit-testable without a live install — see
+    // class-test-suite.php's own coverage of this. $old_tier_price_cents
+    // is the tier's full period price; the 30-day period assumption is
+    // this plugin's own documented one-time-tier period (see
+    // class-tiers.php's docblock), not a general subscription-billing
+    // assumption.
+    public static function calculate_downgrade_credit_cents($old_tier_price_cents, $days_remaining) {
+        if ($old_tier_price_cents <= 0 || $days_remaining <= 0) return 0;
+        $daily_rate_cents = $old_tier_price_cents / 30;
+        return (int) round($daily_rate_cents * $days_remaining);
+    }
+
+    public static function handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $expires_at) {
+        if (class_exists('WC_Subscriptions_Switcher')) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Tier downgrade deferred to WooCommerce Subscriptions\' own switch/proration handling.', ['user_id' => $user_id, 'old_tier_id' => $old_tier_id, 'new_tier_id' => $new_tier_id], 'BH Monetization');
+            }
+            return; // WC Subscriptions owns this — do not also credit a second time
+        }
+        if (!class_exists('BHM_Wallet') || !$expires_at) return;
+
+        $old_tier = BHM_Tiers::get($old_tier_id);
+        if (!$old_tier || $old_tier['price_cents'] <= 0) return;
+
+        $days_remaining = max(0, (int) ceil((strtotime($expires_at) - current_time('timestamp')) / DAY_IN_SECONDS));
+        if (!$days_remaining) return;
+
+        $credit_cents = self::calculate_downgrade_credit_cents($old_tier['price_cents'], $days_remaining);
+        if ($credit_cents <= 0) return;
+
+        BHM_Wallet::credit($user_id, $credit_cents, 'tier_downgrade_credit: ' . $days_remaining . ' unused day(s) on "' . $old_tier['name'] . '"');
+
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', 'Tier downgrade credited to wallet (no WooCommerce Subscriptions active — plain day-based proration).', [
+                'user_id' => $user_id, 'old_tier_id' => $old_tier_id, 'new_tier_id' => $new_tier_id,
+                'days_remaining' => $days_remaining, 'credit_cents' => $credit_cents,
+            ], 'BH Monetization');
+        }
+    }
+
     // A simple, Style-Gallery-themed "become a supporter" notice any
     // consumer can drop in wherever it would otherwise render paylocked
     // content — deliberately generic markup (no track/release-specific

@@ -146,7 +146,7 @@ class BHR_Admin {
                 break;
             case 'reverify_link':
                 if ($link_id) {
-                    $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_links WHERE id = %d", $link_id));
+                    $link = BHR_Links::find($link_id);
                     if ($link) BHR_Verification::verify_link($link);
                 }
                 break;

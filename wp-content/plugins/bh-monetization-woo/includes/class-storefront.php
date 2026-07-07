@@ -1,0 +1,343 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+/**
+ * The storefront/merchandising layer (ROADMAP-platform-evolution.md
+ * Section 5) — product collections, category/collection landing pages,
+ * and browse/search/filter controls, built as real BH_Studio pages per
+ * AJ's own call (not a reskin of WooCommerce's stock shop/archive
+ * templates). Same "own the interface, don't reimplement WooCommerce's
+ * hard parts" posture as the rest of this plugin: WooCommerce still
+ * owns the actual product data, cart, and checkout — this class only
+ * owns how products get BROWSED and DISCOVERED, which is the part
+ * AJ's ask (Amazon/Apple/Shopify-quality collections/categories/
+ * listing/browse-filter) is actually about.
+ *
+ * Two new pieces on top of what already exists:
+ *
+ *   1. `bhm_collection` — a plain WordPress taxonomy on WooCommerce's
+ *      own `product` post type. Deliberately a taxonomy, not a new CPT/
+ *      table — curated merchandising collections ("Tour Exclusives",
+ *      "New This Month") are conceptually identical to WooCommerce's
+ *      own product categories (many-to-many product grouping with a
+ *      term archive), so reusing WordPress's existing, well-understood
+ *      taxonomy machinery costs nothing and interoperates for free with
+ *      anything already taxonomy-aware.
+ *   2. `bhm/product-grid` and `bhm/product-filter` — two new BH_Content
+ *      block types (dynamic: rendered server-side from live WooCommerce
+ *      data on every request, not baked into the stored block tree),
+ *      registered with BH_Studio the same way BH_Studio's own core
+ *      block types are. An artist builds a collection/category landing
+ *      page BY DRAGGING THESE ONTO THE CANVAS alongside bh/heading,
+ *      bh/text, bh/image, etc. — real page-building, not a fixed
+ *      template with configuration options.
+ */
+/**
+ * Scope note: bhm/product-grid and bhm/product-filter are BH_Content
+ * block types (rendered via BH_Content::render(), independent of
+ * WordPress's own block-render pipeline) — correct and sufficient for
+ * every use in this pass (collection landing pages, any bhm_collection-
+ * context document). If either is ever placed inside a document stored
+ * against context_type='post' AND that post is later rendered through
+ * WordPress's normal the_content()/render_block() path instead of
+ * BH_Content::render() directly, it would need a matching real
+ * register_block_type() call with a server-side render_callback — not
+ * added here, since no current consumer renders collection/storefront
+ * documents that way. Flagging the boundary rather than silently
+ * building for a case nothing exercises yet.
+ */
+class BHM_Storefront {
+    const TAXONOMY = 'bhm_collection';
+    const REWRITE_SLUG = 'shop-collection';
+
+    public static function init() {
+        add_action('init', [self::class, 'register_taxonomy']);
+        add_action('init', [self::class, 'add_rewrite']);
+        add_filter('query_vars', [self::class, 'add_query_var']);
+        add_action('template_redirect', [self::class, 'maybe_render_collection']);
+        add_action('rest_api_init', [self::class, 'register_routes']);
+        add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_studio_blocks']);
+        add_action('wp_enqueue_scripts', [self::class, 'enqueue_frontend_assets']);
+
+        if (class_exists('BH_Studio')) {
+            add_filter('bh_studio_block_types', [self::class, 'register_studio_block_types']);
+        }
+        if (class_exists('BH_Content')) {
+            self::register_content_block_types();
+        }
+    }
+
+    /* ---------------- collections taxonomy ---------------- */
+
+    public static function register_taxonomy() {
+        if (!post_type_exists('product')) return; // WooCommerce not active yet — nothing to attach to
+        register_taxonomy(self::TAXONOMY, ['product'], [
+            'labels' => ['name' => 'Collections', 'singular_name' => 'Collection'],
+            'public' => true, 'hierarchical' => false, 'show_admin_column' => true,
+            'show_in_rest' => true,
+            'rewrite' => ['slug' => self::REWRITE_SLUG],
+        ]);
+    }
+
+    public static function add_rewrite() {
+        add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
+
+        // A brand-new rewrite rule/taxonomy is invisible until WordPress's
+        // rewrite rules are flushed — normally an activation-hook job, but
+        // this rule is added by THIS class's own init() (fires every
+        // request, not just activation) specifically so it also self-heals
+        // for a site that already had this plugin active before this
+        // taxonomy/rewrite existed (a file-replace deploy, same reasoning
+        // BHI_Activator::maybe_upgrade() already documents elsewhere in
+        // this ecosystem for schema changes). One-time via an option flag,
+        // not on every request — flush_rewrite_rules() is expensive enough
+        // that running it unconditionally on 'init' would be a real
+        // performance regression.
+        if (!get_option('bhm_storefront_rewrite_flushed')) {
+            flush_rewrite_rules();
+            update_option('bhm_storefront_rewrite_flushed', 1);
+        }
+    }
+
+    public static function add_query_var($vars) {
+        $vars[] = 'bhm_collection_slug';
+        return $vars;
+    }
+
+    /* ---------------- collection landing page ---------------- */
+
+    // The landing page itself: an optional BH_Content-authored hero/
+    // intro region (context_type='bhm_collection', context_id=term_id —
+    // empty/unauthored by default, same "graceful default" every other
+    // BH_Content consumer in this ecosystem follows) above an
+    // auto-generated product grid for every product in that collection.
+    // An artist who wants a fully custom layout instead just builds one
+    // in BH_Studio using bhm/product-grid directly with this collection
+    // pre-selected — this route is the zero-effort default, not the
+    // only way to show a collection.
+    public static function maybe_render_collection() {
+        $slug = get_query_var('bhm_collection_slug');
+        if (!$slug) return;
+
+        $term = get_term_by('slug', sanitize_title($slug), self::TAXONOMY);
+        if (!$term || is_wp_error($term)) { self::render_404(); return; }
+
+        status_header(200);
+        nocache_headers();
+        self::render_collection_page($term);
+        exit;
+    }
+
+    private static function render_404() {
+        status_header(404);
+        nocache_headers();
+        get_header();
+        echo '<div class="bhm-storefront-wrap"><p>That collection doesn\'t exist.</p></div>';
+        get_footer();
+        exit;
+    }
+
+    private static function render_collection_page($term) {
+        get_header();
+        echo '<div class="bhm-storefront-wrap">';
+        echo '<h1 class="bhm-collection-title">' . esc_html($term->name) . '</h1>';
+        if ($term->description) echo '<p class="bhm-collection-desc">' . esc_html($term->description) . '</p>';
+
+        if (class_exists('BH_Content')) {
+            $hero_tree = BH_Content::get('bhm_collection', $term->term_id);
+            if ($hero_tree) echo BH_Content::render($hero_tree);
+        }
+
+        echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true], '');
+        echo '</div>';
+        get_footer();
+    }
+
+    /* ---------------- BH_Content block registration (server render) ---------------- */
+
+    private static function register_content_block_types() {
+        BH_Content::register_block_type('bhm/product-grid', [
+            'collection' => ['type' => 'string', 'default' => ''],
+            'category'   => ['type' => 'string', 'default' => ''],
+            'columns'    => ['type' => 'int', 'default' => 4],
+            'limit'      => ['type' => 'int', 'default' => 12],
+            'showFilters' => ['type' => 'bool', 'default' => false],
+        ], [self::class, 'render_product_grid_block']);
+
+        BH_Content::register_block_type('bhm/product-filter', [
+            'showPrice' => ['type' => 'bool', 'default' => true],
+            'showCategory' => ['type' => 'bool', 'default' => true],
+            'showStock' => ['type' => 'bool', 'default' => true],
+        ], [self::class, 'render_product_filter_block']);
+    }
+
+    /**
+     * A dynamic block's real renderer — queries live WooCommerce data on
+     * every request rather than baking a product list into the stored
+     * block tree, the same reason Gutenberg core's own "Latest Posts"
+     * block works this way. $attrs here always has every schema key
+     * filled (BH_Content::validate()'s coercion guarantees that), so no
+     * isset() guarding is needed for any of them.
+     */
+    public static function render_product_grid_block($attrs) {
+        if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
+            return '<p class="description">WooCommerce isn\'t active — nothing to show here yet.</p>';
+        }
+
+        $products = self::query_products([
+            'collection' => $attrs['collection'],
+            'category' => $attrs['category'],
+            'limit' => max(1, min(48, (int) $attrs['limit'])),
+        ]);
+
+        $columns = max(1, min(6, (int) $attrs['columns']));
+        $out = '';
+        if (!empty($attrs['showFilters'])) {
+            $out .= self::render_product_filter_block(['showPrice' => true, 'showCategory' => true, 'showStock' => true]);
+        }
+        $out .= '<div class="bhm-product-grid" data-bhm-collection="' . esc_attr($attrs['collection']) . '" data-bhm-category="' . esc_attr($attrs['category']) . '" style="--bhm-grid-cols:' . $columns . ';">';
+        $out .= self::render_product_cards($products);
+        $out .= '</div>';
+        return $out;
+    }
+
+    public static function render_product_filter_block($attrs) {
+        ob_start();
+        ?>
+        <form class="bhm-product-filter" onsubmit="return false;">
+            <?php if (!empty($attrs['showCategory']) && function_exists('get_terms')): ?>
+                <label>Category
+                    <select class="bhm-filter-category">
+                        <option value="">All</option>
+                        <?php foreach (get_terms(['taxonomy' => 'product_cat', 'hide_empty' => true]) as $cat): ?>
+                            <option value="<?php echo esc_attr($cat->slug); ?>"><?php echo esc_html($cat->name); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?php endif; ?>
+            <?php if (!empty($attrs['showPrice'])): ?>
+                <label>Min price <input type="number" class="bhm-filter-min-price" min="0" step="0.01"></label>
+                <label>Max price <input type="number" class="bhm-filter-max-price" min="0" step="0.01"></label>
+            <?php endif; ?>
+            <?php if (!empty($attrs['showStock'])): ?>
+                <label><input type="checkbox" class="bhm-filter-in-stock"> In stock only</label>
+            <?php endif; ?>
+            <button type="button" class="bhm-filter-apply button">Apply</button>
+        </form>
+        <?php
+        return ob_get_clean();
+    }
+
+    private static function render_product_cards($products) {
+        if (!$products) return '<p class="description">No products found.</p>';
+        $out = '';
+        foreach ($products as $product) {
+            $out .= '<a class="bhm-product-card" href="' . esc_url($product->get_permalink()) . '">';
+            $image = $product->get_image('medium');
+            $out .= '<div class="bhm-product-card-image">' . $image . '</div>';
+            $out .= '<div class="bhm-product-card-title">' . esc_html($product->get_name()) . '</div>';
+            $out .= '<div class="bhm-product-card-price">' . wp_kses_post($product->get_price_html()) . '</div>';
+            $out .= '</a>';
+        }
+        return $out;
+    }
+
+    /* ---------------- shared product query (used by both the server render above and the REST filter endpoint below) ---------------- */
+
+    private static function query_products($args) {
+        $wc_args = [
+            'limit' => $args['limit'] ?? 12,
+            'page' => $args['page'] ?? 1,
+            'status' => 'publish',
+        ];
+        $tax_query = [];
+        if (!empty($args['collection'])) {
+            $tax_query[] = ['taxonomy' => self::TAXONOMY, 'field' => 'slug', 'terms' => sanitize_title($args['collection'])];
+        }
+        if (!empty($args['category'])) {
+            $tax_query[] = ['taxonomy' => 'product_cat', 'field' => 'slug', 'terms' => sanitize_title($args['category'])];
+        }
+        if ($tax_query) $wc_args['tax_query'] = $tax_query; // phpcs:ignore -- wc_get_products() itself proxies this straight into WP_Query, same key name
+
+        if (!empty($args['in_stock'])) $wc_args['stock_status'] = 'instock';
+
+        $products = wc_get_products($wc_args);
+
+        // Price filtering isn't a native wc_get_products() arg (it varies
+        // sale/regular/variable pricing in ways a single meta_query can't
+        // cleanly express) — filtered here instead, on the already-
+        // narrowed result set, which is fine at the catalog sizes this
+        // ecosystem targets (a solo artist's merch store, not a
+        // thousand-SKU marketplace).
+        if (isset($args['min_price']) || isset($args['max_price'])) {
+            $min = isset($args['min_price']) ? (float) $args['min_price'] : null;
+            $max = isset($args['max_price']) ? (float) $args['max_price'] : null;
+            $products = array_filter($products, function ($p) use ($min, $max) {
+                $price = (float) $p->get_price();
+                if ($min !== null && $price < $min) return false;
+                if ($max !== null && $price > $max) return false;
+                return true;
+            });
+        }
+
+        return array_values($products);
+    }
+
+    /* ---------------- REST: the filter block's live re-query ---------------- */
+
+    public static function register_routes() {
+        register_rest_route('ous/v1', '/storefront/products', [
+            'methods' => 'GET',
+            'permission_callback' => '__return_true', // public catalog browsing — same openness as WooCommerce's own shop pages
+            'callback' => [self::class, 'rest_query_products'],
+        ]);
+    }
+
+    public static function rest_query_products(\WP_REST_Request $req) {
+        if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
+            return new \WP_Error('bhm_storefront_no_woocommerce', 'WooCommerce is unavailable.', ['status' => 500]);
+        }
+        $products = self::query_products([
+            'collection' => sanitize_title($req->get_param('collection') ?: ''),
+            'category' => sanitize_title($req->get_param('category') ?: ''),
+            'min_price' => $req->get_param('min_price') !== null ? (float) $req->get_param('min_price') : null,
+            'max_price' => $req->get_param('max_price') !== null ? (float) $req->get_param('max_price') : null,
+            'in_stock' => (bool) $req->get_param('in_stock'),
+            'limit' => min(48, max(1, (int) ($req->get_param('limit') ?: 24))),
+        ]);
+        return new \WP_REST_Response(['html' => self::render_product_cards($products), 'count' => count($products)], 200);
+    }
+
+    /* ---------------- assets ---------------- */
+
+    public static function enqueue_frontend_assets() {
+        wp_enqueue_style('bhm-storefront', BHM_URL . 'assets/css/storefront.css', [], defined('BHM_VER') ? BHM_VER : null);
+        wp_register_script('bhm-storefront-filter', BHM_URL . 'assets/js/storefront-filter.js', [], defined('BHM_VER') ? BHM_VER : null, true);
+        wp_enqueue_script('bhm-storefront-filter');
+        wp_localize_script('bhm-storefront-filter', 'bhmStorefrontConfig', [
+            'restUrl' => esc_url_raw(rest_url('ous/v1/storefront/products')),
+        ]);
+    }
+
+    // Only when BH_Studio's own canvas is the page being loaded — same
+    // hook-name-substring check class-studio.php itself uses for its
+    // own asset gating, kept consistent rather than inventing a second
+    // convention.
+    public static function maybe_enqueue_studio_blocks($hook) {
+        if (strpos($hook, 'bh-studio') === false) return;
+        if (!wp_script_is('bh-studio', 'enqueued') && !wp_script_is('bh-studio', 'registered')) return; // BH_Studio itself isn't active/loaded
+        wp_enqueue_script(
+            'bhm-storefront-studio-blocks',
+            BHM_URL . 'assets/js/storefront-studio-blocks.js',
+            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'bh-studio'],
+            defined('BHM_VER') ? BHM_VER : null,
+            true
+        );
+    }
+
+    public static function register_studio_block_types($types) {
+        $types['bhm/product-grid'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Product Grid'];
+        $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
+        return $types;
+    }
+}

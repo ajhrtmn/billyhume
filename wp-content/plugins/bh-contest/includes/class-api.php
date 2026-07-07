@@ -130,7 +130,18 @@ class BH_API {
         // The track must actually belong to THIS contest — without this
         // check a client could vote on a submission from a different
         // contest while pointed at this one, corrupting both tallies.
-        if (get_post_type($sid) !== 'bh_submission' || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
+        // QA fix: also require post_status === 'publish'. Without it, a
+        // user who knows/guesses a pending or rejected submission's ID
+        // could vote for it directly via this endpoint (the UI only ever
+        // lists published tracks via /tracks) — the vote would silently
+        // never appear in results/reveal (those both already filter by
+        // publish status) but would still consume one of the user's
+        // limited votes in that category, and would retroactively count
+        // if the submission were approved later, without the voter
+        // having chosen against the actual field of approved tracks.
+        $sub = get_post($sid);
+        if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
+            || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
             return self::err('bad', 'That track does not belong to this contest.', 400);
         }
 

@@ -27,6 +27,27 @@ if (!defined('ABSPATH')) exit;
 class BHM_Tiers {
     const CPT = 'bhm_tier';
 
+    // Fine-grained tier depth (ROADMAP-platform-evolution.md Section 4):
+    // before this, the ONLY access model was "is this tier's price rank
+    // at or above the required tier's" (ids_at_or_above(), used by
+    // BHM_Gate::user_has_tier_access()) — fine for a single linear
+    // ladder, wrong the moment two tiers grant genuinely different
+    // THINGS rather than strictly nested access (a cheap "courses only"
+    // tier and a pricier "streaming only" tier, neither a strict superset
+    // of the other). Benefit keys are that second, orthogonal axis — a
+    // tier can grant any combination, independent of price rank.
+    // Filterable so bh-courses/bh-streaming/a future plugin can register
+    // their own key + label without editing this file, same zero-
+    // central-registration shape as everything else in this ecosystem.
+    public static function benefit_registry() {
+        return apply_filters('bhm_benefit_registry', [
+            'streaming' => 'Streaming library access',
+            'downloads' => 'Downloadable audio',
+            'courses'   => 'Course/LMS access',
+            'merch_discount' => 'Storefront discount',
+        ]);
+    }
+
     public static function init() {
         add_action('init', [self::class, 'register_post_type']);
         add_action('save_post_' . self::CPT, [self::class, 'save']);
@@ -76,6 +97,14 @@ class BHM_Tiers {
         echo '<p><label><strong>Monthly price (USD)</strong><br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? number_format($price / 100, 2, '.', '') : '') . '" style="width:160px;"></label></p>';
         echo '<p><label><strong>Benefits</strong> <span class="description">(shown to fans on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
 
+        $granted = (array) get_post_meta($post->ID, '_bhm_benefit_keys', true);
+        echo '<p><strong>Grants access to</strong> <span class="description">(machine-checked — this is what BHM_Gate::user_has_benefit() actually evaluates; the free-text field above is just what fans see)</span></p>';
+        echo '<p>';
+        foreach (self::benefit_registry() as $key => $label) {
+            echo '<label style="display:inline-block;margin:0 16px 4px 0;"><input type="checkbox" name="bhm_benefit_keys[]" value="' . esc_attr($key) . '"' . (in_array($key, $granted, true) ? ' checked' : '') . '> ' . esc_html($label) . '</label>';
+        }
+        echo '</p>';
+
         if ($has_subs) {
             echo '<p class="description">Real recurring billing via WooCommerce Subscriptions.</p>';
         } else {
@@ -96,6 +125,11 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_price_cents', $price_cents);
         if (isset($_POST['bhm_benefits'])) update_post_meta($post_id, '_bhm_benefits', sanitize_textarea_field($_POST['bhm_benefits']));
 
+        $known_keys = array_keys(self::benefit_registry());
+        $submitted = isset($_POST['bhm_benefit_keys']) && is_array($_POST['bhm_benefit_keys']) ? $_POST['bhm_benefit_keys'] : [];
+        $clean_keys = array_values(array_intersect($known_keys, array_map('sanitize_key', $submitted)));
+        update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
+
         if (class_exists('WooCommerce')) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents);
         }
@@ -110,8 +144,21 @@ class BHM_Tiers {
             'id' => $post->ID, 'name' => $post->post_title,
             'price_cents' => (int) get_post_meta($post->ID, '_bhm_price_cents', true),
             'benefits' => (string) get_post_meta($post->ID, '_bhm_benefits', true),
+            'benefit_keys' => (array) get_post_meta($post->ID, '_bhm_benefit_keys', true),
             'wc_product_id' => (int) get_post_meta($post->ID, '_bhm_wc_product_id', true),
         ];
+    }
+
+    // Every published tier that grants a given benefit key, regardless
+    // of price rank — the direct query BHM_Gate::user_has_benefit()
+    // needs, and the one thing ids_at_or_above() structurally can't
+    // answer (it only ever knows about price order).
+    public static function ids_granting_benefit($benefit_key) {
+        $ids = [];
+        foreach (self::all() as $t) {
+            if (in_array($benefit_key, $t['benefit_keys'], true)) $ids[] = $t['id'];
+        }
+        return $ids;
     }
 
     public static function all() {

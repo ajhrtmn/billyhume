@@ -13,7 +13,12 @@ class BHS_Player {
         if (!$post || !has_shortcode($post->post_content, 'bh_streaming')) return;
 
         wp_enqueue_style('bhs-player', BHS_URL . 'assets/css/player.css', [], BHS_VER);
-        wp_add_inline_style('bhs-player', BHY_Style::inline_css());
+        // BHY_Style is optional (own-ur-shit's shared style tokens) — guard
+        // like every other cross-plugin touch in this ecosystem, never
+        // assume it's loaded (QA fix: this was the one unguarded call site
+        // and would fatal maybe_enqueue() on every [bh_streaming] page if
+        // the class ever wasn't defined at this point in the request).
+        if (class_exists('BHY_Style')) wp_add_inline_style('bhs-player', BHY_Style::inline_css());
         wp_enqueue_script('bhs-player', BHS_URL . 'assets/js/player.js', [], BHS_VER, true);
         wp_localize_script('bhs-player', 'BHSData', [
             'rest'     => esc_url_raw(rest_url('bhs/v1/')),

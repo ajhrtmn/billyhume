@@ -117,11 +117,14 @@ class BHS_Feeds {
         $last = get_post_meta($post->ID, '_bhs_last_synced', true);
 
         $invalid = get_post_meta($post->ID, '_bhs_feed_invalid', true);
+        $fetch_failed = get_post_meta($post->ID, '_bhs_feed_fetch_failed', true);
 
         echo '<p><label><strong>Feed URL</strong><br><input type="url" name="bhs_feed_url" value="' . esc_attr($url) . '" style="width:100%;" placeholder="https://example.com/feed.xml" required></label></p>';
         echo '<p class="description">Must be an open-standard RSS/Podcasting-2.0 feed with real audio enclosures — the same format Funkwhale publishes for every channel, and what this site\'s own export at <code>' . esc_html(self::own_feed_url()) . '</code> produces. '
            . 'On Funkwhale: open the artist\'s channel page → "RSS feed" link. Not a proprietary API URL or a plain web page link.</p>';
-        if ($invalid) {
+        if ($fetch_failed) {
+            echo '<div class="notice notice-error inline"><p>Last sync couldn\'t reach this URL at all (network error, timeout, or the host was down) — this may just be temporary. The next scheduled sync will retry automatically.</p></div>';
+        } elseif ($invalid) {
             echo '<div class="notice notice-error inline"><p>Last sync rejected this URL — it didn\'t look like an open podcast/audio feed (no items with a real audio enclosure). Double-check it\'s the channel\'s RSS link, not its regular profile page.</p></div>';
         }
         echo '<p>' . ($last ? 'Last synced: ' . esc_html($last) : '<em>Never synced — save this post to sync for the first time.</em>') . '</p>';
@@ -264,14 +267,27 @@ class BHS_Feeds {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
 
-        if (is_wp_error($feed) && class_exists('OUS_DebugLog')) {
-            // A network call to someone else's server, failing — this is
-            // exactly the class of "not this site's bug, but this site's
-            // problem to notice" error the console exists for, so an
-            // admin sees "this feed's been failing" without having to
-            // manually re-check every feed source one by one.
-            OUS_DebugLog::log('warning', 'Feed fetch failed: ' . $feed->get_error_message(), ['feed_source_id' => $feed_source_id, 'url' => $url], 'BH Streaming');
+        // QA fix: a transient network failure (timeout, DNS, host down)
+        // used to fall straight through into validate_is_open_feed(),
+        // which also returns false for a WP_Error — so the admin saw
+        // "this didn't look like an open podcast/audio feed" for BOTH a
+        // genuinely malformed feed AND a temporarily-unreachable host,
+        // pointing them at the wrong problem ("check your feed URL")
+        // when the real issue was "the remote host was unreachable, try
+        // again." Now tracked as a distinct flag with its own message.
+        if (is_wp_error($feed)) {
+            if (class_exists('OUS_DebugLog')) {
+                // A network call to someone else's server, failing — this is
+                // exactly the class of "not this site's bug, but this site's
+                // problem to notice" error the console exists for, so an
+                // admin sees "this feed's been failing" without having to
+                // manually re-check every feed source one by one.
+                OUS_DebugLog::log('warning', 'Feed fetch failed: ' . $feed->get_error_message(), ['feed_source_id' => $feed_source_id, 'url' => $url], 'BH Streaming');
+            }
+            update_post_meta($feed_source_id, '_bhs_feed_fetch_failed', '1');
+            return;
         }
+        delete_post_meta($feed_source_id, '_bhs_feed_fetch_failed');
 
         if (!self::validate_is_open_feed($feed)) {
             update_post_meta($feed_source_id, '_bhs_feed_invalid', '1');

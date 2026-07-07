@@ -29,6 +29,32 @@ class BHI_PublicProfile {
         add_action('admin_post_bhi_save_profile', [__CLASS__, 'handle_save']);
         add_action('admin_post_bhi_delete_profile_data', [__CLASS__, 'handle_delete']);
         add_filter('bhi_report_target_label', [__CLASS__, 'report_target_label'], 10, 3);
+
+        // The portal's first real, working consumer (see class-portal.php) —
+        // the profile edit form moves INTO the portal as a panel; the
+        // PUBLIC profile page/shortcode above stays exactly as-is, since
+        // that's a different, intentionally-shareable surface, per the
+        // roadmap doc's own explicit distinction.
+        add_filter('bhi_portal_panels', [__CLASS__, 'register_portal_panel']);
+    }
+
+    public static function register_portal_panel($panels) {
+        $panels[] = [
+            'id' => 'profile',
+            'label' => __('Profile', 'own-ur-shit'),
+            'icon' => 'dashicons-admin-users',
+            'render' => [__CLASS__, 'render_portal_panel'],
+            'priority' => 10,
+        ];
+        return $panels;
+    }
+
+    // Thin public wrapper around the existing private render_edit_form() —
+    // same form, same handle_save()/handle_delete() admin-post handlers,
+    // just echoed into the portal shell's <main> instead of a standalone
+    // shortcode-rendered page.
+    public static function render_portal_panel() {
+        echo self::render_edit_form(get_current_user_id());
     }
 
     public static function report_target_label($label, $type, $id) {
@@ -289,6 +315,20 @@ class BHI_PublicProfile {
     // bh-streaming's local-import endpoint uses. Restricted to images
     // only (a profile avatar/banner isn't a place to accept arbitrary
     // uploads) and attributed to the uploading user.
+    //
+    // QA fix: media_handle_upload() performs no capability check of its
+    // own, and BHI_Auth::register() creates plain subscriber accounts,
+    // which don't have upload_files by default — so this call site was
+    // the one place in the ecosystem a low-privilege, self-registered
+    // user could write directly into the site's media library with no
+    // capability gate at all. The feature is explicitly meant to work
+    // for exactly that subscriber-level user (that's who has a public
+    // profile), so a hard current_user_can('upload_files') block would
+    // just break the feature. Instead, grant upload_files for the
+    // duration of this one call only (never persisted, never touches
+    // the user's real role/caps) — a real second checkpoint on top of
+    // the existing image-mimetype/size/author-attribution validation,
+    // rather than relying on "media_handle_upload happens not to check."
     private static function handle_image_upload($field, $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -303,7 +343,14 @@ class BHI_PublicProfile {
             return new WP_Error('too_big', 'Image must be smaller than 8MB.');
         }
 
+        $grant_upload_cap = function ($allcaps) {
+            $allcaps['upload_files'] = true;
+            return $allcaps;
+        };
+        add_filter('user_has_cap', $grant_upload_cap);
         $attachment_id = media_handle_upload($field, 0, ['post_author' => $user_id]);
+        remove_filter('user_has_cap', $grant_upload_cap);
+
         if (is_wp_error($attachment_id)) return $attachment_id;
         return $attachment_id;
     }

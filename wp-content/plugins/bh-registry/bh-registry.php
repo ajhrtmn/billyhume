@@ -24,7 +24,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['activator', 'verification', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge'] as $f) {
+foreach (['links', 'activator', 'verification', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 

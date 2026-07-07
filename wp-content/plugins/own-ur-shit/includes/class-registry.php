@@ -135,6 +135,64 @@ class OUS_Registry {
             'dashboard_link' => 'edit.php?post_type=bhs_track',
             'bundled_zip' => 'bh-streaming.zip',
         ],
+        // These three used to rely ONLY on their own plugin file
+        // self-registering via the 'ous_registered_plugins' filter (see
+        // each plugin's own class-admin.php / bh-courses.php) — which
+        // works fine for an ALREADY-active plugin, but is a real
+        // chicken-and-egg gap for an install that's still sitting
+        // inactive (or not yet uploaded at all): an inactive plugin's
+        // PHP never runs, so its self-registration filter never fires,
+        // so it can never show up here to BE installed/activated in the
+        // first place. bh-crm/bh-contest/bh-streaming above never hit
+        // this because they were always hardcoded here too — these three
+        // are now hardcoded the same way, closing the gap. Each plugin's
+        // own self-registration filter is left in place (harmless once
+        // active: it just re-sets the same key to equivalent data), so
+        // nothing needs to change in the plugins themselves.
+        'bh-courses' => [
+            'label' => 'BH Courses',
+            'file' => 'bh-courses/bh-courses.php',
+            'depends_on' => [],
+            'check_class' => 'BHC_PostTypes',
+            'description' => 'Courses built from ordered, multistep lessons (text, images, quizzes) with progress tracking and optional supporter-tier gating.',
+            'dashboard_link' => 'edit.php?post_type=bh_course',
+            'bundled_zip' => 'bh-courses.zip',
+        ],
+        'bh-registry' => [
+            'label' => 'BH Registry',
+            'file' => 'bh-registry/bh-registry.php',
+            'depends_on' => [],
+            'check_class' => 'BHR_API',
+            'description' => 'The global, decentralized artist-link registry — ActivityPub/RSS feed links, submitted voluntarily and verified by domain ownership.',
+            'dashboard_link' => 'admin.php?page=bh-registry-review',
+            'bundled_zip' => 'bh-registry.zip',
+            'admin_menus' => [
+                ['slug' => 'bh-registry-review', 'label' => 'Registry Submissions', 'callback' => ['BHR_Admin', 'render']],
+            ],
+        ],
+        'bh-monetization-woo' => [
+            'label' => 'BH Monetization',
+            'file' => 'bh-monetization-woo/bh-monetization-woo.php',
+            'depends_on' => ['woocommerce'],
+            'check_class' => 'BHM_Gate',
+            'description' => 'Supporter tiers, purchases, tips, and pay-per-play for bh-streaming — backed by WooCommerce, with refund/velocity fraud-pattern flagging.',
+            'dashboard_link' => 'admin.php?page=bhm-settings',
+            'bundled_zip' => 'bh-monetization-woo.zip',
+            'admin_menus' => [
+                ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => ['BHM_Admin', 'render']],
+            ],
+        ],
+        // WooCommerce itself — bh-monetization-woo's own bootstrap also
+        // adds this (guarded by isset() so the two never fight), kept
+        // here too so WooCommerce shows up as installable even before
+        // bh-monetization-woo itself has ever been active.
+        'woocommerce' => [
+            'label' => 'WooCommerce',
+            'file' => 'woocommerce/woocommerce.php',
+            'wporg_slug' => 'woocommerce',
+            'check_class' => 'WooCommerce',
+            'description' => 'Required for BH Monetization — payments and commerce, not reimplemented here.',
+        ],
         // A third-party WordPress.org plugin, not ours to author or
         // bundle — same 'wporg_slug' shape the docblock above documents
         // for WooCommerce, installed live from WordPress.org rather than
@@ -223,7 +281,16 @@ class OUS_Registry {
     // installed but simply hasn't loaded yet this request for unrelated
     // reasons, which isn't the same thing as not being installed.
     public static function status($key) {
-        $info = self::all()[$key];
+        // QA fix: guard the lookup like OUS_ActivationManager already
+        // does (isset(OUS_Registry::all()[$key]) before use) instead of
+        // indexing directly — every current caller happens to pass an
+        // already-known-valid key, but an arbitrary/stale key (e.g. a
+        // leftover depends_on entry after a registry filter change)
+        // should fail gracefully, not throw an undefined-array-key
+        // warning on PHP 8.
+        $registry = self::all();
+        if (!isset($registry[$key])) return 'missing';
+        $info = $registry[$key];
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
         $all = get_plugins();
@@ -232,9 +299,11 @@ class OUS_Registry {
     }
 
     public static function version($key) {
+        $registry = self::all();
+        if (!isset($registry[$key])) return '';
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
         $all = get_plugins();
-        $file = self::all()[$key]['file'];
+        $file = $registry[$key]['file'];
         return $all[$file]['Version'] ?? '';
     }
 

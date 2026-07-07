@@ -17,7 +17,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'portal-panel'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -98,6 +98,7 @@ add_action('plugins_loaded', function () {
     // production-safety check (OUS_Debug::is_locked()) is centralized
     // there now, checked once for every registered plugin's actions.
     add_action('init', ['BH_Debug', 'init']);
+    add_action('init', ['BH_PortalPanel', 'init']);
 
     // Load assets only on pages that actually use the player, and hand
     // the front end everything it needs up front (REST base, a fresh

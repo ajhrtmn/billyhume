@@ -242,10 +242,9 @@ class BHR_Verification {
     // class_exists() check, so this method existing costs nothing on a
     // core version without the job queue.
     public static function recheck_one($args) {
-        global $wpdb;
         $link_id = (int) ($args['link_id'] ?? 0);
         if (!$link_id) return;
-        $link = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_links WHERE id = %d", $link_id));
+        $link = BHR_Links::find($link_id);
         if ($link) self::verify_link($link);
     }
 }

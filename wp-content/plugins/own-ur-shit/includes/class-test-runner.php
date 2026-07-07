@@ -112,13 +112,35 @@ class OUS_TestRunner {
             return;
         }
 
+        self::print_copy_script_once();
+
+        // One "copy every failure, across every suite" button up top —
+        // the actual ask this whole feature exists for: pasting a
+        // full failure dump into a chat/ticket without hand-picking
+        // rows out of a big pass/fail table one at a time.
+        $all_failures_text = self::format_failures_text($report, null);
+        $any_failures = trim($all_failures_text) !== '';
+        echo '<p style="margin-top:12px;">';
+        echo '<button type="button" class="button" ' . ($any_failures ? '' : 'disabled') . ' onclick="bhCopyToClipboard(\'ous-test-fails-all\', this)">'
+           . ($any_failures ? 'Copy ALL failures' : 'No failures to copy') . '</button>';
+        echo '</p>';
+        echo '<textarea id="ous-test-fails-all" style="position:absolute;left:-9999px;">' . esc_textarea($all_failures_text) . '</textarea>';
+
         foreach ($report as $key => $suite) {
             $total = count($suite['rows']);
             $passed = count(array_filter($suite['rows'], function ($r) { return $r['pass']; }));
             $all_pass = $passed === $total;
+            $textarea_id = 'ous-test-fails-' . sanitize_key($key);
 
-            echo '<h4 style="margin-top:16px;">' . esc_html($suite['label']) . ' — '
-               . '<span style="color:' . ($all_pass ? '#00a32a' : '#d63638') . ';">' . (int) $passed . ' / ' . (int) $total . ' passed</span></h4>';
+            echo '<h4 style="margin-top:16px;display:flex;align-items:center;gap:10px;">'
+               . '<span>' . esc_html($suite['label']) . ' — '
+               . '<span style="color:' . ($all_pass ? '#00a32a' : '#d63638') . ';">' . (int) $passed . ' / ' . (int) $total . ' passed</span></span>';
+            if (!$all_pass) {
+                echo '<button type="button" class="button button-small" onclick="bhCopyToClipboard(\'' . esc_js($textarea_id) . '\', this)">Copy failures (' . (int) ($total - $passed) . ')</button>';
+            }
+            echo '</h4>';
+
+            echo '<textarea id="' . esc_attr($textarea_id) . '" style="position:absolute;left:-9999px;">' . esc_textarea(self::format_failures_text([$key => $suite], null)) . '</textarea>';
 
             echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:70px;">Result</th><th>Test</th><th>Detail</th></tr></thead><tbody>';
             foreach ($suite['rows'] as $row) {
@@ -129,6 +151,72 @@ class OUS_TestRunner {
             }
             echo '</tbody></table></div>';
         }
+    }
+
+    /**
+     * Plain-text dump of only the FAILING rows across the given report
+     * (or a single suite's slice of it, passed in pre-filtered by the
+     * caller) — grouped by suite label, one line per failure plus its
+     * detail message. This is the text that actually lands on the
+     * clipboard; kept as one shared formatter so the "copy all" button
+     * and each suite's own "copy failures" button can't drift out of
+     * sync with each other.
+     */
+    private static function format_failures_text(array $report, $unused = null) {
+        $lines = [];
+        foreach ($report as $suite) {
+            $fails = array_values(array_filter($suite['rows'], function ($r) { return empty($r['pass']); }));
+            if (!$fails) continue;
+            $lines[] = '=== ' . $suite['label'] . ' — ' . count($fails) . ' failing ===';
+            foreach ($fails as $row) {
+                $lines[] = 'FAIL: ' . $row['name'];
+                if (!empty($row['message'])) $lines[] = '  ' . $row['message'];
+            }
+            $lines[] = '';
+        }
+        return trim(implode("\n", $lines));
+    }
+
+    // Printed once per page load regardless of how many copy buttons
+    // exist — navigator.clipboard.writeText() with a textarea
+    // select()/execCommand('copy') fallback for browsers/contexts (e.g.
+    // non-HTTPS admin) where the async Clipboard API isn't available.
+    private static function print_copy_script_once() {
+        static $printed = false;
+        if ($printed) return;
+        $printed = true;
+        ?>
+        <script>
+        // Guarded against double-definition: this same shared helper is
+        // also printed by class-debug-log.php's own copy button (both
+        // sections can render on the same Debug Tools page load), so
+        // whichever one renders first wins and the second is a no-op.
+        if (typeof window.bhCopyToClipboard !== 'function') {
+            window.bhCopyToClipboard = function (textareaId, btn) {
+                var el = document.getElementById(textareaId);
+                if (!el) return;
+                var text = el.value;
+                var done = function (ok) {
+                    if (!btn) return;
+                    var original = btn.textContent;
+                    btn.textContent = ok ? 'Copied!' : 'Copy failed';
+                    setTimeout(function () { btn.textContent = original; }, 1500);
+                };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+                } else {
+                    el.style.position = 'static';
+                    el.select();
+                    var ok = false;
+                    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+                    el.style.position = 'absolute';
+                    el.style.left = '-9999px';
+                    done(ok);
+                }
+            };
+        }
+        </script>
+        <?php
     }
 
     public static function handle_debug_action($action) {

@@ -70,11 +70,28 @@ class BHC_Progress {
 
     public static function mark_step_complete($user_id, $lesson_id, $step_index, $score = null, $passed = null) {
         global $wpdb;
+        // QA fix: $wpdb->prepare() has no NULL passthrough for scalar
+        // placeholders — a PHP null bound through %s/%d is cast to ''/0
+        // before the query runs, so the old version here was writing
+        // score = 0 / passed = 0 for every plain text/image step instead
+        // of a real SQL NULL. is_step_complete()/completed_steps() both
+        // explicitly test `$row['passed'] === null` to detect "non-quiz
+        // step, complete once a row exists at all" — with passed coming
+        // back as "0" instead of NULL, that check always failed, so
+        // every non-quiz step permanently read as incomplete. Building
+        // the column list/placeholders conditionally keeps a real SQL
+        // NULL for the non-quiz case while still using %d for real values.
+        $score_sql  = $score === null ? 'NULL' : '%d';
+        $passed_sql = $passed === null ? 'NULL' : '%d';
+        $values = [$user_id, $lesson_id, $step_index];
+        if ($score !== null) $values[] = (int) $score;
+        if ($passed !== null) $values[] = (int) $passed;
+
         $wpdb->query($wpdb->prepare(
             "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, score, passed, attempts)
-             VALUES (%d, %d, %d, %s, %s, 1)
+             VALUES (%d, %d, %d, $score_sql, $passed_sql, 1)
              ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP, score = VALUES(score), passed = VALUES(passed), attempts = attempts + 1",
-            $user_id, $lesson_id, $step_index, $score, $passed === null ? null : (int) $passed
+            $values
         ));
 
         if ($passed === null || $passed) {
@@ -199,6 +216,23 @@ class BHC_Progress {
                 'message' => "No attempts remaining ($max_attempts allowed).",
                 'attempts_used' => $attempts_so_far, 'max_attempts' => $max_attempts,
             ], 403);
+        }
+
+        // QA fix: a step that's already passed must never be rescored —
+        // the old code only used $already_passed to skip the attempts-
+        // exhausted check above, then fell through to score_quiz() and
+        // mark_step_complete() regardless, which could overwrite a
+        // passing result with a failing one on a resubmit/replayed POST
+        // (the front end disables the resubmit UI, but that's not a
+        // server-side guarantee). Once passed, stay passed.
+        if ($already_passed) {
+            wp_send_json_success([
+                'score' => (int) $existing['score'], 'passed' => true,
+                'total' => count($step['questions'] ?? []), 'correct' => null,
+                'attempts_used' => $attempts_so_far, 'max_attempts' => $max_attempts,
+                'attempts_remaining' => $max_attempts > 0 ? max(0, $max_attempts - $attempts_so_far) : null,
+                'already_passed' => true,
+            ]);
         }
 
         $raw_answers = (array) ($_POST['answers'] ?? []);

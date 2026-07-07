@@ -54,16 +54,31 @@ class BHS_Recommendations {
         arsort($scored);
         $top_ids = array_slice(array_keys($scored), 0, 10, true);
 
+        // QA fix: this used to resolve the audio URL itself via
+        // get_post_meta('_bhs_audio_id') directly, which (a) always
+        // returned a real, playable URL even for a track a monetization
+        // plugin has locked — bypassing the one enforcement mechanism
+        // bh-streaming has (BHS_API::track_payload() never ships a real
+        // URL for a locked track) — and (b) silently dropped every
+        // externally-aggregated/feed-imported track, which stores its
+        // audio in _bhs_external_audio_url rather than _bhs_audio_id.
+        // Routing through BHS_API::track_payload() reuses the same
+        // access-gating filter and the same local-or-external URL
+        // resolution every other read path in this plugin already uses.
         $out = [];
         foreach ($top_ids as $id) {
             $p = get_post($id);
-            $aid = (int) get_post_meta($id, '_bhs_audio_id', true);
-            $art = (int) get_post_meta($id, '_bhs_artwork_id', true);
-            if (!$aid) continue;
+            $payload = BHS_API::track_payload($p);
+            // A locked track legitimately has no url (that's the point of
+            // gating) — still worth surfacing so the front end can show a
+            // paywall notice. Only skip a track that has no audio source
+            // at all AND isn't locked (nothing useful to recommend).
+            if (!$payload['locked'] && !$payload['url']) continue;
             $out[] = [
-                'id' => $p->ID, 'title' => $p->post_title, 'artist' => get_post_meta($id, '_bhs_artist', true),
-                'url' => wp_get_attachment_url($aid),
-                'artwork' => $art ? wp_get_attachment_image_url($art, 'medium') : BHS_PWA::placeholder_artwork_url(),
+                'id' => $payload['id'], 'title' => $payload['title'], 'artist' => $payload['artist'],
+                'url' => $payload['url'],
+                'locked' => $payload['locked'],
+                'artwork' => $payload['artwork'],
             ];
         }
 

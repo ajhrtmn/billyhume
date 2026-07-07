@@ -54,12 +54,26 @@ class BHC_Admin {
 
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
-            echo '<h4>Supporter access</h4><p class="description">Optional — leave blank for a fully open course. Requires BH Monetization.</p>';
-            echo '<select name="bhc_required_tier"><option value="0">— Open to everyone —</option>';
+            $required_benefit = BHC_Gate::required_benefit($post->ID);
+            echo '<h4>Supporter access</h4><p class="description">Optional — leave both set to "open" for a fully open course. Requires BH Monetization.</p>';
+
+            echo '<p><label><strong>Gate by tier price rank</strong><br><select name="bhc_required_tier"><option value="0">— Open to everyone —</option>';
             foreach (BHM_Tiers::all() as $tier) {
                 echo '<option value="' . (int) $tier['id'] . '"' . selected($required, $tier['id'], false) . '>' . esc_html($tier['name']) . '</option>';
             }
-            echo '</select>';
+            echo '</select></label></p>';
+
+            // The fine-grained alternative (BHM_Gate::user_has_benefit())
+            // — "any tier granting THIS benefit," independent of price
+            // rank. If both this and the tier-rank select above are set,
+            // required_benefit() wins (see BHC_Gate::user_can_access_course()) —
+            // stated here too so an author editing this screen isn't
+            // surprised which one actually took effect.
+            echo '<p><label><strong>OR gate by specific benefit</strong> <span class="description">(takes priority over the tier-rank select above if set)</span><br><select name="bhc_required_benefit"><option value="">— Use tier-rank select instead —</option>';
+            foreach (BHM_Tiers::benefit_registry() as $key => $label) {
+                echo '<option value="' . esc_attr($key) . '"' . selected($required_benefit, $key, false) . '>' . esc_html($label) . '</option>';
+            }
+            echo '</select></label></p>';
         } else {
             echo '<p class="description"><em>Install &amp; activate BH Monetization to gate this course behind a supporter tier.</em></p>';
         }
@@ -80,6 +94,11 @@ class BHC_Admin {
         // consulted when class_exists('BHM_Gate') is false anyway).
         if (isset($_POST['bhc_required_tier']) && class_exists('BHM_Tiers')) {
             update_post_meta($post_id, '_bhm_required_tier', (int) $_POST['bhc_required_tier']);
+        }
+        if (isset($_POST['bhc_required_benefit']) && class_exists('BHM_Tiers')) {
+            $key = sanitize_key($_POST['bhc_required_benefit']);
+            $known_keys = array_keys(BHM_Tiers::benefit_registry());
+            update_post_meta($post_id, '_bhm_required_benefit', in_array($key, $known_keys, true) ? $key : '');
         }
     }
 

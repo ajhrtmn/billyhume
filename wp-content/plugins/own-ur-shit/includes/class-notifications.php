@@ -33,6 +33,15 @@ class OUS_Notifications {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
 
+        // This plugin's own contribution to BHI_Portal — reuses the exact
+        // same render_shortcode() output the [bh_notifications] shortcode
+        // already produces (see below) rather than a second, parallel
+        // rendering path. maybe_enqueue() above already fires on the
+        // portal's own page for free: render_shell() (class-portal.php)
+        // calls wp_head(), and WordPress core fires 'wp_enqueue_scripts'
+        // from wp_head itself — no extra enqueue wiring needed here.
+        add_filter('bhi_portal_panels', [self::class, 'register_portal_panel']);
+
         // The job queue's own registered handler for actually sending a
         // queued email — see class-jobs.php. Registered here (where the
         // job TYPE is defined) rather than in class-jobs.php itself,
@@ -160,6 +169,22 @@ class OUS_Notifications {
 
     public static function register_shortcode() {
         add_shortcode('bh_notifications', [self::class, 'render_shortcode']);
+    }
+
+    public static function register_portal_panel($panels) {
+        $panels[] = [
+            'id' => 'notifications',
+            'label' => 'Notifications',
+            'icon' => 'dashicons-bell',
+            'render' => [self::class, 'render_portal_panel'],
+            'priority' => 50,
+        ];
+        return $panels;
+    }
+
+    public static function render_portal_panel() {
+        echo '<h1>Notifications</h1>';
+        echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup, same output the [bh_notifications] shortcode itself echoes on the front end
     }
 
     public static function render_shortcode() {

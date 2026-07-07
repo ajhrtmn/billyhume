@@ -59,61 +59,87 @@ class BHM_Products {
 
     /* ---------- tier <-> WooCommerce product sync ---------- */
 
+    // As of the platform-evolution handoff, this goes through the core's
+    // BH_Commerce interface (own-ur-shit/includes/class-commerce.php)
+    // instead of instantiating WC_Product_* classes directly — the
+    // concrete first migration the roadmap doc asked for. Falls back to
+    // the original direct-WooCommerce path if BH_Commerce isn't loaded
+    // (an old core version), same class_exists()-guarded-degrade
+    // convention as everywhere else in this ecosystem.
     public static function sync_tier_wc_product($tier_post_id, $name, $price_cents) {
         if (!class_exists('WooCommerce')) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
-        // WC_Subscriptions is the plugin's main bootstrap class;
-        // WC_Product_Subscription is its actual product class — both
-        // ship together in every real install, but checked separately
-        // rather than assumed, since a class_exists() on one doesn't
-        // guarantee the other loaded (e.g. mid-upgrade, a partial
-        // install, or a future WooCommerce Subscriptions version that
-        // restructures its own class map). Degrading to a plain Simple
-        // product if either is missing is always safe; instantiating a
-        // class that turns out not to exist is a fatal error.
+
+        if (class_exists('BH_Commerce')) {
+            $product_id = BH_Commerce::upsert_product($existing_id, [
+                'name' => $name . ' — Supporter Tier',
+                'price_cents' => $price_cents,
+                'virtual' => true, // no shipping — this is access, not a physical good
+                'catalog_visibility' => 'hidden', // never shows up in a normal WooCommerce shop listing — sold only via this plugin's own tier picker
+                'subscription' => true, // BH_Commerce itself degrades to a plain Simple product if WooCommerce Subscriptions isn't active
+                'subscription_period' => 'month',
+                'subscription_period_interval' => 1,
+            ]);
+            if (!$product_id) return;
+            update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
+            update_post_meta($product_id, '_bhm_tier_id', $tier_post_id); // reverse lookup, used by on_order_completed()/on_subscription_active()
+            return;
+        }
+
+        // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
         $has_subs = class_exists('WC_Subscriptions') && class_exists('WC_Product_Subscription');
         $price = number_format($price_cents / 100, 2, '.', '');
-
-        // A real subscription product type if WooCommerce Subscriptions
-        // is active; otherwise a plain Simple product — see this
-        // plugin's own bootstrap docblock for why that's a deliberate,
-        // documented degrade rather than a workaround.
         $product = $existing_id ? wc_get_product($existing_id) : null;
         if (!$product) {
             $product = $has_subs ? new WC_Product_Subscription() : new WC_Product_Simple();
         }
-
         $product->set_name($name . ' — Supporter Tier');
         $product->set_regular_price($price);
-        $product->set_virtual(true); // no shipping — this is access, not a physical good
-        $product->set_catalog_visibility('hidden'); // never shows up in a normal WooCommerce shop listing — sold only via this plugin's own tier picker
+        $product->set_virtual(true);
+        $product->set_catalog_visibility('hidden');
         if ($has_subs && method_exists($product, 'set_props')) {
             $product->set_props(['subscription_period' => 'month', 'subscription_period_interval' => 1]);
         }
         $product->save();
-
         update_post_meta($tier_post_id, '_bhm_wc_product_id', $product->get_id());
-        update_post_meta($product->get_id(), '_bhm_tier_id', $tier_post_id); // reverse lookup, used by on_order_completed()/on_subscription_active()
+        update_post_meta($product->get_id(), '_bhm_tier_id', $tier_post_id);
     }
 
     // Same idea as sync_tier_wc_product() but for a single track/release's
     // own outright-purchase option — a plain one-time Simple product,
     // never a subscription (buying a track outright is never recurring).
+    // Also migrated behind BH_Commerce, same fallback shape as above.
     private static function sync_object_purchase_product($object_id, $post_type, $price_cents) {
         if (!class_exists('WooCommerce')) return 0;
         $meta_key = '_bhm_purchase_wc_product_id';
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);
+        $title = get_the_title($object_id);
+        $name = $title . ' (' . ($post_type === 'bhs_release' ? 'Album' : 'Track') . ' Purchase)';
+
+        if (class_exists('BH_Commerce')) {
+            $product_id = BH_Commerce::upsert_product($existing_id, [
+                'name' => $name,
+                'price_cents' => $price_cents,
+                'virtual' => true,
+                'downloadable' => true,
+                'catalog_visibility' => 'hidden',
+            ]);
+            if (!$product_id) return 0;
+            update_post_meta($object_id, $meta_key, $product_id);
+            update_post_meta($product_id, '_bhm_purchase_object_id', $object_id);
+            update_post_meta($product_id, '_bhm_purchase_object_type', $post_type);
+            return $product_id;
+        }
+
+        // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
         $product = $existing_id ? wc_get_product($existing_id) : null;
         if (!$product) $product = new WC_Product_Simple();
-
-        $title = get_the_title($object_id);
-        $product->set_name($title . ' (' . ($post_type === 'bhs_release' ? 'Album' : 'Track') . ' Purchase)');
+        $product->set_name($name);
         $product->set_regular_price(number_format($price_cents / 100, 2, '.', ''));
         $product->set_virtual(true);
         $product->set_downloadable(true);
         $product->set_catalog_visibility('hidden');
         $product->save();
-
         update_post_meta($object_id, $meta_key, $product->get_id());
         update_post_meta($product->get_id(), '_bhm_purchase_object_id', $object_id);
         update_post_meta($product->get_id(), '_bhm_purchase_object_type', $post_type);
@@ -412,7 +438,7 @@ class BHM_Products {
             }
         }
 
-        if ($order->get_customer_id()) self::track_refund_pattern($order->get_customer_id(), $order_id);
+        if ($order->get_customer_id()) BHM_Fraud::track_refund_pattern($order->get_customer_id(), $order_id);
 
         // A second real notification example alongside BH Courses'
         // course-completion one (see the core's OUS_Notifications
@@ -435,82 +461,13 @@ class BHM_Products {
         }
     }
 
-    // Refund/chargeback abuse pattern: buy → stream or download → refund
-    // → repeat, extracting real content or plays while the artist eats
-    // the cost every time. One refund is completely normal (real
-    // dissatisfaction, a real payment dispute) — this only reacts to a
-    // REPEATED pattern from the same account within a rolling window,
-    // and it flags for admin review rather than silently auto-banning
-    // anyone (a false positive here is a real fan getting locked out,
-    // which is worse than a human spending 30 seconds checking a flag).
-    const REFUND_ABUSE_WINDOW = 30 * DAY_IN_SECONDS;
-    const REFUND_ABUSE_THRESHOLD = 3;
-
-    private static function track_refund_pattern($user_id, $order_id) {
-        $log = get_user_meta($user_id, '_bhm_refund_log', true);
-        $log = is_array($log) ? $log : [];
-        $cutoff = time() - self::REFUND_ABUSE_WINDOW;
-        $log = array_values(array_filter($log, fn($ts) => $ts > $cutoff));
-        $log[] = time();
-        update_user_meta($user_id, '_bhm_refund_log', $log);
-
-        $flagged = count($log) >= self::REFUND_ABUSE_THRESHOLD;
-        update_user_meta($user_id, '_bhm_refund_flagged', $flagged ? '1' : '');
-
-        // Cross-account correlation: the same evasion this per-account
-        // log can't catch on its own — someone hitting the threshold,
-        // then just signing up again under a new account. Hashed
-        // (never raw IP) fingerprint of connection + a persistent,
-        // non-tracking cookie id, recorded once per refund.
-        $fingerprint = self::fingerprint_for();
-        global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhm_refund_fingerprints', [
-            'fingerprint' => $fingerprint, 'user_id' => $user_id, 'wc_order_id' => $order_id,
-        ]);
-        $cutoff_sql = gmdate('Y-m-d H:i:s', $cutoff);
-        $distinct_users = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT user_id) FROM {$wpdb->prefix}bhm_refund_fingerprints
-             WHERE fingerprint = %s AND created_at > %s", $fingerprint, $cutoff_sql
-        ));
-        $cross_account_flagged = $distinct_users >= 2;
-        if ($cross_account_flagged) update_user_meta($user_id, '_bhm_refund_shared_device_flagged', '1');
-
-        if ($flagged || $cross_account_flagged) {
-            // Extension point, not an automatic restriction — this
-            // plugin doesn't unilaterally decide to cut someone off;
-            // it surfaces the pattern (here, and in bh-crm's activity
-            // summary via class-crm-integration.php) so a human decides
-            // what, if anything, to do about a specific account.
-            do_action('bhm_refund_pattern_flagged', $user_id, count($log), $cross_account_flagged);
-        }
-    }
-
-    // A hash, not the raw IP — this correlates repeat behavior without
-    // this table itself becoming a new place raw connection data sits
-    // around. The cookie half is a plain random id (set once, read on
-    // subsequent visits), NOT a cross-site tracking mechanism and NOT
-    // tied to any ad/analytics network — its only job is "does this
-    // browser look like the same one as last time," same-origin only.
-    const FINGERPRINT_COOKIE = 'bhm_fp';
-
-    private static function fingerprint_for() {
-        if (empty($_COOKIE[self::FINGERPRINT_COOKIE])) {
-            $val = wp_generate_password(32, false);
-            if (!headers_sent()) {
-                setcookie(self::FINGERPRINT_COOKIE, $val, time() + 5 * YEAR_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true);
-            }
-            $_COOKIE[self::FINGERPRINT_COOKIE] = $val;
-        }
-        $ip = sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? '');
-        return hash('sha256', $ip . '|' . $_COOKIE[self::FINGERPRINT_COOKIE]);
-    }
-
-    public static function refund_count_recent($user_id) {
-        $log = get_user_meta($user_id, '_bhm_refund_log', true);
-        $log = is_array($log) ? $log : [];
-        $cutoff = time() - self::REFUND_ABUSE_WINDOW;
-        return count(array_filter($log, fn($ts) => $ts > $cutoff));
-    }
+    // Refund/chargeback abuse-pattern detection moved to its own
+    // BHM_Fraud class (includes/class-fraud.php) — see that file's
+    // docblock for the DRY/SOLID-refactor rationale. This class only
+    // calls into it now (on_order_reversed() above); everything that
+    // used to live here (track_refund_pattern, fingerprint_for,
+    // refund_count_recent, the REFUND_ABUSE_*/FINGERPRINT_COOKIE
+    // constants) is unchanged in behavior, just relocated.
 
     public static function on_subscription_active($subscription) {
         $user_id = $subscription->get_customer_id();
