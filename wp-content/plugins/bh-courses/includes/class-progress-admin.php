@@ -43,11 +43,18 @@ class BHC_ProgressAdmin {
 
     public static function render() {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.');
+        self::maybe_handle_override(); // processes + queues a settings_errors() notice before any output below
 
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
         $selected_id = isset($_GET['course_id']) ? (int) $_GET['course_id'] : ($courses[0]->ID ?? 0);
+        // The override form POSTs its own course_id (see render_override_form()),
+        // so a submission stays on the same course afterward rather than
+        // silently jumping back to whichever one is first alphabetically —
+        // matches the GET-based selection precedence above it.
+        if (isset($_POST['course_id'])) $selected_id = (int) $_POST['course_id'];
 
         echo '<div class="wrap"><h1>Student Progress</h1>';
+        settings_errors('bhc_progress_admin');
 
         if (!$courses) { echo '<p>No courses yet.</p></div>'; return; }
 
@@ -59,8 +66,109 @@ class BHC_ProgressAdmin {
         echo '</select></form>';
 
         if (!$selected_id) { echo '</div>'; return; }
+        self::render_override_form($selected_id);
         self::render_course_table($selected_id);
         echo '</div>';
+    }
+
+    /* ---------------- manual override ---------------- */
+
+    // The real, ordinary support-request gap: a student's AJAX call
+    // failed, or an instructor just wants to comp someone past a step —
+    // there was previously no way to do either without a database
+    // console. Deliberately scoped to "mark complete," not a general
+    // progress editor: it force-completes every not-yet-done step in
+    // either one lesson or the whole course, going through
+    // BHC_Progress::mark_step_complete() itself (never a raw $wpdb
+    // write) so bhc_course_completed still fires normally and a course
+    // that reaches 100% this way behaves identically to one reached by
+    // actually taking it.
+    //
+    // Deliberately NOT a general enrollment/access tool: the student
+    // dropdown only lists people who already have at least one progress
+    // row for this course (see students_for_course()) — granting access
+    // to someone with zero activity is BHM_Gate's/an entitlement's job,
+    // not this page's.
+    private static function maybe_handle_override() {
+        if (!isset($_POST['bhc_override_action'])) return;
+        if (!current_user_can(self::required_cap())) return;
+        if (!isset($_POST['bhc_override_nonce']) || !wp_verify_nonce($_POST['bhc_override_nonce'], 'bhc_override')) return;
+
+        $course_id = (int) ($_POST['course_id'] ?? 0);
+        $student_id = (int) ($_POST['student_user_id'] ?? 0);
+        $lesson_id = (int) ($_POST['lesson_id'] ?? 0); // 0 = whole course
+
+        if (!$course_id || !$student_id) {
+            add_settings_error('bhc_progress_admin', 'bhc_override_missing', 'Pick a student to mark complete.', 'error');
+            return;
+        }
+
+        $lesson_ids = $lesson_id ? [$lesson_id] : BHC_PostTypes::lesson_order($course_id);
+        $touched = 0;
+        foreach ($lesson_ids as $lid) {
+            $touched += self::force_complete_lesson($student_id, $lid);
+        }
+
+        $student = get_userdata($student_id);
+        $name = $student ? ($student->display_name ?: $student->user_login) : "User #$student_id";
+        add_settings_error('bhc_progress_admin', 'bhc_override_done',
+            $touched ? "Marked $touched step(s) complete for $name." : "Nothing to do — $name was already complete there.",
+            'success');
+    }
+
+    // Returns how many previously-incomplete steps got force-marked.
+    // Quiz steps get scored 100/passed=1 rather than left un-scored —
+    // is_step_complete()'s own rule is that a quiz row only reads "done"
+    // once passed, so anything less would silently fail to actually
+    // unblock the student this was meant to unblock.
+    private static function force_complete_lesson($user_id, $lesson_id) {
+        $steps = BHC_Steps::get($lesson_id);
+        $count = 0;
+        foreach ($steps as $i => $step) {
+            if (BHC_Progress::is_step_complete($user_id, $lesson_id, $i)) continue;
+            if (($step['type'] ?? '') === 'quiz') {
+                BHC_Progress::mark_step_complete($user_id, $lesson_id, $i, 100, 1);
+            } else {
+                BHC_Progress::mark_step_complete($user_id, $lesson_id, $i);
+            }
+            $count++;
+        }
+        return $count;
+    }
+
+    private static function render_override_form($course_id) {
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        $students = self::students_for_course($course_id);
+
+        echo '<div class="bhy-card" style="margin:16px 0;padding:16px;border:1px solid #dcdcde;background:#fff;max-width:640px;">';
+        echo '<h2 style="margin-top:0;font-size:14px;">Manual override</h2>';
+        echo '<p class="description">For support cases where progress didn\'t record correctly — marks steps complete directly (quiz steps as scored/passed), bypassing normal submission. Only students with existing activity in this course are listed; this isn\'t an enrollment or access tool.</p>';
+
+        if (!$students) {
+            echo '<p class="description"><em>No students with recorded activity yet — nothing to override.</em></p></div>';
+            return;
+        }
+
+        echo '<form method="post">';
+        wp_nonce_field('bhc_override', 'bhc_override_nonce');
+        echo '<input type="hidden" name="bhc_override_action" value="1">';
+        echo '<input type="hidden" name="course_id" value="' . (int) $course_id . '">';
+
+        echo '<p><label>Student<br><select name="student_user_id">';
+        foreach ($students as $sid) {
+            $u = get_userdata($sid);
+            echo '<option value="' . (int) $sid . '">' . esc_html($u ? ($u->display_name ?: $u->user_login) : "User #$sid") . '</option>';
+        }
+        echo '</select></label></p>';
+
+        echo '<p><label>Scope<br><select name="lesson_id"><option value="0">— Entire course —</option>';
+        foreach ($lesson_ids as $lid) {
+            echo '<option value="' . (int) $lid . '">' . esc_html(get_the_title($lid)) . '</option>';
+        }
+        echo '</select></label></p>';
+
+        submit_button('Mark complete', 'secondary', 'submit', false);
+        echo '</form></div>';
     }
 
     private static function render_course_table($course_id) {

@@ -25,6 +25,7 @@
     var __ = wp.i18n ? wp.i18n.__ : function (s) { return s; };
 
     wp.blocks.registerBlockType('bhm/product-grid', {
+        apiVersion: 3,
         title: __('Product Grid'),
         icon: 'grid-view',
         category: 'commerce',
@@ -60,6 +61,7 @@
     });
 
     wp.blocks.registerBlockType('bhm/product-filter', {
+        apiVersion: 3,
         title: __('Product Filter'),
         icon: 'filter',
         category: 'commerce',

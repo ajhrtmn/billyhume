@@ -57,3 +57,8 @@ Two ways to get all four plugins, depending on how you're deploying:
 
 Either way, activate this plugin **first** — BH Contest, BH Streaming,
 and BH CRM all require it active before their own features light up.
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See
+[LICENSE](./LICENSE) for the full text.

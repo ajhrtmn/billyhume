@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * marks itself done if the migration actually succeeded.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.1'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped)
+    const DB_VERSION = '1.2'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table.
 
     public static function activate() {
         BHC_PostTypes::register();
@@ -52,9 +52,25 @@ class BHC_Activator {
             score int(11) DEFAULT NULL,
             passed tinyint(1) DEFAULT NULL,
             attempts int(11) NOT NULL DEFAULT 0,
+            answers longtext DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index)
         ) $charset;";
+        // answers: JSON snapshot of the LATEST-WRITTEN attempt only (this
+        // row is an upsert, not a history table — see the class docblock
+        // above and QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.1/1.2 for why
+        // that's the deliberate, precedented choice, not a shortcut). NULL
+        // for non-quiz steps and for any quiz row written before this
+        // column existed. Self-contained: stores the question text, choice
+        // list, and correct index AS THEY WERE at submission time, not
+        // just the chosen index — bhc/quiz-question blocks are editable
+        // content (LMS-AUTHORING-DESIGN-PLAN.md), so replaying a chosen
+        // index against the CURRENT quiz could point at a choice that's
+        // since been reworded or removed. A later quiz edit intentionally
+        // does not change what an old review shows — that's correct
+        // behavior, not staleness, and is worth remembering if it ever
+        // looks like a bug. See BHC_Steps::score_quiz()'s 'questions'
+        // return shape for the exact per-record fields.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);

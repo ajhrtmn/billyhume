@@ -2,12 +2,12 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.2.0
+ * Version:     3.3.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
-define('OUS_VER',  '3.2.0');
+define('OUS_VER',  '3.3.2');
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
 
@@ -88,6 +88,7 @@ BHY_UI::pin_hidden_submenus_to_bottom();
 add_action('admin_menu',    ['OUS_Dashboard', 'add_menu']);
 add_action('init',          ['OUS_MenuMerge', 'init']);
 add_action('init',          ['OUS_Debug', 'init']);
+add_filter('ous_debug_tools', ['OUS_Registry', 'register_debug_section']);
 add_action('admin_post_ous_activate', ['OUS_Dashboard', 'handle_activate']);
 add_action('admin_post_ous_activate_all', ['OUS_Dashboard', 'handle_activate_all']);
 add_action('admin_post_ous_activate_file', ['OUS_Dashboard', 'handle_activate_file']);

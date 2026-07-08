@@ -177,7 +177,13 @@ class BHM_Gate {
     }
 
     public static function handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $expires_at) {
-        if (class_exists('WC_Subscriptions_Switcher')) {
+        // Routed through BH_Commerce::has_subscription_switching() as of
+        // the BH_Commerce migration's second pass — same
+        // class_exists('WC_Subscriptions_Switcher') check underneath,
+        // just no longer spelled out in a plugin file (see
+        // class-commerce.php's docblock for the full migration history).
+        $has_switching = class_exists('BH_Commerce') ? BH_Commerce::has_subscription_switching() : class_exists('WC_Subscriptions_Switcher');
+        if ($has_switching) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Tier downgrade deferred to WooCommerce Subscriptions\' own switch/proration handling.', ['user_id' => $user_id, 'old_tier_id' => $old_tier_id, 'new_tier_id' => $new_tier_id], 'BH Monetization');
             }

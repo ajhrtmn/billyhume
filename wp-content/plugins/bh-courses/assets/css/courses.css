@@ -52,6 +52,49 @@
 .bhc-lesson-list li.bhc-lesson-locked { color: var(--bh-text-dim); }
 .bhc-drip-notice { font-size: 12px; }
 .bhc-drip-locked { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+
+/* ---- catalog: card badges/meta (Part 2 catalog rebuild) ---- */
+.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; }
+.bhc-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.02em; }
+.bhc-badge-difficulty { background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
+.bhc-difficulty-beginner { color: var(--bh-accent); border-color: var(--bh-accent); }
+.bhc-difficulty-intermediate { color: var(--bh-text); }
+.bhc-difficulty-advanced { color: var(--bh-text); font-weight: 700; }
+.bhc-card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--bh-text-dim); flex-wrap: wrap; }
+.bhc-card-lesson-count { color: var(--bh-text-dim); }
+.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); }
+.bhc-card-instructor img { border-radius: 50%; }
+.bhc-continue-btn { margin-top: auto; }
+
+/* ---- catalog: filter/sort/search bar ---- */
+.bhc-catalog-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.bhc-filter-search, .bhc-filter-select {
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 6px;
+    padding: 8px 10px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+}
+.bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
+.bhc-btn { display: inline-block; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: var(--bh-accent); color: var(--bh-on-accent, #fff); }
+.bhc-btn-secondary { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); }
+
+/* ---- catalog: pagination ---- */
+.bhc-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding-top: 8px; }
+.bhc-pagination-status { font-size: 12px; color: var(--bh-text-dim); }
+
+/* ---- course detail header (Section 2.7) ---- */
+.bhc-course-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+.bhc-course-cover img { width: 100%; max-height: 360px; object-fit: cover; border-radius: 10px; }
+.bhc-course-title { font-family: var(--bh-font-heading); font-size: 28px; }
+.bhc-course-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--bh-text-dim); }
+.bhc-course-instructor { display: flex; align-items: center; gap: 6px; }
+.bhc-course-instructor img { border-radius: 50%; }
+.bhc-course-terms { display: flex; flex-wrap: wrap; gap: 6px; }
+.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
+.bhc-term-category { border-color: var(--bh-accent); color: var(--bh-accent); }
+.bhc-course-description { font-size: 14px; color: var(--bh-text); line-height: 1.6; }
+.bhc-course-header-cta { margin-top: 4px; }
+.bhc-syllabus-preview { margin-top: 16px; }
+.bhc-syllabus-preview h4 { font-family: var(--bh-font-heading); font-size: 15px; margin-bottom: 8px; }
+.bhc-lesson-list-preview li { color: var(--bh-text-dim); }
 .bhc-attempts-note { font-size: 13px; color: var(--bh-text-dim); margin: 8px 0; }
 
 /* ---- lesson step walker ---- */
@@ -67,9 +110,12 @@
 .bhc-btn {
     background: var(--bh-accent); color: var(--bh-accent-contrast, #fff); border: none;
     border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
+    display: inline-block;
 }
 .bhc-btn:hover { background: var(--bh-accent-soft); }
 .bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
+.bhc-btn-secondary { background: transparent; border: 1px solid var(--bh-border); color: var(--bh-text); }
+.bhc-btn-secondary:hover { background: var(--bh-border); }
 
 .bhc-quiz-question { border: none; margin-bottom: 16px; }
 .bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
@@ -77,3 +123,27 @@
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
 .bhc-quiz-result.bhc-pass { background: var(--bh-accent-soft); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
+.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
+.bhc-quiz-continue { display: inline-block; }
+
+/* ---- quiz per-question review/breakdown ---- */
+.bhc-quiz-review { margin-top: 8px; }
+.bhc-quiz-question-review {
+    border: 1px solid var(--bh-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+}
+.bhc-quiz-question-review.bhc-q-correct { border-color: var(--bh-accent); }
+.bhc-quiz-question-review.bhc-q-incorrect { border-color: var(--bh-text-dim); }
+.bhc-quiz-choice-review {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 10px; border-radius: 6px; margin-top: 4px;
+}
+.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-soft); font-weight: 600; }
+.bhc-quiz-choice-review.bhc-choice-incorrect { background: var(--bh-border); text-decoration: line-through; opacity: 0.85; }
+.bhc-choice-marker { font-size: 12px; color: var(--bh-text-dim); white-space: nowrap; }
+.bhc-quiz-choice-review.bhc-correct .bhc-choice-marker { color: var(--bh-accent); }
+
+/* ---- continue / next-lesson navigation ---- */
+.bhc-course-cta { margin-bottom: 16px; }
+.bhc-lesson-next { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; text-align: center; }
+.bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.bhc-step-back { margin-right: 8px; }

@@ -99,8 +99,28 @@ class OUS_Debug {
             // second signal — none of these TLDs/hosts are ever valid on
             // the public internet, so this can't accidentally unlock a
             // real production site.
-            $host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
-            $looks_local = (bool) preg_match('/(^localhost$|^127\.0\.0\.1$|\.(test|local|localhost)$)/i', $host);
+            //
+            // Real, confirmed bug this fix responds to: home_url() reads
+            // the 'home' option, which on an install running a persistent
+            // object cache (Redis/Memcached) can be served stale on some
+            // requests but not others — the exact same staleness class
+            // that broke BHI_Portal's rewrite rule earlier in this same
+            // install. That made this local/production check flip
+            // per-request: the Debug Tools page (one request) would
+            // correctly see "local," while navigating directly to
+            // admin.php?page=ous-api-docs (a separate request) would see
+            // "production" and silently skip add_submenu_page() —
+            // producing WordPress core's own "Sorry, you are not allowed
+            // to access this page" (its standard response for a page
+            // slug with no matching registered menu entry, not a 404).
+            // $_SERVER['HTTP_HOST'] is the literal Host header of THIS
+            // request — never cached, never filtered, always accurate —
+            // so it's checked first/independently rather than trusting
+            // home_url() alone for something this consequential.
+            $raw_host = isset($_SERVER['HTTP_HOST']) ? wp_parse_url('http://' . $_SERVER['HTTP_HOST'], PHP_URL_HOST) : '';
+            $option_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+            $local_pattern = '/(^localhost$|^127\.0\.0\.1$|\.(test|local|localhost)$)/i';
+            $looks_local = (bool) preg_match($local_pattern, $raw_host) || (bool) preg_match($local_pattern, $option_host);
             if (!$looks_local) return true;
         }
         return false;

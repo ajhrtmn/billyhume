@@ -1,0 +1,132 @@
+# LMS authoring & the `BH_Content` block-composition builder
+
+A design pass for the single highest-leverage piece in `ROADMAP-platform-evolution.md` Section 3: how `BH_Content`'s authoring UI should be built, how a spreadsheet-style table view coexists with a visual canvas over the *same* block tree, and what concretely changes in `bh-courses` so lesson authoring stops being a fixed four-step-type JSON form. Read `VISION.md` and `ROADMAP-platform-evolution.md` (Sections 2 and 3) first; this doc is grounded in the code that already exists, cited by file and class, in the same call-site-first spirit as `EVENT-TRACKING-ARCHITECTURE-PLAN.md`.
+
+## 0. The finding that reframes the question
+
+The roadmap presents the authoring-UI decision as three open options (thin layer on Gutenberg / from-scratch GrapesJS / fully custom). Reading the actual codebase, **the decision has already been made and partially shipped** — and it should be ratified, not reopened.
+
+`own-ur-shit/includes/class-studio.php` (`BH_Studio`) already exists and is built on `@wordpress/block-editor` and its sibling packages (`wp-blocks`, `wp-element`, `wp-components`, `wp-data`), enqueued as the ordinary script handles WordPress core already ships (`class-studio.php::maybe_enqueue()`, lines 219-245). `own-ur-shit/assets/js/studio.js` is a real, no-build-step canvas: it mounts a `wp.blockEditor.BlockEditorProvider` with its own `BlockList`/`BlockTools`/`BlockInspector`/`ListView` layout (lines 291-331) — deliberately **not** the stock post-editor screen (`wp-editor` is explicitly excluded from the dependency list, line 228, "since that handle pulls in the classic post-editor screen's chrome... this canvas has no use for").
+
+`class-studio.php`'s own docblock (lines 15-19) records that **GrapesJS was evaluated and dropped**, for two reasons that hold up against everything else in this ecosystem: AJ's prior experience customizing it was "funky," and vendoring a large third-party binary asset collides with both the no-external-runtime-dependency convention (VISION.md's standing rule, restated for the API Docs viewer, the notification bell handle, etc.) and the hard no-network environment constraint every recent pass has hit firsthand. That is the correct call, and the rest of this doc treats it as settled.
+
+So the real question is not "which of three options," it is: **the Gutenberg-primitives canvas exists as a standalone dev tool wired to five demo blocks — what does finishing it into the LMS authoring experience actually require, and how does the tabular editing mode fit.** That is where the genuine design work remains.
+
+## 1. Recommendation: ratify Option 1, as the specific variant already shipped
+
+The roadmap's "thin, opinionated layer on Gutenberg" (Option 1) and its "fully custom" (Option 3) are not actually opposites here — `BH_Studio` is the honest middle: it reuses Gutenberg's *block model and editor primitives* (registration, nested `InnerBlocks` trees, undo/history, `RichText`, `MediaPlaceholder`, the inspector, `ListView` layers) but builds a *custom canvas and curated block palette* on top of `BlockEditorProvider` rather than shipping the stock inserter and stock editor chrome. This is Option 1's "curated/simplified inserter, our own controls" ambition, implemented via the same low-level primitive WordPress's own Site Editor is built from — not the from-scratch canvas engine Option 2/3 would have meant.
+
+**Why this is the right cost tradeoff, grounded in what `BH_Content` actually is:**
+
+- `BH_Content`'s tree shape (`class-content.php`, lines 42-122) is `{type, attrs, children}`. `wp.blocks`' own block object is `{name, attributes, innerBlocks}`. The conversion in `studio.js` (`treeToBlocks`/`blocksToTree`, lines 231-241) is a literal key-rename, not a transform — "which is the entire point of building `BH_Studio` on Gutenberg's block model rather than a second, incompatible one." A GrapesJS integration would have needed a real bidirectional adapter between GrapesJS's component/style model and `BH_Content`'s tree, plus a second serialization contract — pure invented surface area, all of it maintenance the block-model approach gets for free.
+- The block-registration duplication is already paid down to its irreducible minimum: each type is registered **once server-side** (with `BH_Content::register_block_type()` for schema-validation + a plain PHP renderer, so a document renders anywhere via `BH_Content::render()`) and **once client-side** (`wp.blocks.registerBlockType()` for the editor UI). This mirrors exactly how Gutenberg core's own dynamic blocks work (PHP `render_callback` + JS `edit`/`save`). `class-studio.php::register_content_block_types()` (lines 124-163) and `studio.js` (lines 54-221) are the reference pair.
+- What genuinely gets reused vs. reinvented: **reused** — block registration, nested trees, `RichText`, media selection, the layer/outline tree (`ListView`), the block inspector, undo/redo, and (critically) *the storage format itself* for post-attached documents, since `BH_Content::save('post', ...)` writes straight into `post_content` via `serialize_blocks()` and stays compatible with core WP tooling (`class-content.php`, lines 152-162, 201-214). **Reinvented** — only the canvas shell layout, the curated palette, and the design-token style controls (see Section 4). That reinvented set is small and is exactly the part where "customized to work how we want" has real value.
+
+**What Option 2 (GrapesJS) would have cost against this exact shape:** a vendored ~MB-class JS bundle (impossible to fetch in the build environment, and a standing external-runtime dependency VISION.md's review criteria would flag on sight), a model adapter, and a second style system competing with the design tokens — to arrive at roughly the same nested-block authoring `BlockEditorProvider` already gives. Option 2 is strictly more work for a worse posture. Reject it, and record the rejection the way this ecosystem records its other deliberate no's (the bh-registry notification integration, the four coupled responsibilities left in `class-products.php`).
+
+## 2. The Style Gallery: absorb, don't compete — but not yet, and here's the seam
+
+The roadmap says the block-builder's catalog view should "absorb/supersede the Style Gallery over time." Reading `own-ur-shit/includes/class-style-gallery.php` (`BHY_Gallery`) against `class-studio.php`, the honest near-term answer is **they overlap in spirit but not yet in surface, and forcing the merge now would regress a working thing.**
+
+The Style Gallery today is a *surface*-level Storybook: plugins register whole rendered previews via the `bhy_style_surfaces` filter (`BHC_StyleSurface::register()` in `bh-courses/includes/class-style-surface.php` registers `bh-courses-catalog` and `bh-courses-lesson`), and the gallery renders each into an iframe with the live design tokens injected as CSS vars (`class-style-gallery.php::preview_doc()`, lines 136-144) and a controls panel that live-edits colors/fonts/scale across every surface at once (lines 219-371). It is genuinely good and genuinely done.
+
+`BH_Studio`'s catalog is the *block*-level evolution of that same idea: `block_types()` (lines 61-69) plus the `bh_studio_block_types` filter is already the individual-block registry the roadmap's "component catalog" wants. The Debug Tools section `BH_Studio::render_debug_section()` (lines 99-117) already renders a table of every registered block type and whether it has a `BH_Content` renderer — a primitive catalog view.
+
+**Recommended seam (the honest version of "over time"):**
+- Keep `bhy_style_surfaces` and the token controls exactly as they are — that is where global design tokens get authored, and every block on the Studio canvas already inherits those same tokens through `BHY_Style::inline_css()`. There is no duplication to remove yet; there is a *shared token source* both surfaces already read.
+- Grow the Studio's own inserter/catalog into the per-block gallery (a live preview of each registered block type with its default attrs), so the block palette and the "what does this component look like" gallery are one thing. This is net-new surface, built inside `BH_Studio`, not a rewrite of `BHY_Gallery`.
+- Only once the block-level catalog is real and the token controls have moved into the Studio's own inspector should `BHY_Gallery`'s standalone page be retired. Retiring it before that would delete the one place global tokens are authored today. **Flagged as sequencing, not a v1 task** — same "one real example, not every consumer at once" discipline the rest of the ecosystem follows.
+
+## 3. The core data-model question: table view and canvas over one tree
+
+The roadmap wants a spreadsheet-style table view ("HubDB/phpMyAdmin") for tabular block types — a course's lesson list, a quiz's question list, a tier's benefit list — that edits **the same underlying `BH_Content` block tree** as the visual canvas, because "spreadsheet-like row/column editing beats drag-drop for 'reorder 40 quiz questions.'" This is a real data-model question, and the current code has one specific wrinkle that has to be resolved before it's answerable.
+
+### 3.1 The wrinkle: attribute-arrays vs. real child blocks
+
+`BH_Content` has exactly one collection primitive — a block's `children` array. But two of the genuinely-tabular cases in the codebase today are **not** modeled as children:
+
+- **Quiz questions** are an `array`-typed *attribute* on a single `bhc/quiz` block (`class-content-bridge.php`, lines 83-93; `class-steps.php`, lines 100-126). Forty questions are forty entries in one attribute array inside one block, invisible to `BH_Content::validate()`'s tree walk, invisible to the canvas, invisible to `ListView`.
+- **A course's lesson order** is `_bhc_lesson_order` postmeta on the `bh_course` post (`class-post-types.php::lesson_order()`, lines 51-54) — not a `BH_Content` document at all.
+
+So "the table view and the canvas edit the same tree" is only automatically true for collections that ARE the tree (i.e. child blocks). For attribute-arrays and postmeta lists it is not true at all today.
+
+### 3.2 Resolution: promote genuinely-tabular collections to real child blocks
+
+The clean answer, and the one that makes both editing modes fall out for free, is: **anything the roadmap wants a table view for should be modeled as child blocks of a container block, not as an attribute-array.** Concretely:
+
+- `bhc/quiz` becomes a container whose `children` are `bhc/quiz-question` blocks, each with `question`/`choices`/`correct_index` attrs (the exact fields `class-steps.php` already sanitizes at lines 106-110). `BHC_Steps::score_quiz()` (lines 143-157) keeps working because it iterates `$step['questions']` — the bridge (`class-content-bridge.php`) just assembles that array from the child blocks on the way down to `_bhc_steps` instead of reading it from an attribute.
+- The lesson list, if/when it wants the table treatment, becomes a `bhc/course` document (context `bhc_course`, context_id = course post ID) whose `children` are lightweight `bhc/lesson-ref` blocks carrying a lesson ID — with `_bhc_lesson_order` kept in sync by the same bridge dual-write pattern (Section 5.2), so `BHC_PostTypes::lesson_order()` and every reader of it stay unchanged.
+
+Once a tabular collection is child blocks, the two editors are the same editor over the same array:
+
+### 3.3 The table view is a second projection of `children`, sharing one storage contract
+
+The table view is **not a second editor with its own persistence** — it is a different *projection* of a block's `children`, reading and writing through the exact same `BH_Content::get()`/`BH_Content::save()` and the same REST bridge (`class-studio.php::rest_get`/`rest_save`, `ous/v1/studio/{context_type}/{context_id}`, lines 171-205). That single shared storage contract is what guarantees the two modes can never diverge — there is one document, addressed by `(context_type, context_id)`, and both modes are just different renderings of it:
+
+- **Rows** = the child blocks of a chosen container (one `bhc/quiz-question` per row).
+- **Columns** = that child type's registered schema attributes (`BH_Content` schema at `class-content.php` lines 61-63 already declares `type`/`default` per attr — enough to render a typed cell: text input, number, checkbox, media button).
+- **Reorder** = reordering the `children` array (the spreadsheet's drag-handle or move-up/down), which is the same array `ListView` reorders on the canvas.
+- **Add/delete row** = push/splice on `children`.
+- **Save** = `blocksToTree()` → POST to the same endpoint → `BH_Content::save()` → `validate()` re-coerces every cell against the schema (`class-content.php` lines 81-98), so the table view gets the same defensive sanitization the canvas does, for free.
+
+The two modes should be a toggle on the same Studio screen for the same document (a "Canvas / Table" switch), not two admin pages — because they are the same `BlockEditorProvider` `value` array, just rendered as `<BlockList>` or as a `<table>`. A table view can even be scoped to a single selected container block ("edit this quiz's questions as a grid") while the surrounding lesson stays on the canvas. This is the concrete, non-hand-waved answer: **the table view is a schema-driven grid over one container's `children`, persisted through the identical `BH_Content` contract the canvas uses — reordering 40 questions is an array reorder either way, and the grid is just the ergonomic surface for it.**
+
+The schema is missing one thing to make columns first-class: a per-attribute label/`table_column` hint (`class-content.php`'s schema is currently `['type', 'default']` only). Adding an optional `'label'`/`'column' => bool` key to the schema array is a small, backward-compatible extension — attributes without it simply don't get a column. Flagged as the one real `BH_Content` API addition this needs.
+
+## 4. Design-token style controls instead of Gutenberg's generic ones
+
+`studio.js`'s `COMMON_SUPPORTS` (lines 46-52) already does the load-bearing half of Option 1's "our own controls, not Gutenberg's generic ones": `position: false` is set on every block — the concrete enforcement of "expressive control, never absolute-positioned div soup" (verified not just in comment but as an assertion on rendered output, `class-studio-test-suite.php` lines 76-84). `color`/`spacing`/`typography` supports are enabled but currently resolve to Gutenberg's *generic* palette/scale, not `BHY_Style`'s tokens.
+
+The finish-work here is to feed `BlockEditorProvider`'s `settings` (currently just `hasFixedToolbar`/`enableCustomUnits`, `studio.js` lines 295-302) the ecosystem's own `colors`, `fontSizes`, and spacing scale derived from `BHY_Style::get()` — the same token values `class-style-gallery.php` already exposes. This makes the inspector's color/size pickers offer the artist's actual design tokens rather than WordPress defaults, closing the loop between the Style Gallery's token authoring and the Studio's block styling without a second control system. This is a settings-object change, not new architecture.
+
+## 5. The LMS payoff, wired concretely
+
+This is what the whole foundation is for: lesson authoring stops being the fixed four-step-type JSON repeater and becomes real nested composition. The pieces already half-exist; here is exactly what changes.
+
+### 5.1 What exists today (what's being replaced)
+
+- `bh-courses/includes/class-admin.php::render_steps_metabox()` (lines 135-141) is the "fixed JSON form": a `<div id="bhc-steps-builder">` hydrated by `assets/js/admin.js` into a repeater backed by one hidden `bhc_steps_json` field, saved via `BHC_Steps::save()` (`save_lesson()`, lines 167-172).
+- `class-steps.php` stores an ordered array of four hardcoded types (`VALID_TYPES = ['text','image','video','quiz']`, line 45) in `_bhc_steps` postmeta.
+- `class-render.php::render_lesson_steps()` (lines 106-152) walks that array by index; `BHC_Progress`/`BHC_Gate` are all step-**index**-based.
+
+### 5.2 What already exists as the bridge (the good news)
+
+`bh-courses/includes/class-content-bridge.php` (`BHC_ContentBridge`) is already the `BH_Content` consumer this design needs. It registers `bhc/text`, `bhc/image`, `bhc/video`, `bhc/quiz` as `BH_Content` block types **server-side** (lines 48-94), and has the full conversion pair: `get_tree()` (prefers a stored `BH_Content` doc at context `bhc_lesson`, else lazily derives from `_bhc_steps`, lines 103-107), `save_tree()` (writes the tree through `BH_Content::save()` **and** back to `_bhc_steps` via `BHC_Steps::save()`, lines 117-121). The dual-write is the deliberate mechanism that lets `BHC_Progress`/`BHC_Render`/`BHC_Gate` stay completely unchanged — "a step just becomes one top-level block in the lesson's content tree instead of one entry in a fixed-type array" (its own docblock, lines 18-30).
+
+### 5.3 The gap — what actually has to be built
+
+The bridge registers the `bhc/*` blocks with `BH_Content` (server) but there is **no client-side registration and no palette entry** for them. Two concrete missing pieces:
+
+1. **`bhc/*` blocks are absent from `bh_studio_block_types`** — `BHC_ContentBridge::init()` (lines 35-46) never calls `add_filter('bh_studio_block_types', ...)`, so the four lesson block types don't appear in the Studio inserter or its catalog. The storefront already shows the pattern to copy exactly: `BHM_Storefront::init()` (class-storefront.php lines 62-64) does `add_filter('bh_studio_block_types', ...)` guarded by `class_exists('BH_Studio')`, and registers `bhm/product-grid`/`bhm/product-filter`.
+2. **No `bh-courses` client-side `registerBlockType()` script** — there is no `bh-courses` equivalent of `assets/js/storefront-studio-blocks.js`. The storefront enqueues its client block definitions only on the Studio screen, depending on the `bh-studio` handle (`BHM_Storefront::maybe_enqueue_studio_blocks()`, lines 343-353). `bh-courses` needs the same: a small `courses-studio-blocks.js` registering the `edit`/`save` UI for `bhc/text` (RichText), `bhc/image` (MediaPlaceholder), `bhc/video` (URL/upload inspector), and `bhc/quiz` (now a container of `bhc/quiz-question` children per Section 3.2, with the table-view toggle as the natural editor).
+
+Then the swap in `class-admin.php`: `render_steps_metabox()` either embeds the `BH_Studio` canvas for context `bhc_lesson`/`lesson_id` (replacing the `bhc-steps-builder` repeater), or the lesson edit screen links out to the Studio page with `?context_type=bhc_lesson&context_id={id}` (the interim path `class-studio.php` already supports, line 214's own "natural next step" note). Because `save_tree()` keeps `_bhc_steps` in sync, `save_lesson()`'s existing `BHC_Steps::save()` path can stay as a fallback and nothing downstream changes. Files that change: `bh-courses/includes/class-content-bridge.php` (add the filter + enqueue), a new `bh-courses/assets/js/courses-studio-blocks.js`, and `bh-courses/includes/class-admin.php` (`render_steps_metabox()`); files that deliberately DON'T change: `class-progress.php`, `class-render.php`, `class-gate.php`, `class-steps.php` (its `save()` becomes the bridge's write target, not the form's).
+
+## 6. Real open risks and unresolved questions
+
+Named honestly, in the `EVENT-TRACKING-ARCHITECTURE-PLAN.md` "left alone, with reasoning" spirit — these are the hard tradeoffs, not papered over.
+
+- **`post_content` storage is lossy for `source:html` attributes — the lesson path dodges it, but the storefront path does not.** `studio.js`'s `bh/heading`/`bh/text`/`bh/button` declare `content` as `{ source: 'html', selector: ... }` (lines 82, 123, 219) — Gutenberg pulls that value out of the serialized markup on parse, it is not stored in the JSON `attrs`. But `BH_Content::save('post', ...)` → `tree_to_gutenberg_blocks()` sets `innerHTML => ''` (class-content.php line 209) and serializes only `attrs`, so a source-sourced attribute round-tripped through `post_content` would come back **empty** on the next `parse_blocks()`. The JSON-column path (`context_type` != `'post'`) is safe because it stores `attrs` verbatim (lines 164-179). **The LMS is safe** — lessons use context `bhc_lesson` (JSON column). **But any Studio document stored against a real post via `context_type='post'` is exposed to this**, and the storefront's `class-storefront.php` scope-note (lines 35-48) already gestures at an adjacent boundary. Resolution options: either forbid `source:html` for post-context blocks (store content as a plain non-sourced attribute), or make `tree_to_gutenberg_blocks()` serialize sourced attributes into `innerHTML`. Not solved here; flagged as a correctness gap that must be closed before the first `context_type='post'` Studio consumer ships.
+- **`BH_Content` has no version field.** Called out already in `EVENT-TRACKING-ARCHITECTURE-PLAN.md` (its "versioning gap noted for later," lines 30-31): a stored block tree from an old schema is indistinguishable from a new one at read time. As lesson/quiz schemas evolve (true/false questions, graded steps, the BH Feedback "compare to a past submission" block the roadmap names), this becomes a real migration hazard — a `bhc/quiz` authored under v1 read by a v2 renderer has no `(type, v)` to key on. Recommend retrofitting the `(type, v)` pair `BH_Event` already uses onto `BH_Content` before the block schemas start actually changing. Not required to ship the canvas; required before the second schema revision.
+- **Dual-write divergence between the metabox and the bridge.** Today two writers touch a lesson's content: the legacy metabox (`BHC_Steps::save()` directly) and the bridge (`save_tree()` → both stores). `get_tree()` *prefers* the stored `BH_Content` doc and only falls back to `_bhc_steps`. So if an author edits via the old metabox after a `BH_Content` doc already exists, `_bhc_steps` updates but the `BH_Content` doc goes stale, and the next Studio load shows the pre-edit tree. During the transition both editors must not be simultaneously live for the same lesson — either the metabox is replaced outright (preferred), or `get_tree()` needs a "last-modified wins" reconciliation. The `migrate_lesson()` Debug Tools button (lines 152-176) is a one-way rebuild, not a reconciler. Flagged as a real transition hazard, not a steady-state one.
+- **No-build-step version sensitivity is a genuine, accepted cost.** `studio.js`'s own header (lines 9-19) is honest that block-editor exports move across WordPress versions — `ListView` is already feature-detected with a visible fallback (lines 289, 312-314). This is the price of "zero vendoring, ships inside core." It is the right price, but it means the Studio's surface is coupled to whatever `@wordpress/block-editor` version the host WordPress ships, and a major-version editor refactor could break panels. The mitigation is exactly what's there — feature-detect and degrade — and it should be extended to any further primitive the LMS blocks lean on. Left as-is with reasoning; the alternative (vendoring a pinned copy) reintroduces the dependency the whole approach exists to avoid.
+- **`manage_options`-only authoring vs. front-end composition.** The Studio REST routes gate on `current_user_can('manage_options')` (class-studio.php lines 175, 181). That's correct for admin authoring, but the roadmap's later "let a supporter design their own profile/landing page" ambition (and any student-authored content) needs a deliberate, per-context capability decision — not a loosening of this gate. Explicitly out of scope here, named so it isn't resolved by accident.
+- **The table view's schema needs a column-label hint** (Section 3.3). Minor and backward-compatible, but a real `BH_Content::register_block_type()` schema addition, so noted as an API change rather than pure consumer work.
+
+## 7. Suggested sequencing
+
+1. Wire `bhc/*` into the canvas: `bh_studio_block_types` filter + a `courses-studio-blocks.js` client registration (copy the storefront's pattern). Lowest-risk, highest-visible payoff — turns the existing bridge into a real authoring experience.
+2. Promote `bhc/quiz` questions to `bhc/quiz-question` child blocks (Section 3.2), keeping `BHC_Steps` as the bridge's sync target.
+3. Build the Canvas/Table toggle as a projection over a container's `children` (Section 3.3), with the schema `label`/`column` hint.
+4. Feed `BHY_Style` tokens into `BlockEditorProvider` settings (Section 4).
+5. Replace `render_steps_metabox()`'s repeater with the embedded canvas; retire the legacy metabox to close the dual-write hazard (Section 6).
+6. Only after a block-level catalog exists inside the Studio, begin absorbing the Style Gallery (Section 2) — not before.
+7. Close the `post_content` `source:html` correctness gap before any `context_type='post'` Studio consumer ships; retrofit `BH_Content` `(type, v)` versioning before the second block-schema revision.
+
+## Critical files
+
+- `own-ur-shit/includes/class-content.php` — the `BH_Content` tree/schema/storage contract both editors sit on.
+- `own-ur-shit/includes/class-studio.php` + `own-ur-shit/assets/js/studio.js` — the shipped Gutenberg-primitives canvas and REST bridge to extend.
+- `bh-courses/includes/class-content-bridge.php` — the existing lesson `BH_Content` consumer; where the LMS wiring lands.
+- `bh-courses/includes/class-admin.php` + `class-steps.php` — the fixed JSON step form being replaced, and its index-based storage the bridge keeps in sync.
+- `bh-monetization-woo/includes/class-storefront.php` — the reference pattern for client-side block registration via `bh_studio_block_types` and dynamic block renderers.

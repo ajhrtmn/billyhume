@@ -52,6 +52,7 @@
     };
 
     wp.blocks.registerBlockType('bh/container', {
+        apiVersion: 3,
         title: __('Container'),
         icon: 'layout',
         category: 'design',
@@ -73,6 +74,7 @@
     });
 
     wp.blocks.registerBlockType('bh/heading', {
+        apiVersion: 3,
         title: __('Heading'),
         icon: 'heading',
         category: 'text',
@@ -114,6 +116,7 @@
     });
 
     wp.blocks.registerBlockType('bh/text', {
+        apiVersion: 3,
         title: __('Text'),
         icon: 'text',
         category: 'text',
@@ -136,6 +139,7 @@
     });
 
     wp.blocks.registerBlockType('bh/image', {
+        apiVersion: 3,
         title: __('Image'),
         icon: 'format-image',
         category: 'media',
@@ -178,6 +182,7 @@
     });
 
     wp.blocks.registerBlockType('bh/button', {
+        apiVersion: 3,
         title: __('Button'),
         icon: 'button',
         category: 'design',

@@ -313,4 +313,141 @@ class OUS_Registry {
     public static function status_by_file($file) {
         return is_plugin_active($file) ? 'active' : 'inactive';
     }
+
+    /**
+     * Bundled-zip staleness check (added after a real, confirmed
+     * incident: OUS_Installer::install_from_bundle() extracts from
+     * own-ur-shit/bundled/*.zip, a copy shipped INSIDE this plugin —
+     * genuinely separate from whatever's on disk for that peer plugin
+     * right now. A build/deploy pass that updates a peer plugin's own
+     * files but forgets to regenerate its bundled/ copy leaves the
+     * dashboard's "Install"/reinstall path silently serving old code
+     * indefinitely, with no error anywhere — exactly what happened
+     * here. This reads each bundled zip's plugin header directly (no
+     * extraction needed — get_file_data() can read straight out of a
+     * zip stream via a php:// wrapper is overkill; ZipArchive is
+     * already a PHP core extension nearly universally enabled, so this
+     * just opens the entry and regexes the header block the same way
+     * WordPress's own get_file_data() does) and compares it against
+     * the currently-installed version of that same plugin, so a stale
+     * bundle is a visible warning on the debug page instead of a
+     * silent trap.
+     */
+    public static function bundled_zip_report() {
+        $bundled_dir = OUS_PATH . 'bundled/';
+        $rows = [];
+        if (!is_dir($bundled_dir)) return $rows;
+
+        if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        $installed = get_plugins();
+
+        $registry = self::all();
+        // Map bundled_zip filename -> [key, file] so we know which
+        // installed plugin (if any) a given bundle corresponds to.
+        $by_zip = [];
+        foreach ($registry as $key => $info) {
+            if (!empty($info['bundled_zip'])) $by_zip[$info['bundled_zip']] = ['key' => $key, 'file' => $info['file'] ?? ''];
+        }
+
+        foreach (glob($bundled_dir . '*.zip') ?: [] as $zip_path) {
+            $zip_filename = basename($zip_path);
+            $bundled_version = self::read_zip_plugin_version($zip_path);
+
+            $match = $by_zip[$zip_filename] ?? null;
+            $installed_version = null;
+            if ($match && isset($installed[$match['file']])) {
+                $installed_version = $installed[$match['file']]['Version'] ?? null;
+            }
+
+            $rows[] = [
+                'zip' => $zip_filename,
+                'label' => $match['key'] ?? $zip_filename,
+                'bundled_version' => $bundled_version,
+                'installed_version' => $installed_version,
+                // Only a real finding when we could read BOTH versions
+                // and they genuinely differ — missing either side (not
+                // installed yet, or an unreadable zip) isn't staleness,
+                // just an incomplete comparison, so it's reported
+                // separately rather than flagged as a mismatch.
+                'stale' => ($bundled_version && $installed_version && $bundled_version !== $installed_version),
+            ];
+        }
+        return $rows;
+    }
+
+    // Reads the plugin header (just the Version: line, same field
+    // get_file_data() looks for) out of the first .php file at the
+    // root of a zip's single top-level directory, without extracting
+    // the whole archive to disk — this only runs on-demand from the
+    // debug page, not on every request, so the small per-call overhead
+    // of opening the zip is a non-issue.
+    private static function read_zip_plugin_version($zip_path) {
+        if (!class_exists('ZipArchive')) return null;
+        $zip = new ZipArchive();
+        if ($zip->open($zip_path) !== true) return null;
+
+        $version = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            // Only look at a top-level "<folder>/<same-name>.php" entry
+            // (e.g. "bh-courses/bh-courses.php") — the plugin's own
+            // bootstrap file is always named after its folder in this
+            // ecosystem's convention, and reading only that one file
+            // avoids false-matching a header-shaped comment in some
+            // unrelated included class file.
+            if (preg_match('#^([^/]+)/\1\.php$#', $name)) {
+                $contents = $zip->getFromIndex($i);
+                if ($contents && preg_match('/^[ \t\/*#@]*Version:\s*(.+)$/mi', $contents, $m)) {
+                    $version = trim($m[1]);
+                }
+                break;
+            }
+        }
+        $zip->close();
+        return $version;
+    }
+
+    public static function register_debug_section($tools) {
+        $tools['bundled-zips'] = [
+            'label' => 'Bundled Zip Freshness',
+            'render' => [self::class, 'render_debug_section'],
+            'handle' => null,
+            'reset' => null,
+            // Read-only — just inspects files already on disk, changes
+            // nothing, so it's fine to check even on a live/production
+            // site.
+            'safe_in_production' => true,
+        ];
+        return $tools;
+    }
+
+    public static function render_debug_section() {
+        $rows = self::bundled_zip_report();
+        if (!$rows) {
+            echo '<p class="description">No bundled/*.zip files found (or ZipArchive isn\'t available on this server).</p>';
+            return;
+        }
+
+        echo '<p class="description">Each of this plugin\'s own peer plugins gets reinstalled from a copy bundled inside <code>own-ur-shit/bundled/</code>, not from whatever is separately deployed elsewhere — this table exists specifically to catch a bundled copy that got left behind after a real update, before it causes a confusing "I updated it but nothing changed" report.</p>';
+
+        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
+           . '<th>Plugin</th><th>Bundled zip version</th><th>Currently installed version</th><th>Status</th>'
+           . '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            if ($row['stale']) {
+                $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE — regenerate bundled zip</span>';
+            } elseif (!$row['installed_version']) {
+                $status = '<span style="color:#666;">not currently installed — nothing to compare</span>';
+            } elseif (!$row['bundled_version']) {
+                $status = '<span style="color:#666;">could not read bundled zip header</span>';
+            } else {
+                $status = '<span style="color:#fff;background:#00a32a;padding:2px 8px;border-radius:3px;font-size:11px;">up to date</span>';
+            }
+            echo '<tr><td>' . esc_html($row['label']) . ' <span class="description">(' . esc_html($row['zip']) . ')</span></td>'
+               . '<td>' . esc_html($row['bundled_version'] ?? '—') . '</td>'
+               . '<td>' . esc_html($row['installed_version'] ?? '—') . '</td>'
+               . '<td>' . $status . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
+    }
 }

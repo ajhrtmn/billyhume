@@ -88,7 +88,7 @@ class OUS_DebugLog {
      */
     public static function log($level, $message, $context = [], $source = '', $file = '', $line = 0, $col = 0, $trace = null) {
         global $wpdb;
-        $wpdb->insert(self::table(), [
+        $ok = $wpdb->insert(self::table(), [
             'level' => sanitize_key($level) ?: 'info',
             'source' => sanitize_text_field($source),
             'message' => (string) $message,
@@ -102,6 +102,24 @@ class OUS_DebugLog {
             'user_id' => get_current_user_id(),
             'created_at' => current_time('mysql', true),
         ]);
+        // A real, confirmed failure mode this responds to: $wpdb->insert()
+        // returning false (schema mismatch, missing table, etc.) was
+        // previously silent — every log() call site across the whole
+        // ecosystem would just quietly do nothing, with no way to tell
+        // "nothing has gone wrong" apart from "logging itself is broken."
+        // Stashing the last failure in an option (not a transient — this
+        // needs to survive and be visible even if object cache write-
+        // through is itself part of what's unreliable on this install)
+        // means the Console & Logs page itself can report "logging is
+        // broken" even though, by definition, it can't log that fact the
+        // normal way.
+        if ($ok === false && $wpdb->last_error) {
+            update_option('ous_debug_log_last_failure', [
+                'error' => $wpdb->last_error,
+                'table' => self::table(),
+                'at' => current_time('mysql', true),
+            ], false);
+        }
         self::maybe_trim();
     }
 
@@ -313,9 +331,53 @@ class OUS_DebugLog {
         ];
     }
 
+    // Answers "is logging itself actually working" directly, rather than
+    // making an admin infer it from an empty table (which is completely
+    // ambiguous — a healthy install with nothing to report looks
+    // IDENTICAL to a broken install where every insert is silently
+    // failing). Checks: does the table exist, does it have the columns
+    // this code's INSERT statement actually needs (a real gap here means
+    // DB_VERSION's migration didn't run — see OUS_Identity_Activator —
+    // or ran against a table some other process already altered), what's
+    // the stored bhi_db_version option vs the code's current constant,
+    // and any last recorded insert failure from log() itself above.
+    private static function health_check() {
+        global $wpdb;
+        $table = self::table();
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+
+        $required_cols = ['id', 'level', 'source', 'message', 'context', 'file', 'line', 'col', 'trace', 'url', 'request_method', 'user_id', 'created_at'];
+        $missing_cols = [];
+        if ($exists) {
+            $existing_cols = $wpdb->get_col("SHOW COLUMNS FROM $table", 0);
+            $missing_cols = array_diff($required_cols, $existing_cols);
+        }
+
+        $db_version_stored = get_option('bhi_db_version', '(not set)');
+        $db_version_code = class_exists('BHI_Activator') && defined('BHI_Activator::DB_VERSION') ? BHI_Activator::DB_VERSION : '(unknown)';
+
+        $last_failure = get_option('ous_debug_log_last_failure', null);
+
+        echo '<div class="bhy-card" style="margin-bottom:16px;">';
+        echo '<h4 style="margin-top:0;">Logging health check</h4>';
+        echo '<p>Table <code>' . esc_html($table) . '</code>: ' . ($exists ? '<span style="color:#00a32a;">exists</span>' : '<span style="color:#d63638;font-weight:600;">does NOT exist — no log() call anywhere in the ecosystem can be recorded</span>') . '</p>';
+        if ($exists && $missing_cols) {
+            echo '<p style="color:#d63638;font-weight:600;">Missing column(s): ' . esc_html(implode(', ', $missing_cols)) . ' — the table exists but predates the current schema, so every insert() referencing these columns fails.</p>';
+        }
+        echo '<p>DB schema version — stored: <code>' . esc_html($db_version_stored) . '</code>, code expects: <code>' . esc_html($db_version_code) . '</code>'
+           . ($db_version_stored !== $db_version_code ? ' <span style="color:#d63638;font-weight:600;">— mismatch, migration has not run on this install</span>' : ' <span style="color:#00a32a;">— up to date</span>')
+           . '</p>';
+        if ($last_failure && is_array($last_failure)) {
+            echo '<p style="color:#d63638;"><strong>Last recorded insert failure</strong> (' . esc_html($last_failure['at'] ?? '') . '): <code>' . esc_html($last_failure['error'] ?? '') . '</code></p>';
+        }
+        OUS_Debug::button('bh-console', 'health_check_insert', 'Run a test log entry now');
+        echo '</div>';
+    }
+
     public static function render_debug_section() {
         global $wpdb;
         $table = self::table();
+        self::health_check();
         $filters = self::build_filters();
 
         // Distinct sources currently in the table, for the source
@@ -438,6 +500,20 @@ class OUS_DebugLog {
             global $wpdb;
             $wpdb->query("TRUNCATE TABLE " . self::table());
             return 'Console/error log cleared.';
+        }
+        if ($action === 'health_check_insert') {
+            global $wpdb;
+            delete_option('ous_debug_log_last_failure');
+            self::log('info', 'Manual health-check test entry from Debug Tools.', ['triggered_by' => wp_get_current_user()->user_login ?? ''], 'Debug Tools Health Check');
+            $failure = get_option('ous_debug_log_last_failure', null);
+            if ($failure) {
+                return 'Test insert FAILED: ' . $failure['error'];
+            }
+            $found = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM " . self::table() . " WHERE source = %s AND created_at >= %s",
+                'Debug Tools Health Check', gmdate('Y-m-d H:i:s', time() - 60)
+            ));
+            return $found ? 'Test insert succeeded and was verified readable — logging is working.' : 'Insert reported no error, but the row could not be read back — investigate further.';
         }
         return 'Unknown action.';
     }

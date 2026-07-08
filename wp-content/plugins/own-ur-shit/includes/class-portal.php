@@ -93,6 +93,27 @@ class BHI_Portal {
         }
         echo '<h4>wp-admin lockout</h4>';
         echo '<p>Excluded roles: <code>' . esc_html(implode(', ', self::excluded_roles())) . '</code></p>';
+
+        // Registered panels above only prove the PHP ran — a "/account/
+        // 404s despite everything else working" report needs a DIFFERENT
+        // question answered: did the rewrite rule actually make it into
+        // WordPress's own persisted rewrite table, or is this a web-
+        // server-level proxy issue (nginx/Apache never even handing the
+        // request to WordPress, in which case this PHP never runs at
+        // all for that URL and nothing on this page could show it
+        // either way)? This reads the SAME option WordPress itself
+        // consults on every front-end request, so a "not found here"
+        // result is a real, actionable signal, not a guess.
+        echo '<h4>Rewrite rule</h4>';
+        $rules = get_option('rewrite_rules');
+        $pattern = '^' . self::REWRITE_SLUG . '/?$';
+        $found = is_array($rules) && array_key_exists($pattern, $rules);
+        if ($found) {
+            echo '<p>&#9989; Found in the persisted rewrite table (<code>' . esc_html($pattern) . '</code> &#8594; <code>' . esc_html($rules[$pattern]) . '</code>) — WordPress itself knows this URL. '
+               . 'If <code>/' . esc_html(self::REWRITE_SLUG) . '/</code> still 404s from here, the request likely never reaches WordPress\'s PHP at all — check the web server (nginx/Apache) config for a rewrite/proxy rule sending unmatched paths to <code>index.php</code>, or a caching layer serving a stale 404.</p>';
+        } else {
+            echo '<p>&#10060; NOT found in the persisted rewrite table. The rule is registered correctly in THIS request\'s code (see the panels above), but WordPress\'s saved <code>rewrite_rules</code> option doesn\'t have it — the flush this class runs on init isn\'t sticking. Possible causes: a persistent object cache (Redis/Memcached) serving a stale cached copy of the <code>rewrite_rules</code> option instead of the fresh one just written, or another plugin/mu-plugin overwriting rewrite rules after this one runs. Try Settings &rarr; Permalinks &rarr; Save once more with an object cache flushed/disabled if one is active.</p>';
+        }
     }
 
     public static function maybe_redirect_login($redirect_to, $requested_redirect_to, $user) {
@@ -108,9 +129,52 @@ class BHI_Portal {
         return home_url('/' . self::REWRITE_SLUG . '/');
     }
 
+    // Bump this whenever add_rewrite() below changes what it registers —
+    // the self-healing flush right after it keys off this string, so a
+    // real edit to the rules (not just re-running the same ones) forces
+    // a fresh flush the same way a version bump does everywhere else in
+    // this ecosystem's own migration pattern.
+    // Bumped to 2 — a real install reported the v1 flush not sticking
+    // (confirmed via this class's own Debug Tools diagnostic: the rule
+    // was registered in-request but never showed up in the PERSISTED
+    // rewrite_rules option). Most likely cause: a persistent object
+    // cache (Redis/Memcached) serving back its own stale cached copy of
+    // the 'rewrite_rules' option immediately after update_option() wrote
+    // a fresh one — WordPress's object-cache API doesn't guarantee that
+    // write and a subsequent read are seen by every cache backend
+    // identically unless the cache is explicitly told to drop the old
+    // entry. The explicit wp_cache_delete() calls below close that gap
+    // directly rather than just hoping a plain flush is enough a second
+    // time; bumping this constant forces every existing install
+    // (including ones where the v1 flush "succeeded" per its own flag
+    // but didn't actually persist) to retry with the fix in place.
+    const REWRITE_VERSION = '2';
+
     public static function add_rewrite() {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?' . self::QUERY_VAR . '=1&panel=$matches[1]', 'top');
+
+        // The activation-hook flush in own-ur-shit.php only fires on a
+        // real WordPress "Activate" click — never on a file-replace
+        // deploy of an already-active plugin (the exact scenario that
+        // caused a real, reported 404 on /account/: this rule existed in
+        // the new code, but WordPress's cached rewrite_rules option was
+        // never told to regenerate). Same self-healing, one-time-per-
+        // version flush BHM_Storefront::add_rewrite() already uses for
+        // its own rewrite rule, applied here for the same reason.
+        if (get_option('bhi_portal_rewrite_flushed') !== self::REWRITE_VERSION) {
+            flush_rewrite_rules();
+            // Explicitly evict any object-cache copy of the two keys a
+            // stale cache could serve back instead of what flush_rewrite_rules()
+            // just wrote — 'alloptions' is the bundled cache WordPress's
+            // own get_option() reads from for options this size by
+            // default, so a stale 'rewrite_rules' entry can hide behind
+            // an equally stale 'alloptions' blob even if the individual
+            // key were otherwise correct.
+            wp_cache_delete('rewrite_rules', 'options');
+            wp_cache_delete('alloptions', 'options');
+            update_option('bhi_portal_rewrite_flushed', self::REWRITE_VERSION);
+        }
     }
 
     public static function add_query_var($vars) {

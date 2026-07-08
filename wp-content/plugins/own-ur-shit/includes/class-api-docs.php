@@ -29,6 +29,36 @@ class OUS_ApiDocs {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('rest_api_init', [self::class, 'register_routes']);
+        add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
+    }
+
+    // A real report this pass: API Docs 404ing with no OUS_DebugLog entry
+    // explaining why — meaning is_locked() was returning false (menu WAS
+    // registered) yet the page still wasn't reachable. This section shows
+    // the is_locked() verdict AND whether the submenu is actually present
+    // in the live $submenu global for THIS request, so "registered but
+    // still 404s" (a routing/caching problem, same family as BHI_Portal's
+    // rewrite-rule issue) is distinguishable from "never registered at
+    // all" (an is_locked() problem) without needing to click through to
+    // the 404 first.
+    public static function register_debug_section($tools) {
+        $tools['api-docs'] = ['label' => 'API Docs', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null];
+        return $tools;
+    }
+
+    public static function render_debug_section() {
+        $locked = class_exists('OUS_Debug') && OUS_Debug::is_locked();
+        echo '<p><strong>is_locked():</strong> ' . ($locked ? '<span style="color:#d63638;">true — menu is NOT being registered</span>' : '<span style="color:#00a32a;">false — menu should be registered</span>') . '</p>';
+        echo '<p>Host: <code>' . esc_html(wp_parse_url(home_url(), PHP_URL_HOST)) . '</code>, environment_type: <code>' . esc_html(function_exists('wp_get_environment_type') ? wp_get_environment_type() : '(unavailable)') . '</code></p>';
+
+        global $submenu;
+        $registered = is_array($submenu) && !empty($submenu['ous-debug']) && array_filter($submenu['ous-debug'], function ($item) { return $item[2] === 'ous-api-docs'; });
+        echo '<p><strong>Actually present in $submenu right now:</strong> ' . ($registered ? '&#9989; yes' : '&#10060; no') . '</p>';
+
+        if (!$locked && $registered) {
+            echo '<p>Both checks pass — the menu item genuinely exists this request. If <code>admin.php?page=ous-api-docs</code> still 404s, this is very likely the same class of issue as BHI_Portal\'s <code>/account/</code> 404 (see the Portal section on this page): a caching layer or stale asset serving a 404 response instead of the actual page. Try a hard-refresh/incognito window on that exact URL.</p>';
+            echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=ous-api-docs')) . '" target="_blank">Open API Docs</a></p>';
+        }
     }
 
     // Dev/reference tooling, not something a site owner needs on a live

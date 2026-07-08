@@ -30,6 +30,35 @@ class BHC_PostTypes {
             'capability_type' => 'post',
         ]);
 
+        // Category/topic — real WordPress taxonomies, same "don't
+        // reinvent what WordPress already ships" call bhs_genre
+        // (bh-streaming) and bhm_collection (bh-monetization-woo) already
+        // made for the identical shape of problem (QUIZ-AND-CATALOG-
+        // DESIGN-PLAN.md Part 2.2): the term-management admin UI, REST
+        // exposure, and tax_query filtering all come for free.
+        // 'rewrite' => false deliberately — this pass has no term-archive
+        // page (/course-category/foo/), only filtering via the [bh_courses]
+        // catalog shortcode's own query string (class-render.php). That
+        // sidesteps the whole "newly registered rewrite rule is invisible
+        // until flush_rewrite_rules() runs" class of bug entirely (the
+        // exact thing BHM_Storefront::add_rewrite()'s versioned-flush
+        // dance exists to work around) rather than needing to reproduce
+        // that dance for a term-archive URL nothing uses yet. If a real
+        // term-archive page is ever wanted, add 'rewrite' + the versioned
+        // flush pattern then, not speculatively now.
+        register_taxonomy('bhc_course_category', 'bh_course', [
+            'labels' => ['name' => 'Course Categories', 'singular_name' => 'Category'],
+            'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'show_in_rest' => true,
+            'hierarchical' => true, // like core Categories ("Music Production" > "Mixing") — a course has a home category, possibly nested
+            'rewrite' => false,
+        ]);
+        register_taxonomy('bhc_course_topic', 'bh_course', [
+            'labels' => ['name' => 'Course Topics', 'singular_name' => 'Topic'],
+            'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'show_in_rest' => true,
+            'hierarchical' => false, // like core Tags — flat, many-per-course
+            'rewrite' => false,
+        ]);
+
         register_post_type('bh_lesson', [
             'labels' => [
                 'name' => 'Lessons', 'singular_name' => 'Lesson', 'add_new_item' => 'Add New Lesson',
@@ -66,5 +95,77 @@ class BHC_PostTypes {
         $order = self::lesson_order($course_id);
         $pos = array_search((int) $lesson_id, $order, true);
         return $pos === false ? null : $pos;
+    }
+
+    /* ---------------- catalog metadata (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 2) ---------------- */
+
+    // A closed, fixed 3-value set an author picks FROM, never extends —
+    // a scalar enum in postmeta, not a taxonomy (see class-admin.php's
+    // save_course() for the sanitization whitelist this registry feeds,
+    // same in_array()-against-known-keys guard _bhm_required_benefit
+    // already uses). Filterable only so a future difficulty scale change
+    // has one place to make it, not because this is meant to be an
+    // open, author-extensible list like the category/topic taxonomies
+    // above.
+    public static function difficulty_registry() {
+        return apply_filters('bhc_difficulty_registry', [
+            'beginner' => 'Beginner',
+            'intermediate' => 'Intermediate',
+            'advanced' => 'Advanced',
+        ]);
+    }
+
+    public static function difficulty($course_id) {
+        $key = get_post_meta($course_id, '_bhc_difficulty', true);
+        $registry = self::difficulty_registry();
+        return isset($registry[$key]) ? $key : '';
+    }
+
+    public static function difficulty_label($course_id) {
+        $key = self::difficulty($course_id);
+        $registry = self::difficulty_registry();
+        return $key ? $registry[$key] : '';
+    }
+
+    // Real WP user reference, falling back to the post author — see
+    // QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 2.2 for why this is a user ID
+    // rather than free text (unlike bhs_track's artist field, every
+    // course here is locally authored by someone with a real account).
+    // Returns null (never a fatal) if the referenced user was since
+    // deleted — get_userdata() legitimately returns false for that, and
+    // callers must not assume a truthy result.
+    public static function instructor($course_id) {
+        $instructor_id = (int) get_post_meta($course_id, '_bhc_instructor_id', true);
+        if (!$instructor_id) {
+            $post = get_post($course_id);
+            $instructor_id = $post ? (int) $post->post_author : 0;
+        }
+        if (!$instructor_id) return null;
+        $user = get_userdata($instructor_id);
+        return $user ?: null;
+    }
+
+    // Computed, not author-entered — see Part 2.2 for why (an
+    // author-typed "3 hours" silently lies the moment the course grows;
+    // a computed lesson count never does). Walks the same lesson_order()/
+    // BHC_Steps::count() data course_percent() already reads, so this
+    // adds no new data source, just a different aggregation of it.
+    public static function lesson_count($course_id) {
+        return count(self::lesson_order($course_id));
+    }
+
+    public static function step_count($course_id) {
+        $total = 0;
+        foreach (self::lesson_order($course_id) as $lesson_id) {
+            $total += class_exists('BHC_Steps') ? BHC_Steps::count($lesson_id) : 0;
+        }
+        return $total;
+    }
+
+    // The optional free-text override (e.g. "~4 hours of video") — see
+    // Part 2.2: computed-first, override-optional, never the other way
+    // around, so a course with no override still shows something honest.
+    public static function duration_note($course_id) {
+        return (string) get_post_meta($course_id, '_bhc_duration_note', true);
     }
 }

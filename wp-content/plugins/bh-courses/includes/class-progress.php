@@ -68,7 +68,14 @@ class BHC_Progress {
         return $row ? (int) $row['attempts'] : 0;
     }
 
-    public static function mark_step_complete($user_id, $lesson_id, $step_index, $score = null, $passed = null) {
+    // $answers_json: pre-encoded JSON string (or null), the per-question
+    // snapshot from BHC_Steps::score_quiz()'s 'questions' detail — see
+    // ajax_submit_quiz() below for where it's assembled. Same conditional-
+    // NULL-placeholder technique the score/passed QA fix already
+    // established (see the comment below): a plain text/image step, or a
+    // quiz row written before this column existed, gets a real SQL NULL,
+    // never a stringified 'null'/empty string.
+    public static function mark_step_complete($user_id, $lesson_id, $step_index, $score = null, $passed = null, $answers_json = null) {
         global $wpdb;
         // QA fix: $wpdb->prepare() has no NULL passthrough for scalar
         // placeholders — a PHP null bound through %s/%d is cast to ''/0
@@ -81,22 +88,37 @@ class BHC_Progress {
         // every non-quiz step permanently read as incomplete. Building
         // the column list/placeholders conditionally keeps a real SQL
         // NULL for the non-quiz case while still using %d for real values.
-        $score_sql  = $score === null ? 'NULL' : '%d';
-        $passed_sql = $passed === null ? 'NULL' : '%d';
+        $score_sql   = $score === null ? 'NULL' : '%d';
+        $passed_sql  = $passed === null ? 'NULL' : '%d';
+        $answers_sql = $answers_json === null ? 'NULL' : '%s';
         $values = [$user_id, $lesson_id, $step_index];
         if ($score !== null) $values[] = (int) $score;
         if ($passed !== null) $values[] = (int) $passed;
+        if ($answers_json !== null) $values[] = (string) $answers_json;
 
         $wpdb->query($wpdb->prepare(
-            "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, score, passed, attempts)
-             VALUES (%d, %d, %d, $score_sql, $passed_sql, 1)
-             ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP, score = VALUES(score), passed = VALUES(passed), attempts = attempts + 1",
+            "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, score, passed, attempts, answers)
+             VALUES (%d, %d, %d, $score_sql, $passed_sql, 1, $answers_sql)
+             ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP, score = VALUES(score), passed = VALUES(passed), answers = VALUES(answers), attempts = attempts + 1",
             $values
         ));
 
         if ($passed === null || $passed) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));
         }
+    }
+
+    // The stored per-question snapshot for a quiz step, decoded — null if
+    // this isn't a (scored, answers-bearing) quiz row, or predates the
+    // answers column. Used by class-render.php to render a static review
+    // of a passed quiz instead of re-deriving anything from the current
+    // (possibly since-edited) _bhc_steps content — see the answers
+    // column's own comment in class-activator.php for why that matters.
+    public static function stored_answers($user_id, $lesson_id, $step_index) {
+        $row = self::step_status($user_id, $lesson_id, $step_index);
+        if (!$row || empty($row['answers'])) return null;
+        $decoded = json_decode($row['answers'], true);
+        return is_array($decoded) ? $decoded : null;
     }
 
     // Percent of a whole COURSE a user has completed — steps across
@@ -114,6 +136,27 @@ class BHC_Progress {
             $done += count(self::completed_steps($user_id, $lesson_id));
         }
         return $total ? (int) round(($done / $total) * 100) : 0;
+    }
+
+    // The lesson-level sibling of class-render.php's own step-level
+    // "first not-yet-completed" logic (render_lesson_steps()'s
+    // $start_index calc) — same idea, one level up, for the course-page
+    // "Continue" CTA. Skips lessons that aren't published, aren't open
+    // yet (drip-locked), or have no steps at all (nothing to resume
+    // into). Returns null if every open lesson is fully done — the
+    // caller (class-render.php) treats that as "show a Review/Complete
+    // state instead."
+    public static function first_incomplete_lesson($user_id, $course_id) {
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        foreach ($lesson_ids as $lesson_id) {
+            if (get_post_status($lesson_id) !== 'publish') continue;
+            if (class_exists('BHC_Gate') && !BHC_Gate::lesson_is_open($user_id, $lesson_id)) continue;
+            $step_count = BHC_Steps::count($lesson_id);
+            if (!$step_count) continue;
+            $done_count = $user_id ? count(self::completed_steps($user_id, $lesson_id)) : 0;
+            if ($done_count < $step_count) return $lesson_id;
+        }
+        return null;
     }
 
     /* ---------------- enrollment (drip scheduling's clock-start) ---------------- */
@@ -137,6 +180,24 @@ class BHC_Progress {
             "SELECT enrolled_at FROM {$wpdb->prefix}bhc_enrollments WHERE user_id = %d AND course_id = %d",
             $user_id, $course_id
         ));
+    }
+
+    // The catalog's "popular" sort signal (QUIZ-AND-CATALOG-DESIGN-PLAN.md
+    // Part 2.3) — a real, deduped, non-gameable enrollment count read
+    // straight off bhc_enrollments' own UNIQUE KEY (user_id, course_id),
+    // never a denormalized counter column that could drift out of sync.
+    // Returns course_id => count for every course with at least one
+    // enrollment; a course with zero simply isn't in the returned array
+    // (callers treat a missing key as 0).
+    public static function enrollment_counts() {
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT course_id, COUNT(*) AS c FROM {$wpdb->prefix}bhc_enrollments GROUP BY course_id",
+            ARRAY_A
+        );
+        $counts = [];
+        foreach ($rows as $row) $counts[(int) $row['course_id']] = (int) $row['c'];
+        return $counts;
     }
 
     /* ---------------- completion (bhc_course_completed) ---------------- */
@@ -226,9 +287,18 @@ class BHC_Progress {
         // (the front end disables the resubmit UI, but that's not a
         // server-side guarantee). Once passed, stay passed.
         if ($already_passed) {
+            // Return the stored snapshot (if this row predates the
+            // answers column, stored_answers() is simply null and the
+            // front end falls back to the aggregate-only display it
+            // already had) so a resubmit against an already-passed quiz
+            // — which the disabled UI shouldn't normally trigger, but a
+            // replayed POST could — still gets the same rich response a
+            // fresh pass would, rather than a degraded one.
+            $snapshot = self::stored_answers($user_id, $lesson_id, $step_index);
             wp_send_json_success([
                 'score' => (int) $existing['score'], 'passed' => true,
                 'total' => count($step['questions'] ?? []), 'correct' => null,
+                'questions' => $snapshot['questions'] ?? null,
                 'attempts_used' => $attempts_so_far, 'max_attempts' => $max_attempts,
                 'attempts_remaining' => $max_attempts > 0 ? max(0, $max_attempts - $attempts_so_far) : null,
                 'already_passed' => true,
@@ -242,7 +312,20 @@ class BHC_Progress {
         }
 
         $result = BHC_Steps::score_quiz($step, $answers);
-        self::mark_step_complete($user_id, $lesson_id, $step_index, $result['score'], $result['passed']);
+
+        // Snapshot per QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.3: self-
+        // contained (question text/choices/correct_index, not just the
+        // chosen index), so a later edit to this quiz can never corrupt
+        // what this review shows. score/passed/passing_score duplicated
+        // into the blob too, so a review render is one row read, not a
+        // join against the step's own current (possibly different) config.
+        $answers_json = wp_json_encode([
+            'score' => $result['score'],
+            'passed' => $result['passed'],
+            'passing_score' => (int) ($step['passing_score'] ?? 70),
+            'questions' => $result['questions'],
+        ]);
+        self::mark_step_complete($user_id, $lesson_id, $step_index, $result['score'], $result['passed'], $answers_json);
 
         $result['attempts_used'] = $attempts_so_far + 1;
         $result['max_attempts'] = $max_attempts;

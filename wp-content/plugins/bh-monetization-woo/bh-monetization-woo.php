@@ -2,14 +2,29 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.2.0
+ * Version:     0.4.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHM_VER',  '0.2.0');
+// 0.4.0 — ROADMAP-platform-evolution.md Section 4 (monetization tier
+// depth): structured per-tier benefit lists, tier cover images, annual
+// pricing alongside monthly, and the bhm_entitlement_granted/
+// bhm_entitlement_revoked action pair. See class-tiers.php and
+// class-products.php for the specifics.
+//
+// 0.4.1 — finished the BH_Commerce migration (Section 5's own stated
+// prerequisite): wallet top-up/tip-jar product sync (class-frontend.php)
+// and the order/subscription-lifecycle handlers in class-products.php
+// (on_order_completed, on_order_reversed, on_subscription_active,
+// on_subscription_ended) now go through BH_Commerce instead of touching
+// WC_Order/WC_Subscription/WC_Product objects directly. See
+// own-ur-shit/includes/class-commerce.php's docblock for the full
+// migration history. NOT tested against a real WordPress+MySQL install
+// yet — reasoning-only, same caveat as every other pass this session.
+define('BHM_VER',  '0.4.1');
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
 

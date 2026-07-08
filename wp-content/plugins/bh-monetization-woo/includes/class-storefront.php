@@ -79,6 +79,19 @@ class BHM_Storefront {
         ]);
     }
 
+    // Bump whenever add_rewrite()/register_taxonomy() below change what
+    // they register — same versioned-flush convention BHI_Portal's own
+    // add_rewrite() uses (see class-portal.php), keyed off REWRITE_VERSION
+    // rather than a single boolean so a FUTURE rule change also self-heals,
+    // not just this one.
+    // Bumped to 2 — see BHI_Portal::REWRITE_VERSION's own comment
+    // (class-portal.php) for the full story: a real install's persistent
+    // object cache was serving a stale copy of the rewrite_rules option
+    // back even after a correct flush_rewrite_rules() call, confirmed via
+    // that class's own Debug Tools diagnostic. Same explicit cache-evict
+    // fix applied here.
+    const REWRITE_VERSION = '2';
+
     public static function add_rewrite() {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
@@ -89,13 +102,17 @@ class BHM_Storefront {
         // for a site that already had this plugin active before this
         // taxonomy/rewrite existed (a file-replace deploy, same reasoning
         // BHI_Activator::maybe_upgrade() already documents elsewhere in
-        // this ecosystem for schema changes). One-time via an option flag,
-        // not on every request — flush_rewrite_rules() is expensive enough
-        // that running it unconditionally on 'init' would be a real
-        // performance regression.
-        if (!get_option('bhm_storefront_rewrite_flushed')) {
+        // this ecosystem for schema changes — and the exact bug class that
+        // caused a real, reported 404 on BHI_Portal's /account/ rewrite,
+        // fixed the same way there). One-time via an option flag, not on
+        // every request — flush_rewrite_rules() is expensive enough that
+        // running it unconditionally on 'init' would be a real performance
+        // regression.
+        if (get_option('bhm_storefront_rewrite_flushed') !== self::REWRITE_VERSION) {
             flush_rewrite_rules();
-            update_option('bhm_storefront_rewrite_flushed', 1);
+            wp_cache_delete('rewrite_rules', 'options');
+            wp_cache_delete('alloptions', 'options');
+            update_option('bhm_storefront_rewrite_flushed', self::REWRITE_VERSION);
         }
     }
 

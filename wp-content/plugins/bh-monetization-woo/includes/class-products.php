@@ -16,6 +16,14 @@ if (!defined('ABSPATH') ) exit;
  *    bhs_track_lock_notice — see bh-streaming's class-admin.php and
  *    class-api.php) so bh-streaming never needs a single line of code
  *    that mentions WooCommerce, prices, or tiers.
+ *
+ * Also fires bhm_entitlement_granted / bhm_entitlement_revoked (see
+ * grant_entitlement(), on_order_reversed(), on_subscription_ended()
+ * below) — the tier-level third-party-integration choke point
+ * ROADMAP-platform-evolution.md Section 4 asks for (its named example:
+ * "connect Discord and grant a role per tier"). No such integration is
+ * built here; this is just the one clean place for a future one to
+ * hook in, args: ($user_id, $type, $scope, $object_id[, $reason]).
  */
 class BHM_Products {
     public static function init() {
@@ -66,9 +74,16 @@ class BHM_Products {
     // the original direct-WooCommerce path if BH_Commerce isn't loaded
     // (an old core version), same class_exists()-guarded-degrade
     // convention as everywhere else in this ecosystem.
-    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents) {
+    // $annual_price_cents = 0 means "no annual option offered" — the
+    // second (annual) product is created/kept in sync only when a real
+    // price is set, and is otherwise left alone (never deleted here,
+    // since the artist may just be toggling the field back and forth
+    // while drafting; a stale-but-hidden annual product is harmless —
+    // catalog_visibility is already 'hidden', same as the monthly one).
+    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0) {
         if (!class_exists('WooCommerce')) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
+        $existing_annual_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id_annual', true);
 
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product($existing_id, [
@@ -80,9 +95,33 @@ class BHM_Products {
                 'subscription_period' => 'month',
                 'subscription_period_interval' => 1,
             ]);
-            if (!$product_id) return;
-            update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
-            update_post_meta($product_id, '_bhm_tier_id', $tier_post_id); // reverse lookup, used by on_order_completed()/on_subscription_active()
+            if ($product_id) {
+                update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
+                update_post_meta($product_id, '_bhm_tier_id', $tier_post_id); // reverse lookup, used by on_order_completed()/on_subscription_active()
+            }
+
+            if ($annual_price_cents > 0) {
+                $annual_id = BH_Commerce::upsert_product($existing_annual_id, [
+                    'name' => $name . ' — Supporter Tier (Annual)',
+                    'price_cents' => $annual_price_cents,
+                    'virtual' => true,
+                    'catalog_visibility' => 'hidden',
+                    'subscription' => true,
+                    'subscription_period' => 'year',
+                    'subscription_period_interval' => 1,
+                ]);
+                if ($annual_id) {
+                    update_post_meta($tier_post_id, '_bhm_wc_product_id_annual', $annual_id);
+                    // Same reverse-lookup meta as the monthly product so
+                    // on_order_completed()/on_subscription_active() grant
+                    // the identical tier regardless of which billing
+                    // cadence a fan actually bought — the entitlement
+                    // itself (BHM_Tiers benefit_keys/price rank) doesn't
+                    // know or care about billing period, only ABOUT the
+                    // tier.
+                    update_post_meta($annual_id, '_bhm_tier_id', $tier_post_id);
+                }
+            }
             return;
         }
 
@@ -103,6 +142,26 @@ class BHM_Products {
         $product->save();
         update_post_meta($tier_post_id, '_bhm_wc_product_id', $product->get_id());
         update_post_meta($product->get_id(), '_bhm_tier_id', $tier_post_id);
+
+        // Annual fallback product only makes sense if Subscriptions is
+        // active at all — a plain one-time WooCommerce product has no
+        // billing period to speak of, so "annual" would be meaningless
+        // (identical to the monthly one-time product, just mispriced).
+        if ($annual_price_cents > 0 && $has_subs) {
+            $annual_price = number_format($annual_price_cents / 100, 2, '.', '');
+            $annual_product = $existing_annual_id ? wc_get_product($existing_annual_id) : null;
+            if (!$annual_product) $annual_product = new WC_Product_Subscription();
+            $annual_product->set_name($name . ' — Supporter Tier (Annual)');
+            $annual_product->set_regular_price($annual_price);
+            $annual_product->set_virtual(true);
+            $annual_product->set_catalog_visibility('hidden');
+            if (method_exists($annual_product, 'set_props')) {
+                $annual_product->set_props(['subscription_period' => 'year', 'subscription_period_interval' => 1]);
+            }
+            $annual_product->save();
+            update_post_meta($tier_post_id, '_bhm_wc_product_id_annual', $annual_product->get_id());
+            update_post_meta($annual_product->get_id(), '_bhm_tier_id', $tier_post_id);
+        }
     }
 
     // Same idea as sync_tier_wc_product() but for a single track/release's
@@ -353,16 +412,24 @@ class BHM_Products {
     // WooCommerce Subscriptions isn't active), track/release purchases,
     // and wallet top-ups.
     public static function on_order_completed($order_id) {
-        $order = wc_get_order($order_id);
+        // BH_Commerce::get_order() normalizes the order into a plain
+        // array (id/status/customer_id/total_cents/items[{product_id,quantity}])
+        // — this file no longer touches a WC_Order object directly, same
+        // treatment sync_tier_wc_product() already got in the tier-depth
+        // pass. class_exists('BH_Commerce') isn't checked here because
+        // this whole class already requires the core (BHCORE_LOADED
+        // gate in bh-monetization-woo.php); an old core without
+        // BH_Commerce would need its own fallback, out of scope for this
+        // pass same as the rest of this migration.
+        $order = class_exists('BH_Commerce') ? BH_Commerce::get_order($order_id) : self::legacy_get_order_array($order_id);
         if (!$order) {
-            // A completed-order hook firing for an order ID WooCommerce
-            // itself can't load is exactly the kind of "money moved but
-            // nothing here can trust it" situation worth a loud log
-            // entry rather than a silent early return — someone paid and
-            // this plugin has no idea what they should now have access
-            // to.
+            // A completed-order hook firing for an order ID that can't
+            // be loaded is exactly the kind of "money moved but nothing
+            // here can trust it" situation worth a loud log entry rather
+            // than a silent early return — someone paid and this plugin
+            // has no idea what they should now have access to.
             if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('error', "on_order_completed: wc_get_order($order_id) returned nothing", ['order_id' => $order_id], 'BH Monetization');
+                OUS_DebugLog::log('error', "on_order_completed: order $order_id could not be loaded", ['order_id' => $order_id], 'BH Monetization');
             }
             return;
         }
@@ -372,16 +439,17 @@ class BHM_Products {
         // item in the same order from being fulfilled — a fan who bought
         // a tier AND a track in one checkout shouldn't lose the track
         // just because the tier grant hit an edge case (or vice versa).
-        foreach ($order->get_items() as $item) {
+        foreach ($order['items'] as $item) {
+            $product_id = $item['product_id'];
             try {
-                $product_id = $item->get_product_id();
-                $user_id = $order->get_customer_id();
+                $user_id = $order['customer_id'];
                 if (!$user_id) continue; // guest checkout has no account to grant an entitlement to — nothing to attach access to
 
                 $tier_id = (int) get_post_meta($product_id, '_bhm_tier_id', true);
                 if ($tier_id) {
-                    self::grant_entitlement($user_id, class_exists('WC_Subscriptions') ? 'subscription' : 'streaming_tier', 'account', $tier_id, $order_id, null,
-                        class_exists('WC_Subscriptions') ? null : gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+                    $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
+                    self::grant_entitlement($user_id, $has_subs ? 'subscription' : 'streaming_tier', 'account', $tier_id, $order_id, null,
+                        $has_subs ? null : gmdate('Y-m-d H:i:s', strtotime('+30 days')));
                     continue;
                 }
 
@@ -399,7 +467,7 @@ class BHM_Products {
             } catch (\Throwable $e) {
                 if (class_exists('OUS_DebugLog')) {
                     OUS_DebugLog::log('error', 'on_order_completed item fulfillment failed: ' . $e->getMessage(), [
-                        'order_id' => $order_id, 'product_id' => $item->get_product_id(),
+                        'order_id' => $order_id, 'product_id' => $product_id,
                     ], 'BH Monetization');
                 }
                 // Deliberately swallowed past this point (not re-thrown)
@@ -408,6 +476,21 @@ class BHM_Products {
                 // order-completion flow for the customer's whole order.
             }
         }
+    }
+
+    // Only reached if BH_Commerce itself isn't loaded (an old core) —
+    // the exact same direct-WooCommerce shape this migration removed
+    // from the main path, kept as a single explicit fallback rather
+    // than silently no-op'ing order fulfillment on an old core.
+    private static function legacy_get_order_array($order_id) {
+        if (!function_exists('wc_get_order')) return null;
+        $order = wc_get_order($order_id);
+        if (!$order) return null;
+        $items = [];
+        foreach ($order->get_items() as $item) {
+            $items[] = ['product_id' => $item->get_product_id(), 'quantity' => $item->get_quantity()];
+        }
+        return ['id' => $order->get_id(), 'customer_id' => $order->get_customer_id(), 'items' => $items];
     }
 
     // The reversal counterpart to on_order_completed() — a refunded or
@@ -421,16 +504,27 @@ class BHM_Products {
     // any real merchant would on a chargeback for a consumed good.
     public static function on_order_reversed($order_id) {
         global $wpdb;
-        $order = wc_get_order($order_id);
+        $order = class_exists('BH_Commerce') ? BH_Commerce::get_order($order_id) : self::legacy_get_order_array($order_id);
         if (!$order) return;
 
-        $wpdb->delete($wpdb->prefix . 'bhm_entitlements', ['wc_order_id' => $order_id]);
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        // Fetch what's about to be deleted BEFORE deleting it, so the
+        // bhm_entitlement_revoked action (see grant_entitlement()'s
+        // granted counterpart below) can tell a listener which specific
+        // entitlements just got taken back — a future Discord-role-sync
+        // consumer (the exact example ROADMAP-platform-evolution.md
+        // Section 4 names) needs the object/scope, not just "something
+        // changed for this user."
+        $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d", $order_id), ARRAY_A);
+        $wpdb->delete($t, ['wc_order_id' => $order_id]);
+        foreach ($revoked as $row) {
+            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], 'order_reversed');
+        }
 
-        foreach ($order->get_items() as $item) {
-            $product_id = $item->get_product_id();
-            $wallet_cents = (int) get_post_meta($product_id, '_bhm_wallet_topup_cents', true);
+        foreach ($order['items'] as $item) {
+            $wallet_cents = (int) get_post_meta($item['product_id'], '_bhm_wallet_topup_cents', true);
             if (!$wallet_cents) continue;
-            $user_id = $order->get_customer_id();
+            $user_id = $order['customer_id'];
             if (!$user_id) continue;
             $reverse_amount = min($wallet_cents, BHM_Wallet::balance_cents($user_id));
             if ($reverse_amount > 0) {
@@ -438,7 +532,7 @@ class BHM_Products {
             }
         }
 
-        if ($order->get_customer_id()) BHM_Fraud::track_refund_pattern($order->get_customer_id(), $order_id);
+        if ($order['customer_id']) BHM_Fraud::track_refund_pattern($order['customer_id'], $order_id);
 
         // A second real notification example alongside BH Courses'
         // course-completion one (see the core's OUS_Notifications
@@ -449,9 +543,9 @@ class BHM_Products {
         // plugin only ever depends on the core's PRESENCE, never any
         // one optional feature inside it, so an older core still works,
         // it just doesn't send this particular notice.
-        if (class_exists('OUS_Notifications') && $order->get_customer_id()) {
+        if (class_exists('OUS_Notifications') && $order['customer_id']) {
             OUS_Notifications::notify(
-                $order->get_customer_id(),
+                $order['customer_id'],
                 'refund_reversed',
                 'A refund adjusted your account',
                 'Order #' . $order_id . ' was refunded or cancelled, and any access or wallet credit it granted has been reversed accordingly.',
@@ -469,19 +563,41 @@ class BHM_Products {
     // refund_count_recent, the REFUND_ABUSE_*/FINGERPRINT_COOKIE
     // constants) is unchanged in behavior, just relocated.
 
+    // $subscription arrives as the real WC_Subscription object — that
+    // part can't be abstracted away, it's WooCommerce Subscriptions' own
+    // action hook signature (woocommerce_subscription_status_active).
+    // What DOES get abstracted is everything this method does WITH it:
+    // normalize_subscription() is the one place that reaches into
+    // get_customer_id()/get_items()/get_id(), same treatment
+    // BH_Commerce::get_order() already gives WC_Order objects.
     public static function on_subscription_active($subscription) {
-        $user_id = $subscription->get_customer_id();
-        foreach ($subscription->get_items() as $item) {
-            $tier_id = (int) get_post_meta($item->get_product_id(), '_bhm_tier_id', true);
+        $sub = class_exists('BH_Commerce') ? BH_Commerce::normalize_subscription($subscription) : null;
+        if (!$sub) {
+            // Fallback for an old core without BH_Commerce — same
+            // direct-object shape this migration removed from the main
+            // path.
+            $sub = ['id' => $subscription->get_id(), 'customer_id' => $subscription->get_customer_id(), 'items' => array_map(function ($item) {
+                return ['product_id' => $item->get_product_id()];
+            }, array_values($subscription->get_items()))];
+        }
+
+        foreach ($sub['items'] as $item) {
+            $tier_id = (int) get_post_meta($item['product_id'], '_bhm_tier_id', true);
             if ($tier_id) {
-                self::grant_entitlement($user_id, 'subscription', 'account', $tier_id, null, $subscription->get_id(), null);
+                self::grant_entitlement($sub['customer_id'], 'subscription', 'account', $tier_id, null, $sub['id'], null);
             }
         }
     }
 
     public static function on_subscription_ended($subscription) {
         global $wpdb;
-        $wpdb->delete($wpdb->prefix . 'bhm_entitlements', ['wc_subscription_id' => $subscription->get_id()]);
+        $sub_id = $subscription->get_id(); // trivial accessor, not worth a full normalize_subscription() round trip just for this
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_subscription_id = %d", $sub_id), ARRAY_A);
+        $wpdb->delete($t, ['wc_subscription_id' => $sub_id]);
+        foreach ($revoked as $row) {
+            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], 'subscription_ended');
+        }
     }
 
     private static function grant_entitlement($user_id, $type, $scope, $object_id, $order_id, $subscription_id, $expires_at) {
@@ -516,6 +632,21 @@ class BHM_Products {
             'user_id' => $user_id, 'type' => $type, 'scope' => $scope, 'object_id' => $object_id,
             'wc_order_id' => $order_id, 'wc_subscription_id' => $subscription_id, 'expires_at' => $expires_at,
         ]);
+
+        // ROADMAP-platform-evolution.md Section 4's tier-level
+        // third-party-integration hook — the concrete example named
+        // there is "connect Discord and grant a role per tier." Not
+        // building Discord integration itself (that's Section 7/
+        // roadmap-only territory), just the one clean choke point a
+        // future consumer needs: this fires for every entitlement grant
+        // (tier subscription, one-time tier purchase, track/release
+        // purchase — same $type values on_order_completed()/
+        // on_subscription_active() already pass in above), not just
+        // tiers, since a future integration might reasonably care about
+        // "this user bought this track" too. Sits at this single
+        // low-level choke point rather than in each higher-level caller,
+        // same reasoning as the OUS_Notifications call two lines below.
+        do_action('bhm_entitlement_granted', $user_id, $type, $scope, $object_id);
 
         // A third real notification example (alongside BH Courses'
         // completion notice and this same plugin's own refund-reversal

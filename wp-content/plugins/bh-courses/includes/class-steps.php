@@ -69,14 +69,28 @@ class BHC_Steps {
                     // esc_url_raw() only SANITIZES characters (strips
                     // disallowed ones, encodes the rest) — it does not
                     // reject a string that was never a real URL to begin
-                    // with. 'not a url' silently became a syntactically
-                    // "valid" http://not%20a%20url and was accepted.
-                    // filter_var(..., FILTER_VALIDATE_URL) after
-                    // esc_url_raw() is the actual validation step; both
-                    // together give "sanitized AND confirmed to parse as
-                    // a URL" rather than either alone.
-                    $url = esc_url_raw($step['video_url'] ?? '');
-                    if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) continue; // no URL, or not a real one — nothing to render either way
+                    // with. The validate-AFTER-sanitize order this used
+                    // to run in had a real, confirmed bug (caught by the
+                    // Test Runner, not found by static reading — exactly
+                    // the value this ecosystem's own testing convention
+                    // is for): esc_url_raw() percent-encodes a raw space
+                    // into %20 BEFORE filter_var() ever sees it, so
+                    // 'not a url' became the syntactically "valid"
+                    // http://not%20a%20url and passed FILTER_VALIDATE_URL
+                    // — a literal space fails that filter, but %20
+                    // doesn't, since it's no longer a literal space by
+                    // the time filter_var() runs. Validating the RAW
+                    // input first (before sanitization can "fix" it into
+                    // something that parses) closes that gap; esc_url_raw()
+                    // still runs afterward on whatever passes, both for
+                    // output-safety encoding AND because it independently
+                    // rejects a few things filter_var() alone doesn't
+                    // (e.g. a javascript: scheme collapses to an empty
+                    // string here, still caught by the emptiness check).
+                    $raw = trim((string) ($step['video_url'] ?? ''));
+                    if (!$raw || !filter_var($raw, FILTER_VALIDATE_URL)) continue;
+                    $url = esc_url_raw($raw);
+                    if (!$url) continue;
                     $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? '')];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);
@@ -125,20 +139,35 @@ class BHC_Steps {
     }
 
     // Score a submitted quiz step: $answers is [question_index => chosen_choice_index].
-    // Returns ['score' => 0-100, 'passed' => bool, 'total' => n, 'correct' => n].
+    // Returns ['score' => 0-100, 'passed' => bool, 'total' => n, 'correct' => n,
+    // 'questions' => [ ['q','choices','correct_index','chosen_index'], ... ] ].
+    // The 'questions' detail (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.4) is
+    // built from the SAME loop that already computes correctness — no new
+    // iteration, no new data source, it just stops throwing the per-
+    // question detail away after counting $correct. This is what
+    // BHC_Progress::ajax_submit_quiz() snapshots into bhc_progress.answers,
+    // and what it returns to the front end for the immediate per-question
+    // breakdown (courses.js).
     public static function score_quiz(array $step, array $answers) {
         $questions = $step['questions'] ?? [];
         $total = count($questions);
-        if (!$total) return ['score' => 0, 'passed' => false, 'total' => 0, 'correct' => 0];
+        if (!$total) return ['score' => 0, 'passed' => false, 'total' => 0, 'correct' => 0, 'questions' => []];
 
         $correct = 0;
+        $detail = [];
         foreach ($questions as $i => $q) {
-            if (isset($answers[$i]) && (int) $answers[$i] === (int) $q['correct_index']) {
-                $correct++;
-            }
+            $chosen = isset($answers[$i]) ? (int) $answers[$i] : -1;
+            $is_correct = $chosen === (int) $q['correct_index'];
+            if ($is_correct) $correct++;
+            $detail[] = [
+                'q' => $q['question'] ?? '',
+                'choices' => $q['choices'] ?? [],
+                'correct_index' => (int) $q['correct_index'],
+                'chosen_index' => $chosen,
+            ];
         }
         $score = (int) round(($correct / $total) * 100);
         $passed = $score >= (int) ($step['passing_score'] ?? 70);
-        return ['score' => $score, 'passed' => $passed, 'total' => $total, 'correct' => $correct];
+        return ['score' => $score, 'passed' => $passed, 'total' => $total, 'correct' => $correct, 'questions' => $detail];
     }
 }

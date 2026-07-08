@@ -71,13 +71,33 @@ class BHM_Frontend {
         foreach ($tiers as $t) {
             $active = $user_id && BHM_Gate::user_has_tier_access($user_id, $t['id']);
             echo '<div class="bhm-tier-card' . ($active ? ' bhm-tier-active' : '') . '">';
+            if (!empty($t['cover_image_id'])) {
+                $img_url = wp_get_attachment_image_url($t['cover_image_id'], 'medium');
+                if ($img_url) echo '<img class="bhm-tier-cover" src="' . esc_url($img_url) . '" alt="">';
+            }
             echo '<h3>' . esc_html($t['name']) . '</h3>';
             echo '<div class="bhm-tier-price">$' . esc_html(number_format($t['price_cents'] / 100, 2)) . '/mo</div>';
+            if (!empty($t['annual_price_cents'])) {
+                echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr</div>';
+            }
             if ($t['benefits']) echo '<p class="bhm-tier-benefits">' . esc_html($t['benefits']) . '</p>';
+            // Structured benefits list — a real <ul>, separate from the
+            // free-text paragraph above (see BHM_Tiers::render_metabox()
+            // for why these are two distinct fields rather than one).
+            if (!empty($t['benefits_list'])) {
+                echo '<ul class="bhm-tier-benefits-list">';
+                foreach ($t['benefits_list'] as $item) {
+                    echo '<li>' . esc_html($item) . '</li>';
+                }
+                echo '</ul>';
+            }
             if ($active) {
                 echo '<span class="bhm-badge">Your current tier</span>';
             } elseif ($t['wc_product_id']) {
-                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">Join</a>';
+                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">Join monthly</a>';
+                if (!empty($t['wc_product_id_annual'])) {
+                    echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">Join annually</a>';
+                }
             }
             echo '</div>';
         }
@@ -111,10 +131,27 @@ class BHM_Frontend {
         return ob_get_clean();
     }
 
+    // Migrated onto BH_Commerce::upsert_product() — second migration
+    // pass, same treatment BHM_Products::sync_tier_wc_product() got
+    // first (see class-commerce.php's own docblock for the full
+    // history). Never a subscription — a tip is always a one-time
+    // product, upsert_product()'s subscription arg simply isn't passed.
     private static function ensure_tip_product() {
+        if (class_exists('BH_Commerce')) {
+            $product_id = BH_Commerce::upsert_product(0, [
+                'name' => 'Tip',
+                'price_cents' => self::TIP_MIN_CENTS, // real per-order amount is overridden by apply_tip_price() below — this is just the catalog fallback
+                'virtual' => true,
+                'catalog_visibility' => 'hidden',
+            ]);
+            if ($product_id) update_option('bhm_tip_product_id', $product_id);
+            return $product_id;
+        }
+
+        // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
         $product = new WC_Product_Simple();
         $product->set_name('Tip');
-        $product->set_regular_price(number_format(self::TIP_MIN_CENTS / 100, 2, '.', '')); // real per-order amount is overridden by apply_tip_price() below — this is just the catalog fallback
+        $product->set_regular_price(number_format(self::TIP_MIN_CENTS / 100, 2, '.', ''));
         $product->set_virtual(true);
         $product->set_catalog_visibility('hidden');
         $product->save();
@@ -169,7 +206,8 @@ class BHM_Frontend {
             echo '<div class="bhm-wallet-topups">';
             foreach ($topup_options as $cents => $price) {
                 $product_id = (int) ($topup_products[$cents] ?? 0);
-                if (!$product_id || !wc_get_product($product_id)) continue; // not synced yet — admin needs to save settings once
+                $exists = class_exists('BH_Commerce') ? BH_Commerce::product_exists($product_id) : ($product_id && wc_get_product($product_id));
+                if (!$product_id || !$exists) continue; // not synced yet — admin needs to save settings once
                 echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Add $' . esc_html(number_format($cents / 100, 2)) . ' credit — $' . esc_html(number_format((float) $price, 2)) . '</a>';
             }
             echo '</div>';
@@ -185,25 +223,47 @@ class BHM_Frontend {
     // configured top-up tier, tagged with how many wallet cents it
     // grants so on_order_completed() in class-products.php knows what
     // to credit.
+    // Migrated onto BH_Commerce::upsert_product() — see ensure_tip_product()
+    // above and class-commerce.php's docblock for the full migration
+    // history. $price here is a decimal dollar STRING (as stored in
+    // bhm_wallet_topup_options, entered by the artist on the settings
+    // screen), converted to integer cents for upsert_product()'s
+    // contract rather than passed through as a formatted price string.
     public static function sync_wallet_topup_products() {
         if (!class_exists('WooCommerce')) return;
         $options = get_option('bhm_wallet_topup_options', []);
         $existing = get_option('bhm_wallet_topup_products', []); // cents => product_id
         $new_map = [];
+        $use_commerce = class_exists('BH_Commerce');
 
         foreach ($options as $cents => $price) {
             $product_id = $existing[$cents] ?? 0;
-            $product = $product_id ? wc_get_product($product_id) : null;
-            if (!$product) $product = new WC_Product_Simple();
+            $name = 'Play Credit — $' . number_format($cents / 100, 2);
+            $price_cents = (int) round(((float) $price) * 100);
 
-            $product->set_name('Play Credit — $' . number_format($cents / 100, 2));
-            $product->set_regular_price(number_format((float) $price, 2, '.', ''));
-            $product->set_virtual(true);
-            $product->set_catalog_visibility('hidden');
-            $product->save();
+            if ($use_commerce) {
+                $new_id = BH_Commerce::upsert_product($product_id, [
+                    'name' => $name,
+                    'price_cents' => $price_cents,
+                    'virtual' => true,
+                    'catalog_visibility' => 'hidden',
+                ]);
+                if (!$new_id) continue;
+                $product_id = $new_id;
+            } else {
+                // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
+                $product = $product_id ? wc_get_product($product_id) : null;
+                if (!$product) $product = new WC_Product_Simple();
+                $product->set_name($name);
+                $product->set_regular_price(number_format((float) $price, 2, '.', ''));
+                $product->set_virtual(true);
+                $product->set_catalog_visibility('hidden');
+                $product->save();
+                $product_id = $product->get_id();
+            }
 
-            update_post_meta($product->get_id(), '_bhm_wallet_topup_cents', $cents);
-            $new_map[$cents] = $product->get_id();
+            update_post_meta($product_id, '_bhm_wallet_topup_cents', $cents);
+            $new_map[$cents] = $product_id;
         }
         update_option('bhm_wallet_topup_products', $new_map);
     }
