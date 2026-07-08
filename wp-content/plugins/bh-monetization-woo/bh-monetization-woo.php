@@ -2,12 +2,34 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.1
+ * Version:     0.4.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.3 — BHM_TestSuite gained real DB-backed coverage for
+// BHM_Wallet::debit()/apply_ledger_delta() (balance/ledger consistency,
+// the atomic-UPDATE insufficient-balance decline) — previously untested
+// despite this session's logging pass finding real error-handling gaps
+// there. Standing caveat: written and brace-balance-checked, not yet
+// executed against the live install.
+
+// 0.4.2 — error-handling/logging depth pass, from a broader ecosystem-
+// wide audit: (1) BHM_Storefront::add_rewrite() upgraded from a
+// version-gated "flush once, mark done, never re-verify" pattern to
+// BHI_Portal's self-verifying shape (class-portal.php in own-ur-shit) —
+// the identical bug class already confirmed broken on a live install
+// for Portal's own rewrite rule, applied here preventatively since the
+// two classes shared the exact same fragile pattern. (2) BHM_Wallet::
+// debit()/apply_delta() previously failed completely silently on both
+// a declined debit and a balance/ledger desync (balance write succeeds,
+// ledger insert fails) — now logged via OUS_DebugLog at 'info'/'error'
+// respectively, since a wallet balance disagreeing with its own ledger
+// is a real money-handling integrity risk that had zero visibility
+// before. Standing caveat: reasoning/brace-balance-checked only, not
+// run against a real WordPress+MySQL install.
 
 // 0.4.0 — ROADMAP-platform-evolution.md Section 4 (monetization tier
 // depth): structured per-tier benefit lists, tier cover images, annual
@@ -24,7 +46,7 @@ if (!defined('ABSPATH')) exit;
 // own-ur-shit/includes/class-commerce.php's docblock for the full
 // migration history. NOT tested against a real WordPress+MySQL install
 // yet — reasoning-only, same caveat as every other pass this session.
-define('BHM_VER',  '0.4.1');
+define('BHM_VER',  '0.4.3');
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
 

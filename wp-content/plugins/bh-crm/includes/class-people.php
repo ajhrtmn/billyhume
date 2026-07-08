@@ -57,8 +57,12 @@ class BHCRM_People {
     // active and contributes their ID, but a bare list of every WP
     // subscriber with zero activity anywhere would just be noise.
     private static function active_user_ids() {
-        global $wpdb;
-        $with_profile = $wpdb->get_col("SELECT user_id FROM {$wpdb->prefix}bhi_profiles WHERE real_name != '' OR discord_name != '' OR twitch_name != '' OR youtube_name != ''");
+        // Per QA-REPORT-code-quality.md's cross-plugin finding #2 — this
+        // used to run raw SQL directly against core's bhi_profiles table
+        // (a real encapsulation violation, doubled by class-export.php
+        // running the byte-identical query independently). Both now go
+        // through BHI_Profiles, the class that actually owns that table.
+        $with_profile = class_exists('BHI_Profiles') ? BHI_Profiles::user_ids_with_profile_data() : [];
         $contributed = apply_filters('bh_crm_active_user_ids', []);
         return array_unique(array_map('intval', array_merge($with_profile, $contributed)));
     }

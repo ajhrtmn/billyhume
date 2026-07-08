@@ -143,6 +143,22 @@ class BHI_TwoFactor {
         $code = isset($_POST['bhcore_2fa_code']) ? sanitize_text_field(wp_unslash($_POST['bhcore_2fa_code'])) : '';
         if (self::verify_code($user->ID, $code)) return $user;
 
+        // A genuinely wrong code (not just "the field hasn't been shown
+        // yet") was previously invisible — this is a real brute-force/
+        // account-takeover-attempt signal on a security-critical path
+        // that had zero trace before. Only logged when a code was
+        // actually submitted (not the blank-field first render, which
+        // would otherwise log on every single password-only login
+        // attempt for a 2FA-enabled account and drown out real signal).
+        // Throttled per-user, not per-request, so a scripted brute-force
+        // attempt against one account still shows up as "repeated
+        // failures" in the log rather than either silence or a flood.
+        if ($code !== '' && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log_throttled('warning', 'bhcore_2fa_fail_' . $user->ID, 30,
+                'Failed 2FA code attempt at login.', ['user_id' => $user->ID, 'username' => $username], 'Two-Factor'
+            );
+        }
+
         return new WP_Error('bhcore_2fa_required', __('<strong>Error</strong>: Enter the 6-digit code from your authenticator app.'));
     }
 
@@ -287,6 +303,15 @@ class BHI_TwoFactor {
         delete_user_meta($user_id, self::SECRET_META_KEY);
         delete_user_meta($user_id, self::ENABLED_META_KEY);
         delete_user_meta($user_id, self::PENDING_META_KEY);
+        // A security-relevant account change with zero audit trail
+        // before this — a stolen/hijacked session disabling 2FA to
+        // remove a barrier to further account takeover would leave no
+        // trace at all. Unthrottled (this is a rare, deliberate action,
+        // not a per-request check) and always logged, not just on
+        // suspicion — the point is a searchable record existing at all.
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', '2FA disabled for account.', ['user_id' => $user_id], 'Two-Factor');
+        }
         wp_send_json_success();
     }
 

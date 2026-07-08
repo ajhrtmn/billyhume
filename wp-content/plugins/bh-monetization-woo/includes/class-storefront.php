@@ -91,28 +91,70 @@ class BHM_Storefront {
     // that class's own Debug Tools diagnostic. Same explicit cache-evict
     // fix applied here.
     const REWRITE_VERSION = '2';
+    const VERIFY_THROTTLE_SECONDS = 60;
 
+    // Upgraded to BHI_Portal's self-verifying shape (class-portal.php) —
+    // the version-gated "flush once, mark option done, never re-check"
+    // pattern this replaced is the EXACT bug class a live install
+    // already hit on Portal's own rewrite rule: update_option() marking
+    // itself successful while a persistent object cache kept serving the
+    // stale rewrite_rules value forever after, with no way to tell from
+    // the outside. This had the identical shape and was flagged as a
+    // near-identical unfixed instance during a broader logging/error-
+    // handling audit, not from a live report on THIS specific rule — so
+    // treat it as preventative, not confirmed-broken.
     public static function add_rewrite() {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
-        // A brand-new rewrite rule/taxonomy is invisible until WordPress's
-        // rewrite rules are flushed — normally an activation-hook job, but
-        // this rule is added by THIS class's own init() (fires every
-        // request, not just activation) specifically so it also self-heals
-        // for a site that already had this plugin active before this
-        // taxonomy/rewrite existed (a file-replace deploy, same reasoning
-        // BHI_Activator::maybe_upgrade() already documents elsewhere in
-        // this ecosystem for schema changes — and the exact bug class that
-        // caused a real, reported 404 on BHI_Portal's /account/ rewrite,
-        // fixed the same way there). One-time via an option flag, not on
-        // every request — flush_rewrite_rules() is expensive enough that
-        // running it unconditionally on 'init' would be a real performance
-        // regression.
-        if (get_option('bhm_storefront_rewrite_flushed') !== self::REWRITE_VERSION) {
-            flush_rewrite_rules();
-            wp_cache_delete('rewrite_rules', 'options');
-            wp_cache_delete('alloptions', 'options');
+        if (self::rewrite_rule_persisted()) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log_throttled('info', 'storefront_rewrite_pass', 300,
+                    'Storefront collection rewrite-rule persistence check ran and confirmed the rule is present.', [], 'BH Storefront'
+                );
+            }
+        } elseif (self::not_recently_attempted()) {
+            self::force_flush_and_verify();
+        } elseif (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log_throttled('warning', 'storefront_rewrite_missing_throttled', 300,
+                'Storefront collection rewrite rule confirmed missing this request, but a self-heal attempt was made recently — sitting out the throttle window.', [], 'BH Storefront'
+            );
+        }
+    }
+
+    private static function rewrite_rule_persisted() {
+        global $wpdb;
+        $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'rewrite_rules'));
+        if (!$raw) return false;
+        return strpos($raw, '^' . self::REWRITE_SLUG) !== false;
+    }
+
+    private static function not_recently_attempted() {
+        global $wpdb;
+        $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'bhm_storefront_rewrite_last_attempt'));
+        if ($last && (time() - (int) $last) < self::VERIFY_THROTTLE_SECONDS) return false;
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')
+             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+            'bhm_storefront_rewrite_last_attempt', (string) time()
+        ));
+        wp_cache_delete('bhm_storefront_rewrite_last_attempt', 'options');
+        wp_cache_delete('alloptions', 'options');
+        return true;
+    }
+
+    private static function force_flush_and_verify() {
+        flush_rewrite_rules();
+        wp_cache_delete('rewrite_rules', 'options');
+        wp_cache_delete('alloptions', 'options');
+        if (function_exists('wp_cache_flush')) wp_cache_flush();
+
+        if (self::rewrite_rule_persisted()) {
             update_option('bhm_storefront_rewrite_flushed', self::REWRITE_VERSION);
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Storefront collection rewrite rule self-healed and confirmed persisted.', [], 'BH Storefront');
+            }
+        } elseif (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', 'Storefront collection rewrite rule still not persisted after a forced flush + full cache eviction — likely cause is outside WordPress\'s own caching layer.', [], 'BH Storefront');
         }
     }
 

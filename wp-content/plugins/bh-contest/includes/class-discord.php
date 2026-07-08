@@ -91,7 +91,23 @@ class BH_Discord {
     // => ..., 'inline' => true|false], ...] — up to 25 per embed.
     public static function send($contest_id, $title, $description = '', $fields = [], $color = self::COLOR_ANNOUNCE, $url = '') {
         $webhook = trim((string) get_post_meta($contest_id, '_bh_discord_webhook', true));
-        if ($webhook === '' || !wp_http_validate_url($webhook)) return false;
+        if ($webhook === '') return false; // no webhook configured — not an error, most contests don't have one
+        if (!wp_http_validate_url($webhook)) {
+            // A CONFIGURED-but-invalid webhook (a typo, a stale/rotated
+            // Discord URL) is a real misconfiguration that previously
+            // looked identical to "no webhook configured" from the
+            // outside — every submission/vote-open notification for this
+            // contest silently never fires, with nothing telling the
+            // organizer why. Throttled per-contest since this would
+            // otherwise re-fire on every single submission to a
+            // misconfigured contest.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log_throttled('warning', 'bh_discord_bad_webhook_' . $contest_id, 3600,
+                    'Discord webhook is configured for this contest but failed URL validation — notifications are silently not being sent.', ['contest_id' => $contest_id], 'BH Contest Discord'
+                );
+            }
+            return false;
+        }
 
         $embed = ['title' => mb_substr($title, 0, 256), 'color' => $color, 'timestamp' => gmdate('c')];
         if ($description !== '') $embed['description'] = mb_substr($description, 0, 4096);

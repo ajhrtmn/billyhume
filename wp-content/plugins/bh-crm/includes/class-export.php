@@ -7,8 +7,11 @@ class BHCRM_Export {
 
         $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
 
-        global $wpdb;
-        $with_profile = $wpdb->get_col("SELECT user_id FROM {$wpdb->prefix}bhi_profiles WHERE real_name != '' OR discord_name != '' OR twitch_name != '' OR youtube_name != ''");
+        // Per QA-REPORT-code-quality.md's cross-plugin finding #2 — same
+        // fix as BHCRM_People::active_user_ids(): goes through
+        // BHI_Profiles (the class that actually owns this table) instead
+        // of running raw SQL against it directly.
+        $with_profile = class_exists('BHI_Profiles') ? BHI_Profiles::user_ids_with_profile_data() : [];
         $ids = array_unique(array_map('intval', array_merge($with_profile, apply_filters('bh_crm_active_user_ids', []))));
         if ($tag_filter) $ids = array_filter($ids, fn($id) => in_array($tag_filter, BHCRM_Tags::get($id), true));
 

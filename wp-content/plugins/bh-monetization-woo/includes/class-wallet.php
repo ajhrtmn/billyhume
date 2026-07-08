@@ -46,11 +46,38 @@ class BHM_Wallet {
             "UPDATE $w SET balance_cents = balance_cents - %d, updated_at = %s WHERE user_id = %d AND balance_cents >= %d",
             $cents, current_time('mysql'), $user_id, $cents
         ));
-        if ($wpdb->rows_affected !== 1) return false; // no wallet row yet, or insufficient balance — either way, WHERE matched nothing
+        if ($wpdb->rows_affected !== 1) {
+            // Previously silent — a declined debit (insufficient
+            // balance, the expected/common case) and a genuinely missing
+            // wallet row (a real data-integrity gap: a user with no
+            // wallet row at all shouldn't be reachable via normal
+            // sign-up/purchase flow) looked identical to every caller.
+            // Logged at 'info' (not 'warning') since insufficient-balance
+            // declines are routine, not a bug — but now at least visible
+            // and filterable by user_id if a pattern of declines needs
+            // investigating (e.g. a fraud signal, or a UI bug offering
+            // plays a user can't actually afford).
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Wallet debit declined — insufficient balance or no wallet row exists for this user.', [
+                    'user_id' => $user_id, 'cents' => $cents, 'track_id' => $track_id,
+                ], 'BH Wallet');
+            }
+            return false;
+        }
 
-        $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+        $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => 'play', 'track_id' => $track_id,
         ]);
+        if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
+            // The balance mutation above already committed — this is a
+            // real desync risk (balance moved, ledger didn't record why)
+            // that was previously completely invisible. 'error', not
+            // 'warning': the wallet's balance and its own audit trail
+            // just went out of sync, on a money-handling path.
+            OUS_DebugLog::log('error', 'Wallet debit succeeded but the ledger row failed to insert — balance and ledger are now out of sync for this user.', [
+                'user_id' => $user_id, 'cents' => $cents, 'track_id' => $track_id, 'db_error' => $wpdb->last_error,
+            ], 'BH Wallet');
+        }
         return true;
     }
 
@@ -73,15 +100,30 @@ class BHM_Wallet {
         // rather than a read-then-write, so two plays debiting the same
         // wallet in quick succession can't race each other into an
         // incorrect balance.
-        $wpdb->query($wpdb->prepare(
+        $balance_ok = $wpdb->query($wpdb->prepare(
             "INSERT INTO $w (user_id, balance_cents, updated_at) VALUES (%d, %d, %s)
              ON DUPLICATE KEY UPDATE balance_cents = balance_cents + %d, updated_at = %s",
             $user_id, $delta_cents, current_time('mysql'), $delta_cents, current_time('mysql')
         ));
-        $wpdb->insert($l, [
+        if ($balance_ok === false && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error', 'Wallet credit/reversal balance write failed — no ledger entry attempted since there is nothing to record against.', [
+                'user_id' => $user_id, 'delta_cents' => $delta_cents, 'reason' => $reason, 'order_id' => $order_id, 'db_error' => $wpdb->last_error,
+            ], 'BH Wallet');
+            return;
+        }
+        $ledger_ok = $wpdb->insert($l, [
             'user_id' => $user_id, 'delta_cents' => $delta_cents, 'reason' => $reason,
             'track_id' => $track_id, 'wc_order_id' => $order_id,
         ]);
+        if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
+            // Same balance/ledger desync risk as debit() above — this is
+            // the credit/reversal-side counterpart (top-ups and refund
+            // reversals both flow through here), previously equally
+            // silent.
+            OUS_DebugLog::log('error', 'Wallet balance updated but the ledger row failed to insert — balance and ledger are now out of sync for this user.', [
+                'user_id' => $user_id, 'delta_cents' => $delta_cents, 'reason' => $reason, 'order_id' => $order_id, 'db_error' => $wpdb->last_error,
+            ], 'BH Wallet');
+        }
     }
 
     public static function ledger_for($user_id, $limit = 20) {

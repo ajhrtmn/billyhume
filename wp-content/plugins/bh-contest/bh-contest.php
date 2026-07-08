@@ -2,13 +2,29 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.1.0
+ * Version:     3.1.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BH_VER',        '3.1.0');
+// 3.1.1 — logging depth pass: BH_Discord::send() previously returned
+// false identically for "no webhook configured" (routine, most contests
+// don't have one) and "webhook configured but fails URL validation" (a
+// real misconfiguration silently killing every notification for that
+// contest). The second case now logs a throttled warning via
+// OUS_DebugLog. Standing caveat: reasoning/brace-balance-checked only,
+// not run against a real WordPress+MySQL install.
+//
+// 3.1.2 — continuation logging pass: vote add/remove DB writes
+// (class-api.php's vote()) were previously unchecked and the response
+// always claimed success regardless — now logged as 'error' on a real
+// failure. Submission wp_insert_post()/media_handle_sideload() failures
+// now log the actual WP_Error message instead of discarding it.
+// email_winners() now tracks and logs which specific winners' emails
+// failed to send in a bulk announce, instead of the whole batch's
+// success/failure being invisible.
+define('BH_VER',        '3.1.2');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets

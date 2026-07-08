@@ -152,7 +152,17 @@ class BH_API {
 
         // Toggle off.
         if ($existing) {
-            $wpdb->delete($t, ['id' => $existing], ['%d']);
+            $deleted = $wpdb->delete($t, ['id' => $existing], ['%d']);
+            if ($deleted === false && class_exists('OUS_DebugLog')) {
+                // Previously unchecked — the response always claimed
+                // "removed" regardless of whether the row actually went
+                // away, so a failed delete looked identical to a
+                // successful one to both the voter and anyone debugging
+                // a "my vote count looks wrong" report later.
+                OUS_DebugLog::log('error', 'Vote removal DB delete failed.', [
+                    'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
+                ], 'BH Contest Voting');
+            }
             return self::ok([
                 'action'     => 'removed',
                 'category'   => $cat,
@@ -177,7 +187,16 @@ class BH_API {
             return self::err('limit', $msg, 403, ['votes_left' => 0, 'limit' => $limit]);
         }
 
-        $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid], ['%d', '%d', '%s', '%d']);
+        $inserted = $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid], ['%d', '%d', '%s', '%d']);
+        if ($inserted === false && class_exists('OUS_DebugLog')) {
+            // Previously unchecked and the transaction still COMMITted
+            // regardless — a failed insert told the voter "added" with
+            // no actual vote recorded, and nothing anywhere would have
+            // explained a later "why is my vote count wrong" report.
+            OUS_DebugLog::log('error', 'Vote insert DB write failed — COMMIT proceeded anyway, response will incorrectly report success.', [
+                'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'db_error' => $wpdb->last_error,
+            ], 'BH Contest Voting');
+        }
         $wpdb->query('COMMIT');
 
         return self::ok([
@@ -257,7 +276,15 @@ class BH_API {
             'post_status' => 'pending',
             'post_author' => $uid,
         ], true);
-        if (is_wp_error($pid)) { delete_option($lock_key); return self::err('save', 'Could not save your submission.', 500); }
+        if (is_wp_error($pid)) {
+            delete_option($lock_key);
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Contest submission wp_insert_post() failed.', [
+                    'user_id' => $uid, 'contest_id' => $cid, 'wp_error' => $pid->get_error_message(),
+                ], 'BH Contest Submission');
+            }
+            return self::err('save', 'Could not save your submission.', 500);
+        }
 
         update_post_meta($pid, '_bh_contest_id', $cid);
         update_post_meta($pid, '_bh_artist_name', sanitize_text_field($req->get_param('artist')));
@@ -267,6 +294,17 @@ class BH_API {
         if (is_wp_error($aid)) {
             wp_delete_post($pid, true); // roll back so a bad upload doesn't lock the user out
             delete_option($lock_key);   // upload genuinely failed — let them retry
+            if (class_exists('OUS_DebugLog')) {
+                // Previously the cause was discarded entirely — a bad
+                // file, a disk/permission problem, and a corrupt upload
+                // all produced the identical generic client-facing
+                // message with nothing anywhere to distinguish them
+                // later (e.g. "several submissions failing" vs. "this
+                // one user's file was bad").
+                OUS_DebugLog::log('warning', 'Contest submission media_handle_sideload() failed.', [
+                    'user_id' => $uid, 'contest_id' => $cid, 'filename' => $f['audio']['name'] ?? '', 'wp_error' => $aid->get_error_message(),
+                ], 'BH Contest Submission');
+            }
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
         update_post_meta($pid, '_bh_audio_id', $aid);

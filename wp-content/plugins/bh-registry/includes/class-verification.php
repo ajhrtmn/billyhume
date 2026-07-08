@@ -117,7 +117,21 @@ class BHR_Verification {
 
         $challenge_url = 'https://' . $host . '/.well-known/bh-registry-verify.txt';
         $res = wp_remote_get($challenge_url, ['timeout' => 8, 'redirection' => 2]);
-        if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) return false;
+        if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
+            // Previously discarded — an artist whose domain-ownership
+            // check fails just sees "not verified" with no way (for them
+            // or an admin) to tell "you never uploaded the challenge
+            // file" apart from "our own request to your server timed
+            // out/errored," which are very different next steps.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Domain ownership challenge fetch failed.', [
+                    'challenge_url' => $challenge_url,
+                    'wp_error' => is_wp_error($res) ? $res->get_error_message() : null,
+                    'http_status' => is_wp_error($res) ? null : wp_remote_retrieve_response_code($res),
+                ], 'BH Registry Verification');
+            }
+            return false;
+        }
 
         $body = trim(wp_remote_retrieve_body($res));
         // Exact-match on a line, not a substring-of-arbitrary-page —
@@ -137,7 +151,14 @@ class BHR_Verification {
     private static function check_open_feed($url) {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
-        if (is_wp_error($feed)) return ['valid' => false, 'metadata' => []];
+        if (is_wp_error($feed)) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Open-feed check: fetch_feed() failed.', [
+                    'url' => $url, 'wp_error' => $feed->get_error_message(),
+                ], 'BH Registry Verification');
+            }
+            return ['valid' => false, 'metadata' => []];
+        }
 
         $items = $feed->get_items(0, 5);
         $has_enclosure = false;
@@ -167,7 +188,16 @@ class BHR_Verification {
             'timeout' => 8, 'redirection' => 2,
             'headers' => ['Accept' => 'application/activity+json, application/ld+json'],
         ]);
-        if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) return ['valid' => false, 'metadata' => []];
+        if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'ActivityPub actor check: fetch failed.', [
+                    'url' => $url,
+                    'wp_error' => is_wp_error($res) ? $res->get_error_message() : null,
+                    'http_status' => is_wp_error($res) ? null : wp_remote_retrieve_response_code($res),
+                ], 'BH Registry Verification');
+            }
+            return ['valid' => false, 'metadata' => []];
+        }
 
         $data = json_decode(wp_remote_retrieve_body($res), true);
         if (!is_array($data)) return ['valid' => false, 'metadata' => []];

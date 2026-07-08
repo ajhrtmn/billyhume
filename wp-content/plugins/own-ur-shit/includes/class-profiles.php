@@ -32,6 +32,20 @@ class BHI_Profiles {
         return $wpdb->prefix . 'bhi_profiles';
     }
 
+    // Added per QA-REPORT-code-quality.md's cross-plugin finding #2 —
+    // bh-crm's class-people.php and class-export.php both ran this exact
+    // raw SQL independently, reaching directly into this table instead
+    // of through this class, which is the one that actually owns and
+    // documents its schema. Same query, same return shape (an array of
+    // int user IDs), just moved behind the interface that already exists
+    // for everything else this table needs. Pure extraction — no
+    // behavior change for either caller.
+    public static function user_ids_with_profile_data() {
+        global $wpdb;
+        $ids = $wpdb->get_col("SELECT user_id FROM " . self::table() . " WHERE real_name != '' OR discord_name != '' OR twitch_name != '' OR youtube_name != ''");
+        return array_map('intval', $ids);
+    }
+
     public static function get($user_id) {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE user_id = %d", $user_id), ARRAY_A);

@@ -119,9 +119,43 @@ class OUS_Debug {
             // home_url() alone for something this consequential.
             $raw_host = isset($_SERVER['HTTP_HOST']) ? wp_parse_url('http://' . $_SERVER['HTTP_HOST'], PHP_URL_HOST) : '';
             $option_host = wp_parse_url(home_url(), PHP_URL_HOST) ?: '';
+            // A third read, bypassing the object cache entirely — same
+            // fix shape as BHI_Portal's rewrite-rule self-heal (see that
+            // class's REWRITE_VERSION docblock for the full history of
+            // why this ecosystem no longer trusts get_option()/home_url()
+            // alone for anything this consequential on an install with a
+            // persistent object cache active). If the cache is serving a
+            // stale 'home' value on this request, this catches it anyway.
+            global $wpdb;
+            $db_home = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'home'));
+            $db_host = $db_home ? (wp_parse_url($db_home, PHP_URL_HOST) ?: '') : '';
             $local_pattern = '/(^localhost$|^127\.0\.0\.1$|\.(test|local|localhost)$)/i';
-            $looks_local = (bool) preg_match($local_pattern, $raw_host) || (bool) preg_match($local_pattern, $option_host);
-            if (!$looks_local) return true;
+            $looks_local = (bool) preg_match($local_pattern, $raw_host)
+                || (bool) preg_match($local_pattern, $option_host)
+                || (bool) preg_match($local_pattern, $db_host);
+            if (!$looks_local) {
+                if (class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('info', 'is_locked() returned TRUE — none of raw HTTP_HOST, cached home_url(), or a direct DB read of the home option looked local.', [
+                        'raw_host' => $raw_host, 'option_host' => $option_host, 'db_host' => $db_host,
+                    ], 'OUS_Debug::is_locked()');
+                }
+                return true;
+            }
+            // Throttled, unconditional trace of a PASSING evaluation too
+            // — an empty log for this key is otherwise ambiguous between
+            // "checked and unlocked every time" and "stopped running
+            // entirely" (e.g. a fatal earlier in the same request
+            // preventing this code from ever executing), which is
+            // precisely the blind spot that made the live "not allowed"
+            // report undiagnosable from log data alone. See
+            // OUS_DebugLog::log_throttled()'s own docblock.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log_throttled('info', 'is_locked_pass', 300,
+                    'is_locked() evaluated and returned FALSE (unlocked) this request.',
+                    ['raw_host' => $raw_host, 'option_host' => $option_host, 'db_host' => $db_host],
+                    'OUS_Debug::is_locked()'
+                );
+            }
         }
         return false;
     }
@@ -215,15 +249,112 @@ class OUS_Debug {
             return;
         }
 
+        // Real, reported UX problem this closes: every button on this
+        // page (Test Runner included) posts to admin-post.php and
+        // redirects back to a bare admin.php?page=ous-debug — landing at
+        // the very TOP of a page that can easily be a dozen-plus
+        // registered sections long, forcing a manual scroll back down to
+        // wherever the actual result lives every single time. The
+        // sticky quick-nav below solves the "long scrolling" half of the
+        // complaint (jump anywhere without a full scroll), and
+        // redirect()'s new $anchor param (see handle() below) solves the
+        // "jumps to page top" half directly — a button click now lands
+        // you back exactly where you clicked from.
+        // Real bug found after the first version of this fix shipped: a
+        // native browser anchor-jump puts the TARGET's top edge at the
+        // very top of the scrollport — which is exactly where the WP
+        // admin bar (32px, position:fixed) and this quick-nav bar
+        // (position:sticky) both already live. The section heading lands
+        // directly BEHIND them, so the page visibly looks unchanged even
+        // though a real scroll happened — indistinguishable from "still
+        // stuck at the top" to the person looking at it, which is
+        // exactly what got reported. scroll-margin-top tells the browser
+        // to stop short of the raw anchor position by that much, which
+        // is the direct, CSS-only fix for a sticky-header-covers-the-
+        // anchor problem — no JS needed for browsers that support it
+        // (all current-generation ones).
+        echo '<style>
+            .ous-debug-section, #ous-section-reset-all { scroll-margin-top: 90px; }
+            .ous-debug-section > summary, #ous-section-reset-all > summary {
+                cursor: pointer; font-weight: 600; font-size: 1.3em; list-style: none;
+                display: flex; align-items: center; gap: 8px;
+            }
+            .ous-debug-section > summary::-webkit-details-marker, #ous-section-reset-all > summary::-webkit-details-marker { display: none; }
+            .ous-debug-section > summary::before, #ous-section-reset-all > summary::before { content: "\25B6"; font-size: 0.7em; transition: transform 0.15s ease; }
+            .ous-debug-section[open] > summary::before, #ous-section-reset-all[open] > summary::before { transform: rotate(90deg); }
+            .ous-debug-section > .ous-debug-section-body, #ous-section-reset-all > .ous-debug-section-body { margin-top: 12px; }
+        </style>';
+
+        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:12px;">';
+        echo '<strong style="margin-right:2px;">Jump to:</strong>';
         foreach ($tools as $key => $tool) {
-            echo '<div class="bhy-card ous-debug-section"><h2>' . esc_html($tool['label']) . '</h2>';
+            echo '<a href="#ous-section-' . esc_attr($key) . '">' . esc_html($tool['label']) . '</a>';
+        }
+        echo '<a href="#ous-section-reset-all">Reset everything</a>';
+        echo '</div>';
+
+        // Collapsible per user request — every section starts CLOSED by
+        // default (a page with a dozen-plus registered sections is a lot
+        // to scroll through when you only care about one), and each
+        // section's own open/closed state is remembered per-browser via
+        // localStorage (see the script below) so it doesn't reset back
+        // to closed on every page load. A real <details>/<summary> pair,
+        // not a custom-JS toggle — free keyboard/accessibility support,
+        // and if JS fails to load for any reason this still degrades to
+        // "click to expand" working via native browser behavior alone.
+        foreach ($tools as $key => $tool) {
+            echo '<details class="bhy-card ous-debug-section" id="ous-section-' . esc_attr($key) . '">';
+            echo '<summary>' . esc_html($tool['label']) . '</summary>';
+            echo '<div class="ous-debug-section-body">';
             if (!empty($tool['render'])) call_user_func($tool['render'], $key);
             echo '</div>';
+            echo '</details>';
         }
 
-        echo '<div class="bhy-card"><h2>Reset everything</h2><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
+        echo '<details class="bhy-card" id="ous-section-reset-all">';
+        echo '<summary>Reset everything</summary>';
+        echo '<div class="ous-debug-section-body"><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
         self::button('__all__', 'reset_all', 'Wipe all test data (every plugin)', '', 'Delete ALL test data from every plugin? This cannot be undone.', false);
-        echo '</div>';
+        echo '</div></details>';
+
+        // Belt-and-suspenders on top of scroll-margin-top: explicitly
+        // re-scroll to the hash target on load (covers any browser/
+        // WP-admin-JS edge case that re-adjusts scroll after initial
+        // paint) AND briefly highlights the section so landing "near"
+        // the right place reads as unmistakably "here's your result,"
+        // not just a subtle scroll position change easy to miss. Also
+        // restores each section's remembered open/closed state, and
+        // force-opens (+ remembers as open) whichever section a redirect
+        // anchor points at — landing on a CLOSED section with your test
+        // results hidden inside would defeat the whole point of the
+        // anchor fix.
+        echo '<script>
+        (function () {
+            var PREFIX = "ous_debug_section_open_";
+            document.querySelectorAll("details.ous-debug-section, #ous-section-reset-all").forEach(function (d) {
+                try {
+                    if (localStorage.getItem(PREFIX + d.id) === "1") d.open = true;
+                } catch (e) {}
+                d.addEventListener("toggle", function () {
+                    try { localStorage.setItem(PREFIX + d.id, d.open ? "1" : "0"); } catch (e) {}
+                });
+            });
+
+            if (!window.location.hash) return;
+            var target = document.querySelector(window.location.hash);
+            if (!target) return;
+            if (target.tagName === "DETAILS") {
+                target.open = true;
+                try { localStorage.setItem(PREFIX + target.id, "1"); } catch (e) {}
+            }
+            requestAnimationFrame(function () {
+                target.scrollIntoView({ block: "start" });
+                target.style.transition = "box-shadow 0.3s ease";
+                target.style.boxShadow = "0 0 0 3px #2271b1";
+                setTimeout(function () { target.style.boxShadow = ""; }, 1800);
+            });
+        })();
+        </script>';
         BHY_UI::shell_close();
     }
 
@@ -245,9 +376,17 @@ class OUS_Debug {
         // logic assertions) do nothing a live site needs protecting
         // from — a section opts out of the lock by setting
         // 'safe_in_production' => true on its own ous_debug_tools entry.
+        // Every redirect below now carries an anchor back to the
+        // specific section that produced it — see render()'s own
+        // "Real, reported UX problem" comment for the full story. Using
+        // the same 'ous-section-{key}' id render() already assigns each
+        // section, so a button click lands you back at your own result,
+        // not a scroll away from it.
+        $anchor = ($plugin_key && $plugin_key !== '__all__') ? 'ous-section-' . $plugin_key : '';
+
         $safe = ($plugin_key !== '__all__') && !empty($tools[$plugin_key]['safe_in_production']);
         if (self::is_locked() && !$safe) {
-            self::redirect('Blocked: this looks like a production environment. Add define(\'OUS_DEBUG_TOOLS_FORCE\', true) to wp-config.php to override.');
+            self::redirect('Blocked: this looks like a production environment. Add define(\'OUS_DEBUG_TOOLS_FORCE\', true) to wp-config.php to override.', $anchor);
         }
 
         if ($plugin_key === '__all__' && $action === 'reset_all') {
@@ -255,19 +394,21 @@ class OUS_Debug {
             foreach ($tools as $tool) {
                 if (!empty($tool['reset'])) $messages[] = call_user_func($tool['reset']);
             }
-            self::redirect($messages ? implode(' ', $messages) : 'Nothing to reset.');
+            self::redirect($messages ? implode(' ', $messages) : 'Nothing to reset.', 'ous-section-reset-all');
         }
 
         if (!isset($tools[$plugin_key]) || empty($tools[$plugin_key]['handle'])) {
-            self::redirect('Unknown debug action.');
+            self::redirect('Unknown debug action.', $anchor);
         }
 
         $msg = call_user_func($tools[$plugin_key]['handle'], $action, $_POST);
-        self::redirect($msg ?: 'Done.');
+        self::redirect($msg ?: 'Done.', $anchor);
     }
 
-    private static function redirect($msg) {
-        wp_safe_redirect(add_query_arg('ous_msg', rawurlencode($msg), admin_url('admin.php?page=ous-debug')));
+    private static function redirect($msg, $anchor = '') {
+        $url = add_query_arg('ous_msg', rawurlencode($msg), admin_url('admin.php?page=ous-debug'));
+        if ($anchor) $url .= '#' . $anchor;
+        wp_safe_redirect($url);
         exit;
     }
 }

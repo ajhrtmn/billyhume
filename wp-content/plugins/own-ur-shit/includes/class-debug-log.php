@@ -77,6 +77,51 @@ class OUS_DebugLog {
         return $wpdb->prefix . 'bhcore_debug_log';
     }
 
+    // A real, repeatedly-hit limitation this closes: every row landed in
+    // the log as an isolated, unrelated-looking entry, even when 5
+    // different log() calls across 3 different classes all happened
+    // because of the SAME failing request (exactly the shape of the
+    // Portal/API Docs incident this whole logging push started from —
+    // "is_locked() failed" and "submenu not registered" were two
+    // separate rows with nothing connecting them as the same event).
+    // One short, random ID generated once per PHP request (a static
+    // var — cheap, no DB/option round-trip needed) and stamped onto
+    // every log() call made during that request, whether it came from
+    // core, a peer plugin, JS error capture (via the AJAX log endpoint,
+    // which runs in its own separate request and gets its OWN id — see
+    // ajax_log_js_error()), or a shutdown-time fatal capture. Filtering
+    // Console & Logs by this ID reconstructs "everything that happened
+    // during this one request," not just "everything that happened
+    // around this time," which is a materially different and more
+    // useful question when triaging a real bug.
+    private static $request_id = null;
+
+    public static function request_id() {
+        if (self::$request_id === null) {
+            self::$request_id = substr(wp_generate_uuid4(), 0, 8);
+        }
+        return self::$request_id;
+    }
+
+    // Cached for the life of the request (a real SHOW COLUMNS query, not
+    // guessed from DB_VERSION alone — an install stuck mid-migration or
+    // on a manually-altered table should get the same safe degrade as
+    // one that's cleanly on an old version).
+    private static $has_request_id_column = null;
+
+    private static function has_request_id_column() {
+        if (self::$has_request_id_column === null) {
+            global $wpdb;
+            $table = self::table();
+            $col = $wpdb->get_var($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = 'request_id' LIMIT 1",
+                DB_NAME, $table
+            ));
+            self::$has_request_id_column = ($col === 'request_id');
+        }
+        return self::$has_request_id_column;
+    }
+
     /**
      * $trace, when provided, is a plain array of frames shaped like
      * ['file' => ..., 'line' => ..., 'function' => ..., 'class' => ...]
@@ -88,7 +133,7 @@ class OUS_DebugLog {
      */
     public static function log($level, $message, $context = [], $source = '', $file = '', $line = 0, $col = 0, $trace = null) {
         global $wpdb;
-        $ok = $wpdb->insert(self::table(), [
+        $row = [
             'level' => sanitize_key($level) ?: 'info',
             'source' => sanitize_text_field($source),
             'message' => (string) $message,
@@ -100,8 +145,20 @@ class OUS_DebugLog {
             'url' => self::current_url(),
             'request_method' => isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field($_SERVER['REQUEST_METHOD']) : '',
             'user_id' => get_current_user_id(),
+            'request_id' => self::request_id(),
             'created_at' => current_time('mysql', true),
-        ]);
+        ];
+        // request_id is a column added in a later schema version than
+        // the rest of this table (see BHI_Activator::DB_VERSION/health_check()
+        // below) — an install that hasn't migrated yet would fail this
+        // whole insert on an unknown-column error if it were included
+        // unconditionally, taking down EVERY log() call ecosystem-wide
+        // over one missing column. Checking real, cached-at-request-scope
+        // column presence keeps a not-yet-migrated install degrading to
+        // "logs work, just without correlation IDs" instead of "logging
+        // is completely broken until someone notices and migrates."
+        if (!self::has_request_id_column()) unset($row['request_id']);
+        $ok = $wpdb->insert(self::table(), $row);
         // A real, confirmed failure mode this responds to: $wpdb->insert()
         // returning false (schema mismatch, missing table, etc.) was
         // previously silent — every log() call site across the whole
@@ -121,6 +178,42 @@ class OUS_DebugLog {
             ], false);
         }
         self::maybe_trim();
+    }
+
+    // For a check that runs on every single request (is_locked(),
+    // rewrite-persistence verification, etc.) — logging every evaluation
+    // unthrottled would flood this table into uselessness, but logging
+    // ONLY failures means a healthy "checked, still fine" state and a
+    // "stopped being checked at all" state look identical from the
+    // outside (empty log either way) — exactly the blind spot that made
+    // BHI_Portal's rewrite-throttle bug invisible until the user
+    // reported "still broken, zero log entries" and there was no way to
+    // tell whether the check was running and passing, or not running at
+    // all. This logs at most once per $seconds per $key, REGARDLESS of
+    // level/outcome, so "no entries for this key in the last N minutes"
+    // becomes a real, actionable signal on its own (the check itself
+    // isn't running) rather than an ambiguous non-event.
+    //
+    // Deliberately reads/writes the throttle key straight from wp_options
+    // via $wpdb, bypassing get_transient()/set_transient() — the same
+    // fix BHI_Portal::not_recently_attempted() needed after transients
+    // were found to silently wedge shut on an install with a broken
+    // persistent object cache (transients live IN that cache). A
+    // throttle for "should I log a diagnostic about caching being
+    // broken" cannot itself depend on the cache being trustworthy.
+    public static function log_throttled($level, $key, $seconds, $message, $context = [], $source = '') {
+        global $wpdb;
+        $option_name = 'ous_log_throttle_' . sanitize_key($key);
+        $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", $option_name));
+        if ($last && (time() - (int) $last) < $seconds) return;
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')
+             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+            $option_name, (string) time()
+        ));
+        wp_cache_delete($option_name, 'options');
+        wp_cache_delete('alloptions', 'options');
+        self::log($level, $message, $context, $source);
     }
 
     // Convenience wrapper — pulls file/line/trace straight off a real
@@ -324,8 +417,17 @@ class OUS_DebugLog {
         $since = isset($_GET['ous_log_since']) ? sanitize_text_field($_GET['ous_log_since']) : '';
         if ($since && preg_match('/^\d{4}-\d{2}-\d{2}$/', $since)) { $where[] = 'created_at >= %s'; $params[] = $since . ' 00:00:00'; }
 
+        // "Show me everything that happened during THIS request" —
+        // materially different from a time-window filter, since a fast
+        // request's rows might all share the same created_at second
+        // anyway while a slow one's could span several, and either way
+        // a time window can't tell "part of the same request" apart from
+        // "just happened to log around the same moment."
+        $request_id = isset($_GET['ous_log_request']) ? sanitize_text_field($_GET['ous_log_request']) : '';
+        if ($request_id) { $where[] = 'request_id = %s'; $params[] = $request_id; }
+
         return [
-            'level' => $level, 'source' => $source, 'user_id' => $user_id, 'since' => $since,
+            'level' => $level, 'source' => $source, 'user_id' => $user_id, 'since' => $since, 'request_id' => $request_id,
             'where_sql' => $where ? ('WHERE ' . implode(' AND ', $where)) : '',
             'params' => $params,
         ];
@@ -346,7 +448,7 @@ class OUS_DebugLog {
         $table = self::table();
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
 
-        $required_cols = ['id', 'level', 'source', 'message', 'context', 'file', 'line', 'col', 'trace', 'url', 'request_method', 'user_id', 'created_at'];
+        $required_cols = ['id', 'level', 'source', 'message', 'context', 'file', 'line', 'col', 'trace', 'url', 'request_method', 'user_id', 'request_id', 'created_at'];
         $missing_cols = [];
         if ($exists) {
             $existing_cols = $wpdb->get_col("SHOW COLUMNS FROM $table", 0);
@@ -404,9 +506,13 @@ class OUS_DebugLog {
 
         echo '<input type="number" min="1" name="ous_log_user" placeholder="User ID" value="' . esc_attr($filters['user_id'] ?: '') . '" style="width:100px;">';
         echo '<input type="date" name="ous_log_since" value="' . esc_attr($filters['since']) . '">';
+        echo '<input type="text" name="ous_log_request" placeholder="Request ID" value="' . esc_attr($filters['request_id']) . '" style="width:110px;font-family:monospace;">';
         echo '<button type="submit" class="button">Filter</button>';
-        if ($filters['level'] || $filters['source'] || $filters['user_id'] || $filters['since']) {
+        if ($filters['level'] || $filters['source'] || $filters['user_id'] || $filters['since'] || $filters['request_id']) {
             echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug')) . '">Clear filters</a>';
+        }
+        if ($filters['request_id']) {
+            echo '<p class="description" style="width:100%;margin:4px 0 0;">Showing every logged event that happened during request <code>' . esc_html($filters['request_id']) . '</code> — the full sequence, across every plugin, that led up to (or followed from) any one row.</p>';
         }
         echo '</form>';
 
@@ -434,7 +540,7 @@ class OUS_DebugLog {
             $dump_lines = [];
             foreach ($rows as $r) {
                 $location = $r['file'] ? (' (' . $r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '') . ')') : '';
-                $line = '[' . strtoupper($r['level']) . '] ' . ($r['source'] ?: '(no source)') . ' — ' . $r['message'] . $location;
+                $line = '[' . strtoupper($r['level']) . ']' . (!empty($r['request_id']) ? '[req:' . $r['request_id'] . ']' : '') . ' ' . ($r['source'] ?: '(no source)') . ' — ' . $r['message'] . $location;
                 if ($r['context']) $line .= ' ' . $r['context'];
                 if ($r['url']) $line .= ' [' . $r['request_method'] . ' ' . $r['url'] . ']';
                 if ($r['trace']) $line .= ' trace=' . $r['trace'];
@@ -458,6 +564,18 @@ class OUS_DebugLog {
                 echo '<td>' . esc_html($r['message']);
                 if ($r['file']) {
                     echo ' <code style="font-size:11px;color:#646970;">' . esc_html($r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '')) . '</code>';
+                }
+                // A clickable request-ID chip on every row that has one —
+                // stopPropagation so clicking it navigates to the filtered
+                // view instead of just toggling this row's own detail
+                // pane (the two clicks would otherwise conflict, since
+                // the whole <tr> already has its own onclick). This is
+                // the actual point of storing request_id at all: turning
+                // "here's one isolated error" into "here's everything
+                // that happened around it" with a single click.
+                if (!empty($r['request_id'])) {
+                    $req_url = admin_url('admin.php?page=ous-debug&ous_log_request=' . rawurlencode($r['request_id']));
+                    echo ' <a href="' . esc_url($req_url) . '" onclick="event.stopPropagation();" title="Show every log entry from this same request" style="font-size:10px;font-family:monospace;color:#646970;background:#f0f0f1;padding:1px 5px;border-radius:3px;text-decoration:none;">#' . esc_html($r['request_id']) . '</a>';
                 }
                 if ($has_detail) echo ' <span style="color:#2271b1;font-size:11px;">[details &#9662;]</span>';
                 echo '</td>';

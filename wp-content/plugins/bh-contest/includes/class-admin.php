@@ -368,6 +368,7 @@ class BH_Admin {
         $collect(BH_Reveal::overall_results($cid), 'Overall');
 
         $contest_title = get_the_title($cid);
+        $sent = 0; $failed_uids = [];
         foreach ($placements as $uid => $wins) {
             $user = get_userdata($uid);
             if (!$user || !$user->user_email) continue;
@@ -378,7 +379,26 @@ class BH_Admin {
             );
             $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
                 . implode("\n", $lines) . "\n\nWell done!";
-            wp_mail($user->user_email, "You placed in {$contest_title}!", $body);
+            if (wp_mail($user->user_email, "You placed in {$contest_title}!", $body)) {
+                $sent++;
+            } else {
+                $failed_uids[] = $uid;
+            }
+        }
+        // Previously wp_mail()'s return value was ignored entirely — a
+        // bulk send with some/all messages silently rejected by the mail
+        // transport looked identical to a fully successful one from the
+        // admin's side, with no record of WHICH winners never got
+        // notified. wp_mail() itself doesn't expose a failure reason
+        // (that's the well-known limitation OUS_Mail's own roadmap entry
+        // exists to eventually fix — see ROADMAP-platform-evolution.md
+        // Section 2's BH_Mail interface item), but a count + the
+        // specific affected user IDs is still a real, actionable
+        // improvement over nothing.
+        if ($failed_uids && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', "Winner-notification bulk send: $sent sent, " . count($failed_uids) . ' failed.', [
+                'contest_id' => $cid, 'failed_user_ids' => $failed_uids,
+            ], 'BH Contest');
         }
     }
 

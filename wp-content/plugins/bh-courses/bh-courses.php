@@ -2,11 +2,24 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.0
+ * Version:     0.4.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.2 — BHC_TestSuite gained real DB-backed coverage for quiz answer
+// storage (mark_step_complete()/stored_answers() round-trip, latest-
+// attempt-only retry semantics, the NULL-vs-0 sanitization behavior) and
+// the course catalog's search/sort (real fixture posts, cleaned up after
+// each run) — both previously untested. Standing caveat: written and
+// brace-balance-checked, not yet executed against the live install.
+
+// 0.4.1 — first OUS_DebugLog call anywhere in this plugin:
+// BHC_Progress::mark_step_complete()'s DB write is now checked — a
+// failed write previously still let the student-facing flow report
+// "step complete" with the failure completely invisible. Standing
+// caveat: reasoning/brace-balance-checked only.
 
 // 0.3.0 — LMS lesson-flow authoring wired onto BH_Studio/BH_Content
 // (see LMS-AUTHORING-DESIGN-PLAN.md): bhc/* block types registered with
@@ -84,7 +97,7 @@ if (!defined('ABSPATH')) exit;
 // Standing caveat, same as every pass this session: NOT run against real
 // WordPress+MySQL — reasoning-checked and PHP-syntax-balance-checked
 // only (no php-cli in this sandbox either), never executed.
-define('BHC_VER',  '0.4.0');
+define('BHC_VER',  '0.4.2');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 

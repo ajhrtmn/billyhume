@@ -96,12 +96,23 @@ class BHC_Progress {
         if ($passed !== null) $values[] = (int) $passed;
         if ($answers_json !== null) $values[] = (string) $answers_json;
 
-        $wpdb->query($wpdb->prepare(
+        $result = $wpdb->query($wpdb->prepare(
             "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, score, passed, attempts, answers)
              VALUES (%d, %d, %d, $score_sql, $passed_sql, 1, $answers_sql)
              ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP, score = VALUES(score), passed = VALUES(passed), answers = VALUES(answers), attempts = attempts + 1",
             $values
         ));
+        if ($result === false && class_exists('OUS_DebugLog')) {
+            // First OUS_DebugLog call anywhere in bh-courses — previously
+            // a failed write here meant the AJAX handler still reported
+            // "step complete" to the student (see class-progress.php's
+            // ajax_submit_quiz()/ajax_mark_complete(), which don't
+            // separately check this method's success), so progress could
+            // silently not persist with zero trace anywhere.
+            OUS_DebugLog::log('error', 'mark_step_complete() DB write failed — student will still be told the step completed.', [
+                'user_id' => $user_id, 'lesson_id' => $lesson_id, 'step_index' => $step_index, 'db_error' => $wpdb->last_error,
+            ], 'BH Courses Progress');
+        }
 
         if ($passed === null || $passed) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));

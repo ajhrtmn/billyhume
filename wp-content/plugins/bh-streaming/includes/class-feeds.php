@@ -248,9 +248,26 @@ class BHS_Feeds {
 
             $fails = (int) get_post_meta($track_id, '_bhs_source_fail_count', true);
             $fails = $ok ? 0 : $fails + 1;
+            $previous_health = get_post_meta($track_id, '_bhs_source_health', true) ?: 'ok';
+            $new_health = $fails === 0 ? 'ok' : ($fails >= self::HEALTH_DOWN_AFTER_FAILS ? 'down' : 'degraded');
             update_post_meta($track_id, '_bhs_source_fail_count', $fails);
             update_post_meta($track_id, '_bhs_source_checked_at', current_time('mysql'));
-            update_post_meta($track_id, '_bhs_source_health', $fails === 0 ? 'ok' : ($fails >= self::HEALTH_DOWN_AFTER_FAILS ? 'down' : 'degraded'));
+            update_post_meta($track_id, '_bhs_source_health', $new_health);
+
+            // Log only the TRANSITION (not every check, which runs on a
+            // schedule and would otherwise flood the log with routine
+            // "still fine" or "still down" restatements) — this was
+            // previously invisible entirely; the only way to discover a
+            // dead external feed was manually browsing track postmeta.
+            // ok -> down/degraded logs a warning (a listener-facing
+            // symptom is now live); down/degraded -> ok logs an info
+            // (worth knowing recovery happened, e.g. after a host outage).
+            if ($previous_health !== $new_health && class_exists('OUS_DebugLog')) {
+                $level = ($new_health === 'ok') ? 'info' : 'warning';
+                OUS_DebugLog::log($level, "External track source health changed: $previous_health -> $new_health", [
+                    'track_id' => $track_id, 'url' => $url, 'consecutive_fails' => $fails,
+                ], 'BH Streaming Feed Health');
+            }
         }
     }
 

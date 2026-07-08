@@ -106,7 +106,7 @@ class OUS_TestRunner {
         echo '<p class="description">Runs every registered plugin\'s test suite right here, on this site\'s own PHP — no CLI, no Composer, no separate dev environment needed.</p>';
         OUS_Debug::button('bh-tests', 'run_tests', 'Run all tests');
 
-        $report = get_transient('ous_test_report');
+        $report = self::load_report();
         if (!$report) {
             echo '<p class="description">No results yet — click "Run all tests" above.</p>';
             return;
@@ -222,7 +222,7 @@ class OUS_TestRunner {
     public static function handle_debug_action($action) {
         if ($action === 'run_tests') {
             $report = self::run_all();
-            set_transient('ous_test_report', $report, HOUR_IN_SECONDS);
+            self::store_report($report);
 
             $total = 0; $passed = 0;
             foreach ($report as $suite) {
@@ -232,5 +232,27 @@ class OUS_TestRunner {
             return "Ran $total test(s) across " . count($report) . " suite(s): $passed passed, " . ($total - $passed) . ' failed. See results below.';
         }
         return 'Unknown action.';
+    }
+
+    // Real, reported bug this replaces: set_transient()/get_transient()
+    // silently produced NOTHING on this specific install — "Run all
+    // tests" reported success (the redirect message said "Ran N tests"),
+    // but the results section itself showed nothing at all after
+    // landing back on the page. Root cause is the same class of issue
+    // this whole session kept hitting elsewhere (BHI_Portal's rewrite
+    // rule, OUS_Debug::is_locked()): on an install with a persistent
+    // object cache active, WordPress transients are stored ENTIRELY in
+    // that cache, not the options table — a stuck/broken cache means the
+    // write can report success while the very next request's read never
+    // sees it. Now goes through OUS_ReliableStore (class-reliable-store.php),
+    // the consolidated version of the same direct-DB read/write pattern
+    // this fix originally hand-rolled here — see that class's own
+    // docblock for the full explanation of why and when to use it.
+    private static function store_report($report) {
+        OUS_ReliableStore::set('test_report', $report, HOUR_IN_SECONDS);
+    }
+
+    private static function load_report() {
+        return OUS_ReliableStore::get('test_report');
     }
 }

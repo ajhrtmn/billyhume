@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.6'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2
+    const DB_VERSION = '1.7'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column()
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -147,12 +147,14 @@ class BHI_Activator {
             url varchar(500) NOT NULL DEFAULT '',
             request_method varchar(10) NOT NULL DEFAULT '',
             user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            request_id varchar(20) NOT NULL DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY level (level),
             KEY source (source),
             KEY user_id (user_id),
-            KEY created_at (created_at)
+            KEY created_at (created_at),
+            KEY request_id (request_id)
         ) $charset;";
         dbDelta($sql5);
 

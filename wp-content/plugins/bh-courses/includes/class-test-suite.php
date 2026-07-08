@@ -96,6 +96,139 @@ class BHC_TestSuite {
         ]);
         $rows[] = OUS_TestRunner::assert_same(['text', 'image', 'text'], array_column($result, 'type'), 'Multistep lesson preserves authored order');
 
+        /* ---------- quiz answer storage (BHC_Progress) ----------
+         * No coverage existed for this before — mark_step_complete()'s
+         * answers-JSON persistence and stored_answers()'s round-trip
+         * were added this session (the quiz-review UX feature) and had
+         * zero test coverage until now. Runs against a real, tagged
+         * fake user + real bhc_progress rows, cleaned up afterward. */
+        if (class_exists('BHC_Progress') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_progress_tests());
+        }
+
+        /* ---------- catalog search/sort (BHC_Render::render_catalog()) ----------
+         * No coverage existed for this before — the whole search/filter/
+         * sort/pagination rebuild this session had zero test coverage.
+         * render_catalog() reads $_GET directly and queries real
+         * bh_course posts, so this is a real integration test against
+         * two tagged fixture courses rather than a pure-logic unit test
+         * — there's no smaller seam to test this through without
+         * duplicating WP_Query's own behavior in a mock. */
+        if (class_exists('BHC_Render')) {
+            $rows = array_merge($rows, self::run_catalog_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_catalog_tests() {
+        $rows = [];
+        $saved_get = $_GET;
+
+        $course_a = wp_insert_post([
+            'post_type' => 'bh_course', 'post_status' => 'publish',
+            'post_title' => 'Zebra Mixing Fundamentals', 'meta_input' => ['bhcore_is_test' => 'bhc_catalog_suite'],
+        ], true);
+        $course_b = wp_insert_post([
+            'post_type' => 'bh_course', 'post_status' => 'publish',
+            'post_title' => 'Aardvark Mastering Basics', 'meta_input' => ['bhcore_is_test' => 'bhc_catalog_suite'],
+        ], true);
+
+        if (is_wp_error($course_a) || is_wp_error($course_b)) {
+            return [['name' => 'Catalog test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bh_course posts — skipping catalog tests.']];
+        }
+
+        // Alphabetical sort: 'Aardvark...' must render before 'Zebra...'
+        // in the returned HTML string, regardless of which was created
+        // first (post ID order would put Zebra first, since it was
+        // inserted first above — this specifically catches a sort that
+        // silently fell back to date/ID order instead of title).
+        $_GET = ['bhc_sort' => 'alpha'];
+        $html = BHC_Render::render_catalog();
+        $pos_a = strpos($html, 'Aardvark Mastering Basics');
+        $pos_z = strpos($html, 'Zebra Mixing Fundamentals');
+        $rows[] = OUS_TestRunner::assert_true(
+            $pos_a !== false && $pos_z !== false && $pos_a < $pos_z,
+            'sort=alpha renders "Aardvark..." before "Zebra..." (real A-Z title order, not creation/ID order)'
+        );
+
+        // Search: a keyword matching only one fixture's title should
+        // exclude the other from the rendered output entirely.
+        $_GET = ['bhc_s' => 'Zebra'];
+        $html_search = BHC_Render::render_catalog();
+        $rows[] = OUS_TestRunner::assert_true(strpos($html_search, 'Zebra Mixing Fundamentals') !== false, 'search "Zebra" includes the matching course');
+        $rows[] = OUS_TestRunner::assert_false(strpos($html_search, 'Aardvark Mastering Basics') !== false, 'search "Zebra" excludes the non-matching course');
+
+        // A search matching nothing at all should render the empty-state
+        // message, not a fatal or an unfiltered full list.
+        $_GET = ['bhc_s' => 'ThisStringMatchesNoFixtureCourseTitleAtAll12345'];
+        $html_empty = BHC_Render::render_catalog();
+        $rows[] = OUS_TestRunner::assert_true(strpos($html_empty, 'bhc-empty') !== false, 'a search matching nothing renders the empty-state message, not a fatal or the full unfiltered list');
+
+        $_GET = $saved_get;
+
+        // Cleanup — real wp_delete_post(), not just a meta tag, since
+        // these are real published posts that would otherwise show up
+        // in the actual site catalog.
+        wp_delete_post($course_a, true);
+        wp_delete_post($course_b, true);
+
+        return $rows;
+    }
+
+    private static function run_progress_tests() {
+        $rows = [];
+        global $wpdb;
+        $uid = OUS_Debug::get_or_create_test_user('bhc_progress_suite', false);
+        $lesson_id = 999999001; // a fake lesson ID — bhc_progress has no FK constraint to bh_lesson, so this is safe and avoids needing a real post fixture
+        $table = $wpdb->prefix . 'bhc_progress';
+
+        // Clean slate for this fake user/lesson pair before asserting anything.
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
+
+        $answers_payload = wp_json_encode([
+            'score' => 100, 'passed' => true, 'passing_score' => 70,
+            'questions' => [['q' => 'Q1', 'choices' => ['A', 'B'], 'correct_index' => 0, 'chosen_index' => 0]],
+        ]);
+        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 100, 1, $answers_payload);
+
+        $row_exists = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 0
+        ));
+        $rows[] = OUS_TestRunner::assert_same(1, $row_exists, 'mark_step_complete() with an answers payload writes exactly one progress row');
+
+        $stored = BHC_Progress::stored_answers($uid, $lesson_id, 0);
+        $rows[] = OUS_TestRunner::assert_true(is_array($stored) && !empty($stored['questions']), 'stored_answers() decodes the JSON snapshot back into a real array with a questions key');
+        $rows[] = OUS_TestRunner::assert_same(0, $stored['questions'][0]['chosen_index'] ?? null, 'stored_answers() round-trip preserves the exact chosen_index recorded at submission time');
+        $rows[] = OUS_TestRunner::assert_same(100, $stored['score'] ?? null, 'stored_answers() round-trip preserves the score');
+
+        // A plain (non-quiz) step — score/passed/answers all null — must
+        // still correctly write real SQL NULLs (see mark_step_complete()'s
+        // own docblock re: the %d/%s NULL-passthrough bug this exact
+        // shape was written to catch) and stored_answers() must degrade
+        // to null, not throw or return a malformed array.
+        BHC_Progress::mark_step_complete($uid, $lesson_id, 1, null, null, null);
+        $plain_passed = $wpdb->get_var($wpdb->prepare(
+            "SELECT passed FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 1
+        ));
+        $rows[] = OUS_TestRunner::assert_same(null, $plain_passed, 'A plain (non-quiz) step writes a real SQL NULL for passed, not 0');
+        $rows[] = OUS_TestRunner::assert_same(null, BHC_Progress::stored_answers($uid, $lesson_id, 1), 'stored_answers() on a plain step with no answers column returns null, not an error');
+
+        // A retry (same user/lesson/step) should UPDATE in place (latest-
+        // attempt-only semantics — see the answers column's own docblock
+        // in class-activator.php for why this is deliberately NOT an
+        // append-only log), not create a second row.
+        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 50, 0, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
+        $row_count_after_retry = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 0
+        ));
+        $rows[] = OUS_TestRunner::assert_same(1, $row_count_after_retry, 'a second attempt at the same step updates the existing row rather than inserting a second one');
+        $latest = BHC_Progress::stored_answers($uid, $lesson_id, 0);
+        $rows[] = OUS_TestRunner::assert_same(50, $latest['score'] ?? null, 'after a retry, stored_answers() reflects the LATEST attempt, not the first');
+
+        // Cleanup.
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
+
         return $rows;
     }
 }

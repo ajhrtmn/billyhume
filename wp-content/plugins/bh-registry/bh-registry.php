@@ -2,14 +2,20 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.1
+ * Version:     0.1.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHR_VER',  '0.1.1');
+// 0.1.2 — logging depth pass: all three remote-verification checks
+// (domain ownership challenge, open-feed fetch, ActivityPub actor fetch)
+// previously discarded the failure reason entirely — an artist's "not
+// verified" result gave neither them nor an admin any way to tell
+// "you never set this up" apart from "our request to your server
+// failed." Standing caveat: reasoning/brace-balance-checked only.
+define('BHR_VER',  '0.1.2');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

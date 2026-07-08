@@ -2,13 +2,20 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.0
+ * Version:     0.5.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHS_VER',  '0.5.0');
+// 0.5.1 — logging depth pass: BHS_Feeds::check_external_track_health()
+// previously updated a track's health status with zero log trace —
+// the only way to discover a dead external feed was manually browsing
+// post meta. Now logs an info/warning entry on every ok<->down/degraded
+// TRANSITION (not every check, which runs on a schedule and would
+// otherwise flood the log). Standing caveat: reasoning/brace-balance-
+// checked only, not run against a real WordPress+MySQL install.
+define('BHS_VER',  '0.5.1');
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 

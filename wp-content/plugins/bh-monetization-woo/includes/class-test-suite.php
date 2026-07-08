@@ -74,6 +74,73 @@ class BHM_TestSuite {
             'An empty required_benefit (unlocked content) always passes, even with no user'
         );
 
+        /* ---------- BHM_Wallet debit/credit + ledger consistency ----------
+         * No coverage existed for this before — added after this session's
+         * logging pass found debit()/apply_delta() had zero error
+         * handling (see class-wallet.php's own comments). This exercises
+         * the REAL debit/credit paths against a real (tagged, cleaned-up)
+         * fake user's wallet, since the atomic-UPDATE-based logic
+         * (deliberately not a check-then-write, see debit()'s own
+         * docblock) is exactly the kind of thing worth a real DB
+         * round-trip rather than a mock. */
+        if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_wallet_tests());
+        } elseif (class_exists('BHM_Wallet')) {
+            $rows[] = ['name' => 'BHM_Wallet tests skipped', 'pass' => false, 'message' => 'OUS_Debug (for get_or_create_test_user) not loaded.'];
+        }
+
+        return $rows;
+    }
+
+    private static function run_wallet_tests() {
+        $rows = [];
+        global $wpdb;
+        $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_suite', false); // false = always a fresh user, never reuse a pool member mid-assertions
+        $wallet_table = $wpdb->prefix . 'bhm_wallet';
+        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
+
+        // Start from a clean, known state regardless of whatever this
+        // fake user's wallet happened to hold from a previous run.
+        $wpdb->delete($wallet_table, ['user_id' => $uid]);
+        $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        // Credit via apply_ledger_delta() (the public entry point) —
+        // real balance write + real ledger row.
+        BHM_Wallet::apply_ledger_delta($uid, 500, 'test_topup');
+        $balance = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(500, $balance, 'apply_ledger_delta(+500) credits the wallet balance to exactly 500');
+        $ledger_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d AND reason = %s", $uid, 'test_topup'));
+        $rows[] = OUS_TestRunner::assert_same(1, $ledger_count, 'apply_ledger_delta() writes exactly one matching ledger row');
+
+        // A debit within balance should succeed and leave balance/ledger
+        // consistent with each other, not just each individually
+        // "looking right."
+        $debit_ok = BHM_Wallet::debit($uid, 200, null);
+        $rows[] = OUS_TestRunner::assert_true($debit_ok, 'debit(200) against a 500-cent balance succeeds');
+        $balance_after_debit = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(300, $balance_after_debit, 'balance after debit(200) from 500 is exactly 300, not off-by-one-row-affected or double-counted');
+        $ledger_debit_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d AND reason = %s AND delta_cents = %d", $uid, 'play', -200));
+        $rows[] = OUS_TestRunner::assert_same(1, $ledger_debit_count, 'a successful debit() writes a matching -200 ledger row (reason "play")');
+
+        // A debit exceeding the remaining balance must be DECLINED, not
+        // allowed to drive the balance negative — this is the whole
+        // point of debit()'s atomic UPDATE...WHERE balance_cents >= %d
+        // guard (see that method's own docblock re: TOCTOU races).
+        $decline_ok = BHM_Wallet::debit($uid, 9999, null);
+        $rows[] = OUS_TestRunner::assert_false($decline_ok, 'debit(9999) against a 300-cent balance is correctly declined');
+        $balance_after_decline = (int) $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM $wallet_table WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(300, $balance_after_decline, 'a declined debit leaves the balance completely unchanged (never negative)');
+        $ledger_after_decline = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $ledger_table WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(2, $ledger_after_decline, 'a declined debit writes NO new ledger row (still just the +500 and -200 from before)');
+
+        // Cleanup — this fake user's own wallet/ledger rows. The user
+        // account itself is left for OUS_Debug's own "Reset Everything"
+        // sweep (tagged bhcore_is_test => bhm_wallet_suite), same
+        // convention every other suite/seed action in this ecosystem
+        // uses, not re-implemented here.
+        $wpdb->delete($wallet_table, ['user_id' => $uid]);
+        $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
         return $rows;
     }
 }
