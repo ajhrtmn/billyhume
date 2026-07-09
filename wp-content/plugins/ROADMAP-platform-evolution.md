@@ -4,6 +4,10 @@ Companion to `VISION.md` (read that first for the whole ecosystem's architecture
 
 This doc assumes the reader has also read `QA-REPORT.md` from the most recent QA/refactor pass — several of "what's next" items below build directly on fixes and gaps that pass surfaced.
 
+## 0.-a. Standing priority override: harden before extending
+
+Per the project owner's explicit current direction (mirrored in full in `VISION.md`'s "Current standing priority" section — read that version for the complete rationale): everything in this doc is paused, conceptually, behind a core-hardening pass covering `own-ur-shit`, `bh-contest`, the `BHY_*` style system, `bh-crm`, and Debug Tools. Concretely this means jobs/errors/logs/testing/queue infrastructure, the abstraction boundaries this doc itself proposes (`BH_Content`, `BH_Commerce`, etc.), and cross-plugin load-order/third-party-conflict issues get fixed before any new storefront/LMS-builder/portal/social work below gets picked up. None of the design thinking in this doc is invalidated by that — it's sequencing, not scope-cutting.
+
 ## 0. The honest framing, stated up front
 
 "Eventually outgrow the need for WordPress, WooCommerce, or any 3rd-party solution" is a genuinely large claim, and it deserves a genuinely honest answer rather than either dismissing it or overpromising it. WordPress itself is not one dependency — it's dozens: the user table and session/auth model, the post/postmeta storage layer, the media library, `$wpdb`, WP-Cron, the whole plugin-loading and hook system, REST API routing, and (the newest addition to this list) Gutenberg's block model. Replacing all of that is closer in scope to building a competing application framework than to a feature project — realistically a multi-year undertaking if it were ever fully pursued, not something this roadmap can respect and also pretend fits in a quarter.

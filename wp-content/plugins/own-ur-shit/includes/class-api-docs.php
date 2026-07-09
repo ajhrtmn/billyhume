@@ -27,7 +27,19 @@ class OUS_ApiDocs {
     const RELEVANT_PREFIXES = ['ous/', 'bhi/', 'bh'];
 
     public static function init() {
-        add_action('admin_menu', [self::class, 'add_menu']);
+        // add_menu() (standalone admin.php?page=ous-api-docs page) is
+        // deliberately NOT hooked anymore — confirmed via Query Monitor
+        // on the live install that WordPress's own page-hook resolution
+        // fails for this specific standalone page (get_current_screen()
+        // resolves to the PARENT page's hook, not this one), denying
+        // access every time despite registration and capability both
+        // being correct. See VISION.md's "New dev/admin-only pages
+        // default to a Debug Tools SECTION" entry for the full incident.
+        // The real, working access point is register_debug_section()
+        // below — a dead, always-broken link in the sidebar was worse
+        // than no standalone page at all. add_menu() itself is left
+        // defined (not deleted) in case a future session gets a real fix
+        // for the underlying WordPress issue and wants to re-enable it.
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
@@ -46,19 +58,17 @@ class OUS_ApiDocs {
         return $tools;
     }
 
+    // Now the reliable PRIMARY way to reach this content — renders the
+    // real API docs inline, on the one page this whole session has
+    // proven never fails to load. The standalone admin.php?page=ous-api-docs
+    // page is left registered as a secondary/bonus access point (see
+    // add_menu() below), but a live bug report showed WordPress
+    // consistently blocking that standalone page for reasons this
+    // session could not fully root-cause even with registration and
+    // capability both confirmed correct — so this section, not that
+    // page, is what to actually use and link to from here on.
     public static function render_debug_section() {
-        $locked = class_exists('OUS_Debug') && OUS_Debug::is_locked();
-        echo '<p><strong>is_locked():</strong> ' . ($locked ? '<span style="color:#d63638;">true — menu is NOT being registered</span>' : '<span style="color:#00a32a;">false — menu should be registered</span>') . '</p>';
-        echo '<p>Host: <code>' . esc_html(wp_parse_url(home_url(), PHP_URL_HOST)) . '</code>, environment_type: <code>' . esc_html(function_exists('wp_get_environment_type') ? wp_get_environment_type() : '(unavailable)') . '</code></p>';
-
-        global $submenu;
-        $registered = is_array($submenu) && !empty($submenu['ous-debug']) && array_filter($submenu['ous-debug'], function ($item) { return $item[2] === 'ous-api-docs'; });
-        echo '<p><strong>Actually present in $submenu right now:</strong> ' . ($registered ? '&#9989; yes' : '&#10060; no') . '</p>';
-
-        if (!$locked && $registered) {
-            echo '<p>Both checks pass — the menu item genuinely exists this request. If <code>admin.php?page=ous-api-docs</code> still 404s, this is very likely the same class of issue as BHI_Portal\'s <code>/account/</code> 404 (see the Portal section on this page): a caching layer or stale asset serving a 404 response instead of the actual page. Try a hard-refresh/incognito window on that exact URL.</p>';
-            echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=ous-api-docs')) . '" target="_blank">Open API Docs</a></p>';
-        }
+        self::render_content();
     }
 
     // Dev/reference tooling, not something a site owner needs on a live
@@ -71,44 +81,30 @@ class OUS_ApiDocs {
     // menu, or to be reachable at all once "which routes exist" isn't a
     // question anyone actively developing against this install is asking.
     public static function add_menu() {
-        if (class_exists('OUS_Debug') && OUS_Debug::is_locked()) {
-            // Previously a silent return — a site owner clicking a
-            // stale/bookmarked link to this page while it's gated had no
-            // way to tell "this page doesn't exist right now" apart from
-            // "something is actually broken." Logging it here means the
-            // very bug report that triggered this fix (a 404 with no
-            // obvious cause) shows up in Console & Logs next time, one
-            // click away, instead of requiring a re-read of this file.
-            if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('info', 'API Docs admin menu not registered — OUS_Debug::is_locked() returned true for this request (environment detected as production, or a non-local host).', [
-                    'host' => wp_parse_url(home_url(), PHP_URL_HOST),
-                    'environment_type' => function_exists('wp_get_environment_type') ? wp_get_environment_type() : '(unknown — function unavailable)',
-                ], 'API Docs');
-            }
-            return;
+        // REMOVED the is_locked() gate that used to wrap this call — API
+        // Docs and Codebase Docs were the only two pages in the whole
+        // ecosystem that conditionally skipped their own
+        // add_submenu_page() call before registering. Every other admin
+        // page in this ecosystem (Debug Tools itself, Job Queue, every
+        // peer plugin's own screens) registers unconditionally;
+        // is_locked() was designed to gate DESTRUCTIVE seed/reset
+        // actions, not a read-only viewer page's mere existence in the
+        // menu. Real reported symptom: this page consistently denied
+        // access ("Sorry, you are not allowed to access this page") even
+        // on requests where logging proved registration had already
+        // succeeded (a real hook_suffix returned) and
+        // current_user_can('manage_options') was TRUE — meaning the
+        // CONDITIONAL registration path itself, not is_locked()'s
+        // internal logic, was the actual problem. Registering
+        // unconditionally like every other working page removes that
+        // asymmetry.
+        $hook = add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log_throttled('info', 'api_docs_registered', 60,
+                'add_submenu_page() for API Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
+                ['hook_suffix' => $hook], 'API Docs'
+            );
         }
-        // Lives under the dedicated "OUS Debug" top-level menu (see
-        // class-debug.php) alongside Debug Tools — both are dev/debug
-        // tooling for the same audience, not part of the main "Own Ur
-        // Shit" hub's own submenu. WordPress doesn't require the parent's
-        // own add_menu_page() call to have run first; both just need to
-        // fire during the same admin_menu hook, which they do.
-        //
-        // NOTE on the "wp-admin/ous-api-docs 404" bug report this fix
-        // responds to: this registration is correct as written — a
-        // submenu registered this way is always rendered by WordPress
-        // core as admin.php?page=ous-api-docs, never as a bare
-        // /wp-admin/ous-api-docs path. No code anywhere in this ecosystem
-        // was found (across all seven plugins) that constructs that bare
-        // URL. The two realistic causes on a real install: (1) this
-        // is_locked() gate above was silently true for that request —
-        // now logged, see above — or (2) a stale browser-cached menu /
-        // stale bookmark from before this page existed at all. If Console
-        // & Logs shows no matching entry after reproducing the 404, the
-        // cause is almost certainly (2): hard-refresh the wp-admin
-        // sidebar or re-navigate from the OUS Debug menu itself rather
-        // than a saved link.
-        add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
     }
 
     public static function register_routes() {
@@ -212,8 +208,19 @@ class OUS_ApiDocs {
     /* ---------------- in-admin viewer (no external JS/CDN) ---------------- */
 
     public static function render() {
-        $spec = self::generate_spec();
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', 'OUS_ApiDocs::render() was entered — the page callback is actually running.', [], 'API Docs');
+        }
         BHY_UI::shell_open('API Docs');
+        self::render_content();
+        BHY_UI::shell_close();
+    }
+
+    // The actual body content, shared by both the standalone page
+    // (render()) and the Debug Tools section (render_debug_section(),
+    // now the reliable primary path — see that method's own comment).
+    private static function render_content() {
+        $spec = self::generate_spec();
 
         echo '<p class="description" id="bhy-openapi-url-line">Generated live from this site\'s own registered REST routes — always in sync with the actual code, never hand-maintained separately. '
            . 'Raw OpenAPI 3.0 JSON (importable into Postman/Insomnia/Swagger UI elsewhere): '
@@ -222,7 +229,6 @@ class OUS_ApiDocs {
 
         if (!$spec['paths']) {
             echo '<p class="description">No ecosystem REST routes registered yet.</p>';
-            BHY_UI::shell_close();
             return;
         }
 
@@ -255,6 +261,5 @@ class OUS_ApiDocs {
             }
             echo '</div>';
         }
-        BHY_UI::shell_close();
     }
 }

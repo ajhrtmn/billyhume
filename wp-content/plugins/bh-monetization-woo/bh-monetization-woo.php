@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.3
+ * Version:     0.4.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -46,7 +46,8 @@ if (!defined('ABSPATH')) exit;
 // own-ur-shit/includes/class-commerce.php's docblock for the full
 // migration history. NOT tested against a real WordPress+MySQL install
 // yet — reasoning-only, same caveat as every other pass this session.
-define('BHM_VER',  '0.4.3');
+// 0.4.4 — bundled zip regenerated to match installed version, no code change
+define('BHM_VER',  '0.4.4');
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
 

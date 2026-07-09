@@ -2,11 +2,22 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.1.2
+ * Version:     3.1.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.1.3 — real bug fix: Live Console's contest-picker dropdown threw
+// "Sorry, you are not allowed to access this page." on selection. Root
+// cause: the page is registered as a submenu of edit.php?post_type=bh_contest,
+// but the dropdown's <form method="get"> only carried page=bh-console —
+// a bare GET form replaces the whole query string with just its own
+// fields, so post_type was silently dropped and WordPress couldn't
+// resolve the submenu. Fixed in class-console.php by adding a hidden
+// post_type=bh_contest field to the form. NOT yet verified against the
+// live site — user reported the symptom, fix follows from reading the
+// exact form-submission mechanics; please confirm the dropdown now works.
 
 // 3.1.1 — logging depth pass: BH_Discord::send() previously returned
 // false identically for "no webhook configured" (routine, most contests
@@ -24,7 +35,8 @@ if (!defined('ABSPATH')) exit;
 // email_winners() now tracks and logs which specific winners' emails
 // failed to send in a bulk announce, instead of the whole batch's
 // success/failure being invisible.
-define('BH_VER',        '3.1.2');
+// 3.1.4 — bundled zip regenerated to match installed version, no code change
+define('BH_VER',        '3.1.4');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets

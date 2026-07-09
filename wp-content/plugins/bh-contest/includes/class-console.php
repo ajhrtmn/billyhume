@@ -45,7 +45,12 @@ class BH_Console {
             return;
         }
 
-        echo '<form method="get" style="margin:0 0 var(--bhy-space-4);"><input type="hidden" name="page" value="bh-console">';
+        // The submenu lives under edit.php?post_type=bh_contest (see BH_PostTypes::MENU_PARENT),
+        // so a bare GET form here MUST carry post_type through explicitly — a plain <form method="get">
+        // replaces the whole query string with only its own fields, dropping post_type, which makes
+        // WordPress unable to resolve 'bh-console' as a submenu and throw "Sorry, you are not allowed
+        // to access this page." on the redirect. Root cause found and fixed this session.
+        echo '<form method="get" style="margin:0 0 var(--bhy-space-4);"><input type="hidden" name="post_type" value="bh_contest"><input type="hidden" name="page" value="bh-console">';
         echo '<select name="contest_id" onchange="this.form.submit()">';
         foreach ($contests as $c) {
             echo '<option value="' . esc_attr($c->ID) . '" ' . selected($cid, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';

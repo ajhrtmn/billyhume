@@ -37,7 +37,50 @@ class BHI_Portal {
     const REWRITE_SLUG = 'account';
 
     public static function init() {
-        add_action('init', [self::class, 'add_rewrite']);
+        // THE REAL BUG, finally found: own-ur-shit.php hooks
+        // BHI_Portal::init() itself onto 'init' (default priority 10).
+        // The line that used to be here — add_action('init', [self::class,
+        // 'add_rewrite']) — was registering a NEW 'init' callback from
+        // INSIDE a callback that is itself currently running as part of
+        // 'init' priority 10. PHP's foreach over WP_Hook's callback array
+        // for a given priority is a snapshot taken when that priority's
+        // iteration begins; a handler appended to that same priority
+        // AFTER iteration has already started is not picked up until the
+        // NEXT time the hook fires — which, for 'init' on a normal page
+        // load, never happens again in that request. So add_rewrite()
+        // was being scheduled to run, successfully, on a request that
+        // would never come — which is exactly why even the always-
+        // throttled breadcrumb at the top of add_rewrite() never once
+        // appeared in Console & Logs: the method itself was never
+        // actually being called, not failing partway through. This is a
+        // well-known WordPress hook-timing footgun (self-hooking the
+        // currently-executing action at the same or an already-passed
+        // priority), not a caching issue like this class's other fixes.
+        // Fix: call it directly. We're already executing inside 'init'
+        // right now (that's how we got here), so there's no need to
+        // re-hook it at all — a plain call runs it immediately, in the
+        // same request, every time.
+        // Deferred to priority 20, not called immediately — running it at
+        // the default priority-10 pass (like the first fix did) meant it
+        // could execute BEFORE other plugins' own 'init'-priority-10
+        // rewrite_rule registrations had happened, so a flush triggered
+        // this early could capture an incomplete rule set and, worse,
+        // this method's own wp_cache_flush() wipes the ENTIRE object
+        // cache mid-request — including cached reads other code later in
+        // the SAME request (like OUS_Debug::is_locked()'s host checks)
+        // depends on, which is the most likely cause of the API Docs
+        // page intermittently breaking right after the first Portal fix
+        // shipped. Priority 20 is still well within the SAME 'init' pass
+        // (WP_Hook::do_action() walks priority buckets in order within
+        // one call — a bucket that hasn't been reached yet when a
+        // callback is added to it during an earlier bucket's iteration
+        // DOES still run this same request, unlike same-priority
+        // self-hooking, which is the actual bug the first fix solved).
+        // This gives every other plugin's own default-priority rewrite
+        // registration a chance to complete first, and pushes the
+        // heaviest, most cache-disruptive part of this method as late as
+        // reasonably possible in the request.
+        add_action('init', [self::class, 'add_rewrite'], 20);
         add_filter('query_vars', [self::class, 'add_query_var']);
         add_action('template_redirect', [self::class, 'maybe_render']);
 
@@ -276,14 +319,28 @@ class BHI_Portal {
         // correct.
         wp_cache_delete('rewrite_rules', 'options');
         wp_cache_delete('alloptions', 'options');
-        // Belt-and-suspenders: if a persistent object cache is active and
-        // exposes a full flush, use it. This is heavier than the two
-        // targeted deletes above, so it only runs as part of an
-        // already-throttled self-heal attempt (see not_recently_attempted()),
-        // never on every request.
-        if (function_exists('wp_cache_flush')) wp_cache_flush();
 
-        if (self::rewrite_rule_persisted()) {
+        $persisted = self::rewrite_rule_persisted();
+
+        // The full wp_cache_flush() is now an ESCALATION, only reached if
+        // the two targeted evictions above weren't enough — not called
+        // unconditionally on every throttled attempt like before. A full
+        // flush wipes the ENTIRE object cache mid-request, which other
+        // code running later in this same request (OUS_Debug::is_locked()'s
+        // host checks, among others) depends on having a warm cache for;
+        // doing that on every self-heal attempt (as often as once a
+        // minute, across all site traffic) was very likely the cause of
+        // the API Docs page intermittently breaking right after the first
+        // version of this fix shipped. Reaching for it only when the
+        // cheaper, targeted eviction demonstrably wasn't enough keeps
+        // this method's blast radius as small as it can be while still
+        // actually fixing a genuinely stuck cache when one exists.
+        if (!$persisted && function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+            $persisted = self::rewrite_rule_persisted();
+        }
+
+        if ($persisted) {
             update_option('bhi_portal_rewrite_flushed', self::REWRITE_VERSION);
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Portal rewrite rule self-healed and confirmed persisted.', [], 'Portal');

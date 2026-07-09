@@ -242,6 +242,21 @@ class OUS_Debug {
         }
         if ($notice) echo '<div class="notice notice-success"><p>' . esc_html($notice) . '</p></div>';
 
+        // Jump links to the API Docs / Codebase Docs SECTIONS further
+        // down this same page — the reliable path now (see each class's
+        // own render_content()/render_debug_section() comments). The
+        // standalone admin.php?page=ous-api-docs / ous-codebase-docs
+        // pages are still registered but a live bug report showed
+        // WordPress consistently blocking them for reasons this session
+        // could not fully root-cause even with registration and
+        // capability both confirmed correct — anchor links to the
+        // in-page sections below sidestep that entirely rather than
+        // waiting on a fix for the standalone pages.
+        echo '<p>'
+           . '<a class="button" href="#ous-section-api-docs">API Docs</a> '
+           . '<a class="button" href="#ous-section-codebase-docs">Codebase Docs</a>'
+           . '</p>';
+
         $tools = apply_filters('ous_debug_tools', []);
         if (!$tools) {
             echo '<p class="description">No plugin has registered any debug tools yet.</p>';

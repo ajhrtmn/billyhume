@@ -2,11 +2,206 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.4
+ * Version:     3.4.15
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.15 — confirmed via Query Monitor (capability-checks + admin-screen
+// panels, installed temporarily on the live site): the standalone
+// admin.php?page=ous-api-docs / ous-codebase-docs pages fail because
+// WordPress's own get_current_screen()/hook_suffix resolution falls
+// back to the PARENT page's hook instead of the submenu's, on every
+// request, regardless of correct registration/capability — a genuine
+// WordPress-core page-hook lookup issue, not caching or capabilities
+// (the two things chased hardest earlier). Since the Debug Tools
+// SECTION versions of both pages are confirmed working end to end, the
+// two standalone add_menu() registrations are now unhooked entirely
+// (methods left defined, just not called) rather than left as dead,
+// permanently-broken links sitting in the sidebar. Also fixed the one
+// remaining internal link between the two (Codebase Docs' "Open API
+// Docs" cross-link) to point at the section anchor instead of the now-
+// unregistered standalone page. See VISION.md's "New dev/admin-only
+// pages default to a Debug Tools SECTION" entry for the full incident
+// writeup. Standing caveat: reasoning/brace-balance-checked only —
+// please confirm the sidebar no longer shows API Docs/Codebase Docs as
+// separate top-level-adjacent entries, and that both sections still
+// work fine on Debug Tools.
+
+// 3.4.14 — Stopped chasing the standalone-page access-denial bug
+// (registration and capability both confirmed correct via logging, yet
+// WordPress still blocked admin.php?page=ous-api-docs / ous-codebase-docs
+// every time — root cause never found despite five diagnostic passes)
+// and sidestepped it instead: both API Docs and Codebase Docs now render
+// their REAL content as sections directly on the Debug Tools page
+// (ous-debug), the one page that has never once failed to load all
+// session. class-api-docs.php's render_debug_section() (previously just
+// a diagnostic panel) and class-codebase-docs.php's new render_section()
+// both call a shared render_content() method, factored out of each
+// class's standalone render() so neither duplicates the actual body
+// markup. Debug Tools' own "API Docs"/"Codebase Docs" buttons now jump
+// to these sections (#ous-section-api-docs / #ous-section-codebase-docs)
+// instead of linking to the still-broken standalone pages, which remain
+// registered as a secondary access point but should not be relied on.
+// Standing caveat: reasoning/brace-balance-checked only — please reload
+// Debug Tools and confirm both sections now show real content inline.
+
+// 3.4.13 — CONFIRMED via 3.4.12's render()-entry log: render() never
+// runs at all for Codebase Docs — WordPress is blocking the request at
+// its own core dispatch level (the $_wp_submenu_nopriv mechanism:
+// add_submenu_page() checks current_user_can() at the MOMENT it's
+// called, on that specific request, and silently marks the page
+// no-priv if it fails then — separate from the page callback entirely).
+// Un-throttled the registration log and added the exact request URI +
+// a same-request current_user_can() reading, specifically so the entry
+// from the real failing click (not a nearby unrelated page load) is
+// unambiguous. Also added a temporary workaround in class-debug.php:
+// hand-built, guaranteed-correct admin.php?page= links to both pages
+// printed directly on the Debug Tools page itself, since a live bug
+// report showed the WordPress-generated SIDEBAR link for these two
+// pages resolving to a broken bare front-end path instead — a second,
+// separate bug from the access-denial one, not yet root-caused either,
+// worked around rather than left blocking. Standing caveat: please
+// click Codebase Docs (via the new button on Debug Tools, not the
+// sidebar) once and paste back the newest matching log line.
+
+// 3.4.12 — 3.4.11's is_locked()-gate removal confirmed NOT the fix (user
+// reports no change in behavior). Added the one truly decisive
+// diagnostic left: a log line as the literal first statement inside
+// render() itself for both classes — this settles, once and for all,
+// whether WordPress is blocking the request before OUR code ever runs
+// (a genuine core-level gate this session hasn't found the cause of
+// yet) or whether the callback IS running and something inside it is
+// the actual problem. Standing caveat: purely diagnostic, no behavior
+// change; please click into both pages once more and report exactly
+// what Console & Logs shows (or doesn't show) from "render() was
+// entered."
+
+// 3.4.11 — API Docs / Codebase Docs "not allowed" bug, actual fix (not
+// another diagnostic pass): found that both were the ONLY two admin
+// pages anywhere in this ecosystem that wrapped their own
+// add_submenu_page() call in an is_locked() check before registering.
+// Every other page (Debug Tools itself, Job Queue, every peer plugin's
+// screens) registers unconditionally — is_locked() exists to gate
+// DESTRUCTIVE seed/reset actions, not a read-only viewer page's mere
+// existence in the menu, so conditionally skipping registration was the
+// wrong design from the start, independent of whatever is_locked()
+// itself was actually evaluating to on any given request. Both classes'
+// add_menu() now register unconditionally, matching every other working
+// page. Standing caveat: still reasoning-checked only, not yet clicked
+// on the live install — please try both pages now.
+
+// 3.4.10 — PHP restart on the live site confirmed OPcache was serving
+// stale compiled code (explains several earlier "this fix didn't seem to
+// take effect" moments this session) — after restarting, add_submenu_page()
+// for both API Docs and Codebase Docs now confirmed returning a real
+// hook_suffix, not FALSE. Registration is NOT the problem. But
+// add_submenu_page() returns a real hook_suffix even when the CURRENT
+// user lacks the registered capability — WordPress's actual access gate
+// for that case is a separate current_user_can() re-check done when the
+// page is actually requested, which a successful registration log can't
+// rule out. Added a direct current_user_can('manage_options') check,
+// logged with the exact request URI, to settle this definitively.
+// Standing caveat: diagnostic only, still narrowing down root cause.
+
+// 3.4.9 — API Docs / Codebase Docs still 404 with is_locked() confirmed
+// NOT the cause (zero log entries even from the locked-branch logging
+// 3.4.5/this pass added, meaning that branch never ran — but that was
+// ambiguous, since the SUCCESS branch had no logging either, so "no log"
+// couldn't distinguish "never called" from "ran fine"). Added logging to
+// the success path too: both add_menu() methods now log whatever
+// add_submenu_page() actually returned (a real hook suffix string, or
+// FALSE on a genuine registration failure) every time they run, closing
+// that ambiguity for the next reload. Standing caveat: diagnostic-only
+// change, root cause still not confirmed — waiting on the next log
+// check to narrow it down further.
+
+// 3.4.8 — 3.4.7's own Portal fix had a real side effect: calling
+// add_rewrite() synchronously at 'init' priority 10 meant its
+// force_flush_and_verify() could run before other plugins' own
+// default-priority rewrite registrations, and its unconditional
+// wp_cache_flush() wiped the WHOLE object cache mid-request — very
+// likely why API Docs started intermittently 404ing right after 3.4.7
+// shipped (is_locked()'s cached host checks, read later in the same
+// request, got yanked out from under it). Fixed two ways: add_rewrite()
+// is now deferred to 'init' priority 20 (still the same request/pass,
+// just after other plugins' default-priority rewrite rules have
+// registered), and wp_cache_flush() is now an ESCALATION only reached
+// if the cheaper targeted cache evictions didn't already fix it, not
+// called unconditionally on every throttled self-heal attempt. Also
+// regenerated four stale bundled zips (bh-contest, bh-courses,
+// bh-monetization-woo, bh-registry) flagged on the Bundled Zip
+// Freshness table. Standing caveat: reasoning-checked only, not yet
+// confirmed against the live install — please reload a few pages
+// (including /account/ and API Docs) and check whether both stay
+// reachable now.
+
+// 3.4.7 — Portal's /account/ 404, finally actually found (not another
+// caching-layer guess): class-portal.php's own init() was hooking
+// add_rewrite() onto 'init' FROM INSIDE a callback that is itself
+// currently running as part of 'init' (own-ur-shit.php's own
+// add_action('init', ['BHI_Portal','init']) at default priority 10).
+// PHP's foreach over that priority's callback array is a snapshot taken
+// when iteration starts; a handler appended to the SAME priority after
+// iteration has already begun isn't picked up until 'init' fires again
+// — which, on a normal page load, never happens in that request. So
+// add_rewrite() was successfully scheduling itself to run on a request
+// that would never come, which is exactly why even its own always-
+// throttled diagnostic breadcrumb never once appeared in Console & Logs
+// — the method was never being entered, not failing partway through.
+// Fixed by calling add_rewrite() directly from inside init() instead of
+// re-hooking it — we're already executing inside 'init' at that point,
+// so a direct call runs it immediately, every request, no re-hooking
+// needed. See class-portal.php's own comment at the fix site for the
+// full mechanics. Standing caveat: reasoning-checked, brace-balance-
+// checked, and this specific WP_Hook same-priority-snapshot behavior is
+// a well-documented WordPress core mechanic (not a guess) — but this has
+// NOT yet been clicked/reloaded on the live install. Please hard-refresh
+// /account/ and check Debug Tools -> Portal after this update and report
+// back whether the rewrite rule now shows as persisted.
+
+// 3.4.6 — OUS_Jobs can now run on the REAL Action Scheduler library
+// (Apache-2.0, github.com/woocommerce/action-scheduler — the same
+// library WooCommerce itself bundles) instead of only its own
+// hand-rolled wpdb-table queue. A one-click "Install Action Scheduler"
+// button on Debug Tools -> Job Queue downloads the actual official
+// release directly from GitHub onto the LIVE site (this dev sandbox has
+// no outbound network access at all, confirmed by testing — so the
+// library could not be vendored directly from here; fabricating
+// placeholder code under a real project's name would be dishonest, so a
+// real installer was built instead, same download_url()/unzip_file()
+// mechanism OUS_Registry already uses for WooCommerce). register()/
+// enqueue() delegate to Action Scheduler's native add_action()/
+// as_enqueue_async_action() once installed, with ZERO call-site changes
+// needed anywhere bh-registry/bh-streaming/etc. already call OUS_Jobs —
+// until installed, every existing call transparently keeps using the
+// original table-backed implementation exactly as before. See
+// class-jobs.php's own docblock for the full reasoning. Standing
+// caveat: reasoning/brace-balance-checked only, the install button
+// itself has not been clicked against the live site yet — please try it
+// and report back what Debug Tools -> Job Queue shows.
+
+// 3.4.5 — real bug fix + new feature. (1) bh-contest's Live Console
+// dropdown 403'd because its GET form dropped post_type on submit — see
+// bh-contest 3.1.3 for the fix; own-ur-shit itself was audited alongside
+// it (bh-contest, BHY_* styles, bh-crm, Debug Tools) for the same bug
+// class and no other instance was found. (2) New OUS_CodebaseDocs
+// (class-codebase-docs.php, "Own Ur Shit → Codebase Docs"): renders
+// CODEBASE-WALKTHROUGH.md as real in-admin HTML, and turns every
+// file-path mention in that doc into a "View live code" toggle that
+// fetches the file's ACTUAL current contents via a locked-down AJAX
+// endpoint (realpath()-verified inside the plugins root, manage_options-
+// gated, nonce-checked) — so the walkthrough can never silently drift
+// from the real code the way a pasted-in snippet would. Deliberately
+// left OUS_ApiDocs' existing dependency-free viewer alone rather than
+// swapping in a Swagger-UI bundle, to keep this ecosystem's own "no
+// external JS/CDN" viewer convention intact; the two pages cross-link
+// instead. Standing caveat: reasoning/brace-balance-checked only, not
+// yet clicked on the live install.
+define('OUS_VER', '3.4.15');
+
+// superseded — kept only so a stray duplicate define() below this point
+// (a recurring mistake this session) is easy to spot if it recurs:
 // 3.4.4 — new OUS_ReliabilityTestSuite (class-reliability-test-suite.php),
 // the first test coverage for OUS_ReliableStore and
 // OUS_DebugLog::log_throttled() — both previously untested despite now
@@ -16,7 +211,6 @@ if (!defined('ABSPATH')) exit;
 // of every run. Standing caveat: written and brace-balance-checked, but
 // never actually executed — the Test Runner itself needs to be clicked
 // on the live install to confirm these pass for real.
-define('OUS_VER',  '3.4.4');
 
 // 3.4.3 — continuation logging pass (per audit): BHI_Auth::register()'s
 // wp_create_user() failure now logs the real WP_Error instead of
@@ -207,7 +401,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -245,6 +439,7 @@ add_action('init',          ['OUS_ReliabilityTestSuite', 'init']);
 add_action('init',          ['BH_Studio', 'init']);
 add_action('init',          ['OUS_StudioTestSuite', 'init']);
 add_action('init',          ['OUS_ApiDocs', 'init']);
+add_action('init',          ['OUS_CodebaseDocs', 'init']);
 
 add_action('init', ['BHY_Gallery', 'init']);
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);

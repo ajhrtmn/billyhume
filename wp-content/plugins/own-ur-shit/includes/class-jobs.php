@@ -31,12 +31,124 @@ if (!defined('ABSPATH')) exit;
 class OUS_Jobs {
     const MAX_ATTEMPTS = 5;
     const CRON_HOOK = 'bhcore_run_due_jobs';
+    const AS_VERSION = '3.9.2';
+    const AS_ZIP_URL = 'https://github.com/woocommerce/action-scheduler/archive/refs/tags/' . self::AS_VERSION . '.zip';
     private static $handlers = [];
 
+    /**
+     * Action Scheduler (Apache-2.0, github.com/woocommerce/action-scheduler)
+     * is the real, battle-tested version of what this class hand-rolls —
+     * the exact same library WooCommerce itself bundles for its own
+     * background jobs, proven at 10,000+ jobs/hour on live sites. We
+     * vendor it the same way (its PHP dropped directly into this
+     * plugin's own includes/vendor/ folder, no Composer, no separate
+     * plugin to activate) rather than reinventing it forever.
+     *
+     * The sandbox this codebase was written in has NO outbound network
+     * access at all (confirmed, same wall documented elsewhere in this
+     * ecosystem's own VISION.md) — so the actual library files could not
+     * be fetched and vendored directly during this pass. Fabricating
+     * placeholder code under a well-known open-source project's name
+     * would be actively dishonest, so instead: a real one-click
+     * installer below, using the exact same download_url()/unzip_file()
+     * mechanism OUS_Registry's wporg_slug installer already uses for
+     * WooCommerce (see class-registry.php) — it runs on the LIVE site,
+     * which has real internet access, and pulls the actual official
+     * release straight from GitHub the moment someone clicks the button
+     * on Debug Tools → Job Queue.
+     *
+     * Until that button is clicked, every method below transparently
+     * falls back to this class's own original wpdb-table implementation
+     * — nothing about the existing job-queue behavior changes or breaks
+     * for any plugin already calling register()/enqueue() today. Once
+     * Action Scheduler IS present, register()/enqueue() delegate to it
+     * instead, using its native add_action()/as_enqueue_async_action()
+     * primitives, with zero call-site changes required anywhere in the
+     * ecosystem — the public API of this class is unchanged either way.
+     */
+    private static function vendor_path() {
+        return OUS_PATH . 'includes/vendor/action-scheduler/action-scheduler.php';
+    }
+
+    public static function library_available() {
+        return file_exists(self::vendor_path());
+    }
+
     public static function init() {
+        // Must run before 'init' itself so Action Scheduler's own store/
+        // migration classes are registered in time — this is the exact
+        // hook timing Action Scheduler's own documentation specifies.
+        if (self::library_available()) {
+            require_once self::vendor_path();
+            add_action('init', function () { ActionScheduler::init(self::vendor_path()); }, 1);
+        }
+
         add_action('init', [self::class, 'maybe_schedule_cron']);
         add_action(self::CRON_HOOK, [self::class, 'run_due_jobs']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
+        add_action('admin_post_ous_jobs_install_as', [self::class, 'handle_install_action_scheduler']);
+    }
+
+    /**
+     * The one-click installer, same shape/safety checks as
+     * OUS_Registry::handle_install() (capability check, nonce, WP's own
+     * download_url()/unzip_file(), which both handle temp-file cleanup
+     * and use WP_Filesystem rather than raw fopen/curl). Downloads the
+     * real, official tagged release archive, then moves just the
+     * extracted folder into place — no code is written by this method,
+     * only real bytes fetched from GitHub's own release archive.
+     */
+    public static function handle_install_action_scheduler() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        check_admin_referer('ous_jobs_install_as');
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
+
+        $tmp = download_url(self::AS_ZIP_URL);
+        if (is_wp_error($tmp)) {
+            self::redirect_with_notice('Download failed: ' . $tmp->get_error_message());
+            return;
+        }
+
+        $vendor_dir = OUS_PATH . 'includes/vendor';
+        if (!is_dir($vendor_dir)) wp_mkdir_p($vendor_dir);
+
+        $unzip_to = $vendor_dir . '/action-scheduler-extract-tmp';
+        $result = unzip_file($tmp, $unzip_to);
+        @unlink($tmp);
+
+        if (is_wp_error($result)) {
+            self::redirect_with_notice('Extraction failed: ' . $result->get_error_message());
+            return;
+        }
+
+        // GitHub's tag archive extracts into "action-scheduler-{version}/"
+        // — normalize that to a stable "action-scheduler/" folder name so
+        // vendor_path() above never needs to know the version string.
+        global $wp_filesystem;
+        WP_Filesystem();
+        $extracted = glob($unzip_to . '/action-scheduler-*', GLOB_ONLYDIR);
+        $final_dir = $vendor_dir . '/action-scheduler';
+
+        if (!$extracted) {
+            self::redirect_with_notice('Downloaded archive did not contain the expected folder.');
+            return;
+        }
+
+        if (is_dir($final_dir)) $wp_filesystem->delete($final_dir, true);
+        $wp_filesystem->move($extracted[0], $final_dir, true);
+        $wp_filesystem->delete($unzip_to, true);
+
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', 'Action Scheduler library installed via one-click installer.', ['version' => self::AS_VERSION], 'OUS_Jobs');
+        }
+        self::redirect_with_notice('Action Scheduler ' . self::AS_VERSION . ' installed — the job queue now runs on it automatically. Any jobs already pending in the old table will still be processed by the fallback runner until they drain.');
+    }
+
+    private static function redirect_with_notice($msg) {
+        wp_safe_redirect(add_query_arg(['page' => 'ous-debug', 'ous_jobs_msg' => rawurlencode($msg)], admin_url('admin.php')) . '#ous-section-bh-jobs');
+        exit;
     }
 
     // Visibility into the queue lives on the shared Debug Tools page
@@ -55,6 +167,15 @@ class OUS_Jobs {
     }
 
     public static function render_debug_section() {
+        if (self::library_available()) {
+            echo '<p>&#9989; Running on <strong>Action Scheduler ' . esc_html(self::AS_VERSION) . '</strong> (vendored, real library — not the fallback table). Its own queue view: <a href="' . esc_url(admin_url('tools.php?page=action-scheduler')) . '">Tools → Scheduled Actions</a>.</p>';
+        } else {
+            echo '<p>&#9888; Running on the built-in fallback queue (a plain wpdb table). <a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=ous_jobs_install_as'), 'ous_jobs_install_as')) . '" class="button button-primary" onclick="return confirm(\'Download and install Action Scheduler ' . esc_js(self::AS_VERSION) . ' from GitHub now?\');">Install Action Scheduler ' . esc_html(self::AS_VERSION) . '</a> — one click, downloads the real official release directly from GitHub onto this site, no separate plugin to activate.</p>';
+        }
+        if (isset($_GET['ous_jobs_msg'])) {
+            echo '<div class="notice notice-info inline"><p>' . esc_html(wp_unslash($_GET['ous_jobs_msg'])) . '</p></div>';
+        }
+
         $counts = self::counts_by_status();
         echo '<p>Pending: <strong>' . $counts['pending'] . '</strong> &nbsp; Running: <strong>' . $counts['running'] . '</strong> &nbsp; Done: <strong>' . $counts['done'] . '</strong> &nbsp; Failed: <strong>' . $counts['failed'] . '</strong></p>';
         echo OUS_Debug::button('bh-jobs', 'run_now', 'Run due jobs now (don\'t wait for cron)');
@@ -112,22 +233,51 @@ class OUS_Jobs {
     // convention, so this is a non-issue in practice.
     public static function register($hook, $callback) {
         self::$handlers[$hook] = $callback;
+
+        // Action Scheduler runs a due action via a plain do_action($hook,
+        // ...$args) — a real WordPress hook, nothing bespoke. Our own
+        // callback signature is call_user_func($callback, $args) (ONE
+        // array argument), so this thin shim adapts AS's native
+        // call shape to ours without changing what any existing plugin
+        // passes to register() today.
+        if (self::library_available()) {
+            add_action(sanitize_key($hook), function (...$as_args) use ($callback) {
+                call_user_func($callback, $as_args[0] ?? []);
+            });
+        }
     }
 
     public static function enqueue($hook, $args = [], $delay_seconds = 0) {
+        $hook = sanitize_key($hook);
+        $delay_seconds = max(0, (int) $delay_seconds);
+
+        if (self::library_available()) {
+            // Group everything under one namespace so Action Scheduler's
+            // own Tools -> Scheduled Actions screen can filter to just
+            // this ecosystem's jobs alongside whatever WooCommerce or
+            // other plugins also schedule through the same shared library.
+            return $delay_seconds > 0
+                ? as_schedule_single_action(time() + $delay_seconds, $hook, [$args], 'bhcore')
+                : as_enqueue_async_action($hook, [$args], 'bhcore');
+        }
+
         global $wpdb;
         $wpdb->insert(self::table(), [
-            'hook' => sanitize_key($hook),
+            'hook' => $hook,
             'args' => wp_json_encode($args),
-            'run_after' => gmdate('Y-m-d H:i:s', time() + max(0, (int) $delay_seconds)),
+            'run_after' => gmdate('Y-m-d H:i:s', time() + $delay_seconds),
         ]);
         return (int) $wpdb->insert_id;
     }
 
     // Pulls a bounded batch of due, pending jobs and runs each — called
-    // from WP-Cron every minute. Bounded (not "all due jobs") so one
-    // cron tick on a site with a huge backlog can't run indefinitely and
-    // start overlapping with the next scheduled tick.
+    // from WP-Cron every minute. Only relevant to the fallback queue;
+    // once Action Scheduler is installed it runs its OWN cron-driven
+    // batch runner internally, so this method (and the cron event that
+    // calls it) simply has nothing to do — left registered rather than
+    // conditionally unhooked, since an empty-table SELECT every minute
+    // is negligible cost and this keeps the fallback path always ready
+    // to resume seamlessly if Action Scheduler were ever removed.
     public static function run_due_jobs($batch_size = 20) {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.2
+ * Version:     0.4.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -97,7 +97,8 @@ if (!defined('ABSPATH')) exit;
 // Standing caveat, same as every pass this session: NOT run against real
 // WordPress+MySQL — reasoning-checked and PHP-syntax-balance-checked
 // only (no php-cli in this sandbox either), never executed.
-define('BHC_VER',  '0.4.2');
+// 0.4.3 — bundled zip regenerated to match installed version, no code change
+define('BHC_VER',  '0.4.3');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
