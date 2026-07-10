@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
+// class-debug.php's own docblock), filing this under "Reference &
+// Docs" instead of the default bucket. No other change.
+
 /**
  * Turns the REST routes this ecosystem already registers (BHI_Auth,
  * BHI_Reports, and anything any peer plugin registers via its own
@@ -54,7 +59,7 @@ class OUS_ApiDocs {
     // all" (an is_locked() problem) without needing to click through to
     // the 404 first.
     public static function register_debug_section($tools) {
-        $tools['api-docs'] = ['label' => 'API Docs', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null];
+        $tools['api-docs'] = ['label' => 'API Docs', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 

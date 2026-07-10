@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// BH_VER 3.1.6 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
+// (own-ur-shit's Debug Tools reorganization pass — see that plugin's
+// class-debug.php docblock), filing this section under "Seed & Reset
+// Tools" instead of the default bucket. No other change.
+
 /**
  * Registers this plugin's dev-only data seeding into the shared Debug
  * Tools page (see OUS_Debug) instead of running its own separate menu
@@ -35,6 +40,7 @@ class BH_Debug {
             'render' => [self::class, 'render_section'],
             'handle' => [self::class, 'handle_action'],
             'reset'  => [self::class, 'reset'],
+            'group'  => OUS_Debug::GROUP_SEED_RESET,
         ];
         return $tools;
     }

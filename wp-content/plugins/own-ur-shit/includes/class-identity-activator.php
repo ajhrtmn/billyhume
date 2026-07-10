@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.7'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column()
+    const DB_VERSION = '1.8'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -175,6 +175,36 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql6);
 
+        // Versioned, namespaced per-event envelope — see class-event.php
+        // (BH_Event) and EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 2.
+        // dedup_key is UNIQUE but MySQL treats multiple '' values as
+        // colliding under a UNIQUE index (unlike NULL) — class-event.php
+        // always writes either a real deterministic string or NULL,
+        // never '', so non-deduplicated events (plays, votes) don't
+        // collide with each other under this index.
+        $events = $wpdb->prefix . 'bhcore_events';
+        $sql7 = "CREATE TABLE $events (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            type varchar(100) NOT NULL,
+            v smallint(5) unsigned NOT NULL DEFAULT 1,
+            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            client_id varchar(64) NOT NULL DEFAULT '',
+            subject_type varchar(60) NOT NULL DEFAULT '',
+            subject_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            payload longtext,
+            context text,
+            occurred_at datetime NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            dedup_key varchar(191) DEFAULT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY dedup (dedup_key),
+            KEY user (user_id),
+            KEY client (client_id),
+            KEY type_time (type, occurred_at),
+            KEY subject (subject_type, subject_id)
+        ) $charset;";
+        dbDelta($sql7);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -182,6 +212,7 @@ class BHI_Activator {
         $jobs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $jobs));
         $log_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $debug_log));
         $content_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $content));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content;
+        $events_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $events));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events;
     }
 }

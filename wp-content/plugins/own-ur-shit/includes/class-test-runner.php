@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH') ) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
+// class-debug.php's own docblock), filing this under "Monitoring &
+// Health" instead of the default bucket. No other change.
+
 /**
  * A GUI test runner living on the SAME real PHP the actual site runs on
  * — the whole reason a CLI/PHPUnit isn't needed to get real signal from
@@ -92,6 +97,7 @@ class OUS_TestRunner {
             // doing what it's supposed to" on a live site too, not only
             // in a dev environment.
             'safe_in_production' => true,
+            'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
     }

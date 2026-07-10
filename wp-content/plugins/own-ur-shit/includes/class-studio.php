@@ -1,6 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
+// class-debug.php's own docblock). This section is read-only (lists
+// registered block types), so it groups with API/Codebase Docs under
+// "Reference & Docs" rather than the default bucket. No other change.
+
 /**
  * BH_Studio — the visual authoring canvas ROADMAP-platform-evolution.md
  * Section 3 called the single highest-leverage foundational piece still
@@ -92,6 +98,7 @@ class BH_Studio {
             'render' => [self::class, 'render_debug_section'],
             'handle' => null,
             'reset' => null,
+            'group' => OUS_Debug::GROUP_REFERENCE,
         ];
         return $tools;
     }

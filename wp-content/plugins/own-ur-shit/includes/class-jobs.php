@@ -1,6 +1,19 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
+// class-debug.php's own docblock), filing this under "Monitoring &
+// Health" instead of the default bucket. No other change.
+//
+// OUS_VER 3.4.18 — redirect_with_notice() (the Action Scheduler
+// installer's success/failure hand-off) now also queues a BHCoreToast via
+// OUS_Toast::queue(), type inferred from whether the message text starts
+// with a known failure phrase — see that method's own comment for why
+// this is a text-sniff rather than a real status flag. Additive only:
+// the existing $_GET['ous_jobs_msg'] notice this already rendered is
+// unchanged.
+
 /**
  * A shared async job queue — the WP-Cron-driven, no-external-infra
  * version of a real message queue, since this ecosystem deliberately
@@ -105,14 +118,41 @@ class OUS_Jobs {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
 
+        // QA fix: WP_Filesystem()'s return value was never checked —
+        // when direct filesystem access isn't available (credentials
+        // needed, permissions, etc.) every $wp_filesystem->move()/
+        // delete() call below either silently no-ops or fatals, and the
+        // user just sees "nothing happened" when the button is clicked.
+        // Initialize (and verify) the filesystem transport FIRST, before
+        // any network work, so a failure here is reported immediately
+        // and honestly instead of after an already-wasted download.
+        global $wp_filesystem;
+        if (!WP_Filesystem()) {
+            self::redirect_with_notice("Could not get filesystem access (WP_Filesystem() failed) - this host likely requires FTP/SSH credentials for direct file writes. Check wp-config.php's FS_METHOD setting or your hosting file-permission setup, then try again.");
+            return;
+        }
+
         $tmp = download_url(self::AS_ZIP_URL);
         if (is_wp_error($tmp)) {
+            // QA fix: surface the FULL WP_Error message, not a
+            // paraphrase — download_url() failures on this sandboxed/
+            // Local-by-Flywheel install are often SSL-cert-related, and
+            // the real message is the only way to actually diagnose it.
             self::redirect_with_notice('Download failed: ' . $tmp->get_error_message());
             return;
         }
 
         $vendor_dir = OUS_PATH . 'includes/vendor';
-        if (!is_dir($vendor_dir)) wp_mkdir_p($vendor_dir);
+        if (!is_dir($vendor_dir)) {
+            // QA fix: wp_mkdir_p()'s return value was unchecked — if
+            // includes/ isn't writable, every subsequent step failed as
+            // a downstream side effect instead of a clear error here.
+            if (!wp_mkdir_p($vendor_dir)) {
+                @unlink($tmp);
+                self::redirect_with_notice('Could not create the vendor directory (' . $vendor_dir . ') — check that includes/ is writable by the web server.');
+                return;
+            }
+        }
 
         $unzip_to = $vendor_dir . '/action-scheduler-extract-tmp';
         $result = unzip_file($tmp, $unzip_to);
@@ -123,22 +163,38 @@ class OUS_Jobs {
             return;
         }
 
-        // GitHub's tag archive extracts into "action-scheduler-{version}/"
-        // — normalize that to a stable "action-scheduler/" folder name so
-        // vendor_path() above never needs to know the version string.
-        global $wp_filesystem;
-        WP_Filesystem();
+        // GitHub's tag archive extracts into "{repo}-{tag}/" — for this
+        // numeric, no-"v"-prefix tag (self::AS_VERSION, e.g. "3.9.2")
+        // that's literally "action-scheduler-3.9.2/", which this glob
+        // matches directly. Normalized to a stable "action-scheduler/"
+        // folder name so vendor_path() above never needs to know the
+        // version string.
         $extracted = glob($unzip_to . '/action-scheduler-*', GLOB_ONLYDIR);
         $final_dir = $vendor_dir . '/action-scheduler';
 
         if (!$extracted) {
-            self::redirect_with_notice('Downloaded archive did not contain the expected folder.');
+            $wp_filesystem->delete($unzip_to, true);
+            self::redirect_with_notice('Downloaded archive did not contain the expected "action-scheduler-' . self::AS_VERSION . '/" folder — GitHub\'s archive layout may have changed. Nothing was installed.');
             return;
         }
 
         if (is_dir($final_dir)) $wp_filesystem->delete($final_dir, true);
-        $wp_filesystem->move($extracted[0], $final_dir, true);
+        $moved = $wp_filesystem->move($extracted[0], $final_dir, true);
         $wp_filesystem->delete($unzip_to, true);
+
+        if (!$moved) {
+            self::redirect_with_notice('Could not move the extracted library into place (' . $final_dir . ') — check file permissions. Nothing was installed.');
+            return;
+        }
+
+        // Never claim success unless the vendor entry file genuinely
+        // exists on disk now — the one check that actually proves the
+        // install worked, independent of every step above reporting no
+        // error.
+        if (!file_exists(self::vendor_path())) {
+            self::redirect_with_notice('Install did not complete — the library file was not found at ' . self::vendor_path() . ' after moving. Nothing changed; the job queue is still on the fallback runner.');
+            return;
+        }
 
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'Action Scheduler library installed via one-click installer.', ['version' => self::AS_VERSION], 'OUS_Jobs');
@@ -146,7 +202,25 @@ class OUS_Jobs {
         self::redirect_with_notice('Action Scheduler ' . self::AS_VERSION . ' installed — the job queue now runs on it automatically. Any jobs already pending in the old table will still be processed by the fallback runner until they drain.');
     }
 
+    // Every failure path above passes a message containing one of these
+    // phrases; the one success path ("Action Scheduler X.X.X installed —
+    // ...") does not. A real status flag threaded through every early
+    // return would be cleaner, but rewriting handle_install_action_scheduler()'s
+    // control flow for that is out of scope for adding toast feedback —
+    // this text-sniff is good enough to pick success vs. error for a
+    // purely supplementary toast, and a false positive here just means a
+    // toast shows the wrong color, not the wrong message.
+    private static function notice_looks_like_failure($msg) {
+        foreach (['failed', 'Could not', 'did not', 'not allowed'] as $needle) {
+            if (stripos($msg, $needle) !== false) return true;
+        }
+        return false;
+    }
+
     private static function redirect_with_notice($msg) {
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue($msg, self::notice_looks_like_failure($msg) ? 'error' : 'success');
+        }
         wp_safe_redirect(add_query_arg(['page' => 'ous-debug', 'ous_jobs_msg' => rawurlencode($msg)], admin_url('admin.php')) . '#ous-section-bh-jobs');
         exit;
     }
@@ -162,6 +236,7 @@ class OUS_Jobs {
             'render' => [self::class, 'render_debug_section'],
             'handle' => [self::class, 'handle_debug_action'],
             'reset' => [self::class, 'reset_debug'],
+            'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
     }

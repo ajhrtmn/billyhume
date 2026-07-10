@@ -1,6 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() (the "Bundled Zip
+// Freshness" section) now sets 'group' => OUS_Debug::GROUP_MONITORING
+// (Debug Tools reorganization pass — see class-debug.php's own
+// docblock), filing this under "Monitoring & Health" instead of the
+// default bucket. No other change.
+
 /**
  * As of the v3 core merge, this only tracks the plugins that are still
  * genuinely separate: bh-contest and bh-streaming. Identity and style
@@ -417,6 +423,7 @@ class OUS_Registry {
             // nothing, so it's fine to check even on a live/production
             // site.
             'safe_in_production' => true,
+            'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
     }

@@ -2,14 +2,15 @@
 
 The ecosystem core, plus its hub: shared accounts/profiles/email
 verification, shared design tokens with a Storybook-patterned live
-preview gallery, and one dashboard for installing and activating BH
-Contest, BH Streaming, and BH CRM on top of it.
+preview gallery, and one dashboard for installing and activating every
+peer plugin (BH Contest, BH Streaming, BH CRM, BH Registry, BH
+Monetization, BH Courses) on top of it.
 
 ## What it does
 
 - **Shared identity**: registration, login, session, and email
-  verification that BH Contest, BH Streaming, and BH CRM all build on
-  instead of each maintaining their own.
+  verification that every peer plugin builds on instead of each
+  maintaining their own.
 - **Shared design tokens + Style gallery**: one place to set colors,
   typography, and spacing; any plugin registers its own live-previewed
   "story" into the same gallery via a filter (`bhy_style_surfaces`).
@@ -42,11 +43,11 @@ dashboard — with zero feature plugins installed.
 
 ## Installation
 
-Two ways to get all four plugins, depending on how you're deploying:
+Two ways to get all seven plugins, depending on how you're deploying:
 
 1. **Standard "Upload Plugin" button** (wp-admin → Plugins → Add New →
    Upload Plugin): upload this plugin's own zip. It's structurally a
-   single valid plugin — the other three ship as inert zip files inside
+   single valid plugin — the other six ship as inert zip files inside
    its own folder — so the normal upload flow accepts it without
    complaint. Once active, use the dashboard to install and activate the
    rest.
@@ -55,8 +56,8 @@ Two ways to get all four plugins, depending on how you're deploying:
    where WordPress expects, no dashboard step needed before they're all
    visible in the Plugins list.
 
-Either way, activate this plugin **first** — BH Contest, BH Streaming,
-and BH CRM all require it active before their own features light up.
+Either way, activate this plugin **first** — every peer plugin
+requires it active before its own features light up.
 
 ## License
 

@@ -2,10 +2,23 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.15
+ * Version:     3.4.19
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.19 — Debug Tools reorganization pass: added an optional 'group'
+// key to the ous_debug_tools registration array shape (self::GROUP_*
+// constants in class-debug.php) so sections render bucketed by purpose
+// (Monitoring & Health / Reference & Docs / Seed & Reset Tools /
+// Diagnostics & Tools default) instead of flat registration order, with
+// a grouped "Jump to" quicknav to match. Purely additive — no existing
+// add_filter('ous_debug_tools', ...) call site had to change shape to
+// keep working; every current registrant was also updated to set an
+// explicit 'group' so the new grouping takes effect immediately. See
+// class-debug.php's own docblock for the full writeup. Standing caveat:
+// reasoning/brace-balance-checked only, no live PHP execution available
+// this session — please confirm the grouped page renders correctly.
 
 // 3.4.15 — confirmed via Query Monitor (capability-checks + admin-screen
 // panels, installed temporarily on the live site): the standalone
@@ -198,7 +211,68 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.15');
+define('OUS_VER', '3.4.19');
+
+// 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
+// (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
+// real, no-build-step, dependency-free BHCoreToast.show(message, type)
+// JS renderer (fixed top-right stack, auto-dismiss + manual close,
+// role="status"/aria-live="polite"), enqueued globally on both
+// admin_enqueue_scripts and wp_enqueue_scripts so any plugin in the
+// ecosystem can call it from its own JS with zero setup. For this
+// ecosystem's many classic admin-post.php POST+redirect flows (not
+// AJAX), OUS_Toast::queue($message, $type) hands a one-shot toast off
+// across the redirect via OUS_ReliableStore (NOT transients — this
+// install's persistent object cache has repeatedly lost transient
+// writes between requests, see class-reliable-store.php's own docblock;
+// a "your action saved" toast silently never appearing would be that
+// same bug again), keyed per logged-in user (or a short-lived per-guest
+// cookie id for logged-out visitors). Wired into: bh-crm's note-save
+// redirect (class-notes.php), own-ur-shit's shared Debug Tools button
+// dispatch (class-debug.php — covers "Run due jobs now" and every other
+// registered debug action) and OUS_Jobs' Action Scheduler installer
+// (class-jobs.php); bh-courses' AJAX mark-step-complete handler gets
+// BHCoreToast.show() called directly from its JS success/failure
+// callback instead (no redirect to hand off across). bh-contest's vote
+// flow already has its own working toast() implementation
+// (assets/js/player.js) and was deliberately left alone rather than
+// duplicated. See EVENT-TRACKING-ARCHITECTURE-PLAN.md's BH_Event for the
+// pre-existing event layer this supplements — toasts are UI feedback,
+// additive only, no existing WordPress admin notice was removed or
+// replaced anywhere in this pass. Standing caveat: reasoning/brace-
+// balance-checked only, no live PHP+MySQL or browser execution in this
+// pass — not runtime-verified. Please click bh-crm's "Save notes" (the
+// simplest wired action) and confirm a toast appears once, then does NOT
+// repeat on a plain refresh.
+
+// 3.4.17 — added BH_Identity::client_ids_for_user() (class-identity.php),
+// a reverse lookup from user_id to the distinct client_id values
+// already stamped on that user's own bhcore_events rows (there is no
+// separate stitching table — see that class's docblock for why this
+// is NOT a join against dedicated storage). Added to support bh-crm's
+// new event-activity consumer (bh-crm/includes/class-event-activity.php,
+// bh-crm 1.0.0 -> 1.1.0), which was wired to bh_crm_activity_summary
+// this pass. Also broadened class-event.php's Debug Tools "Event
+// Tracking" section with a 7-day per-type-per-day breakdown and a
+// top-active-users list, alongside the pre-existing 7-day per-type
+// count table. Standing caveat: reasoning/brace-balance-checked only,
+// no live PHP+MySQL execution in this pass — not runtime-verified.
+
+// 3.4.16 — hardened OUS_Jobs::handle_install_action_scheduler() (the
+// "Install Action Scheduler" Debug Tools button, which a user reported
+// did nothing when clicked): WP_Filesystem() and wp_mkdir_p() return
+// values are now checked instead of ignored, download_url()'s full
+// WP_Error message is surfaced verbatim (was already true before, kept
+// so on purpose — helps diagnose Local-by-Flywheel's known outbound-SSL
+// quirks), and success is no longer declared unless
+// file_exists(OUS_Jobs::vendor_path()) is genuinely true after the
+// move. Also added OUS_Dashboard's new Job Queue + Query Monitor status
+// block (class-dashboard.php render()) and the new BH_Event/BH_Identity
+// event-tracking layer (class-event.php, class-identity.php — see
+// EVENT-TRACKING-ARCHITECTURE-PLAN.md, previously designed but never
+// implemented) wired into the require-loop/init hooks below. Standing
+// caveat: reasoning/brace-balance-checked only, no live PHP+MySQL
+// execution in this pass — not runtime-verified.
 
 // superseded — kept only so a stray duplicate define() below this point
 // (a recurring mistake this session) is easy to spot if it recurs:
@@ -401,7 +475,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -440,6 +514,9 @@ add_action('init',          ['BH_Studio', 'init']);
 add_action('init',          ['OUS_StudioTestSuite', 'init']);
 add_action('init',          ['OUS_ApiDocs', 'init']);
 add_action('init',          ['OUS_CodebaseDocs', 'init']);
+add_action('init',          ['BH_Event', 'init']);
+add_action('init',          ['BH_Identity', 'init']);
+add_action('init',          ['OUS_Toast', 'init']);
 
 add_action('init', ['BHY_Gallery', 'init']);
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);

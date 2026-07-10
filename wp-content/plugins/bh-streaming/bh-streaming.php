@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.1
+ * Version:     0.5.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -15,7 +15,15 @@ if (!defined('ABSPATH')) exit;
 // TRANSITION (not every check, which runs on a schedule and would
 // otherwise flood the log). Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BHS_VER',  '0.5.1');
+// 0.5.2 — BHS_Stats::record_play()/record_skip() (class-stats.php) now
+// also emit BH_Event 'bhs/play'/'bhs/skip' events (own-ur-shit's new
+// BH_Event envelope, class-event.php) alongside the existing
+// bhs_daily_stats aggregate rollup — additive only, the artist
+// dashboard's own data path is unchanged. See
+// EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6. Standing caveat:
+// reasoning/brace-balance-checked only, not run against a real
+// WordPress+MySQL install.
+define('BHS_VER',  '0.5.2');
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 

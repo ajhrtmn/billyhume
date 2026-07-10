@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.3
+ * Version:     0.4.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -98,7 +98,29 @@ if (!defined('ABSPATH')) exit;
 // WordPress+MySQL — reasoning-checked and PHP-syntax-balance-checked
 // only (no php-cli in this sandbox either), never executed.
 // 0.4.3 — bundled zip regenerated to match installed version, no code change
-define('BHC_VER',  '0.4.3');
+// 0.4.4 — class-progress.php's enroll_if_needed()/mark_step_complete()/
+// maybe_fire_course_completed() now additionally emit BH_Event
+// 'bhc/enroll' / 'bhc/step_completed' / 'bhc/course_completed' events
+// (own-ur-shit's new event-tracking layer, class-event.php) — additive
+// only, alongside the existing bhc_progress/bhc_enrollments/
+// bhc_completions writes and the existing bhc_course_completed action,
+// which are unchanged. See EVENT-TRACKING-ARCHITECTURE-PLAN.md Section
+// 6. Standing caveat: reasoning/brace-balance-checked only, no
+// php-cli/live WordPress+MySQL in this pass either.
+// 0.4.5 — assets/js/courses.js's mark-step-complete AJAX handler now
+// calls BHCoreToast.show() directly (own-ur-shit's new toast system,
+// 3.4.18+) on both success ("Step complete.") and failure, in addition
+// to advancing the lesson UI as before. This is an AJAX flow with no
+// redirect, so it calls the JS toast API directly rather than the
+// PHP-side OUS_Toast::queue() hand-off used by this ecosystem's
+// admin-post redirect flows. typeof-guarded: falls back to the
+// pre-existing alert() on failure if BHCoreToast isn't loaded for any
+// reason. No PHP changed, so no BHC_VER cache-busting bump is strictly
+// required for correctness, but bumped anyway per this pass's own
+// changelog convention, since courses.js is enqueued with BHC_VER as its
+// version string (class-render.php) and this ensures the browser doesn't
+// serve a stale cached copy of the edited file.
+define('BHC_VER',  '0.4.5');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 

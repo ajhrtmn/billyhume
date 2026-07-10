@@ -45,3 +45,4 @@ Everything flagged in VISION.md's gap list still applies — this is a start on 
 ## Related: the Console & Logs debug section
 
 Separate from tests, but built in the same pass and worth knowing about: Own Ur Shit → Debug Tools now also has a **Console & Logs** section (`OUS_DebugLog`) — an aggregate log capturing PHP fatals, WordPress's own `doing_it_wrong`/deprecated notices, admin-only JS errors, and anything any plugin explicitly logs via `OUS_DebugLog::log()`. This is the "no tailable error log file, no CLI" answer for day-to-day debugging, separate from the Test Runner's "did the logic I already wrote still work" job.
+x

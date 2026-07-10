@@ -163,6 +163,18 @@ class BH_API {
                     'user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'vote_row_id' => $existing, 'db_error' => $wpdb->last_error,
                 ], 'BH Contest Voting');
             }
+            // BH_Event: fire-and-forget, after this DB write (no
+            // transaction wraps the removal path) — purely for the
+            // activity-stream/CRM side, never touching the vote-tallying
+            // logic above. See EVENT-TRACKING-ARCHITECTURE-PLAN.md
+            // Section 5 item 4.
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bh/vote', [
+                    'user_id' => $uid,
+                    'subject_type' => 'bh_submission', 'subject_id' => (int) $sid,
+                    'payload' => ['contest_id' => $cid, 'category' => $cat, 'action' => 'removed'],
+                ]);
+            }
             return self::ok([
                 'action'     => 'removed',
                 'category'   => $cat,
@@ -198,6 +210,19 @@ class BH_API {
             ], 'BH Contest Voting');
         }
         $wpdb->query('COMMIT');
+
+        // BH_Event: fired here, AFTER the transaction commits — must
+        // NOT move inside the transaction or onto the queue in a way
+        // that could delay/block the synchronous votes_left response
+        // the caller needs immediately. See
+        // EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 5 item 4.
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/vote', [
+                'user_id' => $uid,
+                'subject_type' => 'bh_submission', 'subject_id' => (int) $sid,
+                'payload' => ['contest_id' => $cid, 'category' => $cat, 'action' => 'added'],
+            ]);
+        }
 
         return self::ok([
             'action'     => 'added',

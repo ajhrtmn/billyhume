@@ -27,15 +27,14 @@ Media Session API support for lock-screen playback controls.
 
 ## Requirements
 
-- **BH Identity** (accounts/profiles — likes and playlists need a
-  logged-in user)
-- **BH Style** (the design tokens its own stylesheet is built on)
+- **Own Ur Shit** (the ecosystem core — shared accounts/profiles for
+  likes/playlists, and the design tokens its own stylesheet is built on)
 
-Both need to be installed and active first.
+Needs to be installed and active first.
 
 ## Installation
 
-1. Install and activate BH Identity, then BH Style.
+1. Install and activate Own Ur Shit.
 2. Install and activate this plugin.
 3. Add tracks under **Tracks** in wp-admin — audio + optional artwork,
    both via the normal media uploader.

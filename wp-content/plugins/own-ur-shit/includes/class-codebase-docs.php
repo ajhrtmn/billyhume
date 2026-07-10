@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
+// class-debug.php's own docblock), filing this under "Reference &
+// Docs" instead of the default bucket. No other change.
+
 /**
  * Compiles the hand-written codebase curriculum (CODEBASE-WALKTHROUGH.md,
  * one directory above the plugins themselves) into an in-admin, browsable
@@ -46,7 +51,7 @@ class OUS_CodebaseDocs {
     }
 
     public static function register_debug_section($tools) {
-        $tools['codebase-docs'] = ['label' => 'Codebase Docs', 'render' => [self::class, 'render_section'], 'handle' => null, 'reset' => null];
+        $tools['codebase-docs'] = ['label' => 'Codebase Docs', 'render' => [self::class, 'render_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 

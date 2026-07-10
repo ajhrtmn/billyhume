@@ -16,6 +16,16 @@ class BHC_Progress {
         // in the main bootstrap file — kept as an init() entry point
         // anyway for consistency with every other class in this
         // ecosystem.
+
+        // BH_Event registration (own-ur-shit's event-tracking layer) —
+        // see enroll_if_needed()/mark_step_complete()/
+        // maybe_fire_course_completed() below for the actual emit()
+        // calls. Per EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
+        if (class_exists('BH_Event')) {
+            BH_Event::register_event_type('bhc/enroll', ['course_id' => 'int']);
+            BH_Event::register_event_type('bhc/step_completed', ['lesson_id' => 'int', 'step_index' => 'int', 'score' => 'int|null', 'passed' => 'bool|null']);
+            BH_Event::register_event_type('bhc/course_completed', ['course_id' => 'int']);
+        }
     }
 
     private static function table() {
@@ -114,6 +124,19 @@ class BHC_Progress {
             ], 'BH Courses Progress');
         }
 
+        // BH_Event: additive alongside the existing bhc_progress write
+        // above — every completed-step write (not attempt) gets a real
+        // per-event record. Append-only (no dedup_key): a step being
+        // re-marked complete on a resubmit/refresh is tolerated the same
+        // way this table's own ON DUPLICATE KEY UPDATE already is.
+        if (($passed === null || $passed) && class_exists('BH_Event')) {
+            BH_Event::emit('bhc/step_completed', [
+                'user_id' => $user_id,
+                'subject_type' => 'bhc_lesson', 'subject_id' => (int) $lesson_id,
+                'payload' => ['step_index' => (int) $step_index, 'score' => $score, 'passed' => $passed],
+            ]);
+        }
+
         if ($passed === null || $passed) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));
         }
@@ -183,6 +206,16 @@ class BHC_Progress {
             "INSERT IGNORE INTO {$wpdb->prefix}bhc_enrollments (user_id, course_id) VALUES (%d, %d)",
             $user_id, $course_id
         ));
+        // Deduplicated by design — dedup_key means a repeat visit's
+        // repeat call to this cheap-no-op method never records a second
+        // 'bhc/enroll' event for the same user+course.
+        if ($wpdb->rows_affected === 1 && class_exists('BH_Event')) {
+            BH_Event::emit('bhc/enroll', [
+                'user_id' => $user_id,
+                'subject_type' => 'bhc_course', 'subject_id' => (int) $course_id,
+                'dedup_key' => "bhc/enroll:$user_id:$course_id",
+            ]);
+        }
     }
 
     public static function enrolled_at($user_id, $course_id) {
@@ -231,6 +264,17 @@ class BHC_Progress {
         ));
         if ((int) $wpdb->rows_affected === 1) {
             do_action('bhc_course_completed', $user_id, $course_id);
+            // Same once-only guarantee as the do_action() above (both
+            // gated on the same INSERT IGNORE affecting exactly one
+            // row) — dedup_key is a second, independent enforcement at
+            // the bhcore_events table level.
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bhc/course_completed', [
+                    'user_id' => $user_id,
+                    'subject_type' => 'bhc_course', 'subject_id' => (int) $course_id,
+                    'dedup_key' => "bhc/course_completed:$user_id:$course_id",
+                ]);
+            }
         }
     }
 

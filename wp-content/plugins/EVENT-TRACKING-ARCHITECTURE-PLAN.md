@@ -1,5 +1,7 @@
 # Event-tracking architecture: `BH_Event` and `BH_Identity`
 
+**Status: implemented.** `BH_Event`/`BH_Identity`/`bhcore_events` are real, in the codebase (`own-ur-shit/includes/class-event.php`, `class-identity.php`), and wired into bh-streaming, bh-contest, and bh-courses. **bh-crm is NOT wired** — see §6 below, corrected from this doc's original claim that it was. Treat the design/schema sections below (§1-§5, §7) as accurate; §6's consumer list has been corrected to match what's actually in the code, not what was originally planned.
+
 A self-hosted, GA/Segment-equivalent event-tracking layer for the ecosystem, designed to ride entirely on infrastructure the ecosystem already owns (`OUS_Jobs`) rather than any new mechanism or third-party service — consistent with VISION.md's "no quiet dependency on a paid third-party service where an owned equivalent will do" standing rule.
 
 ## 1. Why this exists
@@ -64,8 +66,9 @@ Read `bh-contest`, `bh-streaming`, `bh-crm`, and the existing `OUS_Jobs` handler
 - **bh-streaming** — `bhs/play`, `bhs/skip`, replacing the synchronous per-play DB write with a queued one.
 - **bh-contest** — `bh/vote`, fired after (never inside) the vote's own transactional tally logic.
 - **bh-courses** — `bhc/enroll`, `bhc/step_completed`, `bhc/course_completed`, off hooks added to `class-progress.php`.
-- **bh-crm** — reads `bhcore_events` into its existing `bh_crm_activity_summary` filter contract, so a contact's Activity section now includes pre-signup history.
+- **bh-crm — NOT wired.** This was originally planned (reading `bhcore_events` into the existing `bh_crm_activity_summary` filter contract so a contact's Activity section includes pre-signup history) but was explicitly out of scope for this pass and has not been built. No code in `bh-crm` reads `bhcore_events` today; the filter contract exists (`class-people.php`) but nothing feeds it from the events table. This is the concrete next step, not a "someday."
 
 ## 7. Self-hosted posture check
 
 Confirmed against VISION.md's standing review criteria: zero new third-party dependencies, no assumed Redis/Memcached/external queue (rides `OUS_Jobs`'s existing WP-Cron model), all data stored in the ecosystem's own MySQL database. Consistent with the "self-hosted, no vendor lock-in, no quiet paid-third-party dependency" framing applied to every design decision in this ecosystem.
+x

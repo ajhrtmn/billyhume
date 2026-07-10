@@ -1,6 +1,40 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.18 — handle() now also queues a BHCoreToast supplement
+// (OUS_Toast::queue()) alongside the existing $_GET['ous_msg'] plain-text
+// notice, for every registered debug-section action (Run due jobs now,
+// etc.) — additive only, the existing notice/redirect mechanism below is
+// unchanged. See class-toast.php's own docblock for why this uses
+// OUS_ReliableStore instead of a transient.
+//
+// OUS_VER 3.4.19 — reorganization pass: sections registered via
+// ous_debug_tools had grown to a dozen-plus, all rendered flat in
+// filter-registration order with no logical grouping (a monitoring tool
+// like Job Queue sitting next to a reference doc like API Docs sitting
+// next to a one-off data-seeding action, in whatever order plugins
+// happened to load). Added an OPTIONAL 'group' key to the existing
+// registration array shape (self::group_label() below has the full
+// bucket list + the default any ungrouped section falls into) — this is
+// purely additive: a plugin that never sets 'group' still renders
+// exactly as before, just filed under the default bucket, so no
+// existing add_filter('ous_debug_tools', ...) call site anywhere in the
+// ecosystem had to change its registration shape to keep working. Every
+// CURRENT registrant (class-jobs.php, class-event.php,
+// class-debug-log.php, class-registry.php, class-test-runner.php,
+// class-api-docs.php, class-codebase-docs.php, class-studio.php,
+// class-portal.php, bh-registry, bh-contest, bh-courses,
+// class-content-bridge.php, bh-monetization-woo) was also updated in
+// this same pass to set an explicit, sensible 'group' so the new
+// grouping takes effect immediately instead of everything defaulting to
+// one bucket. render() below now prints a group heading above each
+// bucket's sections (in a fixed, curated order — see GROUP_ORDER) and
+// the existing "Jump to" quicknav is now grouped the same way. The
+// per-section <details>/<summary> collapsible markup, scroll-margin
+// anchor fix, localStorage open/closed memory, and "Reset everything"
+// section are all completely unchanged — this only changes how sections
+// are bucketed/labeled on the way to that same existing markup.
+
 /**
  * One shared Debug Tools page under Own Ur Shit, extensible the same
  * way the dashboard registry and style gallery already are: any plugin
@@ -42,9 +76,54 @@ if (!defined('ABSPATH')) exit;
  * no individual plugin needs to re-check this itself.
  */
 class OUS_Debug {
+    // Curated display order for the optional 'group' key (see each
+    // registration's own 'group' => '...' below). Any group name not
+    // listed here (a future plugin inventing its own bucket name) still
+    // renders fine — group_order() appends unknown names, sorted
+    // alphabetically, right before the catch-all default so nothing is
+    // ever silently dropped. The default bucket is deliberately last:
+    // an ungrouped section (one that never set 'group' at all) reads as
+    // "uncategorized," not as belonging with any curated bucket.
+    const GROUP_MONITORING = 'Monitoring & Health';
+    const GROUP_REFERENCE  = 'Reference & Docs';
+    const GROUP_SEED_RESET = 'Seed & Reset Tools';
+    const GROUP_DEFAULT    = 'Diagnostics & Tools';
+    const GROUP_ORDER = [self::GROUP_MONITORING, self::GROUP_REFERENCE, self::GROUP_SEED_RESET, self::GROUP_DEFAULT];
+
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_debug_action', [self::class, 'handle']);
+    }
+
+    // Buckets $tools (the raw apply_filters('ous_debug_tools', []) result)
+    // by each entry's own 'group' key, defaulting anything unset to
+    // GROUP_DEFAULT — this is the one place that default is applied, so
+    // render() itself never has to special-case a missing key. Returns
+    // an ordered [group_label => [key => tool, ...]] array; group order
+    // follows GROUP_ORDER, with any group name a plugin invented that
+    // isn't in that curated list appended alphabetically just before the
+    // default bucket.
+    private static function group_tools(array $tools) {
+        $buckets = [];
+        foreach ($tools as $key => $tool) {
+            $group = !empty($tool['group']) ? $tool['group'] : self::GROUP_DEFAULT;
+            $buckets[$group][$key] = $tool;
+        }
+        $known = self::GROUP_ORDER;
+        $extra = array_values(array_diff(array_keys($buckets), $known));
+        sort($extra);
+        // Splice any unknown groups in right before the default bucket
+        // rather than at the very end, so a future plugin's own custom
+        // bucket name still reads as "a real category," not as
+        // dumped-after-everything-including-uncategorized.
+        $default_pos = array_search(self::GROUP_DEFAULT, $known, true);
+        $order = array_merge(array_slice($known, 0, $default_pos), $extra, array_slice($known, $default_pos));
+
+        $ordered = [];
+        foreach ($order as $group) {
+            if (!empty($buckets[$group])) $ordered[$group] = $buckets[$group];
+        }
+        return $ordered;
     }
 
     /**
@@ -67,12 +146,21 @@ class OUS_Debug {
      *   OUS_Debug::register('bh-lyrics', 'BH Lyrics',
      *       ['BHL_Debug', 'render_section'], ['BHL_Debug', 'handle_action'],
      *       ['BHL_Debug', 'reset']);
+     *
+     * $group is optional (added in the 3.4.19 reorganization pass) — one
+     * of self::GROUP_MONITORING / GROUP_REFERENCE / GROUP_SEED_RESET, or
+     * any custom string a new bucket needs. Left null, the section files
+     * under GROUP_DEFAULT ("Diagnostics & Tools"), same as any section
+     * still registered via the raw add_filter() pattern that hasn't set
+     * 'group' at all — this parameter existing doesn't require every
+     * caller of this wrapper to pass it.
      */
-    public static function register($key, $label, $render, $handle, $reset = null, $safe_in_production = false) {
-        add_filter('ous_debug_tools', function ($tools) use ($key, $label, $render, $handle, $reset, $safe_in_production) {
+    public static function register($key, $label, $render, $handle, $reset = null, $safe_in_production = false, $group = null) {
+        add_filter('ous_debug_tools', function ($tools) use ($key, $label, $render, $handle, $reset, $safe_in_production, $group) {
             $tools[$key] = [
                 'label' => $label, 'render' => $render, 'handle' => $handle, 'reset' => $reset,
                 'safe_in_production' => $safe_in_production,
+                'group' => $group,
             ];
             return $tools;
         });
@@ -288,6 +376,12 @@ class OUS_Debug {
         // is the direct, CSS-only fix for a sticky-header-covers-the-
         // anchor problem — no JS needed for browsers that support it
         // (all current-generation ones).
+        // Grouped by the optional 'group' key (see GROUP_ORDER / group_tools()
+        // above) — sections that never set 'group' land in GROUP_DEFAULT
+        // automatically, so this grouping works immediately even for a
+        // section registered before this pass existed and never updated.
+        $grouped = self::group_tools($tools);
+
         echo '<style>
             .ous-debug-section, #ous-section-reset-all { scroll-margin-top: 90px; }
             .ous-debug-section > summary, #ous-section-reset-all > summary {
@@ -298,14 +392,30 @@ class OUS_Debug {
             .ous-debug-section > summary::before, #ous-section-reset-all > summary::before { content: "\25B6"; font-size: 0.7em; transition: transform 0.15s ease; }
             .ous-debug-section[open] > summary::before, #ous-section-reset-all[open] > summary::before { transform: rotate(90deg); }
             .ous-debug-section > .ous-debug-section-body, #ous-section-reset-all > .ous-debug-section-body { margin-top: 12px; }
+            .ous-debug-group-heading {
+                font-size: 1.05em; text-transform: uppercase; letter-spacing: 0.04em;
+                color: #646970; margin: 28px 0 8px; padding-bottom: 6px;
+                border-bottom: 1px solid #dcdcde;
+            }
+            .ous-debug-group-heading:first-of-type { margin-top: 4px; }
+            .ous-debug-quicknav-group { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+            .ous-debug-quicknav-group > strong { color: #646970; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 2px; }
         </style>';
 
-        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:12px;">';
-        echo '<strong style="margin-right:2px;">Jump to:</strong>';
-        foreach ($tools as $key => $tool) {
-            echo '<a href="#ous-section-' . esc_attr($key) . '">' . esc_html($tool['label']) . '</a>';
+        // Same sticky quicknav as before, just grouped now to match the
+        // sections below it — each bucket gets its own inline label so
+        // "Jump to" reads as a map of the page's actual structure, not
+        // just a flat alphabet-soup of every section title in
+        // registration order.
+        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:6px;font-size:12px;">';
+        foreach ($grouped as $group_label => $group_tools) {
+            echo '<span class="ous-debug-quicknav-group"><strong>' . esc_html($group_label) . ':</strong>';
+            foreach ($group_tools as $key => $tool) {
+                echo ' <a href="#ous-section-' . esc_attr($key) . '">' . esc_html($tool['label']) . '</a>';
+            }
+            echo '</span>';
         }
-        echo '<a href="#ous-section-reset-all">Reset everything</a>';
+        echo '<span class="ous-debug-quicknav-group"><a href="#ous-section-reset-all">Reset everything</a></span>';
         echo '</div>';
 
         // Collapsible per user request — every section starts CLOSED by
@@ -317,13 +427,18 @@ class OUS_Debug {
         // not a custom-JS toggle — free keyboard/accessibility support,
         // and if JS fails to load for any reason this still degrades to
         // "click to expand" working via native browser behavior alone.
-        foreach ($tools as $key => $tool) {
-            echo '<details class="bhy-card ous-debug-section" id="ous-section-' . esc_attr($key) . '">';
-            echo '<summary>' . esc_html($tool['label']) . '</summary>';
-            echo '<div class="ous-debug-section-body">';
-            if (!empty($tool['render'])) call_user_func($tool['render'], $key);
-            echo '</div>';
-            echo '</details>';
+        // Now looped per-group (see $grouped above) with a heading
+        // between buckets instead of one flat list.
+        foreach ($grouped as $group_label => $group_tools) {
+            echo '<h2 class="ous-debug-group-heading">' . esc_html($group_label) . '</h2>';
+            foreach ($group_tools as $key => $tool) {
+                echo '<details class="bhy-card ous-debug-section" id="ous-section-' . esc_attr($key) . '">';
+                echo '<summary>' . esc_html($tool['label']) . '</summary>';
+                echo '<div class="ous-debug-section-body">';
+                if (!empty($tool['render'])) call_user_func($tool['render'], $key);
+                echo '</div>';
+                echo '</details>';
+            }
         }
 
         echo '<details class="bhy-card" id="ous-section-reset-all">';
@@ -417,7 +532,19 @@ class OUS_Debug {
         }
 
         $msg = call_user_func($tools[$plugin_key]['handle'], $action, $_POST);
-        self::redirect($msg ?: 'Done.', $anchor);
+        $final_msg = $msg ?: 'Done.';
+
+        // Additive toast supplement — the existing $_GET['ous_msg'] admin
+        // notice (rendered in render() above) is completely unchanged;
+        // this just ALSO surfaces the same message as a toast for anyone
+        // who has JS enabled, on the very next page load. No way here to
+        // distinguish success from failure (this shared dispatcher has
+        // never carried a status flag, only a message string — see this
+        // class's own docblock), so every result is queued as 'info'
+        // rather than guessing.
+        if (class_exists('OUS_Toast')) OUS_Toast::queue($final_msg, 'info');
+
+        self::redirect($final_msg, $anchor);
     }
 
     private static function redirect($msg, $anchor = '') {

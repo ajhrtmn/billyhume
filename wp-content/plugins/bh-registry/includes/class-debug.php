@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// BHR_VER 0.1.4 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
+// (own-ur-shit's Debug Tools reorganization pass — see that plugin's
+// class-debug.php docblock), filing this section under "Seed & Reset
+// Tools" instead of the default bucket. No other change.
+
 /**
  * Registers this plugin's section on the core's shared Debug Tools page
  * — same extension point bh-contest and bh-streaming already use.
@@ -24,6 +29,7 @@ class BHR_Debug {
             'render' => [self::class, 'render_section'],
             'handle' => [self::class, 'handle_action'],
             'reset'  => [self::class, 'reset'],
+            'group'  => OUS_Debug::GROUP_SEED_RESET,
         ];
         return $tools;
     }

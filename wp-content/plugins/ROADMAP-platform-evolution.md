@@ -104,6 +104,16 @@ Current-state platform research (July 2026), to ground this section in what's ac
 
 **The stated emphasis — organic reach and word-of-mouth over paid acquisition, and support for physical/in-person experiences — deserves a concrete idea, not just a values statement, even while staying roadmap-only:** the portal (Section 6) and the block-builder (Section 3) are both prerequisites for the most honest version of "social integration" this ecosystem could build — not a firehose of auto-cross-posted content, but tools that make a fan's own organic sharing easy (a well-composed, block-built public profile/release page that's actually good to share, a "who's going" / RSVP block for a real show or listening party, referral-aware share links feeding the CRM's existing `bh_crm_activity_summary` pattern) — worth keeping as the guiding frame when this section eventually graduates from roadmap to build, rather than defaulting to "add auto-poster integrations for four platforms" as the first move.
 
+## 7a. In-admin version history for user-built content (new addition — roadmap only, NOT YET SCOPED, not started)
+
+Captures a feature idea from the project owner, verbatim intent preserved: "add in admin version control for pretty much everything eventually" — clarified as "By in-admin I mean in the WP dashboard, and by everything, I mean anything we can think of the users might build and want multiple versions of as they are building them." This is explicitly NOT git-based and NOT developer-facing — it's an in-wp-admin, WordPress-core-post-revisions-style history/restore UI, generalized to the admin-built objects across this ecosystem that don't use `wp_posts` (or use it inconsistently), so a user iterating on something can see, save, and restore prior versions the same way core already does for a post.
+
+Candidate targets, named here so the scope is concrete rather than "everything": CRM records/notes (bh-crm), style/theme configs (`BHY_UI`), LMS courses/lessons/quizzes (bh-courses, and directly relevant once Section 3's `BH_Content` block-tree lesson authoring exists), contest configurations (bh-contest), portal layouts (`BHI_Portal`, Section 6), and the new visual "element builder" for styleable containers/widgets requested elsewhere this session.
+
+Likely technical shape — an open question, not a decision: could ride the existing `bhcore_events`/job-queue infra for storage, or use a dedicated lightweight revisions table keyed by object-type + object-id + version. Either way it should probably be one shared service (same "one shared service, zero central registration needed by consumers" shape `OUS_Notifications`/`OUS_Jobs` already use) rather than each plugin inventing its own versioning.
+
+**Status: NOT YET SCOPED, NOT STARTED.** No design pass, no data model decision, no code — this section exists only to capture the idea for a future session.
+
 ## 8. Suggested build order (dependency-driven, not business-priority-driven, per direction given)
 
 **Status as of the platform-evolution handoff pass (this environment again had no PHP/MySQL/root/network — see VISION.md's own updated section for the full accounting):**

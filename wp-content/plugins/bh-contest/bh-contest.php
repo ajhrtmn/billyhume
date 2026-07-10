@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.1.4
+ * Version:     3.1.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -36,7 +36,21 @@ if (!defined('ABSPATH')) exit;
 // failed to send in a bulk announce, instead of the whole batch's
 // success/failure being invisible.
 // 3.1.4 — bundled zip regenerated to match installed version, no code change
-define('BH_VER',        '3.1.4');
+// 3.1.5 — vote()'s toggle-add and toggle-remove paths (class-api.php)
+// now additionally emit a BH_Event 'bh/vote' event (own-ur-shit's new
+// event-tracking layer, class-event.php) after each write commits —
+// fire-and-forget, never inside the vote-limit transaction itself, so
+// the synchronous votes_left response this endpoint returns is
+// unaffected. See EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
+// Standing caveat: reasoning/brace-balance-checked only, not run
+// against a real WordPress+MySQL install.
+//
+// 3.1.6 — class-debug.php's register() now sets 'group' =>
+// OUS_Debug::GROUP_SEED_RESET on this plugin's Debug Tools section, part
+// of own-ur-shit's Debug Tools reorganization pass. No functional change
+// to this plugin itself. Standing caveat: reasoning/brace-balance-
+// checked only, not run against a real WordPress+MySQL install.
+define('BH_VER',        '3.1.6');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
@@ -111,6 +125,15 @@ add_action('plugins_loaded', function () {
 
     add_action('admin_init',    ['BH_Activator', 'maybe_create_default_pages']);
     add_action('init',          ['BH_PostTypes', 'register']);
+    // BH_Event registration (own-ur-shit's event-tracking layer) — see
+    // class-api.php's vote handler for the actual emit() call, fired
+    // additively after the vote's own transaction commits. Per
+    // EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
+    add_action('init', function () {
+        if (class_exists('BH_Event')) {
+            BH_Event::register_event_type('bh/vote', ['contest_id' => 'int', 'category' => 'string', 'submission_id' => 'int', 'action' => 'string']);
+        }
+    });
     add_action('init',          ['BH_Auth', 'init']);
     add_action('rest_api_init', ['BH_API', 'register_routes']);
     add_action('init',          ['BH_Admin', 'init']);

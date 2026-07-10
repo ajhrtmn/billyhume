@@ -47,7 +47,23 @@ class BHCRM_Tags {
 
         $user_id = (int) ($_POST['user_id'] ?? 0);
         $tags = array_filter(array_map('trim', explode(',', sanitize_text_field($_POST['tags'] ?? ''))));
-        update_user_meta($user_id, '_bhcrm_tags', wp_json_encode(array_values($tags)));
+        $tags = array_values($tags);
+        update_user_meta($user_id, '_bhcrm_tags', wp_json_encode($tags));
+
+        // CRM-native event, additive only — doesn't affect the save
+        // above in any way, just gives this tag update a row in the
+        // shared activity stream (see class-event-activity.php). The
+        // resulting tag list itself is included in the payload (short,
+        // freeform-but-bounded words a staff member typed in — unlike
+        // notes, there's no meaningful privacy reason to keep this one
+        // out of the shared events table).
+        if ($user_id && class_exists('BH_Event')) {
+            BH_Event::emit('bhcrm/tags_saved', [
+                'user_id' => $user_id,
+                'subject_type' => 'user', 'subject_id' => $user_id,
+                'payload' => ['tags' => $tags],
+            ]);
+        }
 
         wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $user_id, 'bhcrm_msg' => rawurlencode('Tags saved.')], admin_url('admin.php')));
         exit;

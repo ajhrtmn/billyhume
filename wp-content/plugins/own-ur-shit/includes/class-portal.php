@@ -1,6 +1,13 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
+// class-debug.php's own docblock). This section is read-only (lists
+// registered portal panels + a link to the live portal), so it groups
+// with API/Codebase Docs under "Reference & Docs" rather than the
+// default bucket. No other change.
+
 /**
  * BHI_Portal — the custom user-facing account shell (ROADMAP-platform-evolution.md
  * Section 6). A genuinely separate, branded front-end account area, not
@@ -117,7 +124,7 @@ class BHI_Portal {
     // one-click answer instead of requiring a re-read of every
     // contributing plugin's own bootstrap file.
     public static function register_debug_section($tools) {
-        $tools['bhi-portal'] = ['label' => 'Portal', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null];
+        $tools['bhi-portal'] = ['label' => 'Portal', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 

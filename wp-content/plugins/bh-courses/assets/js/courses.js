@@ -71,10 +71,25 @@
             fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
-                    if (!res.success) { alert(res.data && res.data.message ? res.data.message : 'Something went wrong.'); return; }
+                    if (!res.success) {
+                        var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
+                        // BHCoreToast (own-ur-shit core, loaded globally —
+                        // see class-toast.php) is called directly here,
+                        // not via the PHP-side OUS_Toast::queue() hand-off,
+                        // because this is an AJAX flow with no redirect to
+                        // hand a message across. typeof-guarded so this
+                        // still degrades to the pre-existing alert() if
+                        // own-ur-shit's toast script hasn't loaded for any
+                        // reason (older core version, script blocked, etc.)
+                        // — same "harmless no-op" posture as every other
+                        // optional integration point in this ecosystem.
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); } else { alert(errMsg); }
+                        return;
+                    }
                     e.target.disabled = true;
                     e.target.textContent = 'Completed';
                     step.classList.add('bhc-step-done');
+                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                     advance(index);
                 });
         });

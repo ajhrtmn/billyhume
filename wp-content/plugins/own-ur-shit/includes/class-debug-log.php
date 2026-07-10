@@ -1,6 +1,11 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
+// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
+// class-debug.php's own docblock), filing this under "Monitoring &
+// Health" instead of the default bucket. No other change.
+
 /**
  * The "aggregate console" the whole ecosystem was missing: one place
  * that catches PHP fatals/uncaught exceptions, WordPress's own
@@ -394,6 +399,7 @@ class OUS_DebugLog {
             // a live site — an admin troubleshooting a real production
             // issue needs this to work there, not just in dev.
             'safe_in_production' => true,
+            'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
     }

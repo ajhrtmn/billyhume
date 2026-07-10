@@ -21,6 +21,13 @@ if (!defined('ABSPATH')) exit;
 class BHS_Stats {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_admin_page']);
+        // BH_Event registration, per EVENT-TRACKING-ARCHITECTURE-PLAN.md
+        // Section 6 — additive, does not replace this class's own
+        // aggregate bhs_daily_stats rollup below.
+        if (class_exists('BH_Event')) {
+            BH_Event::register_event_type('bhs/play', ['track_id' => 'int']);
+            BH_Event::register_event_type('bhs/skip', ['track_id' => 'int']);
+        }
     }
 
     private static function table() { global $wpdb; return $wpdb->prefix . 'bhs_daily_stats'; }
@@ -32,10 +39,27 @@ class BHS_Stats {
     // near-identical tables.
     public static function record_play($track_id, $req) {
         self::bump($track_id, 'play', $req);
+        // Real per-event record alongside the aggregate rollup above —
+        // both coexist (see EVENT-TRACKING-ARCHITECTURE-PLAN.md Section
+        // 6): this table stays the fast rollup for the artist dashboard,
+        // bhcore_events becomes the first per-listener, identity-
+        // joinable record of the same activity.
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bhs/play', [
+                'subject_type' => 'bhs_track',
+                'subject_id'   => (int) $track_id,
+            ]);
+        }
     }
 
     public static function record_skip($track_id) {
         self::bump($track_id, 'skip', null);
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bhs/skip', [
+                'subject_type' => 'bhs_track',
+                'subject_id'   => (int) $track_id,
+            ]);
+        }
     }
 
     private static function bump($track_id, $metric, $req) {

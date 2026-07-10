@@ -66,6 +66,53 @@ class OUS_Dashboard {
             echo '</div>';
         }
 
+        self::render_status_block();
+
+        echo '</div>';
+    }
+
+    // Small operational-status block: Job Queue health (Action
+    // Scheduler vs. the fallback table, plus live pending/running/done/
+    // failed counts, reusing OUS_Jobs::counts_by_status() rather than
+    // re-querying bhcore_jobs here) and a Query Monitor pointer. Neither
+    // is a "card" in the activation-flow sense above — nothing to
+    // install/activate through THIS dashboard for Job Queue (it's
+    // core, always active) and Query Monitor is deliberately left as an
+    // optional, user-chosen third-party dev tool (not bundled, not
+    // auto-installed) rather than folded into OUS_Registry.
+    private static function render_status_block() {
+        echo '<h2 style="margin-top:32px;">System status</h2>';
+        echo '<div class="ous-cards">';
+
+        // Job Queue
+        echo '<div class="ous-card">';
+        echo '<div class="ous-card-header"><strong>Job Queue</strong></div>';
+        if (class_exists('OUS_Jobs')) {
+            if (OUS_Jobs::library_available()) {
+                echo '<p class="ous-card-desc">&#9989; Running on Action Scheduler (vendored real library).</p>';
+            } else {
+                echo '<p class="ous-card-desc">&#9888; Running on the built-in fallback queue (plain wpdb table).</p>';
+            }
+            $counts = OUS_Jobs::counts_by_status();
+            echo '<p class="ous-card-meta">Pending: <strong>' . (int) $counts['pending'] . '</strong> &nbsp; Running: <strong>' . (int) $counts['running'] . '</strong> &nbsp; Done: <strong>' . (int) $counts['done'] . '</strong> &nbsp; Failed: <strong>' . (int) $counts['failed'] . '</strong></p>';
+            echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug#ous-section-bh-jobs')) . '">Open Job Queue &rarr;</a>';
+        } else {
+            echo '<p class="ous-card-desc">OUS_Jobs isn\'t loaded.</p>';
+        }
+        echo '</div>';
+
+        // Query Monitor
+        echo '<div class="ous-card">';
+        echo '<div class="ous-card-header"><strong>Query Monitor</strong></div>';
+        if (!function_exists('is_plugin_active')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        if (is_plugin_active('query-monitor/query-monitor.php')) {
+            echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page).</p>';
+        } else {
+            echo '<p class="ous-card-desc">Not installed. A recommended, free, self-hosted diagnostic tool (queries, hooks, HTTP requests, PHP errors) — optional, not bundled with this ecosystem.</p>';
+            echo '<a class="button" href="' . esc_url(admin_url('plugin-install.php?s=query-monitor&tab=search&type=term')) . '">Install Query Monitor</a>';
+        }
+        echo '</div>';
+
         echo '</div>';
     }
 
