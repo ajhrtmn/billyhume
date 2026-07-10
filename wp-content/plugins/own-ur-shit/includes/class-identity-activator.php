@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.8'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass
+    const DB_VERSION = '1.9'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -205,6 +205,36 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql7);
 
+        // Element-builder placements — see class-element.php (BH_Element)
+        // and ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1. "This element
+        // type, configured this way, sits in this slot on this surface
+        // for this context, at this position." Deliberately NO unique
+        // constraint on (surface, context, slot, element_type) — the
+        // same element type can legitimately appear more than once in
+        // one slot (two stat-cards bound to different metrics), per the
+        // design doc's own note on this. parent_placement_id and
+        // revision_of are unused seams for future work (§1.1's tree
+        // mode, §2.3's version-history service) — always 0 today, not
+        // acted on anywhere in this pass.
+        $element_placements = $wpdb->prefix . 'bhcore_element_placements';
+        $sql8 = "CREATE TABLE $element_placements (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            surface varchar(60) NOT NULL,
+            surface_context_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            slot varchar(60) NOT NULL,
+            position int(10) unsigned NOT NULL DEFAULT 0,
+            element_type varchar(100) NOT NULL,
+            config longtext,
+            content_context_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            enabled tinyint(1) NOT NULL DEFAULT 1,
+            parent_placement_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            revision_of bigint(20) unsigned NOT NULL DEFAULT 0,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY place (surface, surface_context_id, slot, position)
+        ) $charset;";
+        dbDelta($sql8);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -213,6 +243,7 @@ class BHI_Activator {
         $log_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $debug_log));
         $content_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $content));
         $events_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $events));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events;
+        $element_placements_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $element_placements));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements;
     }
 }

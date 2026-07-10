@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.5
+ * Version:     0.4.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -120,7 +120,13 @@ if (!defined('ABSPATH')) exit;
 // changelog convention, since courses.js is enqueued with BHC_VER as its
 // version string (class-render.php) and this ensures the browser doesn't
 // serve a stale cached copy of the edited file.
-define('BHC_VER',  '0.4.5');
+// 0.4.6 — the bh-courses ous_debug_tools registration (below) and
+// class-content-bridge.php's register_debug_tool() both now set 'group'
+// => OUS_Debug::GROUP_SEED_RESET, part of own-ur-shit's Debug Tools
+// reorganization pass. No functional change to this plugin itself.
+// Standing caveat: reasoning/brace-balance-checked only, not run against
+// a real WordPress+MySQL install.
+define('BHC_VER',  '0.4.6');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
@@ -214,6 +220,7 @@ add_filter('ous_debug_tools', function ($tools) {
         'render' => ['BHC_Debug', 'render_section'],
         'handle' => ['BHC_Debug', 'handle_action'],
         'reset'  => ['BHC_Debug', 'reset'],
+        'group'  => OUS_Debug::GROUP_SEED_RESET,
     ];
     return $tools;
 });

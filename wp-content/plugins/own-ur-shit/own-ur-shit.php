@@ -2,10 +2,65 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.19
+ * Version:     3.4.22
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.22 — 2026-07-10 — Element builder, §5.2 surface expansion +
+// §3.4 REST bridge of ELEMENT-BUILDER-DESIGN-PLAN.md: BH_Element gains
+// register_routes()/rest_get_surfaces()/rest_get_types()/rest_get_sources()/
+// rest_get_placements()/rest_save_placements()/rest_preview()
+// (class-element.php), all under 'ous/v1', all manage_options-gated,
+// mirroring BH_Studio::register_routes()'s exact auth posture — no new
+// admin UI ships from these routes this pass, they exist for a future
+// GUI/REST client. The 'bh_crm_profile' surface (bh-crm's
+// BHCRM_People::register_element_surface(), class-people.php) is now
+// registered and rendered via three new BH_Element::render_slot() call
+// sites in BHCRM_People::render_detail() (header/main/sidebar), still
+// additive-only around the existing profile page. Standing caveat:
+// reasoning/brace-balance-checked only, no live PHP/MySQL/WordPress
+// REST dispatch available this session — smoke-test every new route
+// and the CRM profile's three new slots against a real install before
+// relying on this in production.
+//
+// 3.4.21 — Element builder, Phase 1 + Phase 2 of
+// ELEMENT-BUILDER-DESIGN-PLAN.md: new BH_Element (class-element.php,
+// type registry + bhcore_element_placements storage + render_slot()/
+// render_placement()) and BH_Element_Data (class-element-data.php, the
+// declarative data-binding resolver — register_source()/resolve()) —
+// see each class's own docblock for the full contract, especially
+// BH_Element_Data::resolve()'s fallback behavior on a missing/invalid/
+// erroring binding (never fatal, always degrades to the attribute's
+// literal default). New bhcore_element_placements table, DB_VERSION
+// 1.9 (class-identity-activator.php). One real end-to-end slice wired
+// this pass: the 'dashboard' surface (OUS_Dashboard::
+// register_element_surface(), class-dashboard.php) with a 'main' slot
+// rendered via BH_Element::render_slot() below the existing status
+// block, two first-party element types ('bh/note' static,
+// 'bh/stat-card' data-bindable), and one first-party data source
+// ('bhcore_events.count', wrapping a direct bhcore_events query since
+// BH_Event exposes no public count helper today). Placements are
+// managed via a new Debug Tools "Element Builder" section (add/remove/
+// reorder, plus a one-click "add live stat-card" bound-data demo) — the
+// visual drag/drop builder GUI from the design doc's later phase is
+// NOT built this pass. Standing caveat: reasoning/brace-balance-checked
+// only, no live PHP/MySQL/WordPress execution available this session —
+// please smoke-test dbDelta() actually creating the new table, a
+// placement round-tripping through save/render, and the bound
+// stat-card resolving a real bhcore_events count before relying on
+// this in production.
+//
+// 3.4.20 — Debug Tools: group headings (added in 3.4.19) are now
+// collapsible <details> in their own right, not just the sections
+// nested inside them, with default-OPEN state and their own
+// ous_debug_group_open_ localStorage namespace (kept separate from the
+// existing per-section ous_debug_section_open_ keys); the anchor-jump
+// script now also force-opens a target section's ancestor group. See
+// class-debug.php's own docblock for the full writeup. Standing caveat:
+// reasoning/brace-balance-checked only, no live PHP/browser execution
+// available this session — please confirm the group collapse/expand and
+// anchor-jump-through-a-collapsed-group behavior on the live site.
 
 // 3.4.19 — Debug Tools reorganization pass: added an optional 'group'
 // key to the ous_debug_tools registration array shape (self::GROUP_*
@@ -211,7 +266,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.19');
+define('OUS_VER', '3.4.22');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -475,7 +530,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -517,6 +572,15 @@ add_action('init',          ['OUS_CodebaseDocs', 'init']);
 add_action('init',          ['BH_Event', 'init']);
 add_action('init',          ['BH_Identity', 'init']);
 add_action('init',          ['OUS_Toast', 'init']);
+// Element builder (ELEMENT-BUILDER-DESIGN-PLAN.md) — BH_Element_Data
+// before BH_Element purely for readability (registers the data
+// sources before the element types that might reference them by
+// slug); neither init() actually depends on load order since both
+// only populate their own private in-memory registries on this same
+// 'init' hook, read later by BH_Element::render_slot() at render time.
+add_action('init',          ['BH_Element_Data', 'init']);
+add_action('init',          ['BH_Element', 'init']);
+add_filter('bh_element_surfaces', ['OUS_Dashboard', 'register_element_surface']);
 
 add_action('init', ['BHY_Gallery', 'init']);
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);

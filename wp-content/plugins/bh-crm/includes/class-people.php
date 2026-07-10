@@ -43,6 +43,40 @@ if (!defined('ABSPATH')) exit;
  * dependency in either direction.
  */
 class BHCRM_People {
+    /**
+     * Registers the 'bh_crm_profile' surface for BH_Element (design doc
+     * ELEMENT-BUILDER-DESIGN-PLAN.md §3.3/§5.2), mirroring OUS_Dashboard::
+     * register_element_surface()'s (own-ur-shit/includes/class-dashboard.php)
+     * exact shape. Unlike the dashboard's singleton surface, this one is
+     * per-person — 'context' => ['type' => 'user', 'param' => 'user_id']
+     * and every render_slot() call site in render_detail() below passes
+     * $uid as the surface_context_id, matching the design doc's schema
+     * note that surface_context_id is "the entity id (CRM = user_id...)".
+     * The 'bh_element_surfaces' filter this hangs on is only ever applied
+     * by BH_Element, so this is harmless to keep even if own-ur-shit's
+     * element-builder classes are ever absent — same "peer relationship,
+     * not a dependency" posture as bh_crm_activity_summary above.
+     */
+    public static function register_element_surface($surfaces) {
+        $surfaces['bh_crm_profile'] = [
+            'group'       => 'CRM',
+            'label'       => 'CRM profile page',
+            'slots'       => [
+                'header'  => ['label' => 'Header'],
+                'main'    => ['label' => 'Main column'],
+                'sidebar' => ['label' => 'Sidebar'],
+            ],
+            'context'     => ['type' => 'user', 'param' => 'user_id'],
+            // Preview context for a future builder GUI's canvas — the
+            // currently-viewing admin's own user_id stands in as a
+            // representative subject (there's no "the" profile being
+            // edited outside a real $uid, same reasoning the dashboard's
+            // preview_ctx uses for its own single-viewer context).
+            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
+        ];
+        return $surfaces;
+    }
+
     // No add_menu() here anymore — this page is registered as a submenu
     // of Own Ur Shit instead of its own top-level menu (see the 'bh-crm'
     // entry in the core's class-registry.php, applied by OUS_MenuMerge).
@@ -196,7 +230,21 @@ class BHCRM_People {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
 
+        // Element-builder context for this profile (design doc §5.2) —
+        // every render_slot() call below shares this one $ctx, resolved
+        // once per page load, since 'user_id' is the only context token
+        // the 'bh_crm_profile' surface declares (register_element_surface()
+        // above). Building $ctx unconditionally is cheap and harmless even
+        // when BH_Element isn't loaded — render_slot() itself is the guard.
+        $element_ctx = ['user_id' => $uid];
+
         echo '<p><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
+
+        // 'header' slot renders directly above the identity header —
+        // additive only, same "surrounds existing output, never replaces
+        // it" posture as the dashboard's render_slot() call (§5.1).
+        if (class_exists('BH_Element')) echo BH_Element::render_slot('bh_crm_profile', $uid, 'header', $element_ctx);
+
         self::render_identity_header($uid);
         echo '<h2>' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
@@ -213,6 +261,19 @@ class BHCRM_People {
                 echo '<h4>' . esc_html($section['plugin']) . '</h4><p>' . esc_html($section['summary']) . '</p>';
                 if (!empty($section['render'])) call_user_func($section['render']);
             }
+        }
+
+        // 'main' slot renders after the existing fixed content (fields
+        // table, tags, notes, activity sections) — the same "additive,
+        // appended, never displacing existing regions" rule the dashboard
+        // integration follows. 'sidebar' is registered on the surface
+        // (§5.2's three named slots) but this page has no actual visual
+        // sidebar column today, so it renders inline immediately after
+        // 'main' rather than being silently dropped — a real two-column
+        // layout is a CSS/markup change out of scope for this pass.
+        if (class_exists('BH_Element')) {
+            echo BH_Element::render_slot('bh_crm_profile', $uid, 'main', $element_ctx);
+            echo BH_Element::render_slot('bh_crm_profile', $uid, 'sidebar', $element_ctx);
         }
     }
 }

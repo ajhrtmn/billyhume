@@ -10,6 +10,27 @@ if (!defined('ABSPATH')) exit;
  * plumbing around it.
  */
 class OUS_Dashboard {
+    /**
+     * Registers the 'dashboard' surface for BH_Element (§3.3/§5.1 of
+     * ELEMENT-BUILDER-DESIGN-PLAN.md) — a singleton surface
+     * (surface_context_id always 0, there's only one dashboard) with a
+     * 'main' slot rendered below the existing status block. Context is
+     * the current viewer's user_id, since Phase 2's demo binding
+     * ('bhcore_events.count') needs a subject to count for.
+     */
+    public static function register_element_surface($surfaces) {
+        $surfaces['dashboard'] = [
+            'group'       => 'Core',
+            'label'       => 'Dashboard',
+            'slots'       => [
+                'main' => ['label' => 'Main'],
+            ],
+            'context'     => ['type' => 'global', 'param' => null],
+            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
+        ];
+        return $surfaces;
+    }
+
     public static function add_menu() {
         add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], 'dashicons-admin-multisite', 3);
         // WordPress auto-creates a first submenu item duplicating the
@@ -67,6 +88,7 @@ class OUS_Dashboard {
         }
 
         self::render_status_block();
+        self::render_element_slot();
 
         echo '</div>';
     }
@@ -114,6 +136,26 @@ class OUS_Dashboard {
         echo '</div>';
 
         echo '</div>';
+    }
+
+    // The Phase 1/2 element-builder proof-of-concept slice
+    // (ELEMENT-BUILDER-DESIGN-PLAN.md §5.1, §6 Phases 1-2): renders
+    // whatever's been placed into the 'dashboard' surface's 'main' slot
+    // via BH_Element::render_slot(). Additive only — every existing
+    // dashboard card/status block above is untouched; this renders
+    // BELOW them and is empty (no heading, no markup at all) when no
+    // placements exist yet, so a fresh install looks identical to
+    // before this pass.
+    private static function render_element_slot() {
+        if (!class_exists('BH_Element')) return; // element-builder files didn't load for some reason — degrade silently, same posture as every other class_exists() guard in this ecosystem
+
+        $ctx = ['user_id' => get_current_user_id()];
+        $html = BH_Element::render_slot('dashboard', 0, 'main', $ctx);
+        if ($html === '') return; // nothing placed yet — render nothing, not an empty heading
+
+        echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
+        echo '<p class="description">Placed via Debug Tools → Element Builder for now (the visual builder GUI is a later phase).</p>';
+        echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
     }
 
     private static function render_card($key, $info) {

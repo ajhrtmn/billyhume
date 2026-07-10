@@ -323,6 +323,24 @@ Named honestly, in the "left alone, with reasoning" spirit of the sibling docs:
 
 ---
 
+## Status note (2026-07-10)
+
+A pass landed the §3.4 REST bridge and the §5.2 `bh_crm_profile` surface
+(BH_Element gains `register_routes()`/`rest_*()` methods in
+`class-element.php`; `BHCRM_People::register_element_surface()` plus
+three `render_slot()` call sites in `bh-crm/includes/class-people.php`)
+**before** §6's own Phase 2 (the three-pane builder GUI) shipped. This is
+a deliberate deviation from §6's literal ordering, not an oversight:
+the REST bridge is genuinely useful with zero GUI attached (any REST
+client can already read/write placements), and expanding to a second
+surface exercises the capability/context-scoping code path (`bh_crm_profile`
+is per-user, unlike the dashboard's singleton context) that the GUI
+phase would otherwise be the first thing to exercise. The GUI itself
+(§4, cloning `BHY_Gallery`'s three-pane layout) is still **not built** —
+that remains the next real phase, and it can now be built directly
+against the REST routes shipped this pass instead of needing to add
+them itself.
+
 ## Critical files for implementation
 
 - `own-ur-shit/includes/class-style-gallery.php` + `class-ui.php` — the Storybook three-pane GUI and the exact token-picker widgets (`swatch_field`/`font_field`/`slider_row`/`swatch_js`) the builder's inspector reuses verbatim.

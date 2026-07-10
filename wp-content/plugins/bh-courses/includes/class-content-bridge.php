@@ -1,6 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// BHC_VER 0.4.6 — register_debug_tool() now sets 'group' =>
+// OUS_Debug::GROUP_SEED_RESET (own-ur-shit's Debug Tools reorganization
+// pass — see that plugin's class-debug.php docblock), filing this
+// section under "Seed & Reset Tools" instead of the default bucket. No
+// other change.
+
 /**
  * The concrete BH_Content consumer this handoff asked for (per
  * ROADMAP-platform-evolution.md's own suggestion — bh-courses' lesson-step
@@ -280,6 +286,7 @@ class BHC_ContentBridge {
                 submit_button('Rebuild all lesson content trees');
                 echo '</form>';
             },
+            'group' => OUS_Debug::GROUP_SEED_RESET,
         ];
         return $tools;
     }

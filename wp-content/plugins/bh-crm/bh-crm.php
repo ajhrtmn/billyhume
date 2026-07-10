@@ -2,15 +2,25 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.1.1
+ * Version:     1.1.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.1.1');
+define('BHCRM_VER',  '1.1.2');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
+
+// 1.1.2 — 2026-07-10 — Element builder, ELEMENT-BUILDER-DESIGN-PLAN.md
+// §5.2 surface expansion: registers the 'bh_crm_profile' surface with
+// BH_Element (BHCRM_People::register_element_surface(), guarded by
+// class_exists('BH_Element'), class-people.php) and adds three
+// BH_Element::render_slot() call sites (header/main/sidebar) inside
+// BHCRM_People::render_detail() — additive only, no existing profile
+// page output changed or removed. Standing caveat: reasoning/brace-
+// balance-checked only, no live PHP/MySQL/WordPress execution
+// available this session.
 
 // 1.1.1 — class-notes.php's handle_save() now also queues a toast
 // (OUS_Toast::queue(), own-ur-shit 3.4.18+) right before its existing
@@ -60,6 +70,15 @@ add_action('plugins_loaded', function () {
     add_action('admin_post_bhcrm_save_note', ['BHCRM_Notes', 'handle_save']);
     add_action('admin_post_bhcrm_save_tags', ['BHCRM_Tags', 'handle_save']);
     add_action('admin_post_bhcrm_export',    ['BHCRM_Export', 'handle']);
+
+    // Element builder (ELEMENT-BUILDER-DESIGN-PLAN.md §5.2) — registers
+    // the 'bh_crm_profile' surface so BH_Element's palette/placements/
+    // REST bridge know this page exists, gated on the core class the
+    // same "harmless no-op otherwise" way as the BH_Event registration
+    // just below it.
+    if (class_exists('BH_Element')) {
+        add_filter('bh_element_surfaces', ['BHCRM_People', 'register_element_surface']);
+    }
 
     // BH_Event registration + this plugin's own contribution to
     // bh_crm_activity_summary — both gated on the core event-tracking

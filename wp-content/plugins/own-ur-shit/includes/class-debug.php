@@ -8,6 +8,26 @@ if (!defined('ABSPATH')) exit;
 // unchanged. See class-toast.php's own docblock for why this uses
 // OUS_ReliableStore instead of a transient.
 //
+// OUS_VER 3.4.20 — group headings (added in the 3.4.19 reorganization
+// pass) are now themselves collapsible, not just the individual sections
+// nested inside them: each group heading is wrapped in its own
+// <details class="ous-debug-group">/<summary> using the exact same
+// marker/summary CSS pattern the per-section <details> already use (see
+// .ous-debug-section rules below, now shared via a combined selector),
+// so a whole bucket (e.g. "Monitoring & Health") can be collapsed in one
+// click. Groups default OPEN on first visit (individual sections keep
+// their existing default-CLOSED behavior — see the 3.4.19 docblock)
+// specifically so the page doesn't look empty/collapsed on a first
+// visit before localStorage has any memory yet. Group open/closed state
+// is remembered via a SEPARATE localStorage key prefix
+// (ous_debug_group_open_) from the existing per-section prefix
+// (ous_debug_section_open_) so the two never collide. Nested <details>
+// need no special handling for independent open/close — that's native
+// <details>/<summary> behavior — but the anchor-jump script now also
+// force-opens a target section's ANCESTOR group <details> (not just the
+// section itself), since a section can't visibly reveal itself while its
+// parent group is collapsed.
+//
 // OUS_VER 3.4.19 — reorganization pass: sections registered via
 // ous_debug_tools had grown to a dozen-plus, all rendered flat in
 // filter-registration order with no logical grouping (a monitoring tool
@@ -383,14 +403,17 @@ class OUS_Debug {
         $grouped = self::group_tools($tools);
 
         echo '<style>
-            .ous-debug-section, #ous-section-reset-all { scroll-margin-top: 90px; }
-            .ous-debug-section > summary, #ous-section-reset-all > summary {
+            .ous-debug-section, #ous-section-reset-all, .ous-debug-group { scroll-margin-top: 90px; }
+            .ous-debug-section > summary, #ous-section-reset-all > summary, .ous-debug-group > summary.ous-debug-group-heading {
                 cursor: pointer; font-weight: 600; font-size: 1.3em; list-style: none;
                 display: flex; align-items: center; gap: 8px;
             }
-            .ous-debug-section > summary::-webkit-details-marker, #ous-section-reset-all > summary::-webkit-details-marker { display: none; }
-            .ous-debug-section > summary::before, #ous-section-reset-all > summary::before { content: "\25B6"; font-size: 0.7em; transition: transform 0.15s ease; }
-            .ous-debug-section[open] > summary::before, #ous-section-reset-all[open] > summary::before { transform: rotate(90deg); }
+            .ous-debug-section > summary::-webkit-details-marker, #ous-section-reset-all > summary::-webkit-details-marker,
+            .ous-debug-group > summary.ous-debug-group-heading::-webkit-details-marker { display: none; }
+            .ous-debug-section > summary::before, #ous-section-reset-all > summary::before,
+            .ous-debug-group > summary.ous-debug-group-heading::before { content: "\25B6"; font-size: 0.7em; transition: transform 0.15s ease; }
+            .ous-debug-section[open] > summary::before, #ous-section-reset-all[open] > summary::before,
+            .ous-debug-group[open] > summary.ous-debug-group-heading::before { transform: rotate(90deg); }
             .ous-debug-section > .ous-debug-section-body, #ous-section-reset-all > .ous-debug-section-body { margin-top: 12px; }
             .ous-debug-group-heading {
                 font-size: 1.05em; text-transform: uppercase; letter-spacing: 0.04em;
@@ -398,6 +421,8 @@ class OUS_Debug {
                 border-bottom: 1px solid #dcdcde;
             }
             .ous-debug-group-heading:first-of-type { margin-top: 4px; }
+            .ous-debug-group { margin: 0; }
+            .ous-debug-group > .ous-debug-group-body { margin-top: 4px; }
             .ous-debug-quicknav-group { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
             .ous-debug-quicknav-group > strong { color: #646970; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 2px; }
         </style>';
@@ -430,7 +455,16 @@ class OUS_Debug {
         // Now looped per-group (see $grouped above) with a heading
         // between buckets instead of one flat list.
         foreach ($grouped as $group_label => $group_tools) {
-            echo '<h2 class="ous-debug-group-heading">' . esc_html($group_label) . '</h2>';
+            $group_id = 'ous-group-' . sanitize_title($group_label);
+            // Groups default OPEN (the "open" attribute below) so the
+            // page doesn't read as empty/collapsed on a first visit
+            // before localStorage has any per-group memory yet — see the
+            // 3.4.20 docblock at the top of this file. The script below
+            // still restores whatever the visitor last chose, same as
+            // per-section state does.
+            echo '<details class="ous-debug-group" id="' . esc_attr($group_id) . '" open>';
+            echo '<summary class="ous-debug-group-heading">' . esc_html($group_label) . '</summary>';
+            echo '<div class="ous-debug-group-body">';
             foreach ($group_tools as $key => $tool) {
                 echo '<details class="bhy-card ous-debug-section" id="ous-section-' . esc_attr($key) . '">';
                 echo '<summary>' . esc_html($tool['label']) . '</summary>';
@@ -439,6 +473,8 @@ class OUS_Debug {
                 echo '</div>';
                 echo '</details>';
             }
+            echo '</div>';
+            echo '</details>';
         }
 
         echo '<details class="bhy-card" id="ous-section-reset-all">';
@@ -461,6 +497,12 @@ class OUS_Debug {
         echo '<script>
         (function () {
             var PREFIX = "ous_debug_section_open_";
+            // Separate localStorage namespace for GROUP-level state (added
+            // in the 3.4.20 pass) so it can never collide with a section
+            // id that happens to match a group id — see this file\'s own
+            // 3.4.20 docblock.
+            var GROUP_PREFIX = "ous_debug_group_open_";
+
             document.querySelectorAll("details.ous-debug-section, #ous-section-reset-all").forEach(function (d) {
                 try {
                     if (localStorage.getItem(PREFIX + d.id) === "1") d.open = true;
@@ -470,13 +512,51 @@ class OUS_Debug {
                 });
             });
 
+            // Groups default open (the "open" attribute render() already
+            // prints server-side) — this only OVERRIDES that default when
+            // localStorage explicitly remembers "0" (closed) from a prior
+            // visit; it never forces a group open here (the server-side
+            // "open" attribute already covers first-visit), keeping this
+            // symmetric with how the per-section loop above only ever
+            // adds "open", never removes it.
+            document.querySelectorAll("details.ous-debug-group").forEach(function (d) {
+                try {
+                    var remembered = localStorage.getItem(GROUP_PREFIX + d.id);
+                    if (remembered === "0") d.open = false;
+                    else if (remembered === "1") d.open = true;
+                } catch (e) {}
+                d.addEventListener("toggle", function () {
+                    try { localStorage.setItem(GROUP_PREFIX + d.id, d.open ? "1" : "0"); } catch (e) {}
+                });
+            });
+
             if (!window.location.hash) return;
             var target = document.querySelector(window.location.hash);
             if (!target) return;
             if (target.tagName === "DETAILS") {
                 target.open = true;
-                try { localStorage.setItem(PREFIX + target.id, "1"); } catch (e) {}
+                try {
+                    var ns = target.classList.contains("ous-debug-group") ? GROUP_PREFIX : PREFIX;
+                    localStorage.setItem(ns + target.id, "1");
+                } catch (e) {}
             }
+            // Force-open every ancestor <details> too (an ancestor group,
+            // or — for future-proofing if a group id itself is ever the
+            // hash target — any nested <details> above it) since a
+            // section can\'t visibly reveal itself while its parent group
+            // is collapsed. Native <details>/<summary> nesting otherwise
+            // leaves a closed ancestor collapsed even if the child\'s own
+            // "open" attribute is set.
+            var ancestor = target.parentElement ? target.parentElement.closest("details") : null;
+            while (ancestor) {
+                ancestor.open = true;
+                try {
+                    var ansNs = ancestor.classList.contains("ous-debug-group") ? GROUP_PREFIX : PREFIX;
+                    localStorage.setItem(ansNs + ancestor.id, "1");
+                } catch (e) {}
+                ancestor = ancestor.parentElement ? ancestor.parentElement.closest("details") : null;
+            }
+
             requestAnimationFrame(function () {
                 target.scrollIntoView({ block: "start" });
                 target.style.transition = "box-shadow 0.3s ease";
