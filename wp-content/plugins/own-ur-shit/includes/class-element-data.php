@@ -51,11 +51,76 @@ class BH_Element_Data {
     /** @var array<string, array> slug => manifest (including the 'resolve' callable) */
     private static $sources = [];
 
+    /**
+     * DESIGN-SUITE-UNIFICATION-PLAN.md §3.2 v1 — output formatters. Zero-
+     * central registration mirroring register_source() exactly: any
+     * plugin calls register_formatter() on its own 'init', guarded by
+     * class_exists('BH_Element_Data'). A formatter is a pure function
+     * (mixed $value) -> mixed — no $args/$ctx, deliberately: a formatter
+     * transforms a value AFTER resolution, it doesn't participate in
+     * resolving it, so it never needs the resolver's context. Applied
+     * inside resolve() itself (see that method), never a separate call
+     * site — this keeps "what a bound attribute actually renders as"
+     * fully owned by one function.
+     * @var array<string, callable>
+     */
+    private static $formatters = [];
+
     const VALID_KINDS = ['scalar', 'list', 'richtext', 'url', 'series'];
 
     public static function init() {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         self::register_default_sources();
+        self::register_default_formatters();
+    }
+
+    /* ---------------- v1 formatters (§3.2) ---------------- */
+
+    /**
+     * @param string   $slug e.g. 'compact_number', 'relative_time', 'currency'.
+     * @param callable $fn   function ($value) { return $transformed; } — never throws by
+     *                        contract (a throwing formatter degrades to the unformatted
+     *                        value inside resolve(), one more rung on the existing
+     *                        literal/default fallback ladder, never fatal).
+     * @return bool true if accepted, false if rejected (empty slug or non-callable) —
+     *              same "rejections never throw" posture as register_source().
+     */
+    public static function register_formatter($slug, callable $fn) {
+        $slug = trim((string) $slug);
+        if ($slug === '' || !is_callable($fn)) return false;
+        self::$formatters[$slug] = $fn;
+        return true;
+    }
+
+    /** Slugs only — this is what the inspector's future "format" dropdown (§3.3) would list; no per-formatter metadata exists yet since none has been needed by a real consumer. */
+    public static function registered_formatters() {
+        return array_keys(self::$formatters);
+    }
+
+    /**
+     * First-party formatters (§3.2's "a small allowlisted set like
+     * compact_number/relative_time/currency"). This pass ships only
+     * 'compact_number' — the one the stat-card live demo (class-
+     * element.php's 'bh/stat-card') actually uses — for the same
+     * "quality over breadth, no speculative unused surface area" reason
+     * register_default_sources() gives for shipping only one source.
+     */
+    private static function register_default_formatters() {
+        self::register_formatter('compact_number', function ($value) {
+            if (!is_numeric($value)) return $value; // not a number — nothing this formatter can do, pass through unchanged rather than erroring
+            $n = (float) $value;
+            $abs = abs($n);
+            if ($abs >= 1000000) return self::trim_trailing_zero(round($n / 1000000, 1)) . 'm';
+            if ($abs >= 1000)    return self::trim_trailing_zero(round($n / 1000, 1)) . 'k';
+            return (string) (is_float($n) && floor($n) === $n ? (int) $n : $n);
+        });
+    }
+
+    private static function trim_trailing_zero($n) {
+        // 1.0 -> "1", 1.2 -> "1.2" — rtrim on a string avoids float-
+        // formatting surprises (e.g. sprintf('%.1f', 1.0) === '1.0').
+        $s = rtrim(rtrim(number_format((float) $n, 1, '.', ''), '0'), '.');
+        return $s === '' ? '0' : $s;
     }
 
     /**
@@ -272,6 +337,25 @@ class BH_Element_Data {
             return $default;
         }
 
+        // §3.2 v1 — output formatters. Only reachable once a bind has
+        // actually resolved to a real value (never applied to the
+        // literal branch above, or to a default/fallback — a formatter
+        // transforms genuine source output, matching the descriptor
+        // shape's format key living INSIDE the 'bind' object). A named-
+        // but-unregistered formatter, or one that throws, degrades to
+        // the unformatted $value — one more rung on this method's
+        // existing never-fatal fallback ladder, not a new failure mode.
+        $format_slug = isset($binding['format']) ? (string) $binding['format'] : '';
+        if ($format_slug !== '' && isset(self::$formatters[$format_slug])) {
+            try {
+                $formatted = call_user_func(self::$formatters[$format_slug], $value);
+                if ($formatted !== null) $value = $formatted;
+            } catch (\Throwable $e) {
+                self::log_resolution_error($slug, "formatter '$format_slug' failed: " . $e->getMessage());
+                // fall through with the unformatted $value — do not return $default here, the resolve itself succeeded
+            }
+        }
+
         return $value;
     }
 
@@ -336,5 +420,14 @@ class BH_Element_Data {
             echo '<tr><td><code>' . esc_html($slug) . '</code></td><td>' . esc_html($m['label']) . '</td><td>' . esc_html($m['kind']) . '</td><td>' . esc_html($m['requires'] ? implode(', ', $m['requires']) : '—') . '</td></tr>';
         }
         echo '</tbody></table>';
+
+        // §3.2 v1 — formatters, same table treatment as sources above.
+        $formatters = self::registered_formatters();
+        echo '<p class="description" style="margin-top:16px;">Registered output formatters (<code>BH_Element_Data::register_formatter()</code>) — an optional <code>"format"</code> key inside a binding descriptor names one of these to transform the resolved value before it renders (e.g. <code>1204</code> &rarr; <code>1.2k</code>).</p>';
+        if (!$formatters) {
+            echo '<p class="description">No formatters registered yet.</p>';
+        } else {
+            echo '<p><code>' . esc_html(implode('</code>, <code>', $formatters)) . '</code></p>';
+        }
     }
 }

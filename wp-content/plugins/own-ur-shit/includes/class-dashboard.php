@@ -44,6 +44,22 @@ class OUS_Dashboard {
     public static function enqueue_assets($hook) {
         if (strpos($hook, 'own-ur-shit') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
+
+        // §3.2 v1 — this page renders the 'dashboard' surface's 'main'
+        // slot (register_element_surface() above), which is where the
+        // ONE live element this pass wires (bh/stat-card, class-
+        // element.php's own updated docblock) can actually appear once
+        // someone clicks "Add live stat-card" in Debug Tools. Enqueued
+        // unconditionally on this page rather than only when a live
+        // placement is known to exist — element-live.js itself is a
+        // no-op (early-returns) if it finds zero '[data-bhel-live]'
+        // nodes, so this costs nothing on a page with none yet.
+        wp_enqueue_script('ous-element-live', OUS_URL . 'assets/js/element-live.js', [], OUS_VER, true);
+        wp_localize_script('ous-element-live', 'bhElLiveConfig', [
+            'restUrl'    => esc_url_raw(rest_url('ous/v1/')),
+            'nonce'      => wp_create_nonce('wp_rest'),
+            'intervalMs' => 20000,
+        ]);
     }
 
     /* ---------- rendering ---------- */

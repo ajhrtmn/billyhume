@@ -2,11 +2,40 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.45
+ * Version:     3.4.46
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.46 — 2026-07-12 — DESIGN-SUITE-UNIFICATION-PLAN.md §3.2 v1: data-
+// binding "runtime re-resolution + output formatters," Phase 5 of §4's
+// build order. class-element-data.php gained register_formatter()/
+// registered_formatters() (zero-central, mirrors register_source()
+// exactly) and resolve() now applies an optional 'format' key inside a
+// binding's 'bind' object after a successful resolve — one more rung on
+// the existing never-fatal fallback ladder, not a new failure mode. One
+// first-party formatter shipped: 'compact_number' (1204 -> "1.2k").
+// class-element.php gained register_type()'s new 'live' manifest flag,
+// a data-bhel-live="1" wrapper marker (wrap_placement_html()), and
+// POST ous/v1/elements/resolve (rest_resolve()) — DELIBERATELY not the
+// design doc's originally-sketched "client supplies arbitrary bindings"
+// body shape; this route only accepts a placement_id and re-resolves
+// that placement's OWN already-stored bindings server-side, so a caller
+// can never point it at a source/args pair the placement wasn't already
+// configured with. New assets/js/element-live.js is a thin transport +
+// DOM-patch layer (never a second resolver) that polls this route every
+// 20s for any '[data-bhel-live]' node and patches its '[data-bhel-
+// bind]' child in place. 'bh/stat-card' (the existing bhcore_events.
+// count demo element) is the one type marked 'live' => true and its
+// demo-seeding button's binding now also carries 'format' =>
+// 'compact_number', so both new pieces are exercised by the same
+// existing one-click Debug Tools demo, not a newly-invented one.
+// Enqueued only on the own-ur-shit dashboard page (class-dashboard.php)
+// where that demo element can actually appear; the script no-ops if it
+// finds zero live nodes, so this costs nothing elsewhere. v2 (chained
+// bindings) and v3 (client-state binding) remain designed-not-built
+// (§3.2), unchanged by this pass.
+//
 // 3.4.45 — 2026-07-12 — found the REAL bug behind 3.4.43/3.4.44
 // visibly not applying on a fresh-restarted live site (AJ confirmed a
 // real OPcache restart happened — this was never caching). Root cause:
@@ -672,7 +701,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.45');
+define('OUS_VER', '3.4.46');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A

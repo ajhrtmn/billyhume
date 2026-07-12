@@ -334,6 +334,8 @@ A `style` value is either a preset-scale step (`"md"`, `"full"`), a `@token:<nam
 
 ---
 
+> **STATUS (2026-07-12, own-ur-shit 3.4.46) — v1 BUILT.** Runtime re-resolution + output formatters (§3.2 v1) are live: `BH_Element_Data::register_formatter()`/`registered_formatters()`, `resolve()`'s new format step, `POST ous/v1/elements/resolve`, `assets/js/element-live.js`, and `register_type()`'s new `'live'` flag. One first-party formatter (`compact_number`) and one live-marked type (`bh/stat-card`, the existing `bhcore_events.count` demo). **One recorded judgment call:** the REST route deliberately does NOT accept a client-supplied bindings array as §3.3 originally sketched — it takes only a `placement_id` and re-resolves that placement's own already-stored bindings server-side, so a caller can never ask it to resolve an arbitrary source/args pair. v2 (chained bindings) and v3 (client-state binding) remain designed, not built — see `own-ur-shit.php`'s 3.4.46 changelog entry for full file-level detail.
+
 ## 3. Runtime data binding — "wayyyyy better and more flexible at runtime"
 
 ### 3.1 Today's contract and its four concrete limits

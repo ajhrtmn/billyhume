@@ -202,6 +202,15 @@ class BH_Element {
                 'target' => ['enum' => ['_self', '_blank']],
                 'rel'    => true,
             ],
+            // §3.2 v1 — this is THE live demo element the design doc's
+            // Phase 5 "testable" line names ("a live stat-card refreshes
+            // its bound count without a page reload"). Its 'value' attr
+            // is already the one thing on this whole install genuinely
+            // bound to a live-changing source (bhcore_events.count —
+            // see render_add_bound_demo_button()'s handler below), which is
+            // exactly why it was picked rather than inventing a new
+            // element just for this.
+            'live' => true,
             'render' => function (array $attrs, array $ctx, array $instance) {
                 // 'label' is schema type 'string' -> coerce_attr() already
                 // cast it to a plain string, but a string coercion is NOT
@@ -209,8 +218,15 @@ class BH_Element {
                 // this render callable is the actual HTML text-node output
                 // boundary BH_Element_Data::resolve()'s docblock says is
                 // the caller's job, not the resolver's.
+                //
+                // 'data-bhel-bind="value"' is the ONLY new thing this
+                // pass adds to this render callable — a stable, specific
+                // hook for element-live.js to patch in place (querying
+                // for it inside this placement's data-placement-id
+                // wrapper) rather than replacing the whole wrapper's
+                // innerHTML, which would also stomp the label.
                 return '<div class="bh-el-stat-card">'
-                    . '<div class="bh-el-stat-card-value">' . esc_html((string) $attrs['value']) . '</div>'
+                    . '<div class="bh-el-stat-card-value" data-bhel-bind="value">' . esc_html((string) $attrs['value']) . '</div>'
                     . '<div class="bh-el-stat-card-label">' . esc_html((string) $attrs['label']) . '</div>'
                     . '</div>';
             },
@@ -277,6 +293,16 @@ class BH_Element {
             'attrs'     => is_array($args['attrs'] ?? null) ? $args['attrs'] : ['id' => true, 'class' => true, 'aria-label' => true],
             'tags'      => $tags,
             'render'    => $args['render'],
+            // DESIGN-SUITE-UNIFICATION-PLAN.md §3.2 v1 — opt-in manifest
+            // flag: does this type's rendered wrapper get a data-bhel-
+            // live="1" marker (wrap_placement_html()) so the front-end
+            // JS helper (assets/js/element-live.js) periodically re-
+            // POSTs to POST ous/v1/elements/resolve and patches its
+            // bound value in place, without a full page reload? Most
+            // types stay non-live (cheap, static) — only ones that
+            // genuinely benefit opt in, same "manifest opt-in" posture
+            // 'attrs'/'tags' already use.
+            'live'      => !empty($args['live']),
         ];
         return true;
     }
@@ -734,6 +760,11 @@ class BH_Element {
         $attr_parts = self::build_html_attrs($type, $html_attrs, $tag);
         $attr_parts[] = 'data-placement-id="' . (int) $placement_id . '"';
         $attr_parts[] = 'data-type="' . esc_attr($type_slug) . '"';
+        // §3.2 v1 — opt-in marker (register_type()'s new 'live' key) that
+        // assets/js/element-live.js scans for on page load. Placement id
+        // is already emitted above unconditionally; this only adds the
+        // one extra boolean flag a live type needs.
+        if (!empty($type['live'])) $attr_parts[] = 'data-bhel-live="1"';
         if ($style_decls !== '') $attr_parts[] = 'style="' . esc_attr($style_decls) . '"';
 
         // $tag is ALWAYS one of $type['tags'] (validated in resolve_tag()
@@ -1012,6 +1043,75 @@ class BH_Element {
             'permission_callback' => function () { return current_user_can('manage_options'); },
             'callback'            => [self::class, 'rest_delete_placement'],
         ]);
+
+        // §3.2 v1 — runtime re-resolution. DELIBERATE deviation from
+        // the design doc's originally-sketched body shape (a client-
+        // supplied array of {source,args,subject} bindings): that shape
+        // would let any authenticated caller ask the server to resolve
+        // an ARBITRARY source+args pair, which is more trust than a
+        // "refresh what this placement already shows" feature actually
+        // needs. Instead this takes only a placement_id, re-reads that
+        // placement's OWN already-stored, already-authored bind
+        // descriptors server-side, and re-resolves exactly those — the
+        // client can never point this route at a source/args combination
+        // that placement wasn't already configured with. Recorded here
+        // (not silently done) since it's a real, judgment-call departure
+        // from §3.3's sketched contract, made for a concrete security
+        // reason, not convenience.
+        register_rest_route('ous/v1', '/elements/resolve', [
+            'methods'             => 'POST',
+            'permission_callback' => function () { return current_user_can('manage_options'); },
+            'callback'            => [self::class, 'rest_resolve'],
+        ]);
+    }
+
+    /**
+     * POST /elements/resolve — body: { "placement_id": 123 }. Re-runs
+     * BH_Element_Data::resolve() fresh for every bindable+bound attr on
+     * that placement's CURRENT stored config (never a client-supplied
+     * binding — see register_routes()'s comment on this route). $ctx is
+     * rebuilt server-side as ['user_id' => get_current_user_id()] —
+     * the requesting admin's own id, matching how the dashboard's own
+     * bound demo placement resolves at normal render time (class-
+     * dashboard.php passes the same shape) — never trusted from the
+     * request body, so a caller cannot ask this route to resolve on
+     * behalf of a different user.
+     *
+     * Response: { "attrs": { "value": "1.2k", ... } } — only bindable
+     * attrs whose stored config actually has a 'bind' descriptor are
+     * included; literal/unbound attrs are omitted (nothing to refresh).
+     */
+    public static function rest_resolve(\WP_REST_Request $req) {
+        $id = (int) $req->get_param('placement_id');
+        if ($id <= 0) {
+            return new \WP_Error('bh_element_bad_id', 'A valid placement_id is required.', ['status' => 400]);
+        }
+
+        $placement = self::get_placement($id);
+        if (!$placement) {
+            return new \WP_Error('bh_element_not_found', 'No such placement.', ['status' => 404]);
+        }
+
+        $type = self::get_type($placement['element_type'] ?? '');
+        if (!$type) {
+            return new \WP_Error('bh_element_unknown_type', 'This placement\'s element type is not registered.', ['status' => 404]);
+        }
+
+        $config = $placement['config'] ?? [];
+        $attr_values = is_array($config['attrs'] ?? null) ? $config['attrs'] : [];
+        $ctx = ['user_id' => get_current_user_id()];
+
+        $out = [];
+        foreach ($type['schema'] as $key => $def) {
+            if (empty($def['bindable'])) continue;
+            $raw = $attr_values[$key] ?? null;
+            if (!is_array($raw) || !isset($raw['bind']) || !class_exists('BH_Element_Data')) continue;
+
+            $schema_default = $def['default'] ?? '';
+            $out[$key] = self::coerce_attr(BH_Element_Data::resolve($raw, $ctx, $schema_default), $def['type'] ?? 'string');
+        }
+
+        return new \WP_REST_Response(['attrs' => $out], 200);
     }
 
     /** DELETE /elements/placements/{id} — a true row delete (see register_routes()'s comment above this route). */
@@ -1448,10 +1548,15 @@ class BH_Element {
                     'config'             => [
                         'attrs' => [
                             'label' => ['literal' => 'My events, last 30 days'],
+                            // §3.2 v1 — 'format' added so this demo also
+                            // exercises the new formatter step, not just
+                            // re-resolution: a raw integer count renders
+                            // as e.g. "1.2k" instead of "1204".
                             'value' => ['bind' => [
                                 'source' => 'bhcore_events.count',
                                 'args'   => ['since' => 'P30D'],
                                 'subject' => 'context.user_id',
+                                'format' => 'compact_number',
                             ]],
                         ],
                     ],
