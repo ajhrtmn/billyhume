@@ -2,16 +2,35 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.3.2
+ * Version:     1.3.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.3.2');
+define('BHCRM_VER',  '1.3.3');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
+// 1.3.3 — 2026-07-12 — DESIGN-SUITE-UNIFICATION-PLAN.md "NO SPECIAL-
+// CASED PAGES" Step 1, the first real one (Step 0 was just proving the
+// canvas could show live data). The 'bh_crm_profile' surface's three
+// framework-chosen 'header'/'main'/'sidebar' slots are gone — collapsed
+// to ONE 'root' slot (class-people.php's register_element_surface()).
+// render_detail() now makes a single render_slot() call instead of
+// three; class-style-surface.php's live preview updated to match. This
+// is a real, if small, proof that a page's layout no longer has to be
+// something a plugin author pre-decides in PHP — whatever structure AJ
+// wants (a header-looking section, a two-column split, whatever) is now
+// something he builds himself as ordinary child nodes under one slot,
+// the same mechanism as adding a button. Confirmed zero data loss: all
+// three old slots were empty on the live install (verified via
+// screenshot before this change), so nothing needed migrating. NOT yet
+// done: the rest of render_detail() (identity header, fields table,
+// tags/notes editors, project tracker section) is still fixed PHP
+// output, not node-tree content — that is Step 2+, explicitly out of
+// scope for this pass per the design doc's own phased plan.
+//
 // 1.3.2 — 2026-07-12 — new class-style-surface.php registers a real,
 // LIVE-rendered "CRM profile page (live)" bhy_style_surfaces entry —
 // direct response to a live screenshot showing the Design Suite canvas

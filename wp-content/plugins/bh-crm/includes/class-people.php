@@ -56,15 +56,26 @@ class BHCRM_People {
      * by BH_Element, so this is harmless to keep even if own-ur-shit's
      * element-builder classes are ever absent — same "peer relationship,
      * not a dependency" posture as bh_crm_activity_summary above.
+     *
+     * 1.3.3 — DESIGN-SUITE-UNIFICATION-PLAN.md "NO SPECIAL-CASED PAGES"
+     * Step 1: the three separate 'header'/'main'/'sidebar' slots were
+     * themselves a framework-level special case — three zones I chose in
+     * advance, not something the user could restructure. Collapsed to
+     * ONE slot, 'root'. There is nothing structurally distinguishing a
+     * "header area" from anything else anymore: if AJ wants a header-
+     * looking section, he adds a section node as the first root child —
+     * same mechanism as adding a button, exactly the "a page and a
+     * button are just differently-scoped nodes" framing this whole pass
+     * is built around. Safe to collapse with zero data loss: confirmed
+     * via live screenshot that all three of the old slots were empty on
+     * this install (no placement rows to migrate or orphan).
      */
     public static function register_element_surface($surfaces) {
         $surfaces['bh_crm_profile'] = [
             'group'       => 'CRM',
             'label'       => 'CRM profile page',
             'slots'       => [
-                'header'  => ['label' => 'Header'],
-                'main'    => ['label' => 'Main column'],
-                'sidebar' => ['label' => 'Sidebar'],
+                'root' => ['label' => 'Page content'],
             ],
             'context'     => ['type' => 'user', 'param' => 'user_id'],
             // Preview context for a future builder GUI's canvas — the
@@ -252,11 +263,6 @@ class BHCRM_People {
 
         echo '<p><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
 
-        // 'header' slot renders directly above the identity header —
-        // additive only, same "surrounds existing output, never replaces
-        // it" posture as the dashboard's render_slot() call (§5.1).
-        if (class_exists('BH_Element')) echo BH_Element::render_slot('bh_crm_profile', $uid, 'header', $element_ctx);
-
         self::render_identity_header($uid);
         echo '<h2>' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
@@ -282,17 +288,17 @@ class BHCRM_People {
             }
         }
 
-        // 'main' slot renders after the existing fixed content (fields
-        // table, tags, notes, activity sections) — the same "additive,
-        // appended, never displacing existing regions" rule the dashboard
-        // integration follows. 'sidebar' is registered on the surface
-        // (§5.2's three named slots) but this page has no actual visual
-        // sidebar column today, so it renders inline immediately after
-        // 'main' rather than being silently dropped — a real two-column
-        // layout is a CSS/markup change out of scope for this pass.
+        // 1.3.3 — single 'root' slot, renders after the existing fixed
+        // CRM data (fields table, tags, notes, activity sections) —
+        // still additive/appended, never displacing existing regions,
+        // same posture the old 'main'/'sidebar' calls had. The old
+        // 'header'/'main'/'sidebar' split is gone (register_element_
+        // surface()'s own updated docblock) — whatever layout this area
+        // needs (a header-looking section, a two-column split, etc.) is
+        // now something the user builds as real child nodes under this
+        // one slot, not something this PHP template pre-decides.
         if (class_exists('BH_Element')) {
-            echo BH_Element::render_slot('bh_crm_profile', $uid, 'main', $element_ctx);
-            echo BH_Element::render_slot('bh_crm_profile', $uid, 'sidebar', $element_ctx);
+            echo BH_Element::render_slot('bh_crm_profile', $uid, 'root', $element_ctx);
         }
     }
 }
