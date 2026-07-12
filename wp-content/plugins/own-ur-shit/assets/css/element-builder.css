@@ -236,18 +236,34 @@
    centering on both axes plus a fixed line-height so the ▾/▸/↑/↓/+/✕
    glyphs sit dead-center in their box regardless of each glyph's own
    font metrics. */
-.bhel-card-actions button, .bhel-tree-toggle {
+/* 3.4.45 — THE actual root cause of 3.4.43/3.4.44 visibly not applying
+   on the live site (confirmed via a live screenshot after a real
+   OPcache restart — this was never a caching issue): iconBtn() gives
+   every one of these buttons WordPress core's OWN 'button' class
+   (element-builder.js), and ".wp-core-ui .button" is two classes
+   (specificity 0,2,0) — higher than the plain-element ".bhel-card-
+   actions button"/".bhel-tree-toggle" selectors used through 3.4.44
+   (0,1,1 and 0,1,0), so WP's border+background chrome was winning
+   every time regardless of what got written here. Rather than strip
+   the shared 'button' class from iconBtn() (used elsewhere too, real
+   risk of breaking something not screenshot-verified this session),
+   these selectors now explicitly include '.button' and an extra
+   '.bhel-card' ancestor class to push specificity to (0,3,1)/(0,3,0) —
+   comfortably ahead of WP core's (0,2,0), verifiable by reading this
+   rule next to WP core's own admin CSS rather than trusting a browser
+   screenshot alone next time. */
+.bhel-card .bhel-card-actions button.button, .bhel-card .bhel-tree-toggle.button {
     line-height: 1; padding: 0; white-space: nowrap;
     width: 20px; height: 20px; min-width: 20px; font-size: 12px;
     display: inline-flex; align-items: center; justify-content: center;
     border: none; background: transparent; box-shadow: none; border-radius: var(--bhy-radius-sm, 4px);
     color: var(--bhy-ink-dim, #787c82); flex: 0 0 auto;
 }
-.bhel-tree-toggle { width: 18px; height: 18px; min-width: 18px; font-size: 10px; }
-.bhel-card-actions button:hover, .bhel-tree-toggle:hover {
+.bhel-card .bhel-tree-toggle.button { width: 18px; height: 18px; min-width: 18px; font-size: 10px; }
+.bhel-card .bhel-card-actions button.button:hover, .bhel-card .bhel-tree-toggle.button:hover {
     background: var(--bhy-hover-tint, #f0f0f1); color: var(--bhy-ink, #1d2327);
 }
-.bhel-card-actions button:focus-visible, .bhel-tree-toggle:focus-visible { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); }
+.bhel-card .bhel-card-actions button.button:focus-visible, .bhel-card .bhel-tree-toggle.button:focus-visible { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); }
 
 /* 3.4.34 — tree-node additions to .bhel-card (indentation itself is set
    inline per node via style.marginLeft in element-builder.js's

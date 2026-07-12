@@ -2,11 +2,26 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.44
+ * Version:     3.4.45
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.45 — 2026-07-12 — found the REAL bug behind 3.4.43/3.4.44
+// visibly not applying on a fresh-restarted live site (AJ confirmed a
+// real OPcache restart happened — this was never caching). Root cause:
+// element-builder.js's iconBtn() gives every row action/toggle button
+// WordPress core's OWN 'button' class. ".wp-core-ui .button" is two
+// classes (CSS specificity 0,2,0) — higher than the plain-element
+// selectors 3.4.43/3.4.44 used (0,1,1 and 0,1,0), so WP's default
+// border+background chrome was winning every time no matter what got
+// written in this file's own CSS. Fixed by raising selector specificity
+// (assets/css/element-builder.css's own updated comment) rather than
+// stripping the shared 'button' class from iconBtn() itself, since that
+// function is used by other buttons elsewhere not screenshot-verified
+// this session — safer to fix the two call sites that actually have the
+// problem than change a shared helper's behavior everywhere.
+//
 // 3.4.44 — 2026-07-12 — follow-up polish on 3.4.43's row chrome fix,
 // direct response to: toggle arrow "takes a lot of space for what it
 // does," glyphs "not centered well," rows feeling "off to the right,"
@@ -657,7 +672,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.44');
+define('OUS_VER', '3.4.45');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
