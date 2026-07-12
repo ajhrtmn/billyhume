@@ -361,6 +361,104 @@ class BH_Element_Prefab {
         return $new_ids;
     }
 
+    /**
+     * 3.4.47 — §5 "no special-cased pages," Gutenberg block v1 (class-
+     * gutenberg-block.php's OUS_Gutenberg_Block). Renders a prefab's
+     * definition READ-ONLY, IN MEMORY, with ZERO database writes — the
+     * opposite of instantiate() above, which always persists brand-new
+     * placement rows. A Gutenberg post has no BH_Element surface/slot of
+     * its own to instantiate into (and re-instantiating on every single
+     * page view would leak a new row per view, which is exactly the bug
+     * this method exists to avoid) — this just asks "what would this
+     * prefab's tree render as right now?" without ever touching
+     * bhcore_element_placements.
+     *
+     * Mechanically: mirrors instantiate()'s own parent_ref -> real-id
+     * remap pass, except the "ids" allocated are NEGATIVE, in-memory-only
+     * sequence numbers (never real, never looked up against the DB) —
+     * negative specifically so BH_Element::render_placement()'s
+     * data-placement-id wrapper attribute can never collide with, or be
+     * confused for, a real row's positive autoincrement id (relevant if
+     * a type here happens to be marked 'live' => true — §3.2's resolve
+     * REST route does a real DB lookup by id, which simply 404s
+     * harmlessly for a negative id rather than risking a coincidental
+     * collision with an unrelated real placement). Container entries'
+     * 'content_tree' is passed straight through on the fake placement
+     * array — render_placement()'s own updated branch (this session's
+     * 3.4.47 pass) renders it inline instead of trying to look up a
+     * (nonexistent, for these fake rows) content_context_id.
+     *
+     * @param int   $id  prefab id
+     * @param array $ctx render context passed straight through to
+     *                    render_placement() (e.g. ['user_id' => ...]) —
+     *                    same shape a real render_slot() call would build.
+     * @return string concatenated HTML of every ROOT entry (parent_ref
+     *                 === null) in this prefab, each with its own
+     *                 descendants nested inside via the same children-by-
+     *                 parent mechanism render_placement() already uses
+     *                 for the real parent_placement_id tree. Empty string
+     *                 on any failure (unknown prefab id, BH_Element
+     *                 absent) — same silent-degrade posture every other
+     *                 render path in this ecosystem uses.
+     */
+    public static function render_definition($id, array $ctx = []) {
+        if (!class_exists('BH_Element')) return '';
+        $prefab = self::get($id);
+        if (!$prefab || !is_array($prefab['definition'])) return '';
+
+        $fake_placements = [];      // fake_id => placement-shaped array
+        $index_to_fake_id = [];
+        $roots = [];                // fake_ids with no parent
+        $children_by_parent = [];   // parent fake_id => [child placement, ...]
+        $next_fake_id = -1;
+
+        foreach ($prefab['definition'] as $index => $entry) {
+            if (!is_array($entry) || empty($entry['element_type']) || !BH_Element::get_type((string) $entry['element_type'])) {
+                continue; // unregistered/deactivated type — skip, same as instantiate()
+            }
+            // Disabled entries (and therefore their whole subtree, since
+            // they're never added to $index_to_fake_id and so can never
+            // be resolved as anyone's parent_ref) are excluded entirely
+            // here, not just filtered at the root loop below — matching
+            // the real DB path, where get_placements()'s own WHERE
+            // enabled=1 means a disabled placement and its descendants
+            // never even enter render_slot()'s children-by-parent map to
+            // begin with.
+            if (array_key_exists('enabled', $entry) && !$entry['enabled']) continue;
+
+            $fake_id = $next_fake_id--;
+            $index_to_fake_id[$index] = $fake_id;
+
+            $placement = [
+                'id'            => $fake_id,
+                'element_type'  => (string) $entry['element_type'],
+                'config'        => is_array($entry['config'] ?? null) ? $entry['config'] : [],
+                'enabled'       => array_key_exists('enabled', $entry) ? !empty($entry['enabled']) : true,
+            ];
+            if (!empty($entry['content_tree']) && is_array($entry['content_tree'])) {
+                $placement['content_tree'] = $entry['content_tree']; // render_placement()'s new inline branch
+            }
+            $fake_placements[$fake_id] = $placement;
+
+            $parent_ref = array_key_exists('parent_ref', $entry) ? $entry['parent_ref'] : null;
+            if ($parent_ref !== null && isset($index_to_fake_id[$parent_ref])) {
+                $parent_fake_id = $index_to_fake_id[$parent_ref];
+                $children_by_parent[$parent_fake_id][] = $placement;
+            } else {
+                $roots[] = $fake_id; // null parent_ref, or a ref that didn't resolve (its own entry skipped above) — treat as a root, same "never orphan" posture instantiate() uses
+            }
+        }
+
+        // Every entry that reached this point is already enabled (the
+        // loop above excludes disabled entries and their descendants
+        // entirely) — nothing left to filter, just render each root.
+        $html = '';
+        foreach ($roots as $fake_id) {
+            $html .= BH_Element::render_placement($fake_placements[$fake_id], $ctx, $children_by_parent);
+        }
+        return $html;
+    }
+
     /* =================================================================
      * REST bridge — same manage_options + wp_rest cookie-nonce contract
      * as BH_Element::register_routes(), same 'ous/v1' namespace.

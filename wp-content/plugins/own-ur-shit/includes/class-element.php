@@ -687,8 +687,20 @@ class BH_Element {
         // handed to the type's renderer as $instance['content'] so a
         // container 'render' callable can place it however it wants
         // (wrap it, ignore it, etc.) without this class assuming layout.
+        //
+        // 'content_tree' (checked first, §3.2 Gutenberg-block v1 addition
+        // — class-element-prefab.php's render_definition()) is an INLINE
+        // tree array, not a content_context_id lookup — used only when
+        // rendering a prefab definition that was never persisted as real
+        // placement rows (a Gutenberg block preview has no DB-backed
+        // content_context_id to fetch). Real DB-backed placements never
+        // carry this key, so this branch is a pure no-op for every
+        // existing call site (render_slot(), the builder GUI, etc.) —
+        // additive only, backward-compatible.
         $inner_html = '';
-        if ($type['container'] && !empty($placement['content_context_id']) && class_exists('BH_Content')) {
+        if ($type['container'] && isset($placement['content_tree']) && is_array($placement['content_tree']) && class_exists('BH_Content')) {
+            $inner_html = BH_Content::render($placement['content_tree']);
+        } elseif ($type['container'] && !empty($placement['content_context_id']) && class_exists('BH_Content')) {
             $tree = BH_Content::get('bh_element', (int) $placement['content_context_id']);
             $inner_html = BH_Content::render($tree);
         }

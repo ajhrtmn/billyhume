@@ -2,11 +2,42 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.46
+ * Version:     3.4.47
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.47 — 2026-07-12 — "no special-cased pages," applied to Gutenberg
+// (the two named highest-risk/last-in-sequence items being LMS lessons
+// and Gutenberg — this ships the lower-risk of Gutenberg's own two
+// options: "a custom block that hosts a node subtree," NOT "replacing
+// block-editor authoring entirely," which stays out of scope). New
+// class-gutenberg-block.php (OUS_Gutenberg_Block) registers one dynamic
+// block, 'own-ur-shit/element-prefab' — an author picks an existing
+// saved BH_Element_Prefab from a dropdown (assets/js/element-prefab-
+// block.js, plain ES5-safe JS against WP core's own wp.blocks/
+// wp.element globals, no build step), and its render_callback renders
+// that prefab's tree live wherever the block sits in a post, for every
+// real visitor, using the viewing visitor's own user_id as render
+// context (not an admin's).
+//
+// class-element-prefab.php gained render_definition() — a READ-ONLY,
+// zero-database-write render of a prefab's definition, the direct
+// opposite of the existing instantiate() (which always persists new
+// rows; calling that on every page view would leak a row per view).
+// Negative in-memory-only fake ids are used so a 'live'-flagged type's
+// data-bhel-live marker can never collide with (or be confused for) a
+// real placement id — §3.2's resolve REST route just 404s harmlessly
+// for a negative id instead of risking a coincidental collision.
+//
+// class-element.php's render_placement() gained one small, backward-
+// compatible addition to support this: a placement array MAY now carry
+// an inline 'content_tree' key (checked before the existing
+// content_context_id DB lookup) — real DB-backed placements never have
+// this key, so every existing call site (render_slot(), the builder
+// GUI) is a no-op here; only render_definition()'s in-memory fake rows
+// use it, for a container entry's snapshotted inner content.
+//
 // 3.4.46 — 2026-07-12 — DESIGN-SUITE-UNIFICATION-PLAN.md §3.2 v1: data-
 // binding "runtime re-resolution + output formatters," Phase 5 of §4's
 // build order. class-element-data.php gained register_formatter()/
@@ -701,7 +732,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.46');
+define('OUS_VER', '3.4.47');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -965,7 +996,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-prefab', 'element-builder', 'design-suite'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-prefab', 'element-builder', 'design-suite', 'gutenberg-block'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1021,6 +1052,14 @@ add_action('init',          ['BH_Element', 'init']);
 // prefabs/* REST routes; no admin_menu/Debug Tools section of its own,
 // its UI is additive controls inside BH_Element_Builder (§ this pass).
 add_action('init',          ['BH_Element_Prefab', 'init']);
+// §3.2/§5 Gutenberg block v1 (class-gutenberg-block.php's own docblock)
+// — registers ONE new dynamic block, 'own-ur-shit/element-prefab', that
+// embeds an existing saved prefab's live-rendered tree inside a normal
+// WordPress post. Its own init() guards register_block_type()'s
+// existence and BH_Element_Prefab's presence, same "harmless no-op
+// otherwise" posture every other optional integration in this
+// ecosystem uses.
+add_action('init',          ['OUS_Gutenberg_Block', 'init']);
 // The Phase-4 visual builder GUI (ELEMENT-BUILDER-DESIGN-PLAN.md §4) —
 // its BH_Element/BH_Element_Data REST-driven logic and localize-config
 // still need 'init', unchanged. BH_Element's own existing bare-list
