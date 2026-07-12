@@ -2,11 +2,78 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.39
+ * Version:     3.4.44
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.44 — 2026-07-12 — follow-up polish on 3.4.43's row chrome fix,
+// direct response to: toggle arrow "takes a lot of space for what it
+// does," glyphs "not centered well," rows feeling "off to the right,"
+// and "no real good margin/gap/padding" against the rail's own edges.
+// Toggle shrunk 22px -> 18px (still a mouse-appropriate target on
+// desktop; the existing 44px mobile touch-target floor is untouched),
+// action buttons 22px -> 20px, both centered on both axes with a fixed
+// line-height. Rail column widened 300px -> 330px per "maybe make a
+// touch wider." The reparented .bhel-canvas (element-builder.css) now
+// gets real horizontal padding when embedded in this rail specifically
+// (class-style-gallery.php's own new scoped rule), and its own
+// redundant border is dropped in that context so cards don't read as
+// double-boxed against the rail's outer border.
+//
+// 3.4.43 — 2026-07-12 — direct response to a live screenshot showing
+// the 3.4.42 density pass's row action buttons still looking "wonky...
+// not clean or sleek." Root cause: they were still rendering with
+// WordPress core's default ".button" chrome (visible border + white
+// background on every single glyph), so a row of 4 actions read as 4
+// separate boxes bolted together, not a toolbar. Stripped to flat
+// ghost icon buttons — no border, transparent until hover — and
+// unified the expand/collapse toggle's sizing/chrome into the exact
+// same rule so every small control in a row shares one visual
+// language. Also fixed a real ordering bug: .bhel-tree-toggle's old
+// standalone rule (padding:2px 4px, no width/height) was declared
+// AFTER the new shared rule and would have partially overridden it —
+// removed, sizing now lives only in the shared rule.
+//
+// 3.4.42 — 2026-07-12 — density/intentionality pass on the tree rows,
+// direct response to "the left side buttons... just too big... dont
+// really fit the space... looks like everything was shoved in." Root
+// cause: the literal '+ child' button text was wide enough on its own
+// to force the whole actions cluster onto its own wrapped line for
+// nearly every node — element-builder.js's renderTreeNode()/render
+// SlotInspector() (canvas add-child row) both shrink it to '+' (the
+// tooltip already says "Add a child..." in full). Every row action
+// button is now a uniform 22x22px square instead of variable-width
+// text buttons. Row padding/margin tightened, and the meta line (e.g.
+// "bh/stat-card · #1") is now a small trailing inline detail next to
+// the label instead of its own full-width second line, halving the
+// per-row height. Net effect: rows read as a deliberate compact
+// toolbar instead of overflow that happened to wrap.
+//
+// 3.4.41 — 2026-07-12 — rail widened 260px -> 300px and per-row padding
+// tightened (still cramped-but-functional per AJ's own confirmation
+// that 3.4.40's wrap fix worked) so more of the tree fits without
+// scrolling. Also added the FIRST mobile breakpoint the unified Design
+// Suite grid has ever had — @media (max-width:900px) stacks rail/
+// canvas/inspector into one column instead of the fixed three-column
+// grid actively breaking on a phone-width screen. Explicitly NOT a full
+// mobile redesign — AJ: "may need to rethink things a bit for that
+// eventually, but we can cross that bridge" — this is the minimum fix
+// so nothing actively overflows/breaks in the meantime.
+//
+// 3.4.40 — 2026-07-12 — direct response to a live screenshot showing
+// the left rail squishing text ("Page content" wrapping mid-word
+// against a crushed "+ child" button) at its real ~250px width. Root
+// cause: .bhel-card and .bhel-slot-content-row forced toggle+label+
+// meta+actions onto one flex row with no fallback. Fixed with flex-wrap
+// instead of a rigid single row — the label/meta group and the actions
+// group each get their own line once they don't both fit, no
+// horizontal scroll, no markup change. Also added a hard overflow-x:
+// hidden + max-width:100% floor on the whole left rail so nothing in
+// it can ever force horizontal scroll again, whatever gets added to it
+// later. See assets/css/element-builder.css's own updated comment for
+// the exact rule changes.
+//
 // 3.4.39 — 2026-07-12 — direct response to live-screenshot feedback that
 // the rail was "so confusing" it mixed the actual node tree with the
 // unrelated demo-page "Preview surface" picker, and that the Slot
@@ -590,7 +657,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.39');
+define('OUS_VER', '3.4.44');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A

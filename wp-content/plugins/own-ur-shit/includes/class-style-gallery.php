@@ -557,15 +557,40 @@ class BHY_Gallery {
            no new/parallel color or spacing system introduced here. */
         .bhy-unified {
             display: grid;
-            grid-template-columns: 260px 1fr 340px;
+            grid-template-columns: 330px 1fr 340px;
             gap: var(--bhy-space-4, 16px);
             align-items: start;
             margin-top: var(--bhy-space-4, 14px);
         }
         .bhy-left-rail {
             background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
-            padding: var(--bhy-space-2, 8px) 0; max-height: 80vh; overflow-y: auto;
+            padding: var(--bhy-space-2, 8px) 0; max-height: 80vh; overflow-y: auto; overflow-x: hidden;
+            box-sizing: border-box;
         }
+        /* 3.4.41 — tightened row rhythm now that the rail has more room
+           (260px -> 300px): slightly less vertical padding per card/row
+           so more of the tree is visible without scrolling, without
+           making anything harder to tap. */
+        .bhel-card { padding: 6px 8px 6px 6px; }
+        .bhel-slot-content-row { padding: 6px 8px; }
+        /* 3.4.41 — basic mobile fallback: the grid was fixed at three
+           columns with no breakpoint at all, meaning on a narrow phone
+           screen the whole page would either overflow horizontally or
+           crush all three columns unreadably. Below 900px this stacks
+           rail -> canvas -> inspector as one column, full width, each
+           its own natural height instead of a forced 80vh scroll box —
+           NOT a full mobile redesign (AJ: "may need to rethink things a
+           bit for that eventually, but we can cross that bridge") — just
+           making sure nothing actively breaks/overflows in the meantime. */
+        @media (max-width: 900px) {
+            .bhy-unified { grid-template-columns: 1fr; }
+            .bhy-left-rail { max-height: 50vh; }
+        }
+        /* 3.4.40 — nothing in the rail should ever force horizontal
+           scroll; every row-level element wraps its own text instead of
+           overflowing. */
+        .bhy-left-rail * { box-sizing: border-box; max-width: 100%; }
+        .bhy-story-btn, .bhy-rail-item { white-space: normal; word-break: break-word; }
         /* 3.4.39 — Structure/Preview rail tabs (render_left_rail()'s own
            updated comment explains the split). Plain two-button tab bar,
            same visual language as the inspector's own h3 section rule
@@ -613,6 +638,17 @@ class BHY_Gallery {
         .bhy-canvas-col, .bhy-inspector-col { min-width: 0; }
         .bhy-widgets-inspector-mount { min-height: 200px; } /* 3.4.36 — .bhy-widgets-canvas-mount's own div no longer exists, its selector removed alongside it (see render_shell()'s comment) */
         .bhy-rail-tree-section .bhy-rail-mount { padding: 0; }
+        /* 3.4.44 — direct response to "no real good margin/gap/padding
+           around them and the left bar's edges" — the reparented
+           .bhel-canvas (element-builder.css) kept its own generic
+           padding, but nothing in THIS rail context gave it any extra
+           breathing room against the rail's own border, so cards read
+           as touching the rail edge. A little extra horizontal padding
+           here, scoped to only the rail's embedded copy of the canvas
+           (not the standalone/Debug Tools context, which is unchanged),
+           fixes that without touching element-builder.css's own shared
+           rule. */
+        .bhy-rail-tree-section #bhy-rail-tree-mount .bhel-canvas { padding: 10px 10px 10px 12px; border: none; min-height: 0; }
         /* 3.4.35 — Global Styles section headers now use the exact same
            rule as the widget inspector's ".bhel-inspector h3"
            (assets/css/element-builder.css): small-caps uppercase label +

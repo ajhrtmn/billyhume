@@ -853,7 +853,10 @@
         main.appendChild(el('div', 'bhel-card-meta', slotSlug + (contextId ? (' · context #' + contextId) : '')));
         row.appendChild(main);
         var actions = el('div', 'bhel-card-actions');
-        actions.appendChild(iconBtn('+ child', 'Add a placement to this slot', function (e) {
+        // 3.4.42 — same '+ child' -> '+' shrink as the placement row's own
+        // add-child button (renderTreeNode()'s own updated comment) —
+        // consistent single-glyph action buttons across every row kind.
+        actions.appendChild(iconBtn('+', 'Add a placement to this slot', function (e) {
             e.stopPropagation();
             openAddChildPicker(surfaceSlug, slotSlug, contextId, 0);
         }));
@@ -972,7 +975,14 @@
         actions.appendChild(iconBtn('↑', 'Move up (within siblings)', function (e) { e.stopPropagation(); moveCard(loc, placements, idx, -1); }));
         actions.appendChild(iconBtn('↓', 'Move down (within siblings)', function (e) { e.stopPropagation(); moveCard(loc, placements, idx, 1); }));
         if (p.id) {
-            actions.appendChild(iconBtn('+ child', 'Add a child of this node', function (e) {
+            // 3.4.42 — was '+ child' as literal button text, wide enough
+            // on its own to force the actions row to wrap onto its own
+            // line for almost every node (direct cause of the "too big,
+            // shoved in" feedback on a live screenshot). The tooltip
+            // (iconBtn's own 'title' param) already says "Add a child of
+            // this node" in full — the button itself only needs '+',
+            // same single-glyph sizing as the ↑/↓/✕ buttons next to it.
+            actions.appendChild(iconBtn('+', 'Add a child of this node', function (e) {
                 e.stopPropagation();
                 openAddChildPicker(loc.surface, loc.slot, loc.contextId, p.id);
             }));
