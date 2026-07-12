@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.9'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order
+    const DB_VERSION = '1.10'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -212,10 +212,16 @@ class BHI_Activator {
         // constraint on (surface, context, slot, element_type) — the
         // same element type can legitimately appear more than once in
         // one slot (two stat-cards bound to different metrics), per the
-        // design doc's own note on this. parent_placement_id and
-        // revision_of are unused seams for future work (§1.1's tree
-        // mode, §2.3's version-history service) — always 0 today, not
-        // acted on anywhere in this pass.
+        // design doc's own note on this. NO COLUMN CHANGE THIS PASS —
+        // both columns below already existed in this table's original
+        // 1.9 definition; OUS_VER 3.4.34 just ACTIVATED parent_placement_id
+        // (see class-element.php's save_placement()/render_slot()/
+        // render_placement() and the REST save route) as the real
+        // placement-tree seam it was reserved as (§1.1) — 0 still means
+        // "root/top-level within the slot," non-zero now means "this
+        // row's parent within the same surface/context/slot," validated
+        // and cycle-guarded in save_placement(). revision_of remains an
+        // unused seam for future work (§2.3's version-history service).
         $element_placements = $wpdb->prefix . 'bhcore_element_placements';
         $sql8 = "CREATE TABLE $element_placements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -235,6 +241,36 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql8);
 
+        // Element-builder PREFABS — see class-element-prefab.php
+        // (BH_Element_Prefab). A prefab is a NAMED, reusable, saved
+        // composition of one or more placement definitions (potentially
+        // including a container's nested BH_Content tree, carried inside
+        // 'definition' as a JSON array of placement-shaped entries plus
+        // an embedded 'content_tree' per container entry — see that
+        // class's instantiate()/save_from_slot() for the exact shape).
+        // Deliberately a SEPARATE table from bhcore_element_placements,
+        // not a special 'is_prefab' flag on that table — a prefab is
+        // definitional (code-adjacent authored data, edited independently
+        // of any live placement) while a placement is instance state tied
+        // to one surface/slot/context; conflating them would mean
+        // "editing a prefab" and "editing a live instance" fight over the
+        // same rows, which is exactly the retroactive-mutation bug the
+        // deep-copy instantiate contract is designed to avoid.
+        $prefabs = $wpdb->prefix . 'bhcore_element_prefabs';
+        $sql9 = "CREATE TABLE $prefabs (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            slug varchar(80) NOT NULL,
+            name varchar(190) NOT NULL DEFAULT '',
+            description text,
+            definition longtext,
+            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY slug (slug)
+        ) $charset;";
+        dbDelta($sql9);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -244,6 +280,7 @@ class BHI_Activator {
         $content_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $content));
         $events_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $events));
         $element_placements_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $element_placements));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements;
+        $prefabs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $prefabs));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs;
     }
 }

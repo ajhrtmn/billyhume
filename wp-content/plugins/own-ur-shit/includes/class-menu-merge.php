@@ -1,6 +1,27 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.25 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.2):
+// merge() now honors two new OPTIONAL keys on each admin_menus entry —
+// 'parent' (defaults to 'own-ur-shit', unchanged behavior for every
+// existing registrant that doesn't set it) and 'capability' (defaults
+// to 'manage_options', likewise unchanged for existing registrants).
+// bh-crm's own registry entry (class-registry.php) is the first to set
+// both, relocating People + a new Project Tracker submenu under the new
+// 'bh-crm-hub' top-level menu with the 'bhcore_manage_crm' capability.
+// Also added registration-result logging (OUS_DebugLog::log_throttled())
+// per the design doc's §1.4 rule 6 — this pass had none before.
+//
+// OUS_VER 3.4.31 — merge() now distinguishes "no 'parent' key at all"
+// from "'parent' key explicitly set to null" (array_key_exists() instead
+// of ??, which treats both the same). This is what makes bh-crm's People
+// entry able to register as a hidden page (WordPress's own documented
+// add_submenu_page(null, ...) pattern, already used by class-studio.php
+// for 'bh-studio') instead of always falling back to a visible parent —
+// see class-registry.php's own changelog note for why. No behavior
+// change for any existing registrant, since none of them set 'parent'
+// to null before this pass.
+
 /**
  * Relocates each ecosystem plugin's genuinely custom admin pages (never
  * CPT or taxonomy list-tables — see class-registry.php's docblock for
@@ -38,7 +59,16 @@ class OUS_MenuMerge {
                 if (!empty($item['old_parent'])) {
                     remove_submenu_page($item['old_parent'], $item['slug']);
                 }
-                add_submenu_page('own-ur-shit', $item['label'], $item['label'], 'manage_options', $item['slug'], $item['callback']);
+                $parent = array_key_exists('parent', $item) ? $item['parent'] : 'own-ur-shit';
+                $capability = $item['capability'] ?? 'manage_options';
+                $hook = add_submenu_page($parent, $item['label'], $item['label'], $capability, $item['slug'], $item['callback']);
+                if (class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log_throttled('info', 'menu_merge_' . $item['slug'], 60,
+                        'OUS_MenuMerge: add_submenu_page() for ' . $item['slug'] . ' (parent ' . $parent . ', capability ' . $capability . ') returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
+                        ['hook_suffix' => $hook, 'parent' => $parent, 'capability' => $capability],
+                        'OUS_MenuMerge::merge()'
+                    );
+                }
             }
         }
     }

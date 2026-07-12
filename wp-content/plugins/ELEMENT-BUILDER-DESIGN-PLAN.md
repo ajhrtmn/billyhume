@@ -341,6 +341,153 @@ that remains the next real phase, and it can now be built directly
 against the REST routes shipped this pass instead of needing to add
 them itself.
 
+## Status note (2026-07-11)
+
+§4's GUI phase (§6 step 2) has now shipped — `BH_Element_Builder`
+(`own-ur-shit/includes/class-element-builder.php` +
+`assets/js/element-builder.js` + `assets/css/element-builder.css`), a
+three-pane palette/canvas/inspector clone of `BHY_Gallery`'s layout,
+wired against the existing `ous/v1/elements/*` REST bridge. One
+deviation from §4's literal text: it ships as a NEW Debug Tools section
+("Element Builder (Visual)"), not a standalone admin page under
+`own-ur-shit`. Reason: this install has a confirmed WordPress-core
+hook-resolution bug that broke standalone pages in this exact family
+(see `class-api-docs.php`'s docblock — both a top-level-adjacent page
+and a submenu-of-`ous-debug` page were denied access despite correct
+registration/capability), and VISION.md generalizes "default new dev/
+admin pages to a Debug Tools section" as the standing fix. The existing
+bare add/remove/reorder list (`BH_Element::render_debug_section()`) is
+untouched; the new section is additive alongside it.
+
+## Status note (2026-07-11, later same day) — remaining §6 phases + a prefab system
+
+The rest of §6's phased build order landed this pass: the Portal as a
+real `bh_element_surfaces` contributor with one new element-composed
+panel (`BHI_Portal::register_element_surface()`/`register_elements_panel()`,
+`class-portal.php`); a real `bh/container` element type whose content is
+an embedded `BH_Content` subtree — §1.1's hybrid-nesting bridge into the
+*existing* `BH_Studio` canvas, per this doc's own recommendation, not a
+second tree editor (`class-element.php`, with `BH_Element::save_placement()`
+now auto-assigning `content_context_id` = the placement's own id for
+container types); and the DELETE `/elements/placements/{id}` REST route
+this doc's REST bridge section previously lacked.
+
+**A prefab system was also added — genuinely NOT part of this document's
+original scope.** AJ asked mid-build for the ability to "create and
+populate prefabs to be edited": a named, reusable, deep-copyable saved
+composition of one or more placements. This shipped as a new class
+(`BH_Element_Prefab`, `class-element-prefab.php`), a new table
+(`bhcore_element_prefabs`, `class-identity-activator.php` DB_VERSION
+1.10 — deliberately a separate table from `bhcore_element_placements`,
+not a flag on it, so editing a prefab definition can never retroactively
+mutate an already-instantiated copy), new REST routes mirroring this
+doc's own §3.4 auth/nonce pattern exactly, and "Save as Prefab" / a
+prefab picker added to `BH_Element_Builder`'s existing GUI. Full
+reasoning and the exact deep-copy contract are in
+`class-element-prefab.php`'s own docblock, not repeated here — this note
+exists only so a reader of this document knows the prefab system is
+real, shipped, and intentionally out-of-band from the judgment calls
+above, not an oversight in §1–§6's own scoping.
+
+## Status note (2026-07-11, later same day #2) — §7 addition: the bh-crm project tracker (kanban board)
+
+A genuine new CONSUMER of this whole system, not a change to the judgment
+calls above: bh-crm's project tracker (`bh-crm/includes/class-projects.php`,
+`class-debug.php`, `assets/js/kanban-board.js`, `assets/css/kanban-board.css`),
+built for tracking commissioned-art project roadmaps as kanban boards
+whose cards can nest sub-task cards recursively (Godot scene-tree
+style), with completion rolling up from children to parents.
+
+**Data model, briefly** (full reasoning lives in `class-projects.php`'s
+own docblock, not duplicated here): a "project" is a plain
+`bhcrm_projects` table row (bh-crm's own, versioned via its own
+`bhcrm_projects_db_version` option — same `dbDelta`/`DB_VERSION` pattern
+`BHR_Activator` already establishes, deliberately separate from
+`class-identity-activator.php`'s own `DB_VERSION`, since this is
+bh-crm-owned data, not core). Its board is a real `bh_element_surfaces`
+contributor (`bhcrm_project_board`, one slot `board`, `surface_context_id`
+= the project's own id — the same per-entity-context convention
+`bh_crm_profile` already established for `user_id`). Each kanban card is
+a `bh/sticky-card` `BH_Element` placement (a new type, registered from
+bh-crm's own bootstrap, same `class_exists('BH_Element')`-guarded
+posture `BHCRM_People::register_element_surface()` already uses for its
+own surface). A card's sub-tasks are NOT further `BH_Element`
+placements — they're a `bhcrm/sub-card` `BH_Content` block type nested
+inside the card placement's own `content_context_id` tree, reusing
+`BH_Content`'s ALREADY-recursive `children` shape natively (no new
+recursion code needed anywhere) — this is genuinely the exact same
+hybrid-nesting bridge §1.1 designed and `bh/container` already proved
+out, applied to a second element type.
+
+**The kanban-column judgment call — resolved by re-reading `class-
+element.php`, not by assumption:** each card's column is a plain
+`config.attrs.column` literal string on the placement itself, NOT a
+slot-per-column scheme. `get_placements()`/`save_placement()`/`reorder()`
+confirm a placement row has exactly one `slot` (a surface's fixed
+manifest key) and one opaque `config` JSON blob with no other queryable
+grouping column — there is no placement-level attribute independent of
+`slot` to switch on either way, so the real choice was "one attr in an
+already-arbitrary JSON blob" vs. "dynamically register N slots into an
+otherwise-static per-surface manifest, re-registered every time a
+project's column set changes." Since `columns_config` is explicitly
+per-project and user-editable (add/rename/reorder columns), a
+slot-per-column scheme would mean re-registering `bh_element_surfaces`'
+slot list on every project's column edit — real, unnecessary plumbing
+`BH_Element` was never built to do dynamically (`registered_surfaces()`
+is a single request-cached `apply_filters()` result). The attribute
+approach costs nothing extra in `class-element.php` at all: the board is
+rendered by grouping one slot's placements by `config.attrs.column`
+client-side (`kanban-board.js`), and a drag-and-drop column change is
+just editing that one attr and re-saving the slot through the EXISTING
+full-slot-upsert REST route (`POST .../elements/placements/{surface}/{context_id}`,
+`rest_save_placements()`) — the identical mechanism the visual builder
+GUI already uses for its own reorder.
+
+**Roll-up completion — render-time, not stored, chosen semantics:** a
+card's "N/M sub-tasks done" label is computed at render by walking its
+own live `BH_Content` tree and counting `bhcrm/sub-card` nodes
+(`BHCRM_Projects::rollup_counts()`) — nothing redundant is written to
+the DB. A parent card's OWN `done` checkbox is never auto-toggled when
+every child completes; the roll-up is purely informational. Auto-
+completing the parent was considered and deliberately not built: it
+would require a write on every render (or a new save-time hook) just to
+keep a value that's already trivially derivable in sync — exactly the
+stale-roll-up problem avoided by not storing a count at all. This can be
+added later as an explicit opt-in without touching the read path.
+
+**The kanban board's own UI is a bespoke presentation layer, not a
+second data model** — it reads/writes the exact same
+`ous/v1/elements/placements/*` REST bridge `BH_Element_Builder`'s
+three-pane GUI already uses (full-slot upsert to save, the real DELETE
+route to remove a card), and links out to the EXISTING `BH_Studio`
+canvas (`admin.php?page=bh-studio&context_type=bh_element&context_id=`)
+for editing a card's own nested sub-task tree, rather than building a
+second bespoke recursive-tree editor inside the board. Prefab
+compatibility falls out for free and was verified by reading, not
+built new: `BH_Element_Prefab::save_from_slot()` already snapshots any
+container placement's `content_tree` inline (`class-element-prefab.php`),
+so a whole board slot OR a single card (with its sub-task tree) can be
+saved as a prefab and re-instantiated via the existing prefab picker
+with zero changes to `class-element-prefab.php` — `bh-crm/includes/
+class-debug.php`'s seed data deliberately seeds a "sketch → lineart →
+color" nested checklist as a real, prefab-able shape to make this
+concrete on a fresh install.
+
+Seed data reachable via Debug Tools → "BH CRM — Project Tracker" → "Seed
+Project Tracker Demo Data" (`BHCRM_Debug`, same
+`ous_debug_tools`/`OUS_Debug::button()` convention `BHR_Debug` already
+established) — a standalone admin page was again deliberately avoided
+for this new UI, for the same documented hook-resolution-bug reason
+`BH_Element_Builder`'s own docblock gives.
+
+**Not runtime-verified**, same standing caveat as every entry above: no
+live PHP/MySQL/WordPress/REST/browser execution is available in this
+environment. The full round trip (create project → drag a card between
+columns → nest a sub-card via Content Studio → see the roll-up label
+update → save/instantiate a prefab of it) has been reasoned through
+against the actually-read, working shapes of `BH_Element`, `BH_Content`,
+and `BH_Element_Prefab`, and brace/logic-checked, but not smoke-tested.
+
 ## Critical files for implementation
 
 - `own-ur-shit/includes/class-style-gallery.php` + `class-ui.php` — the Storybook three-pane GUI and the exact token-picker widgets (`swatch_field`/`font_field`/`slider_row`/`swatch_js`) the builder's inspector reuses verbatim.

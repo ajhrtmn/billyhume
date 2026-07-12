@@ -105,9 +105,21 @@ class BHCRM_People {
 
     public static function render() {
         $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
+        $project_id = isset($_GET['project_id']) ? (int) $_GET['project_id'] : 0;
         BHY_UI::shell_open('People/CRM');
         if (isset($_GET['bhcrm_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhcrm_msg']))) . '</p></div>';
-        $uid ? self::render_detail($uid) : self::render_list();
+
+        // 1.2.0 — project tracker board dispatch. Rides on THIS existing
+        // single-page dispatch (admin.php?page=bh-crm) rather than a new
+        // standalone page — see class-projects.php's docblock for why a
+        // second page was deliberately avoided on this install.
+        if ($project_id && $uid && class_exists('BHCRM_Projects')) {
+            BHCRM_Projects::render_board($project_id, $uid);
+        } elseif ($uid) {
+            self::render_detail($uid);
+        } else {
+            self::render_list();
+        }
         BHY_UI::shell_close();
     }
 
@@ -253,6 +265,13 @@ class BHCRM_People {
         self::render_profile($uid);
         BHCRM_Tags::render_editor($uid);
         BHCRM_Notes::render_editor($uid);
+
+        // 1.2.0 — project tracker "Projects" section, additive, same
+        // "appended after the existing fixed content" placement as the
+        // tags/notes editors right above it.
+        if (class_exists('BHCRM_Projects')) {
+            BHCRM_Projects::render_projects_section($uid);
+        }
 
         $sections = apply_filters('bh_crm_activity_summary', [], $uid);
         if ($sections) {

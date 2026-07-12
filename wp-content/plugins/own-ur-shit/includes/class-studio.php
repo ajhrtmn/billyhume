@@ -1,6 +1,12 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.25 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: add_menu()
+// now registers 'bh-studio' as a submenu of the new 'bh-design' top-level
+// menu (was 'own-ur-shit'), with capability 'bhcore_design_site' (was
+// 'manage_options') — it's a "design the site" tool, not an activation
+// tool, per the design doc's §1.1. Slug/callback/render logic unchanged.
+
 // OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
 // OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
 // class-debug.php's own docblock). This section is read-only (lists
@@ -213,14 +219,28 @@ class BH_Studio {
 
     /* ---------------- admin page ---------------- */
 
-    // A standalone entry point for now (?context_type=&context_id=),
-    // same "dev/reference tooling first, real embedded consumer later"
-    // sequencing as API Docs — bh-courses' lesson-step editor swapping
-    // onto this canvas directly (rather than linking out to a separate
-    // admin page) is the natural next step once this first pass is
-    // confirmed working against a real WordPress install.
+    // DESIGN-SUITE-UNIFICATION-PLAN.md unification pass — Content Studio
+    // is no longer its own visible destination under 'bh-design'. Per the
+    // explicit "there is no difference between the two" instruction, a
+    // container element's nested content is now edited via a MODAL iframe
+    // launched from inside BHY_Gallery's unified shell (see
+    // class-element-builder.php's inspector / assets/js/element-builder.js's
+    // openStudioModal()), not a page you navigate away to. The page itself
+    // is intentionally kept REGISTERED (parent slug is null, WordPress's
+    // documented pattern for a capability-gated admin page reachable by
+    // direct URL/iframe but absent from every menu list) rather than
+    // unregistered outright, because the modal iframe still needs a real,
+    // capability-checked admin.php?page=bh-studio target to load — fully
+    // unhooking add_menu() would 403 the iframe along with the menu item.
+    // Slug/callback/capability are otherwise unchanged from before this pass.
     public static function add_menu() {
-        add_submenu_page('own-ur-shit', 'Content Studio', 'Content Studio', 'manage_options', 'bh-studio', [self::class, 'render']);
+        $hook = add_submenu_page(null, 'Content Studio', 'Content Studio', 'bhcore_design_site', 'bh-studio', [self::class, 'render']);
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log_throttled('info', 'studio_menu', 60,
+                'add_submenu_page() for Content Studio (bh-studio, hidden/null parent — reachable by direct link only, see this method\'s own comment) returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
+                ['hook_suffix' => $hook], 'BH_Studio::add_menu()'
+            );
+        }
     }
 
     public static function maybe_enqueue($hook) {

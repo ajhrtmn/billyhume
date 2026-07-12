@@ -154,7 +154,7 @@ class OUS_Dashboard {
         if ($html === '') return; // nothing placed yet — render nothing, not an empty heading
 
         echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
-        echo '<p class="description">Placed via Debug Tools → Element Builder for now (the visual builder GUI is a later phase).</p>';
+        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=bh-element-builder')) . '">Design Suite &rarr; Element Builder</a>.</p>';
         echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
     }
 

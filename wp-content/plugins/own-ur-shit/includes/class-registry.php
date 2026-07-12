@@ -1,6 +1,15 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.25 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: bh-crm's
+// admin_menus entry gained 'parent' => 'bh-crm-hub' and 'capability' =>
+// 'bhcore_manage_crm' on its existing People entry (was implicitly
+// 'own-ur-shit'/'manage_options'), plus a new second entry relocating
+// the Project Tracker (BHCRM_Projects::render_boards(), new — bh-crm's
+// own class-projects.php) under the same new top-level CRM menu. See
+// class-menu-merge.php's own changelog note for the 'parent'/
+// 'capability' key extension this depends on.
+
 // OUS_VER 3.4.19 — register_debug_section() (the "Bundled Zip
 // Freshness" section) now sets 'group' => OUS_Debug::GROUP_MONITORING
 // (Debug Tools reorganization pass — see class-debug.php's own
@@ -107,8 +116,44 @@ class OUS_Registry {
             // gets relocated as a direct submenu here instead. No
             // 'old_parent' — BHCRM_People never registers a top-level
             // page of its own for this to remove.
+            //
+            // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: both entries now
+            // relocate under the new 'bh-crm-hub' top-level CRM menu
+            // (bh-crm/includes/class-hub.php, BHCRM_Hub::add_menu())
+            // instead of 'own-ur-shit', gated on the new 'bhcore_manage_crm'
+            // capability instead of 'manage_options' — see class-roles.php.
+            // People's own slug ('bh-crm') is UNCHANGED, so every existing
+            // admin.php?page=bh-crm&... deep link (profile links,
+            // dashboard_link above) keeps working. Project Tracker
+            // (BHCRM_Projects::render_boards(), new — bh-crm/includes/
+            // class-projects.php) is a genuinely new, thin listing page;
+            // it does not replace the existing project_id dispatch inside
+            // BHCRM_People::render(), which stays as-is (§1.5).
+            //
+            // OUS_VER 3.4.31 — People's 'parent' changed from 'bh-crm-hub'
+            // to null (real duplication fix — see the QA walkthrough's
+            // finding that 'bh-crm-hub' top-level and this 'bh-crm'
+            // submenu were TWO independently-visible sidebar rows both
+            // rendering BHCRM_People::render(), the same accidental shape
+            // DESIGN-SUITE-UNIFICATION-PLAN.md's changelog documents for
+            // 'bh-design'/'bh-style'). BHCRM_Hub::add_menu() (bh-crm/
+            // includes/class-hub.php) already registers 'bh-crm-hub' as
+            // a top-level page whose own callback IS this exact same
+            // ['BHCRM_People', 'render'], so it's already the one real,
+            // visible destination — this entry no longer needs its own
+            // sidebar row to be reachable, only its slug ('bh-crm', kept
+            // for every existing deep link above). null here requires
+            // class-menu-merge.php's merge() to distinguish "key absent"
+            // from "key explicitly null" (fixed this same pass — see that
+            // file's own changelog note) since a bare '?? ' default would
+            // have silently ignored this and kept it visible. Project
+            // Tracker is UNCHANGED — it's genuinely distinct content
+            // (BHCRM_Projects::render_boards(), not a duplicate of
+            // People), so it keeps its normal 'bh-crm-hub' parent and
+            // stays a real, visible submenu.
             'admin_menus' => [
-                ['slug' => 'bh-crm', 'label' => 'People/CRM', 'callback' => ['BHCRM_People', 'render']],
+                ['slug' => 'bh-crm', 'label' => 'People', 'callback' => ['BHCRM_People', 'render'], 'parent' => null, 'capability' => 'bhcore_manage_crm'],
+                ['slug' => 'bh-crm-projects', 'label' => 'Project Tracker', 'callback' => ['BHCRM_Projects', 'render_boards'], 'parent' => 'bh-crm-hub', 'capability' => 'bhcore_manage_crm'],
             ],
         ],
         // bh-contest deliberately has NO 'admin_menus' entry: Results and

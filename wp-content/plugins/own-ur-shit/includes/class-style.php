@@ -351,4 +351,447 @@ class BHY_Style {
         $params = array_filter(self::FONT_OPTIONS);
         return 'https://fonts.googleapis.com/css2?' . implode('&', array_map(fn($p) => 'family=' . $p, array_values($params))) . '&display=swap';
     }
+
+    /* =================================================================
+     * §2.3/§2.6 (DESIGN-SUITE-UNIFICATION-PLAN.md) — per-instance style
+     * overrides. scoped_inline_style() is the ONE new formatter this
+     * phase adds: it resolves a placement's config.style map into an
+     * inline `style="..."` attribute value for that placement's own
+     * wrapper element (BH_Element::render_placement() is the call site).
+     *
+     * Two key shapes coexist in one map, per §2.6's convention:
+     *   - a BARE key (e.g. "color_accent") is §2.3's original mechanic,
+     *     UNCHANGED: emits a scoped --bh-* custom property, so the
+     *     type's own stylesheet (which already reads var(--bh-*))
+     *     inherits every token it does NOT override from :root.
+     *   - a NAMESPACED "group.property" key (e.g. "spacing.padding",
+     *     "bg.color") is new this phase: resolves a preset-scale step,
+     *     an "@token:*" reference to an existing BHY_Style color/scale
+     *     token, or a "custom:*" escape hatch, straight to a direct CSS
+     *     declaration on the same wrapper.
+     *
+     * Every preset step below is anchored to this install's REAL
+     * existing scale values (DEFAULTS' radius=12/radius_sm=8, the
+     * font_scale 0.75-1.6 / space_scale 0.6-1.8 multipliers already
+     * read via --bh-font-scale/--bh-space-scale elsewhere in this
+     * class) — no new numbers were invented for this pass.
+     *
+     * NOT runtime-verified: no live PHP/browser execution is available
+     * in this environment; reasoned through against this class's own
+     * existing safe_color()/safe_number()/inline_css() shapes and
+     * brace/logic-checked only. Smoke-test scoped_inline_style() against
+     * a real placement carrying a mixed bare+namespaced style map (and
+     * against a deliberately malformed one, to confirm it degrades to
+     * "skip that one declaration" rather than emitting anything unsafe)
+     * before trusting this in production.
+     * ================================================================= */
+
+    const SPACE_SCALE_STEPS = [
+        '0'  => '0',
+        'xs' => 'calc(4px * var(--bh-space-scale, 1))',
+        'sm' => 'calc(8px * var(--bh-space-scale, 1))',
+        'md' => 'calc(16px * var(--bh-space-scale, 1))',
+        'lg' => 'calc(24px * var(--bh-space-scale, 1))',
+        'xl' => 'calc(40px * var(--bh-space-scale, 1))',
+    ];
+
+    // Sizing has no pre-existing site-wide token to anchor to (unlike
+    // spacing/typography/radius) — these are plain, self-contained rem
+    // steps, Tailwind-scale-inspired per §2.6's own framing. 'screen'
+    // resolves to 100vw or 100vh depending on which CSS property it's
+    // applied to — see resolve_size_step().
+    const SIZE_STEPS = [
+        'auto'   => 'auto',
+        '0'      => '0',
+        'xs'     => '8rem',
+        'sm'     => '16rem',
+        'md'     => '24rem',
+        'lg'     => '32rem',
+        'xl'     => '48rem',
+        'full'   => '100%',
+    ];
+
+    const FONT_SIZE_STEPS = [
+        'xs' => 'calc(12px * var(--bh-font-scale, 1))',
+        'sm' => 'calc(14px * var(--bh-font-scale, 1))',
+        'md' => 'calc(16px * var(--bh-font-scale, 1))',
+        'lg' => 'calc(20px * var(--bh-font-scale, 1))',
+        'xl' => 'calc(28px * var(--bh-font-scale, 1))',
+    ];
+
+    const FONT_WEIGHT_STEPS = ['400' => '400', '500' => '500', '600' => '600', '700' => '700'];
+
+    const RADIUS_STEPS = [
+        '0'    => '0',
+        'sm'   => 'var(--bh-radius-sm, 8px)',
+        'md'   => 'var(--bh-radius, 12px)',
+        'lg'   => 'calc(var(--bh-radius, 12px) * 1.5)',
+        'full' => '999px',
+    ];
+
+    const BORDER_WIDTH_STEPS = ['0' => '0', '1' => '1px', '2' => '2px', '4' => '4px'];
+    const Z_INDEX_STEPS = ['0' => '0', '10' => '10', '20' => '20', '30' => '30', '40' => '40', '50' => '50'];
+
+    const SHADOW_STEPS = [
+        'none' => 'none',
+        'sm'   => '0 1px 2px rgba(0,0,0,.08)',
+        'md'   => '0 4px 10px rgba(0,0,0,.14)',
+        'lg'   => '0 10px 26px rgba(0,0,0,.20)',
+    ];
+
+    const BG_SIZE_ENUM_PRESETS = ['auto' => 'auto', 'cover' => 'cover', 'contain' => 'contain'];
+
+    const DISPLAY_ENUM         = ['block', 'flex', 'grid', 'inline-block', 'inline', 'none'];
+    const POSITION_ENUM        = ['static', 'relative', 'absolute', 'sticky', 'fixed'];
+    const FLEX_DIRECTION_ENUM  = ['row', 'row-reverse', 'column', 'column-reverse'];
+    const FLEX_WRAP_ENUM       = ['nowrap', 'wrap', 'wrap-reverse'];
+    const JUSTIFY_ENUM         = ['flex-start', 'center', 'flex-end', 'space-between', 'space-around', 'space-evenly'];
+    const ALIGN_ENUM           = ['flex-start', 'center', 'flex-end', 'stretch', 'baseline'];
+    const OVERFLOW_ENUM        = ['visible', 'hidden', 'scroll', 'auto'];
+    const VISIBILITY_ENUM      = ['visible', 'hidden', 'collapse'];
+    const BORDER_STYLE_ENUM    = ['none', 'solid', 'dashed', 'dotted', 'double'];
+    const BG_REPEAT_ENUM       = ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'space', 'round'];
+
+    /**
+     * "group.property" => [css property, resolver 'kind']. This IS
+     * §2.6's property-groups table, translated into code — every group
+     * in the doc (sizing, spacing, background, typography, border,
+     * display/flex/grid, position, effects/transforms, overflow/
+     * visibility) ships here in one pass, per AJ's explicit "I don't
+     * want suggestions deferred" instruction — nothing held back to a
+     * later phase.
+     *
+     * 'kind' selects which branch of resolve_style_value() runs:
+     *   'space'            — SPACE_SCALE_STEPS preset, or 'custom:'/'@token:' n/a (space has no token form)
+     *   'size'              — SIZE_STEPS preset (width/height-shaped)
+     *   'scale'             — a named scale table (see 'scale' sub-key)
+     *   'enum'              — a fixed allowlist (see 'enum' sub-key)
+     *   'enum-scale'        — a named table used as a fixed set of presets (no scale relationship, just a lookup)
+     *   'token-only'        — colors: MUST be "@token:<BHY_Style field>", never a raw/custom value (§2.6: "colors are always token refs, never raw hex")
+     *   'custom-only'       — no preset table exists for this property; only "custom:<value>" is accepted
+     *   'custom-or-number'  — a bare unitless number (line-height) or "custom:<value>"
+     *   'percent-0-100'     — a 0-100 integer/float, stored as a 0-1 CSS opacity fraction
+     */
+    const PROPERTY_MAP = [
+        // Sizing
+        'sizing.width'      => ['css' => 'width',      'kind' => 'size'],
+        'sizing.height'     => ['css' => 'height',      'kind' => 'size'],
+        'sizing.min-width'  => ['css' => 'min-width',   'kind' => 'size'],
+        'sizing.min-height' => ['css' => 'min-height',  'kind' => 'size'],
+        'sizing.max-width'  => ['css' => 'max-width',   'kind' => 'size'],
+        'sizing.max-height' => ['css' => 'max-height',  'kind' => 'size'],
+        // Spacing
+        'spacing.margin'         => ['css' => 'margin',         'kind' => 'space'],
+        'spacing.margin-top'     => ['css' => 'margin-top',     'kind' => 'space'],
+        'spacing.margin-right'   => ['css' => 'margin-right',   'kind' => 'space'],
+        'spacing.margin-bottom'  => ['css' => 'margin-bottom',  'kind' => 'space'],
+        'spacing.margin-left'    => ['css' => 'margin-left',    'kind' => 'space'],
+        'spacing.padding'        => ['css' => 'padding',        'kind' => 'space'],
+        'spacing.padding-top'    => ['css' => 'padding-top',    'kind' => 'space'],
+        'spacing.padding-right'  => ['css' => 'padding-right',  'kind' => 'space'],
+        'spacing.padding-bottom' => ['css' => 'padding-bottom', 'kind' => 'space'],
+        'spacing.padding-left'   => ['css' => 'padding-left',   'kind' => 'space'],
+        // Background
+        'bg.color'    => ['css' => 'background-color',  'kind' => 'token-only'],
+        'bg.image'    => ['css' => 'background-image',  'kind' => 'custom-only'],
+        'bg.size'     => ['css' => 'background-size',   'kind' => 'enum-scale', 'scale' => 'BG_SIZE_ENUM_PRESETS'],
+        'bg.position' => ['css' => 'background-position','kind' => 'custom-only'],
+        'bg.repeat'   => ['css' => 'background-repeat', 'kind' => 'enum', 'enum' => 'BG_REPEAT_ENUM'],
+        // Typography
+        'type.font-size'      => ['css' => 'font-size',      'kind' => 'scale', 'scale' => 'FONT_SIZE_STEPS'],
+        'type.font-weight'    => ['css' => 'font-weight',    'kind' => 'scale', 'scale' => 'FONT_WEIGHT_STEPS'],
+        'type.line-height'    => ['css' => 'line-height',    'kind' => 'custom-or-number'],
+        'type.letter-spacing' => ['css' => 'letter-spacing', 'kind' => 'custom-only'],
+        'type.color'          => ['css' => 'color',          'kind' => 'token-only'],
+        // Border
+        'border.width'  => ['css' => 'border-width',  'kind' => 'scale', 'scale' => 'BORDER_WIDTH_STEPS'],
+        'border.style'  => ['css' => 'border-style',  'kind' => 'enum',  'enum'  => 'BORDER_STYLE_ENUM'],
+        'border.color'  => ['css' => 'border-color',  'kind' => 'token-only'],
+        'border.radius' => ['css' => 'border-radius', 'kind' => 'scale', 'scale' => 'RADIUS_STEPS'],
+        // Display / flex / grid
+        'display.type'   => ['css' => 'display',         'kind' => 'enum', 'enum' => 'DISPLAY_ENUM'],
+        'flex.direction'  => ['css' => 'flex-direction',  'kind' => 'enum', 'enum' => 'FLEX_DIRECTION_ENUM'],
+        'flex.wrap'       => ['css' => 'flex-wrap',       'kind' => 'enum', 'enum' => 'FLEX_WRAP_ENUM'],
+        'flex.justify'    => ['css' => 'justify-content', 'kind' => 'enum', 'enum' => 'JUSTIFY_ENUM'],
+        'flex.align'      => ['css' => 'align-items',     'kind' => 'enum', 'enum' => 'ALIGN_ENUM'],
+        'flex.gap'        => ['css' => 'gap',              'kind' => 'space'],
+        'grid.cols'       => ['css' => 'grid-template-columns', 'kind' => 'custom-only'],
+        'grid.gap'        => ['css' => 'gap', 'kind' => 'space'],
+        // Position
+        'position.type'     => ['css' => 'position', 'kind' => 'enum', 'enum' => 'POSITION_ENUM'],
+        'position.top'      => ['css' => 'top',    'kind' => 'space'],
+        'position.right'    => ['css' => 'right',  'kind' => 'space'],
+        'position.bottom'   => ['css' => 'bottom', 'kind' => 'space'],
+        'position.left'     => ['css' => 'left',   'kind' => 'space'],
+        'position.z-index'  => ['css' => 'z-index', 'kind' => 'scale', 'scale' => 'Z_INDEX_STEPS'],
+        // Effects / transforms
+        'effects.opacity'   => ['css' => 'opacity',    'kind' => 'percent-0-100'],
+        'effects.shadow'    => ['css' => 'box-shadow', 'kind' => 'scale', 'scale' => 'SHADOW_STEPS'],
+        'effects.transform' => ['css' => 'transform',  'kind' => 'custom-only'],
+        // Overflow / visibility
+        'overflow.x'          => ['css' => 'overflow-x', 'kind' => 'enum', 'enum' => 'OVERFLOW_ENUM'],
+        'overflow.y'          => ['css' => 'overflow-y', 'kind' => 'enum', 'enum' => 'OVERFLOW_ENUM'],
+        'overflow.visibility' => ['css' => 'visibility', 'kind' => 'enum', 'enum' => 'VISIBILITY_ENUM'],
+    ];
+
+    /** Bare-token key => --bh-* custom property name, the exact map entity_style_payload() already used for colors, extended here with the non-color overridable tokens (radius/radius_sm/space_scale/font_scale) so scoped_inline_style() can reuse one lookup for both. */
+    private static function style_var_map() {
+        $map = [
+            'color_bg' => '--bh-bg', 'color_surface' => '--bh-surface', 'color_surface_2' => '--bh-surface-2',
+            'color_border' => '--bh-border', 'color_text' => '--bh-text', 'color_text_dim' => '--bh-text-dim',
+            'color_accent' => '--bh-accent', 'color_accent_soft' => '--bh-accent-soft', 'color_overlay' => '--bh-overlay',
+            'radius' => '--bh-radius', 'radius_sm' => '--bh-radius-sm',
+            'space_scale' => '--bh-space-scale', 'font_scale' => '--bh-font-scale',
+        ];
+        for ($i = 1; $i <= 8; $i++) $map['cat_color_' . $i] = '--bh-cat-' . $i;
+        return $map;
+    }
+
+    /** Sanitizes a bare-token value by field name, reusing the EXISTING safe_color()/safe_number() validators — never a new sanitizer for the §2.3 mechanic, which is unchanged by this pass. */
+    private static function safe_style_token_value($field, $value) {
+        if (strpos($field, 'color') !== false) return self::safe_color($value);
+        if ($field === 'radius')      return self::safe_number($value, 0, 32, 12) . 'px';
+        if ($field === 'radius_sm')   return self::safe_number($value, 0, 24, 8) . 'px';
+        if ($field === 'font_scale')  return self::safe_number($value, 0.75, 1.6, 1);
+        if ($field === 'space_scale') return self::safe_number($value, 0.6, 1.8, 1);
+        return self::safe_length($value); // any other bare key a plugin invents: run through the general CSS-value sanitizer, fail-safe to null (dropped) rather than guessing
+    }
+
+    private static function scale_table($name) {
+        switch ($name) {
+            case 'SPACE_SCALE_STEPS':    return self::SPACE_SCALE_STEPS;
+            case 'SIZE_STEPS':           return self::SIZE_STEPS;
+            case 'FONT_SIZE_STEPS':      return self::FONT_SIZE_STEPS;
+            case 'FONT_WEIGHT_STEPS':    return self::FONT_WEIGHT_STEPS;
+            case 'RADIUS_STEPS':         return self::RADIUS_STEPS;
+            case 'BORDER_WIDTH_STEPS':   return self::BORDER_WIDTH_STEPS;
+            case 'Z_INDEX_STEPS':        return self::Z_INDEX_STEPS;
+            case 'SHADOW_STEPS':         return self::SHADOW_STEPS;
+            case 'BG_SIZE_ENUM_PRESETS': return self::BG_SIZE_ENUM_PRESETS;
+            default: return [];
+        }
+    }
+
+    private static function enum_table($name) {
+        switch ($name) {
+            case 'DISPLAY_ENUM':        return self::DISPLAY_ENUM;
+            case 'POSITION_ENUM':       return self::POSITION_ENUM;
+            case 'FLEX_DIRECTION_ENUM': return self::FLEX_DIRECTION_ENUM;
+            case 'FLEX_WRAP_ENUM':      return self::FLEX_WRAP_ENUM;
+            case 'JUSTIFY_ENUM':        return self::JUSTIFY_ENUM;
+            case 'ALIGN_ENUM':          return self::ALIGN_ENUM;
+            case 'OVERFLOW_ENUM':       return self::OVERFLOW_ENUM;
+            case 'VISIBILITY_ENUM':     return self::VISIBILITY_ENUM;
+            case 'BORDER_STYLE_ENUM':   return self::BORDER_STYLE_ENUM;
+            case 'BG_REPEAT_ENUM':      return self::BG_REPEAT_ENUM;
+            default: return [];
+        }
+    }
+
+    /** 'screen' means "the full viewport in whichever axis this property moves in" — height-shaped properties get 100vh, everything else gets 100vw. Every other step is a flat SIZE_STEPS lookup. */
+    private static function resolve_size_step($step, $css_prop) {
+        if ($step === 'screen') return (strpos($css_prop, 'height') !== false) ? '100vh' : '100vw';
+        return self::SIZE_STEPS[$step] ?? null;
+    }
+
+    /**
+     * General-purpose CSS *value* sanitizer for every 'custom:'/free-
+     * form length this pass introduces (safe_length(), §2.6's "new
+     * validators as needed alongside safe_color/safe_number"). Hard-
+     * blocks anything that could break out of a `style="..."` attribute
+     * or smuggle a second declaration (semicolons/quotes/angle
+     * brackets/braces), plus the legacy expression()/javascript: CSS
+     * injection vectors, THEN allowlists a conservative charset for
+     * everything else (numbers, units, %, #hex, calc()/var() nesting,
+     * commas, spaces, and the arithmetic symbols plus, minus, times,
+     * divide). Returns null (dropped, never emitted)
+     * on anything that doesn't clear both checks — fail-closed, matching
+     * safe_color()'s own "unknown input -> safe fallback, never pass
+     * through" posture.
+     */
+    public static function safe_length($val) {
+        $val = trim((string) $val);
+        if ($val === '') return null;
+        if (preg_match('/[;"\'<>{}]/', $val)) return null;
+        if (stripos($val, 'expression') !== false || stripos($val, 'javascript:') !== false) return null;
+        if (!preg_match('/^[a-zA-Z0-9%#.,\-\+\/\(\)\s\*]+$/', $val)) return null;
+        return $val;
+    }
+
+    /** Enum-membership validator — the other §2.6-promised new validator, alongside safe_length(). A thin, explicit wrapper (rather than inlining in_array() everywhere) so every enum check in this file goes through one named, greppable choke point. */
+    public static function safe_enum($val, array $allowed) {
+        return in_array($val, $allowed, true) ? $val : null;
+    }
+
+    /**
+     * Resolves ONE "group.property" style value (a preset step, an
+     * "@token:*" ref, or a "custom:*" escape hatch) against $map (one
+     * PROPERTY_MAP entry) into a concrete CSS value, or null if it
+     * can't be resolved safely — the caller (scoped_inline_style())
+     * simply omits that one declaration on null, never throwing.
+     */
+    private static function resolve_style_value($raw, array $map) {
+        $raw = (string) $raw;
+        $kind = $map['kind'];
+        $css  = $map['css'];
+
+        if (strpos($raw, '@token:') === 0) {
+            // Only color-shaped properties ('token-only') accept a
+            // token reference — §2.6: "colors are always token refs,
+            // never raw hex", and no other group has a token vocabulary
+            // to reference in the first place.
+            if ($kind !== 'token-only') return null;
+            $field = substr($raw, 7);
+            $var_map = self::style_var_map();
+            if (!isset($var_map[$field])) return null; // unknown/unsanctioned token name — refuse, never guess a var name
+            return 'var(' . $var_map[$field] . ')';
+        }
+
+        if (strpos($raw, 'custom:') === 0) {
+            $val = substr($raw, 7);
+            if ($kind === 'token-only') return null; // colors: no raw-value escape hatch, by design
+            if ($kind === 'percent-0-100') {
+                return is_numeric($val) ? (string) (max(0, min(100, (float) $val)) / 100) : null;
+            }
+            return self::safe_length($val);
+        }
+
+        // A bare preset-step name (or, for a couple of kinds, a raw
+        // number) — never a token/custom prefix at all.
+        switch ($kind) {
+            case 'space':  return self::SPACE_SCALE_STEPS[$raw] ?? null;
+            case 'size':   return self::resolve_size_step($raw, $css);
+            case 'scale':  return self::scale_table($map['scale'])[$raw] ?? null;
+            case 'enum-scale': return self::scale_table($map['scale'])[$raw] ?? null;
+            case 'enum':   return self::safe_enum($raw, self::enum_table($map['enum']));
+            case 'percent-0-100':
+                return is_numeric($raw) ? (string) (max(0, min(100, (float) $raw)) / 100) : null;
+            case 'custom-or-number':
+                return is_numeric($raw) ? (string) (float) $raw : null;
+            case 'token-only':
+            case 'custom-only':
+            default:
+                return null; // these kinds ONLY accept the @token:/custom: forms handled above
+        }
+    }
+
+    /**
+     * Resolves a placement's config.style map (§2.3/§2.6) into a
+     * `style="..."` attribute VALUE (the declarations only, no
+     * surrounding style="" wrapper or quoting — the caller,
+     * BH_Element::render_placement(), esc_attr()'s the whole thing when
+     * it assembles the final HTML string). See this section's docblock
+     * above for the bare-key vs. group.property key contract.
+     *
+     * Every declaration is resolved and sanitized independently; one
+     * bad/unknown entry is silently skipped (never emitted, never
+     * fatal) rather than aborting the whole map — same fail-closed-per-
+     * entry posture as render_placement()'s attr coercion loop.
+     */
+    public static function scoped_inline_style(array $style_map) {
+        $decls = '';
+        $var_map = self::style_var_map();
+
+        foreach ($style_map as $key => $value) {
+            $key = (string) $key;
+            if ($key === '' || !is_scalar($value)) continue;
+
+            if (strpos($key, '.') === false) {
+                // Bare token key — §2.3's original, UNCHANGED mechanic.
+                $css_var = $var_map[$key] ?? ('--bh-' . str_replace('_', '-', sanitize_key($key)));
+                $safe = self::safe_style_token_value($key, $value);
+                if ($safe !== null) $decls .= $css_var . ':' . $safe . ';';
+                continue;
+            }
+
+            $map = self::PROPERTY_MAP[$key] ?? null;
+            if (!$map) continue; // unrecognized group.property key — skip, never fatal
+            $css_value = self::resolve_style_value((string) $value, $map);
+            if ($css_value !== null) $decls .= $map['css'] . ':' . $css_value . ';';
+        }
+
+        return $decls;
+    }
+
+    /**
+     * 3.4.27 — JSON-shaped export of PROPERTY_MAP (§2.6), with every
+     * 'scale'/'enum'/'enum-scale' table already resolved to a plain
+     * {value: label} map, so the element-builder inspector JS can build
+     * every property-group's preset picker WITHOUT hardcoding a single
+     * one of §2.6's property groups or their preset tables client-side —
+     * this is the one export point the GUI reads to stay dynamic even as
+     * PROPERTY_MAP grows. Grouped by the "group" half of each
+     * "group.property" key (sizing/spacing/background/typography/border/
+     * display/flex/grid/position/effects/overflow) purely for inspector
+     * layout — the group boundary has no server-side meaning beyond that.
+     *
+     * 'colorTokens' is the token vocabulary 'token-only' kinds are
+     * allowed to reference (style_var_map()'s keys) — token-only
+     * properties NEVER get a free-text custom option in the inspector,
+     * mirroring resolve_style_value()'s "colors are always token refs,
+     * never raw hex" rule exactly.
+     *
+     * NOT runtime-verified: no live PHP execution available this pass;
+     * reasoned through directly against PROPERTY_MAP/resolve_style_value()
+     * above, which ARE this file's own already-shipped, brace-checked
+     * logic — this method only reads/reshapes them, it adds no new
+     * resolution behavior.
+     */
+    public static function style_schema_for_js() {
+        $group_labels = [
+            'sizing'   => 'Sizing',
+            'spacing'  => 'Spacing',
+            'bg'       => 'Background',
+            'type'     => 'Typography',
+            'border'   => 'Border',
+            'display'  => 'Display',
+            'flex'     => 'Flex',
+            'grid'     => 'Grid',
+            'position' => 'Position',
+            'effects'  => 'Effects',
+            'overflow' => 'Overflow / Visibility',
+        ];
+
+        $groups = [];
+        foreach (self::PROPERTY_MAP as $key => $map) {
+            $dot = strpos($key, '.');
+            $group_key = $dot !== false ? substr($key, 0, $dot) : 'other';
+            $prop_key  = $dot !== false ? substr($key, $dot + 1) : $key;
+
+            $options = null; // null => no fixed preset table (custom-only/custom-or-number/percent/token-only)
+            switch ($map['kind']) {
+                case 'space':       $options = self::SPACE_SCALE_STEPS; break;
+                case 'size':        $options = self::SIZE_STEPS; break;
+                case 'scale':
+                case 'enum-scale':  $options = self::scale_table($map['scale']); break;
+                case 'enum':        $options = array_combine(self::enum_table($map['enum']), self::enum_table($map['enum'])); break;
+            }
+
+            if (!isset($groups[$group_key])) {
+                $groups[$group_key] = [
+                    'label'      => $group_labels[$group_key] ?? ucfirst($group_key),
+                    'properties' => [],
+                ];
+            }
+
+            $groups[$group_key]['properties'][$prop_key] = [
+                'key'          => $key, // full "group.property" — this is the config.style map key
+                'css'          => $map['css'],
+                'kind'         => $map['kind'],
+                'options'      => $options, // {rawValue: label} or null
+                'allowCustom'  => $map['kind'] !== 'token-only', // §2.6: colors never get a raw-value escape hatch
+                'allowBlank'   => true,
+            ];
+        }
+
+        $color_tokens = [];
+        foreach (self::style_var_map() as $field => $css_var) {
+            if (strpos($field, 'color') !== false) $color_tokens[$field] = $field;
+        }
+
+        return [
+            'groups'      => $groups,
+            'colorTokens' => $color_tokens,
+        ];
+    }
 }

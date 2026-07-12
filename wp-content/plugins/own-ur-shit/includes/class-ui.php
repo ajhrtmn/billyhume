@@ -10,7 +10,12 @@ if (!defined('ABSPATH')) exit;
 class BHY_UI {
     public static function swatch_css() {
         return '
-            .bhy-swatch-card { border: 1px solid #dcdcde; border-radius: 6px; padding: 8px; display: flex; gap: 10px; align-items: center; }
+            .bhy-swatch-card {
+                border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px);
+                padding: 8px; display: flex; gap: 10px; align-items: center;
+                transition: border-color var(--bhy-transition, 150ms ease);
+            }
+            .bhy-swatch-card:hover { border-color: var(--bhy-accent, #2271b1); }
             .bhy-swatch {
                 width: 32px; height: 32px; border-radius: 6px; flex: 0 0 auto; border: 1px solid #dcdcde;
                 background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
@@ -113,22 +118,51 @@ class BHY_UI {
                together these give a 32px swatch + hex text input + color
                picker enough room to not clip a 7-character hex value. */
             .bhy-layout { display: grid; grid-template-columns: 200px 1fr 380px; gap: 20px; margin-top: 16px; align-items: start; }
-            .bhy-sidebar { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 12px; }
-            .bhy-sidebar-group { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #787c82; margin: 12px 0 4px; }
+            .bhy-sidebar { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-3, 12px); }
+            .bhy-sidebar-group { font-size: var(--bhy-text-xs, 11px); text-transform: uppercase; letter-spacing: .04em; color: var(--bhy-ink-dim, #787c82); margin: var(--bhy-space-3, 12px) 0 4px; }
             .bhy-sidebar-group:first-child { margin-top: 0; }
-            .bhy-story-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-            .bhy-story-btn:hover { background: #f0f0f1; }
-            .bhy-story-btn.active { background: #2271b1; color: #fff; }
-            .bhy-canvas { background: #1a1a1a; border-radius: 8px; overflow: hidden; min-height: 320px; position: relative; }
+            .bhy-story-btn {
+                display: block; width: 100%; text-align: left; background: none;
+                border: none; border-left: 3px solid transparent; padding: 7px 10px; border-radius: var(--bhy-radius-sm, 6px);
+                cursor: pointer; font-size: 13px; color: var(--bhy-ink, #1d2327);
+                transition: background var(--bhy-transition, 150ms ease), border-color var(--bhy-transition, 150ms ease);
+            }
+            .bhy-story-btn:hover { background: var(--bhy-hover-tint, #f0f0f1); }
+            .bhy-story-btn:focus-visible { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); }
+            .bhy-story-btn.active { background: var(--bhy-selected-tint, #f0f6fc); border-left-color: var(--bhy-accent, #2271b1); color: var(--bhy-ink, #1d2327); font-weight: 600; }
+            /* Canvas reads as a "stage" the placed content pops off of —
+               kept deliberately dark/neutral (not white) so any surface
+               being previewed has clear visual separation from the rail/
+               inspector chrome around it. */
+            .bhy-canvas {
+                background: #1a1a1a; border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                overflow: hidden; min-height: 320px; position: relative;
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+            }
             .bhy-story-frame { width: 100%; height: 600px; max-height: 75vh; border: 0; display: none; }
             .bhy-story-frame.active { display: block; }
-            .bhy-empty { color: #888; padding: 40px; text-align: center; }
+            .bhy-empty { color: #888; padding: 40px; text-align: center; font-size: var(--bhy-text-base, 13px); }
             .bhy-controls {
-                background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 16px 20px;
+                background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                padding: var(--bhy-space-4, 16px) var(--bhy-space-5, 20px);
                 max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column;
             }
-            .bhy-controls h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
+            .bhy-controls h2 {
+                font-size: var(--bhy-text-xs, 11px); font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+                color: var(--bhy-ink-dim, #787c82); margin: var(--bhy-space-5, 20px) 0 var(--bhy-space-2, 8px);
+                padding-bottom: var(--bhy-space-1, 4px); border-bottom: 1px solid var(--bhy-border, #dcdcde);
+            }
             .bhy-controls h2:first-child { margin-top: 0; }
+            /* Consistent control height across every text/select/color
+               input in the inspector, so the many property rows line up
+               instead of each control type sizing itself independently. */
+            .bhy-controls input[type=text], .bhy-controls input[type=number],
+            .bhy-controls select, .bhy-controls button.button {
+                min-height: 30px; transition: border-color var(--bhy-transition, 150ms ease), box-shadow var(--bhy-transition, 150ms ease);
+            }
+            .bhy-controls input[type=text]:focus, .bhy-controls select:focus {
+                border-color: var(--bhy-accent, #2271b1); box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); outline: none;
+            }
 
             /* Always-visible sample chips proving every scale/shape token
                (radius, radius_sm, bar_height, font_scale, space_scale) is
@@ -136,9 +170,9 @@ class BHY_UI {
                is currently selected in the canvas, since no single surface
                is guaranteed to visibly use every token. */
             .bhy-token-preview {
-                display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-                background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 8px;
-                padding: 12px; margin-bottom: 4px;
+                display: flex; flex-wrap: wrap; align-items: center; gap: var(--bhy-space-2, 8px);
+                background: var(--bhy-subtle, #f6f7f7); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                padding: var(--bhy-space-3, 12px); margin-bottom: var(--bhy-space-1, 4px);
             }
             .bhy-token-chip {
                 background: var(--bh-surface, #2C120E); color: var(--bh-text, #EDDFCB);
@@ -166,11 +200,12 @@ class BHY_UI {
             }
             .bhy-token-text strong { font-family: var(--bh-font-display, inherit); margin-right: 4px; }
 
-            .bhy-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
-            .bhy-font-field { margin-bottom: 10px; }
+            .bhy-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--bhy-space-2, 8px); }
+            .bhy-font-field { margin-bottom: var(--bhy-space-3, 10px); }
             .bhy-font-field select, .bhy-font-field input { width: 100%; margin-top: 4px; }
-            .bhy-slider-row { margin-bottom: 10px; }
-            .bhy-slider-row label { display: flex; justify-content: space-between; font-size: 12px; gap: 8px; }
+            .bhy-slider-row { margin-bottom: var(--bhy-space-3, 10px); }
+            .bhy-slider-row label { display: flex; justify-content: space-between; font-size: var(--bhy-text-sm, 12px); gap: var(--bhy-space-2, 8px); color: var(--bhy-ink, #1d2327); }
+            .bhy-slider-row .bhy-slider-val { color: var(--bhy-ink-dim, #646970); font-variant-numeric: tabular-nums; }
             .bhy-slider-row input { width: 100%; }
 
             /* Save was previously the last thing in a tall, internally
@@ -178,8 +213,8 @@ class BHY_UI {
                dozen controls. Sticking it to the bottom of the panel
                keeps it in view without needing its own scroll container. */
             .bhy-controls p.submit {
-                position: sticky; bottom: -16px; margin: 18px -20px -16px; padding: 12px 20px;
-                background: #fff; border-top: 1px solid #dcdcde; box-shadow: 0 -4px 8px rgba(0,0,0,.04);
+                position: sticky; bottom: -16px; margin: var(--bhy-space-5, 18px) -20px -16px; padding: var(--bhy-space-3, 12px) var(--bhy-space-5, 20px);
+                background: var(--bhy-surface, #fff); border-top: 1px solid var(--bhy-border, #dcdcde); box-shadow: 0 -4px 8px rgba(0,0,0,.04);
             }
             .bhy-controls p.submit .button { width: 100%; text-align: center; }
 
@@ -352,6 +387,16 @@ class BHY_UI {
                 --bhy-warning: #8a5a00; --bhy-warning-bg: #fef3e2;
                 --bhy-danger: #b3261e; --bhy-danger-bg: #fbe4e2;
                 --bhy-radius: 8px; --bhy-radius-sm: 6px;
+                /* 3.4.33 additions - additive only, nothing above changed.
+                   A single shared micro-transition timing (hover/select/
+                   expand states across the Design Suite shell) plus a
+                   couple of named surface tints so "hovered row" and
+                   "selected row" read the same way everywhere instead of
+                   each screen picking its own ad hoc rgba value. */
+                --bhy-transition: 150ms ease;
+                --bhy-hover-tint: #f6f7f7;
+                --bhy-selected-tint: #f0f6fc;
+                --bhy-focus-ring: 0 0 0 2px rgba(34, 113, 177, .25);
             }
             .bhy-shell h1 { font-size: var(--bhy-text-2xl); margin-bottom: var(--bhy-space-2); }
             .bhy-shell .description { font-size: var(--bhy-text-base); color: var(--bhy-ink-dim); margin-bottom: var(--bhy-space-4); }

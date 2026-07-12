@@ -1,0 +1,177 @@
+/**
+ * Kanban board styling — bh-crm's own bespoke presentation layer over
+ * BH_Element placement data (see kanban-board.js's docblock). Vanilla
+ * CSS, no build step, scoped entirely under .bhcrm-kanban-board so it
+ * can never leak into the rest of wp-admin.
+ */
+.bhcrm-kanban-board {
+    margin-top: 10px;
+}
+
+.bhcrm-kanban-grid {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.bhcrm-kanban-column {
+    flex: 0 0 260px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 120px;
+}
+
+.bhcrm-kanban-column-header {
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #dcdcde;
+}
+
+.bhcrm-kanban-column-count {
+    font-weight: 400;
+    color: #646970;
+}
+
+.bhcrm-kanban-column-cards {
+    min-height: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bhcrm-kanban-column-cards.is-drag-over {
+    background: #eaf2ff;
+    outline: 2px dashed #2271b1;
+    border-radius: 4px;
+}
+
+.bhcrm-kanban-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 4px;
+    padding: 8px;
+    cursor: grab;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.bhcrm-kanban-card.is-dragging {
+    opacity: 0.4;
+}
+
+.bhcrm-kanban-card.is-done {
+    border-left-color: #00a32a;
+    background: #f0f8f0;
+}
+
+.bhcrm-kanban-card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.bhcrm-kanban-card-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-weight: 600;
+    padding: 2px 4px;
+}
+
+.bhcrm-kanban-card-title-input:focus {
+    background: #fff;
+    outline: 1px solid #2271b1;
+    border-radius: 3px;
+}
+
+.bhcrm-kanban-card-notes {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    color: #50575e;
+    resize: vertical;
+    padding: 2px 4px;
+}
+
+.bhcrm-kanban-card-notes:focus {
+    background: #fff;
+    border-color: #dcdcde;
+}
+
+.bhcrm-kanban-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.bhcrm-kanban-add-card {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+}
+
+.bhcrm-kanban-add-card input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ---------------- server-rendered card output (BH_Element::render_slot() elsewhere on the site, and the sub-card BH_Content blocks) — same "bhcrm-" prefix, separate from the board's own editable-card markup above ---------------- */
+
+.bhcrm-sticky-card {
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #fff;
+}
+
+.bhcrm-sticky-card.is-done {
+    border-left-color: #00a32a;
+}
+
+.bhcrm-sticky-card-title {
+    font-weight: 600;
+}
+
+.bhcrm-sticky-card-notes {
+    font-size: 12px;
+    color: #50575e;
+    margin-top: 4px;
+}
+
+.bhcrm-sticky-card-rollup {
+    font-size: 11px;
+    color: #646970;
+    margin-top: 6px;
+}
+
+.bhcrm-sticky-card-children,
+.bhcrm-sub-card-children {
+    margin-top: 8px;
+    margin-left: 14px;
+    padding-left: 10px;
+    border-left: 2px solid #eee;
+}
+
+.bhcrm-sub-card {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.bhcrm-sub-card.is-done .bhcrm-sub-card-title {
+    color: #00a32a;
+}
+
+.bhcrm-sub-card-notes {
+    font-size: 11px;
+    color: #646970;
+}

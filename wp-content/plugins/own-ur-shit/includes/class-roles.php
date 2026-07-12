@@ -42,6 +42,28 @@ class OUS_Roles {
         // registered here now so that plugin's own activation doesn't
         // need to touch role capabilities itself.
         'bhcore_review_submissions' => ['administrator'],
+        // DESIGN-SUITE-UNIFICATION-PLAN.md §1.3, Phase 1 (class-design-
+        // suite.php, bh-crm/includes/class-hub.php) — "real employees,
+        // not just devs/admins" gating the two new top-level menus.
+        //
+        // STOPGAP, flagged explicitly: this ecosystem has no dedicated
+        // non-admin "staff/employee" role of its own (no OUS_Roles-
+        // managed role concept exists to extend beyond the granular
+        // capabilities listed in this const — see this class's own
+        // docblock: "not new WordPress ROLES... a full role-assignment
+        // admin UI is real, separate scope"). Per the design doc's own
+        // §1.3 decision, both new caps are granted to the built-in
+        // WordPress 'editor' role as the minimal viable "real employee"
+        // default — editor already means "trusted non-admin staff" in
+        // plain WordPress, and is the closest existing fit. A site that
+        // wants a narrower "designer but not editor" or "CRM but not
+        // editor" account still grants the bare capability to any role
+        // via the 'bhcore_role_capabilities' filter or a one-off
+        // $user->add_cap() call, same unlock this class's docblock
+        // already documents for bhcore_manage_students — no change
+        // needed here for that.
+        'bhcore_design_site' => ['administrator', 'editor'],
+        'bhcore_manage_crm'  => ['administrator', 'editor'],
     ];
 
     // Same reasoning this whole ecosystem repeats everywhere else a

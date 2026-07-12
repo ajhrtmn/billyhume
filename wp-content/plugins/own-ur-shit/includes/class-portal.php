@@ -117,6 +117,87 @@ class BHI_Portal {
         // by maybe_redirect_from_wp_admin().
         add_filter('login_redirect', [self::class, 'maybe_redirect_login'], 20, 3);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
+
+        // ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — the Portal as a real
+        // bh_element_surfaces contributor, and one new element-composed
+        // panel registered via THIS class's own bhi_portal_panels
+        // registrant below, mirroring the exact pattern
+        // BHCRM_People::register_element_surface() already established
+        // for the CRM profile surface. See register_element_surface() and
+        // register_elements_panel() for the two halves of this.
+        add_filter('bhi_portal_panels', [self::class, 'register_elements_panel']);
+    }
+
+    /**
+     * Registers the 'portal_panel' surface for BH_Element (design doc
+     * §3.3/§5.4), mirroring BHCRM_People::register_element_surface()'s
+     * shape exactly. One slot, 'body' — the whole panel body is
+     * composable from elements, same as the design doc's own §5.4 text
+     * ("an element-composed panel whose render callback calls
+     * BH_Element::render_slot('portal_panel', $panel_context, 'body')").
+     *
+     * Context: this is a SITE-WIDE panel (every logged-in portal user
+     * sees the same composed content), not per-user — same singleton
+     * shape as the dashboard's 'dashboard' surface (OUS_Dashboard::
+     * register_element_surface(), surface_context_id always 0), not the
+     * per-person shape 'bh_crm_profile' uses. A future per-user portal
+     * panel (context => user_id) is a straightforward follow-on using
+     * the exact same registration shape with a different 'context'/
+     * 'preview_ctx' pair — not built here, since the design doc names
+     * only "one new panel type" for this phase (§5.4).
+     */
+    public static function register_element_surface($surfaces) {
+        $surfaces['portal_panel'] = [
+            'group'       => 'Portal',
+            'label'       => 'Portal panel (element-composed)',
+            'slots'       => [
+                'body' => ['label' => 'Panel body'],
+            ],
+            'context'     => ['type' => 'site', 'param' => null],
+            'preview_ctx' => function () { return ['user_id' => get_current_user_id()]; },
+        ];
+        return $surfaces;
+    }
+
+    /**
+     * The "one new panel type" §5.4 asks for: an element-composed panel
+     * registered through the EXISTING bhi_portal_panels contract, exactly
+     * like every other panel (profile, etc.) — nothing about the Portal's
+     * own panel machinery changes. render_elements_panel() below is the
+     * panel's 'render' callback; it does nothing but call
+     * BH_Element::render_slot() for the 'portal_panel' surface's 'body'
+     * slot, context 0 (the one site-wide panel this phase ships).
+     *
+     * class_exists('BH_Element') guarded so this panel simply doesn't
+     * register at all if the element-builder classes are ever absent —
+     * same "harmless to keep, never a hard dependency" posture
+     * BHCRM_People::register_element_surface()'s own docblock describes.
+     */
+    public static function register_elements_panel($panels) {
+        if (!class_exists('BH_Element')) return $panels;
+        $panels[] = [
+            'id'       => 'elements',
+            'label'    => 'Custom',
+            'icon'     => 'dashicons-layout',
+            'render'   => [self::class, 'render_elements_panel'],
+            'priority' => 90, // after the built-in panels (profile, etc. register lower priorities) — this is an admin-composed extra, not the primary account view
+        ];
+        return $panels;
+    }
+
+    public static function render_elements_panel() {
+        echo '<h2>Custom</h2>';
+        if (!class_exists('BH_Element')) {
+            echo '<p>Element Builder is unavailable.</p>';
+            return;
+        }
+        $ctx = ['user_id' => get_current_user_id()];
+        $html = BH_Element::render_slot('portal_panel', 0, 'body', $ctx);
+        if ($html === '') {
+            echo '<p>Nothing has been placed here yet — an admin can compose this panel\'s content from <a href="' . esc_url(admin_url('admin.php?page=bh-element-builder')) . '">Design Suite &rarr; Element Builder</a> (surface "portal_panel", slot "body").</p>';
+            return;
+        }
+        echo $html; // phpcs:ignore -- BH_Element::render_slot()'s own output is already escaped/kses'd per-element at the render_placement() boundary, same trust posture render_slot()'s other call sites (dashboard, CRM) already use.
     }
 
     // Same self-diagnosing instinct the API Docs 404 fix started this

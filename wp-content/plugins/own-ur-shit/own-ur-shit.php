@@ -2,11 +2,335 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.22
+ * Version:     3.4.39
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.39 — 2026-07-12 — direct response to live-screenshot feedback that
+// the rail was "so confusing" it mixed the actual node tree with the
+// unrelated demo-page "Preview surface" picker, and that the Slot
+// inspector was too bare to be a real control surface. Left rail is now
+// two real tabs: "Structure" (the tree, default) and "Preview" (the
+// story picker, clearly labeled as just live demo pages for checking a
+// style at a glance, not part of what you're building) — picking a
+// preview surface auto-returns you to Structure so you're never
+// stranded off the tree. The Slot inspector (and the mostly-empty
+// Surface inspector) now show a real, clickable list of what's actually
+// inside them (placements / slots respectively) using the same card
+// row styling, instead of a dead-end "expand it in the tree" sentence.
+//
+// 3.4.38 — 2026-07-11 — confirmed (via a zoomed live screenshot plus a
+// direct code read of render_left_rail(), which has exactly one "Site"
+// .bhy-rail-heading) that the apparent "duplicate SITE heading" reported
+// from an earlier screenshot was a misreading of one continuous rail
+// section (the reparented topbar's "Save all changes" button sitting
+// directly above the single PHP-rendered "Site" heading) — no code
+// change was needed for that part, and this note exists so the next
+// pass doesn't re-investigate a bug that isn't real. Fixed the actual
+// remaining gap instead: the center canvas's "Preview surface" story
+// picker was a fully independent selection system from the tree — no
+// registered surface/slot/placement tree node click ever changed which
+// surface's live iframe was showing. element-builder.js's
+// fireSelectionEvent() now includes the selected node's surface slug in
+// the 'bhel:selection' CustomEvent detail; class-style-gallery.php's
+// render_script() has a new listener that clicks the matching
+// .bhy-story-btn whenever that surface slug is present, keeping both
+// selection systems in sync without either file reaching into the
+// other's internals beyond that one event (same coordination boundary
+// the Site/placement inspector toggle already uses).
+//
+// 3.4.37 — 2026-07-11 — the 3.4.36 "FINAL ARCHITECTURE" tree still made
+// you pick a surface/slot via a raw topbar form before you could see its
+// placements; every registered surface and slot is now a real,
+// automatically-populated tree node under "Site" instead (Site -> Surface
+// -> Slot -> real placements), the topbar shrank to a status line plus
+// one global "Save all changes" action, and "Save as Prefab" moved from
+// the topbar onto the Slot node it actually concerns. See assets/js/
+// element-builder.js's own updated docblock for the full mechanics.
+//
+// 3.4.36 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md "FINAL
+// ARCHITECTURE": collapses the "Library / Pages / Global Styles" three
+// parallel left-rail sections (built through 3.4.35) into exactly ONE
+// tree, rooted at a synthetic "Site" node — selecting Site shows global
+// style tokens in the one shared inspector, every page/section/button/
+// form/list/menu is a child at any depth of Site or another node through
+// the SAME parent_placement_id mechanism, and the Library palette is now
+// a contextual add-child popup instead of a standing panel. class-
+// element.php gained get_placement()/get_subtree() and the GET/POST
+// .../elements/site-tokens REST pair; class-element-prefab.php gained
+// full-subtree snapshot/restore (save_from_node(), a real id-remapping
+// pass in instantiate()); class-style-gallery.php's left rail is now one
+// "Site" tree mount plus the unchanged Preview-surface picker, and its
+// Global Styles panel toggles against the placement inspector via a
+// 'bhel:selection' event instead of the old per-group rail buttons;
+// element-builder.js's canvas is now the one tree (Site node + the
+// existing recursive renderTreeNode()), its inspector branches on
+// selection type, and its old standing palette is now a floating add-
+// child popup with a real right-click context menu. See each file's own
+// updated docblock for the full mechanics; DESIGN-SUITE-UNIFICATION-
+// PLAN.md's top status note is updated to reflect what's actually built.
+//
+// 3.4.35 — 2026-07-11 — Two fixes on the unified Designer shell
+// (class-style-gallery.php, assets/js/element-builder.js,
+// assets/css/element-builder.css): (1) the widget canvas/inspector
+// mounts no longer start "display:none" and the left-rail's Global
+// Styles click handler no longer hides them — canvas and inspector are
+// now always visible, per the "no hidden modes, ever" rule (closes the
+// bug where .bhel-canvas landed in a hidden pane on first load); (2)
+// Global Styles' token panel now shares real markup with the widget
+// inspector instead of a separately-coded look-alike — section headers
+// use the same "h3, small-caps, underline" rule as .bhel-inspector h3,
+// and the less-common colors / 8 category swatches are now collapsible
+// "bhel-style-group" disclosures (the SAME class the inspector's
+// Style — Advanced ▸ BACKGROUND/▸ BORDER groups use), plus the topbar's
+// raw numeric Context ID spinner is tucked behind its own such
+// disclosure instead of sitting bare next to Surface/Slot. Color
+// swatches were already one shared .bhy-swatch-card component built by
+// BHY_UI::swatch_field() (PHP) and renderStyleField() (JS) — this pass
+// didn't need to touch that part, only the surrounding chrome.
+//
+// 3.4.34 — 2026-07-11 — Activates the parent_placement_id seam
+// (bhcore_element_placements, DB_VERSION 1.9's own reserved column, no
+// schema change) as a real tree of placements within one surface/slot,
+// closing the Design Suite "Pages" rail's honestly-disclosed flat-list
+// gap: class-element.php's render_slot()/render_placement() are now
+// tree-aware (one query per slot, in-memory parent=>children map, no
+// N+1), save_placement() validates a parent stays within the same
+// surface/context/slot and rejects any change that would create a cycle,
+// and the REST save route accepts/persists parent_placement_id with
+// per-parent-group position; element-builder.js's canvas is now a real
+// recursive tree renderer (expand/collapse, per-depth indent, "+ child",
+// sibling-scoped up/down, a "Parent" inspector control to move a node to
+// a different parent) built client-side from the UNCHANGED flat GET
+// .../placements response. The bh/container -> BH_Content bridge is a
+// separate, untouched mechanism; the CRM Project Tracker's kanban sub-
+// cards (bh-crm) use that same untouched bridge, not this seam.
+//
+// 3.4.33 — 2026-07-11 — Visual/UX polish pass on the 3.4.32 unified
+// Design Suite shell (class-style-gallery.php, class-ui.php,
+// assets/css/element-builder.css): consistent hover/selected/focus
+// states using the shared --bhy- design tokens, clearer typographic
+// hierarchy in rail headings and inspector section headers, a rotating-
+// caret disclosure indicator for the Style — Advanced property groups,
+// and uniform control heights/spacing throughout. Pure styling - no
+// structure, data flow, REST calls, or PHP rendering logic changed.
+//
+// 3.4.32 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md "Interaction-
+// model spec" build: the 3.4.30 tab switcher ("Site Styles" / "Widgets &
+// Elements" as two whole panels on 'bh-style') is removed. BHY_Gallery's
+// render_shell() now builds ONE left-rail/canvas/inspector layout, and
+// physically reparents BH_Element_Builder's existing DOM (unchanged
+// element-builder.js) into that rail's Library/Pages sections and the
+// shared canvas/inspector columns instead of showing/hiding a second
+// whole panel. See class-style-gallery.php's own docblock/render_shell().
+// No REST/data logic changed anywhere; class-element-builder.php and
+// assets/js/element-builder.js are byte-for-byte unchanged.
+//
+// 3.4.31 — 2026-07-11 — Real menu-duplication fix from the QA walkthrough:
+// 'bh-style' (Designer) and 'bh-crm' (People) were each registered a
+// SECOND time as their own independently-visible sidebar submenu,
+// alongside 'bh-design'/'bh-crm-hub''s existing top-level entries that
+// already call the exact same render callback — two sidebar rows landing
+// on byte-identical output by coincidence, not one shared destination.
+// Both now register with a null/hidden parent (the same "reachable by
+// direct link only" pattern class-studio.php already established for
+// 'bh-studio'), so the top-level entry is the ONE visible row and the
+// slug stays live for every existing deep link/redirect. BHY_Gallery's
+// render() body also split into a new portable render_shell($args)
+// method (small 'default_tab' config) so future mount points can embed
+// it without copying markup. See class-style-gallery.php, class-registry.
+// php, and class-menu-merge.php (fixed a '??' vs array_key_exists() bug
+// that would have silently ignored an explicit null 'parent').
+//
+// 3.4.30 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md real structural
+// fix, correcting 3.4.29's own framing: "Element Builder is part of the
+// Design Suite menu, not Debug Tools" was still THREE adjacent pages
+// under one parent, not the ONE interface asked for. This pass merges
+// BH_Element_Builder's palette/canvas/inspector into BHY_Gallery's
+// existing 'bh-style' page as a "Widgets & Elements" tab alongside the
+// existing "Site Styles" tab (same tree/canvas/inspector shell, see
+// class-style-gallery.php's own docblock/render()). The
+// add_action('admin_menu', ['BH_Element_Builder', 'add_menu']) line that
+// used to register its own submenu below is now REMOVED (method left
+// fully defined in class-element-builder.php, just unhooked, per this
+// ecosystem's standing convention) — BH_Design_Suite's top-level
+// 'bh-design' menu now points at exactly one real page. BH_Studio's
+// standalone 'bh-studio' page is similarly no longer a menu destination
+// (class-studio.php's add_menu() now registers it with a null/hidden
+// parent) — a container element's nested content opens it as a MODAL
+// iframe from inside the unified shell instead (element-builder.js's
+// openStudioModal()), never a full page navigation. No REST/data-layer
+// route or shape changed anywhere in this pass — see each touched file's
+// own docblock for the reasoning specific to it.
+//
+// 3.4.29 — 2026-07-11 — Element Builder is now entirely part of the
+// Design Suite, not Debug Tools in any way: BH_Element_Builder gained a
+// real add_menu() registering it as a submenu of the top-level
+// bh-design menu (mirroring BHY_Gallery/BH_Studio and every §1.4
+// mitigation rule), and its old add_filter('ous_debug_tools', ...)
+// registration is no longer hooked. Same shared render body, only the
+// access point changed. See class-element-builder.php's own docblock
+// for the full reasoning. class-dashboard.php's and class-portal.php's
+// "Debug Tools -> Element Builder" cross-references were updated to
+// point at the new Design Suite -> Element Builder location instead.
+// BH_Element's own separate bare add/remove/reorder Debug Tools section
+// ('bh-element' key) is untouched — it's a different, lower-level raw-
+// placement CRUD tool, not "the element builder" this instruction meant.
+
+// 3.4.28 — 2026-07-11 — element-builder.js/.css UX pass over the 3.4.27
+// inspector: the "Style — Advanced" property groups (§2.6) are now
+// collapsible disclosures (collapsed by default, auto-open only when a
+// group already carries an active override) instead of ~11 always-open
+// fieldsets stacked in a row, so the panel reads as "what's actually
+// customized" at a glance. Added the §2.5 responsive behavior the prior
+// pass's plain 1100px block-stack didn't cover: a real 3-tier layout
+// (>=1200px full three-pane, 783-1199px palette-as-overlay behind a
+// toggle button mirroring WP admin's own folded-sidebar convention,
+// <=782px single-column stack with the inspector as a bottom sheet —
+// drag handle, "Done" dismiss, slide-up transform — matching WP admin's
+// own 782px breakpoint) plus a ~44px minimum touch target on every
+// interactive control at that narrowest width. The existing up/down
+// reorder buttons (never drag-and-drop) are unchanged and remain the
+// primary reorder path at every width, per this ecosystem's own mobile-
+// friendly-first posture. No REST route, storage shape, or PHP behavior
+// changed this pass — purely JS/CSS. NOT runtime-verified: no live
+// browser available in this environment; reasoned through against the
+// DOM/class names element-builder.js already emits.
+
+// 3.4.27 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 2's
+// inspector UI (§2.6), the one piece 3.4.26 deliberately left unshipped:
+// class-element-builder.php's GUI (assets/js/element-builder.js/.css)
+// gained a "Style — Advanced" section (every §2.6 property group as a
+// dynamic preset picker + custom-value escape hatch) and an "HTML
+// Attributes" section (tag picker, per-type attr fields, repeatable
+// custom data-* row editor) — both built entirely from REST-exposed
+// manifests (GET .../elements/types' existing attrs/tags keys, plus a
+// new GET .../elements/style-schema route backed by BHY_Style::
+// style_schema_for_js(), class-style.php), never hardcoded per element
+// type or property group client-side. Both sections write into
+// config.style/config.htmlAttrs and save through the EXISTING POST
+// .../placements route unmodified — no REST route changed shape.
+// NOT runtime-verified: no live PHP/WordPress/browser execution
+// available in this environment: static/brace-checked only.
+
+// 3.4.26 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 2, ALL
+// property groups shipped in one pass (no [core]/[adv] deferral, per
+// AJ's explicit instruction): BHY_Style::scoped_inline_style()
+// (class-style.php) resolves a placement's config.style map — bare
+// --bh-* token keys (§2.3, unchanged) PLUS new namespaced
+// "group.property" keys (§2.6: sizing/spacing/background/typography/
+// border/display+flex+grid/position/effects+transforms/overflow+
+// visibility) — into an inline style="" attribute; new safe_length()/
+// safe_enum() validators added alongside the existing safe_color()/
+// safe_number(). BH_Element::render_placement() (class-element.php) now
+// builds each placement's OWN wrapper element (tag + class + data-
+// placement-id/data-type + the resolved style + a strictly-allowlisted
+// htmlAttrs set — id/class/title/aria-label/href+target+rel-when-tag-is-
+// 'a'/custom data-*), moved out of render_slot() so REST preview
+// (rest_preview()) gets an identical wrapper. register_type()'s $args
+// contract gained 'attrs' (per-attribute allowlist) and 'tags' (allowed
+// semantic tags, first = default, defaults to ['div']) — GET
+// /elements/types now exposes both so inspector JS can build controls
+// per-type dynamically. First-party types 'bh/note'/'bh/container' got
+// real tag lists; 'bh/stat-card' is this phase's tag-choice +
+// href/target/rel demonstration type (tags => ['div','a']). The
+// POST .../placements route needed NO changes — 'config' was already
+// accepted and stored verbatim, so style/htmlAttrs ride the existing
+// upsert path unmodified. Inspector UI (class-element-builder.php /
+// element-builder.js/css) is NOT part of this pass — see this file's
+// own status note in DESIGN-SUITE-UNIFICATION-PLAN.md for what's open.
+// NOT runtime-verified: no live PHP/WordPress/browser execution
+// available in this environment: static/brace-checked only.
+
+// 3.4.25 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (menu
+// restructure only — no inspector unification): new top-level "Design
+// Suite" menu (bh-design, new class-design-suite.php / BH_Design_Suite)
+// and, in bh-crm, a new top-level "CRM" menu (bh-crm-hub, new
+// bh-crm/includes/class-hub.php / BHCRM_Hub). BH_Design_Suite's own
+// top-level/first-submenu callback deliberately REUSES BHY_Gallery::
+// render() (the real, working Style page) rather than a placeholder —
+// there is no unified inspector shell yet (that's Phase 3), so pointing
+// the new landing page at the one real screen that already exists is
+// more honest than a stub. BHY_Gallery::add_menu() and BH_Studio::
+// add_menu() now register 'bh-style'/'bh-studio' as submenus of
+// 'bh-design' instead of 'own-ur-shit' (slugs unchanged — every existing
+// admin.php?page=bh-style/bh-studio deep link keeps working), with their
+// capability changed from 'manage_options' to the new 'bhcore_design_site'
+// capability (class-roles.php) so a non-admin employee holding it can
+// actually see these menus, not just admins. OUS_MenuMerge::merge()
+// (class-menu-merge.php) gained optional 'parent'/'capability' keys on
+// each OUS_Registry admin_menus entry (default 'own-ur-shit'/
+// 'manage_options', fully backward compatible with bh-registry's and
+// bh-monetization-woo's existing entries, which set neither) — bh-crm's
+// entry (class-registry.php) now sets 'parent' => 'bh-crm-hub' and
+// 'capability' => 'bhcore_manage_crm' for both its People submenu and a
+// new Project Tracker submenu (BHCRM_Projects::render_boards(), new).
+// Two new capabilities registered via the EXISTING OUS_Roles mechanism
+// (class-roles.php) — bhcore_design_site, bhcore_manage_crm — granted to
+// 'administrator' (default, so nothing an admin can already do changes)
+// and, as a documented STOPGAP, to 'editor' (this ecosystem has no
+// dedicated non-admin "staff" role yet; see class-roles.php's own
+// comment on this). Every new/changed add_menu_page()/add_submenu_page()
+// call follows DESIGN-SUITE-UNIFICATION-PLAN.md §1.4's six mitigation
+// rules for this install's documented standalone-page hook-resolution
+// bug: unconditional registration, default admin_menu priority, real
+// (never stub) callbacks, a capability the current user actually holds
+// at registration time, TOP-LEVEL menus (not submenus-of-submenus), and
+// registration-result logging via OUS_DebugLog::log_throttled(), same
+// pattern class-api-docs.php/class-codebase-docs.php already use.
+// Nothing in BH_Element/BH_Element_Data/BHY_Style/the inspector/builder
+// UI logic changed — this pass is menu location and capability only.
+// Standing caveat: reasoning/brace-balance-checked only, no live
+// PHP/MySQL/WordPress/REST/browser execution available in this
+// environment — this install has FIVE-PLUS prior diagnostic passes on
+// exactly this class of bug (see class-api-docs.php's docblock), so
+// smoke-test both new top-level menus especially carefully, ideally
+// logged in as a non-admin 'editor'-role account holding only the new
+// capabilities (not an admin, whose manage_options masks capability-
+// scoping bugs), after an OPcache reset, before trusting this in
+// production.
+
+// 3.4.24 — 2026-07-11 — Remaining ELEMENT-BUILDER-DESIGN-PLAN.md §6
+// phases: the Portal registered as a real bh_element_surfaces
+// contributor with one new element-composed panel (BHI_Portal::
+// register_element_surface()/register_elements_panel(), class-portal.php);
+// a real container element type (bh/container, class-element.php) whose
+// content is an embedded BH_Content subtree — the §1.1 hybrid-nesting
+// bridge into the EXISTING BH_Studio canvas, not a second tree editor —
+// with BH_Element::save_placement() auto-assigning content_context_id =
+// the placement's own id for container types on first save; and a real
+// DELETE /elements/placements/{id} REST route (class-element.php),
+// closing the one gap that route's own docblock previously named. Also
+// ships a genuinely NEW addition beyond the design doc's own scope, per
+// AJ's mid-build request: the prefab system (new BH_Element_Prefab,
+// class-element-prefab.php; new bhcore_element_prefabs table,
+// class-identity-activator.php DB_VERSION 1.10) — named, reusable, deep-
+// copyable saved compositions of placements, with "Save as Prefab" /
+// prefab-picker controls added to BH_Element_Builder's existing GUI
+// (assets/js/element-builder.js, assets/css/element-builder.css) — see
+// ELEMENT-BUILDER-DESIGN-PLAN.md's own trailing status note for the
+// honest "this wasn't in the original doc" framing.
+
+// 3.4.23 — 2026-07-11 — Element builder, §4/§6-step-2 GUI phase of
+// ELEMENT-BUILDER-DESIGN-PLAN.md: new BH_Element_Builder
+// (class-element-builder.php) — a three-pane visual builder (palette /
+// canvas / inspector) cloned from BHY_Gallery's Storybook layout,
+// shipped as a NEW, additive Debug Tools section ("Element Builder
+// (Visual)") rather than a standalone admin page, per this install's
+// documented hook-resolution bug affecting standalone/submenu-of-
+// ous-debug pages (see class-api-docs.php's docblock and this class's
+// own docblock for the incident). New assets/js/element-builder.js +
+// assets/css/element-builder.css (no build step, vanilla JS, enqueued
+// only on the Debug Tools screen). Reads/writes the EXISTING
+// ous/v1/elements/* REST bridge only — no new route, no duplicated
+// BH_Element/BH_Element_Data logic. BH_Element's own bare add/remove/
+// reorder Debug Tools section ('bh-element' key) is untouched and still
+// works standalone. Standing caveat: reasoning/brace-balance-checked
+// only, no live browser/WordPress/REST execution available this
+// session — smoke-test the full load/add/reorder/bind/style/save round
+// trip against a real install before relying on this in production.
+//
 // 3.4.22 — 2026-07-10 — Element builder, §5.2 surface expansion +
 // §3.4 REST bridge of ELEMENT-BUILDER-DESIGN-PLAN.md: BH_Element gains
 // register_routes()/rest_get_surfaces()/rest_get_types()/rest_get_sources()/
@@ -266,7 +590,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.22');
+define('OUS_VER', '3.4.39');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -530,7 +854,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-prefab', 'element-builder', 'design-suite'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -580,7 +904,35 @@ add_action('init',          ['OUS_Toast', 'init']);
 // 'init' hook, read later by BH_Element::render_slot() at render time.
 add_action('init',          ['BH_Element_Data', 'init']);
 add_action('init',          ['BH_Element', 'init']);
+// The prefab system (a genuine addition beyond ELEMENT-BUILDER-DESIGN-
+// PLAN.md's own scope — see that doc's trailing status note and class-
+// element-prefab.php's own docblock) — registers ONLY the ous/v1/elements/
+// prefabs/* REST routes; no admin_menu/Debug Tools section of its own,
+// its UI is additive controls inside BH_Element_Builder (§ this pass).
+add_action('init',          ['BH_Element_Prefab', 'init']);
+// The Phase-4 visual builder GUI (ELEMENT-BUILDER-DESIGN-PLAN.md §4) —
+// its BH_Element/BH_Element_Data REST-driven logic and localize-config
+// still need 'init', unchanged. BH_Element's own existing bare-list
+// Debug Tools section ('bh-element' key) is untouched — see
+// class-element-builder.php's docblock for the full reasoning.
+add_action('init',          ['BH_Element_Builder', 'init']);
+// 3.4.30 — DESIGN-SUITE-UNIFICATION-PLAN.md real structural fix: the
+// add_action('admin_menu', ['BH_Element_Builder', 'add_menu']) line that
+// used to live here is REMOVED. This GUI no longer registers its own
+// 'bh-element-builder' submenu of 'bh-design' — it's now a tab inside
+// BHY_Gallery's one 'bh-style' page (BH_Element_Builder::render_shell(),
+// called directly from BHY_Gallery::render(); BH_Element_Builder::
+// add_menu() itself is left fully defined in class-element-builder.php,
+// just unhooked, same "leave it, don't delete it" posture as every other
+// retired access point in this ecosystem).
 add_filter('bh_element_surfaces', ['OUS_Dashboard', 'register_element_surface']);
+// ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — Portal as a real bh_element_surfaces
+// contributor, mirroring OUS_Dashboard's/BHCRM_People's own registration
+// line here exactly. BHI_Portal::init() (called via the 'init' hook
+// object-registered elsewhere in this same file, see BHY_Gallery/etc.
+// below) separately hooks its own 'bhi_portal_panels' registrant for the
+// one new element-composed panel this phase ships — see class-portal.php.
+add_filter('bh_element_surfaces', ['BHI_Portal', 'register_element_surface']);
 
 add_action('init', ['BHY_Gallery', 'init']);
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);
@@ -592,6 +944,15 @@ BHY_UI::pin_hidden_submenus_to_bottom();
  * needs to track bh-contest and bh-streaming from here on.
  */
 add_action('admin_menu',    ['OUS_Dashboard', 'add_menu']);
+// DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 — registered directly here
+// (not deferred to the 'init' hook the way BHY_Gallery/BH_Studio's own
+// add_menu() calls are) so it lands in the 'admin_menu' callback queue
+// BEFORE those two plugins' own init()-hooked registrations, and well
+// before OUS_MenuMerge's relocation pass at priority 999 — the top-level
+// parent must exist before anything tries to attach a submenu to it
+// (§1.2's sequencing hazard note). Same direct-registration style
+// OUS_Dashboard::add_menu() uses immediately above.
+add_action('admin_menu',    ['BH_Design_Suite', 'add_menu']);
 add_action('init',          ['OUS_MenuMerge', 'init']);
 add_action('init',          ['OUS_Debug', 'init']);
 add_filter('ous_debug_tools', ['OUS_Registry', 'register_debug_section']);

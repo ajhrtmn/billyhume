@@ -2,15 +2,72 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.1.2
+ * Version:     1.3.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.1.2');
+define('BHCRM_VER',  '1.3.2');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
+
+// 1.3.2 — 2026-07-12 — new class-style-surface.php registers a real,
+// LIVE-rendered "CRM profile page (live)" bhy_style_surfaces entry —
+// direct response to a live screenshot showing the Design Suite canvas
+// stuck on an unrelated bh-contest demo no matter what CRM node was
+// selected. Unlike every other plugin's hand-authored HTML mockup
+// preview, this one calls the real BH_Element::render_slot() for the
+// 'bh_crm_profile' surface's header/main/sidebar at context 0 — what
+// you build in the tree now actually shows up here. See that file's own
+// docblock for the honest scope note: this does NOT yet replace class-
+// people.php's own admin detail page template with pure node-tree
+// rendering (that page still has fixed wp-admin chrome outside
+// BH_Element) — that is the larger, explicitly-scoped-out-of-this-pass
+// follow-up recorded in DESIGN-SUITE-UNIFICATION-PLAN.md's latest
+// status note.
+//
+// 1.3.1 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 2: gives
+// 'bh/sticky-card' (class-projects.php) a real 'attrs'/'tags' manifest —
+// ['div','article'] tags plus a pre-declared, enum-validated structured
+// data-attr ('data-status') — as this phase's bh-crm-side example of
+// BH_Element::register_type()'s new attrs/tags contract. No storage/
+// schema change; own-ur-shit's class-element.php/class-style.php own the
+// actual rendering/sanitization this depends on.
+
+// 1.3.0 — 2026-07-11 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (menu
+// restructure only): new class-hub.php (BHCRM_Hub) registers a new
+// top-level "CRM" menu (bh-crm-hub); People and a new Project Tracker
+// listing (BHCRM_Projects::render_boards(), class-projects.php) are
+// relocated under it via own-ur-shit's OUS_Registry/OUS_MenuMerge
+// 'parent' extension, gated on the new 'bhcore_manage_crm' capability
+// instead of 'manage_options'. No board/kanban/inspector logic changed
+// — see class-hub.php's and class-projects.php's own docblocks. Standing
+// caveat: reasoning/brace-balance-checked only, no live PHP/MySQL/
+// WordPress execution available this session — see class-hub.php's
+// docblock for the specific smoke-test recommendation (non-admin editor
+// account, after an OPcache reset) given this install's documented
+// standalone-page registration history.
+
+// 1.2.0 — 2026-07-11 — Project tracker: a kanban-like nested-sticky-note
+// project board built ON TOP OF own-ur-shit's element builder system,
+// not a parallel UI. New class-projects.php (BHCRM_Projects — the
+// bhcrm_projects table, the 'bh/sticky-card' BH_Element type, the
+// 'bhcrm_project_board' surface, the 'bhcrm/sub-card' BH_Content block
+// type for recursive sub-task nesting, render-time roll-up counting) and
+// class-debug.php (BHCRM_Debug — this plugin's first Debug Tools
+// section, a "Seed Project Tracker Demo Data" seed/reset action matching
+// bh-registry's BHR_Debug pattern exactly). New assets/js/kanban-
+// board.js + assets/css/kanban-board.css — a bespoke board presentation
+// layer that saves through the EXISTING ous/v1/elements/placements REST
+// bridge, not a new data model. BHCRM_People::render()/render_detail()
+// gained a project_id dispatch branch and a "Projects" section — both
+// additive, no existing person-page output changed or removed. See
+// class-projects.php's own docblock for the kanban-column judgment call
+// (attribute-per-card, not slot-per-column) and the roll-up semantics
+// chosen (informational only, no auto-complete-parent write-back).
+// Standing caveat: reasoning/brace-balance-checked only, no live PHP/
+// MySQL/WordPress/REST/browser execution available this session.
 
 // 1.1.2 — 2026-07-10 — Element builder, ELEMENT-BUILDER-DESIGN-PLAN.md
 // §5.2 surface expansion: registers the 'bh_crm_profile' surface with
@@ -40,9 +97,11 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // change to either save path's actual behavior). Standing caveat:
 // reasoning/brace-balance-checked only, no live PHP+MySQL execution in
 // this pass — not runtime-verified.
-foreach (['people', 'notes', 'tags', 'export', 'event-activity'] as $f) {
+foreach (['people', 'notes', 'tags', 'export', 'event-activity', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
+
+register_activation_hook(__FILE__, ['BHCRM_Projects', 'activate']);
 
 /**
  * Depends only on the core plugin (shared identity) — genuinely nothing
@@ -62,11 +121,18 @@ add_action('plugins_loaded', function () {
         return;
     }
 
-    // No add_menu_page() call here — People is a plain custom admin page
-    // (not a CPT list-table), so per the ecosystem's own menu convention
-    // it's relocated as a direct submenu under Own Ur Shit instead of
-    // getting its own top-level entry (see the 'admin_menus' entry for
-    // bh-crm in the core's class-registry.php, applied by OUS_MenuMerge).
+    // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: this plugin now DOES
+    // register its own top-level page — BHCRM_Hub::add_menu() (new,
+    // class-hub.php), registered directly here (inside plugins_loaded,
+    // which always fires before 'admin_menu') so its 'admin_menu'
+    // registration lands before OUS_MenuMerge's relocation pass at
+    // priority 999, which needs this top-level parent to already exist.
+    // People and Project Tracker themselves are STILL relocated as
+    // submenus under it by OUS_MenuMerge (see the 'admin_menus' entry
+    // for bh-crm in the core's class-registry.php) — only the top-level
+    // parent itself is new here.
+    BHCRM_Hub::init();
+
     add_action('admin_post_bhcrm_save_note', ['BHCRM_Notes', 'handle_save']);
     add_action('admin_post_bhcrm_save_tags', ['BHCRM_Tags', 'handle_save']);
     add_action('admin_post_bhcrm_export',    ['BHCRM_Export', 'handle']);
@@ -78,7 +144,18 @@ add_action('plugins_loaded', function () {
     // just below it.
     if (class_exists('BH_Element')) {
         add_filter('bh_element_surfaces', ['BHCRM_People', 'register_element_surface']);
+        BHCRM_StyleSurface::init(); // 1.3.2 — real live-rendered "Preview surface" entry, see that file's own docblock
     }
+
+    // Project tracker (1.2.0) — BHCRM_Projects::init() itself guards its
+    // own BH_Element/BH_Content registrations with class_exists(), same
+    // "harmless no-op otherwise" posture as every other optional
+    // integration in this bootstrap; this call is unconditional the same
+    // way BHCRM_Notes::init()/BHCRM_Tags::init() (implicitly, via their
+    // admin_post hooks above) are — the class itself decides what's safe
+    // to actually register.
+    BHCRM_Projects::init();
+    BHCRM_Debug::init();
 
     // BH_Event registration + this plugin's own contribution to
     // bh_crm_activity_summary — both gated on the core event-tracking
