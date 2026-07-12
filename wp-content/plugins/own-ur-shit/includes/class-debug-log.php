@@ -183,6 +183,27 @@ class OUS_DebugLog {
             ], false);
         }
         self::maybe_trim();
+
+        // AJ's own ask, straight after this session's audit pass: "good
+        // use of Query Monitor where needed" — every log() call already
+        // lands in the DB table (Debug Tools' own Console & Logs
+        // screen), but checking THIS request's own bugs meant leaving
+        // that screen and coming back, a real workflow tax while
+        // actively building something (like the bh-contest conversion
+        // this buffer exists to support). A cheap in-memory buffer, kept
+        // only for the life of THIS request, lets class-qm-integration.php
+        // surface these same rows directly inside Query Monitor's own
+        // toolbar panel — one pane of glass instead of two separate
+        // tools while developing.
+        self::$request_buffer[] = $row;
+    }
+
+    private static $request_buffer = [];
+
+    /** Read-only accessor for class-qm-integration.php — never written
+     * to from outside log() itself. */
+    public static function request_buffer() {
+        return self::$request_buffer;
     }
 
     // For a check that runs on every single request (is_locked(),

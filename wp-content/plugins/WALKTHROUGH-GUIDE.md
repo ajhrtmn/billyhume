@@ -1,324 +1,113 @@
-# Own Ur Shit Ecosystem — Walkthrough / QA Guide
+# Own Ur Shit — GUI/UX Walkthrough Guide
 
-This is a screen-by-screen guide to what actually exists in the codebase right now, written for AJ to click through and verify. Every claim below is grounded in the render code, not in the design docs' aspirational language — where a design doc (VISION.md, DESIGN-SUITE-UNIFICATION-PLAN.md, ELEMENT-BUILDER-DESIGN-PLAN.md, ROADMAP-platform-evolution.md) says something is "done," this guide only repeats that if the actual `render()`/callback code backs it up. Anything not runtime-verified is called out explicitly.
-
-## The seven plugins, one sentence each
-
-- **own-ur-shit** — the core hub: activation dashboard, shared design system/style tokens, portal shell, reports queue, 2FA, debug tools, and the menu-merge plumbing that lets the other plugins plug into one admin surface.
-- **bh-contest** — music contest voting: submissions, live reveal, results, a private live-console for running a stream.
-- **bh-courses** — a small LMS: ordered multi-step lessons (text/image/quiz), progress tracking, optional supporter-tier gating.
-- **bh-crm** — a person directory built on WordPress users: profiles, tags, notes, activity summaries, and a project/kanban tracker.
-- **bh-monetization-woo** — WooCommerce-backed supporter tiers, tips, and a play-credit wallet; inert until WooCommerce is installed.
-- **bh-registry** — a public, self-serve, domain-verified directory of artist ActivityPub/RSS links, with an admin abuse-review queue.
-- **bh-streaming** — the artist's own streaming player/library, shared "Jam" listening sessions, and a metrics dashboard — **currently hidden on any environment WordPress calls "production"** (see Known Gaps below).
-
-## Menu map (as it actually renders)
-
-- **Own Ur Shit** (`admin.php?page=own-ur-shit`, top-level, `own-ur-shit/includes/class-dashboard.php`)
-  - Dashboard (relabeled first item, same page/slug)
-  - Reports (`ous-reports`, `own-ur-shit/includes/class-reports.php`, class `BHI_Reports`)
-  - Security (`ous-security`, `own-ur-shit/includes/class-two-factor.php`)
-  - Registry Submissions (`bh-registry-review`, merged in from `bh-registry/includes/class-admin.php` via the registry mechanism — no explicit `parent`, so it defaults here)
-  - Monetization Settings (`bhm-settings`, merged in from `bh-monetization-woo/includes/class-admin.php`, also no explicit `parent`)
-- **Design Suite** (`admin.php?page=bh-design`, top-level, `own-ur-shit/includes/class-design-suite.php`, callback is `BHY_Gallery::render()`)
-  - Design Suite (relabeled first item, same page — a genuine tabbed unified shell: "Site Styles" + "Widgets & Elements")
-  - Designer (`bh-style`, `own-ur-shit/includes/class-style-gallery.php`) — **renders the exact same `BHY_Gallery::render()` output as the top-level page above**
-- **CRM** (`admin.php?page=bh-crm-hub`, top-level, `bh-crm/includes/class-hub.php`, callback is `BHCRM_People::render()`)
-  - People (relabeled first item, same page)
-  - Project Tracker (`bh-crm-projects`, merged in from `bh-crm/includes/class-registry.php`, `BHCRM_Projects::render_boards()`)
-- **OUS Debug** (`admin.php?page=ous-debug`, top-level, position 99 — bottom of nav — `own-ur-shit/includes/class-debug.php`)
-  - Debug Tools (relabeled first item, same page — hosts an in-page "API Docs" section and "Codebase Docs" section via anchor links)
-  - API Docs (`ous-api-docs`, `own-ur-shit/includes/class-api-docs.php`) — standalone page, **documented as unreliable in code comments**, see gaps
-  - Codebase Docs (`ous-codebase-docs`, `own-ur-shit/includes/class-codebase-docs.php`) — same caveat
-- **OUS · Contest** (top-level CPT menu, `edit.php?post_type=bh_contest`, `bh-contest/includes/class-post-types.php`)
-  - Contests (the CPT list-table)
-  - Submissions (CPT list-table, `bh_submission`)
-  - Results (`bh-results`, `bh-contest/includes/class-admin.php`)
-  - Live Console (`bh-console`, `bh-contest/includes/class-console.php`) — private, deliberately not linked anywhere else (shows contestants' real contact info)
-- **OUS · Courses** (top-level CPT menu, `edit.php?post_type=bh_course`, `bh-courses/includes/class-post-types.php`)
-  - Courses (CPT list-table)
-  - Lessons (CPT list-table, `bh_lesson`)
-  - Student Progress (`bhc-progress`, `bh-courses/includes/class-progress-admin.php`)
-- **OUS · Streaming** (top-level CPT menu, `edit.php?post_type=bhs_track`, `bh-streaming/includes/class-post-types.php`)
-  - Tracks (CPT list-table)
-  - Releases, Playlists, Feed Sources, Genres (CPT/taxonomy list-tables — hidden entirely if `BHS_Env::hidden_in_production()` is true)
-  - Metrics (`bhs-metrics`, `bh-streaming/includes/class-stats.php`)
-- **Content Studio** (`bh-studio`, hidden — registered with a `null` parent, `own-ur-shit/includes/class-studio.php`) — reachable only by direct link or, per current code comments, as a modal iframe opened from inside the Design Suite "Widgets & Elements" tab. Not in any nav.
-- **Element Builder** (`bh-element-builder`) — **no longer has its own menu entry at all.** Its `add_menu()` hook is commented out in `own-ur-shit/own-ur-shit.php`; its UI (`BH_Element_Builder::render_shell()`) is now inlined as the "Widgets & Elements" tab inside the Design Suite page instead.
-
-## Organizational concerns worth your attention
-
-1. **Design Suite and Designer are two menu items rendering the identical page.** `BH_Design_Suite::add_menu()` points the top-level "Design Suite" entry at `BHY_Gallery::render()`; `BHY_Gallery::add_menu()` separately registers a "Designer" submenu (`bh-style`) under the same parent, also calling `BHY_Gallery::render()`. Clicking either one lands you on the exact same tabbed page (Site Styles / Widgets & Elements). This isn't a bug that breaks anything, but it is a redundant nav item worth pruning or relabeling so it doesn't look like a mistake during QA.
-
-2. **CRM has the same pattern.** The "CRM" top-level entry and the "People" submenu both call `BHCRM_People::render()`. Same non-breaking redundancy.
-
-3. **"Registry Submissions" lives under Own Ur Shit, not under any Registry-branded menu.** `bh-registry`'s `admin_menus` entry (`bh-registry/includes/class-admin.php`) doesn't set a `parent` key, so `OUS_MenuMerge::merge()` defaults it to `own-ur-shit`. Someone looking to moderate registry submissions would reasonably look for a "Registry" menu (there isn't one — the registry's only public surface is a `[bh_registry]` shortcode) and instead has to know to check under "Own Ur Shit." Same is true of bh-monetization-woo's "Monetization Settings" — it also has no `parent` key and lands under Own Ur Shit rather than anywhere WooCommerce-adjacent.
-
-4. **Content Studio is unreachable from any menu.** It registers with a `null` parent specifically so it doesn't show in nav; current code says it's meant to open as a modal from the Design Suite, but if that wiring is broken or removed, there is no way to find this page except by typing `admin.php?page=bh-studio` directly. Worth confirming during QA that the modal launch actually works from the Widgets & Elements tab.
-
-5. **API Docs and Codebase Docs' standalone pages are called out in their own code comments as unreliable.** `own-ur-shit/includes/class-debug.php`'s `render()` includes an explicit note: "a live bug report showed WordPress consistently blocking them for reasons this session could not fully root-cause even with registration and capability both confirmed correct." The workaround shipped is to view the same content as anchor-linked sections inside the Debug Tools page instead (`#ous-section-api-docs`, `#ous-section-codebase-docs`). Standalone menu entries are still registered and still there to click, so this is worth testing directly: try both the submenu links and the anchors and see which actually works on this install.
-
-6. **bh-streaming's entire public player renders nothing at all in a "production" environment**, and its CPT submenus (Releases, Playlists, Feed Sources, Genres) are similarly hidden. See Known Gaps under the Streaming section for detail — this is a real, current, code-level gate, not a hypothetical.
+This is a screen-by-screen guide to every admin GUI in this ecosystem, ordered deliberately by build priority rather than alphabetically or by menu position. Core comes first because everything else renders through it; the Design Suite comes second because it's the tool you'll use to fix everything after it; bh-contest comes third because it's the named next conversion target; the remaining plugins follow in dependency/risk order. For each screen this covers what's actually there, how it should look and behave when it's solid, how to use it today, known pitfalls, and a concrete next step to shore it up. This supersedes the previous version of this file, which was organized by menu structure rather than by what to work on first — read `STATUS.md` at the plugins root for the fuller build-state narrative behind these notes, and `CODEBASE-WALKTHROUGH.md` for a guided tour of the underlying code if you want to go deeper than a screen-level pass.
 
 ---
 
-# Admin pages, one by one
+# Part 1 — Core (own-ur-shit)
 
-## Own Ur Shit dashboard — `admin.php?page=own-ur-shit`
+## The BH_Element registry and render_slot architecture
 
-**File/class:** `own-ur-shit/includes/class-dashboard.php`, `OUS_Dashboard::render()`.
+This isn't a screen, it's the foundation every screen in Part 2 onward sits on, so it comes first. `BH_Element` (own-ur-shit/includes/class-element.php) is a placement/capability/data-binding system: any plugin registers element "types" (a heading, a stat card, a kanban board, a profile field) with a schema and a renderer, and a separate `bhcore_element_placements` table records which instances of which types are placed where, with what config. `render_slot()` walks a slot's placements and renders each one through `wrap_placement_html()`, which wraps every element's output in a consistent `data-bhel-*` marked wrapper so the same node the visual builder edited is the same node that renders live, both in wp-admin and on the front end.
 
-**What it's for:** the single install/activate console for the whole ecosystem — a card per plugin (`bh-crm`, `bh-contest`, `bh-streaming`, `bh-courses`, `bh-registry`, `bh-monetization-woo`, plus WooCommerce and Advanced Media Offloader as dependencies), each showing install/activate status.
+How it should look/behave: a plugin author calls `BH_Element::register_type()` once, and from then on that element type is placeable, stylable, and inspectable from the Design Suite canvas with zero special-cased template code anywhere else — this is the "no special-cased pages" discipline referenced throughout STATUS.md.
 
-**What you should see:** an "Install & Activate Everything" button (only shown if more than one plugin still needs action), a grid of `.ous-cards` — one per registered plugin from `OUS_Registry::visible_cards()` — and, below that, an "Other detected plugins" section for anything that merely declares `Ecosystem: Own Ur Shit` in its header without using the richer registration filter.
+Pitfall (resolved, mentioned for the record): `wrap_placement_html()`'s custom-class merge path had a real bug this session — it used `trim()` to strip a wrapping quote/bracket character off a merged class string, but `trim()` treats its second argument as a *character mask*, not a literal substring, so it could silently eat legitimate leading/trailing characters from real class names that happened to share characters with the mask. This is fixed now — the merge uses `substr()` with explicit positions instead of `trim()`'s mask semantics. No further action needed here, but if you see similar "strip N characters" logic elsewhere in this file or its siblings, check whether it made the same mistake.
 
-**How it's used:** click a card's Install button (pulls from a bundled zip or, for WooCommerce/Advanced Media Offloader, live from WordPress.org via `install_from_wporg()`), then Activate. Status/error banners appear via `?ous_activated`, `?ous_installed`, `?ous_error` query args.
+Shore-it-up suggestion: grep the whole ecosystem for other `trim($str, $chars)` calls where `$chars` is longer than one character — this bug class (mask vs. literal) is an easy one to reintroduce elsewhere and worth a deliberate one-time audit now that you know to look for it.
 
-**Gaps:** relies on `bundled_zip` files actually existing on disk at `own-ur-shit/bundled/*.zip` for the one-click install to work for `bh-registry` and `bh-monetization-woo` specifically — the code comments in both plugins' `class-admin.php`/`class-registry.php` flag this as a real precondition, not guaranteed. Worth confirming those zips are present before relying on the Install buttons.
+## Accounts, identity, and the shared services (Dashboard, Reports, Security)
 
-## Reports — `admin.php?page=ous-reports`
+**Dashboard — `admin.php?page=own-ur-shit`.** The install/activate console for the whole ecosystem: a card per plugin showing install/activate status, pulled from `OUS_Registry::visible_cards()`. Use it to install and activate peer plugins in order. Pitfall: one-click install for bh-registry and bh-monetization-woo depends on bundled zips actually existing on disk at `own-ur-shit/bundled/*.zip` — confirm those are present before trusting the button. Shore-up: add a visible warning on the card itself if the expected zip is missing, instead of only failing at click time.
 
-**File/class:** `own-ur-shit/includes/class-reports.php`, class `BHI_Reports` (note: file/menu label say "Reports" but the class itself is prefixed `BHI_`, not `OUS_` — worth knowing if you're hunting for it in code).
+**Reports — `admin.php?page=ous-reports`.** A shared abuse/moderation queue any plugin routes a "Report" button into; currently only bh-registry uses it. Tabs for Open/Resolved/Dismissed, rows flagged red at 3+ independent reporters. This one is complete and needs no shoring up — it's a good reference for what "done" looks like elsewhere in this codebase.
 
-**What it's for:** one shared abuse/moderation queue any plugin's content can route a "Report" button into. Currently wired up by bh-registry (`registry_artist` reports, labeled via the `bhi_report_target_label` filter in `bh-registry/includes/class-admin.php`).
+**Security — `admin.php?page=ous-security`.** One checkbox gating whether users may enable their own 2FA, plus an enrolled-count. Minimal and complete. Actual 2FA setup happens on the user's own WP profile screen, not here — worth remembering when someone asks "where do I turn on 2FA" and can't find it on this page.
 
-**What you should see:** Open / Resolved / Dismissed tabs, a `wp-list-table`-style table (When, Reporter, Target, Category, Reason, Action), with rows highlighted red if 3+ independent reporters flagged the same target. "Mark actioned" and "Dismiss" links per row.
+## Debug Tools, API Docs, Codebase Docs
 
-**How it's used:** review open reports, click through to investigate the flagged target (label is generated per-type, e.g. "Registry artist: Name (#12)"), then mark actioned or dismiss. Nothing here auto-hides content — it's a queue for a human decision, by design.
+**Debug Tools — `admin.php?page=ous-debug`.** The dev/QA toolbox: environment lock banner (blocks seed/reset actions on anything WordPress calls "production" unless `OUS_DEBUG_TOOLS_FORCE` is defined), jump-links to in-page API Docs/Codebase Docs sections, and grouped debug-tool sections from the `ous_debug_tools` filter. This is the reliable path to API/Codebase docs content.
 
-**Gaps:** none identified in the render path itself; it's a straightforward, fully-implemented CRUD queue.
+**API Docs / Codebase Docs standalone pages — `ous-api-docs` / `ous-codebase-docs`.** Same content as the Debug Tools anchors, but as their own top-level menu entries, and the code's own comments flag them as unreliable — WordPress has, on this install, consistently blocked them for reasons never fully root-caused despite registration and capability both being confirmed correct. Pitfall: don't assume these standalone links work; test them directly before depending on them for anything. Shore-up: either fix the underlying registration bug (worth a dedicated session comparing this against BHI_Portal's documented rewrite-timing bug — they may share a root cause class) or just remove the standalone menu entries entirely and keep only the Debug Tools anchors, since a known-unreliable duplicate of a working page is worse than no duplicate.
 
-## Security — `admin.php?page=ous-security`
+## Portal (`/account/`)
 
-**File/class:** `own-ur-shit/includes/class-two-factor.php`, `render_settings_page()`.
-
-**What it's for:** a single site-wide toggle for whether users are *allowed* to enable two-factor authentication on their own profile (2FA itself is opt-in per-user, never forced).
-
-**What you should see:** one checkbox ("Allow users to enable two-factor authentication on this site"), a count of currently-enrolled accounts, and a Save button.
-
-**How it's used:** flip the checkbox, save. Actual 2FA setup per user happens on their own WordPress profile screen (not covered by this page).
-
-**Gaps:** none identified — this is a minimal, complete settings screen.
-
-## Registry Submissions — `admin.php?page=bh-registry-review`
-
-**File/class:** `bh-registry/includes/class-admin.php`, `BHR_Admin::render()` (not directly hooked — reached only via the `OUS_MenuMerge` relocation described above).
-
-**What it's for:** review queue for the public, self-serve artist link registry. Verification/activation happens automatically on domain-ownership proof; this page is for *abuse handling* after the fact, not a gate before a link goes live.
-
-**What you should see:** a searchable/sortable `wp-list-table` of artist submissions with reject/restore/delete/reverify actions (per the task brief's existing description — confirmed by reading the class).
-
-**How it's used:** monitor pending/failed verifications, manually reverify or reject entries that verify but are spam/abuse.
-
-**Gaps:** the "Registry Submissions" label under "Own Ur Shit" navigation-discoverability issue flagged above in Organizational Concerns.
-
-## Monetization Settings — `admin.php?page=bhm-settings`
-
-**File/class:** `bh-monetization-woo/includes/class-admin.php`, `BHM_Admin::render()`.
-
-**What it's for:** the one settings screen that exists whether or not WooCommerce is installed yet.
-
-**What you should see:** if WooCommerce isn't active, a warning notice pointing back to the Own Ur Shit dashboard's "Install from WordPress.org" button and nothing else actionable. If WooCommerce is active, a status line noting whether WooCommerce Subscriptions is also active (supporter tiers bill as true recurring subscriptions) or not (tiers fall back to one-time 30-day access).
-
-**How it's used:** install WooCommerce first via the main dashboard, then return here to confirm status and (per the rest of the file, not fully read in this pass) configure tiers/settings.
-
-**Gaps:** entirely inert without WooCommerce — by design, not a bug, but worth confirming during QA that nothing here errors before WooCommerce is present.
-
-## Design Suite — `admin.php?page=bh-design`
-
-**File/class:** `own-ur-shit/includes/class-design-suite.php` registers the menu; the actual rendering is `BHY_Gallery::render()` in `own-ur-shit/includes/class-style-gallery.php`.
-
-**What it's for:** the real, current unified design surface — a single page with two tabs, switched by plain JS with no page reload: "Site Styles" (the original style-token editor — sidebar of surfaces, live canvas preview, controls) and "Widgets & Elements" (the Element Builder's three-pane palette/canvas/inspector, inlined via `BH_Element_Builder::render_shell()`).
-
-**What you should see:** an `h1` "Design Suite," a `.bhy-tabs` tab-switcher with two buttons, a `.bhy-tab-panel` for each tab. The Widgets & Elements panel mounts a JS app into `#bhel-app` (shows "Loading Element Builder…" until JS initializes) and explicitly notes it reads/writes the same `bhcore_element_placements` data as the underlying REST API — there is no separate storage between the visual builder and any list-based tool.
-
-**How it's used:** pick a surface on the Site Styles tab to edit its tokens (colors, fonts, spacing) live in the canvas; switch to Widgets & Elements to place/configure UI elements visually.
-
-**Gaps:** the class's own docblock states this is **not runtime-verified** — no live browser/PHP execution was available when this was built, and this install has "a documented, multi-session, never-fully-root-caused history with exactly this class of bug" (referring to standalone-page registration issues elsewhere in this codebase, e.g. API Docs). The docblock explicitly recommends smoke-testing this menu logged in as a non-admin "editor" role holding only `bhcore_design_site`, not as a full admin, since `manage_options` can mask capability-scoping bugs. Also see Organizational Concern #1 — "Designer" is a fully redundant second entry to the same page.
-
-## Designer — `admin.php?page=bh-style`
-
-Same file, same `BHY_Gallery::render()` as Design Suite above — this is not a distinct page, see Organizational Concern #1. No separate walkthrough needed; whatever you verify on Design Suite covers this too.
-
-## CRM — `admin.php?page=bh-crm-hub`
-
-**File/class:** `bh-crm/includes/class-hub.php` registers the top-level menu; renders via `BHCRM_People::render()` in `bh-crm/includes/class-people.php`.
-
-**What it's for:** a person directory built from WordPress users who have either a CRM profile or recorded activity — no separate "contact" data model, it enriches real user accounts.
-
-**What you should see (list view, no `user_id` in the query string):** a description line, a tag-filter row (built from `BHCRM_Tags::all_in_use()`), an "Export CSV" button, a live search box (`.bhy-table-search`) targeting a sortable `wp-list-table` with columns Name / Email / Tags / Activity / Registered. Activity is populated cross-plugin via the `bh_crm_activity_summary` filter.
-
-**How it's used:** browse or search the directory, filter by tag, click a name to open their detail/profile view (`render_detail()`/`render_profile()` — not fully read this pass, but confirmed to exist), or export the current filtered list to CSV.
-
-**Gaps:** the top-level menu registration carries the same "NOT runtime-verified" caveat as Design Suite, with the identical recommendation to smoke-test as a non-admin holding only `bhcore_manage_crm`. Also see Organizational Concern #2 — "People" is a redundant second entry to the same page.
-
-## People — `admin.php?page=bh-crm-hub` (submenu)
-
-Redundant with the CRM top-level entry above — see Organizational Concern #2.
-
-## Project Tracker — `admin.php?page=bh-crm-projects`
-
-**File/class:** `bh-crm/includes/class-registry.php` registers this via the menu-merge mechanism; renders via `BHCRM_Projects::render_boards()` in `bh-crm/includes/class-projects.php`.
-
-**What it's for:** a cross-person index of every kanban-style project board in the CRM (the boards themselves live inside a person's profile, not here — this is a listing, not a second board implementation).
-
-**What you should see:** a table (Project, Person, Cards, Updated, Open board) listing every project across all people, or a "No projects yet" message linking back to People if there are none.
-
-**How it's used:** scan for a project across all people at once, click "Open board" to jump to that person's profile at the actual kanban board (`admin.php?page=bh-crm&user_id=...&project_id=...`).
-
-**Gaps:** none identified beyond the general standalone-page caution noted for the CRM hub above (same `parent`/`capability` mechanism).
-
-## OUS Debug — `admin.php?page=ous-debug`
-
-**File/class:** `own-ur-shit/includes/class-debug.php`, `render()`.
-
-**What it's for:** a dev/QA toolbox — environment lock status, seed/reset actions, and (per the code) the *reliable* way to view API Docs and Codebase Docs content (see below).
-
-**What you should see:** an environment banner ("Locked" if `wp_get_environment_type()` looks like production, blocking seed/reset actions unless `OUS_DEBUG_TOOLS_FORCE` is defined or the environment is explicitly local/development/staging; "Unlocked" otherwise), jump-link buttons to the in-page API Docs and Codebase Docs sections, then a list of registered debug tool sections from the `ous_debug_tools` filter (grouped, per a recent reorganization pass referenced in `class-registry.php`'s changelog comments — e.g. a "Monitoring & Health" group and a "Reference & Docs" group).
-
-**How it's used:** use this as your primary path to API/Codebase docs (not the standalone pages — see Organizational Concern #5), and for any seed/reset/debug actions while developing.
-
-**Gaps:** this page's own code explicitly documents that its sibling standalone pages (API Docs, Codebase Docs) have an unresolved WordPress registration/access bug — worth testing directly rather than assuming either path works.
-
-## API Docs — `admin.php?page=ous-api-docs`
-
-**File/class:** `own-ur-shit/includes/class-api-docs.php`, `render()` / shared `render_content()`.
-
-**What it's for:** a live-generated OpenAPI 3.0 spec of every REST route this ecosystem registers, plus a browsable rendering of it — always in sync with actual code, never hand-maintained.
-
-**What you should see:** a description line with the raw OpenAPI JSON URL (`rest_url('ous/v1/openapi.json')`) and a Copy button, followed by the generated route documentation.
-
-**How it's used:** as a live reference for anyone (including a future coding agent) integrating with this ecosystem's REST API, or import the JSON into Postman/Insomnia/Swagger UI.
-
-**Gaps:** per Organizational Concern #5, this standalone page is specifically called out in code comments as unreliable — test whether it loads for you before depending on it; the same content is also reachable as a section anchor inside Debug Tools.
-
-## Codebase Docs — `admin.php?page=ous-codebase-docs`
-
-**File/class:** `own-ur-shit/includes/class-codebase-docs.php`, `render()` / shared `render_content()`.
-
-**What it's for:** a guided, sequential tour of the whole codebase, generated from `CODEBASE-WALKTHROUGH.md` (a separate file in this same `plugins/` directory), with every file it references made live-readable inline.
-
-**How it's used:** as a narrative onboarding doc for a human or agent new to the codebase.
-
-**Gaps:** same reliability caveat as API Docs — see Organizational Concern #5.
-
-## OUS · Contest — `edit.php?post_type=bh_contest`
-
-**File/class:** CPT registered in `bh-contest/includes/class-post-types.php`; menu items added directly (not via merge) in `bh-contest/includes/class-admin.php` and `class-console.php`.
-
-**Contests / Submissions:** standard CPT list-tables, enhanced with custom columns — Contests shows a status pill, copyable shortcode, a link to the auto-created page, and submission/vote stats; Submissions shows which contest each entry belongs to plus a contest filter dropdown.
-
-**Results — `admin.php?page=bh-results`:** `BH_Admin::render_results()` (not fully read this pass, referenced via `add_menus()`).
-
-**Live Console — `admin.php?page=bh-console`:** `BH_Console::render()`. Shows every submission for a chosen contest with its audio playable inline, plus the real name/contact identity behind each submitter, and embeds the results-reveal controls used to actually run a live stream. The class's own docblock is explicit that this page is deliberately never linked near the public-facing results page, since it exposes private contact info that must never appear in an OBS capture. A code comment also documents a real, since-fixed bug: the contest-picker `<form method="get">` on this page must carry `post_type=bh_contest` as a hidden field, or WordPress can't resolve the submenu and throws a permissions error.
-
-**Gaps:** none beyond what's noted; this section appears complete and specifically hardened against a real reported bug.
-
-## OUS · Courses — `edit.php?post_type=bh_course`
-
-**Courses / Lessons:** standard CPT list-tables.
-
-**Student Progress — `admin.php?page=bhc-progress`:** `bh-courses/includes/class-progress-admin.php`, `BHC_ProgressAdmin::render()`. Its own docblock states this replaced an earlier version that could only ever show one seeded student's progress — "not a real teaching workflow." Gated on a `bhcore_manage_students` capability (falls back to `edit_posts` if that capability class isn't loaded, to avoid silently locking everyone out on an older core).
-
-**What you should see:** a course selector, then that course's student progress list (columns/detail not fully read this pass — confirm on-screen).
-
-**Gaps:** capability fallback logic is worth testing with a non-admin account to confirm the intended instructor-only access actually works as described.
-
-## OUS · Streaming — `edit.php?post_type=bhs_track`
-
-**Tracks:** CPT list-table (top-level, always visible).
-
-**Releases, Playlists, Feed Sources, Genres:** CPT/taxonomy list-tables, but each is registered with `show_ui`/`show_in_menu` conditional on `$visible` — meaning they, and the entire streaming player itself, can vanish from the admin menu entirely depending on environment (see Known Gaps under the public Streaming section).
-
-**Metrics — `admin.php?page=bhs-metrics`:** `bh-streaming/includes/class-stats.php`, `render()`. Gated on `edit_posts`. Pulls last-30-day stats from a custom table: plays by day, top 10 tracks by plays, top 10 tracks by skips, and a by-country breakdown (approximated from the `Accept-Language` header, not real GeoIP — the code is explicit this is "signal, not the same thing as actual location").
-
-**How it's used:** review play/skip trends and rough listener locale mix over the trailing 30 days.
-
-**Gaps:** country data is a deliberate approximation, not precise geography — don't over-trust it during QA.
+The branded front-end account shell, built from panels contributed via `bhi_portal_panels`. Five panels registered today: Profile, Notifications, Contest Submissions, My Courses, Membership & Wallet. How it should look: a left nav listing every registered panel, a main area rendering the active one, URLs like `/account/{panel-id}/`. Pitfall: this class's own code documents a previously-shipped rewrite-registration bug (re-hooking `init` from inside `init` at the same priority never fires) — the fix is in place, but given this codebase's repeated history of standalone-page registration bugs, confirm `/account/` isn't 404ing before assuming it's fine. Shore-up: add an automated Test Runner suite entry (see class-test-runner.php) that hits `/account/` and asserts a 200, so this class of regression gets caught automatically instead of by chance.
 
 ---
 
-# Public-facing surfaces
+# Part 2 — Design Suite / style-builder GUI
 
-## Portal — `/account/` (rewrite-owned)
+This is the highest-priority screen to get solid next, because it's the tool that will be used to convert bh-contest and every future surface — flaws here get multiplied across every future conversion.
 
-**File/class:** `own-ur-shit/includes/class-portal.php`, class `BHI_Portal`.
+## The unified shell — `admin.php?page=bh-design`
 
-**What it's for:** a genuinely separate, branded front-end account area for logged-in users — not a reskinned wp-admin, not a pile of unrelated shortcodes on separate pages. Built from panels contributed by any plugin via the `bhi_portal_panels` filter.
+Two tabs on one page, switched with plain JS, no reload: "Site Styles" (the original token editor — surface picker, live canvas preview, controls) and "Widgets & Elements" (the Element Builder's three-pane palette/canvas/inspector). Both tabs read and write the same underlying data (`bhcore_element_placements`, `BHY_Style` tokens) that the REST API uses — there's no separate storage between the visual tool and anything list-based. How it should look: instant tab switching, a canvas that reflects live edits without a full page reload, an inspector pane that always matches what's selected on canvas.
 
-**What you should see:** a two-column shell — a left nav (`.bhi-portal-nav`) listing every registered panel with a dashicon, and a main content area (`.bhi-portal-main`) rendering the active panel. Currently five panels are registered:
-- **Profile** (`own-ur-shit/includes/class-public-profile.php`) — identity/profile info.
-- **Notifications** (`own-ur-shit/includes/class-notifications.php`).
-- **Contest Submissions** (`bh-contest/includes/class-portal-panel.php`).
-- **My Courses** (`bh-courses/includes/class-portal-panel.php`).
-- **Membership & Wallet** (`bh-monetization-woo/includes/class-portal-panel.php`).
+Pitfall: the canvas was recently converted from an `<iframe>` to a same-document `<div>` with `attachShadow()` — this is current architecture, not a stale claim; if you see references anywhere (old docs, comments, your own memory of earlier sessions) describing the canvas as an iframe, that's out of date. The shadow-DOM approach was chosen specifically per the standing "never use iframes unless truly necessary" rule, and it means canvas styles are scoped without the cross-origin/messaging overhead an iframe would need. Worth a direct smoke test that shadow-DOM style isolation is actually behaving (no site-wide CSS leaking in, no canvas CSS leaking out) since this is a recent, not-yet-heavily-battle-tested change.
 
-Note: `class-portal.php`'s own docblock says this "ships... ONE real migrated panel (profile/identity)" — that line is now out of date; three other plugins have since added their own panels. Trust the panel filter registrations (verified above), not that sentence.
+Also flagged in code comments as never runtime-verified end to end — worth smoke-testing as a non-admin editor holding only `bhcore_design_site`, not as full admin, since `manage_options` can mask capability-scoping bugs.
 
-**How it's used:** log in, visit `/account/`, navigate between panels via the left nav (URLs are `/account/{panel-id}/`). Logged-out visitors are redirected to `wp_login_url()`.
+## Site Styles tab
 
-**Gaps:** the file contains a long, detailed comment describing a real, previously-shipped bug where the rewrite rule never actually registered (a WordPress hook-timing footgun — re-hooking `init` from inside `init` at the same priority never fires). The fix (call `add_rewrite()` directly rather than re-hooking it) is in place, but given the documented history of registration bugs across this codebase's other standalone-page surfaces, it's worth confirming `/account/` actually loads and isn't a 404 before relying on it.
+Pick a surface from the sidebar, edit its design tokens (colors, fonts, spacing) with live preview in the canvas. This is the older, more mature half of the page and is the one to trust most. Real UX convention lives here: `BHY_UI::swatch_field()` for color pickers, `.bhel-style-group` for grouped style controls — visually consistent, and this is the standard the rest of the builder should be held to.
 
-## bh-contest — public voting (`[bh_contest_player]` shortcode)
+## Widgets & Elements tab — the real placement inspector
 
-**File/class:** `bh-contest/includes/class-auth.php`, `BH_Auth::render()`.
+Two clicks from the palette into an actual placement's inspector, this is where you configure a real `BH_Element` instance — style controls here correctly use `BHY_UI::swatch_field()`/`.bhel-style-group`, matching the Site Styles tab's visual language. This is the reference implementation to copy from.
 
-**What it's for:** the public voting/submission interface embedded via shortcode on a contest's page (auto-created per contest, per the admin Contests list).
+## The demo-only Live View outline/style panel — element-builder.js `renderDemoOutline()`
 
-**What you should see:** if the shortcode's `contest` attribute doesn't resolve to a real contest, logged-in editors see an inline warning box (visitors see nothing); otherwise a `#bh-player-root-N` div is emitted with `data-contest` set, which a JS app (not read this pass) mounts into.
+Pitfall (open, confirmed this session): this panel — reached from within the same Widgets & Elements tab, a couple of clicks away from the real placement inspector above — renders its color and text controls with raw `<input type=color>` and `<textarea>` elements instead of reusing `BHY_UI::swatch_field()`/`.bhel-style-group`. The result is a visible, confusing inconsistency: two panels in the same tool, a couple of clicks apart, that look and behave differently for the same kind of control. A user has no way to know from the UI alone that one is "the real thing" and one is a demo — they look like two competing designs.
 
-**Gaps:** the actual voting UI is entirely client-side JS not covered in this pass — worth a manual click-through to confirm submission and voting flows work end to end.
-
-## bh-courses — public catalog and lessons (`[bh_courses]`, `[bh_course]`)
-
-**File/class:** `bh-courses/includes/class-render.php`, `render_catalog()` / `render_course()`.
-
-**What you should see (catalog):** a filter bar (search, category, topic, sort by newest/alphabetical/popular), and a grid of course cards, each showing a lock icon if the viewer doesn't have access, a difficulty badge, lesson count, and (if logged in) a progress bar.
-
-**How it's used:** browse/filter/search courses, click into one, work through lessons; access gating is checked per-course via `BHC_Gate::user_can_access_course()`.
-
-**Gaps:** individual lesson-taking flow (`render_course()`'s deeper content, quiz rendering) wasn't read in full this pass — worth a manual walkthrough of an actual lesson.
-
-## bh-streaming — public player (`[bh_streaming]`)
-
-**File/class:** `bh-streaming/includes/class-player.php`, `render()`.
-
-**What you should see:** a player shell (`#bhs-app`) with a topbar/account area, wired to two REST namespaces (`bhs/v1`, `bhi/v1`) via localized JS config — **except that `render()`'s very first line is `if (BHS_Env::hidden_in_production()) return '';`.**
-
-**Critical gap:** `BHS_Env::hidden_in_production()` (in `bh-streaming/includes/class-env.php`) returns true — hiding the player entirely, rendering an empty string — whenever `wp_get_environment_type()` reports `production`, *or* whenever `wp_get_environment_type()` isn't available at all, unless a `BHS_FORCE_VISIBLE` constant is explicitly defined true in `wp-config.php`. The same gate also drives whether Releases/Playlists/Feed Sources/Genres show up in wp-admin at all (see the Streaming admin section above). **This means on a real production deployment, without that constant set, the entire public streaming feature — and most of its admin UI — silently disappears.** This is confirmed directly in code, not inferred. Check `wp_get_environment_type()` on the live site and whether `BHS_FORCE_VISIBLE` is defined before assuming streaming is live for visitors.
-
-## bh-crm — public profiles
-
-No public-facing profile template or shortcode was found for bh-crm in this pass (no `class-public-profile.php`-equivalent file exists in `bh-crm/`, and no `add_shortcode` calls in that plugin beyond the portal panel). The Portal's "Profile" panel is owned by `own-ur-shit/includes/class-public-profile.php`, not bh-crm — CRM data itself appears to be admin-only. If a public profile surface for CRM is expected, it does not currently exist in code; treat this as a real gap rather than something to hunt for further.
-
-## bh-registry — public directory (`[bh_registry]`)
-
-**File/class:** `bh-registry/includes/class-frontend.php`, `render()`.
-
-**What you should see:** a search bar, a protocol filter (All / ActivityPub / RSS / Podcasting 2.0), a "Submit your link" button opening a modal, and a grid (`#bhr-grid`) that loads results via JS (shows "Loading…" server-side). The submit modal explains the plugin stores only the public link and basic metadata, never media, and requires proving domain control via a small text file.
-
-**How it's used:** visitors browse/search/filter published artist links, or submit their own (which routes into the admin Registry Submissions queue described above once verified or flagged).
-
-**Gaps:** the actual grid population and submission verification flow are JS/REST-driven and weren't traced further in this pass.
-
-## bh-monetization-woo — checkout/purchase flows
-
-**File/class:** `bh-monetization-woo/includes/class-frontend.php`.
-
-- **`[bhm_tiers]` → `render_tiers()`:** a grid of supporter tier cards (cover image, presumably price/description below what was read), marking the viewer's currently-active tier. Returns a plain message if WooCommerce isn't installed or no tiers are configured yet.
-- **`[bhm_tip_jar]` → `render_tip_jar()`:** a simple form that adds a configurable-amount "tip" product to the WooCommerce cart and redirects to checkout — amount is clamped between `TIP_MIN_CENTS` and `TIP_MAX_CENTS`.
-- **`[bhm_wallet]` → `render_wallet()`:** shows the logged-in user's play-credit wallet balance and top-up options (each mapped to a real WooCommerce product via `sync_wallet_topup_products()`), or a "log in to see your wallet" message if logged out.
-
-Also present: `bh-monetization-woo/includes/class-storefront.php` registers rewrite/template behavior not read in detail this pass.
-
-**Gaps:** actual checkout completion, refund handling, and the "refund/velocity fraud-pattern flagging" mentioned in the plugin's own registry description were not traced in this pass — these are real WooCommerce order-hook logic worth testing with an actual test purchase rather than just reading code.
+Shore-up: this is a contained, mechanical fix — swap the raw `<input type=color>`/`<textarea>` markup in `renderDemoOutline()` for calls into the same `BHY_UI` helpers the real inspector uses, or better, delete the demo-only path entirely if it no longer serves a purpose distinct from the real inspector. Do this before starting the bh-contest conversion below, since bh-contest's new surface will be built and QA'd through this exact tool — a confusing builder UI will make that conversion harder to verify correctly.
 
 ---
 
-# Summary of the most significant issues to verify live
+# Part 3 — bh-contest (top priority conversion target)
 
-1. **bh-streaming's public player and most of its admin submenus disappear entirely in a production environment** unless `BHS_FORCE_VISIBLE` is defined — check this site's actual `wp_get_environment_type()` value.
-2. **API Docs and Codebase Docs standalone admin pages are flagged in the code itself as unreliable** ("WordPress consistently blocking them ... could not fully root-cause"); the documented workaround is viewing them as sections inside Debug Tools instead.
-3. **Design Suite/Designer and CRM/People are each two menu entries pointing at the identical rendered page** — not broken, but worth pruning for a cleaner nav during your walkthrough.
-4. **Registry Submissions and Monetization Settings both live under "Own Ur Shit" rather than any registry- or commerce-branded menu**, because their `admin_menus` entries don't set a `parent` key and default there — a discoverability issue, not a functional one.
-5. **Content Studio has no menu entry at all** (`null` parent by design) and depends on a modal-iframe launcher from inside Design Suite that should be confirmed working, not assumed.
+## Current state: hardcoded mockup catalog, not a real surface
+
+bh-contest's catalog preview registers itself via `bhy_style_surfaces` (`bh-contest/includes/class-style-surfaces.php`) — but the actual preview markup is hand-written HTML with fake/sample data, not something backed by real `BH_Element` placements or real contest data. This is true across bh-contest, bh-streaming, and bh-courses' catalog previews, but bh-contest is the one explicitly named as next to fix — it's the ecosystem's single biggest architectural gap right now: what looks like an editable, live surface in the Design Suite is actually a static mockup that can't be meaningfully edited or bound to real data.
+
+How it should look once converted: a real `BH_Element`-backed surface, the same way bh-crm's profile page and bh-courses' lesson pages already are — registered element types, real placements stored in `bhcore_element_placements`, rendered through `render_slot()`/`wrap_placement_html()` with actual contest/submission data bound in, editable live from the Design Suite's Widgets & Elements tab exactly like a CRM profile field is today.
+
+Reference pattern to follow: `bh-crm/includes/class-style-surface.php` (CRM profile page conversion) and `bh-courses/includes/class-lesson-surface.php` (LMS lesson conversion) are the two prior, completed examples of exactly this migration. Read both alongside `own-ur-shit/includes/class-element.php`'s `register_type()`/`render_slot()` before starting — the shape of the conversion (register element types for each meaningful piece of a contest card/results view, replace the hardcoded HTML in `class-style-surfaces.php` with real placements, wire real contest data into the render callbacks) should closely mirror what those two files already did.
+
+Shore-up suggestion: don't touch bh-streaming's or bh-courses' catalog mockups yet — do bh-contest first, end to end, verified in the (now-fixed) Design Suite, and treat it as the template for converting the other two afterward. Trying to convert all three mockup surfaces at once risks discovering a builder gap partway through and having to redo work in three places instead of one.
+
+## Contests / Submissions / Results / Live Console (existing, stable admin screens — not part of the conversion)
+
+These are ordinary CPT list-tables and dedicated admin pages, not style-surface mockups, and are unaffected by the above. Contests and Submissions are enhanced list-tables (status pill, shortcode, stats). Results (`admin.php?page=bh-results`) and Live Console (`admin.php?page=bh-console`) are separate, deliberately-unlinked pages — Live Console shows real contestant contact info and must never be discoverable from anything an OBS capture might show. A previously real bug is already fixed and hardened against: the Live Console's contest-picker form must carry `post_type=bh_contest` as a hidden field or WordPress can't resolve the submenu. No action needed here beyond normal regression awareness.
+
+---
+
+# Part 4 — bh-crm and bh-courses (already converted, lower risk)
+
+## bh-crm — People / profile page
+
+Already converted to a real `BH_Element`-backed surface (the reference pattern for Part 3). The People list (`admin.php?page=bh-crm-hub`) is a straightforward roster with tag filters, search, and CSV export; clicking a name opens the live-rendered profile detail view, editable from the Design Suite the same way any other real surface is. Known gap, not a GUI bug: bh-crm isn't wired to `bhcore_events` yet, so the Activity section on a profile doesn't include pre-signup event history — this is a data-completeness gap, not a rendering one, and is explicitly next on bh-crm's own list rather than an oversight.
+
+**Project Tracker — `admin.php?page=bh-crm-projects`.** A real kanban board system built entirely on `BH_Element`, listing every project across all people with a link into that person's actual board. Solid, no rendering pitfalls identified. Feature-completeness gap (documented elsewhere, not a bug): reusable checklists, timestamped fixes, a feedback log, stall analytics, and file-linking are all designed in `PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md` but not built — worth knowing before promising parity with a tool like TrackIt.
+
+## bh-courses — Lessons and Student Progress
+
+Lesson authoring moved off a fixed four-step-type metabox form onto the `BH_Content`/`BH_Studio` block canvas, and lessons render through `class-lesson-surface.php` — the second reference conversion alongside bh-crm's profile page. Student Progress (`admin.php?page=bhc-progress`) replaced an earlier version that could only show one seeded student — confirm its `bhcore_manage_students` capability fallback actually restricts access correctly for a non-admin instructor account, since that's the one part of this screen not fully verified. The course *catalog* preview, unlike the lesson page, is still the hardcoded mockup described in Part 3 — don't confuse "lessons are converted" with "the catalog is converted"; they're different surfaces at different states.
+
+---
+
+# Part 5 — bh-streaming and bh-monetization-woo (last)
+
+## bh-streaming
+
+Its catalog/library preview is the same kind of hardcoded mockup surface as bh-contest's, and should follow the same conversion pattern once bh-contest's conversion is proven out — not before. Separately, and unrelated to the style-surface work: the entire public player and most of its CPT admin submenus (Releases, Playlists, Feed Sources, Genres) vanish entirely whenever `wp_get_environment_type()` reports (or can't determine) anything other than local/development/staging, unless `BHS_FORCE_VISIBLE` is explicitly defined in `wp-config.php`. This is a real, confirmed-in-code gate, not a hypothetical — check this site's actual environment type and that constant before assuming streaming is visible to anyone. Metrics (`admin.php?page=bhs-metrics`) is a real, working dashboard (plays, skip-rate, a country breakdown approximated from `Accept-Language`, explicitly not real GeoIP) — no action needed there beyond knowing the country data is a rough signal, not precise.
+
+## bh-monetization-woo
+
+Monetization Settings (`admin.php?page=bhm-settings`) is a thin, mostly-complete status screen — warns if WooCommerce isn't active, otherwise reports Subscriptions status. Public storefront shortcodes (`[bhm_tiers]`, `[bhm_tip_jar]`, `[bhm_wallet]`) are implemented but checkout completion, refunds, and the fraud-pattern flagging haven't been traced through a live purchase — worth an actual test transaction rather than trusting the code read alone. This plugin is last in this guide's priority order because it has no style-surface mockup problem to fix and is inert without WooCommerce installed — nothing here blocks or depends on the Part 1–3 work above.
+
+---
+
+# Cross-cutting notes worth keeping in view
+
+Two menu items point at identical rendered output in two places (Design Suite/Designer both call `BHY_Gallery::render()`; CRM/People both call `BHCRM_People::render()`) — cosmetic redundancy, not a bug, but worth pruning once the higher-priority work above is done so QA passes aren't second-guessing whether a duplicate nav entry is a mistake. Registry Submissions and Monetization Settings both land under the "Own Ur Shit" menu rather than anything registry- or commerce-branded, because their `admin_menus` entries don't set a `parent` key — a discoverability issue worth a one-line fix whenever convenient, not urgent. Content Studio (`bh-studio`) has no menu entry by design and is meant to open as a modal from the Design Suite's Widgets & Elements tab — confirm that launcher still works given how much the Design Suite canvas has changed recently (iframe-to-shadow-DOM), since that's exactly the kind of change that could quietly break a modal launcher without anyone noticing until they go looking for it.

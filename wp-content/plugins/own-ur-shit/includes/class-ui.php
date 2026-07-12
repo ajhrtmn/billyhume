@@ -84,7 +84,22 @@ class BHY_UI {
             <label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label>
             <select id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>" data-custom-target="<?php echo esc_attr($key); ?>_custom">
                 <?php foreach (BHY_Style::FONT_OPTIONS as $name => $param): ?>
-                    <option value="<?php echo esc_attr($name); ?>" <?php selected($picked, $name); ?>><?php echo esc_html($name); ?></option>
+                    <?php
+                    // 3.4.49 follow-up — AJ's own ask: "would be cool if
+                    // the color and font selectors could preview what
+                    // they look like." An <option>'s font-family CAN be
+                    // styled inline (unlike a color swatch, which most
+                    // browsers ignore inside <option> — colors get a real
+                    // custom dropdown in the ELEMENT inspector instead,
+                    // see element-builder.js's renderStylePropertyField()
+                    // — this select is the separate, site-level Global
+                    // Styles font picker, a different control entirely).
+                    // Only cosmetically useful because enqueue_media()
+                    // (this file's own updated docblock) now also loads
+                    // the real webfont stylesheet on this admin page, not
+                    // just inside the canvas iframes as before.
+                    ?>
+                    <option value="<?php echo esc_attr($name); ?>" style="font-family:'<?php echo esc_attr($name); ?>', sans-serif;" <?php selected($picked, $name); ?>><?php echo esc_html($name); ?></option>
                 <?php endforeach; ?>
                 <option value="Custom" <?php selected($is_custom, true); ?>>Custom…</option>
             </select>
@@ -139,7 +154,28 @@ class BHY_UI {
                 overflow: hidden; min-height: 320px; position: relative;
                 box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
             }
-            .bhy-story-frame { width: 100%; height: 600px; max-height: 75vh; border: 0; display: none; }
+            .bhy-story-frame {
+                width: 100%; height: 600px; max-height: 75vh; border: 0; display: none;
+                /* 3.4.61 — real, live-confirmed regression from the no-
+                   iframes swap: "the Now Playing Bar is escaping the
+                   styles of its container and displaying on the full
+                   page." An iframe naturally contained position:fixed
+                   descendants to ITS OWN viewport — a shadow root inside
+                   a same-document div does NOT do this by default;
+                   position:fixed still resolves against the real page
+                   viewport unless some ancestor establishes a CSS
+                   "containing block" for fixed-position descendants
+                   (per spec: a transform, perspective, filter, or
+                   contain:layout/paint/strict/content). overflow:hidden
+                   ALONE (already set on .bhy-canvas above) does NOT do
+                   this — that was the gap. contain:layout here gives
+                   every shadow-hosted story\'s own position:fixed
+                   elements (bh-contest\'s now-playing bar being the first
+                   one that actually surfaced it) a real containing block
+                   again, restoring the exact visual containment an
+                   iframe used to give for free. */
+                contain: layout;
+            }
             .bhy-story-frame.active { display: block; }
             .bhy-empty { color: #888; padding: 40px; text-align: center; font-size: var(--bhy-text-base, 13px); }
             .bhy-controls {

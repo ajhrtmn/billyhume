@@ -2,11 +2,51 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.1.6
+ * Version:     3.2.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.2.1 — 2026-07-12 — task #80's real, safe slice: a genuinely new
+// 'header_extra' zone on the 'bh_contest_player' surface (class-element-
+// surface.php), landing INSIDE the header bar itself for the first time
+// — next to the brand/Results/Submit/Login/Logout buttons, not replacing
+// any of them. player.js's renderSkeleton() still builds the entire
+// required skeleton exactly as before (every this.q('.bh-results-btn')-
+// style lookup elsewhere in that file is completely untouched); the only
+// change is one new '.bh-header-extra' div that starts empty and is
+// filled, once, by a new injectHeaderExtra() reading class-auth.php's
+// base64-encoded real render_slot() output off a data attribute.
+// player.css's ':empty { display: none; }' rule means a contest with no
+// header_extra content renders byte-identical to before this pass.
+//
+// Deliberately still NOT touched: the header's own required buttons,
+// the tabs/tracklist/now-playing bar, and the auth/submit/results
+// modals — those stay exactly as risky to convert as WALKTHROUGH-
+// GUIDE.md already flags, unchanged by this pass. This is a real,
+// additive step forward, not a reversal of that caution.
+
+// 3.2.0 — 2026-07-12 — bh-contest's first real BH_Element surface (AJ
+// named this plugin the litmus test for real content/component/widget
+// authoring — see class-element-surface.php's own docblock for the full
+// scope reasoning). New 'bh_contest_player' surface, two slots
+// ('before_player'/'after_player'), rendered server-side in class-
+// auth.php's [bh_contest_player] shortcode as real siblings of the
+// player's own JS-owned mount div — NOT inside it, since player.js
+// rebuilds that div's entire innerHTML on load and would silently wipe
+// anything placed inside it.
+//
+// Deliberately NOT converted this pass: the player's actual interactive
+// skeleton (header/tabs/tracklist/now-playing bar/auth+submit modals,
+// assets/js/player.js's renderSkeleton()) — every other method in that
+// file depends on that exact markup via this.q('.bh-results-btn')-style
+// lookups for auth-state, voting, and playback. Turning that into
+// BH_Element placements safely means guaranteeing every placement always
+// emits those exact required classes, which is real, live-breaking risk
+// to take on with no browser available this session to verify against.
+// Flagged in WALKTHROUGH-GUIDE.md as real follow-up work, not silently
+// deferred.
 
 // 3.1.3 — real bug fix: Live Console's contest-picker dropdown threw
 // "Sorry, you are not allowed to access this page." on selection. Root
@@ -50,7 +90,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.1.6');
+define('BH_VER',        '3.2.0');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
@@ -59,7 +99,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'portal-panel'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -139,6 +179,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Admin', 'init']);
     add_action('init',          ['BH_CRMIntegration', 'init']);
     add_action('init',          ['BH_StyleSurfaces', 'init']);
+    add_action('init',          ['BH_ElementSurface', 'init']);
     add_action('init',          ['BH_Console', 'init']);
     add_action('init',          ['BH_Reveal', 'init']);
     add_action('init',          ['BH_Discord', 'init']);

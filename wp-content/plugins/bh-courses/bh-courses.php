@@ -2,11 +2,34 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.6
+ * Version:     0.4.8
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.8 — 2026-07-12 — SOLID/SRP QA pass on class-render.php: a single
+// 589-line class was rendering the catalog, the course detail page, AND
+// the lesson step-walker/quiz UI — three genuinely separate concerns.
+// Split into new class-render-catalog.php (BHC_Render_Catalog),
+// class-render-course.php (BHC_Render_Course), and class-render-lesson.php
+// (BHC_Render_Lesson) — pure moves, byte-for-byte identical logic, no
+// behavior change. BHC_Render itself (class-render.php) is now a thin
+// coordinator: shortcode/hook registration, asset enqueueing, and one-
+// line delegating wrappers for render_catalog()/render_course()/
+// render_lesson_steps()/render_quiz_review() — every existing external
+// call site (class-test-suite.php, templates/archive-bh_course.php,
+// this file's own the_content filter) keeps working with ZERO changes.
+// render_continue_cta() (shared between the catalog card and the course
+// header) now lives on BHC_Render_Course as a public method, with
+// BHC_Render_Catalog calling across to it — see that file's own
+// docblock for why it wasn't split into a fourth shared-helper class for
+// one method. Grepped every BHC_Render:: reference in the plugin before
+// and after to confirm nothing else needed updating. Brace-balance-
+// checked on all four files; NOT runtime-verified — no live PHP/
+// WordPress execution available this pass, needs a real page load
+// (catalog, a course page, a lesson) to confirm the split behaves
+// identically before trusting it fully.
 
 // 0.4.2 — BHC_TestSuite gained real DB-backed coverage for quiz answer
 // storage (mark_step_complete()/stored_answers() round-trip, latest-
@@ -126,7 +149,26 @@ if (!defined('ABSPATH')) exit;
 // reorganization pass. No functional change to this plugin itself.
 // Standing caveat: reasoning/brace-balance-checked only, not run against
 // a real WordPress+MySQL install.
-define('BHC_VER',  '0.4.6');
+// 0.4.7 — 2026-07-12 — DESIGN-SUITE-UNIFICATION-PLAN.md: bh-courses'
+// first-ever BH_Element surface, closing the gap flagged in that doc's
+// latest status note ("bh-courses surveyed, zero BH_Element integration
+// exists"). New class-lesson-surface.php (BHC_LessonSurface) registers
+// 'bh_courses_lesson' — ONE 'root' slot (not several framework-chosen
+// zones — learned directly from CRM's own 1.1.2 → 1.3.3 mistake of
+// shipping three slots and having to collapse them later; lessons start
+// at one). Context is per-LESSON (surface_context_id = the bh_lesson
+// post ID), matching how a lesson's own step content already works.
+// class-render.php's render_lesson_steps() gained one new render_slot()
+// call, appended once after the existing step-walker output (not
+// duplicated per step) — an optional "below the lesson" area, empty and
+// invisible until AJ actually places something there via the Design
+// Suite. Additive only: the pre-existing BH_Studio/BH_Content-authored
+// step content (text/image/video/quiz, 0.3.0) is completely untouched —
+// this is a new area, not a replacement. Standing caveat: reasoning/
+// brace-balance-checked only, no live PHP/MySQL/WordPress execution
+// available this session — not yet runtime-verified that the new slot
+// actually renders and is editable end-to-end in the Design Suite.
+define('BHC_VER',  '0.4.8');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
@@ -149,7 +191,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render', 'style-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -169,6 +211,16 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
+    // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
+    // then 1" ordering (3 = data-binding v1, 2 = Gutenberg block, both
+    // already shipped in own-ur-shit 3.4.46/3.4.47). First real
+    // BH_Element surface this plugin has ever registered — see class-
+    // lesson-surface.php's own docblock for the full reasoning. Same
+    // "harmless no-op otherwise" guard every other optional integration
+    // in this bootstrap uses.
+    if (class_exists('BH_Element')) {
+        add_filter('bh_element_surfaces', ['BHC_LessonSurface', 'register_element_surface']);
+    }
     add_action('init', ['BHC_CrmIntegration', 'init']);
     add_action('init', ['BHC_ProgressAdmin', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);

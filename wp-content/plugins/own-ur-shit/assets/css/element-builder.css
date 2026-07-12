@@ -391,3 +391,70 @@
     padding: 10px 14px; border-bottom: 1px solid #dcdcde; background: #f6f7f7;
 }
 .bhel-studio-modal-frame { flex: 1; border: 0; width: 100%; }
+
+/* Color-token custom dropdown (element-builder.js's buildColorTokenPopup(),
+ * 3.4.49 follow-up) — real swatches next to each option, something a
+ * native <select><option> can't render. Trigger button mirrors a plain
+ * <select>'s own sizing/border so swapping it in for the hidden native
+ * select (token-only style fields only) doesn't shift layout. */
+.bhel-color-select { position: relative; display: inline-block; }
+.bhel-color-select-trigger {
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    padding: 4px 8px; border: 1px solid #8c8f94; border-radius: 4px;
+    background: #fff; cursor: pointer; font-size: 12px; line-height: 1.4;
+}
+.bhel-color-select-trigger:hover { border-color: #646970; }
+.bhel-color-swatch {
+    display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+    border: 1px solid rgba(0,0,0,.2); flex: 0 0 auto;
+}
+.bhel-color-select-label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bhel-color-select-popup {
+    position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 10;
+    max-height: 240px; overflow-y: auto;
+    background: #fff; border: 1px solid #8c8f94; border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18);
+}
+.bhel-color-select-row {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 6px 8px; border: 0; background: none; cursor: pointer;
+    font-size: 12px; text-align: left;
+}
+.bhel-color-select-row:hover { background: #f0f0f1; }
+
+/* Read-only markup outline tree (element-builder.js's renderDemoOutline())
+ * — a demo-only Live View has no real placement data to edit, but AJ's
+ * own direct ask was to still have SOMETHING tree-shaped to navigate; this
+ * is a client-parsed DOM outline of whatever's currently in the canvas
+ * (a same-document shadow-root story now, not an iframe — see class-
+ * style-gallery.php's render_canvas() comment), clickable to
+ * scroll+highlight, structure never editable. Clicking a row ALSO opens
+ * .bhel-outline-style-panel below (renderDemoOutline()'s renderStylePanel())
+ * for session-only, non-persisted live style edits on that one element. */
+.bhel-outline-tree { font-size: 12px; background: #fff; border-radius: 4px; padding: 4px; }
+.bhel-outline-children { margin-left: 14px; padding-left: 8px; border-left: 1px solid #dcdcde; }
+.bhel-outline-row { display: flex; }
+.bhel-outline-label {
+    display: block; width: 100%; border: 0; background: none; cursor: pointer; padding: 3px 6px;
+    font-family: Consolas, Monaco, monospace; font-size: 11px; color: #2c3338;
+    text-align: left; border-radius: 3px; transition: background .12s ease, color .12s ease;
+}
+.bhel-outline-label:hover { background: #f0f0f1; color: #2271b1; }
+.bhel-outline-style-panel { margin-top: 16px; padding-top: 12px; border-top: 1px solid #dcdcde; }
+.bhel-outline-style-panel .bhel-field-row { margin-bottom: 8px; }
+.bhel-outline-style-panel input[type=text] { width: 100%; }
+.bhel-outline-style-panel button { margin-top: 4px; }
+
+/* "On click" actions + Custom JS (renderActionsSection(), element-builder.js)
+ * — same visual language as the rest of the inspector (.bhel-field-row,
+ * .bhel-style-group), not a third one-off pattern. */
+.bhel-actions-section { margin-top: 8px; }
+.bhel-action-row {
+    display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+    padding: 6px; margin-bottom: 6px; background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 4px;
+}
+.bhel-action-row select, .bhel-action-row input[type=text] { flex: 1 1 100px; min-width: 0; }
+.bhel-action-remove {
+    border: 0; background: none; cursor: pointer; color: #a7222c; font-size: 13px; padding: 2px 6px;
+}
+.bhel-action-remove:hover { background: #fbeaea; border-radius: 3px; }

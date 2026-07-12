@@ -300,6 +300,55 @@
     // contract that page already listens for — a Surface/Slot selection
     // is bucketed as 'placement' (i.e. "show this file's own inspector
     // column, not Global Styles"), since neither has global-style content.
+    // AJ's own ask: "the whole thing should save your state and pick up
+    // where you left off when you come back." A plain localStorage
+    // mirror of state.selection — the ONE shape every select*() function
+    // already funnels through (this function's own docblock), so this is
+    // one write site, not one per selection-changing call. Guarded by
+    // persistenceReady so the boot-time default fireSelectionEvent(true)
+    // call (a few lines below, before any restore attempt has happened)
+    // never clobbers a real saved selection from a PREVIOUS session with
+    // today's fresh-page-load default of {type:'site'}.
+    var SELECTION_STORAGE_KEY = 'bhelDesignSuiteSelection';
+    var persistenceReady = false;
+    function saveSelectionState() {
+        if (!persistenceReady) return;
+        try { localStorage.setItem(SELECTION_STORAGE_KEY, JSON.stringify(state.selection)); } catch (e) { /* private browsing / storage disabled — just don't persist, never break selection itself over this */ }
+    }
+    // Called once, after surfaces/placements have actually loaded (see
+    // the api('surfaces') boot sequence below) — restoring a 'surface'/
+    // 'slot'/'placement' selection any earlier would target data that
+    // doesn't exist in state yet. Returns true if something was actually
+    // restored, so the caller knows whether to fall back to the default
+    // Site selection.
+    function restoreSelectionState() {
+        var saved;
+        try {
+            var raw = localStorage.getItem(SELECTION_STORAGE_KEY);
+            if (!raw) return false;
+            saved = JSON.parse(raw);
+        } catch (e) { return false; }
+        if (!saved || !saved.type) return false;
+
+        if (saved.type === 'site') { selectSite(); return true; }
+        if (saved.type === 'surface' && state.surfaces[saved.surface]) { selectSurface(saved.surface); return true; }
+        if (saved.type === 'slot' && state.surfaces[saved.surface]) { selectSlot(saved.surface, saved.slot); return true; }
+        if (saved.type === 'placement' && state.surfaces[saved.surface]) {
+            selectPlacementNode({ surface: saved.surface, slot: saved.slot, contextId: saved.contextId }, saved.idx);
+            return true;
+        }
+        // 'demo' selections aren't restorable from here — they depend on
+        // which .bhy-story-btn was last active, a DOM/state concept that
+        // lives entirely in class-style-gallery.php's own script, not
+        // this file's state.surfaces. That file persists/restores its
+        // own last-active story button independently (see its own
+        // render_script() comment) and re-dispatches 'bhel:select-surface'
+        // on restore, which is exactly the same event a real click would
+        // fire — so a restored demo selection still ends up correct, just
+        // driven from the other side of that same existing boundary.
+        return false;
+    }
+
     function fireSelectionEvent(isSite) {
         // 3.4.38 — detail.surface carries the currently-selected node's
         // surface slug (undefined for the Site node, which has none) so
@@ -312,6 +361,7 @@
         // contract unchanged (see this function's own comment above) —
         // this only adds a new key, never changes the existing one.
         document.dispatchEvent(new CustomEvent('bhel:selection', { detail: { type: isSite ? 'site' : 'placement', surface: isSite ? undefined : (state.selection && state.selection.surface) } }));
+        saveSelectionState();
     }
     function selectSite() {
         state.selection = { type: 'site' };
@@ -331,6 +381,34 @@
         renderCanvas();
         renderInspector();
     }
+
+    // The other half of class-style-gallery.php's story-button click
+    // handler (its own updated comment has the full "why" — direct,
+    // live-confirmed feedback that clicking a Live View updated the
+    // canvas but left the tree/inspector showing a stale, unrelated
+    // selection). When the clicked story's surface slug IS a real
+    // registered BH_Element surface, select its matching tree node for
+    // real. Otherwise (a hand-authored demo-only mockup — bh-contest,
+    // bh-streaming, the bh-courses catalog/lesson-step previews, etc.,
+    // none of which have a tree node at all) this now explicitly clears
+    // to the 'demo' inspector state (renderInspector()'s own new
+    // branch) instead of silently leaving whatever was selected before
+    // — a second round of live feedback confirmed the stale-inspector
+    // case specifically ("still not doing what it's supposed to"),
+    // distinct from the earlier fix that only handled the real-surface
+    // half of this.
+    document.addEventListener('bhel:select-surface', function (ev) {
+        var slug = ev.detail && ev.detail.surface;
+        if (!slug) return;
+        if (state.surfaces[slug]) {
+            selectSurface(slug);
+            return;
+        }
+        var label = ev.detail && ev.detail.label;
+        state.selection = { type: 'demo', label: label };
+        fireSelectionEvent(false);
+        renderInspector();
+    });
     function selectPlacementNode(loc, idx) {
         state.selection = { type: 'placement', surface: loc.surface, slot: loc.slot, contextId: loc.contextId, idx: idx };
         fireSelectionEvent(false);
@@ -343,6 +421,18 @@
     /* ---------------- location / data-store helpers (3.4.37) ---------------- */
     function slotDataKey(surface, contextId) { return surface + ' ' + (contextId || 0); }
     function dirtyKey(loc) { return loc.surface + ' ' + (loc.contextId || 0) + ' ' + loc.slot; }
+    // DRY pass: every inspector field handler needs the exact same two-
+    // step "mark this (surface, context, slot) dirty, then debounce a
+    // live-canvas preview" sequence — 3.4.49's own live-preview wiring
+    // pasted markLocDirty(loc);
+    // at ~20 separate call sites instead of naming it once. Named here;
+    // schedulePreviewUpdate is defined further down this file (near
+    // markDirty()) but that's fine — plain function declarations are
+    // hoisted within this IIFE's scope, so source order doesn't matter.
+    function markLocDirty(loc) {
+        state.dirtyKeys[dirtyKey(loc)] = true;
+        schedulePreviewUpdate(loc);
+    }
     function getSurfaceSlotMap(surface, contextId) {
         var k = slotDataKey(surface, contextId);
         if (!state.slotData[k]) state.slotData[k] = {};
@@ -420,6 +510,14 @@
         });
         Promise.all(loads).then(function () {
             setStatus('Loaded ' + slugs.length + ' surface(s).', 'ok');
+            // Real placement data now exists in state — safe to attempt
+            // restoring a saved 'surface'/'slot'/'placement' selection.
+            // persistenceReady flips true regardless of whether a saved
+            // selection actually existed/matched, so every selection
+            // change FROM this point on gets persisted for next time.
+            var restored = restoreSelectionState();
+            persistenceReady = true;
+            if (!restored) saveSelectionState(); // nothing to restore — persist today's default ({type:'site'}) so it's there next load
             renderCanvas();
             renderInspector();
         });
@@ -693,7 +791,7 @@
             enabled: true,
             parent_placement_id: parentId,
         });
-        state.dirtyKeys[dirtyKey(loc)] = true;
+        markLocDirty(loc);
         var idx = placements.length - 1;
         selectPlacementNode(loc, idx);
         setStatus('Added "' + type.label + '"' + (parentId ? (' as a child of #' + parentId) : ' at the slot root') + ' — click Save all changes to persist.', '');
@@ -908,7 +1006,7 @@
             items.push({ label: 'Save this subtree as a prefab…', action: function () { saveNodeAsPrefab(p.id); } });
         }
         items.push('-');
-        items.push({ label: p.enabled === false ? 'Enable' : 'Disable', action: function () { p.enabled = !(p.enabled !== false); state.dirtyKeys[dirtyKey(loc)] = true; renderCanvas(); } });
+        items.push({ label: p.enabled === false ? 'Enable' : 'Disable', action: function () { p.enabled = !(p.enabled !== false); markLocDirty(loc); renderCanvas(); } });
         return items;
     }
 
@@ -990,7 +1088,7 @@
         actions.appendChild(iconBtn('✕', p.enabled === false ? 'Enable' : 'Disable (no delete route — see file docblock)', function (e) {
             e.stopPropagation();
             p.enabled = !(p.enabled !== false);
-            state.dirtyKeys[dirtyKey(loc)] = true;
+            markLocDirty(loc);
             renderCanvas();
         }));
         card.appendChild(actions);
@@ -1038,7 +1136,7 @@
             if (state.selection.idx === idx) state.selection.idx = otherIdx;
             else if (state.selection.idx === otherIdx) state.selection.idx = idx;
         }
-        state.dirtyKeys[dirtyKey(loc)] = true;
+        markLocDirty(loc);
         renderCanvas();
     }
 
@@ -1085,7 +1183,7 @@
 
         select.addEventListener('change', function () {
             p.parent_placement_id = parseInt(select.value, 10) || 0;
-            state.dirtyKeys[dirtyKey(loc)] = true;
+            markLocDirty(loc);
             renderCanvas();
         });
         row.appendChild(select);
@@ -1106,6 +1204,35 @@
         if (sel.type === 'site') {
             inspectorEl.classList.remove('bhel-sheet-open');
             renderSiteInspector();
+            return;
+        }
+
+        // Live-confirmed feedback: picking a hand-authored demo-only
+        // Live View (bh-contest, the bh-courses catalog/lesson-step
+        // mockups, etc. — never a real registered BH_Element surface)
+        // left the inspector showing whatever placement happened to be
+        // selected before, completely unrelated to what the canvas now
+        // showed — "still not doing what it's supposed to." The
+        // 'bhel:select-surface' listener below now explicitly clears to
+        // THIS state for exactly that case, instead of silently leaving
+        // the previous selection stale. This is the honest answer, not
+        // a deeper fix pretending these mockups are editable — they
+        // aren't; see DESIGN-SUITE-UNIFICATION-PLAN.md's own "no
+        // special-cased pages" status notes for why some surfaces still
+        // don't have a real node-tree presence yet.
+        if (sel.type === 'demo') {
+            // The read-only structure tree lives in the left rail's
+            // "Live view markup" section now (same as the real Structure
+            // tree above it — renderDemoOutline() below just fills that
+            // mount), the exact same way every other kind of tree in this
+            // app already lives in the rail, not the inspector. The style
+            // panel for whatever's currently selected in that tree stays
+            // right here, same as it does for a real placement.
+            inspectorEl.classList.remove('bhel-sheet-open');
+            inspectorEl.appendChild(el('h3', null, sel.label || 'Style preview'));
+            inspectorEl.appendChild(el('p', 'bhel-empty',
+                'This is a style-only preview, not an editable Design Suite page — nothing here is backed by real placement data. Browse its markup in the "Live view markup" tree in the left rail; clicking a row there styles it below.'));
+            renderDemoOutline();
             return;
         }
 
@@ -1187,6 +1314,7 @@
         }
 
         renderStyleAdvancedSection(p, loc);
+        renderActionsSection(p, loc);
         renderHtmlAttrsSection(p, type, loc);
         renderParentField(loc, placements, p);
 
@@ -1195,7 +1323,7 @@
         var cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = p.enabled !== false;
-        cb.addEventListener('change', function () { p.enabled = cb.checked; state.dirtyKeys[dirtyKey(loc)] = true; renderCanvas(); });
+        cb.addEventListener('change', function () { p.enabled = cb.checked; markLocDirty(loc); renderCanvas(); });
         var cbLabel = document.createElement('label');
         cbLabel.style.display = 'inline-flex';
         cbLabel.style.alignItems = 'center';
@@ -1204,6 +1332,249 @@
         cbLabel.appendChild(document.createTextNode('Renders on the live surface'));
         enabledRow.appendChild(cbLabel);
         inspectorEl.appendChild(enabledRow);
+    }
+
+    /**
+     * AJ's own direct follow-up chain: "can we still have 'trees' for
+     * the plugin live views?" (structure — done, read-only, see the
+     * outline this builds), then "the read only tree should be for
+     * structure of the thing only, we still need to edit the styles of
+     * each thing." This is that second half: clicking an outline row now
+     * ALSO opens a style panel for that exact element, reusing the same
+     * property set the real per-placement inspector already exposes
+     * (background/text color via the color-token popup, padding,
+     * border-radius, font-size) rather than inventing a second set of
+     * controls.
+     *
+     * Honest scope line, stated up front rather than discovered later:
+     * these mockups have NO backing placement data (no
+     * bhcore_element_placements row, no surface/slot/context), so there
+     * is nowhere real to PERSIST a per-element override to. This panel
+     * writes directly to the target element's own inline `style` inside
+     * the iframe, live — genuinely useful for visually trying something
+     * out against the real markup/theme — but it resets the moment the
+     * page reloads. A real, PERSISTED version of this is a bigger,
+     * separate feature (effectively: give every hand-authored demo
+     * surface a real BH_Element registration, the same "no special-cased
+     * pages" migration CRM/LMS lessons already got) — not something to
+     * quietly half-build under a different name here. The panel's own
+     * heading says "session-only" so this is never mistaken for a real
+     * save.
+     */
+    function renderDemoOutline() {
+        // No-iframes build — each .bhy-story-frame is now a same-document
+        // div carrying its own attachShadow({mode:'open'}) root (see
+        // class-style-gallery.php's render_canvas()/render_script() for
+        // the server/client halves of that swap). A ShadowRoot exposes
+        // the same querySelectorAll()/getElementById() API a real
+        // Document does, but has no .body wrapper — its style/link/
+        // content nodes sit as flat top-level children instead, handled
+        // by buildInto()'s own root-iteration below.
+        var frame = document.querySelector('.bhy-story-frame.active');
+        var doc = frame && frame.shadowRoot;
+
+        // AJ's own correction, right after the last pass: the TREE moves
+        // into the left rail (#bhy-rail-demo-outline-section,
+        // class-style-gallery.php's render_left_rail()) — same as the
+        // real Structure tree already does, nothing special. The STYLE
+        // PANEL stays right here in the inspector, same as every other
+        // selection's controls — clicking a rail row selects + highlights
+        // the element and opens ITS style panel over here, it does not
+        // also relocate the panel itself into the rail.
+        var railSection = document.getElementById('bhy-rail-demo-outline-section');
+        var railMount = document.getElementById('bhy-rail-demo-outline-mount');
+        if (railMount) railMount.innerHTML = '';
+        if (railSection) railSection.style.display = 'none';
+        if (!doc || !railMount) return;
+
+        var stylePanel = el('div', 'bhel-outline-style-panel');
+        inspectorEl.appendChild(el('h3', null, 'Style selected element'));
+        inspectorEl.appendChild(el('p', 'bhel-empty', 'Select an element in the left rail\'s outline to style it here.'));
+        inspectorEl.appendChild(stylePanel);
+
+        var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, LINK: 1, META: 1, NOSCRIPT: 1 };
+
+        function nodeLabel(elNode) {
+            var label = elNode.tagName.toLowerCase();
+            if (elNode.id) label += '#' + elNode.id;
+            if (elNode.className && typeof elNode.className === 'string' && elNode.className.trim()) {
+                label += '.' + elNode.className.trim().split(/\s+/).slice(0, 2).join('.');
+            }
+            return label;
+        }
+
+        function highlight(target) {
+            doc.querySelectorAll('.bhel-outline-highlight').forEach(function (n) { n.classList.remove('bhel-outline-highlight'); });
+            target.classList.add('bhel-outline-highlight');
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { target.classList.remove('bhel-outline-highlight'); }, 1500);
+        }
+
+        // Direct-to-inline-style controls — NOT the same code path as
+        // renderStylePropertyField() (that one writes to
+        // p.config.style/a real placement and round-trips through
+        // BHY_Style::resolve_style_value() server-side); this is a much
+        // dumber, purely client-side "set this CSS property on this one
+        // live DOM node" — same property VOCABULARY (background, text
+        // color, padding, radius, font size) for a consistent feel, but
+        // a genuinely different, session-only mechanism, since there's
+        // no server-side placement for it to resolve against.
+        var STYLE_FIELDS = [
+            { key: 'backgroundColor', label: 'Background color', type: 'color' },
+            { key: 'color', label: 'Text color', type: 'color' },
+            { key: 'padding', label: 'Padding', type: 'text', placeholder: 'e.g. 12px or 8px 16px' },
+            { key: 'borderRadius', label: 'Border radius', type: 'text', placeholder: 'e.g. 8px' },
+            { key: 'fontSize', label: 'Font size', type: 'text', placeholder: 'e.g. 16px' },
+        ];
+
+        // AJ's own direct follow-up on top of the Background/Color/
+        // Padding/etc. fixed vocabulary above: "add arbitrary class names
+        // and custom CSS to things as needed" — not every useful tweak
+        // has its own dedicated field (a hover state, a pseudo-element, a
+        // property not in STYLE_FIELDS). These two give an escape hatch
+        // without trying to enumerate every CSS property one input at a
+        // time:
+        //  - "Add CSS class(es)" appends whatever space-separated
+        //    class(es) already exist on the element in the surface's own
+        //    real stylesheet (a class this outline can SEE via
+        //    nodeLabel() but this panel doesn't have to know what it
+        //    does) — genuinely useful for e.g. toggling a ".is-active"/
+        //    ".dark" variant class a stylesheet already defines.
+        //  - "Custom CSS" is a raw `property: value; property: value;`
+        //    textarea applied via target.style.cssText (append, not
+        //    replace, so it composes with the fixed fields above rather
+        //    than fighting them) — same session-only, DOM-only, nothing-
+        //    to-persist-to caveat as everything else in this panel.
+        function renderStylePanel(target) {
+            stylePanel.innerHTML = '';
+            stylePanel.appendChild(el('h3', null, 'Style this element (session-only, not saved)'));
+            stylePanel.appendChild(el('p', 'bhel-empty', 'Live edits below apply directly to this exact element in the preview — nothing here persists past a page reload. There is no real placement behind a demo mockup to save these to (see this panel\'s own code comment for what a real, persisted version of this would take).'));
+
+            STYLE_FIELDS.forEach(function (field) {
+                var row = el('div', 'bhel-field-row');
+                row.appendChild(el('label', null, field.label));
+                var input = document.createElement('input');
+                input.type = field.type;
+                if (field.placeholder) input.placeholder = field.placeholder;
+                var current = target.style[field.key];
+                if (field.type === 'color') {
+                    input.value = current || '#000000';
+                } else {
+                    input.value = current || '';
+                }
+                input.addEventListener('input', function () {
+                    target.style[field.key] = input.value;
+                });
+                row.appendChild(input);
+                stylePanel.appendChild(row);
+            });
+
+            var classRow = el('div', 'bhel-field-row');
+            classRow.appendChild(el('label', null, 'Add CSS class(es)'));
+            var classInput = document.createElement('input');
+            classInput.type = 'text';
+            classInput.placeholder = 'e.g. is-active dark';
+            classInput.value = target.className && typeof target.className === 'string' ? target.className : '';
+            classInput.addEventListener('change', function () {
+                target.className = classInput.value.trim();
+            });
+            classRow.appendChild(classInput);
+            stylePanel.appendChild(classRow);
+
+            var cssRow = el('div', 'bhel-field-row');
+            cssRow.appendChild(el('label', null, 'Custom CSS'));
+            var cssArea = document.createElement('textarea');
+            cssArea.rows = 4;
+            cssArea.placeholder = 'e.g. text-transform: uppercase; letter-spacing: .05em;';
+            cssArea.value = target.dataset.bhelCustomCss || '';
+            cssArea.addEventListener('input', function () {
+                target.dataset.bhelCustomCss = cssArea.value;
+                // Rebuild style.cssText from the fixed fields above PLUS
+                // this raw block, rather than just appending on every
+                // keystroke — appending on every keystroke would pile up
+                // a duplicate declaration per keystroke instead of
+                // replacing the previous custom-CSS contribution.
+                var fixedCss = '';
+                STYLE_FIELDS.forEach(function (field) {
+                    var val = target.style[field.key];
+                    if (val) fixedCss += field.key.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }) + ':' + val + ';';
+                });
+                target.style.cssText = fixedCss + cssArea.value;
+            });
+            cssRow.appendChild(cssArea);
+            stylePanel.appendChild(cssRow);
+
+            var resetBtn = el('button', 'button', 'Reset this element\'s style');
+            resetBtn.type = 'button';
+            resetBtn.addEventListener('click', function () {
+                target.style.cssText = '';
+                delete target.dataset.bhelCustomCss;
+                renderStylePanel(target);
+            });
+            stylePanel.appendChild(resetBtn);
+        }
+
+        function selectNode(target) {
+            highlight(target);
+            renderStylePanel(target);
+        }
+
+        // Shared by both mounts (inspector + left rail) so there's one
+        // tree-building code path, not two copies that could drift —
+        // AJ's own ask was to show the SAME read-only tree in both
+        // places, both wired to the SAME highlight/style-panel behavior,
+        // not a second parallel tree implementation.
+        function buildInto(container) {
+            var nodeBudget = { n: 400 };
+
+            function build(elNode, depth) {
+                if (depth > 8 || nodeBudget.n <= 0) return null;
+                var children = [];
+                elNode.childNodes.forEach(function (child) {
+                    if (child.nodeType !== 1 || SKIP_TAGS[child.tagName]) return;
+                    nodeBudget.n--;
+                    var built = build(child, depth + 1);
+                    if (built) children.push(built);
+                });
+
+                var row = el('div', 'bhel-outline-row');
+                var btn = el('button', 'bhel-outline-label', nodeLabel(elNode));
+                btn.type = 'button';
+                // Was `highlight(elNode)` only — clicking a row scrolled/
+                // flashed the element but never actually opened the style
+                // panel, silently leaving "style each thing" unreachable
+                // by click. selectNode() does both.
+                btn.addEventListener('click', function () { selectNode(elNode); });
+                row.appendChild(btn);
+
+                var wrap = el('div', 'bhel-outline-node');
+                wrap.appendChild(row);
+                if (children.length) {
+                    var kids = el('div', 'bhel-outline-children');
+                    children.forEach(function (c) { kids.appendChild(c); });
+                    wrap.appendChild(kids);
+                }
+                return wrap;
+            }
+
+            // A ShadowRoot has no single .body root element to hand
+            // build() the way a real Document did — its content nodes are
+            // flat top-level children (head's style/link tags + body's
+            // real markup, appended side-by-side by render_script()'s
+            // shadow-attach code). Build each one as its own top-level
+            // outline row instead of assuming exactly one wrapper element
+            // exists.
+            doc.childNodes.forEach(function (child) {
+                if (child.nodeType !== 1 || SKIP_TAGS[child.tagName]) return;
+                nodeBudget.n--;
+                var built = build(child, 0);
+                if (built) container.appendChild(built);
+            });
+            if (nodeBudget.n <= 0) container.appendChild(el('p', 'bhel-empty', '(outline truncated — this preview\'s markup is larger than the outline shows)'));
+        }
+
+        buildInto(railMount);
+        if (railSection) railSection.style.display = '';
     }
 
     // A Slot node's own inspector content: a plain label plus, per this
@@ -1438,11 +1809,106 @@
     function markDirty() {
         var sel = state.selection;
         if (sel.type !== 'placement') return;
-        state.dirtyKeys[dirtyKey({ surface: sel.surface, slot: sel.slot, contextId: sel.contextId })] = true;
+        markLocDirty({ surface: sel.surface, slot: sel.slot, contextId: sel.contextId });
     }
     function markDirtyAndRerenderInspector() {
         markDirty();
         renderInspector();
+    }
+
+    /**
+     * Real live-canvas preview, wired to the ALREADY-EXISTING `POST
+     * /elements/preview` route (`BH_Element::rest_preview()`) — that
+     * route was built specifically for this (its own docblock literally
+     * says "return rendered HTML for the live canvas") but was never
+     * actually called from anywhere in this file. Direct response to a
+     * live screenshot: an edited-but-unsaved field showed nothing in the
+     * canvas at all — confirmed as a real, never-wired gap, not a
+     * caching issue. Debounced (400ms after the last edit) rather than
+     * firing on every keystroke, same restraint every other REST-backed
+     * field in this file already shows.
+     *
+     * Scope, honestly: patches ONE placement's own rendered wrapper in
+     * place inside whichever `.bhy-story-frame` iframe matches the
+     * current surface (class-style-gallery.php's canvas — a deliberate
+     * cross-file DOM coupling, same as that file's own `bhel:selection`
+     * listener reaching back the other way). A SAVED placement (real id)
+     * is found by its existing `data-placement-id` and outerHTML-
+     * replaced. A brand-new, still-unsaved placement (id <= 0, "Note ·
+     * unsaved" in the tree) has no existing DOM node to patch — it's
+     * inserted at the end of its slot's `.bh-element-slot` container
+     * instead, tagged with a synthetic `data-bhel-preview-key` (assigned
+     * once, stored on the in-memory placement object) so a SECOND edit
+     * finds and replaces that same temp node rather than appending a
+     * duplicate. Known, accepted v1 limitation: if more than one
+     * unsaved-new sibling placement is being live-previewed at once,
+     * only the currently-selected one's `data-bhel-preview-key` is ever
+     * assigned/tracked — not a correctness risk (nothing writes to the
+     * DB here), just a cosmetic edge case not worth the extra bookkeeping
+     * this pass.
+     */
+    var previewDebounceTimer = null;
+    function schedulePreviewUpdate(loc) {
+        clearTimeout(previewDebounceTimer);
+        previewDebounceTimer = setTimeout(function () { applyLivePreview(loc); }, 400);
+    }
+    function applyLivePreview(loc) {
+        var placements = getPlacementsArray(loc);
+        var sel = state.selection;
+        if (sel.type !== 'placement') return;
+        var p = placements[sel.idx];
+        if (!p) return;
+
+        // 'preview', NOT '/elements/preview' — cfg.restUrl already ends in
+        // '.../ous/v1/elements/' (class-element-builder.php's own
+        // wp_localize_script() call), same base every OTHER api() call in
+        // this file already relies on (see e.g. api('surfaces'),
+        // api('site-tokens'), and the pre-existing api('preview', ...)
+        // bind-field preview call a few hundred lines below this one,
+        // which got the path right). The leading-slash version silently
+        // 404'd (caught by this function's own catch(){} and swallowed
+        // with zero visible error) — confirmed via live screenshot as a
+        // second, embarrassingly simple bug layered on top of the two
+        // real ones already fixed this pass.
+        api('preview', {
+            method: 'POST',
+            body: { element_type: p.element_type, config: p.config, content_context_id: p.content_context_id || 0, ctx: {} },
+        }).then(function (res) {
+            if (!res || typeof res.html !== 'string') return;
+            // No-iframes build — same-document div + shadow root now,
+            // not an iframe (see class-style-gallery.php's render_canvas()
+            // comment); shadowRoot exposes the same querySelector() API
+            // contentDocument did, so this patch logic is unchanged below.
+            var frame = document.querySelector('.bhy-story-frame[data-surface="' + loc.surface + '"]');
+            var doc = frame && frame.shadowRoot;
+            if (!doc) return; // no matching live story for this surface, or shadow root not yet attached — nothing to patch, not an error
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = res.html;
+            var fresh = wrapper.firstElementChild;
+            if (!fresh) return;
+
+            var isSaved = p.id && p.id > 0;
+            var existing = isSaved
+                ? doc.querySelector('[data-placement-id="' + p.id + '"]')
+                : (p.__previewKey ? doc.querySelector('[data-bhel-preview-key="' + p.__previewKey + '"]') : null);
+
+            if (existing) {
+                if (!isSaved) fresh.setAttribute('data-bhel-preview-key', p.__previewKey);
+                existing.replaceWith(fresh);
+            } else if (!isSaved) {
+                p.__previewKey = p.__previewKey || 'temp-' + Math.random().toString(36).slice(2);
+                fresh.setAttribute('data-bhel-preview-key', p.__previewKey);
+                var slotEl = doc.querySelector('.bh-element-slot[data-surface="' + loc.surface + '"][data-slot="' + loc.slot + '"]');
+                if (slotEl) slotEl.appendChild(fresh);
+                // no matching slot element in this story's markup (e.g. a
+                // hand-authored mockup that never called render_slot() for
+                // this exact slot) — nothing safe to append to, skip.
+            }
+            // isSaved && !existing: the saved placement's story doesn't
+            // render this slot at all (same "no matching slot markup"
+            // case) — nothing to patch, silently a no-op.
+        }).catch(function () {}); // preview is best-effort UX sugar — a failed preview call never blocks editing or the real save path
     }
 
     function renderLiteralField(row, p, key, def, value) {
@@ -1614,7 +2080,7 @@
                 p.config.style[token] = text.value.trim();
                 if (!p.config.style[token]) delete p.config.style[token];
                 swatch.style.background = text.value.trim() || '#f6f7f7';
-                state.dirtyKeys[dirtyKey(loc)] = true;
+                markLocDirty(loc);
             }
             text.addEventListener('input', sync);
             picker.addEventListener('input', function () { text.value = picker.value; sync(); });
@@ -1646,7 +2112,7 @@
             range.addEventListener('input', function () {
                 span2.textContent = range.value;
                 p.config.style[token] = range.value;
-                state.dirtyKeys[dirtyKey(loc)] = true;
+                markLocDirty(loc);
             });
             row.appendChild(range);
             inspectorEl.appendChild(row);
@@ -1702,6 +2168,247 @@
             details.appendChild(body);
             wrap.appendChild(details);
         });
+
+        // AJ's own ask: "add arbitrary class names and custom CSS to
+        // things as needed" — extended here to real, PERSISTED
+        // placements too (the demo-mockup version of this same idea is
+        // session-only/DOM-only, see renderDemoOutline()'s own comment;
+        // this one is the real thing — p.config.style.custom_class/
+        // custom_css round-trip through the normal save path exactly
+        // like every other style field above, and class-element.php's
+        // wrap_placement_html() reads them at render time so they apply
+        // on the real front-end too, not just this live preview). Kept
+        // in the inspector alongside the rest of this element's real
+        // style controls rather than also duplicated into the rail —
+        // splitting one element's style controls across two panels would
+        // be a worse UX than what's here, not a better one.
+        var customDetails = document.createElement('details');
+        customDetails.className = 'bhel-style-group';
+        if (p.config.style.custom_class || p.config.style.custom_css) customDetails.open = true;
+        var customSummary = document.createElement('summary');
+        customSummary.className = 'bhel-style-group-title';
+        customSummary.textContent = 'Custom class / CSS' + ((p.config.style.custom_class || p.config.style.custom_css) ? ' •' : '');
+        customDetails.appendChild(customSummary);
+
+        var customBody = el('div', 'bhel-style-group-body');
+
+        var classRow = el('div', 'bhel-field-row');
+        classRow.appendChild(el('label', null, 'Extra CSS class(es)'));
+        var classInput = document.createElement('input');
+        classInput.type = 'text';
+        classInput.placeholder = 'e.g. is-featured dark';
+        classInput.value = p.config.style.custom_class || '';
+        classInput.addEventListener('change', function () {
+            var val = classInput.value.trim();
+            if (val) p.config.style.custom_class = val; else delete p.config.style.custom_class;
+            markLocDirty(loc);
+        });
+        classRow.appendChild(classInput);
+        customBody.appendChild(classRow);
+
+        var cssRow = el('div', 'bhel-field-row');
+        cssRow.appendChild(el('label', null, 'Custom CSS (inline)'));
+        var cssArea = document.createElement('textarea');
+        cssArea.rows = 4;
+        cssArea.placeholder = 'e.g. text-transform: uppercase; letter-spacing: .05em;';
+        cssArea.value = p.config.style.custom_css || '';
+        cssArea.addEventListener('input', function () {
+            var val = cssArea.value.trim();
+            if (val) p.config.style.custom_css = cssArea.value; else delete p.config.style.custom_css;
+            markLocDirty(loc);
+        });
+        cssRow.appendChild(cssArea);
+        customBody.appendChild(cssRow);
+
+        customDetails.appendChild(customBody);
+        wrap.appendChild(customDetails);
+    }
+
+    // AJ's own ask, as part of the GUI (not a hidden config-only
+    // feature): "easy ways to wire up UI events to actions... 'On
+    // click' could trigger UI and server side stuff via fetch." Two
+    // genuinely different trust levels, two genuinely different UIs:
+    //
+    //  - "On click" actions (p.config.actions) — a plain, codeless list
+    //    builder. Every author who can edit this placement at all can
+    //    add one; class-element.php's build_actions_js() maps each row
+    //    to a small, fixed, reviewed JS snippet server-side, never raw
+    //    script. No capability gate needed here for the same reason.
+    //
+    //  - Custom JS (p.config.custom_js) — real, raw JavaScript, run on
+    //    the live site for every visitor. Only shown at all if
+    //    cfg.canAuthorCustomJs (server-localized from the real
+    //    bhcore_author_custom_js capability check — class-element-
+    //    builder.php's enqueue_assets()), AND still requires an explicit
+    //    "I understand this runs unreviewed on the live site" checkbox
+    //    before the textarea itself becomes usable — the field existing
+    //    at all shouldn't mean a stray click can silently arm it.
+    var ACTION_KINDS = [
+        { value: 'toggle_class', label: 'Toggle a CSS class' },
+        { value: 'fetch', label: 'Call a URL (fetch)' },
+        { value: 'navigate', label: 'Go to a URL' },
+    ];
+    var ACTION_TRIGGERS = ['click', 'mouseenter', 'mouseleave', 'submit'];
+
+    function renderActionsSection(p, loc) {
+        if (!Array.isArray(p.config.actions)) p.config.actions = [];
+
+        inspectorEl.appendChild(el('h3', null, 'Actions & scripting'));
+        var wrap = el('div', 'bhel-actions-section');
+        inspectorEl.appendChild(wrap);
+
+        var list = el('div', 'bhel-actions-list');
+        wrap.appendChild(list);
+
+        function renderList() {
+            list.innerHTML = '';
+            p.config.actions.forEach(function (action, idx) {
+                var row = el('div', 'bhel-action-row');
+
+                var triggerSelect = document.createElement('select');
+                ACTION_TRIGGERS.forEach(function (t) {
+                    var opt = document.createElement('option');
+                    opt.value = t; opt.textContent = 'On ' + t;
+                    if ((action.trigger || 'click') === t) opt.selected = true;
+                    triggerSelect.appendChild(opt);
+                });
+                triggerSelect.addEventListener('change', function () {
+                    action.trigger = triggerSelect.value;
+                    markLocDirty(loc);
+                });
+                row.appendChild(triggerSelect);
+
+                var kindSelect = document.createElement('select');
+                ACTION_KINDS.forEach(function (k) {
+                    var opt = document.createElement('option');
+                    opt.value = k.value; opt.textContent = k.label;
+                    if (action.action === k.value) opt.selected = true;
+                    kindSelect.appendChild(opt);
+                });
+                kindSelect.addEventListener('change', function () {
+                    action.action = kindSelect.value;
+                    markLocDirty(loc);
+                    renderList(); // param fields below depend on the picked kind
+                });
+                row.appendChild(kindSelect);
+
+                if (action.action === 'toggle_class') {
+                    var classInput = document.createElement('input');
+                    classInput.type = 'text';
+                    classInput.placeholder = 'class name, e.g. is-open';
+                    classInput.value = action.class || '';
+                    classInput.addEventListener('change', function () { action.class = classInput.value.trim(); markLocDirty(loc); });
+                    row.appendChild(classInput);
+
+                    var targetInput = document.createElement('input');
+                    targetInput.type = 'text';
+                    targetInput.placeholder = 'target: self (default) or a CSS selector';
+                    targetInput.value = action.target || '';
+                    targetInput.addEventListener('change', function () { action.target = targetInput.value.trim(); markLocDirty(loc); });
+                    row.appendChild(targetInput);
+                } else if (action.action === 'fetch') {
+                    var urlInput = document.createElement('input');
+                    urlInput.type = 'text';
+                    urlInput.placeholder = 'URL to call';
+                    urlInput.value = action.url || '';
+                    urlInput.addEventListener('change', function () { action.url = urlInput.value.trim(); markLocDirty(loc); });
+                    row.appendChild(urlInput);
+
+                    var methodSelect = document.createElement('select');
+                    ['GET', 'POST'].forEach(function (m) {
+                        var opt = document.createElement('option');
+                        opt.value = m; opt.textContent = m;
+                        if ((action.method || 'GET') === m) opt.selected = true;
+                        methodSelect.appendChild(opt);
+                    });
+                    methodSelect.addEventListener('change', function () { action.method = methodSelect.value; markLocDirty(loc); });
+                    row.appendChild(methodSelect);
+
+                    var thenSelect = document.createElement('select');
+                    [['none', 'Do nothing after'], ['reload', 'Reload the page after']].forEach(function (pair) {
+                        var opt = document.createElement('option');
+                        opt.value = pair[0]; opt.textContent = pair[1];
+                        if ((action.then || 'none') === pair[0]) opt.selected = true;
+                        thenSelect.appendChild(opt);
+                    });
+                    thenSelect.addEventListener('change', function () { action.then = thenSelect.value; markLocDirty(loc); });
+                    row.appendChild(thenSelect);
+                } else if (action.action === 'navigate') {
+                    var navInput = document.createElement('input');
+                    navInput.type = 'text';
+                    navInput.placeholder = 'URL to go to';
+                    navInput.value = action.url || '';
+                    navInput.addEventListener('change', function () { action.url = navInput.value.trim(); markLocDirty(loc); });
+                    row.appendChild(navInput);
+                }
+
+                var removeBtn = el('button', 'bhel-action-remove', '✕');
+                removeBtn.type = 'button';
+                removeBtn.title = 'Remove this action';
+                removeBtn.addEventListener('click', function () {
+                    p.config.actions.splice(idx, 1);
+                    markLocDirty(loc);
+                    renderList();
+                });
+                row.appendChild(removeBtn);
+
+                list.appendChild(row);
+            });
+        }
+        renderList();
+
+        var addBtn = el('button', 'button', '+ Add action');
+        addBtn.type = 'button';
+        addBtn.addEventListener('click', function () {
+            p.config.actions.push({ trigger: 'click', action: 'toggle_class' });
+            markLocDirty(loc);
+            renderList();
+        });
+        wrap.appendChild(addBtn);
+
+        // Custom JS — only reachable at all with the real capability;
+        // cfg comes from bhElementBuilderConfig (class-element-builder.php's
+        // wp_localize_script()), same object every other cfg.* read in
+        // this file already uses.
+        if (typeof cfg !== 'undefined' && cfg.canAuthorCustomJs) {
+            var jsDetails = document.createElement('details');
+            jsDetails.className = 'bhel-style-group';
+            if (p.config.custom_js) jsDetails.open = true;
+            var jsSummary = document.createElement('summary');
+            jsSummary.className = 'bhel-style-group-title';
+            jsSummary.textContent = 'Custom JS (advanced)' + (p.config.custom_js ? ' •' : '');
+            jsDetails.appendChild(jsSummary);
+
+            var jsBody = el('div', 'bhel-style-group-body');
+            jsBody.appendChild(el('p', 'bhel-empty', 'Runs as real, unreviewed JavaScript on the live site for every visitor who loads this element. Your own code, your own responsibility — there is no sandbox.'));
+
+            var confirmRow = el('label', 'bhel-field-row');
+            var confirmCb = document.createElement('input');
+            confirmCb.type = 'checkbox';
+            confirmCb.checked = !!p.config.custom_js;
+            confirmRow.appendChild(confirmCb);
+            confirmRow.appendChild(document.createTextNode(' I understand this runs unreviewed on the live site'));
+            jsBody.appendChild(confirmRow);
+
+            var jsArea = document.createElement('textarea');
+            jsArea.rows = 6;
+            jsArea.placeholder = 'el is this placement\'s own DOM element, e.g.: el.style.opacity = 0.5;';
+            jsArea.value = p.config.custom_js || '';
+            jsArea.disabled = !confirmCb.checked;
+            jsBody.appendChild(jsArea);
+
+            confirmCb.addEventListener('change', function () {
+                jsArea.disabled = !confirmCb.checked;
+                if (!confirmCb.checked) { jsArea.value = ''; p.config.custom_js = ''; markLocDirty(loc); }
+            });
+            jsArea.addEventListener('input', function () {
+                p.config.custom_js = jsArea.value;
+                markLocDirty(loc);
+            });
+
+            jsDetails.appendChild(jsBody);
+            wrap.appendChild(jsDetails);
+        }
     }
 
     // One "group.property" control: a preset <select> (values sourced
@@ -1714,6 +2421,92 @@
     // written to p.config.style[def.key] verbatim in whichever form
     // (bare preset key / "@token:x" / "custom:x") BHY_Style::
     // resolve_style_value() already expects.
+    /**
+     * The custom color-token dropdown referenced above: a trigger button
+     * (current swatch + label) that toggles a small popup list (swatch +
+     * label per row, plus a leading "(inherit)" row with no swatch).
+     * `colorTokens` is `{tokenName: cssVarName}` (BHY_Style::
+     * style_schema_for_js(), 3.4.49 follow-up — its VALUES used to just
+     * echo the token name back; now they're the real CSS custom property,
+     * e.g. '--bh-accent', so a swatch can literally be
+     * `background: var(--bh-accent)` and stay live/correct even while
+     * AJ is mid-edit in the Global Styles token sliders (same
+     * `.bhy-token-preview` live-rebuild mechanism class-style-gallery.php
+     * already drives for its own sample-chip strip — reused here by
+     * giving each swatch that same class rather than inventing a second
+     * one).
+     */
+    function buildColorTokenPopup(select, colorTokens) {
+        var wrap = el('div', 'bhel-color-select');
+        var trigger = el('button', 'bhel-color-select-trigger');
+        trigger.type = 'button';
+        var triggerSwatch = el('span', 'bhel-color-swatch bhy-token-preview');
+        var triggerLabel = el('span', 'bhel-color-select-label');
+        trigger.appendChild(triggerSwatch);
+        trigger.appendChild(triggerLabel);
+        wrap.appendChild(trigger);
+
+        var popup = el('div', 'bhel-color-select-popup');
+        popup.style.display = 'none';
+        wrap.appendChild(popup);
+
+        function currentTokenName() {
+            var v = select.value;
+            return v.indexOf('@token:') === 0 ? v.slice(7) : '';
+        }
+        function syncTrigger() {
+            var tok = currentTokenName();
+            if (tok && colorTokens[tok]) {
+                triggerSwatch.style.background = 'var(' + colorTokens[tok] + ')';
+                triggerSwatch.style.visibility = '';
+                triggerLabel.textContent = tok;
+            } else {
+                triggerSwatch.style.visibility = 'hidden';
+                triggerLabel.textContent = '(inherit)';
+            }
+        }
+        function choose(value) {
+            select.value = value;
+            select.dispatchEvent(new Event('change'));
+            syncTrigger();
+            popup.style.display = 'none';
+        }
+
+        var blankRow = el('button', 'bhel-color-select-row');
+        blankRow.type = 'button';
+        blankRow.appendChild(el('span', 'bhel-color-swatch', '')); // empty/transparent — no token selected
+        blankRow.appendChild(el('span', null, '(inherit)'));
+        blankRow.addEventListener('click', function () { choose(''); });
+        popup.appendChild(blankRow);
+
+        Object.keys(colorTokens).forEach(function (tok) {
+            var rowBtn = el('button', 'bhel-color-select-row');
+            rowBtn.type = 'button';
+            var swatch = el('span', 'bhel-color-swatch bhy-token-preview');
+            swatch.style.background = 'var(' + colorTokens[tok] + ')';
+            rowBtn.appendChild(swatch);
+            rowBtn.appendChild(el('span', null, tok));
+            rowBtn.addEventListener('click', function () { choose('@token:' + tok); });
+            popup.appendChild(rowBtn);
+        });
+
+        trigger.addEventListener('click', function () {
+            var opening = popup.style.display === 'none';
+            // Only one color popup open at a time — same "closes anything
+            // else already open" courtesy every other popup/context-menu
+            // in this file already shows (openAddChildPicker(), the node
+            // context menu).
+            document.querySelectorAll('.bhel-color-select-popup').forEach(function (p) { p.style.display = 'none'; });
+            popup.style.display = opening ? '' : 'none';
+        });
+        document.addEventListener('click', function (ev) {
+            if (!wrap.contains(ev.target)) popup.style.display = 'none';
+        });
+
+        syncTrigger();
+        return wrap;
+    }
+
     function renderStylePropertyField(p, fieldset, def, loc) {
         var row = el('div', 'bhel-field-row');
         row.appendChild(el('label', null, def.css + ' (' + def.key + ')'));
@@ -1755,6 +2548,29 @@
 
         row.appendChild(select);
 
+        // AJ's own ask: "would be cool if the color and font selectors
+        // could preview what they look like... with like swatches in the
+        // dropdown next to the option." A native <option> can't host a
+        // colored swatch (most browsers flatly ignore background-color
+        // styling inside <option> — this is a real, well-known HTML
+        // limitation, not an oversight; font-family styling on <option>
+        // DOES work, which is why the separate Global Styles font picker
+        // (BHY_UI::font_field(), class-ui.php) just got an inline style
+        // added directly instead of needing this same custom-popup
+        // treatment). For 'token-only' (color) fields only, this builds a
+        // real custom dropdown with actual swatches, while leaving the
+        // native <select> above as the untouched single source of truth
+        // for the actual value/state — the popup only ever sets
+        // select.value and dispatches a real 'change' event, so the
+        // EXISTING handler below (unchanged) still does 100% of the
+        // actual write-back/dirty-marking/live-preview work. This keeps
+        // the two code paths from drifting against each other; the
+        // popup is purely a presentation layer on top of the same select.
+        if (def.kind === 'token-only') {
+            select.style.display = 'none';
+            row.appendChild(buildColorTokenPopup(select, state.styleSchema.colorTokens || {}));
+        }
+
         var customInput = null;
         if (def.allowCustom) {
             customInput = document.createElement('input');
@@ -1768,7 +2584,7 @@
                 } else {
                     p.config.style[def.key] = 'custom:' + customInput.value.trim();
                 }
-                state.dirtyKeys[dirtyKey(loc)] = true;
+                markLocDirty(loc);
             });
             row.appendChild(customInput);
         }
@@ -1783,7 +2599,7 @@
                 p.config.style[def.key] = select.value;
             }
             if (customInput && select.value !== '__custom__') customInput.style.display = 'none';
-            state.dirtyKeys[dirtyKey(loc)] = true;
+            markLocDirty(loc);
         });
 
         fieldset.appendChild(row);
@@ -1825,7 +2641,7 @@
         });
         tagSelect.addEventListener('change', function () {
             ha.tag = tagSelect.value;
-            state.dirtyKeys[dirtyKey(loc)] = true;
+            markLocDirty(loc);
             renderInspector(); // re-render so href/target/rel show/hide follows the new tag, matching resolve_tag()'s server-side "only meaningful on <a>" rule
         });
         tagRow.appendChild(tagSelect);
@@ -1842,7 +2658,7 @@
             input.value = ha[key] || '';
             input.addEventListener('change', function () {
                 if (input.value.trim() === '') delete ha[key]; else ha[key] = input.value.trim();
-                state.dirtyKeys[dirtyKey(loc)] = true;
+                markLocDirty(loc);
             });
             row.appendChild(input);
             wrap.appendChild(row);
@@ -1861,7 +2677,7 @@
                 hrefInput.value = ha.href || '';
                 hrefInput.addEventListener('change', function () {
                     if (hrefInput.value.trim() === '') delete ha.href; else ha.href = hrefInput.value.trim();
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 });
                 hrefRow.appendChild(hrefInput);
                 wrap.appendChild(hrefRow);
@@ -1882,7 +2698,7 @@
                 });
                 targetSelect.addEventListener('change', function () {
                     if (targetSelect.value === '') delete ha.target; else ha.target = targetSelect.value;
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 });
                 targetRow.appendChild(targetSelect);
                 wrap.appendChild(targetRow);
@@ -1895,7 +2711,7 @@
                 relInput.value = ha.rel || '';
                 relInput.addEventListener('change', function () {
                     if (relInput.value.trim() === '') delete ha.rel; else ha.rel = relInput.value.trim();
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 });
                 relRow.appendChild(relInput);
                 wrap.appendChild(relRow);
@@ -1937,7 +2753,7 @@
                 });
                 select.addEventListener('change', function () {
                     if (select.value === '') delete custom[shortKey]; else custom[shortKey] = select.value;
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 });
                 row.appendChild(select);
             } else {
@@ -1946,7 +2762,7 @@
                 input.value = custom[shortKey] || '';
                 input.addEventListener('change', function () {
                     if (input.value.trim() === '') delete custom[shortKey]; else custom[shortKey] = input.value.trim();
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 });
                 row.appendChild(input);
             }
@@ -1986,7 +2802,7 @@
             valInput.value = initialVal;
             var removeBtn = iconBtn('✕', 'Remove this data-* row', function () {
                 if (initialKey && custom.hasOwnProperty(initialKey)) delete custom[initialKey];
-                state.dirtyKeys[dirtyKey(loc)] = true;
+                markLocDirty(loc);
                 renderRows();
             });
 
@@ -1995,7 +2811,7 @@
                 if (initialKey && initialKey !== newKey && custom.hasOwnProperty(initialKey)) delete custom[initialKey];
                 if (newKey !== '') {
                     custom[newKey] = valInput.value;
-                    state.dirtyKeys[dirtyKey(loc)] = true;
+                    markLocDirty(loc);
                 }
                 initialKey = newKey;
                 renderRows();

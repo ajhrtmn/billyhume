@@ -2,11 +2,378 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.47
+ * Version:     3.4.60
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.4.60 — 2026-07-12 — two live-confirmed fixes, straight off AJ's own
+// screenshot: "Live View tree isnt showing the selected tree."
+//
+// (1) Real bug: TWO separate click listeners were bound to the same
+// .bhy-story-btn buttons — one (registered first) dispatched
+// 'bhel:select-surface' to sync the tree/outline, one (registered
+// second) toggled which .bhy-story-frame carried the 'active' class.
+// Listeners on the same element/event fire in registration order, so
+// the sync dispatch fired and rebuilt element-builder.js's outline
+// BEFORE the active class had actually moved — renderDemoOutline()
+// reads '.bhy-story-frame.active' directly, so it was always one click
+// behind, showing the PREVIOUS surface's markup over the NEW surface's
+// canvas (exactly the screenshot: contest player on screen, CRM profile
+// markup in the outline). Merged into one handler, active-class-toggle
+// first, dispatch second; the now-redundant second listener is removed.
+//
+// (2) "its not folded into the other thing yet either" — the Live View
+// section (render_left_rail()) was a fixed, always-open box while every
+// other grouped section in this app (.bhel-style-group, the token
+// groups on this same rail) is a real <details>/<summary> disclosure.
+// Switched to match — open by default, same visibility behavior as
+// before, but genuinely foldable now like everything else.
+
+// 3.4.59 — 2026-07-12 — AJ's own ask, folded into the bh-contest
+// conversion work rather than deferred as a separate pass: "is there a
+// way to... litterally do it all via the builder instead of hard coded
+// files" for JS specifically, plus "easy ways to wire up UI events to
+// actions... 'On click' could trigger UI and server side stuff via
+// fetch." Two genuinely different features, two genuinely different
+// trust levels:
+//
+// (1) "On click" ACTIONS (p.config.actions, any placement) — a plain,
+// codeless list builder in the inspector (element-builder.js's new
+// renderActionsSection()): trigger (click/mouseenter/mouseleave/submit)
+// + kind (toggle a CSS class / call a URL via fetch / navigate to a
+// URL) + that kind's own params. class-element.php's new
+// build_actions_js() maps each entry to a small, FIXED, reviewed JS
+// snippet server-side — never raw script — so this needs no capability
+// gate; anyone who can edit a placement at all can wire one up.
+//
+// (2) Custom JS (p.config.custom_js) — real, raw JavaScript, rendered
+// scoped to one placement's own DOM element (wrap_placement_html()).
+// This one IS dangerous (arbitrary code on the live site for every
+// visitor), so it's gated for real: a new administrator-only capability
+// (OUS_Roles::DEFAULT_CAPS['bhcore_author_custom_js']), enforced at
+// save_placement() — the ONE write path every caller (REST, Debug
+// Tools, prefabs) funnels through, not just checked in the GUI — plus a
+// client-side "I understand this runs unreviewed" confirmation checkbox
+// before the field is even usable. Explicitly NOT the same ask as "new
+// PHP via the interface," which stays a hard no — arbitrary server-side
+// code from an admin text field is how a site gets owned; the
+// underlying need for real server-side data is what BH_Element_Data's
+// existing registered-source system (register_source(), a real API
+// call, not text) already serves — see bh-contest 3.2.0's own new
+// bh_contest.vote_count/track_count/days_remaining sources for a live
+// example of that same session's work.
+
+// 3.4.58 — 2026-07-12 — AJ's own ask, framed as core debug-tooling work
+// deliberately done BEFORE the bh-contest conversion starts (not after):
+// "good use of Query Monitor where needed." New includes/class-qm-
+// integration.php registers a real QM_Collector + QM_Output pair — Query
+// Monitor's own admin-toolbar panel now gets an "Own Ur Shit" tab
+// showing THIS request's own OUS_DebugLog entries (errors/warnings/info,
+// same fields Debug Tools' Console & Logs table already shows), so
+// triaging a bug while actively building bh-contest's real surface
+// doesn't mean bouncing between QM and a separate admin screen. Backed
+// by a new zero-extra-query in-memory buffer (class-debug-log.php's
+// request_buffer(), appended to at the end of the existing log() method)
+// — entirely additive, no change to what already gets logged or how.
+// Fully optional/degrading: every QM-facing class here is itself guarded
+// by class_exists('QM_Collector')/class_exists('QM_Output_Html'), and the
+// filters this hooks only ever fire if Query Monitor is actually active,
+// so an install without QM installed is completely unaffected.
+
+// 3.4.57 — 2026-07-12 — direct UX follow-up: "move the Live view tree up
+// so you don't have to scroll to the bottom just to edit the thing you
+// want, and make it not shitty looking." The Live View outline section
+// (#bhy-rail-demo-outline-section) previously sat BELOW the real Site
+// tree in the Structure rail pane — a real problem since the Site tree is
+// a permanent, often-long fixture, meaning reaching a Live View's outline
+// meant scrolling past all of it first. Reordered above it instead
+// (class-style-gallery.php's render_left_rail()). Also gave it real
+// visual chrome it never had — a tinted card with a left accent bar (same
+// visual language .bhy-rail-item.active already uses for "selected"),
+// its own scroll region capped at 280px so a big Live View's outline
+// doesn't itself force the whole rail to scroll, and cleaner row styling
+// on the outline rows/labels themselves (assets/css/element-builder.css).
+
+// 3.4.56 — 2026-07-12 — three more same-session follow-ups on the demo
+// outline/style feature, in order:
+//
+// (1) "add arbitrary class names and custom CSS to things as needed" —
+// both the session-only demo-element style panel AND (the real, persisted
+// version) the real placement's own "Style — Advanced" section
+// (renderStyleAdvancedSection()) gained an "Extra CSS class(es)" +
+// "Custom CSS" pair. For real placements this round-trips through
+// p.config.style.custom_class/custom_css exactly like every other style
+// field — class-element.php's wrap_placement_html() now reads both at
+// render time (appended onto the class="..." attribute build_html_attrs()
+// already builds, and onto whatever BHY_Style::scoped_inline_style()
+// resolved), so it applies on the real front-end too, not just the live
+// preview.
+//
+// (2)/(3) a genuine overcorrection, caught immediately by AJ ("Dipshit,
+// the styles still stay in the inspector, the tree just gets naturally
+// folded into the rail like the other shit"): an earlier edit this same
+// pass moved BOTH the read-only outline tree AND its style panel into the
+// left rail. That was wrong — only the TREE belongs in the rail (same as
+// every other tree in this app), the STYLE PANEL for whatever's selected
+// stays in the inspector, same as a real placement's style controls
+// already do. Reverted the style-panel relocation; #bhy-rail-demo-style-
+// mount is gone, renderDemoOutline() builds the tree into the rail only
+// and keeps appending the style panel to inspectorEl as before.
+
+// 3.4.55 — 2026-07-12 — live-confirmed fix, straight off AJ's own
+// screenshot right after 3.4.54 shipped: "styles are not doing their
+// thing" — the canvas was rendering fully unstyled (black bg, default
+// font, overlapping text). Root cause: TWO CSS selectors this whole
+// gallery depends on only make sense inside a real Document, and 3.4.54
+// swapped every canvas story from a real iframe document to a shadow
+// root, which has neither a root element nor a <body> element:
+//   (1) BHY_Style::inline_css() prints `:root{--bh-bg:...}` — inside a
+//       shadow root, `:root` matches nothing, so every `var(--bh-*)`
+//       reference in every surface's own CSS silently resolved to
+//       nothing. Fixed by rewriting `:root` -> `:host` on the #bhy-vars
+//       tag right after it's parsed in (render_script()'s shadow-attach
+//       code), and the same rewrite in refreshAllFrames()'s live-edit
+//       path so later token edits don't regress this.
+//   (2) preview_doc()'s own `body{margin:0;background:var(--bh-bg);...}`
+//       rule matches nothing either — only body's CHILDREN get moved
+//       into the shadow root, never a real <body> element for that
+//       selector to match. Changed to `:host{...}` (the shadow-DOM
+//       equivalent of "the box everything sits inside" — the frame div
+//       itself, which the moved children then fill exactly like a real
+//       <body> would).
+// Both are real regressions from 3.4.54, not new work — caught and fixed
+// within the same session rather than left for the next screenshot.
+
+// 3.4.54 — 2026-07-12 — two more direct follow-ups on the same demo-
+// outline feature from 3.4.53, both same-session:
+//
+// (1) "the read only tree should be for structure of the thing only, we
+// still need to edit the styles of each thing" — renderDemoOutline()
+// (element-builder.js) keeps the outline tree itself read-only/structure-
+// only (confirmed correct), but clicking a row now also opens a style
+// panel for that exact element (background/text color, padding, border-
+// radius, font size), writing LIVE, SESSION-ONLY inline styles directly
+// to that DOM node. Explicitly not persisted — these demo mockups have no
+// backing placement row to save to; the panel says so plainly rather than
+// pretending to save. A real persisted version of this is the same
+// "convert this mockup into a real BH_Element surface" migration CRM/LMS
+// lessons already got, not a quiet half-build here.
+//
+// (2) "never use iframes unless we have to or it really is the ideal" —
+// direct answer to this same pass's earlier iframe-isolation question,
+// and AJ's explicit call once given the Shadow-DOM alternative: canvas
+// stories are no longer <iframe srcdoc>, they're same-document divs with
+// a real attachShadow({mode:'open'}) root (class-style-gallery.php's
+// render_canvas()/render_script(), element-builder.js's renderDemoOutline()/
+// applyLivePreview()). Shadow DOM keeps the actual thing iframes were
+// bought for here — a surface's own stylesheet never bleeding onto
+// wp-admin chrome, and vice versa — without a second document/contentDocument
+// boundary, which was the direct cause of several sync bugs fixed earlier
+// this session. Every `.contentDocument` read is now `.shadowRoot`; a
+// ShadowRoot has no `.body`, so renderDemoOutline()'s single-root walk is
+// now a flat multi-child walk instead (see that function's own comment).
+// Real, disclosed limitation: a `<script>` tag inside a surface's markup
+// would NOT execute inside a shadow root — confirmed as a non-issue by
+// checking every current `bhy_style_surfaces`/`bh_element_surfaces`
+// registration, all of which are static server-rendered HTML with no
+// inline scripts.
+
+// 3.4.53 — 2026-07-12 — two pieces, both direct live-feedback follow-ups
+// on the SAME screenshot: "still not doing what it's supposed to"
+// (picking a demo-only Live View left the inspector showing a stale,
+// unrelated CRM placement), then "can we still have 'trees' for the
+// plugin live views?" once the first fix explained there's genuinely no
+// editable tree for a hand-authored mockup.
+//
+// (1) element-builder.js's 'bhel:select-surface' listener now sets a new
+// state.selection.type === 'demo' when the clicked story's surface slug
+// ISN'T a real registered BH_Element surface (was previously a silent
+// no-op, leaving stale content on screen) — renderInspector() gained a
+// matching branch that clearly explains what's being shown and why
+// there's nothing to edit, instead of just looking broken/unresponsive.
+//
+// (2) new renderDemoOutline() — since these mockups have no real
+// placement/tree DATA, this builds a genuinely useful substitute: a
+// READ-ONLY outline tree parsed straight from the canvas iframe's actual
+// DOM (tag/id/class per row), click-to-scroll+highlight the matching
+// element in the canvas. class-style-gallery.php's preview_doc() gained
+// one small injected <style> (.bhel-outline-highlight) INSIDE each
+// iframe's own document for the highlight to be visible at all — this
+// page's own CSS can never reach inside an iframe, by design (see the
+// iframe-isolation reasoning flagged directly to AJ this same pass, in
+// response to "is this shit really using iframes?" — yes, deliberately,
+// for real style isolation between this admin page and N different
+// plugins' own real front-end stylesheets; the real cost of that choice
+// is exactly this class of extra cross-document plumbing).
+
+// 3.4.52 — 2026-07-12 — direct response to AJ's own "let's be smart
+// about tests" ask, right after a run of THREE real bugs in the
+// BH_Element/Design Suite canvas layer were each only caught by a live
+// screenshot round-trip tonight (the empty-slot wrapper, the doubled
+// REST preview path, the surface-key mismatch). New class-element-test-
+// suite.php (BH_Element_TestSuite) — same "runs from Debug Tools, no
+// CLI/PHPUnit needed" pattern every other *_TestSuite class here already
+// uses — adds regression coverage for the two of those three bugs that
+// ARE testable from a pure PHP assertion (render_slot()'s empty-slot
+// wrapper; the color-token schema's colorTokens values being real CSS
+// vars, not bare names — the shape the new swatch dropdown depends on).
+// The REST-path bug and the tree/canvas DOM-sync bug are explicitly
+// documented in that file's own trailing comment as NOT coverable this
+// way — pure client-side JS string-building and live-DOM coordination,
+// respectively, need a real browser pass, not a server-side assertion.
+// Wired into own-ur-shit.php's existing require/init pattern identically
+// to every other test suite. No DB fixtures needed for any assertion in
+// this suite — every one runs against either an unregistered
+// surface/context id (guaranteed empty, no cleanup needed) or the
+// framework's own always-present style schema.
+// 3.4.51 — 2026-07-12 — direct response to live feedback on the rail's
+// "Preview" tab: (1) renamed to "Live Views" — a bad name for what it
+// actually does (class-style-gallery.php's render_left_rail()). (2) Real
+// bug, live-confirmed: clicking a Live View correctly swapped the
+// canvas, jumped the rail back to Structure, but left the inspector
+// showing whatever placement was selected before — completely unrelated
+// to what the canvas now showed. The tree-to-canvas sync
+// (element-builder.js's fireSelectionEvent(), 3.4.38) was always
+// one-way; nothing sent selection the OTHER direction. New
+// 'bhel:select-surface' CustomEvent: the story-button click handler
+// (class-style-gallery.php) now dispatches it, and element-builder.js
+// listens and calls its own existing selectSurface() — for any REAL
+// registered BH_Element surface only; a hand-authored demo-only mockup
+// (bh-contest, bh-streaming, etc.) has no tree node to select, so those
+// are a disclosed no-op. See both files' own updated comments at the
+// respective call sites.
+// 3.4.50 — 2026-07-12 — two pieces, both direct responses to AJ's own
+// ask: "would be cool if the color and font selectors could preview what
+// they look like... with like swatches in the dropdown next to the
+// option or something."
+//
+// (1) DRY pass on 3.4.49's own live-preview wiring, done immediately
+// after it shipped rather than left to drift: element-builder.js had
+// ~20 separate call sites all pasting the identical
+// `state.dirtyKeys[dirtyKey(loc)] = true; schedulePreviewUpdate(loc);`
+// pair. New `markLocDirty(loc)` (right next to `dirtyKey()`) names that
+// sequence once; every call site now just calls it. `markDirty()` itself
+// simplified to call it too instead of duplicating the same two lines a
+// third way.
+//
+// (2) Real swatch/font previews. Per-placement color style fields
+// (`renderStylePropertyField()`'s 'token-only' branch) now render a real
+// custom dropdown (new `buildColorTokenPopup()`) with an actual color
+// swatch next to each token name — a native `<select><option>` can't
+// show a background-color swatch (browsers ignore it), so this is a
+// small custom popup layered on top of the EXISTING, untouched native
+// `<select>` (kept as the real source of truth, just visually hidden —
+// the popup only ever sets `select.value` and dispatches a real 'change'
+// event, so 100% of the actual write-back/dirty-marking/live-preview
+// logic is still the one pre-existing handler, never duplicated).
+// `BHY_Style::style_schema_for_js()`'s `colorTokens` map now returns
+// each token's REAL CSS custom property name (`--bh-accent` etc.)
+// instead of just echoing the token's own name back — nothing
+// previously read those values (every consumer only iterated keys), so
+// this is a safe, non-breaking payload shape change, and it's what lets
+// a swatch literally be `background: var(--bh-accent)`. Font selectors
+// (a separate, site-level Global Styles control, `BHY_UI::font_field()`)
+// got a much simpler fix: each `<option>` DOES support inline
+// font-family styling in every real browser, so it just needed one
+// added `style="font-family:'Name', sans-serif;"` per option — the
+// actual webfont files are now also enqueued on the admin page itself
+// (`BHY_Gallery::enqueue_media()`), not just inside the canvas iframes
+// as before, or the font-family style would have had nothing real to
+// render. `node --check` clean on the JS; every touched PHP file brace-
+// balance-checked. NOT runtime-verified — no live browser available
+// this pass; needs a restart + hard refresh + an actual look at both
+// dropdowns before trusting the swatches/fonts render correctly.
+// 3.4.49 — 2026-07-12 — real bug fix, live-confirmed via screenshot: an
+// edited-but-unsaved field (a Note placement's text, typed but not yet
+// "Save all changes"-d) showed NOTHING in the canvas — not stale, not
+// slow, genuinely never wired up at all. `POST /elements/preview`
+// (`BH_Element::rest_preview()`) already existed for exactly this — its
+// own docblock says so — but was dead code, never called from
+// element-builder.js. Fixed: every field-edit path that marks a
+// placement dirty (`markDirty()`, plus every other direct
+// `dirtyKeys[...] = true` write site — bind toggles, style tokens, the
+// Style-Advanced property groups, custom-value inputs, the Enabled
+// checkbox) now also calls a new debounced (400ms) `schedulePreviewUpdate()`,
+// which POSTs the placement's current in-memory config to `/elements/
+// preview` and patches the result into whichever `.bhy-story-frame`
+// iframe matches the surface — a SAVED placement's existing DOM node is
+// found by `data-placement-id` and outerHTML-replaced; a brand-new
+// unsaved one (no existing DOM node yet) is appended into its slot's
+// `.bh-element-slot` container and tagged with a synthetic
+// `data-bhel-preview-key` so the NEXT edit finds and replaces that same
+// temp node instead of duplicating it. Best-effort UX sugar only — a
+// failed preview call never blocks editing or the real save path. See
+// `markDirty()`'s own updated comment in element-builder.js for the full
+// mechanics and the one disclosed v1 edge case (only the currently-
+// selected unsaved sibling gets a tracked preview key).
+//
+// SAME PASS, second fix, found by actually trying the above and getting
+// another live screenshot showing still-nothing: BH_Element::render_slot()
+// used to `return ''` immediately for any slot with zero saved
+// placements — no wrapper `.bh-element-slot` div at all. The new live-
+// preview JS anchors on that wrapper to insert an unsaved node, so the
+// single most common real-world case (a brand-new page's first-ever
+// edit, before anything has been saved once) had no wrapper to insert
+// into — the append silently no-op'd. Fixed: render_slot() now always
+// emits its wrapper div, empty or not; every existing call site already
+// echoes its return value unconditionally (never branches on
+// truthiness), so this is safe with zero caller changes. See that
+// method's own updated docblock.
+//
+// SAME PASS, third fix, found by trying the above TWICE and still
+// getting a live screenshot of nothing happening: the new preview call
+// itself was hitting a 404, silently swallowed by its own catch(){}.
+// `cfg.restUrl` (class-element-builder.php's wp_localize_script() call)
+// already ends in '.../ous/v1/elements/' — every other api() call in
+// this file passes a bare path with no leading slash and no 'elements/'
+// prefix (api('surfaces'), api('site-tokens'), and a PRE-EXISTING
+// api('preview', ...) bind-field-preview call elsewhere in this exact
+// file that already got it right). The new live-preview code instead
+// called api('/elements/preview', ...) — a leading slash plus a
+// redundant 'elements/' segment, producing a doubled, 404ing URL. Fixed
+// to match the file's own established convention. `node --check` clean;
+// PHP brace-balance-checked.
+// 3.4.48 — 2026-07-12 — real bug fix, live-confirmed via screenshot:
+// clicking a tree node (CRM's Project Tracker board, in the reported
+// case) never updated the Design Suite canvas. Root cause: the canvas's
+// "Preview surface" stories only ever existed for surfaces a plugin
+// separately hand-registered into `bhy_style_surfaces` under ITS OWN,
+// DIFFERENT key (e.g. bh-crm's class-style-surface.php registers
+// 'bh-crm-profile-live', not the real surface slug 'bh_crm_profile').
+// element-builder.js's tree-selection sync always fires the REAL slug —
+// it could only ever coincidentally match the one surface whose default-
+// active story happened to still be on screen; every other surface
+// (bhcrm_project_board, bh_courses_lesson, the portal/dashboard
+// surfaces) had NO matching story at all, so the click silently did
+// nothing. Fix: new BH_Element::render_surface_preview($slug, $context_id)
+// (class-element.php) generically renders ANY registered surface's real
+// slot content by looping its own declared slots; class-style-gallery.php's
+// render_shell() now auto-fills a canvas story for EVERY BH_Element
+// surface, keyed by its real slug, for any surface that doesn't already
+// have a hand-authored one at that exact key — so this now works for
+// every current and future surface without per-plugin registration.
+// bh-crm's own class-style-surface.php mirror is now redundant but left
+// in place (harmless, renders under its own separate key). Standing
+// caveat: reasoning/brace-balance-checked only, not yet re-verified live
+// after this fix — needs a PHP restart + hard refresh to confirm the
+// Project Tracker board (and every other non-CRM surface) now actually
+// switches the canvas on click.
+//
+// Same pass, second fix — direct response to AJ's own framing: "everything
+// is custom and not preregistered unless it's from a plugin." Before this,
+// the built-in palette was only bh/note + bh/container; register_type()
+// register_generic_primitives() (class-element.php) adds four more true,
+// code-free primitives every Wix/Webflow/HubSpot-style builder ships
+// intrinsically — bh/heading (tag-picker doubles as h1-h6 level choice),
+// bh/image, bh/button (a/button tag choice, same mechanism bh/stat-card
+// already uses for div/a), and bh/divider (hr). register_type() itself
+// isn't going anywhere — a real DATA-BOUND widget (bh/stat-card, bh-crm's
+// bh/sticky-card) legitimately still needs PHP behind it — but the base
+// palette no longer forces a detour through plugin code for a plain
+// heading or button. wrap_placement_html() also gained real void-element
+// handling (hr/br/img/input/meta/link render with no closing tag) rather
+// than relying on browser leniency for the new bh/divider.
 // 3.4.47 — 2026-07-12 — "no special-cased pages," applied to Gutenberg
 // (the two named highest-risk/last-in-sequence items being LMS lessons
 // and Gutenberg — this ships the lower-risk of Gutenberg's own two
@@ -732,7 +1099,7 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.47');
+define('OUS_VER', '3.4.60');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -996,7 +1363,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-prefab', 'element-builder', 'design-suite', 'gutenberg-block'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'element-prefab', 'element-builder', 'design-suite', 'gutenberg-block'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1023,9 +1390,19 @@ add_action('init',          ['OUS_Jobs', 'init']);
 add_action('init',          ['OUS_Notifications', 'init']);
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
+add_action('init',          ['OUS_QM_Integration', 'init']);
 add_action('init',          ['OUS_TestRunner', 'init']);
 add_action('init',          ['OUS_CoreTestSuite', 'init']);
 add_action('init',          ['OUS_ReliabilityTestSuite', 'init']);
+// New this pass (3.4.51 QA/testing follow-up) — see class-element-test-
+// suite.php's own docblock for why: three real bugs in this exact layer
+// were only caught by live screenshots tonight, one after another, each
+// a class of mistake a cheap deterministic assertion would have caught
+// immediately. class_exists() guard mirrors every other test suite's
+// registration here — BH_Element itself is always loaded before this
+// fires (require order above), but the guard costs nothing and matches
+// convention.
+if (class_exists('BH_Element')) add_action('init', ['BH_Element_TestSuite', 'init']);
 // BH_Studio's own init() registers this pass's default block types with
 // BH_Content — must fire after 'content' (BH_Content itself) has loaded,
 // which own-ur-shit.php's require order above already guarantees, and

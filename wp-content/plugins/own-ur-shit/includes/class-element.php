@@ -231,6 +231,119 @@ class BH_Element {
                     . '</div>';
             },
         ]);
+
+        self::register_generic_primitives();
+    }
+
+    /**
+     * Direct response to AJ's own framing, verbatim: "everything is
+     * custom and not preregistered unless it's from a plugin and is just
+     * being styled and not defined." Before this, own-ur-shit's own
+     * built-in palette was exactly two generic primitives (bh/note,
+     * bh/container above) plus two plugin-owned, genuinely DATA-BOUND
+     * widgets (bh/stat-card here, bh-crm's bh/sticky-card) — nowhere
+     * near enough to build a real page without reaching for a plugin
+     * that has no business owning a plain heading or button. register_
+     * type() itself isn't going away (a real data-bound widget like
+     * stat-card legitimately needs PHP: a schema, a bindable attr, a
+     * render callable), but that mechanism should be reserved for things
+     * that actually need code behind them — not for basic building
+     * blocks every builder ships intrinsically (Wix/Webflow/HubSpot all
+     * have a small fixed set of true primitives — Div, Text, Image,
+     * Button, Section — that were never something a "plugin" declared).
+     *
+     * These five are that fixed set for THIS ecosystem: heading, image,
+     * button, divider, and a plain generic block (bh/note, above,
+     * already covers freeform rich text). All 'surfaces' => '*' (usable
+     * everywhere, no plugin opt-in needed), all schema attrs 'bindable'
+     * => false EXCEPT where a real content field makes sense to someday
+     * bind (image src, button label/href) — left false for now since
+     * data-binding v1 (BH_Element_Data) only resolves scalar 'value'-
+     * shaped binds today; flip these on later without any other change
+     * once that's proven out further, per the design doc's own v2/v3
+     * status notes.
+     */
+    private static function register_generic_primitives() {
+        self::register_type('bh/heading', [
+            'label'    => 'Heading',
+            'category' => 'text',
+            'icon'     => 'dashicons-heading',
+            'surfaces' => '*',
+            'container' => false,
+            'schema' => [
+                'text' => ['type' => 'string', 'default' => 'Heading', 'bindable' => false],
+            ],
+            'style' => ['color_accent', 'space_scale'],
+            // §2.6 — the tag picker IS the "h1 vs h2 vs h3" choice; no
+            // separate 'level' attr needed, same mechanism bh/stat-card
+            // already uses to let a placement choose div vs a.
+            'tags'  => ['h2', 'h1', 'h3', 'h4', 'h5', 'h6'],
+            'attrs' => ['id' => true, 'class' => true],
+            'render' => function (array $attrs, array $ctx, array $instance) {
+                return esc_html((string) $attrs['text']);
+            },
+        ]);
+
+        self::register_type('bh/image', [
+            'label'    => 'Image',
+            'category' => 'media',
+            'icon'     => 'dashicons-format-image',
+            'surfaces' => '*',
+            'container' => false,
+            'schema' => [
+                'src' => ['type' => 'url',    'default' => '', 'bindable' => false],
+                'alt' => ['type' => 'string', 'default' => '', 'bindable' => false],
+            ],
+            'style' => ['radius'],
+            'tags'  => ['div'], // the <img> itself is the render output; the wrapper tag has no other reasonable choice
+            'attrs' => ['id' => true, 'class' => true],
+            'render' => function (array $attrs, array $ctx, array $instance) {
+                $src = (string) $attrs['src'];
+                if ($src === '') return '<div class="bh-el-image bh-el-image-empty">' . esc_html__('No image set', 'own-ur-shit') . '</div>';
+                return '<img class="bh-el-image" src="' . esc_url($src) . '" alt="' . esc_attr((string) $attrs['alt']) . '">';
+            },
+        ]);
+
+        self::register_type('bh/button', [
+            'label'    => 'Button',
+            'category' => 'text',
+            'icon'     => 'dashicons-button',
+            'surfaces' => '*',
+            'container' => false,
+            'schema' => [
+                'label' => ['type' => 'string', 'default' => 'Click here', 'bindable' => false],
+            ],
+            'style' => ['color_accent', 'radius'],
+            // §2.6 — a button is the canonical "sometimes a link, usually
+            // an actual button" case: 'a' first (the common CTA use),
+            // 'button' available when it should submit/trigger JS instead
+            // of navigating.
+            'tags'  => ['a', 'button'],
+            'attrs' => [
+                'id' => true, 'class' => true, 'aria-label' => true,
+                'href'   => ['type' => 'url'],
+                'target' => ['enum' => ['_self', '_blank']],
+                'rel'    => true,
+            ],
+            'render' => function (array $attrs, array $ctx, array $instance) {
+                return esc_html((string) $attrs['label']);
+            },
+        ]);
+
+        self::register_type('bh/divider', [
+            'label'    => 'Divider',
+            'category' => 'layout',
+            'icon'     => 'dashicons-minus',
+            'surfaces' => '*',
+            'container' => false,
+            'schema' => [],
+            'style' => ['color_accent', 'space_scale'],
+            'tags'  => ['hr'],
+            'attrs' => ['id' => true, 'class' => true],
+            'render' => function (array $attrs, array $ctx, array $instance) {
+                return ''; // <hr> is a void element — wrap_placement_html()'s new void-tag branch renders it with no closing tag/children regardless of what's returned here
+            },
+        ]);
     }
 
     /* =================================================================
@@ -468,6 +581,29 @@ class BH_Element {
         $table = self::table();
 
         $config = $placement['config'] ?? [];
+
+        // AJ's own ask, folded into the bh-contest conversion: real JS
+        // scripting via the builder, not raw-PHP authoring (that second
+        // one stays a hard no — see this pass's chat response for why:
+        // arbitrary server-side code from an admin text field is how a
+        // site gets owned). config['custom_js'] IS a real capability now
+        // (wrap_placement_html() renders it, scoped to this one
+        // placement's own DOM node) — but it's the single most
+        // dangerous thing a placement can carry, since it runs as real
+        // JavaScript on the live site for every visitor. Gated here, at
+        // the ONE write path every caller (REST save, Debug Tools,
+        // prefab apply) funnels through, not just in the GUI — a
+        // non-privileged caller can never smuggle a script in by
+        // crafting the request directly, even if the inspector's own UI
+        // gate (checked client-side too, for a better error message) is
+        // bypassed entirely.
+        if (is_array($config) && !empty($config['custom_js']) && !current_user_can('bhcore_author_custom_js')) {
+            $config['custom_js'] = '';
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'save_placement(): custom_js stripped — current user lacks bhcore_author_custom_js', ['surface' => $placement['surface'] ?? ''], 'BH_Element');
+            }
+        }
+
         if (is_array($config)) $config = wp_json_encode($config);
         if (!is_string($config)) $config = '{}';
 
@@ -770,6 +906,48 @@ class BH_Element {
         $style_decls = ($style_map && class_exists('BHY_Style')) ? BHY_Style::scoped_inline_style($style_map) : '';
 
         $attr_parts = self::build_html_attrs($type, $html_attrs, $tag);
+
+        // AJ's own ask: "add arbitrary class names and custom CSS to
+        // things as needed" — the real, persisted version of that for a
+        // placement. custom_class isn't gated behind the type's own
+        // 'attrs' => ['class' => true] opt-in the way html_attrs['class']
+        // is above (that gate is for AUTHOR-facing "does this type even
+        // expose a class field" schema decisions) — this is a Design
+        // Suite-level style override, same trust level as every other
+        // p.config.style[...] value already going through unescaped here.
+        // Appended to whichever class="..." build_html_attrs() already
+        // built (always present — 'bh-element' at minimum) rather than
+        // emitting a second class attribute, which the browser would
+        // silently let the LAST one win, dropping 'bh-element' whenever a
+        // custom class was set.
+        if (!empty($style_map['custom_class'])) {
+            $extra = preg_split('/\s+/', trim((string) $style_map['custom_class']));
+            $extra = array_filter(array_map('sanitize_html_class', $extra));
+            if ($extra) {
+                foreach ($attr_parts as $i => $part) {
+                    if (strpos($part, 'class="') === 0) {
+                        // 3.4.58 — real bug, caught by this session's own
+                        // audit pass: trim($part, 'class="') does NOT
+                        // strip the literal prefix "class=\"" — trim()'s
+                        // second argument is a CHARACTER MASK, so this
+                        // was stripping any leading/trailing run of
+                        // c/l/a/s/=/" characters. It happened to work on
+                        // the front because every char in "class=\"" is
+                        // in the mask, but on the back it could eat real
+                        // class-name characters too (e.g. a class ending
+                        // "...-class" would have "-class" stripped
+                        // entirely, silently corrupting the attribute).
+                        // substr() with fixed offsets (7 = strlen('class="'),
+                        // -1 to drop the trailing quote) is the correct,
+                        // non-mask-based fix.
+                        $current = substr($part, 7, -1);
+                        $attr_parts[$i] = 'class="' . esc_attr(trim(html_entity_decode($current) . ' ' . implode(' ', $extra))) . '"';
+                        break;
+                    }
+                }
+            }
+        }
+
         $attr_parts[] = 'data-placement-id="' . (int) $placement_id . '"';
         $attr_parts[] = 'data-type="' . esc_attr($type_slug) . '"';
         // §3.2 v1 — opt-in marker (register_type()'s new 'live' key) that
@@ -777,12 +955,136 @@ class BH_Element {
         // is already emitted above unconditionally; this only adds the
         // one extra boolean flag a live type needs.
         if (!empty($type['live'])) $attr_parts[] = 'data-bhel-live="1"';
+
+        // custom_css is raw author-entered `property: value;` text, not a
+        // token BHY_Style::scoped_inline_style() knows how to resolve —
+        // appended straight onto whatever scoped/resolved style
+        // declarations that function already produced, so both compose
+        // (custom_css wins on a literal property clash, same "later
+        // declaration wins" rule normal CSS cascade already uses).
+        if (!empty($style_map['custom_css'])) {
+            $custom_css = rtrim(trim((string) $style_map['custom_css']), ';') . ';';
+            $style_decls = rtrim($style_decls, ';') . ($style_decls !== '' ? ';' : '') . $custom_css;
+        }
         if ($style_decls !== '') $attr_parts[] = 'style="' . esc_attr($style_decls) . '"';
 
         // $tag is ALWAYS one of $type['tags'] (validated in resolve_tag()
         // — never a raw client-supplied string), so it's safe to
         // interpolate directly into the opening/closing tag here.
-        return '<' . $tag . ' ' . implode(' ', $attr_parts) . '>' . $inner . '</' . $tag . '>';
+        //
+        // Void elements (bh/divider's 'hr' being the first real one this
+        // registry ships) have no legal closing tag or children at all —
+        // browsers silently tolerate a stray '</hr>' by ignoring it, but
+        // "tolerated" isn't the same as correct, so this emits genuinely
+        // valid markup instead of relying on that leniency.
+        $void_tags = ['hr', 'br', 'img', 'input', 'meta', 'link'];
+        if (in_array($tag, $void_tags, true)) {
+            $html = '<' . $tag . ' ' . implode(' ', $attr_parts) . '>';
+        } else {
+            $html = '<' . $tag . ' ' . implode(' ', $attr_parts) . '>' . $inner . '</' . $tag . '>';
+        }
+
+        // AJ's own ask, folded into the bh-contest conversion: real JS
+        // authoring via the builder. save_placement() already gates WHO
+        // can ever get a non-empty config['custom_js'] persisted in the
+        // first place (bhcore_author_custom_js, administrator-only by
+        // default) — by the time execution reaches HERE, at render time,
+        // for every visitor loading the page, that gate has already done
+        // its job; this only has to worry about SCOPING the script to
+        // this one placement's own element, not re-checking who wrote it.
+        // Scoped via this placement's own data-placement-id (already
+        // emitted above, always unique per row) rather than a class or
+        // nth-child guess — an IIFE receiving that one element as `el`,
+        // matching the same "the script gets handed its own root, never
+        // reaches for document/global selectors itself" contract element-
+        // live.js's own live-type scripts already follow.
+        // AJ's own ask, same conversation: "easy ways to wire up UI
+        // events to actions... 'On click' could trigger UI and server
+        // side stuff via fetch." This is the CODELESS, safe answer —
+        // config['actions'] is a plain array of {trigger, action, ...}
+        // entries, each one hand-mapped below to a small, fixed,
+        // reviewed JS snippet — never raw author-entered script, so this
+        // needs NO capability gate the way custom_js does. Anyone who can
+        // edit a placement at all can wire up a click-to-toggle-class or
+        // click-to-fetch-and-refresh without ever touching code, the same
+        // trust level as every other placement config field.
+        if (!empty($config['actions']) && is_array($config['actions'])) {
+            $action_js = self::build_actions_js($config['actions'], $placement_id);
+            if ($action_js !== '') {
+                $html .= '<script>(function(el){if(!el)return;' . $action_js . '})(document.querySelector(\'[data-placement-id="' . (int) $placement_id . '"]\'));</script>';
+            }
+        }
+
+        if (!empty($config['custom_js']) && is_string($config['custom_js'])) {
+            // A literal "</script>" inside the author's own JS (even
+            // inside a string literal or comment) would close this tag
+            // early in the BROWSER'S HTML PARSER, which doesn't know or
+            // care about JS syntax — the classic "can't put arbitrary
+            // text inside a script tag" trap. Splitting the sequence
+            // defeats the parser's literal match without changing the
+            // script's actual runtime behavior (the closing carat is
+            // still there for the browser to eventually find, just not
+            // contiguous with "</script").
+            $safe_js = str_ireplace('</script', '<\/script', $config['custom_js']);
+            $html .= '<script>(function(el){if(!el)return;' . $safe_js . '})(document.querySelector(\'[data-placement-id="' . (int) $placement_id . '"]\'));</script>';
+        }
+
+        return $html;
+    }
+
+    // Fixed vocabulary of allowlisted action KINDS, each hand-mapped to a
+    // small, reviewed JS snippet — an entry's own params (selectors,
+    // class names, URLs) are escaped/validated per-kind below, but the
+    // JS SHAPE itself is never author-controlled, unlike custom_js. This
+    // is deliberately small — three kinds, not a general-purpose DSL —
+    // because every kind added here is new surface to review once, not
+    // something an author can expand on their own the way a raw-JS field
+    // could. Add more kinds by hand as real needs come up, not by making
+    // this generic.
+    private static function build_actions_js(array $actions, $placement_id) {
+        $out = '';
+        foreach ($actions as $action) {
+            if (!is_array($action)) continue;
+            $trigger = sanitize_key($action['trigger'] ?? 'click');
+            // Same allowlist reasoning as $void_tags/$tags above — never
+            // interpolate a client-supplied event name directly into JS,
+            // even sanitize_key()'d (sanitize_key() makes it SAFE
+            // syntactically, not necessarily a REAL DOM event).
+            $allowed_triggers = ['click', 'mouseenter', 'mouseleave', 'submit'];
+            if (!in_array($trigger, $allowed_triggers, true)) continue;
+
+            $kind = sanitize_key($action['action'] ?? '');
+            $handler = '';
+
+            if ($kind === 'toggle_class') {
+                $class = sanitize_html_class((string) ($action['class'] ?? ''));
+                if ($class === '') continue;
+                // 'self' (default) or a CSS selector scoped to a
+                // querySelector FROM el (never document-wide) — same
+                // "never reach outside your own root" contract every
+                // other placement script here follows.
+                $target_sel = trim((string) ($action['target'] ?? ''));
+                $target_js = ($target_sel === '' || $target_sel === 'self')
+                    ? 'el' : 'el.querySelector(' . wp_json_encode($target_sel) . ')';
+                $handler = '(function(t){if(t)t.classList.toggle(' . wp_json_encode($class) . ');})(' . $target_js . ')';
+            } elseif ($kind === 'fetch') {
+                $url = esc_url_raw((string) ($action['url'] ?? ''));
+                if ($url === '') continue;
+                $method = in_array(strtoupper((string) ($action['method'] ?? 'GET')), ['GET', 'POST'], true) ? strtoupper((string) $action['method']) : 'GET';
+                $then = sanitize_key($action['then'] ?? 'none');
+                $then_js = $then === 'reload' ? 'function(){window.location.reload();}' : 'function(){}';
+                $handler = 'fetch(' . wp_json_encode($url) . ',{method:' . wp_json_encode($method) . '}).then(' . $then_js . ').catch(function(){})';
+            } elseif ($kind === 'navigate') {
+                $url = esc_url_raw((string) ($action['url'] ?? ''));
+                if ($url === '') continue;
+                $handler = 'window.location.href=' . wp_json_encode($url);
+            } else {
+                continue; // unrecognized kind — skip silently, same "unregistered = no-op, never fatal" posture BH_Element_Data's resolve() already follows
+            }
+
+            $out .= 'el.addEventListener(' . wp_json_encode($trigger) . ',function(ev){if(' . wp_json_encode($trigger) . '===\'submit\')ev.preventDefault();' . $handler . ';});';
+        }
+        return $out;
     }
 
     /** Validates a requested htmlAttrs.tag against the type's OWN declared 'tags' allowlist — never trusts an arbitrary client-supplied tag name. Falls back to the type's first (default) tag on no match/no request. */
@@ -913,13 +1215,34 @@ class BH_Element {
     /**
      * The surface-facing entry point every integration calls (§5). Loads
      * enabled placements for (surface, context_id, slot) ordered by
-     * position and renders each, concatenated. An empty/no-placements
-     * slot renders '' (nothing) — a surface can safely call this
-     * unconditionally even before anyone has placed an element there.
+     * position and renders each, concatenated. A surface can safely call
+     * this unconditionally even before anyone has placed an element
+     * there — an empty slot still returns its wrapper div, just with no
+     * children (see the 3.4.49 fix note below for why that wrapper is
+     * no longer skipped).
+     *
+     * 3.4.49 — real bug fix, found while diagnosing why a brand-new
+     * unsaved placement's live preview (element-builder.js's
+     * applyLivePreview(), also new in 3.4.49) never appeared on an
+     * EMPTY slot: this method used to `return ''` immediately for a
+     * slot with zero saved placements — no wrapper `.bh-element-slot`
+     * div at all, not even an empty one. That meant the live-preview
+     * patch (which anchors on `.bh-element-slot[data-surface][data-slot]`
+     * to insert a not-yet-saved node) had nowhere to insert into for the
+     * single most common case there is: any slot nobody has saved
+     * anything into yet, i.e. the very first edit on any fresh page.
+     * Confirmed via live screenshot: typing into a brand-new Note's text
+     * field produced no server error, no JS error, and no visible
+     * change — the append silently no-op'd exactly the way this
+     * function's own (now removed) early-return guaranteed it would.
+     * Every existing call site (dashboard, portal, CRM, LMS lesson, this
+     * plugin's own bh-crm-profile-live story) already echoes this return
+     * value unconditionally rather than branching on its truthiness, so
+     * always emitting the wrapper (harmless — an empty div — for a
+     * still-empty slot) is safe with zero caller changes needed.
      */
     public static function render_slot($surface, $context_id, $slot, array $ctx = []) {
         $placements = self::get_placements($surface, $context_id, $slot);
-        if (!$placements) return '';
 
         // 3.4.34 — ONE query (get_placements() above) for the whole slot,
         // then one in-memory parent=>children map (group_by_parent()) —
@@ -928,7 +1251,7 @@ class BH_Element {
         // (parent_placement_id === 0) are iterated here; every non-root
         // placement is rendered exactly once, from inside its parent's
         // own render_placement() call, never also as a top-level sibling.
-        $children_by_parent = self::group_by_parent($placements);
+        $children_by_parent = $placements ? self::group_by_parent($placements) : [];
         $roots = $children_by_parent[0] ?? [];
 
         $out = '<div class="bh-element-slot" data-surface="' . esc_attr($surface) . '" data-slot="' . esc_attr($slot) . '">';
@@ -947,6 +1270,53 @@ class BH_Element {
             $out .= $html;
         }
         $out .= '</div>';
+        return $out;
+    }
+
+    /**
+     * Generic Design Suite canvas preview for ANY registered surface —
+     * added to close a real, live-confirmed bug: the canvas's "Preview
+     * surface" iframes only ever existed for surfaces some plugin
+     * separately hand-registered into `bhy_style_surfaces` under ITS OWN
+     * key (e.g. bh-crm's class-style-surface.php registers
+     * 'bh-crm-profile-live', a totally different string from this
+     * surface's real registered slug 'bh_crm_profile'). The tree's own
+     * selection sync (element-builder.js's fireSelectionEvent()) always
+     * fires the REAL surface slug, so it could only ever find a matching
+     * `.bhy-story-btn[data-surface="..."]` for the one surface whose
+     * hand-authored key happened not to matter (the default/first-active
+     * story never actually got re-selected — clicking any OTHER tree
+     * node, e.g. bhcrm_project_board or bh_courses_lesson, silently did
+     * nothing, since no story was ever registered under either of THOSE
+     * exact keys at all). Confirmed via live screenshot: switching tree
+     * nodes never updated the canvas except by coincidence.
+     *
+     * Fix: every registered BH_Element surface now gets its own canvas
+     * story automatically, keyed by its REAL slug — no plugin has to
+     * hand-author a mirror registration (bh-crm's class-style-surface.php
+     * profile_preview() one-off wrapper is now redundant, but left alone
+     * this pass rather than ripped out, since it's harmless and still
+     * renders correctly under its own separate key). Loops every slot
+     * the surface declares and concatenates each one's real render_slot()
+     * output, in declaration order, with a plain heading per slot so a
+     * multi-slot surface (there are none left after CRM's own 1.3.3
+     * collapse, but a future plugin could still declare more than one)
+     * still reads sensibly.
+     */
+    public static function render_surface_preview($surface_slug, $context_id = 0) {
+        $surface = self::get_surface($surface_slug);
+        if (!$surface) return '';
+        $ctx_callable = $surface['preview_ctx'] ?? null;
+        $ctx = is_callable($ctx_callable) ? (array) call_user_func($ctx_callable) : [];
+        $slots = is_array($surface['slots'] ?? null) ? $surface['slots'] : [];
+        if (!$slots) return '<p style="color:var(--bh-text-dim);">This surface has no registered slots.</p>';
+
+        $out = '';
+        foreach ($slots as $slot_slug => $slot_def) {
+            $label = is_array($slot_def) ? ($slot_def['label'] ?? $slot_slug) : $slot_slug;
+            $out .= count($slots) > 1 ? '<div class="bh-element-slot-heading" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--bh-text-dim);margin:0 0 6px;">' . esc_html($label) . '</div>' : '';
+            $out .= self::render_slot($surface_slug, (int) $context_id, (string) $slot_slug, $ctx);
+        }
         return $out;
     }
 

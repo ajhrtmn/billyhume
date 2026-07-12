@@ -29,6 +29,25 @@ if (!defined('ABSPATH')) exit;
  * out of scope for this pass. What this DOES prove end-to-end: a slot's
  * content, once you add/style placements in it, shows up for real here
  * — no admin-only, no fabricated stand-in.
+ *
+ * DRY fix, own-ur-shit 3.4.48/3.4.50 QA pass: own-ur-shit's own
+ * class-style-gallery.php later grew a GENERIC auto-story generator for
+ * every registered BH_Element surface (BH_Element::render_surface_preview()),
+ * keyed by each surface's REAL slug — but this file was still registering
+ * its nicer, hand-styled version under a DIFFERENT key
+ * ('bh-crm-profile-live'), so both ended up listed side by side in the
+ * Live Views tab, showing near-duplicate content under two different
+ * names. Fixed by registering under the surface's own real slug
+ * ('bh_crm_profile') instead — class-style-gallery.php's auto-generator
+ * explicitly skips creating a story for any key that already has a
+ * hand-authored one, so this one nicer version now wins outright rather
+ * than existing alongside a redundant plain fallback. This also means
+ * this story's key now matches what the tree's own selection-sync
+ * (element-builder.js's fireSelectionEvent()/'bhel:select-surface'
+ * listener) actually looks for, so picking this Live View now correctly
+ * selects the matching Surface node in the tree too — previously it
+ * couldn't, since 'bh-crm-profile-live' was never a real surface slug
+ * the tree recognized.
  */
 class BHCRM_StyleSurface {
     public static function init() {
@@ -37,7 +56,7 @@ class BHCRM_StyleSurface {
 
     public static function register($surfaces) {
         if (!class_exists('BH_Element')) return $surfaces; // same guard every other BH_Element integration in this plugin uses
-        $surfaces['bh-crm-profile-live'] = [
+        $surfaces['bh_crm_profile'] = [
             'group'  => 'CRM',
             'label'  => 'CRM profile page (live)',
             'render' => [self::class, 'profile_preview'],

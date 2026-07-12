@@ -229,6 +229,14 @@ class BH_Element_Builder {
             'restUrl'   => esc_url_raw(rest_url('ous/v1/elements/')),
             'nonce'     => wp_create_nonce('wp_rest'),
             'studioUrl' => esc_url_raw(admin_url('admin.php?page=bh-studio')),
+            // AJ's own ask: real JS authoring via the builder, gated
+            // behind a real capability (OUS_Roles::DEFAULT_CAPS,
+            // administrator-only by default — see class-element.php's
+            // save_placement() for the SERVER-side enforcement, which is
+            // what actually matters; this flag only controls whether the
+            // client-side inspector even SHOWS the field, a UX nicety,
+            // not the security boundary itself).
+            'canAuthorCustomJs' => current_user_can('bhcore_author_custom_js'),
         ]);
     }
 

@@ -64,6 +64,20 @@ class OUS_Roles {
         // needed here for that.
         'bhcore_design_site' => ['administrator', 'editor'],
         'bhcore_manage_crm'  => ['administrator', 'editor'],
+        // AJ's own ask, folded into the bh-contest conversion: "attach
+        // JS scripting... via the interface builder." A placement's
+        // config.custom_js (class-element.php's wrap_placement_html())
+        // is raw JavaScript that runs on the live site for every
+        // visitor — a materially different trust level than a color
+        // token or even custom_class/custom_css (which can at worst make
+        // something ugly; arbitrary JS can exfiltrate data, hijack forms,
+        // or break the page outright). Deliberately administrator-only,
+        // NOT extended to editor the way bhcore_design_site/manage_crm
+        // are — a site that wants a trusted non-admin to have this can
+        // grant it explicitly via 'bhcore_role_capabilities' below, but
+        // it does not ride along with general design/editing access by
+        // default.
+        'bhcore_author_custom_js' => ['administrator'],
     ];
 
     // Same reasoning this whole ecosystem repeats everywhere else a

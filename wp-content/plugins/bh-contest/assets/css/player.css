@@ -85,6 +85,19 @@
 .bh-brand span { color: var(--bh-accent); }
 .bh-brand-logo { display: block; max-height: calc(36px * var(--bh-font-scale)); max-width: 220px; width: auto; height: auto; }
 
+/* Task #80 — a genuinely new, additive header zone (player.js's
+ * injectHeaderExtra(), fed by bh-contest's real 'header_extra'
+ * BH_Element slot). :empty hides it from the flex layout entirely on
+ * every contest that hasn't added anything there — .bh-header is
+ * display:flex + justify-content:space-between, so an always-present
+ * third flex child (even a zero-width one) would still claim a flex
+ * distribution slot and shift .bh-header-actions slightly; :empty
+ * removes it from that calculation completely, so a contest with no
+ * header_extra content renders BYTE-IDENTICAL to before this feature
+ * existed. Only takes part in the layout once real content is injected. */
+.bh-header-extra:empty { display: none; }
+.bh-header-extra { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
+
 .bh-header-actions {
     display: flex;
     align-items: center;

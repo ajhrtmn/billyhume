@@ -2,16 +2,31 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.3.4
+ * Version:     1.3.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.3.4');
+define('BHCRM_VER',  '1.3.5');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
+// 1.3.5 — 2026-07-12 — QA/DRY pass, direct response to a live screenshot
+// (Design Suite's "Live Views" tab, own-ur-shit 3.4.50) showing this
+// plugin's own hand-styled CRM preview registered under a made-up key
+// ('bh-crm-profile-live') instead of the surface's REAL registered slug
+// ('bh_crm_profile') — own-ur-shit's own auto-story generator (3.4.48)
+// had no way to know these were the same page, so both showed up side
+// by side. class-style-surface.php's register() now keys under the real
+// slug; the auto-generator's own "skip if this key already has a story"
+// guard now correctly recognizes it and no longer generates a redundant
+// plain fallback. Bonus, unplanned fix from the same key change: the
+// tree's own selection-sync (own-ur-shit's element-builder.js) can now
+// actually match this story back to a real tree node, so picking this
+// Live View also correctly selects the CRM profile Surface node — it
+// couldn't before, since 'bh-crm-profile-live' was never a slug the
+// tree recognized. See class-style-surface.php's own updated docblock.
 // 1.3.4 — 2026-07-12 — doc-only pass, no functional code change. New
 // PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md (plugins root) is a detailed,
 // phased build plan for duplicating TrackIt's (a macOS music-producer

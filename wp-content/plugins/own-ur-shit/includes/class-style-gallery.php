@@ -138,6 +138,16 @@ class BHY_Gallery {
         // load there too, not just on the standalone 'bh-style' submenu.
         if (strpos($hook, 'bh-style') === false && strpos($hook, 'bh-design') === false) return;
         wp_enqueue_media();
+
+        // 3.4.49 follow-up — AJ's own ask: font <option>s should preview
+        // in their real typeface. BHY_UI::font_field()'s <option> tags
+        // now carry an inline font-family per option (class-ui.php), but
+        // that's cosmetically useless without the actual webfont files
+        // loaded on THIS page — previously this stylesheet was only ever
+        // enqueued INSIDE the canvas iframes (preview_doc(), line ~436),
+        // never on the real admin page the <select> itself lives on.
+        $font_url = class_exists('BHY_Style') ? BHY_Style::preview_all_fonts_url() : '';
+        if ($font_url) wp_enqueue_style('bhy-font-preview', $font_url, [], null);
     }
 
     // 3.4.30, unchanged in shape by 3.4.32's tab-removal — render_shell()
@@ -256,6 +266,38 @@ class BHY_Gallery {
 
         $s = BHY_Style::get();
         $surfaces = apply_filters('bhy_style_surfaces', []);
+
+        // Real, live-confirmed bug fix: every registered BH_Element
+        // surface (bh_element_surfaces filter) now gets a canvas story
+        // AUTOMATICALLY, keyed by its real surface slug — see
+        // BH_Element::render_surface_preview()'s own docblock for the
+        // full diagnosis (element-builder.js's tree-selection sync fires
+        // the real slug, but the only stories that ever existed were
+        // hand-registered under a DIFFERENT key per plugin, so clicking
+        // any tree node whose plugin hadn't separately mirrored its own
+        // surface into bhy_style_surfaces — bhcrm_project_board,
+        // bh_courses_lesson, the dashboard/portal surfaces — silently
+        // left the canvas showing whatever was already active). Added
+        // AFTER the hand-authored $surfaces above so a plugin's own
+        // curated mockup (bh-contest, bh-streaming, bh-courses' catalog/
+        // lesson-step previews) still wins its slot in the Preview list;
+        // this only fills in real surfaces that don't already have an
+        // entry, using their own group/label straight from the surface
+        // registry so no plugin needs a second registration just for
+        // this to work.
+        if (class_exists('BH_Element')) {
+            foreach (BH_Element::registered_surfaces() as $bh_slug => $bh_surface) {
+                if (isset($surfaces[$bh_slug])) continue; // don't clobber a hand-authored story already using this exact key
+                $surfaces[$bh_slug] = [
+                    'group'  => $bh_surface['group'] ?? 'Other',
+                    'label'  => ($bh_surface['label'] ?? $bh_slug) . ' (live)',
+                    'render' => function () use ($bh_slug) {
+                        return ['css_url' => '', 'html' => BH_Element::render_surface_preview($bh_slug, 0)];
+                    },
+                ];
+            }
+        }
+
         $grouped = [];
         foreach ($surfaces as $key => $surface) $grouped[$surface['group']][$key] = $surface;
 
@@ -351,7 +393,13 @@ class BHY_Gallery {
 
         echo '<div class="bhy-rail-tabs">';
         echo '<button type="button" class="bhy-rail-tab active" data-rail-tab="structure">Structure</button>';
-        echo '<button type="button" class="bhy-rail-tab" data-rail-tab="preview">Preview</button>';
+        // Renamed from "Preview" — AJ's own feedback: a bad name for a
+        // tab that's really "jump straight to a specific page/surface's
+        // canvas view" (both real, editable Design Suite surfaces AND
+        // a few plugins' own hand-authored demo mockups mixed together —
+        // see this method's own updated docblock further down for the
+        // full merge logic). "Live Views" says what it actually does.
+        echo '<button type="button" class="bhy-rail-tab" data-rail-tab="preview">Live Views</button>';
         echo '</div>';
 
         // Filled by render_script() with BH_Element_Builder's own tree
@@ -359,10 +407,48 @@ class BHY_Gallery {
         // now the ONE tree — see this file's own updated docblock note
         // and that file's updated file docblock for the full mechanics).
         echo '<div class="bhy-rail-pane bhy-rail-pane-structure active" data-rail-pane="structure">';
-        echo '<div class="bhy-rail-section bhy-rail-tree-section">';
-        echo '<div class="bhy-rail-heading">Site</div>';
+        // AJ's own direct follow-up: this section used to sit BELOW the
+        // real Site tree, meaning selecting a Live View meant scrolling
+        // past the whole (often long) real tree just to reach the thing
+        // you actually wanted to click. Moved ABOVE it instead — the
+        // real Site tree is a permanent fixture always in the DOM,
+        // whichever tree you actually need to use right now shouldn't
+        // require scrolling past the other one first. Given its own
+        // "bhy-rail-demo-outline-section" accent styling (render_script()
+        // CSS below) so it reads as a distinct, purposeful block instead
+        // of an unstyled leftover — clicking a row here fires the exact
+        // same highlight()+style-panel code as the inspector's copy
+        // (element-builder.js's renderDemoOutline(), one shared tree-
+        // builder function, not two parallel copies of the same logic).
+        // Hidden by default; only a real BH_Element surface or a
+        // demo-mockup Live View selection shows it (renderDemoOutline()
+        // toggles this section's visibility itself).
+        // AJ's own further follow-up: "its not folded into the other
+        // thing yet either" — this was a fixed, always-open box while
+        // every other grouped section in this app (.bhel-style-group in
+        // the inspector, and this exact rail's own Global Styles token
+        // groups) is a real <details>/<summary> disclosure. Switched to
+        // match — open by default (same as before, so nothing about
+        // when it's actually shown changes, see renderDemoOutline()'s
+        // own visibility toggle), but now genuinely foldable/collapsible
+        // the same way everything else here already is, not a one-off.
+        echo '<details class="bhy-rail-section bhy-rail-demo-outline-section" id="bhy-rail-demo-outline-section" style="display:none;" open>';
+        echo '<summary class="bhy-rail-heading bhy-rail-heading-accent">Live view markup</summary>';
+        echo '<div id="bhy-rail-demo-outline-mount" class="bhy-rail-mount"></div>';
+        echo '</details>';
+        // AJ's own direct follow-up: "the 'surfaces' heading should be
+        // collapsable too" — same <details>/<summary> treatment the
+        // Live View section just got above, for the exact same "match
+        // the rest of this app's fold convention" reason. id carried
+        // through (bhy-rail-tree-section-fold below) so fold STATE
+        // itself can be persisted/restored the same way — see this
+        // file's new persistUiState()/restoreUiState() (bottom of
+        // render_script()) for the "pick up where you left off" half of
+        // AJ's ask.
+        echo '<details class="bhy-rail-section bhy-rail-tree-section" id="bhy-rail-tree-section" open>';
+        echo '<summary class="bhy-rail-heading">Site</summary>';
         echo '<div id="bhy-rail-tree-mount" class="bhy-rail-mount"><p class="description">Loading…</p></div>';
-        echo '</div>';
+        echo '</details>';
         echo '</div>';
 
         echo '<div class="bhy-rail-pane bhy-rail-pane-preview" data-rail-pane="preview">';
@@ -385,12 +471,41 @@ class BHY_Gallery {
         echo '</div>'; // .bhy-left-rail
     }
 
+    // AJ's own call, straight after the iframe-architecture question:
+    // "never use iframes unless we have to or it really is the ideal...
+    // just do the build." Iframes are gone. Each story is now a plain
+    // <div class="bhy-story-frame">, same-document, same-DOM — but with
+    // its content attached under a real `attachShadow({mode:'open'})`
+    // shadow root (built client-side in render_script() below) instead
+    // of innerHTML'd straight in. Shadow DOM gives the exact same two
+    // things the iframe boundary was actually bought for — a surface's
+    // own stylesheet/reset never bleeds onto the surrounding wp-admin
+    // chrome, and wp-admin's own CSS never bleeds into the surface — for
+    // free, with zero CSS-selector-rewriting/scoping hacks needed, and
+    // without the cross-document plumbing (contentDocument, message
+    // passing, cross-frame CustomEvents) that caused most of this
+    // session's sync bugs. The one real tradeoff, same as the user's own
+    // "no dedicated Node/parser for pre-scoping" framing: any <script>
+    // tag inside a surface's markup would NOT run inside a shadow root
+    // the way it does in a real document/iframe — a non-issue here since
+    // every registered `bhy_style_surfaces`/`bh_element_surfaces` render
+    // callable returns static server-rendered HTML with no inline
+    // scripts (confirmed by reading every current registration; if that
+    // ever changes, this comment is the flag to revisit).
+    //
+    // The full HTML document string (preview_doc()) is UNCHANGED in
+    // shape — same head/style/body markup a real document would want —
+    // it's just handed to the browser as parseable text via a data
+    // attribute (base64, so no HTML-attribute-escaping edge cases)
+    // instead of an iframe's srcdoc. render_script() below parses it
+    // with DOMParser and moves the resulting <head> style/link tags and
+    // <body> children into that div's own shadow root.
     private static function render_canvas($surfaces, $s) {
         echo '<div class="bhy-canvas">';
         $first = true;
         foreach ($surfaces as $key => $surface) {
             $payload = call_user_func($surface['render']);
-            echo '<iframe class="bhy-story-frame' . ($first ? ' active' : '') . '" data-surface="' . esc_attr($key) . '" srcdoc="' . esc_attr(self::preview_doc($payload, $s)) . '"></iframe>';
+            echo '<div class="bhy-story-frame' . ($first ? ' active' : '') . '" data-surface="' . esc_attr($key) . '" data-doc="' . esc_attr(base64_encode(self::preview_doc($payload, $s))) . '"></div>';
             $first = false;
         }
         if (!$surfaces) echo '<div class="bhy-empty">Nothing to preview yet.</div>';
@@ -404,9 +519,23 @@ class BHY_Gallery {
         $font_url = BHY_Style::preview_all_fonts_url();
         return '<!doctype html><html><head><meta charset="utf-8">'
             . ($font_url ? '<link rel="stylesheet" href="' . esc_url($font_url) . '">' : '')
-            . '<link rel="stylesheet" href="' . esc_url($payload['css_url']) . '">'
+            . (!empty($payload['css_url']) ? '<link rel="stylesheet" href="' . esc_url($payload['css_url']) . '">' : '')
             . '<style id="bhy-vars">' . BHY_Style::inline_css() . '</style>'
-            . '<style>body{margin:0;background:var(--bh-bg);color:var(--bh-text);font-family:var(--bh-font-body);}</style>'
+            // No-iframes build — this used to target the real <body> a
+            // real iframe document always has. Now only body's CHILDREN
+            // get moved into the shadow root (render_script()'s
+            // shadow-attach code), never a <body> element itself, so a
+            // `body{...}` selector matches nothing. `:host` is the
+            // shadow-DOM equivalent of "the box everything sits inside" —
+            // it targets the .bhy-story-frame div itself, which every
+            // moved child then fills exactly like a real <body> would.
+            . '<style>:host{display:block;margin:0;background:var(--bh-bg);color:var(--bh-text);font-family:var(--bh-font-body);}</style>'
+            // element-builder.js's renderDemoOutline() highlight() adds
+            // this class to flash-scroll an element into view when its
+            // outline row is clicked — needs to exist INSIDE the iframe's
+            // own document (this page's own CSS never reaches in here,
+            // by design — see this file's iframe-isolation reasoning).
+            . '<style>.bhel-outline-highlight{outline:3px solid #2271b1 !important;outline-offset:2px;}</style>'
             . '</head><body>' . $payload['html'] . '</body></html>';
     }
 
@@ -649,6 +778,45 @@ class BHY_Gallery {
            fixes that without touching element-builder.css's own shared
            rule. */
         .bhy-rail-tree-section #bhy-rail-tree-mount .bhel-canvas { padding: 10px 10px 10px 12px; border: none; min-height: 0; }
+        /* 3.4.57 — the Live View outline section used to be bare
+           .bhy-rail-section chrome identical to (and easily lost among)
+           the real Site tree section right below it — no visual signal
+           that it's a genuinely different kind of thing (read-only demo
+           markup vs. your real editable tree). A tinted background +
+           left accent bar (same accent-bar language .bhy-rail-item.active
+           already uses for "this is the selected thing") plus its own
+           rounded card make it read as a distinct, purposeful block
+           instead of an unstyled leftover — while staying built from the
+           exact same --bhy-* tokens as everything else on this screen,
+           not a new one-off color. */
+        .bhy-rail-demo-outline-section {
+            margin: var(--bhy-space-2, 8px) var(--bhy-space-2, 8px) var(--bhy-space-3, 10px);
+            background: var(--bhy-selected-tint, #f0f6fc);
+            border: 1px solid var(--bhy-border, #dcdcde);
+            border-left: 3px solid var(--bhy-accent, #2271b1);
+            border-radius: var(--bhy-radius-sm, 6px);
+            padding: var(--bhy-space-2, 8px) var(--bhy-space-3, 10px) var(--bhy-space-3, 10px);
+        }
+        .bhy-rail-heading-accent { color: var(--bhy-accent, #2271b1); padding-left: 0; }
+        /* 3.4.60/3.4.61 — both rail sections (Live View AND, per AJ's own
+           follow-up, "the 'surfaces' heading should be collapsable too")
+           are real <details>/<summary> disclosures now (matches
+           .bhel-style-group's own fold pattern elsewhere in this app —
+           see render_left_rail()'s own updated comment). One shared
+           selector for both — .bhy-rail-section covers
+           .bhy-rail-demo-outline-section AND .bhy-rail-tree-section,
+           since both carry that base class. <summary> gets list-style/
+           marker reset and a pointer cursor same as every other
+           clickable rail heading, rather than the browser's default
+           triangle-and-serif-arrow treatment. */
+        .bhy-rail-section > summary { cursor: pointer; list-style: none; }
+        .bhy-rail-section > summary::-webkit-details-marker { display: none; }
+        .bhy-rail-section > summary::before {
+            content: '▸'; display: inline-block; margin-right: 4px; font-size: 10px;
+            transition: transform var(--bhy-transition, 150ms ease);
+        }
+        .bhy-rail-section[open] > summary::before { transform: rotate(90deg); }
+        .bhy-rail-demo-outline-section #bhy-rail-demo-outline-mount { max-height: 280px; overflow-y: auto; }
         /* 3.4.35 — Global Styles section headers now use the exact same
            rule as the widget inspector's ".bhel-inspector h3"
            (assets/css/element-builder.css): small-caps uppercase label +
@@ -668,6 +836,52 @@ class BHY_Gallery {
         <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css()); ?></style>
         <script>
         <?php echo BHY_UI::swatch_js("refreshAllFrames();"); ?>
+        // AJ's own ask: "the whole thing should save your state and pick
+        // up where you left off when you come back." element-builder.js
+        // now persists the tree/placement SELECTION itself (its own
+        // SELECTION_STORAGE_KEY) — this is the other half, specific to
+        // this file's own DOM: which rail tab was active (Structure vs
+        // Live Views), whether the two foldable rail sections were open
+        // or closed, and which Live View story was last picked. One
+        // small shared helper rather than one-off localStorage calls
+        // scattered per feature — declared here, OUTSIDE either IIFE
+        // below, so both can reach it (this <script> block's two
+        // `(function(){...})()` blocks are independent closures, not
+        // nested in a third wrapper, so a plain `var`/`function` at this
+        // level is genuinely shared between them).
+        var BHY_UI_STATE_KEY = 'bhyDesignSuiteUiState';
+        function bhyReadUiState() {
+            try {
+                var raw = localStorage.getItem(BHY_UI_STATE_KEY);
+                return raw ? JSON.parse(raw) : {};
+            } catch (e) { return {}; }
+        }
+        function bhyWriteUiState(patch) {
+            try {
+                var current = bhyReadUiState();
+                Object.keys(patch).forEach(function (k) { current[k] = patch[k]; });
+                localStorage.setItem(BHY_UI_STATE_KEY, JSON.stringify(current));
+            } catch (e) { /* private browsing / storage disabled — just don't persist */ }
+        }
+        // Also used by the inspector's own collapsible groups (Style —
+        // Advanced, Custom class/CSS, Custom JS — element-builder.js's
+        // renderStyleAdvancedSection()/renderActionsSection()) via the
+        // same key namespace, so "pick up where you left off" covers
+        // inspector fold state too, not just this file's own rail
+        // sections — see that file's own bhyPersistDetails() for the
+        // other half of this same mechanism.
+        function bhyPersistDetails(detailsEl, key) {
+            if (!detailsEl) return;
+            var state = bhyReadUiState();
+            var saved = state.detailsOpen && state.detailsOpen[key];
+            if (saved !== undefined) detailsEl.open = !!saved;
+            detailsEl.addEventListener('toggle', function () {
+                var s = bhyReadUiState();
+                s.detailsOpen = s.detailsOpen || {};
+                s.detailsOpen[key] = detailsEl.open;
+                bhyWriteUiState({ detailsOpen: s.detailsOpen });
+            });
+        }
         (function () {
             // 3.4.36 — FINAL ARCHITECTURE. The old "Global Styles" rail
             // buttons / showSiteGroup() one-group-at-a-time toggle and the
@@ -748,14 +962,64 @@ class BHY_Gallery {
                     if (pane) pane.classList.add('active');
                 });
             });
-            // Picking a preview surface is purely a canvas concern, but
-            // jumping back to Structure afterward means you're never left
-            // stranded on the Preview tab with no way back to the tree
-            // without hunting for the tab bar again.
+            // Jumping back to Structure after picking a Live View means
+            // you're never left stranded on that tab with no way back to
+            // the tree. Direct, live-confirmed feedback on the ORIGINAL
+            // version of this: jumping back to Structure looked right,
+            // but the tree/inspector selection underneath it never
+            // actually followed — clicking a Live View updated the
+            // canvas but left the inspector showing whatever placement
+            // was selected before, completely unrelated to what's now on
+            // screen (a real, confirmed inconsistency, not the intended
+            // "helpful jump back" behavior). The reverse of element-
+            // builder.js's own 'bhel:selection' listener above (which
+            // syncs canvas FROM tree selection) was simply never built —
+            // this closes that gap by dispatching a NEW event,
+            // 'bhel:select-surface', that element-builder.js now listens
+            // for (see that file's own updated docblock) and uses to
+            // select the matching Surface tree node for real, whenever
+            // one exists. A hand-authored demo-only story (bh-contest,
+            // bh-streaming, this plugin's own catalog/lesson-step
+            // mockups — never a real registered BH_Element surface) has
+            // no tree node to select at all; for those, this is a
+            // deliberate, disclosed no-op — the inspector simply keeps
+            // showing whatever was last selected, since there is
+            // genuinely nothing in the tree to point it at.
+            // 3.4.60 — real, live-confirmed bug: this used to be TWO
+            // separate click listeners on the same .bhy-story-btn
+            // buttons — this one (dispatching 'bhel:select-surface',
+            // registered FIRST) and a second one further down (toggling
+            // which .bhy-story-frame carries the 'active' class,
+            // registered SECOND). Listeners on the same element/event
+            // fire in registration order, so clicking a Live View
+            // dispatched the sync event and triggered element-builder.js's
+            // renderDemoOutline() BEFORE the active class had actually
+            // moved to the new frame — that function reads
+            // '.bhy-story-frame.active' directly, so it was always
+            // building its outline against the PREVIOUSLY active
+            // surface, one click behind whatever the canvas just
+            // switched to. Merged into one handler, active-class-toggle
+            // FIRST, dispatch second — the second listener block that
+            // used to also do the toggle is removed a few lines below
+            // this comment (grep '3.4.60' there).
             document.querySelectorAll('.bhy-story-btn').forEach(function (btn) {
                 btn.addEventListener('click', function () {
+                    // Deliberately re-queried HERE rather than closing
+                    // over the 'frames'/'buttons' vars the OTHER
+                    // render_script() IIFE further down declares — this
+                    // handler lives in a separate closure (this file's
+                    // top-level script has two independent top-level
+                    // (function(){...})() blocks), so those variables
+                    // are simply out of scope here, not just stale.
+                    document.querySelectorAll('.bhy-story-btn').forEach(function (b) { b.classList.remove('active'); });
+                    document.querySelectorAll('.bhy-story-frame').forEach(function (f) { f.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var matchingFrame = document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]');
+                    if (matchingFrame) matchingFrame.classList.add('active');
+
                     var structureTab = document.querySelector('.bhy-rail-tab[data-rail-tab="structure"]');
                     if (structureTab) structureTab.click();
+                    document.dispatchEvent(new CustomEvent('bhel:select-surface', { detail: { surface: btn.dataset.surface, label: btn.textContent } }));
                 });
             });
 
@@ -802,14 +1066,54 @@ class BHY_Gallery {
             var frames = document.querySelectorAll('.bhy-story-frame');
             var buttons = document.querySelectorAll('.bhy-story-btn');
 
-            buttons.forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    buttons.forEach(function (b) { b.classList.remove('active'); });
-                    frames.forEach(function (f) { f.classList.remove('active'); });
-                    btn.classList.add('active');
-                    document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]').classList.add('active');
-                });
+            // No-iframes build (see render_canvas()'s own comment for the
+            // full reasoning): each .bhy-story-frame div's real content
+            // lives under its own attachShadow({mode:'open'}) root,
+            // parsed once here from the data-doc payload PHP encoded.
+            // Everything downstream that used to read `frame.
+            // contentDocument` now reads `frame.shadowRoot` instead — the
+            // shadow root exposes the exact same getElementById()/
+            // querySelectorAll() API a real Document does, so this is a
+            // near-zero-diff swap everywhere else in this file and in
+            // element-builder.js's own preview/outline code.
+            // 3.4.55 — real bug, caught immediately from AJ's own
+            // screenshot: "styles are not doing their thing." Cause: every
+            // token/color variable this whole gallery depends on is
+            // printed as `:root{--bh-bg:...}` (BHY_Style::inline_css()) —
+            // correct for a REAL iframe document (its own <html> is a
+            // genuine :root), but inside a shadow root there is no root
+            // element at all, so `:root` matches nothing and every single
+            // `var(--bh-*)` in every surface's own CSS silently resolved
+            // to nothing — exactly the unstyled black/white mess in the
+            // screenshot. The shadow-DOM equivalent of "the document root"
+            // is `:host` (the frame div itself, which vars then inherit
+            // down through the whole shadow tree same as before). Rewrite
+            // `:root` -> `:host` on the #bhy-vars tag right after parsing;
+            // refreshAllFrames()'s own live-edit writer below gets the
+            // same rewrite so later token edits don't regress this.
+            frames.forEach(function (frame) {
+                var raw = frame.dataset.doc;
+                if (!raw) return;
+                var html;
+                try { html = atob(raw); } catch (e) { return; }
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var root = frame.attachShadow({ mode: 'open' });
+                Array.prototype.slice.call(parsed.head.children).forEach(function (node) { root.appendChild(node); });
+                Array.prototype.slice.call(parsed.body.children).forEach(function (node) { root.appendChild(node); });
+                var varsTag = root.getElementById('bhy-vars');
+                if (varsTag) varsTag.textContent = varsTag.textContent.replace(':root', ':host');
             });
+
+            // 3.4.60 — this used to be a SECOND, separate click listener
+            // duplicating the active-class toggle already done above (in
+            // the OTHER top-level IIFE, alongside the 'bhel:select-surface'
+            // dispatch) — removed. Having two independent listeners
+            // toggle the same classes on the same buttons/frames wasn't
+            // just redundant, it was the actual bug: this one ran
+            // SECOND, after the other IIFE's dispatch had already fired
+            // element-builder.js's renderDemoOutline() against the
+            // STILL-previous active frame. See the other handler's own
+            // 3.4.60 comment for the full fix.
 
             // Live-edits apply to EVERY registered surface at once, not
             // just the one currently visible — switching stories after
@@ -825,10 +1129,13 @@ class BHY_Gallery {
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
                 frames.forEach(function (f) {
-                    var doc = f.contentDocument;
+                    var doc = f.shadowRoot;
                     if (!doc) return;
                     var tag = doc.getElementById('bhy-vars');
-                    if (tag) tag.textContent = css;
+                    // :host, not :root — see the shadow-attach code above
+                    // this IIFE for why (no root element inside a shadow
+                    // tree for :root to match).
+                    if (tag) tag.textContent = css.replace(':root', ':host');
                     // Best-effort: surfaces that render the brand wordmark
                     // with these specific ids (e.g. bh-contest's player
                     // header) get it updated live too. Surfaces without

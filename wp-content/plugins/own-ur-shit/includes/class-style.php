@@ -784,9 +784,19 @@ class BHY_Style {
             ];
         }
 
+        // 3.4.49 follow-up — value changed from the field's own name
+        // (`$color_tokens[$field] = $field`) to its REAL CSS custom
+        // property name (`--bh-accent` etc.), direct response to AJ's
+        // own ask: "would be cool if the color and font selectors could
+        // preview what they look like... with like swatches in the
+        // dropdown." Nothing previously read this map's VALUES (every
+        // client-side consumer only ever iterated its KEYS), so this is
+        // a safe, non-breaking payload shape change — the client can now
+        // build `var(--bh-accent)` directly instead of hardcoding a
+        // second copy of style_var_map()'s naming convention in JS.
         $color_tokens = [];
         foreach (self::style_var_map() as $field => $css_var) {
-            if (strpos($field, 'color') !== false) $color_tokens[$field] = $field;
+            if (strpos($field, 'color') !== false) $color_tokens[$field] = $css_var;
         }
 
         return [

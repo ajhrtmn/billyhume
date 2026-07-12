@@ -125,6 +125,7 @@ class BHPlayer {
                     <div class="bh-brand">${this.brand.logoUrl
                         ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
                         : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
+                    <div class="bh-header-extra"></div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
@@ -235,6 +236,38 @@ class BHPlayer {
                 </div></div>
             </div>`;
         this.bind();
+        this.injectHeaderExtra();
+    }
+
+    // Task #80's real, safe slice — a genuinely new insertion point, not
+    // a rebuild of anything player.js already owns. class-auth.php's
+    // render() base64-encodes the real, server-rendered
+    // 'bh_contest_player'/'header_extra' BH_Element slot (editable in the
+    // Design Suite tree, same as any other real placement) onto this.root's
+    // own data-header-extra attribute — read once here and dropped into
+    // the '.bh-header-extra' div renderSkeleton() now always creates.
+    // Deliberately does NOT touch .bh-brand/.bh-header-actions or
+    // anything inside them — every this.q('.bh-results-btn')-style lookup
+    // elsewhere in this file keeps working exactly as before, untouched.
+    injectHeaderExtra() {
+        const raw = this.root.dataset.headerExtra;
+        if (!raw) return;
+        const target = this.q('.bh-header-extra');
+        if (!target) return;
+        try {
+            // atob() + decodeURIComponent/escape round-trip handles UTF-8
+            // content correctly (plain atob() alone mangles anything
+            // outside Latin1, e.g. a real emoji/accented character in an
+            // announcement) — same reasoning any base64<->UTF8 JS bridge
+            // needs, not specific to this feature.
+            const decoded = decodeURIComponent(escape(atob(raw)));
+            target.innerHTML = decoded;
+        } catch (e) {
+            // Malformed/corrupt attribute — fail silently to an empty
+            // (invisible, since CSS gives it no border/background of its
+            // own) div rather than breaking the rest of the player over
+            // one bad announcement render.
+        }
     }
 
     updateAuthUI() {

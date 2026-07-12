@@ -144,7 +144,13 @@ class OUS_Dashboard {
         echo '<div class="ous-card-header"><strong>Query Monitor</strong></div>';
         if (!function_exists('is_plugin_active')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
         if (is_plugin_active('query-monitor/query-monitor.php')) {
-            echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page).</p>';
+            // 3.4.58 — this used to just point at QM's own generic
+            // toolbar panel; class-qm-integration.php now registers a
+            // real "Own Ur Shit" tab INSIDE that panel showing this
+            // request's own OUS_DebugLog entries, so this card can say
+            // something more specific than "go look at a third-party
+            // tool."
+            echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page), including an "Own Ur Shit" tab showing this request\'s own log entries.</p>';
         } else {
             echo '<p class="ous-card-desc">Not installed. A recommended, free, self-hosted diagnostic tool (queries, hooks, HTTP requests, PHP errors) — optional, not bundled with this ecosystem.</p>';
             echo '<a class="button" href="' . esc_url(admin_url('plugin-install.php?s=query-monitor&tab=search&type=term')) . '">Install Query Monitor</a>';

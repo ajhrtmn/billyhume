@@ -38,6 +38,53 @@ class BH_Auth {
             $payload = BHY_Style::entity_style_payload($cid);
             if ($payload) $attrs .= ' data-style-overrides="' . esc_attr(wp_json_encode($payload)) . '"';
         }
-        return '<div ' . $attrs . '></div>';
+
+        // bh-contest's first real BH_Element surface (class-element-
+        // surface.php's own docblock explains the scope/why). Deliberately
+        // OUTSIDE the JS-owned #bh-player-root div, not inside it — player.js
+        // rebuilds that div's entire innerHTML on load (renderSkeleton()),
+        // so anything placed inside it would be wiped the instant the
+        // script runs. These two zones are real server-rendered HTML,
+        // siblings of the player, not something player.js knows about or
+        // touches at all.
+        $before = ''; $after = '';
+        if ($cid && class_exists('BH_Element')) {
+            $before = BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
+            $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
+
+            // Task #80's real, safe slice: this one DOES need to end up
+            // INSIDE the header bar player.js builds — a sibling wouldn't
+            // visually read as "part of the header" the way a real
+            // header addition should. Since player.js owns and rebuilds
+            // #bh-player-root's entire innerHTML on load, the only safe
+            // way in is to hand player.js the already-rendered HTML as
+            // data (base64, same reasoning class-style-gallery.php's own
+            // shadow-DOM data-doc attribute uses — avoids any HTML-
+            // attribute-escaping edge case a raw JSON/HTML string could
+            // hit) and let IT insert it once, into a brand-new
+            // '.bh-header-extra' div that does not exist in the header
+            // today and does not replace anything that does.
+            $header_extra = BH_Element::render_slot('bh_contest_player', $cid, 'header_extra', ['contest_id' => $cid]);
+            if (trim(wp_strip_all_tags($header_extra)) !== '' || strpos($header_extra, '<') !== false) {
+                // render_slot() always returns at least the empty wrapper
+                // div even with zero placements (own-ur-shit 3.4.49's own
+                // fix) — only bother passing it to player.js if there's
+                // real content inside, not an empty wrapper every single
+                // page load.
+                if (self::slot_has_visible_content($header_extra)) {
+                    $attrs .= ' data-header-extra="' . esc_attr(base64_encode($header_extra)) . '"';
+                }
+            }
+        }
+
+        return $before . '<div ' . $attrs . '></div>' . $after;
+    }
+
+    // render_slot()'s wrapper div is always present, even empty — this
+    // tells "genuinely empty" apart from "has real placement content"
+    // without player.js needing to know anything about BH_Element's own
+    // wrapper convention.
+    private static function slot_has_visible_content($html) {
+        return trim(wp_strip_all_tags($html)) !== '' || preg_match('/<(img|svg|iframe|video|audio)\b/i', $html) === 1;
     }
 }
