@@ -1,6 +1,23 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// BHCRM_VER 1.3.4 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md (plugins
+// root, new 2026-07-12) — AJ named a specific reference app, TrackIt
+// (a macOS task tracker for music producers/labels/mastering
+// engineers), and asked to duplicate its full feature set here: "I
+// basically will want to duplicate all of Track Its functionality."
+// That doc is a DETAILED PLAN ONLY, not built — reusable checklists,
+// timestamped fixes, a feedback log, stall analytics, separate
+// scenes/boards, and (honestly scoped as the least portable) linked
+// local audio/MIDI files are all designed there with a phased build
+// order, judgment calls, and an explicit "not ported" list (native DAW
+// launching; a per-app theme builder, since this ecosystem already has
+// one ecosystem-wide). Column customization and per-card completion
+// roll-up already match TrackIt's own equivalent features — see that
+// doc's §2 for the exact mapping against what's already built below.
+// Read that doc before starting any of these — this class's own
+// comment here is only a pointer, not a duplicate of the plan.
+//
 // BHCRM_VER 1.3.0 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.5): new
 // list_all() + render_boards() — a thin, real listing page for the new
 // 'bh-crm-projects' submenu (class-hub.php's CRM top-level menu), giving

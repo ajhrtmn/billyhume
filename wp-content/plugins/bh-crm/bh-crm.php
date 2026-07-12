@@ -2,16 +2,28 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.3.3
+ * Version:     1.3.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.3.3');
+define('BHCRM_VER',  '1.3.4');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
+// 1.3.4 — 2026-07-12 — doc-only pass, no functional code change. New
+// PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md (plugins root) is a detailed,
+// phased build plan for duplicating TrackIt's (a macOS music-producer
+// task tracker AJ named directly) full feature set inside the Project
+// Tracker: reusable checklists, timestamped fixes, a feedback log,
+// stall analytics, separate scenes/boards, and linked local audio/MIDI
+// files (honestly scoped as the least faithfully portable of the six,
+// with a concrete recommendation). class-projects.php's own docblock
+// now points to it. NOT built this pass — explicitly deferred per AJ's
+// own "we are in the middle of other things... keep moving forward on
+// the other stuff."
+//
 // 1.3.3 — 2026-07-12 — DESIGN-SUITE-UNIFICATION-PLAN.md "NO SPECIAL-
 // CASED PAGES" Step 1, the first real one (Step 0 was just proving the
 // canvas could show live data). The 'bh_crm_profile' surface's three
