@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.79
+ * Version:     3.4.81
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -1698,7 +1698,90 @@ if (!defined('ABSPATH')) exit;
 // Smoke-test: add a block, open Advanced Styles, set a spacing/color
 // value, confirm it round-trips through save/reload and appears as
 // real inline CSS on the front end.
-define('OUS_VER', '3.4.79');
+//
+// 3.4.80 — BHY_BlockStyle fix: the 3.4.79 smoke-test above was finally
+// run against a real WordPress+MySQL install (first real execution
+// this class has ever had) and it failed. The Style panel appeared and
+// setAttributes({ bhStyle }) worked live in the editor's data store,
+// but the value never survived save — the saved block comment came
+// back with no `bhStyle` at all (`wp_posts.post_content` inspected
+// directly to confirm). Root cause: `register_block_type_args`
+// (class-block-style.php) only reserves `bhStyle` server-side, for
+// REST/render-time validation. Gutenberg's own block SERIALIZER runs
+// entirely client-side and only writes attributes the block's CLIENT
+// type registry actually declares — assets/js/block-style-panel.js
+// only ever added an `editor.BlockEdit` filter (the UI), never a
+// `blocks.registerBlockType` filter to declare the attribute on the
+// client side, so the serializer silently dropped it every time,
+// looking like a working feature right up until the moment of save.
+// Fix: block-style-panel.js now also filters
+// `blocks.registerBlockType` and adds `bhStyle: { type: 'object',
+// default: {} }` to every block's client-side attribute list, mirroring
+// the PHP side exactly. Re-verified end-to-end after the fix: set a
+// background-color token on a paragraph block, saved, confirmed
+// `{"bhStyle":{"bg.color":"@token:color_accent"}}` in the raw DB row,
+// reloaded the editor (value persisted in the panel), and confirmed
+// `style="background-color:var(--bh-accent);"` on the real front-end
+// `<p>` via the page preview. This IS runtime-verified, on this actual
+// install, not reasoned through.
+//
+// 3.4.81 — BHY_BlockStyle editor-canvas live preview: AJ's own direct
+// feedback after the 3.4.80 fix — the panel round-tripped correctly by
+// then, but only ever became visible on the real front end; the editor
+// canvas itself stayed completely unstyled while editing, so a wrong/
+// stale value (bad token name, a preset key that no longer exists)
+// wouldn't surface until you actually loaded the page. Added a client-
+// side mirror of BHY_Style::resolve_style_value() (assets/js/block-
+// style-panel.js: resolvePreviewValue()/bhStyleToPreviewStyle(), built
+// entirely from the same bhyBlockStyleSchema payload the panel itself
+// already renders from — no second property vocabulary to keep in
+// sync) and an `editor.BlockListBlock` filter (the same wrapperProps
+// extension point core itself uses for alignment classes) that merges
+// the resolved style onto the block's own wrapper element in the
+// canvas. Deliberately NOT a security boundary — this only ever feeds
+// a React inline style in the logged-in editor; scoped_inline_style()
+// server-side remains the sole sanitizer for what reaches real page
+// HTML. Approximate for the handful of block types whose own root
+// element isn't the wrapper this filter targets; correct for the
+// overwhelming majority (paragraphs, headings, groups, images, etc.).
+//
+// RUNTIME-VERIFIED, with one real bug caught and fixed in the same
+// pass: the first version of this filter gated its own registration on
+// `wp.blockEditor.BlockListBlock` existing (`if (BlockListBlock) { ... }`)
+// — confirmed on this actual install that export is undefined in the
+// current WordPress/Gutenberg version, so the guard silently skipped
+// `addFilter()` entirely and the feature never fired, no error, nothing
+// in the console. `editor.BlockListBlock` is still a real filter name
+// Gutenberg's internal (non-exported) block-list renderer applies
+// regardless of whether the component is part of the package's public
+// surface — addFilter() only needs the NAME, not a reference to the
+// component. Removed the guard; confirmed via
+// `wp.hooks.hasFilter('editor.BlockListBlock', 'bhy/advanced-styles-
+// preview')` returning true after the fix, then confirmed the actual
+// DOM: selected a paragraph, set background-color to the "accent"
+// token, and read the live editor iframe's own node
+// (`style="background-color: var(--bh-accent); ..."`) — no save
+// required.
+//
+// Same pass surfaced one more real, separate, pre-existing gap (not
+// caused by this feature, just finally visible because of it): even
+// with the preview correctly emitting `var(--bh-accent)` in both the
+// canvas and the front end, `--bh-accent` itself resolved to nothing
+// anywhere except bh-portal/profile-style pages — confirmed via
+// `getComputedStyle(...).getPropertyValue('--bh-accent')` returning ''
+// on an ordinary page, in the editor iframe, AND in wp-admin itself.
+// `BHY_Style::inline_css()` was only ever echoed by the specific pages
+// that already knew to ask for it (class-public-profile.php, class-
+// portal.php, the gallery preview) — never site-wide. Fixed by adding
+// `BHY_Style::init()` (class-style.php) — a `wp_head` hook (every real
+// front-end page) plus a `block_editor_settings_all` filter (the
+// editor iframe's own supported raw-CSS injection point, since the
+// iframe has its own document and doesn't inherit admin `wp_head`).
+// Neither hook disturbs the existing per-page echoes — CSS's own
+// last-declaration-wins cascade still lets an entity-specific override
+// win exactly as before; this only adds the site DEFAULT that was
+// missing everywhere else.
+define('OUS_VER', '3.4.81');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -2032,6 +2115,15 @@ add_action('init',          ['BH_Element', 'init']);
 // core's own block registration and rendering, own-ur-shit's own
 // BHY_Style, nothing optional).
 add_action('init',          ['BHY_BlockStyle', 'init']);
+// 3.4.81 follow-up — BHY_Style::init() (class-style.php): global
+// wp_head/block_editor_settings_all token hooks, direct response to the
+// gap the BHY_BlockStyle editor-canvas preview work above just exposed
+// (see BHY_Style::init()'s own docblock) — --bh-* custom properties
+// were only ever available on pages that already knew to echo
+// inline_css() themselves (public profile/portal pages), never site-
+// wide, so a token-based color set anywhere else produced a real but
+// inert CSS declaration.
+add_action('init',          ['BHY_Style', 'init']);
 // PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — real, live-verified
 // cleanup, not a guess: BH_Element/BH_Element_Data (the data model +
 // render_slot() engine, immediately above) are confirmed LIVE — real

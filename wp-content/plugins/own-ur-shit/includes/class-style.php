@@ -15,6 +15,47 @@ if (!defined('ABSPATH')) exit;
  * piecemeal, so one row is both simpler and cheaper than a dozen.
  */
 class BHY_Style {
+    /**
+     * Site-wide token availability — AJ's own direct follow-up after
+     * BHY_BlockStyle's editor-canvas live preview (3.4.81) turned out to
+     * only ever be in HONEST parity with a real, separate, pre-existing
+     * gap: inline_css()'s `:root{--bh-*:...}` block was only ever echoed
+     * on specific pages that already knew to ask for it (class-public-
+     * profile.php's public profile pages, class-portal.php's portal
+     * pages, the gallery preview) — never globally. A `bg.color` token
+     * ref set through the Advanced Styles panel on an ORDINARY page/post
+     * produced a real `background-color:var(--bh-accent)` declaration in
+     * both the editor canvas and the rendered front end, but `--bh-
+     * accent` itself resolved to nothing outside those special pages —
+     * confirmed empty via getComputedStyle() on this actual install, not
+     * assumed. Two hooks fix both halves of that gap: `wp_head` (every
+     * real front-end page, `print_global_css()`) and the block editor
+     * iframe's own styles list via `block_editor_settings_all`
+     * (`add_editor_iframe_styles()`) — the iframe has its own separate
+     * document and does NOT inherit admin `wp_head`/`admin_head`, so
+     * `enqueue_block_editor_assets` alone can't reach it; `styles` is
+     * core's own supported extension point for raw CSS in that iframe
+     * (used internally for `add_editor_style()` under the hood). Neither
+     * hook touches the existing per-page echoes above — those still
+     * fire later in the document and still correctly win the cascade for
+     * any entity-specific override, since CSS's own last-declaration-
+     * wins rule already handles that; this only adds the SITE DEFAULT
+     * that was previously missing everywhere else.
+     */
+    public static function init() {
+        add_action('wp_head', [self::class, 'print_global_css']);
+        add_filter('block_editor_settings_all', [self::class, 'add_editor_iframe_styles']);
+    }
+
+    public static function print_global_css() {
+        echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
+    }
+
+    public static function add_editor_iframe_styles($settings) {
+        $settings['styles'][] = ['css' => self::inline_css()];
+        return $settings;
+    }
+
     const OPTION = 'bhy_style_settings';
 
     const DEFAULTS = [
