@@ -2,10 +2,540 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.60
+ * Version:     3.4.78
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.71 — 2026-07-12 — three more rounds of direct live feedback, all
+// addressed in one pass: (1) "bloated, poorly proportioned... good gaps/
+// padding/margins" + "all three need to feel cohesive" — the Library
+// rail's list rows now reuse .bhy-rail-item/.bhy-rail-subheading VERBATIM
+// (the exact classes Live Views' own story-button list already uses in
+// the same rail) instead of a parallel bhds-library-item class with
+// slightly different numbers; the canvas toolbar/state-strip/Controls
+// panel were re-measured against tokens already used elsewhere in this
+// rail (7px/14px row padding, 11px uppercase headings) instead of
+// inventing a new scale; the background-toggle went from three separately
+// -bordered boxes to one connected segmented control; canvas padding/min-
+// height reduced; the Controls panel heading now reuses .bhy-controls h3
+// verbatim. (2) "This is kinda my dream" — a real Storybook screenshot
+// showing NESTED, disclosure-triangle story trees (states nested inside
+// their component, not a separate tab strip) and a SOLID PILL selected-
+// row highlight, not a left-border tint. Named fixture states are now
+// tree rows nested under their Component/Primitive (renderNestedStates()),
+// disclosure-triangle expandable, lazily fetched and cached per item; the
+// separate state-tab strip above the canvas is GONE (its markup, CSS, and
+// renderStateTabs()/loadStates() are removed outright) — the canvas
+// toolbar is now purely the light/dark/grid background toggle, matching
+// what that position actually is in real Storybook. The solid-pill
+// selected style (.bhy-rail-item.active/.bhy-story-btn.active) is applied
+// GLOBALLY, so Structure's own tree/Live-Views list picks it up too —
+// deliberate, since "cohesive" means the same look everywhere, not just
+// in Library. (3) "I wanted already seeded mocked up components to work
+// from" / "real seeded data is the point" — BH_Element_Prefab now seeds
+// four starter Components on 'init' (idempotent via an option flag AND a
+// per-slug existence check, so it never duplicates or clobbers anything
+// AJ has since edited): Contest Stat Row, CTA Banner, Section Header,
+// Action Button Row — built entirely from this ecosystem's own existing
+// primitives, shaped around bh-contest's actual UI. Also hardened
+// postApi() the same way api() was hardened last pass (a failed POST/
+// DELETE used to silently resolve with a WP_Error body instead of
+// rejecting — "New Component" only ever knew "!data.id," never why) and
+// switched "New Component"/state save/delete to show the REAL server
+// error text instead of a generic alert. No live browser this pass —
+// reasoned through against the existing, working rail-tab/pane mechanism
+// and the already-verified render_definition()/BH_Element_State code
+// paths, brace/syntax + node --checked (all three top-level IIFEs
+// individually), but the nested-tree interaction itself has not been
+// clicked through live yet.
+
+// 3.4.77 — 2026-07-12 — REAL, LIVE-CONFIRMED BUG FIX: 3.4.76 broke
+// admin.php?page=bh-design itself — a logged-in admin got WordPress
+// core's own "Sorry, you are not allowed to access this page" wp_die(),
+// immediately after this plugin gained a new page. Root cause: class-
+// component-studio.php's add_menu() registered its Components list with
+// a REAL parent slug (add_submenu_page('bh-design', ...)) — this is a
+// known, ALREADY-DOCUMENTED footgun in this exact codebase (see class-
+// style-gallery.php's own 3.4.31 changelog note): WordPress implicitly
+// pairs a top-level menu's bare slug with its first-registered
+// submenu's own capability/callback, and adding another real submenu
+// under the same parent can disturb that pairing depending on
+// admin_menu hook registration order. Every other page in this plugin
+// (BHY_Gallery::add_menu(), BH_Studio::add_menu()) already avoids this
+// by registering with parent_slug = null ("hidden, reachable by direct
+// link only") instead — I reintroduced a bug class this codebase had
+// already fixed once, by not checking for the existing convention
+// before adding a new admin_menu registration. Fixed: add_menu() now
+// uses the same null-parent pattern; Components is reachable directly
+// at wp-admin/edit.php?post_type=bh_component (not yet linked from
+// anywhere in the UI — a real follow-up, not done this pass).
+//
+// 3.4.76 — 2026-07-12 — PAGE-BUILDER-REBUILD-PLAN.md's prototype
+// (class-component-studio.php, 3.4.76's own new file, see its docblock
+// for the full architecture) extended twice more this same pass, both
+// direct, live, mid-build catches from AJ:
+// (1) "The playing bar would just be one of the many nested components
+// underneath, no?" — correct, and the in-progress "Contest Page"
+// Component was about to make the OLD system's exact mistake (copy the
+// Now-Playing Bar's markup inline instead of reusing it) wearing new
+// clothes. Added a real second block type, bh/component-ref — embeds
+// ANOTHER bh_component post's live content by reference (core WordPress's
+// own do_blocks(), not a hand-rolled second renderer), with a published-
+// only guard and a depth-8 cycle guard. The seed data was restructured
+// to match: Contest Header, Category Tabs, and Track List are now three
+// MORE independent Components (not folded into one blob), each
+// communicating with the others ONLY through plain CustomEvents on
+// `document` (bhcb:category, bhcb:play) — no direct references between
+// them — and "Contest Page (Full GUI Smoke Test)" is composed ENTIRELY
+// of four bh/component-ref blocks pointing at real post ids (Header,
+// Tabs, Track List, and the already-seeded Now-Playing Bar), with zero
+// HTML/CSS/JS of its own. This is what AJ's own smoke-test bar asked
+// for: "I meant the ENTIRE player for the contests, the whole entire GUI
+// for that" — genuinely composed of real, independent, reusable pieces,
+// not one hand-assembled page.
+// (2) "I dont want to be dependent on WP propriety shit... it really
+// needs really good abstractions so we can eventually migrate away from
+// everything WP dependent." Worth stating the boundary explicitly rather
+// than leaving it implicit: every bh/custom-block's actual authored
+// content (html/css/js/bindings) is plain, portable data — zero WP-
+// specific syntax inside it, trivially exportable to any future system.
+// The WP-specific parts (the block-editor authoring UI, post_content's
+// block-comment serialization, the wp/v2 REST auto-routes) are confined
+// to the AUTHORING SHELL, never leak into what's actually stored per
+// Component, and never touch the PUBLIC render path at all (render_
+// custom_block()/render_component_ref() output plain HTML/CSS/JS — a
+// site visitor's browser never loads wp-block-editor or any other WP
+// admin package). This is the concrete rule going forward: if a future
+// change ever makes a Component's stored content only make sense INSIDE
+// WordPress, that's the one thing to push back on hardest — the editing
+// shell is allowed to be WP-shaped; the data isn't.
+//
+// 3.4.70 — 2026-07-12 — REAL RE-ARCHITECTURE, live-confirmed feedback:
+// "they should be the same interface aesthetically... and functionally,
+// just swapping between what is there specifically in the rail," plus "the
+// old .bhds-library-preview gave the canvas a literal #1a1a1a black
+// background" (visible live — this is what actually made Library look like
+// a bolted-on second app). The top-level Structure|Library switch, which
+// wrapped TWO ENTIRELY SEPARATE panel layouts (#bhds-mode-structure vs
+// #bhds-mode-library), is GONE. There is now exactly ONE shell
+// (.bhy-unified: rail | canvas | inspector) rendered unconditionally —
+// "Library" is a THIRD .bhy-rail-tab inside the SAME .bhy-rail-tabs strip
+// that already held Structure/Live Views (render_left_rail()), reusing the
+// EXISTING generic rail-tab click handler for tab/pane switching and
+// localStorage persistence, with one addition: it now also sets
+// data-active-rail on #bhds-app-root and fires a 'bhds:rail-tab'
+// CustomEvent. Pure CSS attribute selectors ([data-active-rail="library"])
+// swap which of two permanent siblings is visible inside the SAME canvas
+// column (.bhy-canvas-structure-pane / .bhy-canvas-library-pane) and the
+// SAME inspector column (.bhy-inspector-structure-pane /
+// .bhy-inspector-library-pane) — never two different DOM shells. Every
+// surface in the Library's own markup (search input, nav list, toolbar,
+// state tabs, canvas, Controls panel) now draws from this file's existing
+// --bhy-* tokens, the SAME tokens Structure's rail/canvas/inspector already
+// use, specifically so the two read as one application; the black canvas
+// background is gone (default light, matching --bhy-surface exactly), with
+// an OPT-IN light/dark/grid toggle kept as a real, useful preview
+// capability that only ever affects the small canvas rectangle. All
+// Phase 1-4 JS logic (loadLibrary/selectItem/loadStates/openFixturesEditor/
+// instantiatePrefab/etc.) is UNCHANGED — every element id it reads/writes
+// is identical to before this pass; only setMode()/.bhds-mode-tabs
+// machinery was replaced with selectRailTab()/the rail's own tab system,
+// and the old render_library_panel() method (dead code after this
+// rearchitecture) was deleted outright rather than left orphaned. Also
+// hardened the Library's api() helper (found live: it never threw on a
+// well-formed-but-wrong-shape response — a WP_Error IS valid JSON — so a
+// real route failure silently looked identical to "the Library has no
+// data" instead of surfacing a diagnosable error) to throw a real, logged
+// Error on any non-ok or WP_Error-shaped response. No live browser this
+// pass beyond the earlier confirmed bug reports — reasoned through against
+// the existing, already-working rail-tab/pane mechanism and brace/syntax +
+// node --checked (all three top-level IIFEs individually), but the
+// re-architecture itself has not been clicked through live yet — please
+// verify Structure and Library now genuinely share one shell before
+// trusting this fully.
+
+// 3.4.75 — 2026-07-12 — REAL, LIVE-CONFIRMED FIX: "Close, they jump to
+// the start, not back one level" (the 3.4.74 breadcrumb/back-button work,
+// tested live). Root cause: class-element.php's get_placements() only
+// ever cast library_component_id to a real int — id and
+// parent_placement_id came back as plain STRINGS (wpdb ARRAY_A over
+// MySQL's text protocol), which JSON-encodes as quoted strings. Two
+// failures fell out of that in goUpOneLevel()/buildAncestryChain()
+// (element-builder.js): a root node's parent_placement_id is the STRING
+// "0", which is TRUTHY in JS (only the NUMBER 0 is falsy) — so root
+// nodes register as one, but a "0" is a non-empty string; and any id lookup done
+// with strict/implicit equality against a mixed string/number pair could
+// silently fail. Fixed at the JS call sites (Number(...) normalization,
+// same defensive pattern this file's own docblock already uses
+// elsewhere) AND at the source: get_placements()/get_placement() now
+// also cast id and parent_placement_id to real ints, same treatment
+// library_component_id already got, closing this off for every other
+// current and future consumer of this array, not just this one call
+// site.
+//
+// 3.4.74 — 2026-07-12 — Component-editing UX rework, AJ's own live
+// feedback on the 3.4.73 screenshots: "I find things a bit confusing,
+// especially in the drill down on the inspector" -> (asked what
+// specifically) "Just cludgy and poorly designed and thought out I
+// think, for how the user will need to use it." -> "theres no 'drill
+// up' as it were... its not user friendly or at all intuitive to use."
+// -> "Really consider human friendly workflow and layout practices."
+// Three concrete, structural fixes in assets/js/element-builder.js (this
+// plugin's own visual-builder engine, mounted inside class-style-
+// gallery.php's rail — no PHP changed this pass):
+// (1) ISOLATION — renderCanvas() used to ALWAYS render the entire live
+// Site/CRM tree underneath the "Editing Library Component" banner, even
+// while sandboxed inside one Component (exactly what the screenshots
+// showed: SITE, CRM profile page, project tracker board, all still
+// listed while "editing" Contest Stat Row). This whole tool is explicitly
+// modeled on Storybook, and Storybook never shows your unrelated app
+// routes while isolating one component — this plugin shouldn't either.
+// While state.libraryEditing is set, the rail now renders ONLY the
+// sandbox surface's own tree; Site and every live surface are skipped
+// outright, not just deprioritized.
+// (2) REAL "DRILL UP" — the previous "Done" control (the inspector's
+// close/dismiss button) hardcoded selectSite() no matter how deep a
+// placement was nested, so one click from three levels deep jumped all
+// the way to the global Site root (and, worse, while editing a Component
+// would have broken the new isolation above entirely, since selectSite()
+// doesn't know about libraryEditing). New goUpOneLevel() goes to the
+// IMMEDIATE parent (or, for a top-level node, back to the Component-root
+// list) — genuine one-level "drill up", renamed "‹ Back" so it reads as
+// navigation, not dismissal.
+// (3) BREADCRUMB — new buildAncestryChain() + a .bhel-breadcrumb row at
+// the top of every placement's inspector: the full clickable path from
+// Component root down to (but not including) the selected node, with the
+// node's own label trailing as plain "you are here" text — the always-
+// visible path back up that was simply missing before, not something you
+// had to already know was possible via the tree. See element-builder.css's
+// new .bhel-breadcrumb* rules for the visual language (small, underline-
+// on-hover links, thin bottom rule — deliberately quiet, not another loud
+// banner).
+// None of this touches PHP/REST/data shape at all — purely the existing
+// selection/navigation JS, reusing state.selection, getPlacementsArray(),
+// and the type-label lookups already used elsewhere in this same file.
+// Not live-verified — no browser here — but node --checked clean and
+// every new function only reads state this file already maintains
+// correctly elsewhere; please reload, re-enter editing a Component, and
+// confirm the rail is actually isolated and the breadcrumb/back button
+// both go where they say they will.
+//
+// 3.4.73 — 2026-07-12 — REAL, LIVE-CONFIRMED FIX for the 404, found via
+// the 3.4.72 diagnostic logging below (which did its job and is now
+// removed — both the register_routes() log line and the rest_api_init
+// route-table dump confirmed the route WAS correctly registered, ruling
+// out opcache/registration entirely). AJ's OUS_DebugLog dump showed the
+// actual failing request URL: "POST .../wp-json/ous/v1/elements/elements/
+// prefabs" — note "elements/elements/prefabs", doubled. Root cause: cfg.
+// restUrl (class-element-builder.php's enqueue_assets(), unchanged) is
+// esc_url_raw(rest_url('ous/v1/elements/')) — it ALREADY ends in
+// 'elements/' by design, so every OTHER caller of api()/postApi() in this
+// codebase correctly passes just the tail (e.g. 'placements/123'). But
+// class-style-gallery.php's Library-tab JS (Phase 0-4 of LIBRARY-
+// STRUCTURE-HYBRID-DESIGN-PLAN.md, all written across earlier passes)
+// called api('elements/types'), api('elements/prefabs'), api('elements/
+// states?...'), postApi('elements/prefabs', ...), postApi('elements/
+// states...', ...), and one raw fetch(cfg.restUrl + 'elements/preview')
+// — every single one prepending 'elements/' a SECOND time on top of what
+// restUrl already has. This has apparently been broken since Phase 0 —
+// not something this session's edits introduced — it just took a real
+// browser + log dump to actually see the doubled path, which no amount
+// of re-reading register_routes() in isolation could have caught (that
+// method was correct the entire time). Fixed all 8 call sites to drop
+// the redundant 'elements/' prefix: 'types', 'prefabs',
+// 'prefabs/{id}/preview', 'states?...', 'states', 'states/{id}',
+// 'preview'. This should fix "New Component", the Library list actually
+// populating (GET elements/types + elements/prefabs were failing the
+// exact same way), fixture-state load/save/delete, and the Library
+// preview render — all of Phase 0-4 was hitting this same 404 underneath
+// whatever else was reported. Please reload and re-test everything in
+// the Library tab now that the actual transport bug is gone.
+//
+// 3.4.72 — 2026-07-12 — TWO items, both AJ's own live reports:
+// (1) The confirmed-live "HTTP 404 for elements/prefabs: No route was
+// found matching the URL and request method" on "New Component". Every
+// file this route touches — class-element-prefab.php's register_routes()
+// itself, this file's require-loop (element-prefab IS in the loader
+// array) and its 'init'->register_routes() hookup (both present,
+// unchanged, correct), class-element-builder.php's enqueue_assets()
+// (confirmed it DOES run on the Design Suite page — BHY_Gallery::
+// enqueue_widgets_assets() calls it directly on the bh-style/bh-design
+// hook, bypassing the OTHER, retired maybe_enqueue() hook-string check
+// that only matches the separate standalone Element Builder page; that
+// retired gate was my first suspect and is a dead end, ruled out this
+// pass) — was re-read line by line and is structurally correct; the
+// route registration is byte-identical in shape to every other working
+// route in this codebase. Since a genuinely well-formed rest_no_route
+// response means PHP completed the request without fataling, the most
+// likely real explanation is something outside this file's own logic —
+// most plausibly a stale opcode-cache copy of class-element-prefab.php
+// still being served after the edit (some hosts run opcache.validate_
+// timestamps=0, which won't pick up a changed file until PHP-FPM/Apache
+// restarts or opcache is reset). Rather than guess again blind, added
+// two TEMP DIAGNOSTIC log lines (OUS_DebugLog, same "check logs" workflow
+// AJ already uses): one inside register_routes() itself confirming it
+// executed (logs this file's own mtime, so a stale-cache mismatch is
+// directly visible), and one on a late (priority 999) rest_api_init hook
+// in this file dumping whether '/ous/v1/elements/prefabs' is actually in
+// the REST server's final route table for that request. Please reload,
+// click "New Component" again, and check OUS_DebugLog's Console for
+// "element_prefab_register_routes" and "rest_route_dump" — their
+// presence/absence pinpoints exactly which stage is failing. Both are
+// safe to delete once this is confirmed fixed.
+// (2) Density pass: "for the inspector, I really like the unity
+// inspector. Its tight and clean and professional looking, not bloated
+// bubble bulky" / "Across the board really, to flabby currently." See
+// class-style-gallery.php's own new comment block (render_script(), right
+// after the design-system <style> tag) for the full approach — a scoped
+// #bhds-app-root override of the existing --bhy-space-N/--bhy-text-*/
+// --bhy-radius* tokens (smaller values, same variable names, so every
+// existing token-based rule further down the file automatically picks it
+// up) plus a handful of targeted !important overrides for the few rules
+// that use a hardcoded px value instead of a token. Global --bhy-* tokens
+// (class-ui.php) themselves are UNCHANGED — this only affects the Design
+// Suite screen, not every other admin page built on the same design
+// system. Not live-verified — please reload and confirm this actually
+// reads as "Unity Inspector tight" rather than just "smaller."
+//
+// 3.4.69 — 2026-07-12 — REAL, LIVE-CONFIRMED BUG FIX: "Library doesn't
+// even open into anything" (AJ, live on the actual site). Root cause: the
+// Library tab's entire inline <script> (class-style-gallery.php's third
+// IIFE, everything Phase 0-4 of LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md
+// built) is printed directly in the admin page's HTML body, so it runs at
+// parse time — but it started with `if (!cfg.restUrl) return;`, reading
+// window.bhElementBuilderConfig, which is only defined by a wp_localize_
+// script() call attached to the 'bh-element-builder' handle, enqueued with
+// in_footer=true. That config script tag doesn't exist in the DOM yet when
+// this inline block runs, so cfg.restUrl was ALWAYS undefined at that
+// point, and the old code returned immediately — silently skipping
+// EVERYTHING below it, including the basic Structure/Library tab-click
+// listener, which has nothing to do with REST at all. Net effect: clicking
+// "Library" did visibly nothing, with no console error, and (since nothing
+// past that guard ever ran) every Phase 1-4 feature built on top of it was
+// unreachable too — this single ordering bug is almost certainly why "none
+// of it" appeared to work. Fix: the real work now lives in a named init()
+// function, called on 'DOMContentLoaded' (footer scripts execute
+// synchronously during parsing, strictly before that event fires, so
+// bhElementBuilderConfig is guaranteed to exist by the time init() runs),
+// with an immediate-call fallback for the rare case this script itself
+// loads after DOMContentLoaded already fired. Also added a console.error
+// if cfg.restUrl is STILL missing after that, instead of a silent no-op,
+// so a genuinely different failure (bh-element-builder not enqueued at
+// all) is now visible instead of looking identical to this bug. This is a
+// real, confirmed-live fix, not a reasoned-through one — but the
+// downstream Phase 1-4 features it unblocks are still only brace/syntax-
+// checked, never executed; please re-verify those now that they can
+// actually run.
+
+// 3.4.68 — 2026-07-12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4:
+// linked instances, AJ's confirmed scope of leaf-value overrides only (no
+// per-instance structural changes — anything beyond attrs/style requires
+// editing the master Component or detaching). New bhcore_element_placements
+// column library_component_id (class-identity-activator.php DB_VERSION
+// 1.12): 0 = an ordinary placement (every pre-existing row, unchanged
+// behavior); non-zero = a linked instance — ONE row whose 'config' is
+// repurposed as an index => {attrs, style} leaf-override map, no real child
+// placement rows, structure entirely virtual. BH_Element::render_placement()
+// gained a branch (checked BEFORE its own get_type() lookup) that delegates
+// straight to the new BH_Element_Prefab::render_linked_instance(), which
+// re-reads the master's CURRENT definition on every render (render_
+// definition() gained an $overrides param, same shallow attrs/style merge
+// used everywhere overrides are applied) — publishing an edit to the master
+// updates every linked instance with zero action needed anywhere else, by
+// construction. New BH_Element_Prefab methods: instantiate_linked() (the
+// single-row linked insert), detach_instance() (folds overrides into a copy
+// of the master's definition, materializes it as real child rows under the
+// SAME placement id via the existing unmodified instantiate() routed through
+// a throwaway scratch prefab, then flips that row to an ordinary
+// library_component_id=0 bh/container). New REST routes: POST .../
+// prefabs/{id}/instantiate gained an optional "linked":true body flag
+// (default/omitted keeps Phase 3's detached-copy behavior unchanged); POST
+// .../placements/{id}/overrides (replace the whole override map) and POST
+// .../placements/{id}/detach are new. element-builder.js: the Components
+// palette section now offers "Insert linked" (default, primary) alongside
+// "Insert a copy"; the tree shows a 🔗 badge + the master's name on any
+// linked-instance node; a dedicated inspector (renderLinkedInstanceInspector())
+// replaces the normal Element/Style/Data sections for one — master name,
+// "Detach from Library," and a deliberately minimal per-node JSON overrides
+// editor (one row per master definition entry), matching the same
+// flat/functional-over-polished posture the Library tab's own fixtures
+// editor (Phase 2) already established. No live browser/DB this pass —
+// reasoned through against the already-working instantiate()/render_
+// definition() code paths and brace/syntax + node --checked, but not
+// executed. Please verify, in this order, against a real install: place a
+// linked instance, confirm it renders the master; edit an override and
+// confirm it applies without touching the master; publish an edit to the
+// master from the Library tab and confirm the linked instance updates with
+// no action taken on it directly; detach it and confirm it becomes a real,
+// independent, freely-divergent subtree with the override baked in.
+
+// 3.4.67 — 2026-07-12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 3:
+// the add-child picker (element-builder.js) turns out to already have been
+// the Library, largely built in an earlier pass as the "Prefabs" palette
+// section — instantiatePrefab() already gives exactly the detached-copy
+// semantics §5.3/Phase 3 calls for (a fresh, independent set of placement
+// rows every insert, editing the copy never touches the saved Component).
+// Renamed that section's header "Prefabs" -> "Components" for terminology
+// consistency with the Library tab (no schema/route change — the table is
+// still literally bhcore_element_prefabs). The one real capability gap
+// this pass closes: capability intersection (§5.3's own explicit call) —
+// renderPrefabSection() now filters state.prefabs against the target
+// surface's own admitted-types manifest (state.typesBySurface[surface],
+// the SAME per-surface manifest the plain-type list already filters
+// against) and only offers a Component whose every contained element type
+// is actually admitted there; a Component that would place a
+// surface-inadmissible type is silently withheld rather than offered and
+// failing later. Deliberately stops here — Phase 4 (linked instances) is
+// explicitly gated in the design doc's own §9 open-question #1 on AJ
+// confirming the override boundary first, so it is not started
+// unprompted. No live browser this pass — reasoned through against the
+// existing, already-working typesBySurface/prefabs data on hand and
+// node --checked, not executed.
+
+// 3.4.66 — 2026-07-12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2:
+// named fixture states — the Storybook Default/Empty/Viral-style variant
+// tabs, per AJ's own "fixture/mock data per state" answer. New table
+// bhcore_element_states (class-identity-activator.php DB_VERSION 1.11) and
+// a new BH_Element_State class (class-element-state.php) hold them — one
+// shared table for both a Library Component (owner_kind 'component',
+// owner_key its prefab id) and a code-registered Primitive type (owner_kind
+// 'type', owner_key its type slug), per the design doc's own §4.2 call.
+// register_type() gained an optional 'states' manifest key so a type's
+// author can ship default states inline; BH_Element::
+// maybe_seed_default_states() lazily inserts any that don't already exist
+// the first time a type's states are actually requested, and never
+// overwrites a row someone has since edited by hand. BH_Element_Data::
+// resolve() (added ahead of this bump, already brace-checked) now honors a
+// '__fixtures' map on $ctx before ever touching a real data source — the
+// ONLY place fixture mode plugs into resolution, so the exact same binding
+// descriptor is genuinely portable between a Library preview and a live
+// Structure render, per "binding ubiquitous across both tabs." The Library
+// tab's own script (class-style-gallery.php) gained a Storybook-style state
+// tab strip above the preview (one tab per named state, "+ State" to add
+// one, click the active tab again to edit/delete it) and a deliberately
+// minimal flat fixtures editor (source-slug => mock-value rows) — not a
+// rebuild of the Structure tab's full per-binding inspector, which is a
+// reasonable later refinement, not a blocker here. Component previews pass
+// the active state via a new ?state_id= param on GET .../prefabs/{id}/
+// preview; Primitive previews pass the state's fixtures inline as
+// ctx.__fixtures on the existing POST .../elements/preview route — no new
+// preview route needed for either case. No live browser/DB this pass —
+// every route and the JS wiring is reasoned through against the already-
+// working prefab-preview and add-child-picker preview code paths and
+// brace/syntax-checked (including node --check on the extracted IIFE), but
+// not executed. Please verify: create a state, confirm its fixtures render
+// in the preview, edit and re-select it, delete it, and confirm a type's
+// code-declared 'states' manifest entries actually get seeded on first
+// request, against a real install before relying on this.
+
+// 3.4.65 — 2026-07-12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 1:
+// the Library tab stops being read-only. "New Component" and "Edit this
+// Component" now open a real authoring session — a new internal
+// '__library' sandbox surface (class-element.php's register_library_
+// surface(), excluded from the ordinary Structure boot-load and Preview-
+// surface list via a new 'internal' surface flag) reuses the EXISTING
+// tree/inspector/add-child/reorder/save machinery unchanged, just pointed
+// at (surface='__library', context_id=that Component's own id) instead of
+// a live page — per the design doc's own "one editor, two modes"
+// decision, this is a bridge (window.bhElementLibrary in element-
+// builder.js: enterEdit/exitEdit/publish), not a second editor. Editing
+// an existing Component hydrates its sandbox from the currently-published
+// definition the first time (via the existing prefab instantiate route,
+// now also usable against the sandbox), and "Publish" snapshots the
+// sandbox back into the real Component via a new nested-aware
+// definition_from_slot() helper (class-element-prefab.php) — a real
+// capability fix over the old save_from_slot(), which silently dropped
+// nested children; both a Component's root slot supporting more than one
+// top-level sibling and genuine parent/child nesting now round-trip
+// correctly. rest_update() gained a surface+slot re-derive mode alongside
+// its existing raw-definition mode. No live browser this pass — the
+// hydrate/publish round trip is reasoned through against the actual
+// shapes of every route involved but not executed; worth an early,
+// careful click-through once there's a real screen to check it against.
+
+// 3.4.64 — 2026-07-12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 0:
+// the first real slice of the Library/Structure rebuild AJ asked for. A
+// top-level "Library | Structure" tab switch now sits above the Design
+// Suite shell (class-style-gallery.php), localStorage-persisted
+// (bhdsActiveMode). Structure is exactly today's tree/canvas/inspector,
+// completely unchanged — Phase 0's own scope is explicit that nothing
+// about the existing tree wiring should move. Library is new: a read-
+// only, Storybook-shaped two-column browser — Primitives (every
+// registered element type, via the existing GET /elements/types) and
+// Components (every saved prefab, via GET /elements/prefabs) grouped by
+// category in a left sidebar, an isolated preview on the right. Selecting
+// a Primitive POSTs a never-persisted (id:0) placement to the existing
+// /elements/preview route, same mechanism the add-child picker's own
+// preview already uses; selecting a Component hits a genuinely new, small
+// route — GET /elements/prefabs/{id}/preview (class-element-prefab.php)
+// — a thin REST wrapper around render_definition(), which already
+// renders a prefab's tree with zero DB writes for the Gutenberg embed
+// block. No authoring, no fixture states, no linked instances yet — those
+// are Phases 1/2/4, sequenced deliberately after this shell is confirmed
+// to feel right on a real screen (this pass, like every recent one, had
+// no live browser to verify against).
+
+// 3.4.63 — 2026-07-12 — AJ's own ask: "delete individual logs, hide or
+// mute specific log codes... like Visual Studio" for the Console & Logs
+// section (OUS_DebugLog). This schema has no discrete error-code field
+// (levels are only error/warning/info, by design), so the practical
+// equivalent of "mute this diagnostic" is muting by the exact (source,
+// message) a row actually has — read server-side from the row being
+// muted, never trusted from a round-tripped form field. Two new actions
+// (delete_log_row, mute_log_signature/unmute_log_signature), a small
+// options-stored mute list (never touches the log table's own rows —
+// muted entries are still logged, only hidden from the default view), a
+// "Muted (N)" panel with per-entry Unmute, and a "show muted rows" toggle
+// so muting is always visibly reversible, never a silent, permanent
+// vanish. build_filters() applies the mute exclusion by default; every
+// existing filter (level/source/user/date/request) is untouched.
+
+// 3.4.62 — 2026-07-12 — AJ's own explicit visual reference: storybook.js's
+// Controls panel (a fixed Name column, one clean row per property, thin
+// row dividers, no per-field label-above-input stacking) — NOT a request
+// to embed Storybook's actual runtime/build step, which would conflict
+// directly with this ecosystem's "no build pipeline assumed, runs on
+// ordinary shared hosting" standing architecture. Scoped as a pure CSS/
+// markup pass on the inspector's Style — Advanced property rows and the
+// Custom class/CSS rows (element-builder.js's renderStylePropertyField()
+// now wraps its select/color-popup/custom-input together in one
+// .bhel-field-controls container so the grid table works even for a
+// property with more than one control; element-builder.css's new
+// ".bhel-style-group-body > div.bhel-field-row" grid rules do the actual
+// visual work). Deliberately excludes the Custom JS section's checkbox
+// confirmation row (a <label>, not a <div>, and not a Name/Control pair)
+// so it isn't forced into a layout that doesn't fit it. First slice of
+// what's realistically a longer polish pass (the rail tree's row/icon
+// treatment is the next natural target) — not attempting the whole
+// ecosystem's admin chrome in one edit.
+
+// 3.4.61 — 2026-07-12 — two fixes/completions picked up after a real
+// site-down incident:
+//
+// (1) THE FATAL: class-ui.php's admin_page_css() returns one long plain
+// single-quoted PHP string (not a heredoc). Two comments added in 3.4.60's
+// own contain:layout fix contained unescaped apostrophes ("story's",
+// "bh-contest's") — exactly the recurring "unescaped apostrophe silently
+// terminates a long single-quoted string" bug class this ecosystem has
+// hit before (see VISION.md). Everything after the second apostrophe was
+// parsed as raw PHP, producing a fatal on every page load. Escaped both;
+// confirmed with a purpose-built PHP-lexing brace/string checker that the
+// whole file (and every other file touched in that edit batch) is
+// balanced again. NOT the Query Monitor integration — that class
+// hierarchy was re-checked and is fine.
+//
+// (2) Finished wiring AJ's "pick up where you left off" UI-state
+// persistence, which was left half-declared (helpers written, never
+// called) when the crash above interrupted it: class-style-gallery.php's
+// render_script() now actually calls bhyPersistDetails() on both
+// foldable rail <details> sections (Live View outline, Site tree), and
+// persists/restores which rail tab (Structure vs Live Views) and which
+// Live View story was last active. element-builder.js's inspector groups
+// (each dynamic Style — Advanced property group, Custom class/CSS,
+// Custom JS) now call the same shared bhyPersistDetails() helper too, so
+// fold state survives a reload there as well — AJ's explicit follow-up
+// ask ("inspector state should be considered too").
 
 // 3.4.60 — 2026-07-12 — two live-confirmed fixes, straight off AJ's own
 // screenshot: "Live View tree isnt showing the selected tree."
@@ -1099,7 +1629,60 @@ if (!defined('ABSPATH')) exit;
 // external JS/CDN" viewer convention intact; the two pages cross-link
 // instead. Standing caveat: reasoning/brace-balance-checked only, not
 // yet clicked on the live install.
-define('OUS_VER', '3.4.60');
+// 3.4.78 — PAGE-BUILDER-DELETE-KEEP-AUDIT.md cleanup, completed: the 8
+// confirmed-dead builder-UI files (assets/js/element-builder.js,
+// assets/css/element-builder.css, class-element-builder.php,
+// class-element-prefab.php, class-element-state.php,
+// class-component-studio.php, assets/js/component-studio.js,
+// assets/css/component-studio.css) are now actually deleted, not just
+// unhooked (they'd only been dropped from the require loop in the prior
+// pass). class-style-gallery.php's surgical trim is also done: render(),
+// a reconstructed render_sidebar(), and render_script() rewritten back
+// to "site-wide design tokens with a live preview" — the Structure/
+// Library rail/canvas/inspector shell (render_shell(), render_left_
+// rail(), the Library canvas/inspector panes, enqueue_widgets_assets())
+// is gone, save()/add_menu()/enqueue_media()/render_canvas()/
+// preview_doc()/render_token_preview()/render_controls() kept as-is.
+// class-design-suite.php needed no change — its 'bh-design' top-level
+// menu already pointed straight at BHY_Gallery::render(), confirmed by
+// re-reading it fresh this pass.
+//
+// Two real, LIVE-CONFIRMED bugs found and fixed in the course of this
+// same cleanup, both in class-ui.php's admin_page_css() — a giant
+// single-quoted PHP string the earlier CSS-porting pass (this same
+// session) had put two real, unescaped apostrophes/quotes into
+// ("They're genuinely...", "class-style-gallery.php's own...", and a
+// CSS `content: '▸';` rule), each one silently truncating the PHP
+// string at that exact character and turning the rest of the file's
+// CSS text into stray PHP tokens — a real site-wide fatal parse error
+// (own-ur-shit.php's require loop loads class-ui.php on every single
+// request, front-end and admin alike), reported live by AJ as "There
+// has been a critical error" across the whole install. Root-caused by
+// temporarily flipping WP_DEBUG_DISPLAY/WP_DEBUG_LOG on in wp-config.php
+// (reverted immediately after), reading the exact parse-error line out
+// of the resulting debug.log, and fixing both occurrences by escaping/
+// rewording around the stray quotes. Confirmed fixed live by AJ.
+//
+// Also new this pass, both AJ's own asks mid-cleanup: (1)
+// BHY_Style::custom_sliders() — a `bhy_style_custom_sliders` filter a
+// peer plugin registers a slider through from its own bootstrap (same
+// shape as the existing `bhy_style_surfaces` filter), rendered in the
+// Design Suite's new "Plugin adjustments" group with the exact same
+// BHY_UI::slider_row() every built-in scale slider uses, saved through
+// the same option, emitted as a real --bh-custom-<key> CSS var via
+// BHY_Style::inline_css() — a plugin's own token, styled and wired
+// identically to the built-ins, not a second-class add-on. (2) The
+// "expansive CSS properties + databinding" capability AJ didn't want
+// lost when the builder's inspector went away is NOT reinvented here —
+// it already exists, live, as BH_Element_Data (the resolver) and
+// BHY_Style::PROPERTY_MAP/scoped_inline_style()/style_schema_for_js()
+// (class-style.php) for placement-level style overrides; what's missing
+// is a GUI surface for it now that the builder's inspector is gone. See
+// chat for the recommendation: a native Gutenberg InspectorControls
+// sidebar panel on bh/component-ref (vanilla wp.element.createElement,
+// no JSX/build), reading style_schema_for_js() directly — not built yet,
+// pending AJ's go-ahead.
+define('OUS_VER', '3.4.78');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -1363,7 +1946,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'element-prefab', 'element-builder', 'design-suite', 'gutenberg-block'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1423,35 +2006,42 @@ add_action('init',          ['OUS_Toast', 'init']);
 // 'init' hook, read later by BH_Element::render_slot() at render time.
 add_action('init',          ['BH_Element_Data', 'init']);
 add_action('init',          ['BH_Element', 'init']);
-// The prefab system (a genuine addition beyond ELEMENT-BUILDER-DESIGN-
-// PLAN.md's own scope — see that doc's trailing status note and class-
-// element-prefab.php's own docblock) — registers ONLY the ous/v1/elements/
-// prefabs/* REST routes; no admin_menu/Debug Tools section of its own,
-// its UI is additive controls inside BH_Element_Builder (§ this pass).
-add_action('init',          ['BH_Element_Prefab', 'init']);
-// §3.2/§5 Gutenberg block v1 (class-gutenberg-block.php's own docblock)
-// — registers ONE new dynamic block, 'own-ur-shit/element-prefab', that
-// embeds an existing saved prefab's live-rendered tree inside a normal
-// WordPress post. Its own init() guards register_block_type()'s
-// existence and BH_Element_Prefab's presence, same "harmless no-op
-// otherwise" posture every other optional integration in this
-// ecosystem uses.
-add_action('init',          ['OUS_Gutenberg_Block', 'init']);
-// The Phase-4 visual builder GUI (ELEMENT-BUILDER-DESIGN-PLAN.md §4) —
-// its BH_Element/BH_Element_Data REST-driven logic and localize-config
-// still need 'init', unchanged. BH_Element's own existing bare-list
-// Debug Tools section ('bh-element' key) is untouched — see
-// class-element-builder.php's docblock for the full reasoning.
-add_action('init',          ['BH_Element_Builder', 'init']);
-// 3.4.30 — DESIGN-SUITE-UNIFICATION-PLAN.md real structural fix: the
-// add_action('admin_menu', ['BH_Element_Builder', 'add_menu']) line that
-// used to live here is REMOVED. This GUI no longer registers its own
-// 'bh-element-builder' submenu of 'bh-design' — it's now a tab inside
-// BHY_Gallery's one 'bh-style' page (BH_Element_Builder::render_shell(),
-// called directly from BHY_Gallery::render(); BH_Element_Builder::
-// add_menu() itself is left fully defined in class-element-builder.php,
-// just unhooked, same "leave it, don't delete it" posture as every other
-// retired access point in this ecosystem).
+// PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — real, live-verified
+// cleanup, not a guess: BH_Element/BH_Element_Data (the data model +
+// render_slot() engine, immediately above) are confirmed LIVE — real
+// pages in bh-contest, bh-crm, bh-courses, own-ur-shit's own dashboard/
+// portal all render through render_slot() today. Everything that used
+// to sit ON TOP of that engine as a custom hand-rolled authoring UI is
+// gone as of this pass: BH_Element_Prefab (class-element-prefab.php —
+// the custom Components/linked-instance/override system; WordPress's
+// own native synced Patterns do this job directly), BH_Element_State
+// (class-element-state.php — fixture states/Storybook-style preview
+// contexts; confirmed ZERO consumers anywhere outside the now-deleted
+// builder UI), BH_Element_Builder (class-element-builder.php — the
+// enqueue/localize glue for the equally-deleted assets/js/element-
+// builder.js canvas), and BH_Component_Studio (class-component-
+// studio.php — this SAME session's own first attempt at a smaller
+// replacement, held to the identical standard rather than protected
+// from it: a bespoke per-Component HTML/CSS/JS block is still a bespoke
+// editing mechanism where typed, native Gutenberg block types with real
+// render_callback()s are simpler and more idiomatic). All four files
+// (plus assets/js/element-builder.js, assets/css/element-builder.css,
+// assets/js/component-studio.js, assets/css/component-studio.css) are
+// deleted, not just unhooked — PAGE-BUILDER-DELETE-KEEP-AUDIT.md's own
+// table has the full file-by-file reasoning and line counts.
+//
+// OUS_Gutenberg_Block (class-gutenberg-block.php) is DELIBERATELY LEFT
+// IN PLACE, unlike the others — its own register_block() already guards
+// on class_exists('BH_Element_Prefab') (true before this pass, false
+// after), so it now silently no-ops instead of registering its embed
+// block, the same "harmless no-op" posture every other optional
+// integration in this ecosystem already uses. This is intentionally
+// NOT a hard delete: the audit couldn't confirm from code alone whether
+// any real published post actually embeds the 'own-ur-shit/element-
+// prefab' block (that needs a real `post_content LIKE` query against
+// the live database, not available in this environment) — if a real
+// post out there uses it, this now renders nothing instead of fataling,
+// which is the safe failure mode until that check happens.
 add_filter('bh_element_surfaces', ['OUS_Dashboard', 'register_element_surface']);
 // ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — Portal as a real bh_element_surfaces
 // contributor, mirroring OUS_Dashboard's/BHCRM_People's own registration

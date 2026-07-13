@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.10'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row
+    const DB_VERSION = '1.12'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 added bhcore_element_states — see class-element-state.php (BH_Element_State), named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 added bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above for the full shape
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -235,11 +235,32 @@ class BHI_Activator {
             enabled tinyint(1) NOT NULL DEFAULT 1,
             parent_placement_id bigint(20) unsigned NOT NULL DEFAULT 0,
             revision_of bigint(20) unsigned NOT NULL DEFAULT 0,
+            library_component_id bigint(20) unsigned NOT NULL DEFAULT 0,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY place (surface, surface_context_id, slot, position)
         ) $charset;";
         dbDelta($sql8);
+        // 1.12 — LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4:
+        // library_component_id (added to the CREATE TABLE above so
+        // dbDelta() adds it as a new column on an existing install,
+        // same "just add it to the same CREATE TABLE" pattern dbDelta()
+        // always uses here). 0 = an ordinary placement (every row ever
+        // written before this pass, unchanged behavior). Non-zero = a
+        // LINKED INSTANCE of that bhcore_element_prefabs id — this one
+        // row IS the entire subtree; its own 'config' column is
+        // repurposed to hold ONLY leaf-value overrides (a map keyed by
+        // the master definition's own 0-based array index -> partial
+        // config override for that node), never a real placement config
+        // shape, and it has NO real child placement rows (its structure
+        // is rendered live from the current master definition — see
+        // BH_Element::render_placement()'s new linked-instance branch
+        // and BH_Element_Prefab::render_definition()'s new $overrides
+        // param). AJ confirmed leaf-value-only overrides (no structural
+        // per-instance changes) before this phase started — anything
+        // structural requires editing the master Component or using
+        // "Detach from Library" (BH_Element_Prefab::detach_instance())
+        // to materialize a real, independent, freely-divergent subtree.
 
         // Element-builder PREFABS — see class-element-prefab.php
         // (BH_Element_Prefab). A prefab is a NAMED, reusable, saved
@@ -271,6 +292,34 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql9);
 
+        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2 — named
+        // fixture "states" for the Library tab (Storybook's own Default/
+        // Empty/Viral-style variants, browsed against representative mock
+        // data, never real DB content). owner_kind/owner_key together
+        // identify what a state belongs to — a Component (owner_kind
+        // 'component', owner_key = its bhcore_element_prefabs id as a
+        // string) or a code-registered Primitive type (owner_kind 'type',
+        // owner_key = its type slug, e.g. 'bh/stat-card') — one shared
+        // table for both rather than two nearly-identical ones, per the
+        // design doc's own §4.2 call. 'data' holds one state's full
+        // fixture bundle (attrs/bindings/context — see BH_Element_Data::
+        // resolve()'s new fixture-mode branch) as JSON.
+        $states = $wpdb->prefix . 'bhcore_element_states';
+        $sql10 = "CREATE TABLE $states (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            owner_kind varchar(20) NOT NULL DEFAULT '',
+            owner_key varchar(190) NOT NULL DEFAULT '',
+            name varchar(190) NOT NULL DEFAULT '',
+            label varchar(190) NOT NULL DEFAULT '',
+            position int NOT NULL DEFAULT 0,
+            data longtext,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY owner (owner_kind, owner_key)
+        ) $charset;";
+        dbDelta($sql10);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -281,6 +330,7 @@ class BHI_Activator {
         $events_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $events));
         $element_placements_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $element_placements));
         $prefabs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $prefabs));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs;
+        $states_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states;
     }
 }

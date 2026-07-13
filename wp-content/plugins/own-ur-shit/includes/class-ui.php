@@ -244,6 +244,38 @@ class BHY_UI {
             .bhy-slider-row .bhy-slider-val { color: var(--bhy-ink-dim, #646970); font-variant-numeric: tabular-nums; }
             .bhy-slider-row input { width: 100%; }
 
+            /* PAGE-BUILDER-DELETE-KEEP-AUDIT.md cleanup (2026-07-13) --
+               ported from the now-deleted assets/css/element-builder.css,
+               where these two rule sets used to live. Genuinely needed
+               here: BHY_Gallery::render_controls() (the real Styles
+               settings form, kept as-is through this cleanup) uses
+               .bhel-field-row for its brand-wordmark row and
+               .bhel-style-group for its Advanced-colors/Category-colors
+               details disclosures -- moved into this shared file rather
+               than re-duplicated inside class-style-gallery.php own
+               render_script(), since this is now a core piece of the
+               design system, not something specific to the deleted
+               builder UI. */
+            .bhel-field-row { margin-bottom: var(--bhy-space-3, 10px); }
+            .bhel-field-row label { display: block; font-size: var(--bhy-text-sm, 12px); font-weight: 600; margin-bottom: 3px; color: var(--bhy-ink, #1d2327); }
+            .bhel-field-row input[type=text], .bhel-field-row input[type=number], .bhel-field-row select, .bhel-field-row textarea {
+                width: 100%; padding: 6px 8px; border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); font-size: var(--bhy-text-sm, 12px);
+            }
+            .bhel-field-row input[type=text]:focus, .bhel-field-row input[type=number]:focus,
+            .bhel-field-row select:focus, .bhel-field-row textarea:focus { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); border-color: var(--bhy-accent, #2271b1); }
+
+            .bhel-style-group { border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); margin-bottom: var(--bhy-space-3, 10px); padding: 0 var(--bhy-space-3, 10px); }
+            .bhel-style-group:hover { border-color: #c9ccd1; }
+            .bhel-style-group-title {
+                cursor: pointer; padding: var(--bhy-space-2, 8px) 0; font-size: var(--bhy-text-sm, 12px); font-weight: 600; color: var(--bhy-ink-dim, #646970);
+                display: flex; align-items: center; gap: 6px; list-style: none;
+            }
+            .bhel-style-group-title:hover { color: var(--bhy-ink, #1d2327); }
+            .bhel-style-group-title::-webkit-details-marker { display: none; }
+            .bhel-style-group-title::before { content: \'▸\'; display: inline-block; transition: transform var(--bhy-transition, 150ms ease); }
+            .bhel-style-group[open] > .bhel-style-group-title::before { transform: rotate(90deg); }
+            .bhel-style-group-body { padding-top: var(--bhy-space-1, 4px); padding-bottom: var(--bhy-space-2, 6px); }
+
             /* Save was previously the last thing in a tall, internally
                scrolling column — easy to lose track of after adjusting a
                dozen controls. Sticking it to the bottom of the panel

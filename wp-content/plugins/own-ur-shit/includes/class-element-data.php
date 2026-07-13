@@ -298,6 +298,39 @@ class BH_Element_Data {
         }
 
         $slug = (string) $binding['source'];
+
+        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2 — fixture mode.
+        // When rendering a Library item against a named state (element-
+        // builder.js's isolated preview, or the Component/type preview
+        // routes with a &state= param), $ctx carries a '__fixtures' map
+        // of source slug => mock value, built from that state's own
+        // authored data (class-element-state.php). If this exact binding
+        // has a fixture, it wins OUTRIGHT — the real resolver below is
+        // never called, so a Library preview can never read live DB data
+        // even by accident. This is the ONLY place fixture mode plugs
+        // into the resolution ladder; the binding descriptor itself
+        // ({"bind":{"source":...}}) is completely unchanged and portable
+        // — the exact same placement, unmodified, resolves against real
+        // data the moment $ctx has no '__fixtures' key (every Structure-
+        // tab / live-site render, unconditionally — this key is never
+        // set there), which is what makes "binding ubiquitous across both
+        // tabs" true by construction rather than by parallel effort.
+        if (!empty($ctx['__fixtures']) && is_array($ctx['__fixtures']) && array_key_exists($slug, $ctx['__fixtures'])) {
+            $value = $ctx['__fixtures'][$slug];
+            $format_slug = isset($binding['format']) ? (string) $binding['format'] : '';
+            if ($format_slug !== '' && isset(self::$formatters[$format_slug])) {
+                try {
+                    $formatted = call_user_func(self::$formatters[$format_slug], $value);
+                    if ($formatted !== null) $value = $formatted;
+                } catch (\Throwable $e) {
+                    // fall through with the unformatted fixture value — same
+                    // never-fatal posture the real resolver's own formatter
+                    // step below already uses.
+                }
+            }
+            return $value;
+        }
+
         if (!isset(self::$sources[$slug])) {
             // Unregistered source — expected in normal operation whenever the
             // owning plugin is deactivated (same graceful-degrade posture as

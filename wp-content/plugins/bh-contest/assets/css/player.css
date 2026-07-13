@@ -98,6 +98,26 @@
 .bh-header-extra:empty { display: none; }
 .bh-header-extra { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
 
+/* Task #80 follow-up — three more additive zones, same :empty-hides-it
+ * reasoning as .bh-header-extra above (an unused zone renders byte-
+ * identical to before this feature existed; only takes up any space once
+ * a contest actually has content there).
+ *
+ * .bh-now-playing-extra needs its own explicit caveat, flagged rather
+ * than silently assumed fine: .bh-now-playing-bar (below) is
+ * position:fixed, which removes it from normal document flow — a
+ * sibling placed after it in the DOM does NOT visually render "below"
+ * the bar the way it would for a normally-flowing element, since the
+ * fixed bar no longer reserves any space in the layout. Left in place
+ * (no live browser to iterate against this session) but this is
+ * genuinely untested visually and worth a real click-through — may want
+ * a bottom-margin/padding nudge, or a rethink of exactly where this zone
+ * anchors, once someone can actually see it. */
+.bh-tracklist-extra:empty, .bh-now-playing-extra:empty, .bh-results-modal-intro:empty { display: none; }
+.bh-tracklist-extra { margin-bottom: calc(12px * var(--bh-space-scale)); }
+.bh-now-playing-extra { margin-top: calc(12px * var(--bh-space-scale)); }
+.bh-results-modal-intro { margin-bottom: calc(12px * var(--bh-space-scale)); }
+
 .bh-header-actions {
     display: flex;
     align-items: center;

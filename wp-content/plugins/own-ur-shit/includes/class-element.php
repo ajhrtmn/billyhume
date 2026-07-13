@@ -103,7 +103,38 @@ class BH_Element {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_post_ous_element_debug_action', [self::class, 'handle_debug_post']);
         add_action('rest_api_init', [self::class, 'register_routes']);
+        add_filter('bh_element_surfaces', [self::class, 'register_library_surface']);
         self::register_default_types();
+    }
+
+    /**
+     * LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 1 — the "__library"
+     * sandbox surface. This is what lets Design Suite's Library tab reuse
+     * the EXACT SAME tree/inspector/add-child machinery Structure already
+     * uses to author a real, nested, Godot-style composition for a
+     * Component, instead of building a second, parallel editor. It is
+     * registered like any other surface (so save_placement()'s existing
+     * validation, instantiate()'s BH_Element::get_surface() check, and
+     * every other generic placement code path just works against it) but
+     * flagged 'internal' => true so it's excluded from the bulk GET
+     * .../elements/surfaces response (rest_get_surfaces(), below) — it
+     * must never silently appear in the ordinary Structure tree at boot,
+     * only when the Library tab's JS explicitly injects it client-side
+     * while actively editing one specific component (see element-
+     * builder.js's window.bhElementLibrary bridge). "context_id" here is
+     * a Library Component's own id (== the bhcore_element_prefabs row id
+     * it publishes into) — genuinely different from every other
+     * registered surface, which the Structure tree always loads at a
+     * fixed context_id of 0.
+     */
+    public static function register_library_surface($surfaces) {
+        $surfaces['__library'] = [
+            'group'    => 'Library',
+            'label'    => 'Library (sandbox)',
+            'slots'    => ['root' => ['label' => 'Component root']],
+            'internal' => true,
+        ];
+        return $surfaces;
     }
 
     /**
@@ -416,8 +447,57 @@ class BH_Element {
             // genuinely benefit opt in, same "manifest opt-in" posture
             // 'attrs'/'tags' already use.
             'live'      => !empty($args['live']),
+            // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2 — optional
+            // code-declared default fixture states for a Primitive type
+            // (owner_kind 'type' rows in bhcore_element_states, see
+            // class-element-state.php's own docblock). This is a
+            // CONVENIENCE seed only, not the source of truth: it exists
+            // so a type's author can ship sane Default/Empty-style
+            // states inline with register_type() instead of every
+            // install having to hand-author them once in the Library
+            // tab; BH_Element_State::for_owner('type', $slug) is what
+            // Design Suite's Library tab actually reads at render time,
+            // and a real DB row always wins if one already exists for
+            // that (owner_kind, owner_key, name) — seeding never
+            // overwrites an author's own edited state. Shape, one entry
+            // per state: ['name' => 'empty', 'label' => 'Empty', 'fixtures' => [ 'source.slug' => mockValue, ... ]].
+            // Seeding itself (the "does a row already exist" check and
+            // insert) happens in maybe_seed_default_states() below, not
+            // here — register_type() only ever populates the in-memory
+            // manifest.
+            'states'    => is_array($args['states'] ?? null) ? $args['states'] : [],
         ];
         return true;
+    }
+
+    /**
+     * Runs a code-declared type's 'states' manifest (register_type()'s
+     * new optional key, immediately above) through BH_Element_State's
+     * own insert(), but ONLY for states that don't already exist for
+     * this (owner_kind, owner_key, name) — never overwrites a row an
+     * author has since edited in the Library tab UI. Deliberately not
+     * called automatically on every 'init' (that would mean a DB write
+     * attempt on every single request); callers (e.g. the Library tab's
+     * "load states for this type" REST path) invoke this once, lazily,
+     * the first time a type's states are actually asked for.
+     */
+    public static function maybe_seed_default_states($slug) {
+        if (!class_exists('BH_Element_State')) return;
+        $type = self::get_type($slug);
+        if (!$type || empty($type['states']) || !is_array($type['states'])) return;
+
+        $existing = BH_Element_State::for_owner('type', $slug);
+        $existing_names = array_column($existing, 'name');
+
+        foreach ($type['states'] as $state) {
+            if (!is_array($state) || empty($state['name'])) continue;
+            $name = sanitize_title((string) $state['name']);
+            if ($name === '' || in_array($name, $existing_names, true)) continue;
+            BH_Element_State::insert('type', $slug, $name, (string) ($state['label'] ?? ''), [
+                'fixtures' => is_array($state['fixtures'] ?? null) ? $state['fixtures'] : [],
+                'context'  => is_array($state['context'] ?? null) ? $state['context'] : [],
+            ]);
+        }
     }
 
     public static function registered_types() {
@@ -501,6 +581,32 @@ class BH_Element {
         foreach ($rows as &$row) {
             $decoded = json_decode((string) $row['config'], true);
             $row['config'] = is_array($decoded) ? $decoded : [];
+            // Phase 4 — cast to a real int here (wpdb's ARRAY_A rows are
+            // otherwise plain strings straight off the MySQL text
+            // protocol), same as rest_list()'s own explicit (int) cast
+            // on a prefab's own 'id' — without this, a strict === check
+            // in the JS (state.prefabs.filter(pf => pf.id ===
+            // p.library_component_id), used by the link badge and the
+            // linked-instance inspector) would silently never match a
+            // NUMBER against a STRING.
+            $row['library_component_id'] = (int) ($row['library_component_id'] ?? 0);
+            // 3.4.74 follow-up — same string-vs-number class of bug, just
+            // found live in a DIFFERENT consumer: element-builder.js's
+            // new "drill up"/breadcrumb code (goUpOneLevel()/
+            // buildAncestryChain()) does a parent_placement_id -> id
+            // lookup across this same array, and a strict/implicit
+            // comparison between an uncast STRING id and STRING
+            // parent_placement_id silently failed to walk the tree
+            // correctly (reported live: "they jump to the start, not
+            // back one level"). That call site now normalizes with
+            // Number(...) defensively either way, but casting BOTH id
+            // and parent_placement_id to real ints here too — same as
+            // library_component_id already gets — closes this off at
+            // the source instead of leaving every other current and
+            // future JS consumer of this array to remember to re-guard
+            // against it individually.
+            $row['id'] = (int) ($row['id'] ?? 0);
+            $row['parent_placement_id'] = (int) ($row['parent_placement_id'] ?? 0);
         }
         unset($row);
         return $rows;
@@ -521,6 +627,9 @@ class BH_Element {
         if (!$row) return null;
         $decoded = json_decode((string) $row['config'], true);
         $row['config'] = is_array($decoded) ? $decoded : [];
+        $row['library_component_id'] = (int) ($row['library_component_id'] ?? 0); // Phase 4 — see get_placements()'s own comment on this same cast
+        $row['id'] = (int) ($row['id'] ?? 0); // 3.4.74 — same id/parent_placement_id cast as get_placements(), for consistency
+        $row['parent_placement_id'] = (int) ($row['parent_placement_id'] ?? 0);
         return $row;
     }
 
@@ -619,6 +728,22 @@ class BH_Element {
             'parent_placement_id' => (int) ($placement['parent_placement_id'] ?? 0), // 3.4.34 — the real placement-tree seam; 0 = root/top-level within the slot, enforced/validated below
             'revision_of'         => (int) ($placement['revision_of'] ?? 0),          // unused seam, §2.3 — always 0 today
         ];
+
+        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4 — only set
+        // library_component_id when the caller explicitly provides the
+        // key at all (array_key_exists, not just a truthy check) — an
+        // ordinary inspector edit of an EXISTING linked instance's
+        // overrides must never accidentally reset it to 0 just because
+        // that particular REST call's body happened not to repeat it.
+        // insert_linked_instance() below is the only caller that ever
+        // sets this to a non-zero value on creation; every other
+        // existing caller (the REST save route, Debug Tools, prefab
+        // instantiate()) never sends this key at all, so they keep
+        // creating/updating ordinary (library_component_id = 0)
+        // placements exactly as before.
+        if (array_key_exists('library_component_id', $placement)) {
+            $data['library_component_id'] = (int) $placement['library_component_id'];
+        }
 
         if (!$data['surface'] || !$data['slot'] || !$data['element_type']) return false;
 
@@ -779,6 +904,20 @@ class BH_Element {
      * @return string HTML, or '' if the element_type isn't registered (graceful degrade — matches BH_Content::render() skipping unregistered block types) or the type's render callable itself throws.
      */
     public static function render_placement(array $placement, array $ctx = [], array $children_by_parent = []) {
+        // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4 — a linked
+        // instance (library_component_id != 0) has NO structure of its
+        // own to resolve here: its element_type/config are not a real
+        // placement shape at all (config is repurposed as an index =>
+        // leaf-override map — see BH_Element_Prefab::render_linked_
+        // instance()'s own docblock). Delegated entirely, before the
+        // normal get_type() lookup below (a linked instance's stored
+        // element_type is a synthetic '__linked/...' slug, never a real
+        // registered type, by design — see BH_Element_Prefab::
+        // instantiate_linked()).
+        if (!empty($placement['library_component_id']) && class_exists('BH_Element_Prefab')) {
+            return BH_Element_Prefab::render_linked_instance($placement, $ctx);
+        }
+
         $type_slug = $placement['element_type'] ?? '';
         $type = self::get_type($type_slug);
         if (!$type) return ''; // unregistered/deactivated plugin — silent, expected, not an error
@@ -1510,6 +1649,16 @@ class BH_Element {
     public static function rest_get_surfaces(\WP_REST_Request $req) {
         $out = [];
         foreach (self::registered_surfaces() as $slug => $surface) {
+            // 'internal' surfaces (currently just '__library', register_
+            // library_surface() above) are excluded from this bulk
+            // listing on purpose — the Structure tree's boot-time fetch
+            // (element-builder.js) loads EVERY surface this returns at a
+            // fixed context_id of 0, which is exactly wrong for a sandbox
+            // whose context_id is a specific Component's own id. The
+            // Library tab injects '__library' into its own client-side
+            // state directly, only while actively editing one component —
+            // see that file's window.bhElementLibrary bridge.
+            if (!empty($surface['internal'])) continue;
             // 'preview_ctx' and any other callables in a surface's manifest
             // are deliberately dropped here — a stored/serialized callable
             // has no meaning to a REST JSON client, same reasoning as

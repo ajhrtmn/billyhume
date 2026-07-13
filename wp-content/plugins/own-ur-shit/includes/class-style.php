@@ -301,7 +301,46 @@ class BHY_Style {
         $decls .= '--bh-radius-sm:' . self::safe_number($s['radius_sm'], 0, 24, 8) . 'px;';
         $decls .= '--bh-bar-height:' . self::safe_number($s['bar_height'], 56, 140, 84) . 'px;';
 
+        // Plugin-registered custom sliders (custom_sliders() below) — same
+        // treatment as every built-in token: read from the same option,
+        // sanitized with the same safe_number(), emitted as a real
+        // --bh-custom-<key> var a consuming plugin's own stylesheet reads
+        // directly, e.g. var(--bh-custom-queue-row-height). No first-
+        // class/second-class distinction from a plugin's own CSS's point
+        // of view.
+        foreach (self::custom_sliders() as $key => $def) {
+            $safe_key = sanitize_key($key);
+            $val = $s['custom'][$key] ?? ($def['default'] ?? 0);
+            $decls .= '--bh-custom-' . $safe_key . ':' . self::safe_number($val, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0) . ($def['unit'] ?? '') . ';';
+        }
+
         return ':root{' . $decls . '}';
+    }
+
+    /**
+     * "The ability for the dev to add custom sliders like the 'now
+     * playing bar height' for plugin specific adjustments" (AJ). A
+     * consuming plugin registers one from its own bootstrap:
+     *
+     *     add_filter('bhy_style_custom_sliders', function ($sliders) {
+     *         $sliders['queue_row_height'] = [
+     *             'label' => 'Queue row height', 'min' => 32, 'max' => 96,
+     *             'step' => 2, 'unit' => 'px', 'default' => 48,
+     *         ];
+     *         return $sliders;
+     *     });
+     *
+     * and it shows up in the Design Suite's "Plugin adjustments" group
+     * (BHY_Gallery::render_controls()) rendered with the exact same
+     * BHY_UI::slider_row() every built-in scale slider uses — same
+     * markup, same live-preview wiring, same save path, same
+     * --bh-custom-<key> var naming convention as the built-ins. The
+     * value round-trips through the SAME bhy_style_settings option,
+     * namespaced under 'custom' => [key => value] so it can never
+     * collide with a real DEFAULTS key.
+     */
+    public static function custom_sliders() {
+        return apply_filters('bhy_style_custom_sliders', []);
     }
 
     public static function font_family($s, $slot) {

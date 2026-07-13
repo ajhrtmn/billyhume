@@ -139,6 +139,12 @@ class BHPlayer {
 
                 <div class="bh-category-tabs" style="display:none;"></div>
 
+                <!-- Task #80 follow-up, safe slice #2: a genuinely new,
+                     empty zone above the tracklist that no lookup
+                     elsewhere in this file reads from or requires — see
+                     injectExtraZone() below. -->
+                <div class="bh-tracklist-extra"></div>
+
                 <div class="bh-tracklist">Loading tracks…</div>
 
                 <div class="bh-now-playing-bar">
@@ -156,6 +162,14 @@ class BHPlayer {
                         <svg class="bh-icon-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:none;"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
                     </button>
                 </div>
+
+                <!-- Task #80 follow-up, safe slice #3: a new zone AFTER
+                     the now-playing bar, a sibling of it rather than
+                     nested inside — kept fully outside the bar's own flex
+                     layout/selectors (.bh-np-track/.bh-scrubber-container/
+                     .bh-play-pause) so nothing about its playback wiring
+                     is touched. -->
+                <div class="bh-now-playing-extra"></div>
 
                 <div class="bh-modal bh-auth-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="auth">&times;</span>
@@ -232,27 +246,46 @@ class BHPlayer {
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="results">&times;</span>
                     <h2>Results</h2>
+                    <!-- Task #80 follow-up, safe slice #4: additive only —
+                         sits between the heading and '.bh-results-body',
+                         which is the one element loadResults()-style code
+                         actually looks up and rewrites. -->
+                    <div class="bh-results-modal-intro"></div>
                     <div class="bh-results-body">Loading…</div>
                 </div></div>
             </div>`;
         this.bind();
-        this.injectHeaderExtra();
+        this.injectExtraZone('headerExtra', '.bh-header-extra');
+        // Task #80 follow-up — three more genuinely new, empty divs
+        // (above the tracklist, after the now-playing bar, inside the
+        // results modal), same additive boundary as header_extra: none
+        // of these are read from or required by any this.q(...)-style
+        // lookup elsewhere in this file, so wiring them in carries the
+        // same low risk the first slot already proved out live.
+        this.injectExtraZone('tracklistExtra', '.bh-tracklist-extra');
+        this.injectExtraZone('nowPlayingExtra', '.bh-now-playing-extra');
+        this.injectExtraZone('resultsModalIntro', '.bh-results-modal-intro');
     }
 
     // Task #80's real, safe slice — a genuinely new insertion point, not
     // a rebuild of anything player.js already owns. class-auth.php's
-    // render() base64-encodes the real, server-rendered
-    // 'bh_contest_player'/'header_extra' BH_Element slot (editable in the
-    // Design Suite tree, same as any other real placement) onto this.root's
-    // own data-header-extra attribute — read once here and dropped into
-    // the '.bh-header-extra' div renderSkeleton() now always creates.
-    // Deliberately does NOT touch .bh-brand/.bh-header-actions or
-    // anything inside them — every this.q('.bh-results-btn')-style lookup
-    // elsewhere in this file keeps working exactly as before, untouched.
-    injectHeaderExtra() {
-        const raw = this.root.dataset.headerExtra;
+    // render() base64-encodes each real, server-rendered
+    // 'bh_contest_player' BH_Element slot (editable in the Design Suite
+    // tree, same as any other real placement) onto this.root's own
+    // data-{name} attribute — read once here and dropped into that
+    // zone's own empty div. Generalized off the original, header-extra-
+    // only injectHeaderExtra() once three more zones needed the identical
+    // read/decode/insert logic — datasetKey is the camelCase form of the
+    // data-* attribute (e.g. 'headerExtra' reads this.root.dataset.
+    // headerExtra), selector is that zone's own empty div. Deliberately
+    // does NOT touch .bh-brand/.bh-header-actions, the tracklist itself,
+    // the now-playing bar's own controls, or '.bh-results-body' — every
+    // this.q(...)-style lookup elsewhere in this file keeps working
+    // exactly as before, untouched.
+    injectExtraZone(datasetKey, selector) {
+        const raw = this.root.dataset[datasetKey];
         if (!raw) return;
-        const target = this.q('.bh-header-extra');
+        const target = this.q(selector);
         if (!target) return;
         try {
             // atob() + decodeURIComponent/escape round-trip handles UTF-8
@@ -266,7 +299,7 @@ class BHPlayer {
             // Malformed/corrupt attribute — fail silently to an empty
             // (invisible, since CSS gives it no border/background of its
             // own) div rather than breaking the rest of the player over
-            // one bad announcement render.
+            // one bad zone render.
         }
     }
 

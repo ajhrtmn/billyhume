@@ -139,6 +139,17 @@ class BH_ElementSurface {
                 // reads it off a data attribute and inserts it once,
                 // rather than owning/rebuilding it itself).
                 'header_extra'  => ['label' => 'Header — extra content (next to brand/buttons)'],
+                // Same additive, non-load-bearing boundary as header_extra
+                // above — each is a brand-new empty div renderSkeleton()
+                // creates and player.js never reads from or requires for
+                // its own auth/vote/playback logic, so these three are
+                // just as safe to hand over as the first slot was. See
+                // player.js's injectExtraZone() (generalized off
+                // injectHeaderExtra()) and class-auth.php's render() for
+                // the two-sided wiring.
+                'tracklist_extra'     => ['label' => 'Above tracklist (below category tabs)'],
+                'now_playing_extra'   => ['label' => 'Below the now-playing bar'],
+                'results_modal_intro' => ['label' => 'Results modal — intro (above results list)'],
             ],
             // Same "no single real contest is THE one" reasoning
             // BHCRM_People's preview_ctx uses for its own current-viewer

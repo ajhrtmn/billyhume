@@ -425,12 +425,62 @@ class OUS_DebugLog {
         return $tools;
     }
 
+    // AJ's own ask: "hide or mute specific log codes... so some of the
+    // more routine and regular... logs dont pollute the main stream." This
+    // schema has no discrete error-code field (levels are only
+    // error/warning/info, by design — see this class's own docblock), so
+    // the practical equivalent of a VS Code "suppress this diagnostic" is
+    // muting by the exact (source, message) pair a row actually has —
+    // granular enough to hide one specific recurring notice without
+    // hiding an entire source's other, possibly-important logs. Stored as
+    // one small option (a handful of entries expected, not table-scale),
+    // keyed by md5(source|message) so mute/unmute never has to re-send
+    // raw message text through a form field. Muted rows are still
+    // WRITTEN — nothing here stops them being logged, only hides them
+    // from the default view — so a real, still-recorded pattern doesn't
+    // silently vanish from the underlying data, only from what's shown
+    // by default.
+    private static function muted_signatures() {
+        $muted = get_option('ous_debug_log_muted', []);
+        return is_array($muted) ? $muted : [];
+    }
+
+    private static function mute_signature($source, $message) {
+        $muted = self::muted_signatures();
+        $key = md5($source . '|' . $message);
+        $muted[$key] = [
+            'source' => $source, 'message' => $message,
+            'muted_at' => current_time('mysql'),
+            'muted_by' => wp_get_current_user()->user_login ?? '',
+        ];
+        update_option('ous_debug_log_muted', $muted, false);
+    }
+
+    private static function unmute_signature($key) {
+        $muted = self::muted_signatures();
+        unset($muted[$key]);
+        update_option('ous_debug_log_muted', $muted, false);
+    }
+
     // Builds the WHERE clause + params for every filter this page
     // supports, shared between the row query and the "copy all
     // currently-filtered rows" dump so the two never drift apart.
     private static function build_filters() {
         $where = [];
         $params = [];
+
+        // Muted (source, message) pairs are excluded by default — same
+        // "hidden but not deleted" posture as the rest of this feature.
+        // ous_log_show_muted=1 (the "Show muted" toggle) bypasses this so
+        // a muted pattern is still fully reachable, never actually lost.
+        $show_muted = isset($_GET['ous_log_show_muted']) && $_GET['ous_log_show_muted'] === '1';
+        if (!$show_muted) {
+            foreach (self::muted_signatures() as $m) {
+                $where[] = '(source != %s OR message != %s)';
+                $params[] = $m['source'];
+                $params[] = $m['message'];
+            }
+        }
 
         $level = isset($_GET['ous_log_level']) ? sanitize_key($_GET['ous_log_level']) : '';
         if ($level) { $where[] = 'level = %s'; $params[] = $level; }
@@ -455,6 +505,7 @@ class OUS_DebugLog {
 
         return [
             'level' => $level, 'source' => $source, 'user_id' => $user_id, 'since' => $since, 'request_id' => $request_id,
+            'show_muted' => $show_muted,
             'where_sql' => $where ? ('WHERE ' . implode(' AND ', $where)) : '',
             'params' => $params,
         ];
@@ -534,14 +585,36 @@ class OUS_DebugLog {
         echo '<input type="number" min="1" name="ous_log_user" placeholder="User ID" value="' . esc_attr($filters['user_id'] ?: '') . '" style="width:100px;">';
         echo '<input type="date" name="ous_log_since" value="' . esc_attr($filters['since']) . '">';
         echo '<input type="text" name="ous_log_request" placeholder="Request ID" value="' . esc_attr($filters['request_id']) . '" style="width:110px;font-family:monospace;">';
+        if ($filters['show_muted']) echo '<input type="hidden" name="ous_log_show_muted" value="1">';
         echo '<button type="submit" class="button">Filter</button>';
         if ($filters['level'] || $filters['source'] || $filters['user_id'] || $filters['since'] || $filters['request_id']) {
-            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug')) . '">Clear filters</a>';
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '&ous_log_show_muted=1' : ''))) . '">Clear filters</a>';
         }
         if ($filters['request_id']) {
             echo '<p class="description" style="width:100%;margin:4px 0 0;">Showing every logged event that happened during request <code>' . esc_html($filters['request_id']) . '</code> — the full sequence, across every plugin, that led up to (or followed from) any one row.</p>';
         }
         echo '</form>';
+
+        // Muted-signatures panel — AJ's own ask: hide routine noise from
+        // the main stream without losing track of what's actually muted
+        // or making it hard to bring back. A real, visible list (not just
+        // a silent filter) plus a one-click "show muted rows" toggle so
+        // muting never means "gone," only "out of the way by default."
+        $muted = self::muted_signatures();
+        if ($muted) {
+            $toggle_url = admin_url('admin.php?page=ous-debug' . ($filters['show_muted'] ? '' : '&ous_log_show_muted=1'));
+            echo '<details class="bhy-rail-section" style="margin-bottom:12px;"><summary style="cursor:pointer;">Muted (' . count($muted) . ') — '
+               . '<a href="' . esc_url($toggle_url) . '" onclick="event.stopPropagation();">' . ($filters['show_muted'] ? 'hide muted rows in the table below' : 'show muted rows in the table below') . '</a></summary>';
+            echo '<table class="widefat striped" style="margin-top:8px;"><thead><tr><th>Source</th><th>Message</th><th style="width:140px;">Muted</th><th style="width:80px;"></th></tr></thead><tbody>';
+            foreach ($muted as $key => $m) {
+                echo '<tr><td>' . esc_html($m['source'] ?: '&#8212;') . '</td><td>' . esc_html($m['message']) . '</td>';
+                echo '<td>' . esc_html(human_time_diff(strtotime($m['muted_at']), current_time('timestamp')) . ' ago by ' . ($m['muted_by'] ?: 'unknown')) . '</td>';
+                echo '<td>';
+                OUS_Debug::button('bh-console', 'unmute_log_signature', 'Unmute', "<input type='hidden' name='ous_log_signature' value='" . esc_attr($key) . "'>", '', false);
+                echo '</td></tr>';
+            }
+            echo '</tbody></table></details>';
+        }
 
         $rows = $wpdb->get_results(
             $filters['params']
@@ -577,7 +650,7 @@ class OUS_DebugLog {
             echo '<p><button type="button" class="button button-small" onclick="bhCopyToClipboard(\'ous-log-dump\', this)">Copy ' . count($rows) . ' log ' . (count($rows) === 1 ? 'entry' : 'entries') . '</button></p>';
             echo '<textarea id="ous-log-dump" style="position:absolute;left:-9999px;">' . esc_textarea(implode("\n", $dump_lines)) . '</textarea>';
 
-            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">Level</th><th style="width:120px;">Source</th><th>Message</th><th style="width:80px;">User</th><th style="width:140px;">When</th></tr></thead><tbody>';
+            echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th style="width:90px;">Level</th><th style="width:120px;">Source</th><th>Message</th><th style="width:80px;">User</th><th style="width:140px;">When</th><th style="width:130px;">Actions</th></tr></thead><tbody>';
             $i = 0;
             foreach ($rows as $r) {
                 $i++;
@@ -607,10 +680,19 @@ class OUS_DebugLog {
                 if ($has_detail) echo ' <span style="color:#2271b1;font-size:11px;">[details &#9662;]</span>';
                 echo '</td>';
                 echo '<td>' . ($r['user_id'] ? esc_html(get_userdata($r['user_id']) ? get_userdata($r['user_id'])->user_login : ('#' . $r['user_id'])) : '&#8212;') . '</td>';
-                echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td></tr>';
+                echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td>';
+                // stopPropagation on the whole cell — the row itself has
+                // its own onclick (toggle detail) when $has_detail, and
+                // without this, clicking either button here would ALSO
+                // toggle that detail row open/closed as an unwanted side
+                // effect of the click bubbling up.
+                echo '<td onclick="event.stopPropagation();" style="white-space:nowrap;">';
+                OUS_Debug::button('bh-console', 'delete_log_row', 'Delete', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", 'Delete this one log entry? This cannot be undone.', false);
+                OUS_Debug::button('bh-console', 'mute_log_signature', 'Mute', "<input type='hidden' name='ous_log_row_id' value='" . esc_attr($r['id']) . "'>", '', false);
+                echo '</td></tr>';
 
                 if ($has_detail) {
-                    echo '<tr id="' . esc_attr($detail_id) . '" style="display:none;"><td colspan="5" style="background:#f6f7f7;">';
+                    echo '<tr id="' . esc_attr($detail_id) . '" style="display:none;"><td colspan="6" style="background:#f6f7f7;">';
                     if ($r['url']) echo '<p style="margin:4px 0;"><strong>Request:</strong> ' . esc_html($r['request_method']) . ' <code>' . esc_html($r['url']) . '</code></p>';
                     if ($r['context']) echo '<p style="margin:4px 0;"><strong>Context:</strong> <code>' . esc_html($r['context']) . '</code></p>';
                     if ($r['trace']) {
@@ -645,6 +727,39 @@ class OUS_DebugLog {
             global $wpdb;
             $wpdb->query("TRUNCATE TABLE " . self::table());
             return 'Console/error log cleared.';
+        }
+        // Deletes exactly one row — a real, permanent delete (unlike
+        // muting below), for the case where a specific logged entry is
+        // just noise/test data and shouldn't exist at all, not merely be
+        // hidden. Deliberately does NOT touch anything else matching the
+        // same source/message — this is a single-row operation, muting
+        // (below) is the pattern-level one.
+        if ($action === 'delete_log_row') {
+            global $wpdb;
+            $id = absint($_POST['ous_log_row_id'] ?? 0);
+            if (!$id) return 'No log entry specified.';
+            $deleted = $wpdb->delete(self::table(), ['id' => $id], ['%d']);
+            return $deleted ? 'Log entry deleted.' : 'That log entry was already gone.';
+        }
+        // Mutes by (source, message) — read from the row itself server-
+        // side (never trust a message string round-tripped through a
+        // hidden form field) so what actually gets muted is exactly what
+        // that row actually says, not whatever a tampered POST claims it
+        // says.
+        if ($action === 'mute_log_signature') {
+            global $wpdb;
+            $id = absint($_POST['ous_log_row_id'] ?? 0);
+            if (!$id) return 'No log entry specified.';
+            $row = $wpdb->get_row($wpdb->prepare("SELECT source, message FROM " . self::table() . " WHERE id = %d", $id), ARRAY_A);
+            if (!$row) return 'That log entry no longer exists.';
+            self::mute_signature($row['source'], $row['message']);
+            return 'Muted — future entries matching this exact source/message will be hidden by default (still logged, not deleted; use "Show muted" to bring them back into view).';
+        }
+        if ($action === 'unmute_log_signature') {
+            $key = sanitize_text_field($_POST['ous_log_signature'] ?? '');
+            if (!$key) return 'No muted entry specified.';
+            self::unmute_signature($key);
+            return 'Unmuted.';
         }
         if ($action === 'health_check_insert') {
             global $wpdb;

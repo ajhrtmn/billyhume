@@ -2,11 +2,42 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.2.1
+ * Version:     3.2.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.2.2 — 2026-07-12 — task #80 follow-up (also fixes a stale version
+// mismatch found while making this change: the header above said 3.2.1
+// but the BH_VER constant below was still 3.2.0 — both now agree).
+//
+// Three more additive 'bh_contest_player' slots, same non-load-bearing
+// boundary header_extra (3.2.1) already proved out: tracklist_extra
+// (above the tracklist), now_playing_extra (after the now-playing bar),
+// results_modal_intro (inside the results modal, above the results
+// list). None of the three empty divs renderSkeleton() now creates for
+// them are read from or required by any this.q(...)-style lookup
+// elsewhere in player.js — auth, voting, and playback wiring is
+// untouched. class-auth.php's per-slot render+attach logic was factored
+// into one shared attach_extra_zone() helper (header_extra included)
+// rather than duplicated a fourth time; player.js's injectHeaderExtra()
+// was generalized the same way into injectExtraZone(datasetKey,
+// selector), called once per zone.
+//
+// Flagged honestly, not silently assumed fine: .bh-now-playing-bar is
+// position:fixed, so a sibling placed after it in the DOM doesn't
+// visually land "below" it the way normal flow would suggest — see
+// player.css's own comment on .bh-now-playing-extra. No live browser
+// this session to iterate on the actual visual placement; worth a real
+// click-through before treating that specific zone as done.
+//
+// The player's actual interactive shell — header buttons, tabs,
+// tracklist, now-playing controls, auth/submit/results modals — is
+// still NOT converted to BH_Element placements, on purpose. That's the
+// genuinely risky remainder of task #80 (every method in this file
+// depends on exact selectors like this.q('.bh-results-btn')) and still
+// needs real browser QA, not another blind pass.
 
 // 3.2.1 — 2026-07-12 — task #80's real, safe slice: a genuinely new
 // 'header_extra' zone on the 'bh_contest_player' surface (class-element-
@@ -90,7 +121,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.2.0');
+define('BH_VER',        '3.2.2');
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets

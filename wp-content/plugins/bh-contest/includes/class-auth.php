@@ -64,20 +64,39 @@ class BH_Auth {
             // hit) and let IT insert it once, into a brand-new
             // '.bh-header-extra' div that does not exist in the header
             // today and does not replace anything that does.
-            $header_extra = BH_Element::render_slot('bh_contest_player', $cid, 'header_extra', ['contest_id' => $cid]);
-            if (trim(wp_strip_all_tags($header_extra)) !== '' || strpos($header_extra, '<') !== false) {
-                // render_slot() always returns at least the empty wrapper
-                // div even with zero placements (own-ur-shit 3.4.49's own
-                // fix) — only bother passing it to player.js if there's
-                // real content inside, not an empty wrapper every single
-                // page load.
-                if (self::slot_has_visible_content($header_extra)) {
-                    $attrs .= ' data-header-extra="' . esc_attr(base64_encode($header_extra)) . '"';
-                }
-            }
+            self::attach_extra_zone($attrs, $cid, 'header_extra', 'header-extra');
+
+            // 3.2.2 — three more slots, same "genuinely new, empty div
+            // player.js never reads from or requires" boundary header_extra
+            // already proved out. Each corresponds to a brand-new,
+            // renderSkeleton()-only div (see player.js's own comment at
+            // each insertion point) — nothing here touches or replaces any
+            // selector auth/vote/playback logic elsewhere in that file
+            // depends on.
+            self::attach_extra_zone($attrs, $cid, 'tracklist_extra', 'tracklist-extra');
+            self::attach_extra_zone($attrs, $cid, 'now_playing_extra', 'now-playing-extra');
+            self::attach_extra_zone($attrs, $cid, 'results_modal_intro', 'results-modal-intro');
         }
 
         return $before . '<div ' . $attrs . '></div>' . $after;
+    }
+
+    // Shared by header_extra and the three newer additive zones — renders
+    // a real BH_Element slot for this contest, and (only if it actually
+    // has visible content, per slot_has_visible_content() below) appends
+    // it to $attrs as a base64-encoded data-{$attr_suffix} attribute for
+    // player.js to read once and drop into its matching empty div. Same
+    // base64-over-raw-HTML-attribute reasoning the original header_extra
+    // wiring already used (avoids any HTML-attribute-escaping edge case a
+    // raw JSON/HTML string in an attribute could hit) — extracted here
+    // once four call sites needed the identical five lines rather than
+    // left duplicated a fourth time.
+    private static function attach_extra_zone(&$attrs, $cid, $slot, $attr_suffix) {
+        if (!class_exists('BH_Element')) return;
+        $html = BH_Element::render_slot('bh_contest_player', $cid, $slot, ['contest_id' => $cid]);
+        if (self::slot_has_visible_content($html)) {
+            $attrs .= ' data-' . $attr_suffix . '="' . esc_attr(base64_encode($html)) . '"';
+        }
     }
 
     // render_slot()'s wrapper div is always present, even empty — this
