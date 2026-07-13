@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.78
+ * Version:     3.4.79
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -1682,7 +1682,23 @@ if (!defined('ABSPATH')) exit;
 // sidebar panel on bh/component-ref (vanilla wp.element.createElement,
 // no JSX/build), reading style_schema_for_js() directly — not built yet,
 // pending AJ's go-ahead.
-define('OUS_VER', '3.4.78');
+// 3.4.79 — BHY_BlockStyle (class-block-style.php + assets/js/block-
+// style-panel.js): the "Advanced Styles" generic InspectorControls
+// panel on every native block, closing the gap left when bh/component-
+// ref (and the rest of class-component-studio.php) was deleted this
+// same pass. Reserves one `bhStyle` attribute on every block type via
+// `register_block_type_args`, gives it a real editing UI via
+// `editor.BlockEdit` (vanilla wp.element.createElement, no JSX/build),
+// and resolves it to real inline CSS at render time via `render_block`
+// + BHY_Style::scoped_inline_style() (class-style.php, unchanged,
+// already used by BH_Element::render_placement()) using
+// WP_HTML_Tag_Processor rather than regex. NOT runtime-verified — no
+// live WordPress execution available in this environment; syntax-
+// checked (brace/string-balance) but not clicked on the real editor.
+// Smoke-test: add a block, open Advanced Styles, set a spacing/color
+// value, confirm it round-trips through save/reload and appears as
+// real inline CSS on the front end.
+define('OUS_VER', '3.4.79');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -1946,7 +1962,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2006,6 +2022,16 @@ add_action('init',          ['OUS_Toast', 'init']);
 // 'init' hook, read later by BH_Element::render_slot() at render time.
 add_action('init',          ['BH_Element_Data', 'init']);
 add_action('init',          ['BH_Element', 'init']);
+// 3.4.78 follow-up — BHY_BlockStyle (class-block-style.php): the
+// generic "Advanced Styles" InspectorControls panel added to every
+// native block, AJ's own explicit ask not to lose the builder-era CSS-
+// properties/databinding capability when its bespoke inspector was
+// deleted. Hooks 'register_block_type_args'/'enqueue_block_editor_
+// assets'/'render_block' directly (not gated behind a class_exists()
+// guard the way peer-plugin touches are — this only touches WordPress
+// core's own block registration and rendering, own-ur-shit's own
+// BHY_Style, nothing optional).
+add_action('init',          ['BHY_BlockStyle', 'init']);
 // PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — real, live-verified
 // cleanup, not a guess: BH_Element/BH_Element_Data (the data model +
 // render_slot() engine, immediately above) are confirmed LIVE — real
