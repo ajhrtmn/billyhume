@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.5.0
+ * Version:     1.6.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -43,7 +43,47 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.5.0');
+define('BHCRM_VER',  '1.6.0');
+
+// 1.6.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+// "Bulk actions on the person list (bulk tag, bulk export-selected) —
+// currently all-or-nothing." Person list (class-people.php) gained a
+// checkbox per row + a header select-all, wrapped in one <form> with
+// two submit buttons (each targeting a different admin-post action via
+// its own formaction — a plain HTML form feature, no JS needed for the
+// actions themselves; assets/js/bulk-select.js only handles the header
+// checkbox convenience + a live "N selected" count). New BHCRM_Tags::
+// add_tag()/handle_bulk_tag() — ADDS one tag to each selected person's
+// EXISTING list rather than replacing it (unlike the single-person
+// editor's handle_save(), a full-list overwrite) — bulk-tagging 40
+// people should never wipe out whatever tags each of them already had.
+// class-export.php's handle() now accepts a POSTed bulk_ids[] and
+// intersects it against the existing active/tag-filtered id set (never
+// simply trusts it outright), so a crafted bulk_ids can't export
+// someone who isn't a legitimate CRM entry.
+// Real bug caught and fixed along the way, not introduced by this
+// feature but found while building it: class-export.php still called
+// BHCRM_Notes::get() — a method 1.4.0's notes rewrite deleted when it
+// replaced the single freeform field with real timestamped history.
+// That call site was missed during the original rewrite's own
+// verification pass (which never actually exercised CSV export) and
+// would have fatal-errored the next real export attempt. Fixed with a
+// new notes_summary() helper that flattens a person's full note history
+// (author + date + text per note) into one CSV cell.
+// RUNTIME-VERIFIED, with one honest gap: exercised the real bulk-tag
+// admin-post handler directly (confirmed it ADDS to an existing tag
+// list rather than replacing it, across two real test people) and the
+// real scoped CSV export (confirmed a bulk_ids-scoped export returns
+// exactly the selected person, confirmed the un-scoped path still
+// exports everyone as before, confirmed a person with no genuine
+// CRM-qualifying activity is correctly excluded even if selected) —
+// all via direct PHP execution against the real WordPress+MySQL
+// install, WP_DEBUG_LOG on throughout, zero warnings. The live-browser
+// click-through (checkboxes actually clicked, the "N selected" counter,
+// the real form submission) was NOT completed this pass — the browser
+// tool was unavailable for the remainder of this session. Flagging
+// honestly rather than claiming a check that didn't happen; worth a
+// real click-through before treating this as fully proven.
 
 // 1.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // "Tag chips + autocomplete-from-existing-tags in the person editor,
@@ -286,6 +326,7 @@ add_action('plugins_loaded', function () {
 
     add_action('admin_post_bhcrm_save_note', ['BHCRM_Notes', 'handle_save']);
     add_action('admin_post_bhcrm_save_tags', ['BHCRM_Tags', 'handle_save']);
+    add_action('admin_post_bhcrm_bulk_tag',  ['BHCRM_Tags', 'handle_bulk_tag']);
     add_action('admin_post_bhcrm_export',    ['BHCRM_Export', 'handle']);
 
     // Element builder (ELEMENT-BUILDER-DESIGN-PLAN.md §5.2) — registers

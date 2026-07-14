@@ -76,6 +76,43 @@ class BHCRM_Tags {
         echo '</form>';
     }
 
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Bulk
+    // actions on the person list (bulk tag, bulk export-selected) —
+    // currently all-or-nothing." ADDS one tag to a person's existing
+    // list rather than replacing it (unlike handle_save() above, which
+    // is a full-list overwrite from the single-person editor) — bulk-
+    // tagging 40 people with "vip" should never accidentally wipe out
+    // whatever tags each of them already had.
+    public static function add_tag($user_id, $tag) {
+        $tag = trim($tag);
+        if ($tag === '') return false;
+        $tags = self::get($user_id);
+        if (in_array($tag, $tags, true)) return true; // already tagged — not an error, just a no-op
+        $tags[] = $tag;
+        update_user_meta($user_id, '_bhcrm_tags', wp_json_encode($tags));
+        return true;
+    }
+
+    public static function handle_bulk_tag() {
+        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.');
+
+        $tag = sanitize_text_field(wp_unslash($_POST['bulk_tag'] ?? ''));
+        $ids = array_map('intval', (array) ($_POST['bulk_ids'] ?? []));
+        $count = 0;
+        if ($tag !== '') {
+            foreach ($ids as $uid) {
+                if ($uid && self::add_tag($uid, $tag)) $count++;
+            }
+        }
+
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue($tag === '' ? 'Enter a tag to apply.' : "Tagged $count " . ($count === 1 ? 'person' : 'people') . " with \"$tag\".", $tag === '' ? 'error' : 'success');
+        }
+
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($tag === '' ? 'Enter a tag to apply.' : "Tagged $count people.")], admin_url('admin.php')));
+        exit;
+    }
+
     public static function handle_save() {
         if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.');
 

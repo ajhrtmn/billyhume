@@ -157,7 +157,7 @@ class BHCRM_People {
         }
 
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
-        echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV</a></p>';
+        echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
 
         // Search + sortable columns — see BHY_UI::print_design_system_js()
         // for the shared, dependency-free behavior. Genuinely useful here
@@ -166,11 +166,30 @@ class BHCRM_People {
         // registered" matter, unlike a small fixed-size stats table.
         echo '<input type="text" class="bhy-table-search" data-target="#bhcrm-people-table" placeholder="Filter by name, email, or tag&hellip;">';
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+        // bulk actions — one <form> wraps the whole table (checkboxes +
+        // the bulk-action bar above it), posting to whichever of the two
+        // admin-post actions the clicked button names via its own
+        // formaction — same "one form, two possible submit targets"
+        // shape a plain HTML form supports natively, no JS required for
+        // the actions themselves (bhcrm-bulk-select-all.js below only
+        // handles the header checkbox's select-all convenience).
+        $bulk_tag_action = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_bulk_tag'), 'bhcrm_bulk_action');
+        $bulk_export_action = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export'), 'bhcrm_export');
+        echo '<form method="post" id="bhcrm-bulk-form">';
+        echo '<div class="bhcrm-bulk-bar" style="display:flex;align-items:center;gap:8px;margin:10px 0;flex-wrap:wrap;">';
+        echo '<input type="text" name="bulk_tag" placeholder="Tag to apply…" style="max-width:200px;">';
+        echo '<button type="submit" formaction="' . esc_url($bulk_tag_action) . '" class="button">Tag selected</button>';
+        echo '<button type="submit" formaction="' . esc_url($bulk_export_action) . '" class="button">Export selected (CSV)</button>';
+        echo '<span class="description bhcrm-bulk-count">0 selected</span>';
+        echo '</div>';
+
         // --tall: this table IS the whole page (a directory, not one of
         // several colocated cards) — see BHY_UI's own docblock on why
         // that distinction gets it more scroll room than the default.
         echo '<div class="bhy-table-wrap bhy-table-wrap--tall">';
         echo '<table id="bhcrm-people-table" class="wp-list-table widefat striped bhy-sortable"><thead><tr>'
+           . '<th style="width:24px;"><input type="checkbox" id="bhcrm-select-all"></th>'
            . '<th data-sort>Name</th><th data-sort>Email</th><th>Tags</th><th>Activity</th><th data-sort>Registered</th>'
            . '</tr></thead><tbody>';
         foreach ($ids as $uid) {
@@ -178,6 +197,7 @@ class BHCRM_People {
             if (!$user) continue;
             $summary = array_map(fn($s) => $s['summary'], apply_filters('bh_crm_activity_summary', [], $uid));
             echo '<tr>'
+               . '<td><input type="checkbox" name="bulk_ids[]" value="' . (int) $uid . '" class="bhcrm-row-select"></td>'
                . '<td><a href="' . esc_url(add_query_arg('user_id', $uid)) . '"><strong>' . esc_html($user->display_name) . '</strong></a></td>'
                . '<td>' . esc_html($user->user_email) . '</td>'
                . '<td>' . esc_html(implode(', ', BHCRM_Tags::get($uid))) . '</td>'
@@ -186,6 +206,8 @@ class BHCRM_People {
                . '</tr>';
         }
         echo '</tbody></table></div>';
+        echo '</form>';
+        wp_enqueue_script('bhcrm-bulk-select', BHCRM_URL . 'assets/js/bulk-select.js', [], BHCRM_VER, true);
     }
 
     // Real name / platform handles / consent flags, admin-only. Never
