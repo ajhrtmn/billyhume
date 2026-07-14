@@ -141,7 +141,12 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_PostTypes', 'register']);
     add_action('init',          ['BHS_Admin', 'init']);
     add_action('init',          ['BHS_Player', 'init']);
-    BHS_Blocks::init();
+    // QA fix, caught live via WP_DEBUG_LOG: same fix as bh-contest's
+    // BH_Blocks — hooked normally at 'init' instead of called directly
+    // at plugins_loaded time, since wp_register_script() (inside
+    // BHS_Blocks::register_blocks()) needs to run no earlier than
+    // 'init' or WordPress logs a real "called incorrectly" notice.
+    add_action('init',          ['BHS_Blocks', 'init']);
     add_action('init',          ['BHS_PWA', 'init']);
     add_action('init',          ['BHS_Feeds', 'init']);
     add_action('init',          ['BHS_StyleSurface', 'init']);

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.11
+ * Version:     0.4.12
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -133,7 +133,17 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.11');
+define('BHM_VER',  '0.4.12');
+
+// 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
+// sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's
+// activity_summary(): the entitlements query (ORDER BY created_at DESC)
+// had no id tiebreaker — a real correctness gap here, not just a
+// display-order nit, since the loop right below it depends on that
+// order to pick which entitlement counts as the fan's "active tier"
+// (the most recently granted non-expired one). A bulk migration or
+// promo grant landing two entitlements in the same second could have
+// silently picked the wrong tier. Fixed with `, id DESC`.
 
 // 0.4.11 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: third
 // shortcode-to-block conversion, 'bhm/tiers' (class-blocks.php,

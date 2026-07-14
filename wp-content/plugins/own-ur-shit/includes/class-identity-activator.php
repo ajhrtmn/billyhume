@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.12'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 added bhcore_element_states — see class-element-state.php (BH_Element_State), named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 added bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above for the full shape
+    const DB_VERSION = '1.13'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 added bhcore_element_states — see class-element-state.php (BH_Element_State), named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 added bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above for the full shape; 1.13 added bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php), a real bug caught live: the same queued email job genuinely fired twice (Action Scheduler's own background processing plus a direct call both landed), sending a duplicate email with no guard against it — same class of bug already caught and fixed in bh-crm's note-reminder job the same session
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -96,11 +96,17 @@ class BHI_Activator {
             body text,
             url varchar(500) NOT NULL DEFAULT '',
             read_at datetime DEFAULT NULL,
+            email_sent tinyint(1) NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY user_unread (user_id, read_at)
         ) $charset;";
         dbDelta($sql3);
+        // email_sent (1.13): idempotency claim flag — send_queued_email()
+        // (class-notifications.php) atomically claims a row via
+        // UPDATE ... WHERE email_sent = 0 before actually mailing, so a
+        // job that fires more than once (confirmed to genuinely happen —
+        // see this constant's own comment above) only ever sends once.
 
         // Shared async job queue — see class-jobs.php. A WP-Cron-driven
         // worker, not a real message broker (this ecosystem has no

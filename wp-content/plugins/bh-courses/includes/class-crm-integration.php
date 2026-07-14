@@ -34,7 +34,13 @@ class BHC_CrmIntegration {
     public static function activity_summary($sections, $user_id) {
         global $wpdb;
         $completed = $wpdb->get_results($wpdb->prepare(
-            "SELECT course_id, completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d ORDER BY completed_at DESC",
+            // id DESC as a tiebreaker — completed_at only has 1-second
+            // resolution, and a bulk/legacy import of completion records
+            // could plausibly land several in the same second; this
+            // list is read top-to-bottom in the CRM activity summary,
+            // same class of bug already caught and fixed in bh-crm's
+            // own notes feature and bh-contest's vote export.
+            "SELECT course_id, completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d ORDER BY completed_at DESC, id DESC",
             $user_id
         ), ARRAY_A);
 

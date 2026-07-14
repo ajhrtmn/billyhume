@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.85
+ * Version:     3.4.86
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -1907,7 +1907,27 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.85');
+define('OUS_VER', '3.4.86');
+
+// 3.4.86 — QA fix, part of an ecosystem-wide sweep for the same
+// idempotency/ordering bug classes just caught live in bh-crm's new
+// notes-with-reminders feature (this same session). bhcore_notifications
+// gained an email_sent column (class-identity-activator.php, DB_VERSION
+// 1.12 -> 1.13) and OUS_Notifications::send_queued_email() now claims
+// it atomically (UPDATE ... WHERE email_sent = 0) before actually
+// mailing — the queued email job can genuinely fire more than once
+// (confirmed for the near-identical bh-crm reminder job: a manual test
+// call plus Action Scheduler's own real background processing of the
+// same scheduled job both ran it), and without this fix that would
+// have meant a duplicate email with zero guard against it. A call site
+// with no notification_id (an old queued job already pending when a
+// site upgrades to this version) just sends once with no dedup, same
+// as it always has — not a regression for anything already in flight.
+// RUNTIME-VERIFIED end to end: ran the schema migration live, confirmed
+// the new column exists, and — the real proof, not just checking a
+// flag — hooked pre_wp_mail to COUNT actual send attempts and called
+// send_queued_email() three times with the same notification_id,
+// confirming exactly one real send happened.
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A

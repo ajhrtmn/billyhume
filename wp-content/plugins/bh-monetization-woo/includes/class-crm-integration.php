@@ -28,7 +28,13 @@ class BHM_CRMIntegration {
     public static function activity_summary($sections, $user_id) {
         global $wpdb;
         $entitlements = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d ORDER BY created_at DESC", $user_id
+            // id DESC as a tiebreaker — created_at only has 1-second
+            // resolution, and the loop below actually depends on this
+            // order to pick which entitlement counts as the "active
+            // tier" (the most recently granted non-expired one), so a
+            // same-second tie (bulk migration/promo grant) isn't just a
+            // display-order nit here, it could pick the wrong tier.
+            "SELECT * FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d ORDER BY created_at DESC, id DESC", $user_id
         ));
         $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($user_id) : 0;
 

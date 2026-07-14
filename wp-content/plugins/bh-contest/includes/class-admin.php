@@ -187,7 +187,13 @@ class BH_Admin {
             global $wpdb;
             $t = BH_Helpers::table();
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC", $cid
+                // id ASC as a tiebreaker — created_at only has 1-second
+                // resolution and a real voting window can easily land
+                // many votes in the same second, which makes plain
+                // ORDER BY created_at ASC non-deterministic about intra-
+                // second order for this audit-trail export (same class
+                // of bug caught and fixed in bh-crm's notes feature).
+                "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC, id ASC", $cid
             ));
             fputcsv($out, ['Voter', 'Category', 'Submission ID', 'Track Title', 'Voted At']);
             foreach ($rows as $r) {

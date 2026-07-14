@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.15
+ * Version:     0.4.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,15 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.15');
+define('BHC_VER',  '0.4.16');
+
+// 0.4.16 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
+// sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12/
+// bh-contest 3.5.2. class-crm-integration.php's activity_summary(): the
+// course-completions query (ORDER BY completed_at DESC) had no id
+// tiebreaker — a bulk/legacy import of completion records could
+// plausibly land several in the same second, and this list is read
+// top-to-bottom in the CRM activity summary. Fixed with `, id DESC`.
 
 // 0.4.15 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
 // shortcode-to-block conversion, completing the pass across all four
@@ -431,7 +439,10 @@ add_action('plugins_loaded', function () {
 
     add_action('init', ['BHC_PostTypes', 'register']);
     add_action('init', ['BHC_Render', 'init']);
-    BHC_Blocks::init();
+    // QA fix, caught live via WP_DEBUG_LOG: same fix as bh-contest's
+    // BH_Blocks/bh-streaming's BHS_Blocks — hooked normally at 'init'
+    // instead of called directly at plugins_loaded time.
+    add_action('init',          ['BHC_Blocks', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);

@@ -77,7 +77,7 @@ class OUS_Notifications {
 
         if ($email && self::user_wants_email($user_id, $type)) {
             if (class_exists('OUS_Jobs')) {
-                OUS_Jobs::enqueue('bhcore_send_notification_email', ['user_id' => $user_id, 'title' => $title, 'body' => $body, 'url' => $url]);
+                OUS_Jobs::enqueue('bhcore_send_notification_email', ['notification_id' => $id, 'user_id' => $user_id, 'title' => $title, 'body' => $body, 'url' => $url]);
             } else {
                 // No job queue active for some reason (shouldn't happen —
                 // same plugin, same activation — but fail toward "still
@@ -98,7 +98,28 @@ class OUS_Notifications {
         return apply_filters('bhcore_notification_should_email', !$opt_out, $user_id, $type);
     }
 
+    // QA fix, caught live (not just reasoned through): the identical
+    // queued job genuinely fired more than once in this ecosystem
+    // (confirmed for bh-crm's near-identical note-reminder job — a
+    // manual test call plus Action Scheduler's own real background
+    // processing of the same scheduled job both ran it), which would
+    // have meant a duplicate email here too, silently, with nothing to
+    // stop it. notification_id (present for every call site going
+    // forward — see notify() above) lets this claim the row atomically
+    // before mailing; a call with no notification_id (an old queued job
+    // from before this fix, still pending when the site upgrades) just
+    // sends once with no dedup, same as it always has — not worse than
+    // before.
     public static function send_queued_email($args) {
+        $notification_id = (int) ($args['notification_id'] ?? 0);
+        if ($notification_id) {
+            global $wpdb;
+            $claimed = $wpdb->query($wpdb->prepare(
+                "UPDATE " . self::table() . " SET email_sent = 1 WHERE id = %d AND email_sent = 0",
+                $notification_id
+            ));
+            if (!$claimed) return; // already sent, or the notification row is gone
+        }
         self::send_email_now((int) ($args['user_id'] ?? 0), $args['title'] ?? '', $args['body'] ?? '', $args['url'] ?? '');
     }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.5.0
+ * Version:     3.5.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -121,7 +121,25 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.5.0');
+define('BH_VER',        '3.5.2');
+
+// 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
+// sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.
+// The votes CSV export (class-admin.php) had no id tiebreaker on its
+// ORDER BY created_at ASC — real voting windows routinely land many
+// votes in the same second, so the exported audit-trail order was
+// non-deterministic intra-second. Fixed with `, id ASC`.
+
+// 3.5.1 — QA fix, caught live via WP_DEBUG_LOG: BH_Blocks::init() (new
+// in 3.5.0) was called directly from this file's plugins_loaded
+// closure rather than hooked onto 'init' — safe against the earlier
+// nested-hook bug class (it doesn't re-register a second 'init'
+// callback), but wp_register_script() inside it still ran too early
+// for WordPress's own timing rules, logging a real "called incorrectly"
+// notice. Fixed by hooking add_action('init', ['BH_Blocks', 'init'])
+// normally at the top level instead — the same correct pattern
+// BHM_Blocks (bh-monetization-woo) already used. Confirmed the notice
+// is gone and all three blocks still register correctly.
 
 // 3.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
 // shortcode-to-block conversion continues into bh-contest, following
@@ -408,7 +426,16 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Console', 'init']);
     add_action('init',          ['BH_Reveal', 'init']);
     add_action('init',          ['BH_Judging', 'init']);
-    BH_Blocks::init();
+    // QA fix, caught live via WP_DEBUG_LOG: calling BH_Blocks::init()
+    // directly here (at plugins_loaded time) ran wp_register_script()
+    // before WordPress's own 'init'/'wp_enqueue_scripts' timing,
+    // triggering a real "called incorrectly" notice — BH_Blocks::init()
+    // itself doesn't nest a second add_action('init', ...) the way the
+    // ORIGINAL bug class did (see class-blocks.php — register_block()
+    // is called directly from init(), not re-hooked), so this is safe
+    // to hook normally at the top level, same pattern BHM_Blocks
+    // (bh-monetization-woo) already uses correctly.
+    add_action('init',          ['BH_Blocks', 'init']);
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
 

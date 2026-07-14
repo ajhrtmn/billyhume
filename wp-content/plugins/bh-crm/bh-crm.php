@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.3.6
+ * Version:     1.4.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -43,7 +43,47 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.3.6');
+define('BHCRM_VER',  '1.4.0');
+
+// 1.4.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+// notes rebuilt as timestamped history + authorship + reminders,
+// replacing the old single-overwrite freeform `_bhcrm_notes` user meta
+// field (class-notes.php). New bhcrm_notes table (same versioned-
+// dbDelta activation pattern BHCRM_Projects already established for
+// this plugin's own first table) — every note is now its own row,
+// stamped with who wrote it and when, appended not overwritten. Any
+// note written before this table existed is migrated forward
+// automatically (once, lazily, the first time a person's notes are
+// viewed) as a single legacy-labeled note rather than silently
+// discarded.
+// Reminders reuse this ecosystem's OWN existing infrastructure rather
+// than inventing new plumbing: OUS_Jobs::enqueue() (the shared async
+// job queue) schedules a one-off job for the reminder's exact moment,
+// and that job calls OUS_Notifications::notify() (the shared
+// notification bell every other plugin here already uses) — notifying
+// the note's ORIGINAL AUTHOR specifically, not a broadcast to every
+// admin.
+// TWO real bugs caught and fixed during live verification, not just
+// reasoned through: (1) list_for_person()'s ORDER BY created_at DESC
+// had no tiebreaker — a migrated legacy note and a genuinely new note
+// landed in the same second during testing, and without a secondary
+// `id DESC` sort the display order was non-deterministic. (2)
+// handle_reminder_job() checked its own reminder_dismissed flag but
+// never SET it — confirmed live that the same reminder fired twice
+// (once via a manual test call, once via Action Scheduler's real
+// background processing of the identical scheduled job), sending a
+// duplicate notification. Fixed with an atomic UPDATE ... WHERE
+// reminder_dismissed = 0 claim-check before notifying.
+// RUNTIME-VERIFIED end to end on this actual install: ran the schema
+// migration live, confirmed a real legacy _bhcrm_notes value correctly
+// migrates into the new table exactly once and the old meta key is
+// cleared, confirmed a new note with a reminder correctly schedules a
+// real OUS_Jobs job, confirmed the reminder job actually fired via
+// Action Scheduler's real background processing (not just a direct
+// method call) and produced a correctly-addressed, correctly-linked
+// notification, and confirmed the idempotency fix by firing the same
+// job twice and verifying only one notification was ever created.
+// Test person/notes/notifications cleaned up afterward.
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 
@@ -183,6 +223,7 @@ foreach (['people', 'notes', 'tags', 'export', 'event-activity', 'projects', 'de
 }
 
 register_activation_hook(__FILE__, ['BHCRM_Projects', 'activate']);
+register_activation_hook(__FILE__, ['BHCRM_Notes', 'activate']);
 
 /**
  * Depends only on the core plugin (shared identity) — genuinely nothing
@@ -236,6 +277,7 @@ add_action('plugins_loaded', function () {
     // admin_post hooks above) are — the class itself decides what's safe
     // to actually register.
     BHCRM_Projects::init();
+    BHCRM_Notes::init();
     BHCRM_Debug::init();
 
     // BH_Event registration + this plugin's own contribution to
