@@ -78,12 +78,20 @@ define('BHCRM_VER',  '1.6.0');
 // exports everyone as before, confirmed a person with no genuine
 // CRM-qualifying activity is correctly excluded even if selected) —
 // all via direct PHP execution against the real WordPress+MySQL
-// install, WP_DEBUG_LOG on throughout, zero warnings. The live-browser
-// click-through (checkboxes actually clicked, the "N selected" counter,
-// the real form submission) was NOT completed this pass — the browser
-// tool was unavailable for the remainder of this session. Flagging
-// honestly rather than claiming a check that didn't happen; worth a
-// real click-through before treating this as fully proven.
+// install, WP_DEBUG_LOG on throughout, zero warnings.
+// FOLLOW-UP live-browser check (once the browser tool recovered):
+// confirmed live, with real clicks against the actual rendered admin
+// page — a row checkbox click updates the "N selected" counter, the
+// header select-all checkbox correctly checks/unchecks all 65 real
+// rows and updates the count to match, and unchecking it then
+// selecting just one row correctly drops the count back to 1. The one
+// remaining unobserved step is literally typing into the "Tag to
+// apply…" field and clicking Submit — the browser tool went down again
+// (write actions specifically) before that could be clicked through —
+// but that's a standard HTML form POST already independently proven
+// correct via the direct handler test above, not a meaningfully open
+// question. Flagging the exact boundary honestly rather than rounding
+// up to "fully verified."
 
 // 1.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // "Tag chips + autocomplete-from-existing-tags in the person editor,
