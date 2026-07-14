@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.14
+ * Version:     0.4.15
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,29 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.14');
+define('BHC_VER',  '0.4.15');
+
+// 0.4.15 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
+// shortcode-to-block conversion, completing the pass across all four
+// plugins (bh-monetization-woo 0.4.9-0.4.11, bh-contest 3.5.0,
+// bh-streaming 0.5.4). Two new blocks via wp.serverSideRender
+// (class-blocks.php, assets/js/bhc-blocks.js): 'bhc/catalog'
+// ([bh_courses], no attributes) and 'bhc/course' ([bh_course], an
+// Inspector course picker). Unlike bh-contest's/bh-streaming's blocks
+// (a JS-hydrated mount div), both of these render REAL, complete
+// server-side HTML already — the catalog grid and a course's full
+// detail page — so ServerSideRender shows the actual final content
+// directly, not a container shell. Old shortcodes untouched.
+// Same has_block()-alongside-has_shortcode() fix already applied
+// preemptively to bh-streaming 0.5.4 before it shipped, applied here
+// the same way — class-render.php's asset-enqueue gate now checks both.
+// RUNTIME-VERIFIED end to end: confirmed both blocks registered and
+// rendering the real course content via the exact REST block-renderer
+// endpoint the editor calls, then built a real page with the bhc/course
+// block and loaded it in a live browser — confirmed courses.css/
+// courses.js correctly enqueued (has_block() fix working) and the real
+// course page ("Test Block Course," "0 lessons") rendered correctly
+// with zero console errors. Test course/page cleaned up afterward.
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
@@ -392,7 +414,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -409,6 +431,7 @@ add_action('plugins_loaded', function () {
 
     add_action('init', ['BHC_PostTypes', 'register']);
     add_action('init', ['BHC_Render', 'init']);
+    BHC_Blocks::init();
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);

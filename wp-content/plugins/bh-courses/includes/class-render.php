@@ -66,7 +66,14 @@ class BHC_Render {
         }
         if (!is_singular()) return;
         global $post;
-        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || $post->post_type === 'bh_lesson')) return;
+        // has_block() alongside each has_shortcode() — ROADMAP-ux-polish-
+        // and-feature-parity-2026-07.md 5a's WYSIWYG block conversion
+        // (class-blocks.php, 'bhc/catalog'/'bhc/course') means a page can
+        // embed either without any literal [bh_courses]/[bh_course]
+        // bracket text in post_content. Same class of regression already
+        // caught and fixed in bh-contest 3.5.0 and bh-streaming 0.5.4 —
+        // applied here preemptively before shipping, not after.
+        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || $post->post_type === 'bh_lesson')) return;
         self::enqueue_assets();
     }
 
