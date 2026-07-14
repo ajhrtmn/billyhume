@@ -56,6 +56,20 @@ Deliberately **not** recommending: WP Fusion or any CRM-to-SaaS bridge (direct c
 
 ---
 
+## 3a. New domain, not yet scoped: user issue/support ticket system
+
+AJ ask (2026-07-14): a support/help-desk ticket system for site users — distinct from Section 6a's event ticketing (that's admission tickets to a venue/event; this is "a user reports a problem, someone resolves it," the support-desk sense of "ticket"). Also distinct from bh-contest's own submission/moderation queue (that's contest-entry review, not general user support).
+
+**Not scoped in detail yet** — needs its own refinement pass before real build-order placement. Open questions worth asking AJ directly when this comes up for real:
+- Scope: pure bug/support reports from logged-in users, or does this fold in the "report" flows own-ur-shit's Reports & Moderation queue already has for other content types? Worth reading `class-reports.php` (or wherever that queue lives) first — the exact same "check for an unused/adjacent extension point before building new infrastructure" principle Section 1's cross-cutting findings already called out once this pass.
+- Who resolves tickets — AJ alone, or does this need a lightweight assignable-agent/role concept (relevant once/if this ecosystem ever has more than one admin)?
+- Status lifecycle: open/in-progress/resolved is the obvious minimum; worth deciding up front whether a "waiting on user reply" state matters (it usually does, in every real help-desk reference product).
+- Notification path: reuses `OUS_Notifications`/`OUS_Toast` (already-shared, ecosystem-wide) rather than inventing a new one — should be a given, not an open question, but stated here so it isn't missed.
+- Where tickets live: a real CPT (consistent with `bh_contest`/`bh_submission`/`bh_lesson` etc.) is almost certainly right, not a bespoke table — matches this ecosystem's own established convention of "a table only when the shape genuinely doesn't fit a post," per multiple existing plugins' own docblocks.
+- Attachments (screenshots, log files) — likely yes, given how most real bug reports actually get filed; needs deciding if that's v1 or a fast-follow.
+
+---
+
 ## 4. LMS (bh-courses) — all four, built as course-creator-configurable
 
 **Decision (from direct refinement): build all four** — certificate of completion, real video progress tracking, downloadable resources per step, and comments/Q&A per lesson — **with course-creator control over each**, not a single ecosystem-wide switch.

@@ -19,6 +19,18 @@ wp-config.php
 # htaccess
 /.htaccess
 
+# WordPress drop-ins (wp-content/*.php custom-class overrides, e.g.
+# db.php). These are commonly installed by a debug plugin (Query
+# Monitor's DB profiling, in this case) as a symlink to an ABSOLUTE
+# LOCAL PATH — that symlink got committed by accident once (see git
+# history) and broke the Wasmer/Shipit deploy build, since the target
+# path only exists on the machine that created it and points into
+# wp-content/plugins/query-monitor/, which isn't even tracked by this
+# .gitignore's own plugin whitelist below. Never commit these.
+/wp-content/db.php
+/wp-content/object-cache.php
+/wp-content/advanced-cache.php
+
 # Third-party plugins: ignore everything under wp-content/plugins EXCEPT
 # the seven Own Ur Shit ecosystem plugins (own-ur-shit + peers) and the
 # ecosystem's own root-level docs. Anything else installed later (a new

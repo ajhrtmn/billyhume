@@ -1,1 +1,0 @@
-/Users/ajhartman/Local Sites/billy-hume-blank-test/app/public/wp-content/plugins/query-monitor/wp-content/db.php
