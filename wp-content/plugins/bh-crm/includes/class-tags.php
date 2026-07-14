@@ -9,6 +9,27 @@ if (!defined('ABSPATH')) exit;
  * for what's fundamentally a short list of words per person.
  */
 class BHCRM_Tags {
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Tag
+    // chips + autocomplete-from-existing-tags in the person editor,
+    // replacing the current plain comma-separated text input. Contained
+    // front-end change, no schema change (still a meta-array-of-strings
+    // underneath)." Exactly that — the underlying storage, handle_save(),
+    // and the BH_Event payload are all completely unchanged; only
+    // render_editor()'s markup and this new enqueue hook are new. The
+    // plain text input stays in the DOM (visually hidden once JS takes
+    // over) as the actual form field the existing handle_save() reads —
+    // tag-chips.js just keeps it in sync with the chip UI, so JS-off
+    // degrades to exactly the old plain-text-field behavior, not a
+    // broken form.
+    public static function init() {
+        add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
+    }
+
+    public static function maybe_enqueue($hook) {
+        if (empty($_GET['page']) || $_GET['page'] !== 'bh-crm' || empty($_GET['user_id'])) return;
+        wp_enqueue_script('bhcrm-tag-chips', BHCRM_URL . 'assets/js/tag-chips.js', [], BHCRM_VER, true);
+    }
+
     public static function get($user_id) {
         $raw = get_user_meta($user_id, '_bhcrm_tags', true);
         $tags = $raw ? json_decode($raw, true) : [];
@@ -32,12 +53,25 @@ class BHCRM_Tags {
 
     public static function render_editor($user_id) {
         $tags = self::get($user_id);
+        // Every distinct tag site-wide, for the autocomplete dropdown —
+        // computed once per page load (all_in_use()'s own docblock
+        // already covers why that's fine at this scale). Handed to
+        // tag-chips.js via a data attribute rather than a separate REST
+        // round trip, since it's already server-rendered right here.
+        $suggestions = BHCRM_Tags::all_in_use();
+
         echo '<h3>Tags</h3>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bhcrm_save_tags');
         echo '<input type="hidden" name="action" value="bhcrm_save_tags">';
         echo '<input type="hidden" name="user_id" value="' . (int) $user_id . '">';
-        echo '<input type="text" name="tags" value="' . esc_attr(implode(', ', $tags)) . '" placeholder="comma, separated, tags" style="width:100%;max-width:400px;">';
+        echo '<div class="bhcrm-tag-chips" data-suggestions="' . esc_attr(wp_json_encode($suggestions)) . '">';
+        // The REAL form field tag-chips.js keeps in sync — handle_save()
+        // reads THIS, unchanged, so JS-off (or a JS error) still submits
+        // a working plain-text comma-separated field, just without the
+        // chip UI on top of it.
+        echo '<input type="text" name="tags" class="bhcrm-tag-chips-input" value="' . esc_attr(implode(', ', $tags)) . '" placeholder="comma, separated, tags" style="width:100%;max-width:400px;">';
+        echo '</div>';
         echo '<p><button class="button">Save tags</button></p>';
         echo '</form>';
     }

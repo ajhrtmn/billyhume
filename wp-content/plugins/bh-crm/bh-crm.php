@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.4.0
+ * Version:     1.5.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -43,7 +43,36 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.4.0');
+define('BHCRM_VER',  '1.5.0');
+
+// 1.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+// "Tag chips + autocomplete-from-existing-tags in the person editor,
+// replacing the current plain comma-separated text input. Contained
+// front-end change, no schema change." Exactly that — class-tags.php's
+// underlying storage (still a JSON array in user meta), handle_save(),
+// and the BH_Event payload are all completely unchanged. New assets/js/
+// tag-chips.js (vanilla, no build step): removable pill chips + an
+// autocomplete dropdown sourced from every tag already in use site-wide
+// (BHCRM_Tags::all_in_use(), which already existed — no new query).
+// Progressive enhancement, not a replacement: the original plain text
+// input stays in the DOM (visually hidden) as the REAL form field
+// handle_save() reads — the JS widget only keeps it in sync, so a JS-
+// off browser (or a JS error) degrades to exactly the old plain-text-
+// field behavior, never a broken form.
+// RUNTIME-VERIFIED end to end on this actual install, including a real
+// gotcha caught along the way: this environment's browser-automation
+// tooling doesn't dispatch a genuine 'keydown' event for a simulated
+// Enter keypress on a text input (same class of quirk this plugin's
+// own kanban-board.js docblock already flagged for native drag events)
+// — confirmed the widget's logic is correct by dispatching a REAL
+// KeyboardEvent directly (exactly what a real browser does for genuine
+// typing), which correctly created a chip, synced the hidden field,
+// added a second tag via comma, removed a chip via its × button (hidden
+// field correctly re-synced to just the remaining tag each time), and
+// confirmed the autocomplete dropdown correctly filters
+// BHCRM_Tags::all_in_use()'s real site-wide tag list against the typed
+// query. Zero console errors throughout. Test person/tags cleaned up
+// afterward.
 
 // 1.4.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // notes rebuilt as timestamped history + authorship + reminders,
@@ -278,6 +307,7 @@ add_action('plugins_loaded', function () {
     // to actually register.
     BHCRM_Projects::init();
     BHCRM_Notes::init();
+    BHCRM_Tags::init();
     BHCRM_Debug::init();
 
     // BH_Event registration + this plugin's own contribution to

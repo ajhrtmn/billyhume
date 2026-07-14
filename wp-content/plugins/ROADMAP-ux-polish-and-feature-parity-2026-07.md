@@ -46,9 +46,9 @@ Written 2026-07-13, off the back of a same-day four-plugin research pass (parall
 
 Not covered by a direct refinement question this pass, but the research report's findings are concrete and low-risk enough to include here as a recommended (not yet confirmed) near-term slate. Flag disagreement if any of this isn't wanted.
 
-- **Tag chips + autocomplete-from-existing-tags** in the person editor, replacing the current plain comma-separated text input. Contained front-end change, no schema change (still a meta-array-of-strings underneath).
+- **Tag chips + autocomplete-from-existing-tags** in the person editor, replacing the current plain comma-separated text input. Contained front-end change, no schema change (still a meta-array-of-strings underneath). ✅ done (1.5.0) — progressive enhancement over the unchanged plain-text field, runtime-verified end to end.
 - **Saved smart lists/segments** — the single clearest real feature gap: today, filtering is "one tag at a time via a URL query arg," with no saved multi-condition segment ("tagged X AND registered in last 30 days AND has an active project"). Groundhogg's (GPLv2, open-source) segment-builder UX is worth reading as a reference implementation before designing this from scratch.
-- **Notes: timestamped history + authorship + reminders**, replacing the current single-overwrite freeform textarea. This is the CRM's actual daily-use loop in every reference product (Pipedrive/HubSpot) and is currently the thinnest part of bh-crm.
+- **Notes: timestamped history + authorship + reminders**, replacing the current single-overwrite freeform textarea. This is the CRM's actual daily-use loop in every reference product (Pipedrive/HubSpot) and is currently the thinnest part of bh-crm. ✅ done (1.4.0) — new bhcrm_notes table, reminders via OUS_Jobs + OUS_Notifications, legacy notes auto-migrated. Runtime-verified end to end.
 - **Bulk actions on the person list** (bulk tag, bulk export-selected) — currently all-or-nothing.
 - **SortableJS swap for the kanban board** — see cross-cutting findings above; do this regardless of anything else in this section.
 
