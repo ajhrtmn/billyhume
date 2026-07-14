@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.10
+ * Version:     0.4.11
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -133,7 +133,18 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.10');
+define('BHM_VER',  '0.4.11');
+
+// 0.4.11 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: third
+// shortcode-to-block conversion, 'bhm/tiers' (class-blocks.php,
+// assets/js/bhm-blocks.js), same wp.serverSideRender pattern as
+// bhm/buy (0.4.9) and bhm/tip-jar (0.4.10). Zero attributes — always
+// every configured tier, site-wide, same as [bhm_tiers] itself takes
+// no atts. Old shortcode untouched. RUNTIME-VERIFIED end to end: REST
+// block-renderer endpoint confirmed both the empty-state message
+// ("No supporter tiers are set up yet.") and a real tier grid render
+// correctly, then confirmed the empty state live in an actual page
+// editor with zero console errors.
 
 // 0.4.10 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: second
 // shortcode-to-block conversion, 'bhm/tip-jar' (class-blocks.php,

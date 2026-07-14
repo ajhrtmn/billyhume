@@ -100,6 +100,21 @@
 
         save: function () { return null; },
     });
+
+    blocks.registerBlockType('bhm/tiers', {
+        title: __('Supporter Tiers (Monetization)', 'bh-monetization-woo'),
+        description: __('The supporter-tier picker grid — the same [bhm_tiers] shortcode, as a real block with a live preview.', 'bh-monetization-woo'),
+        icon: 'awards',
+        category: 'widgets',
+
+        // Same zero-attribute shape as bhm/tip-jar — always every
+        // configured tier, site-wide.
+        edit: function () {
+            return el(ServerSideRender, { block: 'bhm/tiers' });
+        },
+
+        save: function () { return null; },
+    });
 })(
     window.wp && window.wp.blocks,
     window.wp && window.wp.element,

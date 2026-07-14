@@ -75,6 +75,15 @@ class BHM_Blocks {
             'editor_script'   => 'bhm-buy-block',
             'render_callback' => [self::class, 'render_tip_jar'],
         ]);
+
+        // 'bhm/tiers' — the third block converted. Same zero-attribute
+        // shape as bhm/tip-jar: BHM_Frontend::render_tiers() itself
+        // takes no $atts either (it's always every configured tier,
+        // site-wide, same as the [bhm_tiers] shortcode).
+        register_block_type('bhm/tiers', [
+            'editor_script'   => 'bhm-buy-block',
+            'render_callback' => [self::class, 'render_tiers'],
+        ]);
     }
 
     // render_callback runs for every real visitor too, not just the
@@ -89,6 +98,10 @@ class BHM_Blocks {
 
     public static function render_tip_jar($attributes) {
         return BHM_Frontend::render_tip_jar($attributes);
+    }
+
+    public static function render_tiers($attributes) {
+        return BHM_Frontend::render_tiers();
     }
 
     public static function register_routes() {
