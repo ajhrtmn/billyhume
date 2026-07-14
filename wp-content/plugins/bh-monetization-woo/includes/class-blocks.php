@@ -63,6 +63,18 @@ class BHM_Blocks {
                 'id' => ['type' => 'number', 'default' => 0],
             ],
         ]);
+
+        // 'bhm/tip-jar' — the second block converted (roadmap doc's own
+        // sequencing list, right after bhm/buy). Zero attributes: unlike
+        // a purchase button, the tip jar is site-wide, always the one
+        // shared Tip product ([bhm_tip_jar]'s own shortcode signature
+        // takes no atts either) — no Inspector picker needed, so this
+        // block's edit() renders ServerSideRender unconditionally with
+        // no configuration step.
+        register_block_type('bhm/tip-jar', [
+            'editor_script'   => 'bhm-buy-block',
+            'render_callback' => [self::class, 'render_tip_jar'],
+        ]);
     }
 
     // render_callback runs for every real visitor too, not just the
@@ -73,6 +85,10 @@ class BHM_Blocks {
         $id = (int) ($attributes['id'] ?? 0);
         if (!$id) return '';
         return BHM_Frontend::render_purchase_button(['id' => $id]);
+    }
+
+    public static function render_tip_jar($attributes) {
+        return BHM_Frontend::render_tip_jar($attributes);
     }
 
     public static function register_routes() {

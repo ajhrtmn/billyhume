@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.9
+ * Version:     0.4.10
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -133,7 +133,20 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.9');
+define('BHM_VER',  '0.4.10');
+
+// 0.4.10 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: second
+// shortcode-to-block conversion, 'bhm/tip-jar' (class-blocks.php,
+// assets/js/bhm-blocks.js), same wp.serverSideRender pattern 'bhm/buy'
+// (0.4.9) proved out. Zero attributes/Inspector picker needed — the tip
+// jar is always the one site-wide Tip product, so the block's edit()
+// renders the live preview unconditionally, no configuration step.
+// The old [bhm_tip_jar] shortcode is untouched and still registered.
+// RUNTIME-VERIFIED end to end: confirmed via the real REST block-
+// renderer endpoint AND live in an actual page editor — inserted the
+// block, the real "Send a tip: $5 [Send Tip]" form rendered
+// immediately with zero console errors, no picker/configuration
+// needed.
 
 // 0.4.9 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a (the
 // WYSIWYG follow-up): the FIRST shortcode-to-block conversion in this

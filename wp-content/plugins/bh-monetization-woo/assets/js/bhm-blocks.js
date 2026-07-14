@@ -1,12 +1,12 @@
 /**
- * bhm-blocks.js — editor-side registration for 'bhm/buy'
- * (class-blocks.php). Plain ES5-safe JS against WP core's own globals,
- * no build step, same convention every other block in this ecosystem
- * follows (own-ur-shit's element-prefab-block.js, bh-courses' Studio
- * blocks). Unlike element-prefab-block.js (which deliberately deferred
- * a live preview), this uses wp.serverSideRender.ServerSideRender —
- * the actual PHP render_callback output shown live in the canvas, not
- * a mimic.
+ * bhm-blocks.js — editor-side registration for 'bhm/buy' and
+ * 'bhm/tip-jar' (class-blocks.php). Plain ES5-safe JS against WP core's
+ * own globals, no build step, same convention every other block in
+ * this ecosystem follows (own-ur-shit's element-prefab-block.js,
+ * bh-courses' Studio blocks). Unlike element-prefab-block.js (which
+ * deliberately deferred a live preview), this uses wp.serverSideRender.
+ * ServerSideRender — the actual PHP render_callback output shown live
+ * in the canvas, not a mimic.
  */
 (function (blocks, element, blockEditor, components, i18n, apiFetch, serverSideRender) {
     'use strict';
@@ -82,6 +82,22 @@
         // this block, only its attributes, matching WP core's own
         // dynamic-block contract (same as own-ur-shit's element-prefab
         // block).
+        save: function () { return null; },
+    });
+
+    blocks.registerBlockType('bhm/tip-jar', {
+        title: __('Tip Jar (Monetization)', 'bh-monetization-woo'),
+        description: __('A "send a tip" form — the same [bhm_tip_jar] shortcode, as a real block with a live preview.', 'bh-monetization-woo'),
+        icon: 'money-alt',
+        category: 'widgets',
+
+        // No attributes, no picker — the tip jar is always the one
+        // site-wide Tip product (same as the shortcode itself takes no
+        // attributes), so the preview renders unconditionally.
+        edit: function () {
+            return el(ServerSideRender, { block: 'bhm/tip-jar' });
+        },
+
         save: function () { return null; },
     });
 })(
