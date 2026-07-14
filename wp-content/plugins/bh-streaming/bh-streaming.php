@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.2
+ * Version:     0.5.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -23,7 +23,24 @@ if (!defined('ABSPATH')) exit;
 // EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6. Standing caveat:
 // reasoning/brace-balance-checked only, not run against a real
 // WordPress+MySQL install.
-define('BHS_VER',  '0.5.2');
+// 0.5.3 — UX-AUDIT-2026-07.md: the "All Tracks" library view's bare
+// "No tracks match." replaced with the shared
+// BHY_Style::empty_state_html() component (own-ur-shit 3.4.82),
+// pre-rendered server-side (class-player.php's BHSData.emptyStateZero/
+// emptyStateFiltered) since this view is JS-rendered, not PHP — one
+// source of truth with the same component bh-courses' catalog now
+// uses, not a second bespoke JS empty state. player.js picks zero vs.
+// filtered based on whether a search term or genre filter is
+// currently active, same distinction the catalog already makes.
+// RUNTIME-VERIFIED, with a real bug caught in the same pass: the
+// component's <style> block was originally only embedded once per
+// request, which broke the moment this exact swap-between-two-
+// variants pattern replaced `library.innerHTML` a second time,
+// silently destroying the first fragment's <style> tag along with it
+// — see own-ur-shit 3.4.82's own changelog for the fix (the component
+// now embeds its style on every call). Confirmed both variants render
+// at the correct size on desktop and 375px mobile after the fix.
+define('BHS_VER',  '0.5.3');
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 

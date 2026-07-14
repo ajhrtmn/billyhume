@@ -49,7 +49,7 @@ class BHM_Tiers {
     }
 
     public static function init() {
-        add_action('init', [self::class, 'register_post_type']);
+        self::register_post_type();
         add_action('save_post_' . self::CPT, [self::class, 'save']);
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_admin_assets']);

@@ -412,6 +412,7 @@ class OUS_Registry {
 
             $rows[] = [
                 'zip' => $zip_filename,
+                'key' => $match['key'] ?? null, // registry key, for the regenerate button below — null when this zip has no matching registry entry to rebuild from
                 'label' => $match['key'] ?? $zip_filename,
                 'bundled_version' => $bundled_version,
                 'installed_version' => $installed_version,
@@ -432,7 +433,7 @@ class OUS_Registry {
     // the whole archive to disk — this only runs on-demand from the
     // debug page, not on every request, so the small per-call overhead
     // of opening the zip is a non-issue.
-    private static function read_zip_plugin_version($zip_path) {
+    public static function read_zip_plugin_version($zip_path) {
         if (!class_exists('ZipArchive')) return null;
         $zip = new ZipArchive();
         if ($zip->open($zip_path) !== true) return null;
@@ -458,19 +459,113 @@ class OUS_Registry {
         return $version;
     }
 
+    /**
+     * The actual fix for the failure mode bundled_zip_report() only
+     * ever detected, never corrected — a real, confirmed incident
+     * (2026-07-13): four bundled zips sat stale through an entire
+     * session's worth of real fixes, and OUS_Installer::install()
+     * would have silently reinstalled last week's code with zero
+     * warning had anyone hit "Install"/"Reinstall" before this ran.
+     * Fixing it by hand (a raw `zip` shell command) is a real, working
+     * one-time fix but doesn't stop it from happening again next
+     * session — this is the one-click, in-admin way to actually close
+     * the gap, plus OUS_Installer::install_from_bundle()'s own new
+     * pre-flight staleness guard (see that method's docblock) as the
+     * second half of "prevent," not just "detect."
+     *
+     * Rebuilds `bundled/<zip>` directly from the plugin's own live
+     * source directory using ZipArchive (PHP core, no shell-out, same
+     * "no external dependency" posture as everything else in this
+     * ecosystem) — same top-level-folder-per-plugin structure every
+     * existing bundled zip already uses (verified against
+     * bh-registry.zip, the reference "known-good, never-touched-by-
+     * hand" example, before this was written). Writes to a temp file
+     * first and only renames over the real target on full success —
+     * a previous manual-zip session left two orphaned, randomly-named
+     * temp files in bundled/ from a write that never got cleaned up on
+     * failure; this closes that same gap properly rather than
+     * repeating it.
+     */
+    public static function regenerate_bundled_zip($key) {
+        if (!class_exists('ZipArchive')) return new WP_Error('no_ziparchive', 'ZipArchive isn\'t available on this server.');
+
+        $info = self::all()[$key] ?? null;
+        if (!$info || empty($info['bundled_zip']) || empty($info['file'])) {
+            return new WP_Error('unknown_plugin', 'Not a bundled plugin.');
+        }
+
+        $slug = dirname($info['file']); // e.g. 'bh-courses/bh-courses.php' -> 'bh-courses'
+        $source_dir = WP_PLUGIN_DIR . '/' . $slug;
+        if (!is_dir($source_dir)) return new WP_Error('source_missing', "$slug isn't installed here — nothing to bundle from.");
+
+        $final_path = OUS_PATH . 'bundled/' . $info['bundled_zip'];
+        $tmp_path = $final_path . '.tmp-' . wp_generate_password(8, false);
+
+        $zip = new ZipArchive();
+        if ($zip->open($tmp_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            return new WP_Error('open_failed', 'Could not open a temp file for writing in bundled/.');
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($source_dir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($iterator as $item) {
+            $relative = $slug . '/' . substr($item->getPathname(), strlen($source_dir) + 1);
+            // Same exclusions the manual rebuild used this same pass —
+            // OS/VCS clutter, never anything the plugin actually ships.
+            if (basename($item) === '.DS_Store' || strpos($relative, '/.git/') !== false) continue;
+            if ($item->isDir()) {
+                $zip->addEmptyDir($relative);
+            } else {
+                $zip->addFile($item->getPathname(), $relative);
+            }
+        }
+        $zip->close();
+
+        // Confirm the rebuilt zip's own header actually matches what's
+        // on disk RIGHT NOW before it replaces the old one — belt and
+        // suspenders against a partial/corrupt write silently becoming
+        // the new "source of truth" bundle.
+        $rebuilt_version = self::read_zip_plugin_version($tmp_path);
+        $live_data = get_file_data($source_dir . '/' . basename($info['file']), ['Version' => 'Version']);
+        if (!$rebuilt_version || $rebuilt_version !== ($live_data['Version'] ?? null)) {
+            @unlink($tmp_path);
+            return new WP_Error('verify_failed', 'Rebuilt zip failed its own version check — nothing was replaced.');
+        }
+
+        if (!@rename($tmp_path, $final_path)) {
+            @unlink($tmp_path);
+            return new WP_Error('rename_failed', 'Could not replace the old bundled zip (a file-permissions issue on this host).');
+        }
+        return true;
+    }
+
     public static function register_debug_section($tools) {
         $tools['bundled-zips'] = [
             'label' => 'Bundled Zip Freshness',
             'render' => [self::class, 'render_debug_section'],
-            'handle' => null,
+            'handle' => [self::class, 'handle_regenerate'],
             'reset' => null,
-            // Read-only — just inspects files already on disk, changes
-            // nothing, so it's fine to check even on a live/production
-            // site.
+            // Read-only by default (the report itself changes nothing)
+            // — the one write action (regenerating a bundle FROM the
+            // live source already on this exact install) is gated the
+            // same way any other Debug Tools action is, not exempted
+            // just because the report above it is safe everywhere.
             'safe_in_production' => true,
             'group' => OUS_Debug::GROUP_MONITORING,
         ];
         return $tools;
+    }
+
+    /** Wired as this section's 'handle' callback — receives ($action, $_POST) same as every other registered Debug Tools handler (OUS_Debug::button()'s own form contract); returns a plain message string, the shared redirect-with-notice dispatcher's own contract. */
+    public static function handle_regenerate($action, $post) {
+        if ($action !== 'regenerate') return 'Unknown action.';
+        $key = sanitize_key($post['bundle_key'] ?? '');
+        $result = self::regenerate_bundled_zip($key);
+        return is_wp_error($result)
+            ? 'Could not regenerate: ' . $result->get_error_message()
+            : "Regenerated the bundled zip for \"$key\" from the current source.";
     }
 
     public static function render_debug_section() {
@@ -487,7 +582,19 @@ class OUS_Registry {
            . '</tr></thead><tbody>';
         foreach ($rows as $row) {
             if ($row['stale']) {
-                $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE — regenerate bundled zip</span>';
+                $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE</span>';
+                // One-click fix, right next to the finding — the whole
+                // point of adding this button was closing the gap
+                // between "detected" and "fixed" that left four zips
+                // stale through an entire real session (see this
+                // method's own docblock). Only rendered when the row
+                // actually matched a registry key with a real source
+                // directory to rebuild from.
+                if ($row['key']) {
+                    ob_start();
+                    OUS_Debug::button('bundled-zips', 'regenerate', 'Regenerate bundled zip', '<input type="hidden" name="bundle_key" value="' . esc_attr($row['key']) . '">', '', false);
+                    $status .= ob_get_clean();
+                }
             } elseif (!$row['installed_version']) {
                 $status = '<span style="color:#666;">not currently installed — nothing to compare</span>';
             } elseif (!$row['bundled_version']) {

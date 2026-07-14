@@ -55,6 +55,15 @@ class BHC_Render_Course {
             $percent = BHC_Progress::course_percent($uid, $course_id);
             $cta = self::render_continue_cta($uid, $course_id, $percent);
             if ($cta) echo '<div class="bhc-course-header-cta">' . $cta . '</div>';
+
+            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4a — only
+            // shown once BOTH the course opts in AND this specific
+            // student has actually finished it; BHC_Certificates::
+            // maybe_serve_download() re-checks both server-side too, this
+            // is just the visibility gate on the link itself.
+            if (class_exists('BHC_Certificates') && BHC_Certificates::course_offers_certificate($course_id) && BHC_Progress::is_course_completed($uid, $course_id)) {
+                echo '<div class="bhc-course-header-cta"><a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate</a></div>';
+            }
         }
         echo '</div>';
         return ob_get_clean();

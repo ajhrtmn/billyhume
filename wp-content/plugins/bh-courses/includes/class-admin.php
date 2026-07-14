@@ -7,13 +7,17 @@ if (!defined('ABSPATH')) exit;
  *
  * The step builder USED TO BE a plain repeater backed by one hidden
  * JSON field (assets/js/admin.js's now-inert #bhc-steps-builder code —
- * left in place, self-guards on the div's absence, harmless). As of
- * the LMS-authoring wiring pass (see LMS-AUTHORING-DESIGN-PLAN.md),
- * render_steps_metabox() below instead links out to BH_Studio's own
- * canvas, and BHC_ContentBridge::save_tree() (called from Studio's
- * REST route) is the only writer of lesson step content — the old
- * bhc_steps_json POST handling in save_lesson() was removed outright
- * rather than left as a second writer of the same data.
+ * left in place, self-guards on the div's absence, harmless), then
+ * (LMS-AUTHORING-DESIGN-PLAN.md) linked out to BH_Studio's own
+ * separate canvas. As of the real-post-editor migration (see
+ * BHC_ContentBridge's own docblock — bh_lesson now has real 'editor'
+ * support), a lesson's steps are authored directly on THIS screen, in
+ * the real main content area, same as any page — render_steps_metabox()
+ * below is now just a read-only current-steps summary + a "preview as
+ * student" link, not an editor of its own. BHC_ContentBridge's
+ * save_post_bh_lesson hook is the only writer of lesson step content;
+ * the old bhc_steps_json POST handling in save_lesson() was removed
+ * outright rather than left as a second writer of the same data.
  */
 class BHC_Admin {
     public static function add_meta_boxes() {
@@ -121,6 +125,26 @@ class BHC_Admin {
         echo '</ul>';
         echo '<input type="hidden" name="bhc_lesson_order" id="bhc_lesson_order" value="' . esc_attr(implode(',', array_map(fn($l) => $l->ID, $ordered))) . '">';
 
+        // Off by default — a real decision, not a technical toggle, per
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4d: an author
+        // opts a specific course into Q&A explicitly rather than every
+        // lesson silently becoming public-comment-capable the moment
+        // this shipped. Visibility of existing comments (not just the
+        // ability to post new ones) is gated to whoever can already see
+        // the lesson content — see BHC_Comments's own docblock.
+        $comments_enabled = (bool) get_post_meta($post->ID, '_bhc_comments_enabled', true);
+        echo '<h4>Lesson Q&amp;A</h4>';
+        echo '<p><label><input type="checkbox" name="bhc_comments_enabled" value="1"' . checked($comments_enabled, true, false) . '> <strong>Enable comments/Q&amp;A on this course\'s lessons</strong></label></p>';
+        echo '<p class="description">Off by default. When on, only students who can already access a given lesson (per any supporter-tier gating and drip schedule below) can see or post in its comment thread — never open to the public just because this is checked.</p>';
+
+        // Same off-by-default, per-course opt-in posture as Lesson Q&A
+        // just above — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4a.
+        $certificate_enabled = (bool) get_post_meta($post->ID, '_bhc_certificate_enabled', true);
+        $certificate_signature = (string) get_post_meta($post->ID, '_bhc_certificate_signature', true);
+        echo '<h4>Certificate of completion</h4>';
+        echo '<p><label><input type="checkbox" name="bhc_certificate_enabled" value="1" id="bhc_certificate_enabled"' . checked($certificate_enabled, true, false) . '> <strong>Offer a downloadable certificate when a student finishes this course</strong></label></p>';
+        echo '<p><label>Signed by <span class="description">(optional — printed on the certificate, e.g. an instructor\'s name)</span><br><input type="text" name="bhc_certificate_signature" value="' . esc_attr($certificate_signature) . '" style="max-width:400px;width:100%;"></label></p>';
+
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
             $required_benefit = BHC_Gate::required_benefit($post->ID);
@@ -157,6 +181,9 @@ class BHC_Admin {
             $ids = array_filter(array_map('intval', explode(',', $_POST['bhc_lesson_order'])));
             update_post_meta($post_id, '_bhc_lesson_order', $ids);
         }
+        update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
+        update_post_meta($post_id, '_bhc_certificate_enabled', !empty($_POST['bhc_certificate_enabled']) ? 1 : 0);
+        update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
         // Only ever written if bh-monetization-woo is active enough to
         // have rendered the select above — a crafted POST on a site
         // without it does nothing harmful (BHM_Gate simply isn't
@@ -199,32 +226,24 @@ class BHC_Admin {
         echo '<p><label>OR available on a fixed date for everyone: <input type="date" name="bhc_available_on_date" value="' . esc_attr($on_date) . '"></label></p>';
     }
 
-    /* ---------------- lesson metabox (steps builder) ---------------- */
+    /* ---------------- lesson metabox (steps summary, read-only) ---------------- */
 
-    // Replaced the old bhc-steps-builder repeater with a link out to
-    // BH_Studio's own canvas (LMS-AUTHORING-DESIGN-PLAN.md Section 5.3's
-    // "interim path," and Section 5's suggested sequencing step 5:
-    // "replace render_steps_metabox()'s repeater with the embedded
-    // canvas; retire the legacy metabox to close the dual-write
-    // hazard"). This metabox no longer writes step content at all —
-    // see save_lesson() below, which dropped the bhc_steps_json write
-    // path entirely rather than leaving two writers pointed at the same
-    // data. BHC_ContentBridge::get_tree()'s existing lazy-derive-from-
-    // _bhc_steps fallback means a lesson authored under the old
-    // repeater still opens correctly in Studio the first time — no bulk
-    // migration required before this ships (the "Rebuild all lesson
-    // content trees" Debug Tools button remains available for anyone
-    // who wants to force it up front instead).
+    // A lesson's steps are now authored directly in this screen's real
+    // main content area (bh_lesson has real 'editor' support as of the
+    // real-post-editor migration — see BHC_ContentBridge's own
+    // docblock) — this metabox is no longer an editor of its own, just
+    // a read-only "what's actually in _bhc_steps right now" summary
+    // (useful since that's the array BHC_Render/BHC_Progress/BHC_Gate
+    // actually read, one save-cycle behind the block editor's own
+    // canvas) plus a "preview as student" link. It never writes step
+    // content — BHC_ContentBridge's save_post_bh_lesson hook is the
+    // only writer, see that class's own docblock.
     public static function render_steps_metabox($post) {
         $steps = BHC_Steps::get($post->ID);
-        $studio_available = class_exists('BH_Studio') && class_exists('BHC_ContentBridge');
 
         // Per-step content labels rather than just a comma-separated list
-        // of TYPES — the original Studio-migration pass regressed
-        // information density here (a 10-step lesson used to at least
-        // show "Text, Image, Text, Quiz…"; that's still indistinguishable
-        // step-to-step). describe_step() below pulls an actual snippet
-        // from each step's own stored content.
+        // of TYPES — describe_step() below pulls an actual snippet from
+        // each step's own stored content.
         if ($steps) {
             echo '<p class="description">Current steps (' . count($steps) . '):</p>';
             echo '<ol class="bhc-steps-summary" style="margin:0 0 12px 22px;padding:0;">';
@@ -233,41 +252,30 @@ class BHC_Admin {
             }
             echo '</ol>';
         } else {
-            echo '<p class="description">No steps yet.</p>';
+            echo '<p class="description">No steps yet — add Lesson blocks (Text/Image/Video/Quiz) in the editor above.</p>';
         }
 
-        if ($studio_available) {
-            $studio_url = admin_url('admin.php?page=bh-studio&context_type=' . rawurlencode(BHC_ContentBridge::CONTEXT) . '&context_id=' . (int) $post->ID);
-            echo '<p><a class="button button-primary" href="' . esc_url($studio_url) . '">' . ($steps ? 'Edit lesson content in Content Studio &rarr;' : 'Build lesson content in Content Studio &rarr;') . '</a> ';
-            // "Preview as student" — the actual public permalink, not a
-            // Studio-internal preview, since the whole point is seeing
-            // the real step-walker (BHC_Render::render_lesson_steps())
-            // a student gets, including gating/drip state. Published
-            // posts link straight to the permalink; a draft lesson (the
-            // common case while an instructor is still building it out)
-            // uses WordPress's own preview-link mechanism instead, since
-            // a draft's permalink 404s for anyone without edit rights —
-            // get_preview_post_link() handles the preview nonce/query
-            // args this needs.
-            $preview_url = get_post_status($post->ID) === 'publish' ? get_permalink($post->ID) : get_preview_post_link($post->ID);
-            echo '<a class="button" href="' . esc_url($preview_url) . '" target="_blank" rel="noopener">Preview as student &rarr;</a></p>';
-            echo '<p class="description">A lesson is a sequence of steps — mix text, images, and quizzes in any order in the Studio canvas. Students see one step at a time and move forward as they complete each one.</p>';
-        } else {
-            // Own Ur Shit is present (this metabox only registers at
-            // all when bh-courses is active alongside it) but either an
-            // older core without BH_Studio, or BHC_ContentBridge itself
-            // didn't load (BH_Content missing) — degrade to plain
-            // information rather than a dead link or, worse, silently
-            // showing nothing with no explanation.
-            echo '<p class="description"><strong>Content Studio isn\'t available</strong> — this needs a newer Own Ur Shit core (adds BH_Studio/BH_Content). Update the core plugin to author this lesson\'s steps.</p>';
-        }
+        // "Preview as student" — the actual public permalink, not an
+        // editor-internal preview, since the whole point is seeing the
+        // real step-walker (BHC_Render::render_lesson_steps()) a student
+        // gets, including gating/drip state. Published posts link
+        // straight to the permalink; a draft lesson (the common case
+        // while an instructor is still building it out) uses
+        // WordPress's own preview-link mechanism instead, since a
+        // draft's permalink 404s for anyone without edit rights —
+        // get_preview_post_link() handles the preview nonce/query args
+        // this needs.
+        $preview_url = get_post_status($post->ID) === 'publish' ? get_permalink($post->ID) : get_preview_post_link($post->ID);
+        echo '<p><a class="button button-primary" href="' . esc_url($preview_url) . '" target="_blank" rel="noopener">Preview as student &rarr;</a></p>';
+        echo '<p class="description">A lesson is a sequence of steps — mix Lesson: Text/Image/Video/Quiz blocks in any order above. Students see one step at a time and move forward as they complete each one.</p>';
     }
 
     // One line of real content per step, not just its type — reads
     // straight off the legacy $step array shape (BHC_Steps::get()'s own
-    // return format), the same shape whether a lesson was authored via
-    // the old repeater or the Studio canvas (BHC_ContentBridge::save_tree()
-    // keeps _bhc_steps in sync either way, see that class's docblock).
+    // return format), the same shape regardless of which authoring path
+    // wrote it (BHC_ContentBridge::sync_legacy_steps() keeps _bhc_steps
+    // in sync with the real editor's post_content, see that class's
+    // docblock).
     private static function describe_step($step) {
         $type = $step['type'] ?? '?';
         switch ($type) {
@@ -316,13 +324,14 @@ class BHC_Admin {
         }
 
         // The old bhc_steps_json write path is gone (see
-        // render_steps_metabox() above) — BHC_ContentBridge::save_tree(),
-        // called from BH_Studio's own REST save route, is now the ONLY
-        // writer of a lesson's step content. Two writers pointed at the
-        // same _bhc_steps data was the exact "dual-write divergence"
-        // hazard LMS-AUTHORING-DESIGN-PLAN.md Section 6 flagged; closing
-        // it by removing the second writer outright (rather than adding
-        // reconciliation logic) is that doc's own preferred resolution.
+        // render_steps_metabox() above) — BHC_ContentBridge::sync_legacy_steps()
+        // (a save_post_bh_lesson hook, fired after this same save cycle)
+        // is now the ONLY writer of a lesson's step content. Two writers
+        // pointed at the same _bhc_steps data was the exact "dual-write
+        // divergence" hazard LMS-AUTHORING-DESIGN-PLAN.md Section 6
+        // flagged; closing it by removing the second writer outright
+        // (rather than adding reconciliation logic) is that doc's own
+        // preferred resolution.
     }
 
     /* ---------------- list table ---------------- */

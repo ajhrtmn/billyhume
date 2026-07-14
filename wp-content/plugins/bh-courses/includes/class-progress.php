@@ -142,6 +142,61 @@ class BHC_Progress {
         }
     }
 
+    public static function watched_percent($user_id, $lesson_id, $step_index) {
+        $row = self::step_status($user_id, $lesson_id, $step_index);
+        return $row && $row['watched_percent'] !== null ? (int) $row['watched_percent'] : 0;
+    }
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: called on a
+    // throttled cadence from the front end's <video> timeupdate listener
+    // (courses.js), NOT once per step like mark_step_complete() — this is
+    // a lightweight progress ping, not a completion event. Auto-completes
+    // the step itself (via mark_step_complete(), same path the manual
+    // "Mark complete" button already uses) once $percent clears the
+    // step's own watch_threshold, so a video step with a threshold set
+    // never needs a separate button click to advance — same "no bespoke
+    // second completion mechanic" posture the resource step's docblock
+    // already established for non-blocking steps.
+    public static function update_watch_progress($user_id, $lesson_id, $step_index, $percent) {
+        global $wpdb;
+        $percent = max(0, min(100, (int) $percent));
+
+        // INSERT ... ON DUPLICATE KEY, with the UPDATE clause taking
+        // GREATEST() of the old and new value — a student who rewinds to
+        // re-watch an earlier section sends a lower percent on the next
+        // tick than what's already stored, and that must never regress
+        // recorded progress. attempts is left untouched here (unlike
+        // mark_step_complete()'s own ON DUPLICATE KEY clause) since a
+        // progress ping isn't a completion attempt.
+        //
+        // passed = 0 (not NULL) on the INSERT branch only, and left alone
+        // entirely by the UPDATE clause — a real bug caught by running
+        // this live: is_step_complete()'s rule reads a non-quiz row with
+        // passed IS NULL as already complete (correct for a plain text/
+        // image row, which is ONLY ever created by an explicit Mark-
+        // complete click), so a threshold-gated video step read as
+        // "done" after the very first progress ping, before the
+        // threshold was ever reached. Since passed starts at 0 here and
+        // the UPDATE clause never touches it again, the row stays
+        // correctly "not complete" through every ping — mark_step_complete()
+        // below is what flips it to the real NULL-means-complete state,
+        // and only once, once threshold is actually crossed.
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, watched_percent, passed, attempts)
+             VALUES (%d, %d, %d, %d, 0, 0)
+             ON DUPLICATE KEY UPDATE watched_percent = GREATEST(COALESCE(watched_percent, 0), VALUES(watched_percent))",
+            $user_id, $lesson_id, $step_index, $percent
+        ));
+
+        $step = BHC_Steps::get_step($lesson_id, $step_index);
+        $threshold = (int) ($step['watch_threshold'] ?? 0);
+        if ($threshold > 0 && $percent >= $threshold && !self::is_step_complete($user_id, $lesson_id, $step_index)) {
+            self::mark_step_complete($user_id, $lesson_id, $step_index);
+            return true; // tells the AJAX caller the step just auto-completed
+        }
+        return false;
+    }
+
     // The stored per-question snapshot for a quiz step, decoded — null if
     // this isn't a (scored, answers-bearing) quiz row, or predates the
     // answers column. Used by class-render.php to render a static review
@@ -305,6 +360,26 @@ class BHC_Progress {
 
         self::mark_step_complete($user_id, $lesson_id, $step_index);
         wp_send_json_success(['step_index' => $step_index]);
+    }
+
+    public static function ajax_update_watch_progress() {
+        check_ajax_referer('bhc_progress', 'nonce');
+        $user_id = get_current_user_id();
+        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+
+        $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
+        $step_index = (int) ($_POST['step_index'] ?? -1);
+        $percent = (int) ($_POST['percent'] ?? 0);
+        $step = BHC_Steps::get_step($lesson_id, $step_index);
+        if (!$step || $step['type'] !== 'video') {
+            wp_send_json_error(['message' => 'Invalid video step.'], 400);
+        }
+        if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
+            wp_send_json_error(['message' => 'Access required.'], 403);
+        }
+
+        $auto_completed = self::update_watch_progress($user_id, $lesson_id, $step_index, $percent);
+        wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed]);
     }
 
     public static function ajax_submit_quiz() {

@@ -56,22 +56,61 @@ class BH_Reveal {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => 'Results']];
 
-        foreach ($cats as $c) {
-            $results = BH_API::category_results($cid, $c['slug']);
-            if (!$results) continue; // nothing to reveal for an empty category
-            $tier_count = self::medal_tier_count($results);
-            $steps[] = ['type' => 'category_intro', 'category' => $c['name'], 'slug' => $c['slug'], 'entry_count' => count($results)];
-            for ($i = 1; $i <= $tier_count; $i++) {
-                $steps[] = ['type' => 'category_reveal', 'category' => $c['name'], 'slug' => $c['slug'], 'reveal_count' => $i];
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: 'judges'
+        // swaps the public tally for the rubric average everywhere below
+        // — every existing step type/rendering is untouched, only which
+        // ranked-results function feeds it changes. 'hybrid' runs BOTH
+        // passes back to back (Judges' Pick fully revealed, then
+        // People's Choice), as two clearly-labeled leaderboards rather
+        // than a blended score — the roadmap doc's own direct decision,
+        // not a shortcut. A 'public' contest (every contest that
+        // predates this feature) takes exactly the single pass it always
+        // has, byte-for-byte the same sequence as before this existed.
+        $format = BH_Helpers::contest_format($cid);
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: a multi-
+        // round contest reveals the ACTIVE round's own tally, not votes/
+        // scores combined across every round (each round's votes are
+        // independent rows — class-activator.php 1.7) — null for a
+        // single-round contest, meaning "every vote regardless of round"
+        // exactly as before this feature existed.
+        $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
+
+        $passes = [];
+        if ($format === 'public' || $format === 'hybrid') $passes[] = ['source' => 'public', 'label' => $format === 'hybrid' ? "People's Choice" : null];
+        if ($format === 'judges' || $format === 'hybrid') $passes[] = ['source' => 'judges', 'label' => $format === 'hybrid' ? "Judges' Pick" : null];
+
+        foreach ($passes as $pass) {
+            if ($pass['label']) $steps[] = ['type' => 'pass_intro', 'title' => $pass['label']];
+
+            foreach ($cats as $c) {
+                $results = $pass['source'] === 'judges' ? BH_Judging::judge_results($cid, $c['slug'], $round) : BH_API::category_results($cid, $c['slug'], $round);
+                if (!$results) continue; // nothing to reveal for an empty category
+                $tier_count = self::medal_tier_count($results);
+                $steps[] = ['type' => 'category_intro', 'category' => $c['name'], 'slug' => $c['slug'], 'entry_count' => count($results), 'source' => $pass['source']];
+                for ($i = 1; $i <= $tier_count; $i++) {
+                    $steps[] = ['type' => 'category_reveal', 'category' => $c['name'], 'slug' => $c['slug'], 'reveal_count' => $i, 'source' => $pass['source']];
+                }
             }
         }
 
-        $overall = self::overall_results($cid);
-        if ($overall) {
-            $tier_count = self::medal_tier_count($overall);
-            $steps[] = ['type' => 'overall_intro'];
-            for ($i = 1; $i <= $tier_count; $i++) {
-                $steps[] = ['type' => 'overall_reveal', 'reveal_count' => $i];
+        // Overall (cross-category) only ever makes sense for the public-
+        // vote tally on a SINGLE-round contest — a judged contest's
+        // "overall" is already exactly what the single (or, in hybrid,
+        // judges-pass) category loop above just revealed, and a multi-
+        // round contest's "overall" would combine eliminated rounds'
+        // votes with the survivors' current round in a way that doesn't
+        // mean anything coherent (see round scoping above) — the active
+        // round's own category reveal above IS the meaningful ranking
+        // for a multi-round contest, this section is additive to it, not
+        // required by it.
+        if (($format === 'public' || $format === 'hybrid') && $round === null) {
+            $overall = self::overall_results($cid);
+            if ($overall) {
+                $tier_count = self::medal_tier_count($overall);
+                $steps[] = ['type' => 'overall_intro'];
+                for ($i = 1; $i <= $tier_count; $i++) {
+                    $steps[] = ['type' => 'overall_reveal', 'reveal_count' => $i];
+                }
             }
         }
 
@@ -120,12 +159,27 @@ class BH_Reveal {
 
         if ($step['type'] === 'intro') {
             $data['title'] = $step['title'];
+        } elseif ($step['type'] === 'pass_intro') {
+            // Hybrid-format-only step (see build_sequence()) — the
+            // "Judges' Pick" / "People's Choice" section divider between
+            // the two leaderboards. reveal.js needs its own case for
+            // this type; a display that predates hybrid contests never
+            // sees this step type at all (build_sequence() only emits it
+            // for format === 'hybrid').
+            $data['title'] = $step['title'];
         } elseif ($step['type'] === 'category_intro') {
             $data['category'] = $step['category'];
             $data['entry_count'] = $step['entry_count'];
+            $data['source'] = $step['source'] ?? 'public';
         } elseif ($step['type'] === 'category_reveal') {
-            $results = BH_API::category_results($cid, $step['slug']);
+            $source = $step['source'] ?? 'public';
+            // Same round-scoping as build_sequence() — must match, since
+            // this re-fetches results for whichever step index the
+            // sequence built against.
+            $round = class_exists('BH_Rounds') && BH_Rounds::is_multi_round($cid) ? BH_Rounds::active_round_index($cid) : null;
+            $results = $source === 'judges' ? BH_Judging::judge_results($cid, $step['slug'], $round) : BH_API::category_results($cid, $step['slug'], $round);
             $data['category'] = $step['category'];
+            $data['source'] = $source;
             [$data['entries'], $data['just_revealed_rank']] = self::medal_slice($results, $step['reveal_count']);
         } elseif ($step['type'] === 'overall_reveal') {
             $results = self::overall_results($cid);

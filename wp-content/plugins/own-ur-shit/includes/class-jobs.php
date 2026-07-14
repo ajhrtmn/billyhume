@@ -91,10 +91,48 @@ class OUS_Jobs {
         // Must run before 'init' itself so Action Scheduler's own store/
         // migration classes are registered in time — this is the exact
         // hook timing Action Scheduler's own documentation specifies.
-        if (self::library_available()) {
-            require_once self::vendor_path();
-            add_action('init', function () { ActionScheduler::init(self::vendor_path()); }, 1);
-        }
+        //
+        // QA fix, 3.4.85: real fatal caught the moment the OUS_Jobs::
+        // init() nested-'init'-hook bug (see own-ur-shit.php's own
+        // comment at this class's bootstrap call) was fixed and this
+        // code path actually ran for the first time — WooCommerce
+        // bundles its OWN copy of Action Scheduler
+        // (woocommerce/packages/action-scheduler/), and requiring this
+        // vendored copy on top of an already-loaded one redeclares the
+        // same global functions (as_enqueue_async_action() etc.) and
+        // fatals outright. class_exists('ActionScheduler') is the
+        // guard: if Action Scheduler is ALREADY loaded — by WooCommerce,
+        // or by any other plugin that bundles it — there is nothing to
+        // require and nothing to boot here; register()/enqueue() below
+        // already just call its native primitives once it's present,
+        // regardless of who loaded it, so this plugin transparently
+        // rides whichever copy got there first instead of insisting on
+        // its own.
+        //
+        // Second QA fix on top of the first: the class_exists('ActionScheduler')
+        // check above still isn't reliable if it runs at FILE-PARSE time
+        // (own-ur-shit.php's own bootstrap now calls OUS_Jobs::init()
+        // directly, before 'plugins_loaded' — see that fix's own
+        // comment) — WordPress loads active plugins' main files in
+        // folder-name order, and "own-ur-shit" sorts before
+        // "woocommerce", so WooCommerce's copy of Action Scheduler
+        // genuinely isn't loaded yet at that point, regardless of
+        // whether WooCommerce is active. This is the SAME "don't trust
+        // class_exists() at file-parse time, only after plugins_loaded"
+        // principle already documented elsewhere in this ecosystem
+        // (see bh-contest.php's own bootstrap docblock) — caught here
+        // by actually booting WordPress with WP_DEBUG_LOG on and hitting
+        // the real fatal, not by re-reading that principle and assuming
+        // it applied. Deferred to 'plugins_loaded' (which is guaranteed
+        // to fire only after every active plugin's main file has been
+        // read) so the class_exists() check reflects reality regardless
+        // of plugin folder-name ordering.
+        add_action('plugins_loaded', function () {
+            if (!class_exists('ActionScheduler') && self::library_available()) {
+                require_once self::vendor_path();
+                add_action('init', function () { ActionScheduler::init(self::vendor_path()); }, 1);
+            }
+        });
 
         add_action('init', [self::class, 'maybe_schedule_cron']);
         add_action(self::CRON_HOOK, [self::class, 'run_due_jobs']);

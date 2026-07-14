@@ -188,6 +188,47 @@ class BH_Helpers {
         ));
     }
 
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c — the IP+cookie
+    // half of the in-house anti-fraud signal, alongside
+    // suspicious_voters() above. A shared IP alone isn't suspicious (a
+    // household, a campus, a VPN exit node routinely puts many genuine
+    // voters behind one address); the actual signal is SEVERAL DIFFERENT
+    // ACCOUNTS voting from that IP within a short window — sock puppets
+    // sharing a connection, not a coincidence of geography. Same manual-
+    // review-only posture as suspicious_voters(): this surfaces a
+    // cluster for a human to look at, never blocks or auto-flags a vote.
+    // voter_fp is included per-row (not grouped on) so the admin view
+    // can additionally note whether the SAME browser fingerprint shows
+    // up under multiple accounts in a cluster — the strongest single
+    // signal this table can offer, short of an actual CAPTCHA vendor
+    // (explicitly not adopted — see this method's own roadmap doc
+    // section for that direct decision).
+    public static function suspicious_ip_clusters($cid, $min_accounts = 2, $window_seconds = 300) {
+        global $wpdb;
+        $t = self::table();
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT ip_address, COUNT(DISTINCT user_id) AS account_count, COUNT(*) AS vote_count,
+                    GROUP_CONCAT(DISTINCT user_id) AS user_ids, GROUP_CONCAT(DISTINCT voter_fp) AS fingerprints,
+                    MIN(created_at) AS first_vote, MAX(created_at) AS last_vote,
+                    TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) AS span_seconds
+             FROM $t WHERE contest_id = %d AND ip_address != '' AND ip_address != '0.0.0.0'
+             GROUP BY ip_address
+             HAVING account_count >= %d AND span_seconds <= %d
+             ORDER BY account_count DESC",
+            $cid, $min_accounts, $window_seconds
+        ));
+        foreach ($rows as $r) {
+            $r->user_ids = array_map('intval', explode(',', $r->user_ids));
+            // A cluster where every account also shares the SAME browser
+            // fingerprint is a much stronger signal than one where each
+            // account has a distinct fingerprint (which just means
+            // several genuine devices happen to share a NAT'd IP).
+            $fps = array_filter(explode(',', (string) $r->fingerprints));
+            $r->same_fingerprint = count($fps) === 1 && count($r->user_ids) > 1;
+        }
+        return $rows;
+    }
+
     // Which contact-info fields a contest asks for at submission, and
     // which of those are actually required — configurable per contest
     // (see the Contest Rules metabox) rather than one fixed rule for
@@ -251,6 +292,20 @@ class BH_Helpers {
         }
 
         return $missing;
+    }
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a — a genuine
+    // per-contest format choice, not a single ecosystem-wide behavior.
+    // 'public' (the pre-existing, unchanged voting model) is the default
+    // for every contest that never sets this, so nothing already running
+    // changes shape. 'judges' replaces public voting's leaderboard with
+    // BH_Judging::judge_results() everywhere a leaderboard is read.
+    // 'hybrid' keeps both running side by side, surfaced as two SEPARATE
+    // leaderboards (Judges' Pick / People's Choice) — a direct decision
+    // from the roadmap doc rather than inventing a blending formula.
+    public static function contest_format($cid) {
+        $format = get_post_meta($cid, '_bh_contest_format', true);
+        return in_array($format, ['judges', 'hybrid'], true) ? $format : 'public';
     }
 
     public static function categories($cid) {
@@ -350,11 +405,16 @@ class BH_Helpers {
         return $base + (self::has_approved_submission($uid, $cid) ? $bonus : 0);
     }
 
-    public static function user_vote_count($uid, $cid, $category = '') {
+    // $round: ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — null
+    // (every pre-existing call site) counts votes across every round, a
+    // no-op distinction for a single-round contest since every one of
+    // its votes carries round = 0.
+    public static function user_vote_count($uid, $cid, $category = '', $round = null) {
         global $wpdb;
         $t = self::table();
+        $round_sql = $round !== null ? $wpdb->prepare('AND round = %d', (int) $round) : '';
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s", $uid, $cid, $category
+            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s $round_sql", $uid, $cid, $category
         ));
     }
 

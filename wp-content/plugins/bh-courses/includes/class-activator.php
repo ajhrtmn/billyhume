@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * marks itself done if the migration actually succeeded.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.2'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table.
+    const DB_VERSION = '1.3'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below.
 
     public static function activate() {
         BHC_PostTypes::register();
@@ -53,9 +53,18 @@ class BHC_Activator {
             passed tinyint(1) DEFAULT NULL,
             attempts int(11) NOT NULL DEFAULT 0,
             answers longtext DEFAULT NULL,
+            watched_percent int(11) DEFAULT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index)
         ) $charset;";
+        // watched_percent: the furthest playback position (as a percent of
+        // duration) BHC_Progress::update_watch_progress() has recorded for
+        // a video step — NULL for every non-video step, same "real SQL
+        // NULL means N/A" convention score/passed/answers already use.
+        // Deliberately the FURTHEST position reached, not the last
+        // position reported (a student who rewinds to review a section
+        // shouldn't have their progress go backward) — see that method's
+        // own comment for the MAX-based UPDATE that enforces this.
         // answers: JSON snapshot of the LATEST-WRITTEN attempt only (this
         // row is an upsert, not a history table — see the class docblock
         // above and QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1.1/1.2 for why

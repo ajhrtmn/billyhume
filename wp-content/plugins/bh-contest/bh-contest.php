@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.2.2
+ * Version:     3.4.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -121,7 +121,153 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.2.2');
+define('BH_VER',        '3.4.0');
+
+// 3.4.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: multi-
+// round/elimination format, "the single largest architectural item in
+// this whole doc," built last per that doc's own sequencing note (needs
+// judge scoring's data shape to build against, since a round can cut by
+// public vote OR judge score depending on the contest's own format).
+// A contest gets an optional `_bh_rounds` config (name + submission
+// window + voting window + cut count, per round, 1-4 rounds via the new
+// admin metabox) — round 2+'s submission window is left blank in the
+// normal case (its "entrants" are the survivors of round 1, not new
+// submissions), but can be set if a contest genuinely wants fresh
+// entries each round. A contest that never touches this (every contest
+// that predates this feature) behaves byte-for-byte as it always has —
+// every round-aware method (new BH_Rounds, class-rounds.php) falls back
+// to the pre-existing single-window logic when `_bh_rounds` is empty.
+// bh_votes and bh_judge_scores both gained a `round` column
+// (class-activator.php, DB_VERSION 1.6 → 1.7) — each round's votes/
+// scores are independent rows, never combined, so a round-2 re-vote on
+// a survivor doesn't inherit its round-1 tally. A submission's own
+// `_bh_round_reached` post meta (0 by default) tracks how far it has
+// survived; vote()/judge/score both now reject a submission that didn't
+// make the current round's cut. New admin action ("Close round N &
+// advance to round N+1", class-admin.php's ajax_advance_round() →
+// BH_Rounds::advance_round()) tallies the active round (by public vote
+// or judge score, per the contest's own format), keeps the configured
+// cut count, and opens the next round for survivors only — one-way,
+// nonce'd, capability-gated. class-reveal.php's build_sequence() now
+// reveals the ACTIVE round's own tally for a multi-round contest
+// (skipping the cross-round "Overall" reveal, which wouldn't mean
+// anything coherent once different rounds' votes are genuinely
+// independent) — every other reveal mechanic (medal tiers, hybrid's
+// two-leaderboard pass) is unchanged and composes with rounds directly.
+// Real bug caught and fixed mid-implementation, not just reasoned
+// through: dbDelta() itself was found (via a live migration run, not
+// static reading) to attempt adding a same-NAMED-but-different-COLUMNS
+// unique key as a bare ADD rather than leaving an existing same-named
+// index alone or safely replacing it — it fails with "Duplicate key
+// name" and poisons $wpdb->last_error BEFORE this migration's own
+// (correct) DROP+ADD index-rebuild code ever got a chance to run
+// afterward. Fixed by moving that rebuild to run BEFORE dbDelta(), on
+// both bh_votes and bh_judge_scores, so dbDelta() never sees a
+// conflicting index in the first place. Scoping boundary, disclosed
+// rather than silently left: no dynamic add/remove UI for rounds beyond
+// a plain "1-4" count select (right-sized rather than building a full
+// JS repeater for what's expected to be a rare, admin-only setup
+// action), and — same as bh-contest 3.3.0's own disclosed boundary —
+// player.js's front-end results widget doesn't yet render round-scoped
+// results, only the Reveal Party and the raw REST responses do today.
+// RUNTIME-VERIFIED end to end on this actual install, including the
+// dbDelta bug fix itself (ran the live migration, confirmed both
+// tables' unique keys land on the correct 5-column definition, and
+// confirmed the migration is idempotent on a second run with zero
+// errors): built a real 2-round contest, confirmed round-0 votes tally
+// independently of round-1 votes for the same entry, confirmed
+// advance_round() correctly keeps the top cut_count and marks the rest
+// eliminated without deleting anything, confirmed a real vote() REST
+// call against an eliminated entry is rejected while the same call
+// against a survivor succeeds and is tagged with the correct round,
+// confirmed the "close final round" admin action correctly refuses to
+// advance past the last configured round, and confirmed
+// BH_Reveal::build_sequence()/render_step() correctly reveal only the
+// active round's isolated tally with zero PHP warnings/errors
+// throughout (WP_DEBUG_LOG on). Test contests/submissions/votes cleaned
+// up afterward.
+
+// 3.3.1 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: the in-
+// house IP+cookie anti-fraud signal, no third-party CAPTCHA vendor (a
+// direct decision from that doc). bh_votes gained ip_address/voter_fp
+// columns (class-activator.php, DB_VERSION 1.5 → 1.6) captured by
+// class-api.php's vote() handler — voter_fp is a long-lived first-party
+// httponly cookie identifying a BROWSER independent of which account is
+// logged into it. New BH_Helpers::suspicious_ip_clusters(): flags
+// several DIFFERENT ACCOUNTS voting from the same IP within a short
+// window (a shared IP alone — a household, campus, VPN exit node — is
+// normal and NOT itself the signal), and separately notes when every
+// account in a cluster also shares the identical browser fingerprint,
+// the strongest evidence this table can offer. Same manual-review-only
+// posture as the existing timestamp-clustering check
+// (suspicious_voters()) — this never blocks a vote or auto-flags an
+// account, it only surfaces a cluster on the Results console
+// (class-console.php) for a human to look at. Privacy note (flagged per
+// the roadmap doc's own compliance callout): ip_address is real
+// personal data under most privacy regimes — if this site publishes a
+// privacy policy, it should mention IP retention for anti-fraud review;
+// see class-activator.php's own comment on the column for the full
+// note. RUNTIME-VERIFIED end to end on this actual install: ran the DB
+// migration live (1.5 → 1.6, confirmed both new columns), cast a real
+// vote through the actual vote() REST handler and confirmed the stored
+// row has a real IP and a freshly-generated fingerprint, seeded 3
+// distinct accounts voting from one IP with the same fingerprint plus a
+// 4th vote from an unrelated IP and confirmed suspicious_ip_clusters()
+// correctly flags only the real 3-account cluster with same_fingerprint
+// = true, and confirmed zero PHP warnings/errors with WP_DEBUG_LOG on
+// throughout. Test contest/submission/votes cleaned up afterward.
+
+// 3.3.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: judge/
+// rubric scoring mode, the "give me all of it, and make it a real
+// choice" contest-format work. A contest now gets a real Format setting
+// (public/judges/hybrid — public unchanged, the default for every
+// existing contest), an admin-defined rubric (criteria + max score,
+// same free-text-per-line authoring pattern as voting categories), and
+// a per-contest judge list (a plain list of WP user IDs, not a new
+// capability/role — most judges here are guest volunteers with no
+// wp-admin access). New bh_judge_scores table (class-activator.php,
+// DB_VERSION 1.4 → 1.5) — deliberately its own table, not overloaded
+// onto bh_votes, since a judge score is multi-criterion with an
+// editable draft-then-submit state a public vote's shape has no room
+// for. New BH_Judging (class-judging.php): a front-end [bh_judge_panel]
+// shortcode (gated on the contest's own judge list, not wp-admin) where
+// a judge scores every entry per rubric criterion via a slider, saves a
+// draft or submits — only submitted scores ever count. judge_results()
+// normalizes each judge's per-criterion scores to 0-100 and averages
+// across judges, returned in the exact same ranked shape (rank/id/
+// title/artist/'votes') category_results()/overall_results() already
+// use, so BH_Reveal's existing medal_slice()/tier logic needed zero
+// changes to consume it. class-reveal.php's build_sequence() now
+// branches on format: 'judges' swaps the tally source, 'hybrid' runs
+// BOTH as two clearly-labeled leaderboards (Judges' Pick / People's
+// Choice) — two separate leaderboards, not a blended score, a direct
+// decision from the roadmap doc. The public /bh/v1/results REST
+// endpoint got the same branching (a 'judge_results' key only appears
+// for judges/hybrid contests, so nothing already reading 'results'
+// breaks). Scoping boundary, disclosed rather than silently left: the
+// Discord results-announcement (class-discord.php) still reads the
+// public vote tally only — a pure-judges contest's Discord announcement
+// will show an empty tally until that integration is updated
+// separately; the player.js front-end results widget likewise doesn't
+// yet render a judges/hybrid leaderboard, only the Reveal Party and the
+// raw REST response do today.
+// RUNTIME-VERIFIED end to end on this actual install: ran the DB
+// migration live (1.4 → 1.5, confirmed the table exists), created a
+// real hybrid-format contest with a 2-criterion rubric and a real judge
+// user, confirmed a draft score does NOT count toward judge_results()
+// but an identical submitted one does, confirmed the normalized-score
+// ranking math is correct (a 2-criterion 8/10+15/20 entry correctly
+// ranks above a 5/10+10/20 entry at 77.5 vs 50), confirmed
+// build_sequence() emits the right two-pass "People's Choice" then
+// "Judges' Pick" sequence for a hybrid contest with both a real vote
+// and a real judge score present, confirmed the REST /results endpoint
+// returns both 'results' and 'judge_results' for hybrid, confirmed the
+// judge-scoring REST endpoint correctly rejects a non-judge and a
+// submission from a different contest, and rendered both the real
+// [bh_judge_panel] shortcode and the real [bh_results_reveal] display
+// shortcode with WP_DEBUG_LOG on — zero PHP warnings/errors from any of
+// this pass's code. Test contest/submissions/scores/votes cleaned up
+// afterward.
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
@@ -130,7 +276,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -213,6 +359,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_ElementSurface', 'init']);
     add_action('init',          ['BH_Console', 'init']);
     add_action('init',          ['BH_Reveal', 'init']);
+    add_action('init',          ['BH_Judging', 'init']);
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
 

@@ -77,6 +77,26 @@ class BH_Console {
             echo '</ul></div>';
         }
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: the second,
+        // independent anti-fraud signal alongside the timestamp-
+        // clustering check above — same manual-review-only posture, this
+        // never blocks anything, it just tells a human where to look.
+        $ip_clusters = BH_Helpers::suspicious_ip_clusters($cid);
+        if ($ip_clusters) {
+            echo '<div class="bhy-alert bhy-alert-warning">';
+            echo '<strong>⚠️ Multiple accounts voting from the same IP</strong> — worth a look, not necessarily a problem (a shared IP alone is normal for a household, campus, or VPN):';
+            echo '<ul style="margin:var(--bhy-space-2) 0 0 18px;">';
+            foreach ($ip_clusters as $c) {
+                $names = array_map(function ($uid) {
+                    $u = get_userdata($uid);
+                    return $u ? $u->user_login : "User #$uid";
+                }, $c->user_ids);
+                echo '<li>' . esc_html($c->ip_address) . ': ' . esc_html(implode(', ', $names)) . ' (' . esc_html($c->vote_count) . ' votes in ' . esc_html($c->span_seconds) . 's)'
+                   . ($c->same_fingerprint ? ' <strong style="color:#b42318;">— same browser fingerprint</strong>' : '') . '</li>';
+            }
+            echo '</ul></div>';
+        }
+
         // Reveal controls live right here, not on a separate admin page —
         // everything needed to actually run the show (who's who, plus
         // the buttons that drive what's on stream) stays on one screen.

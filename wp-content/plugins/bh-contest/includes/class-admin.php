@@ -22,6 +22,7 @@ class BH_Admin {
         add_action('admin_post_bh_create_page', [self::class, 'create_page_action']);
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
+        add_action('wp_ajax_bh_advance_round', [self::class, 'ajax_advance_round']);
 
         // Submissions list: which contest each one belongs to, plus a filter
         // dropdown — the flat approval queue is unreadable once more than
@@ -938,6 +939,96 @@ class BH_Admin {
             echo '<p class="description">Voters get their normal 1 (or 2, if they submitted) vote in <em>each</em> category independently. All submissions are eligible in every category — there\'s no per-track assignment.</p>';
         }, 'bh_contest', 'normal', 'default');
 
+        add_meta_box('bh_contest_judging', 'Judging Format', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $format = BH_Helpers::contest_format($post->ID);
+            $rubric = BH_Judging::rubric($post->ID);
+            $rubric_text = implode("\n", array_map(fn($c) => $c['name'] . ':' . $c['max'], $rubric));
+            $judge_ids = BH_Judging::judge_ids($post->ID);
+            $judge_names = [];
+            foreach ($judge_ids as $jid) {
+                $u = get_userdata($jid);
+                if ($u) $judge_names[] = $u->user_login;
+            }
+
+            echo '<p><label><strong>Format</strong><br><select name="bh_contest_format">';
+            echo '<option value="public"' . selected($format, 'public', false) . '>Public voting (default, unchanged)</option>';
+            echo '<option value="judges"' . selected($format, 'judges', false) . '>Judges only — a rubric score replaces public voting</option>';
+            echo '<option value="hybrid"' . selected($format, 'hybrid', false) . '>Hybrid — both run, shown as two separate leaderboards (Judges\' Pick / People\'s Choice)</option>';
+            echo '</select></label></p>';
+
+            echo '<p class="description">Rubric criteria, one per line — "Originality" (defaults to a max of 10) or "Originality:20" for a custom max. Only used when Format is Judges or Hybrid.</p>';
+            echo '<textarea name="bh_rubric" rows="4" style="width:100%;font-family:inherit;">' . esc_textarea($rubric_text) . '</textarea>';
+
+            echo '<p class="description">Judges, one WordPress username per line. Each must already have an account on this site — judges score from the front-end <code>[bh_judge_panel]</code> shortcode, not wp-admin.</p>';
+            echo '<textarea name="bh_judges" rows="3" style="width:100%;font-family:inherit;">' . esc_textarea(implode("\n", $judge_names)) . '</textarea>';
+
+            if ($post->post_status === 'publish' && $judge_ids) {
+                echo '<p class="description" style="margin-top:8px;">Judge panel shortcode: <code>[bh_judge_panel contest="' . esc_html($post->post_name) . '"]</code></p>';
+            }
+        }, 'bh_contest', 'normal', 'default');
+
+        add_meta_box('bh_contest_rounds', 'Rounds (elimination format)', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $rounds = BH_Rounds::rounds($post->ID);
+            $count = max(1, count($rounds));
+            $active = BH_Rounds::active_round_index($post->ID);
+
+            echo '<p class="description">Leave at 1 round for a normal single-round contest (unchanged default behavior). 2+ rounds turns this into an elimination format — round 1 is the normal submission+voting window; round 2+ only re-votes/re-scores whoever survived the previous cut (leave a round\'s own submission dates blank unless you specifically want it to accept new entries too).</p>';
+            echo '<p><label><strong>Number of rounds</strong> <select id="bh_round_count" name="bh_round_count">';
+            for ($i = 1; $i <= 4; $i++) echo '<option value="' . $i . '"' . selected($count, $i, false) . '>' . $i . '</option>';
+            echo '</select></label></p>';
+
+            if ($post->post_status === 'publish' && count($rounds) > 1) {
+                echo '<p><span class="bhy-badge bhy-badge-dot">Active round: ' . ((int) $active + 1) . ' of ' . count($rounds) . '</span></p>';
+                if (isset($rounds[$active + 1])) {
+                    echo '<p><button type="button" class="button button-primary" id="bh_advance_round" data-contest="' . (int) $post->ID . '" data-nonce="' . esc_attr(wp_create_nonce('bh_advance_round_' . $post->ID)) . '">Close round ' . ((int) $active + 1) . ' &amp; advance to round ' . ((int) $active + 2) . '</button> <span id="bh_advance_round_result" style="margin-left:8px;"></span></p>';
+                    echo '<p class="description">Tallies the active round\'s votes/judge scores now, keeps the configured cut count, and opens the next round for the survivors. Cannot be undone from here.</p>';
+                } else {
+                    echo '<p class="description">This is the final round — nothing left to advance to.</p>';
+                }
+            }
+
+            for ($i = 0; $i < 4; $i++) {
+                $r = $rounds[$i] ?? [];
+                $display = $i < $count ? '' : 'display:none;';
+                echo '<div class="bh-round-block" data-round-index="' . $i . '" style="' . $display . 'border:1px solid #dcdcde;border-radius:4px;padding:10px;margin-bottom:10px;">';
+                echo '<p><strong>Round ' . ($i + 1) . '</strong></p>';
+                echo '<p><label>Name<br><input type="text" name="bh_round_name[]" value="' . esc_attr($r['name'] ?? ('Round ' . ($i + 1))) . '" style="width:100%;"></label></p>';
+                echo '<p><label>Submission opens (blank = no new entries this round)<br><input type="datetime-local" name="bh_round_sub_start[]" value="' . esc_attr(self::dt_for_input($r['sub_start'] ?? '')) . '"></label> ';
+                echo '<label>closes<br><input type="datetime-local" name="bh_round_sub_end[]" value="' . esc_attr(self::dt_for_input($r['sub_end'] ?? '')) . '"></label></p>';
+                echo '<p><label>Voting opens<br><input type="datetime-local" name="bh_round_vote_start[]" value="' . esc_attr(self::dt_for_input($r['vote_start'] ?? '')) . '"></label> ';
+                echo '<label>closes<br><input type="datetime-local" name="bh_round_vote_end[]" value="' . esc_attr(self::dt_for_input($r['vote_end'] ?? '')) . '"></label></p>';
+                echo '<p><label>Cut to (how many advance out of this round)<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
+                echo '</div>';
+            }
+            ?>
+            <script>
+            (function () {
+                var sel = document.getElementById('bh_round_count');
+                var blocks = document.querySelectorAll('.bh-round-block');
+                if (sel) sel.addEventListener('change', function () {
+                    var n = parseInt(sel.value, 10);
+                    blocks.forEach(function (b) { b.style.display = parseInt(b.dataset.roundIndex, 10) < n ? '' : 'none'; });
+                });
+                var btn = document.getElementById('bh_advance_round');
+                if (btn) btn.addEventListener('click', function () {
+                    if (!confirm('Close the active round and advance survivors now? This cannot be undone from here.')) return;
+                    btn.disabled = true;
+                    var body = new URLSearchParams({ action: 'bh_advance_round', contest_id: btn.dataset.contest, nonce: btn.dataset.nonce });
+                    fetch(ajaxurl, { method: 'POST', body: body })
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                            var out = document.getElementById('bh_advance_round_result');
+                            if (res.success) { out.textContent = 'Advanced — reload to see the new round.'; location.reload(); }
+                            else { out.textContent = (res.data && res.data.message) || 'Could not advance.'; btn.disabled = false; }
+                        });
+                });
+            })();
+            </script>
+            <?php
+        }, 'bh_contest', 'normal', 'default');
+
         add_meta_box('bh_contest_shortcode', 'Shortcode & Page', function ($post) {
             if ($post->post_status !== 'publish') {
                 echo '<p class="description">Publish this contest to get its shortcode and page.</p>';
@@ -1080,6 +1171,26 @@ class BH_Admin {
         }, 'bh_contest', 'normal', 'default');
     }
 
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — the admin
+    // action that actually closes out a round: capability-gated
+    // (edit_post on the contest) and per-contest nonce'd, since this is
+    // a real, one-way state change (eliminated entries don't come back
+    // from this screen).
+    public static function ajax_advance_round() {
+        $cid = (int) ($_POST['contest_id'] ?? 0);
+        if (!$cid || !current_user_can('edit_post', $cid)) {
+            wp_send_json_error(['message' => 'Not allowed.'], 403);
+        }
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'bh_advance_round_' . $cid)) {
+            wp_send_json_error(['message' => 'Security check failed — reload and try again.'], 403);
+        }
+        $result = BH_Rounds::advance_round($cid);
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()], 400);
+        }
+        wp_send_json_success($result);
+    }
+
     public static function save_contest_meta($post_id) {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
@@ -1124,6 +1235,59 @@ class BH_Admin {
         if (isset($_POST['bh_categories'])) {
             $cats = BH_Helpers::parse_categories_input(wp_unslash($_POST['bh_categories']));
             update_post_meta($post_id, '_bh_categories', $cats ? wp_json_encode($cats) : '');
+        }
+
+        if (isset($_POST['bh_contest_format'])) {
+            $format = in_array($_POST['bh_contest_format'], ['judges', 'hybrid'], true) ? $_POST['bh_contest_format'] : 'public';
+            update_post_meta($post_id, '_bh_contest_format', $format);
+        }
+        if (isset($_POST['bh_rubric'])) {
+            $rubric = BH_Judging::parse_rubric_input(wp_unslash($_POST['bh_rubric']));
+            update_post_meta($post_id, '_bh_rubric', $rubric ? wp_json_encode($rubric) : '');
+        }
+        if (isset($_POST['bh_round_name'])) {
+            $names = (array) $_POST['bh_round_name'];
+            $count = max(1, min(4, (int) ($_POST['bh_round_count'] ?? 1)));
+            $sub_starts = (array) ($_POST['bh_round_sub_start'] ?? []);
+            $sub_ends   = (array) ($_POST['bh_round_sub_end'] ?? []);
+            $vote_starts = (array) ($_POST['bh_round_vote_start'] ?? []);
+            $vote_ends   = (array) ($_POST['bh_round_vote_end'] ?? []);
+            $cuts = (array) ($_POST['bh_round_cut'] ?? []);
+
+            $rounds = [];
+            for ($i = 0; $i < $count; $i++) {
+                $name = sanitize_text_field($names[$i] ?? ('Round ' . ($i + 1)));
+                $rounds[] = [
+                    'name' => $name !== '' ? $name : ('Round ' . ($i + 1)),
+                    'sub_start' => sanitize_text_field($sub_starts[$i] ?? ''),
+                    'sub_end' => sanitize_text_field($sub_ends[$i] ?? ''),
+                    'vote_start' => sanitize_text_field($vote_starts[$i] ?? ''),
+                    'vote_end' => sanitize_text_field($vote_ends[$i] ?? ''),
+                    'cut_count' => max(1, (int) ($cuts[$i] ?? 8)),
+                ];
+            }
+            // Exactly 1 round stored as an EMPTY meta value, not a
+            // single-item array — is_multi_round()'s count() > 1 check
+            // (class-rounds.php) means this is functionally identical
+            // either way, but storing '' for the common single-round
+            // case keeps get_post_meta() cheap-and-empty for every
+            // contest that never touches this feature, matching
+            // _bh_categories'/_bh_rubric's own "blank means off" convention.
+            update_post_meta($post_id, '_bh_rounds', $count > 1 ? wp_json_encode($rounds) : '');
+        }
+
+        if (isset($_POST['bh_judges'])) {
+            // Usernames -> IDs, resolved (not trusted) on the way in — a
+            // typo'd or since-deleted username just silently drops from
+            // the list rather than storing a dangling/invalid entry.
+            $ids = [];
+            foreach (preg_split('/[\r\n]+/', wp_unslash($_POST['bh_judges'])) as $line) {
+                $login = trim($line);
+                if ($login === '') continue;
+                $u = get_user_by('login', $login);
+                if ($u) $ids[] = $u->ID;
+            }
+            update_post_meta($post_id, '_bh_judges', $ids ? wp_json_encode(array_values(array_unique($ids))) : '');
         }
 
         update_post_meta($post_id, '_bhy_style_override', isset($_POST['bh_style_override']) ? '1' : '');

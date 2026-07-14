@@ -2,13 +2,48 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.3.5
+ * Version:     1.3.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-define('BHCRM_VER',  '1.3.5');
+// 1.3.6 — 2026-07-13 — ROADMAP-ux-polish-and-feature-parity-2026-07.md
+// item 1 (the one cross-plugin item that pass recommended doing
+// regardless of anything else in that doc): kanban-board.js's
+// hand-rolled HTML5 drag-and-drop (dragstart/dragover/drop) replaced
+// with SortableJS (assets/js/vendor/sortable.min.js, MIT, vendored not
+// npm). The old implementation only ever supported dropping a card at
+// the END of a column — no real same-column reorder — and was flagged
+// in its own docblock as untested cross-browser/touch-device behavior.
+// class-projects.php's maybe_enqueue() now enqueues the vendored
+// library as kanban-board.js's own script dependency. New
+// reorderFromDom() (kanban-board.js) rebuilds state.placements from
+// the live post-drop DOM across every column and re-saves through the
+// SAME full-slot-upsert saveSlot() every other edit in this file
+// already uses — drag-reorder is not a second write path. Drag now
+// only initiates from a small dedicated handle (⋮⋮, top-right of each
+// card) rather than the whole card body, since cards contain real
+// interactive controls (title input, notes textarea, checkbox,
+// buttons) that would otherwise fight with drag detection —
+// SortableJS's `filter`/`preventOnFilter:false` options are set as a
+// second line of defense on top of the handle restriction.
+// RUNTIME-VERIFIED, with one real fix along the way: `forceFallback:
+// true` was added to the Sortable.create() config after the first
+// pass silently didn't drag at all — SortableJS defaults to the
+// native HTML5 draggable API, which (confirmed live, not assumed) this
+// environment's automated-drag tooling couldn't trigger; forceFallback
+// makes Sortable simulate the drag itself via plain pointer events
+// instead, which is also a widely-recommended setting regardless, for
+// more consistent real-world cross-browser/touch-device behavior (the
+// exact class of problem this whole swap exists to fix). Verified via
+// direct DB inspection of wp_bhcore_element_placements: dragged a card
+// within one column (confirmed real position swap, not just append-
+// to-end — the old implementation's actual limitation), dragged a
+// card into a different column (confirmed its column attr updated AND
+// its position preserved correctly relative to the other column's
+// existing card), reloaded the page and confirmed both survived.
+define('BHCRM_VER',  '1.3.6');
 define('BHCRM_PATH', plugin_dir_path(__FILE__));
 define('BHCRM_URL',  plugin_dir_url(__FILE__));
 

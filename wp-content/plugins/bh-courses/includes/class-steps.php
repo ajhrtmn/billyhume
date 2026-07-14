@@ -22,6 +22,7 @@ if (!defined('ABSPATH')) exit;
  *        ['question' => 'What is...', 'choices' => ['A', 'B', 'C'], 'correct_index' => 1],
  *        ...
  *   ]]
+ *   ['type' => 'resource', 'attachment_id' => 123, 'label' => 'Worksheet', 'description' => '...']
  *
  * A video step deliberately supports TWO sources rather than forcing
  * one: 'upload' (a plain attachment in the WordPress media library,
@@ -42,7 +43,15 @@ if (!defined('ABSPATH')) exit;
  * shipping this.
  */
 class BHC_Steps {
-    const VALID_TYPES = ['text', 'image', 'video', 'quiz'];
+    // 'resource' — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c:
+    // a downloadable file (a worksheet, a PDF, a reference doc) attached
+    // to a step, distinct from a video/image because it's meant to be
+    // downloaded, not played/viewed inline. Deliberately non-blocking —
+    // per that doc's own scoping note, a resource step doesn't gate
+    // lesson progress any harder than a text/image step already
+    // doesn't; it's "always available," same Mark-complete-and-continue
+    // pattern as its siblings for consistency, not a new skip mechanic.
+    const VALID_TYPES = ['text', 'image', 'video', 'quiz', 'resource'];
 
     public static function get($lesson_id) {
         $steps = get_post_meta($lesson_id, '_bhc_steps', true);
@@ -91,11 +100,11 @@ class BHC_Steps {
                     if (!$raw || !filter_var($raw, FILTER_VALIDATE_URL)) continue;
                     $url = esc_url_raw($raw);
                     if (!$url) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? '')];
+                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null)];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);
                     if (!$attachment_id) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? '')];
+                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null)];
                 }
             } elseif ($type === 'quiz') {
                 $questions = [];
@@ -123,10 +132,35 @@ class BHC_Steps {
                     'max_attempts' => max(0, (int) ($step['max_attempts'] ?? 0)),
                     'questions' => $questions,
                 ];
+            } elseif ($type === 'resource') {
+                $attachment_id = (int) ($step['attachment_id'] ?? 0);
+                if (!$attachment_id) continue; // no file, nothing to offer — don't store a dead step
+                $clean[] = [
+                    'type' => 'resource',
+                    'attachment_id' => $attachment_id,
+                    'label' => sanitize_text_field($step['label'] ?? ''),
+                    'description' => sanitize_text_field($step['description'] ?? ''),
+                ];
             }
         }
         update_post_meta($lesson_id, '_bhc_steps', $clean);
         return $clean;
+    }
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: course-creator-
+    // configurable per-step, same "0 = open default" convention quiz's
+    // max_attempts already uses. 0 = "any playback marks it complete"
+    // (today's behavior, unchanged); 1-100 = required percent watched.
+    // Only actually enforceable for the directly-trackable <video> tag
+    // case (an uploaded file, or a direct-URL step render.php doesn't
+    // treat as an iframe embed) — a cross-origin YouTube/Vimeo iframe
+    // can't be watch-position-tracked without that provider's own SDK, so
+    // class-render-lesson.php falls back to the plain Mark-complete button
+    // for those regardless of what's stored here. Stored on the step
+    // either way so the value survives a later source-type switch.
+    private static function sanitize_watch_threshold($value) {
+        if ($value === null || $value === '') return 0;
+        return max(0, min(100, (int) $value));
     }
 
     public static function get_step($lesson_id, $step_index) {

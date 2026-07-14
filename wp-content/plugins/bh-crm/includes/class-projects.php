@@ -607,7 +607,16 @@ class BHCRM_Projects {
         if (!$project) return;
 
         wp_enqueue_style('bhcrm-kanban-board', BHCRM_URL . 'assets/css/kanban-board.css', [], BHCRM_VER);
-        wp_enqueue_script('bhcrm-kanban-board', BHCRM_URL . 'assets/js/kanban-board.js', [], BHCRM_VER, true);
+        // Vendored, not npm — this ecosystem's own no-build-step
+        // convention (see kanban-board.js's own docblock for why:
+        // replaces that file's hand-rolled HTML5 drag-and-drop, which
+        // only ever supported append-to-end-of-column, never a real
+        // same-column reorder). MIT-licensed, single file, no
+        // transitive dependencies — vendored here rather than via a
+        // CDN so this plugin has zero runtime dependency on a third
+        // party staying up.
+        wp_enqueue_script('sortablejs', BHCRM_URL . 'assets/js/vendor/sortable.min.js', [], '1.15.6', true);
+        wp_enqueue_script('bhcrm-kanban-board', BHCRM_URL . 'assets/js/kanban-board.js', ['sortablejs'], BHCRM_VER, true);
 
         wp_localize_script('bhcrm-kanban-board', 'bhcrmKanbanConfig', [
             // Same 'ous/v1/elements/' REST bridge + wp_rest cookie-nonce

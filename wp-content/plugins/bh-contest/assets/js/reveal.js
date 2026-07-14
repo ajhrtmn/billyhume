@@ -14,7 +14,14 @@
         return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
     }
 
-    function renderEntries(entries, justRevealedRank) {
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: a judges-
+    // sourced step's 'votes' field is actually a normalized 0-100 score
+    // (see BH_Judging::judge_results()'s own docblock for why it's kept
+    // under the same key rather than a new one) — labeled "score" here
+    // purely for display so a judged leaderboard doesn't misleadingly
+    // read as "42 votes".
+    function renderEntries(entries, justRevealedRank, source) {
+        var unit = source === 'judges' ? ' score' : ' votes';
         return entries.map(function (e) {
             var isNew = e.rank === justRevealedRank;
             var isWinner = e.rank === 1;
@@ -22,7 +29,7 @@
                 + '<span class="bh-reveal-medal">' + medalIcon(e.rank) + '</span>'
                 + '<span class="bh-reveal-entry-info"><span class="bh-reveal-entry-title">' + bhEsc(e.title) + '</span>'
                 + '<span class="bh-reveal-entry-artist">' + bhEsc(e.artist) + '</span></span>'
-                + '<span class="bh-reveal-entry-votes">' + bhEsc(e.votes) + ' votes</span>'
+                + '<span class="bh-reveal-entry-votes">' + bhEsc(e.votes) + unit + '</span>'
                 + '</div>';
         }).join('');
     }
@@ -33,6 +40,8 @@
             html = '<div class="bh-reveal-loading">No contest ready to reveal yet.</div>';
         } else if (data.type === 'intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Results</div><h1>' + bhEsc(data.title) + '</h1></div>';
+        } else if (data.type === 'pass_intro') {
+            html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Now Revealing</div><h1>' + bhEsc(data.title) + '</h1></div>';
         } else if (data.type === 'category_intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Category</div><h1>' + bhEsc(data.category) + '</h1>'
                 + '<p class="bh-reveal-subtext">' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
@@ -41,7 +50,7 @@
                 + '<p class="bh-reveal-subtext">Across all categories &mdash; ' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
         } else if (data.type === 'category_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">' + bhEsc(data.category) + '</div>'
-                + '<div class="bh-reveal-entries">' + renderEntries(data.entries, data.just_revealed_rank) + '</div></div>';
+                + '<div class="bh-reveal-entries">' + renderEntries(data.entries, data.just_revealed_rank, data.source) + '</div></div>';
         } else if (data.type === 'overall_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">Overall</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries, data.just_revealed_rank) + '</div></div>';

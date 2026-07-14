@@ -45,6 +45,49 @@
             }
         }
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: real video
+        // progress tracking. Only <video data-watch-threshold> elements
+        // get a listener — class-render-lesson.php only renders that
+        // attribute for a course-creator-configured, directly-trackable
+        // (non-iframe) video step; everything else is untouched by this
+        // block. Throttled to once per whole-percent change (a raw
+        // timeupdate fires many times a second) to avoid hammering the
+        // AJAX endpoint during normal playback.
+        lesson.querySelectorAll('.bhc-step-video[data-watch-threshold]').forEach(function (video) {
+            var step = video.closest('.bhc-step');
+            var index = parseInt(step.dataset.stepIndex, 10);
+            var lastSent = -1;
+
+            function sendProgress(percent) {
+                if (percent <= lastSent) return;
+                lastSent = percent;
+                var body = new URLSearchParams({
+                    action: 'bhc_update_watch_progress',
+                    nonce: BHCData.nonce,
+                    lesson_id: lessonId,
+                    step_index: index,
+                    percent: percent,
+                });
+                fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res.success || !res.data.auto_completed) return;
+                        var note = step.querySelector('.bhc-video-progress-note');
+                        if (note) note.style.display = 'none';
+                        var btn = step.querySelector('.bhc-mark-complete');
+                        if (btn) { btn.disabled = true; btn.style.display = ''; btn.textContent = 'Completed'; }
+                        step.classList.add('bhc-step-done');
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
+                        advance(index);
+                    });
+            }
+
+            video.addEventListener('timeupdate', function () {
+                if (!video.duration || step.classList.contains('bhc-step-done')) return;
+                sendProgress(Math.floor((video.currentTime / video.duration) * 100));
+            });
+        });
+
         lesson.addEventListener('click', function (e) {
             if (e.target.classList.contains('bhc-step-back')) {
                 // Pure navigation — no server call, no completion state

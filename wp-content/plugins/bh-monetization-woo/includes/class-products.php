@@ -62,6 +62,18 @@ class BHM_Products {
             add_action('woocommerce_subscription_status_active', [self::class, 'on_subscription_active']);
             add_action('woocommerce_subscription_status_cancelled', [self::class, 'on_subscription_ended']);
             add_action('woocommerce_subscription_status_expired', [self::class, 'on_subscription_ended']);
+            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a — real,
+            // pre-existing bug, not just a missing feature: WooCommerce
+            // Subscriptions' native on-hold/pause status fired this same
+            // event bus all along, but nothing here ever listened for
+            // it, so a paused subscription's entitlement was never
+            // revoked (a fan could pause billing and silently keep
+            // tier-gated access indefinitely). on_subscription_active()
+            // already re-grants on the way back out of on-hold (that
+            // hook fires again on resume), so pause+resume round-trips
+            // correctly with just this one addition — no change needed
+            // on the resume side.
+            add_action('woocommerce_subscription_status_on-hold', [self::class, 'on_subscription_paused']);
         }
     }
 
@@ -256,6 +268,7 @@ class BHM_Products {
 
         $required_tier = (int) get_post_meta($post->ID, '_bhm_required_tier', true);
         $purchase_price = (int) get_post_meta($post->ID, '_bhm_purchase_price_cents', true);
+        $purchase_pwyw = (bool) get_post_meta($post->ID, '_bhm_purchase_pwyw', true);
         $pay_per_play = (int) get_post_meta($post->ID, '_bhm_pay_per_play_cents', true);
         $tiers = BHM_Tiers::all();
 
@@ -266,7 +279,15 @@ class BHM_Products {
         }
         echo '</select></label> <span class="description">' . (empty($tiers) ? 'No tiers created yet — see Supporter Tiers.' : '') . '</span></p>';
 
-        echo '<p><label><strong>Outright purchase price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_purchase_price" value="' . esc_attr($purchase_price ? number_format($purchase_price / 100, 2, '.', '') : '') . '" style="width:140px;"> <span class="description">Delivers whatever quality encodes are attached (see Quality Encodes above) as downloads on purchase.</span></label></p>';
+        // Bandcamp-style "name your price" — reuses the exact cart-item-
+        // price-override mechanism the tip jar already proved out
+        // (BHM_Frontend::apply_purchase_price()/apply_purchase_amount()
+        // below), rather than building new variable-price plumbing.
+        // $purchase_price is the SAME field either way — a fixed price
+        // when PWYW is off, a floor/minimum when it's on, exactly like
+        // the tip jar's own TIP_MIN_CENTS concept.
+        echo '<p><label><strong>Outright purchase price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_purchase_price" id="bhm_purchase_price" value="' . esc_attr($purchase_price ? number_format($purchase_price / 100, 2, '.', '') : '') . '" style="width:140px;"> <span class="description" id="bhm_purchase_price_desc">Delivers whatever quality encodes are attached (see Quality Encodes above) as downloads on purchase.</span></label></p>';
+        echo '<p><label><input type="checkbox" name="bhm_purchase_pwyw" value="1" ' . checked($purchase_pwyw, true, false) . '> <strong>Let fans pay what they want</strong></label> <span class="description">If checked, the price above becomes a minimum instead of a fixed price — a fan can offer more at checkout.</span></p>';
 
         echo '<p><label><strong>Pay-per-play price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_pay_per_play" value="' . esc_attr($pay_per_play ? number_format($pay_per_play / 100, 2, '.', '') : '') . '" style="width:140px;"> <span class="description">Debited from the listener\'s play-credit wallet each time they start this track. Leave blank for free streaming (subject to any tier requirement above).</span></label></p>';
     }
@@ -291,6 +312,7 @@ class BHM_Products {
 
         $purchase_price = isset($_POST['bhm_purchase_price']) ? (int) round(((float) $_POST['bhm_purchase_price']) * 100) : 0;
         update_post_meta($post_id, '_bhm_purchase_price_cents', $purchase_price);
+        update_post_meta($post_id, '_bhm_purchase_pwyw', !empty($_POST['bhm_purchase_pwyw']) ? 1 : 0);
         if ($purchase_price > 0) {
             self::sync_object_purchase_product($post_id, $post_type, $purchase_price);
         }
@@ -590,13 +612,33 @@ class BHM_Products {
     }
 
     public static function on_subscription_ended($subscription) {
+        self::revoke_subscription_entitlements($subscription, 'subscription_ended');
+    }
+
+    /**
+     * WooCommerce Subscriptions' on-hold status (a fan pausing billing
+     * rather than cancelling outright) — same revocation as a real
+     * cancellation, since a paused subscription isn't being billed and
+     * shouldn't keep gated access, but tagged with its own reason so
+     * anything listening on bhm_entitlement_revoked (the tier-level
+     * integration choke point this class's own docblock describes) can
+     * tell "paused, might come back" apart from "actually over."
+     * on_subscription_active() already re-grants automatically when a
+     * fan resumes (WooCommerce Subscriptions fires that same event again
+     * on the way out of on-hold) — nothing extra needed on that side.
+     */
+    public static function on_subscription_paused($subscription) {
+        self::revoke_subscription_entitlements($subscription, 'subscription_paused');
+    }
+
+    private static function revoke_subscription_entitlements($subscription, $reason) {
         global $wpdb;
         $sub_id = $subscription->get_id(); // trivial accessor, not worth a full normalize_subscription() round trip just for this
         $t = $wpdb->prefix . 'bhm_entitlements';
         $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_subscription_id = %d", $sub_id), ARRAY_A);
         $wpdb->delete($t, ['wc_subscription_id' => $sub_id]);
         foreach ($revoked as $row) {
-            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], 'subscription_ended');
+            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], $reason);
         }
     }
 

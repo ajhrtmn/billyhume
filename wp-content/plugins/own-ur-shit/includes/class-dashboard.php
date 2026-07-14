@@ -231,6 +231,7 @@ class OUS_Dashboard {
             'missing' => 'That plugin isn\'t installed yet — upload it to Plugins first.',
             'not_allowed' => 'You don\'t have permission to do that.',
             'activation_failed' => 'WordPress could not activate that plugin — check the Plugins screen for a more specific error.',
+            'bundle_stale' => 'Refused to install — the bundled copy is older than what\'s already on this site (that would have silently reverted real changes). Go to Debug Tools → Bundled Zip Freshness and regenerate it first.',
         ];
         return $messages[$code] ?? 'Something went wrong.';
     }
@@ -245,9 +246,16 @@ class OUS_Dashboard {
         }
 
         $installed = OUS_Installer::install($key);
-        wp_safe_redirect($installed
-            ? admin_url('admin.php?page=own-ur-shit&ous_installed=1')
-            : admin_url('admin.php?page=own-ur-shit&ous_error=missing'));
+        if ($installed) {
+            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_installed=1'));
+            exit;
+        }
+        // last_error() carries the SPECIFIC reason when install() has
+        // one worth surfacing (bundle_stale, see OUS_Installer's own
+        // docblock) — falls back to the existing generic "missing"
+        // code for every other failure shape, unchanged.
+        $code = (class_exists('OUS_Installer') && OUS_Installer::last_error()) ? OUS_Installer::last_error() : 'missing';
+        wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=' . $code));
         exit;
     }
 

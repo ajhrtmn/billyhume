@@ -8,6 +8,17 @@ if (!defined('ABSPATH')) exit;
  * class just answers "can this plugin be installed, and did it work."
  */
 class OUS_Installer {
+    // Set by install_from_bundle() on the one failure mode install()'s
+    // plain bool return can't distinguish from any other — callers that
+    // want the SPECIFIC reason (OUS_Dashboard::handle_install(), to
+    // show a real message instead of a generic "missing") read this
+    // right after a failed install() call, same "last-error side
+    // channel" shape several WP core APIs already use for the same
+    // reason (a bool return that still needs a richer failure reason
+    // available to whoever actually cares).
+    private static $last_error = '';
+    public static function last_error() { return self::$last_error; }
+
     // Two genuinely different install sources, one shared entry point —
     // every caller uses this without needing to know or care which kind
     // of plugin it's dealing with.
@@ -32,12 +43,46 @@ class OUS_Installer {
         return false;
     }
 
+    /**
+     * The real, confirmed incident (2026-07-13) this guard exists for:
+     * four of this plugin's own bundled zips sat stale through an
+     * entire session's worth of real fixes, invisible until someone
+     * happened to check OUS_Registry::bundled_zip_report() — before
+     * this guard existed, hitting "Install"/"Reinstall" on any of them
+     * would have silently overwritten a session's worth of real work
+     * with a week-old copy, no error, no warning, just a confusing "I
+     * fixed this, why is it broken again" report days later. This is
+     * the "prevent," not just "detect," half of that fix — see
+     * OUS_Registry::regenerate_bundled_zip()'s own docblock for the
+     * other half (a one-click way to actually fix a stale bundle
+     * in-admin, rather than needing shell access).
+     *
+     * Only refuses when there's something to actually compare — a
+     * plugin already present on disk with a real version header AND a
+     * bundled zip whose version is a real, LOWER semver than what's
+     * already there. A first-time install (nothing on disk yet) always
+     * proceeds — bundling is the offline-install mechanism, and there's
+     * nothing "stale" about the only copy that exists yet.
+     */
     private static function install_from_bundle($zip_filename) {
+        self::$last_error = '';
         $zip_path = OUS_PATH . 'bundled/' . $zip_filename;
         if (!file_exists($zip_path)) return false;
 
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
+        $slug = preg_replace('/\.zip$/', '', $zip_filename);
+        $main_file = $slug . '/' . $slug . '.php'; // this ecosystem's own convention — a plugin's bootstrap file is always named after its folder
+        $installed_path = WP_PLUGIN_DIR . '/' . $main_file;
+        if (file_exists($installed_path)) {
+            $installed_version = get_plugin_data($installed_path, false, false)['Version'] ?? '';
+            $bundled_version = class_exists('OUS_Registry') ? OUS_Registry::read_zip_plugin_version($zip_path) : null;
+            if ($installed_version && $bundled_version && version_compare($bundled_version, $installed_version, '<')) {
+                self::$last_error = 'bundle_stale';
+                return false;
+            }
+        }
 
         // Same credential-request pattern WP core's own installer uses —
         // on the vast majority of hosts (anywhere PHP can already write

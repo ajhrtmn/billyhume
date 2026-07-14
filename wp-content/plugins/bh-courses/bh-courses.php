@@ -2,11 +2,71 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.8
+ * Version:     0.4.14
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.14 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: real
+// video progress tracking. A course creator can now set a per-video-step
+// "require N% watched" threshold (bhc/video's new watch_threshold
+// attribute, Studio block RangeControl) — 0 keeps today's behavior
+// (any playback + a manual click completes it) unchanged. When set, a
+// <video> tag's timeupdate events (courses.js, throttled to whole-
+// percent changes) ping a new bhc_update_watch_progress AJAX action
+// (BHC_Progress::update_watch_progress(), new watched_percent column on
+// bhc_progress) and the step auto-completes — no button click needed —
+// the moment the threshold is crossed. Deliberately NOT enforceable for
+// a cross-origin iframe embed (YouTube/Vimeo-style) — same-origin
+// <video> only; class-render-lesson.php only ever emits the tracking
+// attribute for the genuinely trackable case, iframe embeds keep the
+// unchanged manual "Mark complete" button regardless of what's stored.
+// RUNTIME-VERIFIED end to end on this actual install: real course/
+// lesson/step, ran the DB migration (bhc_db_version 1.2 → 1.3), then
+// exercised BHC_Progress::update_watch_progress() and the real AJAX
+// handler directly — confirmed progress never regresses on a rewind,
+// the step correctly reads incomplete through every ping below
+// threshold, auto-completes exactly once the instant threshold is
+// crossed, and doesn't double-fire on a later ping. This caught and
+// fixed one real bug in the process: the very first progress ping
+// created its bhc_progress row with passed = NULL, which
+// is_step_complete()'s existing rule (NULL passed = complete, correct
+// for a plain text/image row that's ONLY ever written by an explicit
+// Mark-complete click) misread as "already done" after 30% watched —
+// fixed by writing passed = 0 on that first ping and never touching it
+// again until mark_step_complete() itself flips it to real completion.
+// Test course/lesson/progress rows cleaned up afterward.
+
+// 0.4.13 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4a:
+// certificate of completion. Studied LifterLMS's own Achievements/
+// Engagements architecture first (trigger→handler dispatch table)
+// before writing anything — concluded WordPress's own
+// `bhc_course_completed` action (already fired exactly once per
+// user/course by class-progress.php's maybe_fire_course_completed())
+// already IS that extension point, so no bespoke "engine"/registry
+// class was added; see class-certificates.php's own docblock for the
+// full reasoning. New BHC_Certificates: an off-by-default per-course
+// checkbox + optional "Signed by" text field (class-admin.php's course
+// metabox, same explicit-opt-in posture as Lesson Q&A), a plain
+// `?bhc_certificate=<course_id>` query-arg download link gated at
+// template_redirect on BOTH the course offering it AND
+// BHC_Progress::is_course_completed() for the requesting user, and
+// on-demand (never pre-generated/stored) PDF rendering via own-ur-
+// shit's newly-vendored FPDF library. "Download certificate" link
+// added to the course page header (class-render-course.php), next to
+// the existing Continue/Start/Review CTA, visible only once eligible.
+// RUNTIME-VERIFIED end to end on this actual install: created a real
+// course, enabled the certificate checkbox + a signature, inserted a
+// real bhc_completions row for a real user, hit the real download URL
+// as that logged-in user, and confirmed a genuine single-page PDF
+// streamed back ("PDF document, version 1.3") with the course title,
+// student name, completion date, and signature all rendered — caught
+// and fixed one real bug in the process (FPDF's vendored fpdf.php was
+// missing its font/*.json metric files; see own-ur-shit 3.4.84's own
+// changelog). Test course, completion row, and the temporary admin
+// password used to log in for this pass were all cleaned up/reverted
+// afterward.
 
 // 0.4.8 — 2026-07-12 — SOLID/SRP QA pass on class-render.php: a single
 // 589-line class was rendering the catalog, the course detail page, AND
@@ -168,7 +228,148 @@ if (!defined('ABSPATH')) exit;
 // brace-balance-checked only, no live PHP/MySQL/WordPress execution
 // available this session — not yet runtime-verified that the new slot
 // actually renders and is editable end-to-end in the Design Suite.
-define('BHC_VER',  '0.4.8');
+//
+// 0.4.9 — 2026-07-13 — real-post-editor migration for lesson authoring,
+// direct response to a live-session finding (this same session, real
+// WordPress+MySQL execution): BH_Studio's canvas — where lessons were
+// authored — has no theme CSS (blocks render with generic WP block-
+// library styles, not the real site's actual look), no --bh-* design
+// tokens, and no Advanced Styles panel, none of which reach a manually-
+// bootstrapped BlockEditorProvider on a custom admin page the way they
+// reach the real editor screen (block_editor_settings_all/
+// enqueue_block_editor_assets are core hooks tied to the real
+// post/site editor bootstrap, not fired for a hand-rolled canvas).
+// Lesson authoring visibly felt like a different product from every
+// other page in the ecosystem — direct AJ feedback this pass. bh_lesson
+// (class-post-types.php) now supports 'editor' + show_in_rest, so it
+// gets a real block-editor screen for the first time.
+// class-content-bridge.php: CONTEXT changed from a bespoke 'bhc_lesson'
+// BH_Content context (a custom table row, reachable only via Studio's
+// generic REST route) to the REAL 'post' context BH_Content already
+// supports — parse_blocks()/serialize_blocks() against the lesson's own
+// post_content, same as any ordinary page. bhc/text|image|video|quiz|
+// quiz-question (courses-studio-blocks.js) needed ZERO changes — they
+// were already real wp.blocks.registerBlockType() blocks with real
+// edit()/save(), only ever enqueued in the wrong place
+// (maybe_enqueue_lesson_blocks(), replacing maybe_enqueue_studio_blocks(),
+// now hooks enqueue_block_editor_assets gated on the bh_lesson screen
+// instead of the bh-studio admin-page hook substring). A new
+// sync_legacy_steps() (save_post_bh_lesson) is now the only writer of
+// `_bhc_steps` — fires on every real save of a lesson regardless of
+// which screen triggered it, reading the tree straight back out of
+// post_content via the existing get_tree()/tree_to_steps() (unchanged).
+// This incidentally sidesteps a real, if inert, bug: Studio's generic
+// REST route (own-ur-shit/class-studio.php's rest_save()) actually
+// calls BH_Content::save() directly and never called the old
+// save_tree() at all, despite that method's own docblock claiming it
+// was "the only writer" — save_tree() (now deleted, confirmed unused
+// anywhere in the ecosystem) was aspirational dead code, never actually
+// wired to the route it claimed to be called from. Nothing about
+// front-end rendering changes: BHC_Render/BHC_Progress/BHC_Gate/
+// BHC_Steps::score_quiz() still read _bhc_steps exclusively.
+// class-admin.php's "Lesson Steps" metabox is no longer an editor of
+// its own (dropped the "Edit in Content Studio" link-out) — it's a
+// read-only current-steps summary + "preview as student" link now,
+// since authoring happens directly in the real editor above it.
+// migrate_lesson()/the "populate lesson content from steps" Debug Tools
+// button (relabeled from "rebuild BH_Content trees") is a one-time
+// hydration path for a lesson that existed before this pass and hasn't
+// been opened in the real editor yet; a lesson created after this pass
+// never needs it. BH_Studio itself is untouched — it stays the right
+// tool for genuinely postless contexts (bh-monetization-woo's
+// storefront collection pages, keyed to a WooCommerce taxonomy term
+// with no post ID), which this migration does not concern.
+// RUNTIME-VERIFIED, with one real bug caught and fixed in the same
+// pass: created a lesson via wp-admin, confirmed the real block editor
+// loads with Lesson: Text/Image/Video/Quiz blocks in the inserter,
+// added a Lesson: Text block, saved, and found `_bhc_steps` synced with
+// an EMPTY `content` despite real text sitting in post_content — direct
+// DB inspection, not assumed. Cause: bhc/text's attribute was
+// `{ type: 'string', source: 'html', selector: 'div' }` (courses-
+// studio-blocks.js) — an HTML-sourced attribute, extracted from the
+// block's own rendered markup. That extraction is a client-side
+// (editor) concept; parse_blocks() (PHP, what BH_Content::get('post',
+// ...) actually calls) never runs it, so the JSON-comment `attrs` this
+// codebase reads was always empty for that attribute. Fixed by
+// dropping `source`/`selector` entirely — content is now a plain
+// attribute stored directly in the JSON comment, the exact same
+// pattern bhc/image's caption / bhc/video's caption / bhc/quiz-
+// question's question already used (this was the one block that
+// didn't match its own siblings). RichText/RichText.Content work
+// identically bound to a plain attribute — only the storage shape
+// changed. Re-verified after the fix: real text now round-trips
+// correctly end to end (post_content JSON attrs -> _bhc_steps), all
+// confirmed via direct DB inspection, not reasoned through.
+// 0.4.10 — UX-AUDIT-2026-07.md: the catalog's bare "No courses found
+// yet/matching your filters." replaced with the shared
+// BHY_Style::empty_state_html() component (own-ur-shit 3.4.82) — a
+// real icon, an owned title distinguishing zero-data from filtered-
+// empty (this file's own ternary already made that distinction, it
+// just had no visual weight), and a "Clear filters" link on the
+// filtered variant. Falls back to the old plain-text message if
+// BHY_Style isn't loaded (own-ur-shit is a hard dependency of this
+// plugin, so this is belt-and-suspenders, not an expected path).
+// RUNTIME-VERIFIED: confirmed both variants render correctly (icon
+// sized correctly, "Clear filters" actually clears back to the
+// unfiltered zero-state) on desktop and at 375px mobile width.
+// 0.4.11 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c:
+// downloadable resources per step — a 5th step type ('resource':
+// attachment_id + label + optional description), following the exact
+// same pattern class-steps.php's existing types already use
+// (VALID_TYPES + a save() sanitization branch). New real Gutenberg
+// block bhc/resource (courses-studio-blocks.js: a MediaUpload with no
+// allowedTypes restriction, since a resource can be any file type,
+// unlike bhc/image/bhc/video's narrowed pickers) + its BH_Content
+// server-side schema/renderer (class-content-bridge.php) + a render
+// branch in class-render-lesson.php (a download link + the same
+// Mark-complete-and-continue pattern every other step type uses —
+// deliberately non-blocking, per this doc's own scoping note: a
+// resource step doesn't require the file to actually be downloaded to
+// advance, same as a text step doesn't require it to be read).
+// steps_to_tree()/tree_to_steps() (class-content-bridge.php) needed NO
+// changes — 'resource' has flat attrs and no children, so it flows
+// through the already-generic bhc/* conversion path untouched; only
+// bhc/quiz's child-block promotion needed special-casing there.
+// RUNTIME-VERIFIED end to end: created a real lesson, added a Lesson:
+// Resource block, picked an existing media-library file (confirmed the
+// label auto-fills from the file's own title on first pick), set a
+// custom label + description, published, confirmed via direct DB
+// inspection that both post_content (the real Gutenberg block comment)
+// and _bhc_steps (the legacy sync target) reflect the exact same data,
+// then loaded the real student-facing lesson page and confirmed the
+// download link resolves to the actual file (HTTP 200, correct
+// content-type) with the description shown alongside it.
+// 0.4.12 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4d:
+// comments/Q&A on lessons, built as a real decision from day one per
+// that doc's own note — new class-comments.php (BHC_Comments). Off by
+// default, per COURSE, not a blanket switch (`_bhc_comments_enabled`
+// on the course, a new "Lesson Q&A" checkbox in the course metabox,
+// unchecked unless an author explicitly opts in). `bh_lesson` gets
+// real 'comments' post-type support (add_post_type_support(), same
+// primitive 'editor' support used this same day for the real-post-
+// editor migration).
+// Visibility, not just posting, is gated to whoever BHC_Gate::
+// user_can_access_lesson() would already let see the lesson content —
+// the exact same rule, not a second one to keep in sync. RUNTIME-
+// VERIFIED, with one real bug caught and fixed in the same pass: the
+// first attempt used the classic `comments_array` filter to hide
+// existing comments, confirmed live to be a dead end — the active
+// block theme's Comments block queries via WP_Comment_Query directly,
+// which never calls the legacy get_comments() wrapper that filter is
+// actually tied to, so a real posted comment stayed fully visible even
+// after the lesson itself was locked. Fixed by moving to
+// `pre_get_comments` (a lower-level hook WP_Comment_Query itself fires
+// on every query, block-based or classic) plus a `get_comments_number`
+// filter (the displayed count reads a separate cached
+// wp_posts.comment_count field the query-level fix doesn't touch,
+// which would otherwise show a stale nonzero count over an empty
+// list). Re-verified end to end: posted a real comment, confirmed it
+// displays and the count is accurate; set a future drip date on the
+// same lesson and confirmed the ENTIRE Comments section (heading,
+// count, and the comment itself) disappears completely, not just the
+// reply form; removed the drip date and confirmed everything reappears
+// correctly.
+define('BHC_VER',  '0.4.14');
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
 
@@ -191,7 +392,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -226,6 +427,8 @@ add_action('plugins_loaded', function () {
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);
     if (class_exists('BH_Content')) add_action('init', ['BHC_ContentBridge', 'init']);
     add_action('init', ['BHC_PortalPanel', 'init']);
+    add_action('init', ['BHC_Comments', 'init']);
+    add_action('init', ['BHC_Certificates', 'init']);
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
@@ -243,6 +446,7 @@ add_action('plugins_loaded', function () {
 
     add_action('wp_ajax_bhc_submit_quiz', ['BHC_Progress', 'ajax_submit_quiz']);
     add_action('wp_ajax_bhc_mark_complete', ['BHC_Progress', 'ajax_mark_complete']);
+    add_action('wp_ajax_bhc_update_watch_progress', ['BHC_Progress', 'ajax_update_watch_progress']);
 });
 
 // Self-registration into the Own Ur Shit dashboard — zero changes

@@ -884,4 +884,104 @@ class BHY_Style {
             'colorTokens' => $color_tokens,
         ];
     }
+
+    /**
+     * The one shared "nothing to show" component for front-end list/
+     * catalog surfaces — UX-AUDIT-2026-07.md's own top recommendation:
+     * the exact same bare "No courses found yet." / "No tracks match."
+     * pattern showed up independently in bh-courses' catalog and
+     * bh-streaming's library, with no explanation and no next step,
+     * while WooCommerce's own default empty state (one plugin away,
+     * "try clearing any filters or head to our store's home") already
+     * solves this correctly. One reusable piece here, retrofit onto
+     * both existing call sites, rather than fixing the same gap twice
+     * (and however many more times it would otherwise recur later).
+     *
+     * $args:
+     *   'reason'      — 'zero' (nothing exists yet at all) or
+     *                    'filtered' (a search/filter matched nothing) —
+     *                    changes both the default message and whether a
+     *                    "clear filters" affordance makes sense at all.
+     *   'title'       — required, short. Own the specific cause instead
+     *                    of a generic "No items found" ("No courses
+     *                    published yet" beats "No results").
+     *   'description' — optional, one more sentence of context.
+     *   'cta_label'/'cta_url' — optional single next-step link/button.
+     *   'clear_url'   — optional; only rendered when reason='filtered',
+     *                    a plain "Clear filters" link.
+     *   'icon'        — optional dashicon name (no 'dashicons-' prefix),
+     *                    defaults to 'search' for filtered, 'info' for zero.
+     *
+     * Self-contained: ships its own <style> block (guarded by a static
+     * flag so it only prints once per request even if this is called
+     * more than once on the same page) rather than requiring every
+     * consumer to remember a separate enqueue — same posture
+     * BH_Studio's own inline <style> blocks already use elsewhere in
+     * this codebase. Mobile-first sizing throughout (the icon/padding
+     * shrink under 480px rather than a separate breakpoint-gated
+     * layout, since the component's shape doesn't actually change on a
+     * narrow viewport, only its scale).
+     */
+    // Two tiny (~200 byte) inline SVGs, not dashicons — dashicons is an
+    // admin-only stylesheet WordPress doesn't enqueue on the front end
+    // by default, and this component is meant to be genuinely portable
+    // (drop into any front-end template, own-ur-shit loaded or not,
+    // with zero extra enqueue to remember). currentColor so it inherits
+    // the surrounding text color automatically.
+    const EMPTY_STATE_ICONS = [
+        'search' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="7"></circle><line x1="21" y1="21" x2="15.5" y2="15.5"></line></svg>',
+        'info-outline' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12" y2="8"></line></svg>',
+    ];
+
+    public static function empty_state_html(array $args) {
+        $reason = $args['reason'] ?? 'zero';
+        $title = (string) ($args['title'] ?? ($reason === 'filtered' ? 'Nothing matches your filters' : 'Nothing here yet'));
+        $description = (string) ($args['description'] ?? '');
+        $icon_key = (string) ($args['icon'] ?? ($reason === 'filtered' ? 'search' : 'info-outline'));
+        $icon_svg = self::EMPTY_STATE_ICONS[$icon_key] ?? self::EMPTY_STATE_ICONS['info-outline'];
+
+        // Deliberately embedded on EVERY call, not guarded to print
+        // once per request — confirmed live (bh-streaming's player.js)
+        // that a "print once" guard breaks the moment a consumer swaps
+        // `element.innerHTML` between two different rendered variants
+        // (e.g. the zero-data fragment, then the filtered fragment on
+        // the same view): the second swap destroys the first
+        // fragment's <style> tag along with everything else that was
+        // inside that container, silently losing all the CSS with no
+        // error. A few hundred duplicated bytes of CSS per call is a
+        // trivial cost next to a component that only sometimes works
+        // depending on how its caller happens to use the markup.
+        $out = '<style>
+            .bhy-empty-state { text-align: center; padding: 48px 20px; color: var(--bh-text-dim, #6b6b6b); }
+            .bhy-empty-state .bhy-empty-icon { display: inline-block; width: 40px; height: 40px; margin: 0 auto; color: var(--bh-border, #ccc); }
+            .bhy-empty-state .bhy-empty-icon svg { width: 100%; height: 100%; }
+            .bhy-empty-state h3 { margin: 12px 0 4px; font-size: 18px; color: var(--bh-text, #222); }
+            .bhy-empty-state p { margin: 0 0 16px; font-size: 14px; }
+            .bhy-empty-state .bhy-empty-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+            .bhy-empty-state .bhy-empty-cta { display: inline-block; padding: 8px 18px; border-radius: 6px; background: var(--bh-accent, #2271b1); color: #fff; text-decoration: none; font-size: 14px; }
+            .bhy-empty-state .bhy-empty-clear { display: inline-block; padding: 8px 18px; font-size: 14px; color: var(--bh-text-dim, #6b6b6b); text-decoration: underline; }
+            @media (max-width: 480px) {
+                .bhy-empty-state { padding: 32px 16px; }
+                .bhy-empty-state .bhy-empty-icon { width: 28px; height: 28px; }
+                .bhy-empty-state h3 { font-size: 16px; }
+                .bhy-empty-state .bhy-empty-actions { flex-direction: column; align-items: center; }
+            }
+        </style>';
+
+        $out .= '<div class="bhy-empty-state">';
+        $out .= '<span class="bhy-empty-icon" aria-hidden="true">' . $icon_svg . '</span>';
+        $out .= '<h3>' . esc_html($title) . '</h3>';
+        if ($description !== '') $out .= '<p>' . esc_html($description) . '</p>';
+
+        $has_cta = !empty($args['cta_label']) && !empty($args['cta_url']);
+        $has_clear = $reason === 'filtered' && !empty($args['clear_url']);
+        if ($has_cta || $has_clear) {
+            $out .= '<div class="bhy-empty-actions">';
+            if ($has_cta) $out .= '<a class="bhy-empty-cta" href="' . esc_url($args['cta_url']) . '">' . esc_html($args['cta_label']) . '</a>';
+            if ($has_clear) $out .= '<a class="bhy-empty-clear" href="' . esc_url($args['clear_url']) . '">Clear filters</a>';
+            $out .= '</div>';
+        }
+        $out .= '</div>';
+        return $out;
+    }
 }

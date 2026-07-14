@@ -90,12 +90,45 @@ class BH_API {
         ]);
     }
 
+    // Shared with vote() below — same validate-before-trust pattern this
+    // endpoint already used for its own rate-limit key.
+    private static function client_ip() {
+        return (isset($_SERVER['REMOTE_ADDR']) && filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP))
+            ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
+    }
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: a first-party,
+    // long-lived cookie distinguishing browsers independent of which
+    // account is logged in — a second signal alongside IP for
+    // BH_Helpers::suspicious_ip_clusters(), since a shared IP alone
+    // (a household, a campus, a VPN exit node) is common and NOT itself
+    // suspicious; several DIFFERENT fingerprints voting from the same IP
+    // is normal, while the same fingerprint reappearing under several
+    // DIFFERENT accounts from that IP is the real signal. Generated once
+    // per browser, not per vote — set via a plain httponly cookie, never
+    // read back into anything auth-related.
+    private static function voter_fingerprint() {
+        if (!empty($_COOKIE['bh_vfp']) && preg_match('/^[a-f0-9]{32}$/', $_COOKIE['bh_vfp'])) {
+            return $_COOKIE['bh_vfp'];
+        }
+        $fp = bin2hex(random_bytes(16));
+        // REST responses haven't sent headers yet at this point in the
+        // callback in a real request — setcookie() here lands in the
+        // same response the vote confirmation does, no extra round trip.
+        // headers_sent() guard is defensive only (some hosting setups
+        // buffer/flush unusually) — this is a best-effort second signal,
+        // never something a vote should fail over.
+        if (!headers_sent()) {
+            setcookie('bh_vfp', $fp, time() + 5 * YEAR_IN_SECONDS, COOKIEPATH ?: '/', COOKIE_DOMAIN, is_ssl(), true);
+        }
+        return $fp;
+    }
+
     public static function play($req) {
         $sid = (int) $req->get_param('submission_id');
         if (get_post_type($sid) !== 'bh_submission') return self::err('bad', 'Invalid track.', 400);
 
-        $ip = (isset($_SERVER['REMOTE_ADDR']) && filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP))
-            ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
+        $ip = self::client_ip();
         $k = 'bh_play_' . md5($ip . '_' . $sid);
 
         if (!get_transient($k)) {
@@ -112,9 +145,11 @@ class BH_API {
         }
 
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
-        if (!$cid || !BH_Helpers::is_voting_open($cid)) {
+        $voting_open = class_exists('BH_Rounds') ? BH_Rounds::is_voting_open($cid) : BH_Helpers::is_voting_open($cid);
+        if (!$cid || !$voting_open) {
             return self::err('closed', 'Voting is not open right now.', 403);
         }
+        $round = class_exists('BH_Rounds') ? BH_Rounds::active_round_index($cid) : 0;
 
         $cat = (string) $req->get_param('category');
         if ($cat === '' && $req->get_param('category') === null) $cat = BH_Helpers::default_category($cid);
@@ -144,10 +179,17 @@ class BH_API {
             || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
             return self::err('bad', 'That track does not belong to this contest.', 400);
         }
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: an entry
+        // that didn't survive a prior cut can't collect new votes in the
+        // current round — no-op check for a single-round contest, where
+        // every submission is always eligible for round 0.
+        if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
+            return self::err('eliminated', 'This entry did not advance to the current round.', 400);
+        }
 
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d",
-            $uid, $cid, $cat, $sid
+            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d AND round = %d",
+            $uid, $cid, $cat, $sid, $round
         ));
 
         // Toggle off.
@@ -178,7 +220,7 @@ class BH_API {
             return self::ok([
                 'action'     => 'removed',
                 'category'   => $cat,
-                'votes_left' => max(0, $limit - BH_Helpers::user_vote_count($uid, $cid, $cat)),
+                'votes_left' => max(0, $limit - BH_Helpers::user_vote_count($uid, $cid, $cat, $round)),
                 'limit'      => $limit,
             ]);
         }
@@ -187,8 +229,8 @@ class BH_API {
         // can't both slip past the limit (InnoDB row/gap lock via FOR UPDATE).
         $wpdb->query('START TRANSACTION');
         $used = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s FOR UPDATE",
-            $uid, $cid, $cat
+            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND round = %d FOR UPDATE",
+            $uid, $cid, $cat, $round
         ));
 
         if ($used >= $limit) {
@@ -199,7 +241,11 @@ class BH_API {
             return self::err('limit', $msg, 403, ['votes_left' => 0, 'limit' => $limit]);
         }
 
-        $inserted = $wpdb->insert($t, ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid], ['%d', '%d', '%s', '%d']);
+        $inserted = $wpdb->insert(
+            $t,
+            ['user_id' => $uid, 'contest_id' => $cid, 'category' => $cat, 'submission_id' => $sid, 'ip_address' => self::client_ip(), 'voter_fp' => self::voter_fingerprint(), 'round' => $round],
+            ['%d', '%d', '%s', '%d', '%s', '%s', '%d']
+        );
         if ($inserted === false && class_exists('OUS_DebugLog')) {
             // Previously unchecked and the transaction still COMMITted
             // regardless — a failed insert told the voter "added" with
@@ -359,26 +405,45 @@ class BH_API {
         $cats = BH_Helpers::categories($cid);
         if (!$cats) $cats = [['slug' => '', 'name' => '']];
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: 'judges'
+        // replaces the public vote tally everywhere a leaderboard is
+        // read; 'hybrid' adds a SECOND leaderboard rather than blending
+        // the two into one score (the roadmap doc's own direct decision)
+        // — a 'judge_results' key is only present at all for a
+        // judges/hybrid contest, so an existing front end reading only
+        // 'results' keeps working unmodified for every 'public' contest,
+        // which is every contest that predates this feature.
+        $format = BH_Helpers::contest_format($cid);
         $out = [];
         foreach ($cats as $c) {
-            $out[] = [
+            $row = [
                 'slug'    => $c['slug'],
                 'name'    => $c['name'],
-                'results' => self::category_results($cid, $c['slug']),
+                'results' => $format === 'judges' ? BH_Judging::judge_results($cid, $c['slug']) : self::category_results($cid, $c['slug']),
             ];
+            if ($format === 'hybrid') $row['judge_results'] = BH_Judging::judge_results($cid, $c['slug']);
+            $out[] = $row;
         }
-        return self::ok(['contest' => get_the_title($cid), 'categories' => $out]);
+        return self::ok(['contest' => get_the_title($cid), 'categories' => $out, 'format' => $format]);
     }
 
     // Public so BH_Reveal can reuse the exact same ranked-results query
     // rather than re-deriving it — one source of truth for "who's
     // currently winning a category."
-    public static function category_results($cid, $category) {
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: $round scopes
+    // the tally to one round's votes only (each round's votes are
+    // independent rows — class-activator.php 1.7) — null (the default,
+    // every pre-existing call site) means "every vote regardless of
+    // round," which is exactly today's unchanged behavior for a
+    // single-round contest, since every one of its votes carries
+    // round = 0 anyway.
+    public static function category_results($cid, $category, $round = null) {
         global $wpdb;
         $t    = BH_Helpers::table();
+        $round_sql = $round !== null ? $wpdb->prepare('AND round = %d', (int) $round) : '';
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT submission_id, COUNT(id) votes FROM $t
-             WHERE contest_id = %d AND category = %s GROUP BY submission_id ORDER BY votes DESC LIMIT 10",
+             WHERE contest_id = %d AND category = %s $round_sql GROUP BY submission_id ORDER BY votes DESC LIMIT 10",
             $cid, $category
         ));
 

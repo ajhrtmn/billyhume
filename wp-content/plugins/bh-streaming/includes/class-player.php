@@ -25,6 +25,21 @@ class BHS_Player {
             'identity' => esc_url_raw(rest_url('bhi/v1/')),
             'nonce'    => wp_create_nonce('wp_rest'),
             'loggedIn' => is_user_logged_in(),
+            // UX-AUDIT-2026-07.md's shared empty-state component
+            // (BHY_Style::empty_state_html()), pre-rendered server-side
+            // and handed to player.js so the SAME markup this ecosystem
+            // now uses everywhere replaces this file's own bare
+            // "No tracks match." string — one source of truth, not a
+            // second JS-side reimplementation of the same component.
+            'emptyStateZero' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'Your library is empty',
+                'description' => 'Import your music to start building your streaming library.',
+            ]) : '',
+            'emptyStateFiltered' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'filtered',
+                'title' => 'No tracks match',
+            ]) : '',
         ]);
     }
 

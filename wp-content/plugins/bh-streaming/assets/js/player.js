@@ -126,9 +126,19 @@
 
         if (currentView === 'all') {
             var tracks = filteredTracks();
+            // UX-AUDIT-2026-07.md's cited finding — this bare
+            // "No tracks match." replaced with the shared, server-
+            // rendered empty-state component (BHSData.emptyState*,
+            // BHY_Style::empty_state_html()), one source of truth with
+            // every other front-end empty state in the ecosystem
+            // instead of a second, bespoke JS string. Filtered vs.
+            // zero-data is derivable right here (a search term or genre
+            // is active) — same distinction bh-courses' catalog already
+            // makes server-side.
+            var isFiltered = !!(searchInput.value.trim() || genreFilter.value);
             library.innerHTML = tracks.length
                 ? '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>'
-                : '<p class="bhs-empty">No tracks match.</p>';
+                : (isFiltered ? (window.BHSData && BHSData.emptyStateFiltered) : (window.BHSData && BHSData.emptyStateZero)) || '<p class="bhs-empty">No tracks match.</p>';
             bindCardClicks(tracks);
         } else if (currentView === 'releases') {
             library.innerHTML = releases.length

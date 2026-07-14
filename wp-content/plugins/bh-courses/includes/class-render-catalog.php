@@ -78,7 +78,20 @@ class BHC_Render_Catalog {
         echo self::render_catalog_filters($search, $category, $topic, $sort);
 
         if (!$query->have_posts()) {
-            echo '<p class="bhc-empty">No courses found' . ($search || $category || $topic ? ' matching your filters.' : ' yet.') . '</p>';
+            // UX-AUDIT-2026-07.md's top recommendation — the shared
+            // BHY_Style::empty_state_html() component instead of a bare
+            // one-line message with no next step. The filtered/zero
+            // distinction already existed here (this file's own prior
+            // ternary); this just gives that distinction a real CTA on
+            // each side of it, matching what WooCommerce's own default
+            // empty state (one plugin away) already does correctly.
+            $is_filtered = (bool) ($search || $category || $topic);
+            echo class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => $is_filtered ? 'filtered' : 'zero',
+                'title' => $is_filtered ? 'No courses match your filters' : 'No courses published yet',
+                'description' => $is_filtered ? '' : 'Check back soon — new courses will show up here as they\'re published.',
+                'clear_url' => $is_filtered ? remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged']) : '',
+            ]) : '<p class="bhc-empty">No courses found' . ($is_filtered ? ' matching your filters.' : ' yet.') . '</p>';
         } else {
             echo '<div class="bhc-catalog">';
             foreach ($query->posts as $course) {

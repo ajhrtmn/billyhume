@@ -1,18 +1,22 @@
 /**
  * Registers bhc/text, bhc/image, bhc/video, bhc/quiz, and
- * bhc/quiz-question for BH_Studio's canvas (own-ur-shit/assets/js/studio.js)
- * — same no-build-step, wp.element.createElement-only convention that
- * file establishes, and the same registration shape
- * bh-monetization-woo/assets/js/storefront-studio-blocks.js already
- * uses for bhm/product-grid.
+ * bhc/quiz-question — real wp.blocks.registerBlockType() blocks (real
+ * attributes schema, real edit()/save()), same no-build-step,
+ * wp.element.createElement-only convention every admin/editor script in
+ * this ecosystem uses.
  *
- * Loaded ONLY on the BH_Studio admin page (see
- * BHC_ContentBridge::maybe_enqueue_studio_blocks()). This is the client
- * half of a pair — BHC_ContentBridge::register_block_types() already
- * registers the server-side schema/renderer for every type here; this
- * file is what actually makes them appear in the Studio inserter and
- * gives them an editing UI. See LMS-AUTHORING-DESIGN-PLAN.md Section 5
- * for the full "what was missing and why" writeup.
+ * Loaded on the REAL bh_lesson block-editor screen (see
+ * BHC_ContentBridge::maybe_enqueue_lesson_blocks()) — a lesson's steps
+ * are authored directly there now, same screen as any page, not a
+ * separate BH_Studio canvas. Nothing in this file needed to change for
+ * that migration; these were already ordinary Gutenberg blocks, only
+ * ever enqueued in the wrong place. This is the client half of a pair
+ * — BHC_ContentBridge::register_block_types() already registers the
+ * server-side schema/renderer for every type here (used when
+ * BH_Content reads the tree back out of post_content); this file is
+ * what actually makes them appear in the editor's inserter and gives
+ * them an editing UI. See LMS-AUTHORING-DESIGN-PLAN.md Section 5 for
+ * the original "what was missing and why" writeup.
  *
  * bhc/quiz is a CONTAINER block (InnerBlocks, allowedBlocks restricted
  * to bhc/quiz-question) rather than storing questions as an attribute
@@ -43,7 +47,17 @@
         title: __('Lesson: Text'),
         icon: 'text',
         category: 'lms',
-        attributes: { content: { type: 'string', source: 'html', selector: 'div', default: '' } },
+        // Plain (non-HTML-sourced) attribute, matching bhc/image's
+        // caption / bhc/video's caption / bhc/quiz-question's question —
+        // deliberately NOT `source: 'html', selector: 'div'` (extract
+        // from the block's own rendered markup at parse time). That's a
+        // client-side (editor) concept only — parse_blocks() (PHP,
+        // BH_Content::get('post', ...)'s own read path) never runs
+        // attribute sourcing, so `content` came back empty every time a
+        // lesson was read back for _bhc_steps sync, confirmed live via
+        // direct DB inspection this pass. RichText works identically
+        // bound to a plain attribute; only the storage shape changes.
+        attributes: { content: { type: 'string', default: '' } },
         supports: Object.assign({}, SUPPORTS),
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
@@ -106,6 +120,11 @@
             attachment_id: { type: 'number', default: 0 },
             video_url: { type: 'string', default: '' },
             caption: { type: 'string', default: '' },
+            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b — 0
+            // means "any playback marks it complete" (the pre-existing
+            // Mark-complete-button behavior, unchanged), matching
+            // bhc/quiz's own max_attempts "0 = unlimited" convention.
+            watch_threshold: { type: 'number', default: 0 },
         },
         supports: { html: false },
         edit: function (props) {
@@ -130,10 +149,62 @@
                             },
                         })
                     ),
-                el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v) { setAttrs({ caption: v }); } })
+                el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v) { setAttrs({ caption: v }); } }),
+                el(wp.components.RangeControl, {
+                    label: __('Require watched % to auto-complete (0 = off, any playback completes it)'),
+                    value: attrs.watch_threshold,
+                    min: 0,
+                    max: 100,
+                    onChange: function (v) { setAttrs({ watch_threshold: v || 0 }); },
+                    help: attrs.source === 'url' ? __('Only enforceable for a direct video URL — a YouTube/Vimeo-style embed can\'t be watch-tracked, so this is ignored for iframe embeds.') : undefined,
+                })
             );
         },
         save: function () { return null; }, // dynamic
+    });
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c — a
+    // downloadable file (worksheet, PDF, reference doc) attached to a
+    // step. allowedTypes deliberately omitted from MediaUpload below
+    // (unlike bhc/image's ['image']/bhc/video's ['video']) — a resource
+    // is meant to accept any file type a course creator might want to
+    // hand a student, not a narrowed media category.
+    wp.blocks.registerBlockType('bhc/resource', {
+        apiVersion: 3,
+        title: __('Lesson: Resource'),
+        icon: 'media-default',
+        category: 'lms',
+        attributes: {
+            attachment_id: { type: 'number', default: 0 },
+            label: { type: 'string', default: '' },
+            description: { type: 'string', default: '' },
+        },
+        supports: { html: false },
+        edit: function (props) {
+            var attrs = props.attributes, setAttrs = props.setAttributes;
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource' });
+            return el('div', blockProps,
+                el(wp.blockEditor.MediaUploadCheck, {},
+                    el(wp.blockEditor.MediaUpload, {
+                        value: attrs.attachment_id,
+                        onSelect: function (media) {
+                            // Default the label to the file's own name on
+                            // first pick — a course creator can still
+                            // override it, but "Worksheet.pdf" beats an
+                            // empty label if they never touch this field.
+                            setAttrs({ attachment_id: media.id, label: attrs.label || media.title || media.filename || '' });
+                        },
+                        render: function (obj) {
+                            return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_id ? __('Change file') : __('Select file'));
+                        },
+                    })
+                ),
+                attrs.attachment_id ? el('p', { className: 'bhc-studio-resource-selected' }, __('File selected (#') + attrs.attachment_id + ')') : null,
+                el(wp.components.TextControl, { label: __('Label'), value: attrs.label, placeholder: __('e.g. Worksheet.pdf'), onChange: function (v) { setAttrs({ label: v }); } }),
+                el(wp.components.TextControl, { label: __('Description (optional)'), value: attrs.description, onChange: function (v) { setAttrs({ description: v }); } })
+            );
+        },
+        save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/resource callback
     });
 
     wp.blocks.registerBlockType('bhc/quiz', {

@@ -71,7 +71,14 @@ class BHC_PostTypes {
             // tracks use (public post, gated player).
             'public' => true, 'show_ui' => true, 'show_in_menu' => self::MENU_PARENT,
             'rewrite' => ['slug' => 'lesson'],
-            'supports' => ['title'], 'capability_type' => 'post',
+            // 'editor' + show_in_rest added this pass — a lesson's steps
+            // are now authored directly on this real block-editor screen
+            // (bhc/* real Gutenberg blocks, BHC_ContentBridge) instead of
+            // BH_Studio's separate canvas; see that class's own docblock.
+            // Front-end rendering is untouched — BHC_Render still reads
+            // the legacy _bhc_steps postmeta array exclusively, kept in
+            // sync by BHC_ContentBridge's save_post_bh_lesson hook.
+            'supports' => ['title', 'editor'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }
 

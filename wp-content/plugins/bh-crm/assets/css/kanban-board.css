@@ -44,24 +44,39 @@
     gap: 8px;
 }
 
-.bhcrm-kanban-column-cards.is-drag-over {
-    background: #eaf2ff;
-    outline: 2px dashed #2271b1;
-    border-radius: 4px;
-}
-
 .bhcrm-kanban-card {
     background: #fff;
     border: 1px solid #dcdcde;
     border-left: 4px solid #2271b1;
     border-radius: 4px;
     padding: 8px;
-    cursor: grab;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    position: relative;
 }
 
-.bhcrm-kanban-card.is-dragging {
-    opacity: 0.4;
+/* SortableJS's own classes, not ones this file toggles by hand — .is-drag-ghost is the `ghostClass` option in kanban-board.js (the placeholder left in the origin spot while dragging); .sortable-chosen/.sortable-drag are SortableJS's own built-in class names, styled here for visibility during a drag. */
+.bhcrm-kanban-card.is-drag-ghost {
+    opacity: 0.35;
+}
+
+.bhcrm-kanban-card.sortable-chosen {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bhcrm-kanban-card-drag-handle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: #a7aaad;
+    cursor: grab;
+    font-size: 12px;
+    line-height: 1;
+    padding: 2px 4px;
+    user-select: none;
+}
+
+.bhcrm-kanban-card-drag-handle:active {
+    cursor: grabbing;
 }
 
 .bhcrm-kanban-card.is-done {

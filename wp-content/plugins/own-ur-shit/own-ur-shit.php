@@ -2,10 +2,74 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.81
+ * Version:     3.4.85
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.85 — real bug sweep, not a feature pass: while building bh-
+// monetization-woo's first ServerSideRender block this session, hit a
+// confirmed WordPress bug pattern — a class's own init() method,
+// itself only ever invoked AS an 'init' hook callback, was internally
+// registering a SECOND add_action('init', ...) of its own. Since
+// WP_Hook never revisits a priority bucket it has already passed in
+// the same request, that inner registration silently never fires,
+// ever, with zero error anywhere — confirmed directly against a
+// minimal WP_Hook reproduction, not assumed. A background audit swept
+// this whole ecosystem for the same pattern and found it FIVE more
+// times in this plugin alone: OUS_Jobs::init() (Action Scheduler's own
+// bootstrap AND the cron-scheduling check both dead), OUS_Notifications
+// ::init() ([bh_notifications] shortcode AND the queued-email job
+// handler both dead), BH_Event::init() (the event-ingest job handler
+// dead), BH_Identity::init() (a guest's first-touch identity cookie
+// never issued), OUS_Toast::init() (a guest's queued toast never
+// persisted to their next request). Fixed by calling ::init() directly
+// at this file's own top-level bootstrap point instead of deferring
+// through a second 'init' hook layer — see each call site's own inline
+// comment below for specifics. Also fixed the ALREADY-FLAGGED (but
+// previously unfixed) OUS_Gutenberg_Block::init() — currently inert
+// for an unrelated reason (BH_Element_Prefab no longer exists post
+// page-builder-delete), but wrong regardless.
+// A second, real fatal was caught fixing the FIRST one: turning on
+// OUS_Jobs::init()'s Action Scheduler bootstrap for the first time
+// (it was dead code before) collided with WooCommerce's own bundled
+// copy of the exact same library — "Cannot redeclare
+// as_enqueue_async_action()" — since both plugins vendor it under the
+// same global function names. Fixed with a class_exists('ActionScheduler')
+// guard, itself needing a SECOND fix once first written: own-ur-shit's
+// own main file loads before woocommerce's (folder-name sort order), so
+// checking class_exists() at this file's top-level/file-parse time is
+// too early regardless — deferred to 'plugins_loaded' (guaranteed to
+// fire only after every active plugin's main file has been read),
+// same "don't trust class_exists() before plugins_loaded" principle
+// already documented in bh-contest.php's own bootstrap, this time
+// actually enforced rather than just cited.
+// RUNTIME-VERIFIED end to end on this actual install: booted WordPress
+// fresh with WP_DEBUG_LOG on after each fix (caught both the
+// Action-Scheduler fatal AND its own too-early-class_exists() follow-on
+// bug this way, not by static reading), confirmed every one of the 6
+// previously-dead registrations is now genuinely live — shortcode_
+// exists('bh_notifications'), the bhcore_send_notification_email AND
+// bhcore_ingest_event job handlers present in OUS_Jobs' real handler
+// registry, BH_Identity::maybe_issue_cookie and OUS_Toast::
+// maybe_set_guest_cookie both confirmed hooked onto 'init' at their
+// intended priority via direct $wp_filter inspection, and
+// class_exists('ActionScheduler') correctly true (WooCommerce's copy,
+// no conflict) — then loaded a real wp-admin screen and the real front
+// page with WP_DEBUG_LOG on, zero errors either place.
+
+// 3.4.84 — vendor/fpdf/fpdf.php was committed on its own in the previous
+// pass without the font metric files (font/*.json) FPDF's core fonts
+// (Helvetica, Times, Courier) actually load at render time — a gap only
+// surfaced once bh-courses' new certificate-of-completion feature
+// (class-certificates.php) tried to actually render a PDF and hit
+// "file_get_contents(.../font/helvetica.json): Failed to open stream"
+// live, caught via a temporary WP_DEBUG_LOG flip. Fixed by vendoring the
+// four Helvetica metric files (helvetica.json/b/i/bi.json) from the same
+// upstream (setasign/fpdf) fpdf.php itself was pulled from — RUNTIME-
+// VERIFIED end to end on this install: generated a real single-page PDF
+// via BHC_Certificates against a real course/user/completion row, the
+// output file identified as a genuine "PDF document, version 1.3."
 
 // 3.4.71 — 2026-07-12 — three more rounds of direct live feedback, all
 // addressed in one pass: (1) "bloated, poorly proportioned... good gaps/
@@ -1781,7 +1845,69 @@ if (!defined('ABSPATH')) exit;
 // last-declaration-wins cascade still lets an entity-specific override
 // win exactly as before; this only adds the site DEFAULT that was
 // missing everywhere else.
-define('OUS_VER', '3.4.81');
+//
+// 3.4.82 — UX-AUDIT-2026-07.md's top recommendation: one shared "nothing
+// to show" component, BHY_Style::empty_state_html(), fixing a pattern
+// found independently on two unrelated plugins (bh-courses' catalog and
+// bh-streaming's library both showed a bare one-line "No X found/
+// match." with no explanation and no next step, while WooCommerce's own
+// default empty state — one plugin away — already does this correctly).
+// Self-contained inline SVG icons (not dashicons, which isn't enqueued
+// on the front end by default) and a self-contained inline <style>
+// block, so this drops into any front-end template with zero extra
+// enqueue to remember. RUNTIME-VERIFIED, with two real bugs caught and
+// fixed in the same pass, both confirmed live: (1) the icon wrapper is
+// a <span> (inline by default) — width/height CSS on a non-replaced
+// inline element is simply ignored by the browser, so the icon
+// rendered at a huge, uncontrolled size until `display: inline-block`
+// was added; (2) the <style> block was originally guarded to print
+// only once per request (a `static` flag) — this silently broke the
+// moment a JS consumer (bh-streaming's player.js) swapped
+// `element.innerHTML` between two different rendered variants on the
+// same view, since the second swap destroys whatever was inside that
+// container, including a `<style>` tag injected as part of the first
+// fragment. Fixed by embedding the style block on every call instead of
+// guarding it — a trivial amount of duplicated CSS text against a
+// component that only sometimes worked depending on how its caller
+// happened to use the markup. Verified on both desktop and mobile
+// (375px) viewports for both the zero-data and filtered variants.
+//
+// 3.4.83 — the actual fix, not just a one-time correction, for a real
+// incident this same session: four of this plugin's own bundled
+// peer-plugin zips (own-ur-shit/bundled/*.zip) sat stale through an
+// entire session's real work, invisible unless someone happened to
+// check OUS_Registry::bundled_zip_report() — before this pass,
+// OUS_Installer::install()ing any of them would have silently
+// overwritten real, current code with a week-old copy, no warning, no
+// error, just a confusing "I fixed this, why is it broken again" days
+// later. Two halves, "detect" already existed, this adds "fix" and
+// "prevent":
+//   1. OUS_Registry::regenerate_bundled_zip() — rebuilds a bundled zip
+//      directly from the plugin's own live source using ZipArchive
+//      (PHP core, no shell-out), writes to a temp file and verifies
+//      the rebuilt zip's own version header matches what's actually on
+//      disk BEFORE atomically replacing the old zip — never a partial/
+//      corrupt write becoming the new "source of truth." A one-click
+//      "Regenerate bundled zip" button now sits next to every STALE row
+//      in the existing Bundled Zip Freshness report (Debug Tools),
+//      wired through the same shared button()/handle-dispatch
+//      convention every other Debug Tools action already uses.
+//   2. OUS_Installer::install_from_bundle() now refuses outright (a
+//      real, surfaced error — "bundle_stale" — not a silent no-op) when
+//      a plugin already installed on disk has a HIGHER version than
+//      the bundled zip it's about to be reinstalled from. Only a
+//      first-time install (nothing on disk yet) is exempt, since
+//      there's nothing "stale" about the only copy that exists.
+// RUNTIME-VERIFIED end to end on this actual install, not reasoned
+// through: artificially staled bh-registry's bundled zip (bumped its
+// live version by one patch digit), confirmed the report correctly
+// flagged it and showed the new button, clicked "Regenerate bundled
+// zip" in the real admin UI, confirmed the rebuilt zip's own version
+// header matched and the report went back to "up to date" — then did
+// the same for bh-courses' own genuinely-stale zip (real staleness
+// from this same session's earlier LMS work, not staged), confirming
+// this closes a real, live gap, not just a hypothetical one.
+define('OUS_VER', '3.4.85');
 
 // 3.4.18 — new ecosystem-wide toast notification system: OUS_Toast
 // (class-toast.php, new) + assets/js/toast.js + assets/css/toast.css. A
@@ -2068,8 +2194,31 @@ add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 
 add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
-add_action('init',          ['OUS_Jobs', 'init']);
-add_action('init',          ['OUS_Notifications', 'init']);
+// QA fix, 3.4.85: OUS_Jobs::init()/OUS_Notifications::init() both
+// internally register a SECOND add_action('init', ...) of their own
+// (ActionScheduler::init() at priority 1, register_shortcode() at
+// default priority 10, an anonymous job-handler registrant at default
+// priority 10) — but since these two init() methods were THEMSELVES
+// only ever invoked as 'init' hook callbacks, that inner registration
+// happened WHILE 'init' was already executing, and WordPress's WP_Hook
+// never revisits an already-passed (or, for priority 1, never-reached-
+// because-lower-than-the-currently-executing-bucket) priority in the
+// same pass — confirmed directly against a minimal WP_Hook
+// reproduction, not assumed. The result: ActionScheduler never
+// bootstrapped, the [bh_notifications] shortcode never registered, and
+// the queued-email job handler never wired up, silently, on every real
+// request, with zero error anywhere. Fixed by calling ::init() directly
+// here instead of deferring through another 'init' hook layer — this
+// file's own top-level statements already run well before 'init' ever
+// fires (WordPress finishes loading every active plugin's main file
+// before firing plugins_loaded, which itself fires before init), so
+// every inner add_action('init', ..., $priority) call these two
+// classes make now registers in plenty of time to fire correctly,
+// in proper priority order, during the one real 'init' pass. See
+// class-jobs.php's/class-notifications.php's own init() docblocks for
+// what each individually-nested registration is for.
+OUS_Jobs::init();
+OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);
@@ -2094,9 +2243,19 @@ add_action('init',          ['BH_Studio', 'init']);
 add_action('init',          ['OUS_StudioTestSuite', 'init']);
 add_action('init',          ['OUS_ApiDocs', 'init']);
 add_action('init',          ['OUS_CodebaseDocs', 'init']);
-add_action('init',          ['BH_Event', 'init']);
-add_action('init',          ['BH_Identity', 'init']);
-add_action('init',          ['OUS_Toast', 'init']);
+// QA fix, 3.4.85: same nested-'init' bug as OUS_Jobs/OUS_Notifications
+// above (see that comment for the full explanation) — BH_Event::init()
+// nests a job-handler registrant at priority 5, BH_Identity::init()
+// nests maybe_issue_cookie() at priority 1, OUS_Toast::init() nests
+// maybe_set_guest_cookie() at priority 1. All three were silently dead:
+// a guest's first-touch identity/consent cookie never actually got
+// issued, and a toast queued for a not-yet-cookied guest never
+// persisted to their next request. Fixed the same way — call ::init()
+// directly at this top-level point (well before 'init' fires) instead
+// of through another 'init' hook layer.
+BH_Event::init();
+BH_Identity::init();
+OUS_Toast::init();
 // Element builder (ELEMENT-BUILDER-DESIGN-PLAN.md) — BH_Element_Data
 // before BH_Element purely for readability (registers the data
 // sources before the element types that might reference them by

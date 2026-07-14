@@ -27,19 +27,19 @@
  * container element. Building a second, bespoke recursive-tree editor
  * inside this board was deliberately out of scope for this pass.
  *
- * Drag-and-drop uses plain HTML5 DnD (dragstart/dragover/drop), not a
- * library — reasoned through and internally consistent, but genuinely
- * UNTESTED: no live browser is available in this environment (same
- * caveat element-builder.js's own docblock gives for why ITS reorder UI
- * uses up/down buttons instead of drag/drop — this file takes the
- * drag/drop risk anyway because a kanban board without it would defeat
- * the point of the visual layer; please smoke-test drag between columns
- * and within a column before relying on this).
- *
- * NOT runtime-verified beyond that: no live PHP/MySQL/WordPress/REST/
- * browser execution is available in this sandbox at all. Reasoned
- * through against BH_Element's actual, already-read REST response/
- * request shapes.
+ * Drag-and-drop uses SortableJS (assets/js/vendor/sortable.min.js,
+ * MIT, vendored not npm — this ecosystem's no-build-step convention),
+ * enqueued as this script's own dependency (class-projects.php's
+ * maybe_enqueue()). Replaces an earlier hand-rolled HTML5 DnD
+ * implementation (dragstart/dragover/drop) that only ever supported
+ * dropping a card at the END of a column — no real same-column
+ * reorder, and genuinely untested cross-browser/touch-device drag
+ * behavior, exactly the risk a real drag library exists to absorb.
+ * One Sortable instance per column list (`group: 'bhcrm-kanban'` lets
+ * cards move between columns), `onEnd` rebuilds state.placements from
+ * the live DOM order across every column and re-saves the whole slot —
+ * same full-slot-upsert contract saveSlot() already uses everywhere
+ * else in this file, so drag-reorder isn't a second write path.
  */
 (function () {
     'use strict';
@@ -70,7 +70,7 @@
 
     var state = {
         placements: [], // raw rows from GET .../placements/{surface}/{context}, slot 'board' only
-        dragId: null,
+        sortables: [], // live Sortable instances, one per column list — destroyed before each re-render since render() wipes the DOM they're attached to
     };
 
     function el(tag, className, text) {
@@ -130,8 +130,36 @@
         p.config.attrs[key] = { literal: value };
     }
 
+    /**
+     * Reads the live DOM (every column's card list, in on-screen order)
+     * back into state.placements — the one place a drag result becomes
+     * the new source of truth. Each card's column attr is set from
+     * whichever column list it's physically in now; overall array order
+     * follows cfg.columns order, then on-screen order within each
+     * column, matching saveSlot()'s existing "position reconstructed
+     * server-side from array order" contract exactly.
+     */
+    function reorderFromDom() {
+        var columns = cfg.columns || [];
+        var next = [];
+        columns.forEach(function (colName) {
+            var list = root.querySelector('.bhcrm-kanban-column[data-column="' + CSS.escape(colName) + '"] .bhcrm-kanban-column-cards');
+            if (!list) return;
+            Array.prototype.forEach.call(list.children, function (cardEl) {
+                var id = Number(cardEl.getAttribute('data-placement-id'));
+                var p = state.placements.find(function (x) { return x.id === id; });
+                if (!p) return;
+                setAttrLiteral(p, 'column', colName);
+                next.push(p);
+            });
+        });
+        state.placements = next;
+    }
+
     function render() {
         root.removeAttribute('data-loading');
+        state.sortables.forEach(function (s) { s.destroy(); });
+        state.sortables = [];
         root.innerHTML = '';
 
         var columns = cfg.columns || [];
@@ -147,25 +175,6 @@
             col.appendChild(header);
 
             var list = el('div', 'bhcrm-kanban-column-cards');
-            list.addEventListener('dragover', function (e) { e.preventDefault(); list.classList.add('is-drag-over'); });
-            list.addEventListener('dragleave', function () { list.classList.remove('is-drag-over'); });
-            list.addEventListener('drop', function (e) {
-                e.preventDefault();
-                list.classList.remove('is-drag-over');
-                if (state.dragId == null) return;
-                var p = state.placements.find(function (x) { return x.id === state.dragId; });
-                if (!p) return;
-                setAttrLiteral(p, 'column', colName);
-                // Move it to the end of this column's run within the flat
-                // array — simplest correct reorder: pull it out, push it
-                // after the last card currently in this column.
-                state.placements = state.placements.filter(function (x) { return x.id !== state.dragId; });
-                var lastIndexInCol = -1;
-                state.placements.forEach(function (x, i) { if (attrLiteral(x, 'column', '') === colName) lastIndexInCol = i; });
-                state.placements.splice(lastIndexInCol + 1, 0, p);
-                saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
-            });
-
             cardsInCol.forEach(function (p) { list.appendChild(renderCard(p)); });
 
             col.appendChild(list);
@@ -174,6 +183,43 @@
         });
 
         root.appendChild(grid);
+
+        // One Sortable instance per column list, all sharing a group
+        // name so a card can be dragged from one column into another —
+        // onEnd (fires once, after the DOM already reflects the drop)
+        // rebuilds state.placements from that live DOM and re-saves the
+        // whole slot, same as every other edit in this file.
+        if (window.Sortable) {
+            root.querySelectorAll('.bhcrm-kanban-column-cards').forEach(function (list) {
+                state.sortables.push(window.Sortable.create(list, {
+                    group: 'bhcrm-kanban',
+                    animation: 150,
+                    ghostClass: 'is-drag-ghost',
+                    handle: '.bhcrm-kanban-card-drag-handle',
+                    // SortableJS's own recommended setting for more
+                    // consistent behavior — without this it defaults to
+                    // the native HTML5 draggable API, which has real,
+                    // well-documented cross-browser/touch-device
+                    // inconsistencies (part of what this whole swap was
+                    // meant to fix). forceFallback makes Sortable
+                    // simulate the drag itself via plain mouse/pointer
+                    // events instead of relying on the browser's own
+                    // native drag gesture recognition.
+                    forceFallback: true,
+                    // Belt-and-suspenders alongside the explicit handle
+                    // above — filter stops a drag from even starting on
+                    // a card's own interactive controls (title/notes/
+                    // checkbox/buttons), preventOnFilter:false so the
+                    // normal click/focus still reaches them.
+                    filter: 'input, textarea, button, a',
+                    preventOnFilter: false,
+                    onEnd: function () {
+                        reorderFromDom();
+                        saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+                    },
+                }));
+            });
+        }
     }
 
     function renderCard(p) {
@@ -182,9 +228,13 @@
         var done = !!attrLiteral(p, 'done', false);
 
         var card = el('div', 'bhcrm-kanban-card' + (done ? ' is-done' : ''));
-        card.setAttribute('draggable', 'true');
-        card.addEventListener('dragstart', function () { state.dragId = p.id; card.classList.add('is-dragging'); });
-        card.addEventListener('dragend', function () { card.classList.remove('is-dragging'); });
+        // data-placement-id is what reorderFromDom() reads back after a
+        // drop; the drag itself only starts from the dedicated handle
+        // below (Sortable's `handle` option), not the card body, so
+        // clicking into the title/notes/checkbox/buttons never fights
+        // with drag detection.
+        card.setAttribute('data-placement-id', String(p.id));
+        card.appendChild(el('div', 'bhcrm-kanban-card-drag-handle', '⋮⋮'));
 
         var titleRow = el('div', 'bhcrm-kanban-card-title-row');
         var doneBox = document.createElement('input');

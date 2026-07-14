@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Activator {
-    const DB_VERSION = '1.4';
+    const DB_VERSION = '1.7'; // 1.5 added bh_judge_scores (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a, judge/rubric scoring mode) — see that table's own comment below. 1.6 added bh_votes.ip_address/voter_fp (2c, in-house IP+cookie fraud signal) — see the ALTER below. 1.7 added a `round` column to both bh_votes and bh_judge_scores (2b, multi-round/elimination format) — each round's votes/scores are tracked and tallied independently.
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -126,22 +126,90 @@ class BH_Activator {
         // existed automatically becomes a vote in the implicit "general"
         // category once contests start defining named categories. No data
         // loss, no migration script needed for existing votes.
+        //
+        // ip_address/voter_fp (ROADMAP-ux-polish-and-feature-parity-
+        // 2026-07.md 2c): a PURELY ADDITIONAL signal for
+        // BH_Helpers::suspicious_ip_clusters() below — never read
+        // anywhere near the vote-counting/limit-enforcement logic above,
+        // same manual-review-only posture the existing timestamp-
+        // clustering check (suspicious_voters()) already has. Direct
+        // decision from the roadmap doc: no third-party CAPTCHA vendor,
+        // no automated blocking — this only ever surfaces a stronger
+        // "look at this cluster" signal for a human to review.
+        // PRIVACY NOTE (flagged per the roadmap doc's own compliance
+        // callout, not an afterthought): ip_address is real personal
+        // data under most privacy regimes (GDPR/CCPA) — if this site
+        // publishes a privacy policy, it should mention that a vote's IP
+        // is retained for anti-fraud review. This plugin does not
+        // (deliberately, to keep this pass right-sized) wire a WP
+        // core privacy-export/erasure integration for it; if that's
+        // ever required, bh_votes.ip_address/voter_fp are the two
+        // columns to cover.
         $sql = "CREATE TABLE $table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
             contest_id bigint(20) unsigned NOT NULL,
             category varchar(64) NOT NULL DEFAULT '',
             submission_id bigint(20) unsigned NOT NULL,
+            ip_address varchar(45) NOT NULL DEFAULT '',
+            voter_fp varchar(64) NOT NULL DEFAULT '',
+            round int(11) unsigned NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id),
+            UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id, round),
             KEY contest_idx (contest_id),
-            KEY user_contest_idx (user_id, contest_id)
+            KEY user_contest_idx (user_id, contest_id),
+            KEY ip_idx (ip_address)
         ) $charset;";
+        // round (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b,
+        // multi-round/elimination format): 0 for every contest that
+        // never configures rounds — the exact same single "general"
+        // bucket every vote has always landed in, so a non-round contest
+        // is byte-for-byte unaffected. Added to the UNIQUE KEY (not just
+        // as a plain column) so a voter can cast a fresh vote once a new
+        // round opens without it silently colliding with their round-1
+        // vote for the same submission — each round's votes are
+        // genuinely independent rows.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        // QA fix, caught live: dbDelta() itself will attempt to add an
+        // index whose COLUMN LIST differs from what's on disk even when
+        // the NAME is already taken — it doesn't drop-then-recreate, it
+        // just tries a bare ADD, which fails with "Duplicate key name"
+        // and poisons $wpdb->last_error before this method ever reaches
+        // its own (correct) DROP+ADD rebuild below. So that rebuild has
+        // to run BEFORE dbDelta(), not after — by the time dbDelta()
+        // runs, the on-disk index already matches the CREATE TABLE SQL
+        // above and there's nothing left for it to collide with. Table-
+        // doesn't-exist-yet (fresh install) is the one case this skips
+        // itself on — SHOW TABLES first avoids trying to touch an index
+        // that has nothing to attach to.
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table) {
+            $key_columns = $wpdb->get_col($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = 'uniq_user_track' ORDER BY SEQ_IN_INDEX",
+                DB_NAME, $table
+            ));
+            $target_columns = ['user_id', 'contest_id', 'category', 'submission_id', 'round'];
+            if ($key_columns && $key_columns !== $target_columns) {
+                $wpdb->query("ALTER TABLE $table DROP INDEX uniq_user_track");
+                if ($wpdb->last_error !== '') return false;
+                // A column this key needs might not exist yet on a very
+                // old install (pre-category, pre-round) — add whichever
+                // of the target columns are actually missing before
+                // trying to index them.
+                $existing_cols = $wpdb->get_col("SHOW COLUMNS FROM $table");
+                if (!in_array('category', $existing_cols, true)) $wpdb->query("ALTER TABLE $table ADD COLUMN category varchar(64) NOT NULL DEFAULT ''");
+                if (!in_array('round', $existing_cols, true)) $wpdb->query("ALTER TABLE $table ADD COLUMN round int(11) unsigned NOT NULL DEFAULT 0");
+                if ($wpdb->last_error !== '') return false;
+                $wpdb->query("ALTER TABLE $table ADD UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id, round)");
+                if ($wpdb->last_error !== '') return false;
+            }
+        }
+
         $wpdb->last_error = '';
-        dbDelta($sql); // reliably adds the missing `category` column on upgrade
+        dbDelta($sql); // adds any still-missing columns (ip_address, voter_fp, etc.) and creates the table outright on a fresh install
         if ($wpdb->last_error !== '') return false;
 
         // Confirm the table is actually queryable before going any
@@ -150,24 +218,75 @@ class BH_Activator {
         // through on a flaky database.
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) return false;
 
-        // dbDelta doesn't reliably rewrite an existing UNIQUE KEY's column
-        // list, so the old 3-column key (if present from before category
-        // support) is dropped and replaced explicitly.
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM information_schema.STATISTICS
-             WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = 'uniq_user_track' AND COLUMN_NAME = 'submission_id' AND SEQ_IN_INDEX = 3",
-            DB_NAME, $table
-        ));
-        if ($wpdb->last_error !== '') return false;
+        if (!self::create_or_update_profiles_table($charset)) return false;
+        return self::create_or_update_judge_scores_table($charset);
+    }
 
-        if ($exists) {
-            $wpdb->query("ALTER TABLE $table DROP INDEX uniq_user_track");
-            if ($wpdb->last_error !== '') return false;
-            $wpdb->query("ALTER TABLE $table ADD UNIQUE KEY uniq_user_track (user_id, contest_id, category, submission_id)");
-            if ($wpdb->last_error !== '') return false;
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: a genuinely
+    // different shape from bh_votes above, not overloaded onto it — a
+    // public vote is one binary row per (voter, category, submission); a
+    // judge score is multi-criterion and needs an editable draft-then-
+    // submit state (Devpost's own "save progress" pattern), so this is
+    // one row per (judge, submission, category) with the whole rubric's
+    // scores stored as a JSON snapshot, same "self-contained blob, not a
+    // per-criterion history table" convention bh-courses' bhc_progress.
+    // answers column already established for quiz snapshots. status
+    // distinguishes a judge's in-progress draft from a scored, counted
+    // submission — only 'submitted' rows are ever read by
+    // BH_Judging::judge_results()'s aggregate.
+    private static function create_or_update_judge_scores_table($charset) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bh_judge_scores';
+
+        $sql = "CREATE TABLE $table (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            judge_id bigint(20) unsigned NOT NULL,
+            contest_id bigint(20) unsigned NOT NULL,
+            submission_id bigint(20) unsigned NOT NULL,
+            category varchar(64) NOT NULL DEFAULT '',
+            round int(11) unsigned NOT NULL DEFAULT 0,
+            scores longtext DEFAULT NULL,
+            status varchar(16) NOT NULL DEFAULT 'draft',
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uniq_judge_track (judge_id, contest_id, submission_id, category, round),
+            KEY contest_idx (contest_id)
+        ) $charset;";
+        // round: same meaning and same 0-default-for-a-non-round-contest
+        // convention as bh_votes.round above (1.7) — a judge's round-1
+        // score and round-2 score for the same entry are independent
+        // rows, not an overwrite.
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+        // Same fix, same reason as bh_votes' identical rebuild above
+        // (create_or_update_schema()'s own comment has the full
+        // explanation of why this has to run BEFORE dbDelta(), not
+        // after) — dbDelta() itself fails trying to add a same-named,
+        // different-column index rather than leaving it alone.
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table) {
+            $key_columns = $wpdb->get_col($wpdb->prepare(
+                "SELECT COLUMN_NAME FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = 'uniq_judge_track' ORDER BY SEQ_IN_INDEX",
+                DB_NAME, $table
+            ));
+            $target_columns = ['judge_id', 'contest_id', 'submission_id', 'category', 'round'];
+            if ($key_columns && $key_columns !== $target_columns) {
+                $wpdb->query("ALTER TABLE $table DROP INDEX uniq_judge_track");
+                if ($wpdb->last_error !== '') return false;
+                $existing_cols = $wpdb->get_col("SHOW COLUMNS FROM $table");
+                if (!in_array('round', $existing_cols, true)) $wpdb->query("ALTER TABLE $table ADD COLUMN round int(11) unsigned NOT NULL DEFAULT 0");
+                if ($wpdb->last_error !== '') return false;
+                $wpdb->query("ALTER TABLE $table ADD UNIQUE KEY uniq_judge_track (judge_id, contest_id, submission_id, category, round)");
+                if ($wpdb->last_error !== '') return false;
+            }
         }
 
-        return self::create_or_update_profiles_table($charset);
+        $wpdb->last_error = '';
+        dbDelta($sql);
+        if ($wpdb->last_error !== '') return false;
+
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
     // One row per wp_users.ID — real name, platform handles, and a

@@ -126,6 +126,21 @@ class BHC_Render_Lesson {
             if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         } elseif ($step['type'] === 'video') {
+            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: only the
+            // real <video> tag case is watch-position-trackable (a
+            // timeupdate listener needs same-origin media, which a
+            // cross-origin YouTube/Vimeo <iframe> embed can't offer
+            // without that provider's own SDK) — $trackable stays false
+            // for the iframe branch below regardless of watch_threshold,
+            // and courses.js simply has nothing to attach a listener to
+            // in that case.
+            $trackable = false;
+            $threshold = (int) ($step['watch_threshold'] ?? 0);
+            // Only rendered onto the <video> tag when there's actually a
+            // threshold to enforce — an untracked/threshold-0 video needn't
+            // pay for a timeupdate listener courses.js would otherwise just
+            // ignore the result of.
+            $threshold_attr = $threshold > 0 ? ' data-watch-threshold="' . $threshold . '"' : '';
             if ($step['source'] === 'upload') {
                 // wp_get_attachment_url() is the one API surface an
                 // offload plugin (see Own Ur Shit's dashboard entry for
@@ -134,7 +149,8 @@ class BHC_Render_Lesson {
                 // file is on this server's disk or Cloudflare R2.
                 $url = wp_get_attachment_url($step['attachment_id']);
                 if ($url) {
-                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"></video>';
+                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
+                    $trackable = true;
                 } else {
                     echo '<p class="bhc-empty">Video file not found.</p>';
                 }
@@ -152,11 +168,30 @@ class BHC_Render_Lesson {
                 if (preg_match('#(iframe|embed|player)#i', $url)) {
                     echo '<iframe class="bhc-step-video-embed" src="' . esc_url($url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                 } else {
-                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"></video>';
+                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
+                    $trackable = true;
                 }
             }
             if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
-            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+
+            $uid = get_current_user_id();
+            $watched = ($uid && $trackable) ? BHC_Progress::watched_percent($uid, $lesson_id, $index) : 0;
+
+            if ($threshold > 0 && $trackable) {
+                // No manual override button here on purpose — courses.js's
+                // timeupdate listener auto-completes this step once
+                // $threshold is cleared (BHC_Progress::update_watch_progress()),
+                // the same "no bespoke second completion mechanic" posture
+                // the resource step's Mark-complete button already
+                // follows, just inverted (auto instead of always-available).
+                // The progress note gives the student a visible reason
+                // nothing happened yet if they just click play and walk
+                // away without it reaching the threshold.
+                echo '<p class="bhc-video-progress-note"' . ($is_done ? ' style="display:none;"' : '') . '>Watch ' . (int) $threshold . '% to mark this step complete' . ($watched > 0 ? ' (' . (int) $watched . '% watched so far)' : '') . '.</p>';
+                echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>Completed</button>';
+            } else {
+                echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+            }
         } elseif ($step['type'] === 'quiz') {
             $uid = get_current_user_id();
             $max_attempts = (int) ($step['max_attempts'] ?? 0);
@@ -196,6 +231,22 @@ class BHC_Render_Lesson {
                 echo '<div class="bhc-quiz-result" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? 'No attempts remaining.' : '') . '</div>';
                 echo '</form>';
             }
+        } elseif ($step['type'] === 'resource') {
+            // Non-blocking by design (ROADMAP-ux-polish-and-feature-
+            // parity-2026-07.md 4c's own scoping note) — same Mark-
+            // complete-and-continue pattern as text/image/video rather
+            // than a bespoke "downloaded" tracking mechanic; a student
+            // isn't required to actually click the download to advance,
+            // same as they aren't required to actually read a text step.
+            $url = wp_get_attachment_url($step['attachment_id']);
+            $label = $step['label'] !== '' ? $step['label'] : basename(get_attached_file($step['attachment_id']) ?: 'Download');
+            if ($url) {
+                echo '<a class="bhc-btn bhc-resource-download" href="' . esc_url($url) . '" download>&#8681; ' . esc_html($label) . '</a>';
+            } else {
+                echo '<p class="bhc-empty">File not found.</p>';
+            }
+            if (!empty($step['description'])) echo '<p class="bhc-step-caption">' . esc_html($step['description']) . '</p>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         }
         return ob_get_clean();
     }
