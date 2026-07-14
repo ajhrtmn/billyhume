@@ -10,7 +10,18 @@ class BHS_Player {
     public static function maybe_enqueue() {
         if (!is_singular()) return;
         global $post;
-        if (!$post || !has_shortcode($post->post_content, 'bh_streaming')) return;
+        // has_block() alongside has_shortcode() — ROADMAP-ux-polish-and-
+        // feature-parity-2026-07.md 5a's WYSIWYG block conversion
+        // (class-blocks.php, 'bhs/player') means a page can now embed
+        // this player without any literal [bh_streaming] bracket text in
+        // post_content at all. Without this, a block-authored page would
+        // render the mount div (via the block's render_callback, same
+        // markup render() below always produced) but never actually
+        // enqueue player.js/player.css — a real regression already
+        // caught and fixed the identical way in bh-contest 3.5.0 for its
+        // own three blocks; applying the same fix here preemptively
+        // rather than shipping the same bug twice.
+        if (!$post || (!has_shortcode($post->post_content, 'bh_streaming') && !has_block('bhs/player', $post))) return;
 
         wp_enqueue_style('bhs-player', BHS_URL . 'assets/css/player.css', [], BHS_VER);
         // BHY_Style is optional (own-ur-shit's shared style tokens) — guard

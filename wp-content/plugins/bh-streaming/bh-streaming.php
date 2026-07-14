@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.3
+ * Version:     0.5.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,31 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.3');
+define('BHS_VER',  '0.5.4');
+
+// 0.5.4 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
+// shortcode-to-block conversion continues, following bh-monetization-
+// woo (0.4.9-0.4.11) and bh-contest (3.5.0)'s same wp.serverSideRender
+// pattern. One new block, 'bhs/player' (class-blocks.php, assets/js/
+// bhs-blocks.js) — [bh_streaming] takes no attributes and BHS_Player::
+// render() is a single fixed mount div, so the block needs neither
+// attributes nor an Inspector picker. Old shortcode untouched. Respects
+// BHS_Env::hidden_in_production() exactly like the shortcode always
+// has (render_callback calls BHS_Player::render() directly).
+// Same class of regression already caught once in bh-contest 3.5.0,
+// fixed here BEFORE shipping rather than after: BHS_Player::
+// maybe_enqueue()'s asset gate only ever checked has_shortcode(), which
+// a block-authored page has none of — fixed with has_block() alongside
+// it, same as bh-contest's three blocks got.
+// RUNTIME-VERIFIED end to end on this actual install: confirmed the
+// block registered and rendering the real player markup via the exact
+// REST block-renderer endpoint the editor calls, then built a real page
+// with the block and loaded it in a live browser — confirmed player.js
+// actually enqueued (has_block() fix working), confirmed it made its
+// own real REST calls (tracks/releases/likes/playlists all 200 OK),
+// and confirmed the full app UI (tabs, search, genre filter, Import my
+// music, the shared empty-state component) rendered and hydrated
+// correctly with zero console errors. Test page cleaned up afterward.
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 
@@ -51,7 +75,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash'] as $f) {
+foreach (['env', 'activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -117,6 +141,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_PostTypes', 'register']);
     add_action('init',          ['BHS_Admin', 'init']);
     add_action('init',          ['BHS_Player', 'init']);
+    BHS_Blocks::init();
     add_action('init',          ['BHS_PWA', 'init']);
     add_action('init',          ['BHS_Feeds', 'init']);
     add_action('init',          ['BHS_StyleSurface', 'init']);
