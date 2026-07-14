@@ -6,7 +6,7 @@
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) exit; 
 
 // 3.2.2 — 2026-07-12 — task #80 follow-up (also fixes a stale version
 // mismatch found while making this change: the header above said 3.2.1
