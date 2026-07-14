@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.86
+ * Version:     3.4.87
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -1907,7 +1907,30 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.86');
+define('OUS_VER', '3.4.87');
+
+// 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
+// fix claimed this session (both the "nested init callback silently
+// never fires" bug class and the "wp_register_script() called too
+// early" bug class) found one genuine incomplete-fix regression — the
+// 3.4.85 changelog claimed OUS_Gutenberg_Block::init() was fixed
+// alongside BH_Event/BH_Identity/OUS_Toast, and the METHOD BODY fix was
+// real (init() calls register_block() directly, no nested 'init' hook),
+// but the actual call site that invokes init() was never added anywhere
+// — the class was still required via this file's own foreach loop, but
+// nothing ever called OUS_Gutenberg_Block::init(), so register_block()
+// never ran at all. Currently a double no-op either way (its own
+// class_exists('BH_Element_Prefab') guard is false post-page-builder-
+// delete), but wrong regardless, and would have silently stayed
+// unregistered with zero error if that class ever came back. Fixed by
+// adding the missing direct call alongside the other three. Caught by
+// spawning a follow-up audit specifically instructed to RE-VERIFY every
+// claimed fix rather than trust the changelog — the right lesson from
+// this: a "fixed" comment in a changelog is a claim, not proof; the
+// only thing that proves a fix is checking the actual call site exists
+// and runs, which is exactly the gap this incomplete fix slipped
+// through. RUNTIME-VERIFIED: booted WordPress with WP_DEBUG_LOG on,
+// confirmed zero errors from the new call site.
 
 // 3.4.86 — QA fix, part of an ecosystem-wide sweep for the same
 // idempotency/ordering bug classes just caught live in bh-crm's new
@@ -2276,6 +2299,18 @@ add_action('init',          ['OUS_CodebaseDocs', 'init']);
 BH_Event::init();
 BH_Identity::init();
 OUS_Toast::init();
+// QA fix, 3.4.87: the 3.4.85 changelog claimed OUS_Gutenberg_Block::
+// init() was fixed alongside the four classes just above — the fix
+// itself (class-gutenberg-block.php's init() calling register_block()
+// directly, no nested 'init' hook) WAS real, but the actual call site
+// wiring it up was never added anywhere — a genuine incomplete-fix
+// regression, caught by a follow-up audit specifically re-verifying
+// every claimed fix rather than trusting the changelog. Currently a
+// double no-op either way (register_block()'s own class_exists(
+// 'BH_Element_Prefab') guard is false post-page-builder-delete), but
+// wrong regardless, and would have silently stayed unregistered with
+// zero error if that class ever came back.
+OUS_Gutenberg_Block::init();
 // Element builder (ELEMENT-BUILDER-DESIGN-PLAN.md) — BH_Element_Data
 // before BH_Element purely for readability (registers the data
 // sources before the element types that might reference them by
