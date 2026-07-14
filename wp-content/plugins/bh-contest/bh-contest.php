@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.4.0
+ * Version:     3.5.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -121,7 +121,55 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.4.0');
+define('BH_VER',        '3.5.0');
+
+// 3.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
+// shortcode-to-block conversion continues into bh-contest, following
+// bh-monetization-woo's three easy conversions (0.4.9-0.4.11). Three
+// new blocks via wp.serverSideRender (class-blocks.php, assets/js/
+// bh-contest-blocks.js): 'bh/contest-player' ([bh_contest_player], a
+// contest-picker Inspector control), 'bh/results-reveal'
+// ([bh_results_reveal], same picker), 'bh/archive' ([bh_archive], no
+// attributes — always every past contest). All three old shortcodes
+// stay registered and untouched.
+// A real, worth-noting distinction from the monetization blocks: this
+// plugin's shortcodes only ever render a static mount div — the actual
+// interactive behavior (voting, playback, the reveal sequence, the
+// archive grid) is entirely player.js/reveal.js/archive.js hydrating
+// that div on a REAL front-end page load, not something ServerSideRender
+// previews inside the editor canvas. What IS fixed: the original AJ
+// complaint (a shortcode rendering as raw bracket text with zero visual
+// feedback) — the canvas now shows the real, correctly-styled container.
+// Real regression caught and fixed BEFORE it shipped, not after: this
+// plugin's own front-end asset-enqueue gate (the wp_enqueue_scripts
+// callback near the bottom of this file) only ever checked
+// has_shortcode() against post_content — a page authored with the new
+// block instead has none of that literal bracket text, so without a
+// fix a block-authored page would have rendered the mount div via
+// render_callback but NEVER actually enqueued player.js/reveal.js/
+// archive.js, leaving a permanently inert container. Fixed by adding
+// has_block() alongside each has_shortcode() check.
+// Scoping boundary, disclosed rather than silently left: class-debug.
+// php's player_page_url() (a Debug Tools convenience link, "find the
+// page where this contest's player lives") still only scans
+// post_content for the literal [bh_contest_player] shortcode string —
+// a contest embedded only via the new block won't be found by that
+// specific helper and it'll fall back to the site home instead. Purely
+// a debug-convenience-link degradation, not a functional break; not
+// fixed this pass (would mean parsing block attributes out of
+// post_content, real but small extra scope).
+// RUNTIME-VERIFIED end to end on this actual install: confirmed all
+// three blocks registered, confirmed via the real REST block-renderer
+// endpoint that an explicit contest slug correctly resolves to
+// data-contest="<real id>" on both bh/contest-player and bh/results-
+// reveal, confirmed has_block() correctly detects a block-authored
+// page, and — the real proof — built an actual page with the
+// bh/contest-player block, loaded it in a live browser, and watched
+// the FULL interactive player (header, Submit a Song, Log Out, the
+// track list, the now-playing bar) load and hydrate correctly with
+// zero console errors, confirming player.js/player.css both actually
+// enqueued via the has_block() fix. Test contest/page cleaned up
+// afterward.
 
 // 3.4.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: multi-
 // round/elimination format, "the single largest architectural item in
@@ -276,7 +324,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'blocks'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -360,6 +408,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Console', 'init']);
     add_action('init',          ['BH_Reveal', 'init']);
     add_action('init',          ['BH_Judging', 'init']);
+    BH_Blocks::init();
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
 
@@ -378,9 +427,18 @@ add_action('plugins_loaded', function () {
         if (!is_singular()) return;
         global $post;
         if (!$post) return;
-        $has_player   = has_shortcode($post->post_content, 'bh_contest_player');
-        $has_reveal   = has_shortcode($post->post_content, 'bh_results_reveal');
-        $has_archive  = has_shortcode($post->post_content, 'bh_archive');
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: has_shortcode()
+        // only ever detects the literal [bh_contest_player]-style bracket
+        // text — a page authored with the new bh/contest-player (etc.)
+        // BLOCK instead has none of that in post_content, so without the
+        // has_block() checks alongside these, a block-authored page would
+        // render the block's own static container HTML (via its
+        // render_callback) but never actually enqueue player.js/reveal.js/
+        // archive.js — the mount div would sit there permanently inert,
+        // a real, silent regression this fix closes before it ships.
+        $has_player   = has_shortcode($post->post_content, 'bh_contest_player') || has_block('bh/contest-player', $post);
+        $has_reveal   = has_shortcode($post->post_content, 'bh_results_reveal') || has_block('bh/results-reveal', $post);
+        $has_archive  = has_shortcode($post->post_content, 'bh_archive') || has_block('bh/archive', $post);
         if (!$has_player && !$has_reveal && !$has_archive) return;
 
         // Shared by all three front-end shortcodes — same fonts, same
