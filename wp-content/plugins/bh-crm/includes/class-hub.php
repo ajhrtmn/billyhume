@@ -50,7 +50,15 @@ class BHCRM_Hub {
     }
 
     public static function add_menu() {
-        $hook = add_menu_page('CRM', 'CRM', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render'], 'dashicons-groups', 5);
+        // QA reframe: renamed the visible top-level menu from "CRM" to
+        // "Studio" — AJ's own framing is that this plugin is really the
+        // full artist project-management tool (people + projects +,
+        // going forward, features/issues), not just a contact database,
+        // and "CRM" undersold that. Slugs (bh-crm-hub, bh-crm) are
+        // UNCHANGED — every existing admin.php?page=bh-crm&... deep
+        // link, bookmark, and cross-plugin reference keeps working;
+        // only the label a person actually sees in the sidebar changed.
+        $hook = add_menu_page('Studio', 'Studio', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render'], 'dashicons-groups', 5);
         self::log_result('bh-crm-hub (top-level)', $hook);
 
         $hook2 = add_submenu_page('bh-crm-hub', 'People', 'People', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render']);

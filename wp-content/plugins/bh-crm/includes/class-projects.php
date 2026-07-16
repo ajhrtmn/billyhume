@@ -279,7 +279,7 @@ class BHCRM_Projects {
      */
     public static function render_boards() {
         echo '<div class="wrap">';
-        echo '<h1>Project Tracker</h1>';
+        echo '<h1>Studio &rsaquo; Project Tracker</h1>';
         echo '<p class="description">Every project board across the CRM. Opening one lands on the same kanban board view reachable from a person\'s own profile — this is just a cross-person index, not a second board implementation.</p>';
 
         // QA fix: project creation used to be reachable ONLY from a
