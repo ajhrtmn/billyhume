@@ -144,6 +144,15 @@ class BHCRM_People {
         $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
         if ($tag_filter) $ids = array_filter($ids, fn($id) => in_array($tag_filter, BHCRM_Tags::get($id), true));
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+        // saved smart lists — AND-combined against whatever the tag
+        // filter above already narrowed to, not a replacement for it,
+        // so "tag=vip&segment=3" behaves exactly as a person reading
+        // the URL would expect.
+        $segment_id = (int) ($_GET['segment'] ?? 0);
+        $active_segment = $segment_id ? BHCRM_Segments::get($segment_id) : null;
+        if ($active_segment) $ids = BHCRM_Segments::apply(array_values($ids), $active_segment['conditions']);
+
         echo '<p>Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
 
         $all_tags = BHCRM_Tags::all_in_use();
@@ -155,6 +164,8 @@ class BHCRM_People {
             }
             echo '</p>';
         }
+
+        self::render_segments_panel($active_segment);
 
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
         echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
@@ -208,6 +219,56 @@ class BHCRM_People {
         echo '</tbody></table></div>';
         echo '</form>';
         wp_enqueue_script('bhcrm-bulk-select', BHCRM_URL . 'assets/js/bulk-select.js', [], BHCRM_VER, true);
+    }
+
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3: "Saved
+    // smart lists/segments." Saved lists as clickable pills (same visual
+    // language the tag-filter row above already uses), a delete link
+    // per pill, and a collapsible builder below for creating a new one.
+    // Uses this ecosystem's shared design tokens (--bhy-space-*, see
+    // own-ur-shit's BHY_UI::print_design_system_js()) rather than
+    // hand-picked pixel values, unlike a few of this same pass's earlier
+    // panels — worth matching going forward.
+    private static function render_segments_panel($active_segment) {
+        $segments = BHCRM_Segments::all();
+
+        echo '<div style="margin:var(--bhy-space-4,16px) 0;padding:var(--bhy-space-4,16px);background:var(--bhy-surface,#fff);border:1px solid var(--bhy-border,#dcdcde);border-radius:var(--bhy-radius,8px);">';
+        echo '<strong style="display:block;margin-bottom:var(--bhy-space-2,8px);">Smart lists</strong>';
+
+        if ($segments) {
+            echo '<div style="display:flex;flex-wrap:wrap;gap:var(--bhy-space-2,8px);margin-bottom:var(--bhy-space-3,12px);">';
+            foreach ($segments as $s) {
+                $is_active = $active_segment && (int) $active_segment['id'] === (int) $s['id'];
+                $url = $is_active ? remove_query_arg('segment') : add_query_arg('segment', (int) $s['id']);
+                $delete_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_delete_segment&segment_id=' . (int) $s['id']), 'bhcrm_delete_segment');
+                echo '<span style="display:inline-flex;align-items:center;gap:var(--bhy-space-1,4px);background:' . ($is_active ? 'var(--bhy-accent-soft,#e8b49a)' : 'var(--bhy-bg,#f6f7f7)') . ';border:1px solid var(--bhy-border,#dcdcde);border-radius:14px;padding:var(--bhy-space-1,4px) var(--bhy-space-1,4px) var(--bhy-space-1,4px) var(--bhy-space-3,12px);font-size:var(--bhy-text-sm,12px);">';
+                echo '<a href="' . esc_url($url) . '" style="text-decoration:none;font-weight:' . ($is_active ? '700' : '400') . ';">' . esc_html($s['name']) . '</a>';
+                echo ' <a href="' . esc_url($delete_url) . '" onclick="return confirm(\'Delete this saved list?\');" title="Delete" style="color:var(--bhy-ink-dim,#787c82);text-decoration:none;padding:0 var(--bhy-space-1,4px);">&times;</a>';
+                echo '</span>';
+            }
+            echo '</div>';
+        } else {
+            echo '<p class="description" style="margin:0 0 var(--bhy-space-3,12px);">No saved lists yet — build one below (e.g. "tagged vip AND registered after a date AND has an active project").</p>';
+        }
+
+        // Collapsible builder — a <details> element needs zero JS for
+        // the open/close behavior itself; segment-builder.js only
+        // handles the repeatable condition rows inside it.
+        echo '<details id="bhcrm-segment-builder">';
+        echo '<summary style="cursor:pointer;color:var(--bhy-accent,#c1503a);font-size:var(--bhy-text-sm,12px);">+ Build a new list</summary>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:var(--bhy-space-3,12px);">';
+        wp_nonce_field('bhcrm_save_segment');
+        echo '<input type="hidden" name="action" value="bhcrm_save_segment">';
+        echo '<p><input type="text" name="segment_name" placeholder="Name this list…" style="max-width:280px;"></p>';
+        echo '<div id="bhcrm-segment-conditions"></div>';
+        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button></p>';
+        echo '<p><button type="submit" class="button button-primary">Save list</button></p>';
+        echo '</form>';
+        echo '</details>';
+        echo '</div>';
+
+        wp_enqueue_script('bhcrm-segment-builder', BHCRM_URL . 'assets/js/segment-builder.js', [], BHCRM_VER, true);
+        wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentFields', BHCRM_Segments::FIELDS);
     }
 
     // Real name / platform handles / consent flags, admin-only. Never

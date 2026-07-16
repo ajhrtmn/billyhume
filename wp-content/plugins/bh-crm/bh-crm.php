@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.6.0
+ * Version:     1.7.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -43,7 +43,47 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.6.0');
+define('BHCRM_VER',  '1.7.0');
+
+// 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
+// saved smart lists/segments — the last item in the CRM depth pass,
+// completing it. New bhcrm_segments table (class-segments.php, same
+// versioned-dbDelta pattern as this plugin's other two tables) storing
+// a name + a flat, AND-only list of conditions. Deliberately NOT
+// Groundhogg's full nested AND/OR condition-group tree (read as the
+// reference per the roadmap doc's own instruction) — this CRM's person
+// list tops out at a few hundred people, not a marketing-automation
+// platform's scale, and the roadmap doc's own example ("tagged X AND
+// registered in last 30 days AND has an active project") is fully
+// expressible with flat AND. A real scoping choice, not an oversight —
+// add OR-between-groups later only if a concrete need for it shows up.
+// Four condition types (tag, registered after/before, has an active
+// project) — a closed list validated server-side against the same
+// BHCRM_Segments::FIELDS the picker UI is built from, so the UI can
+// never offer something the server would reject.
+// Saved lists render as clickable pills (same visual language the
+// existing tag-filter row already uses) alongside a collapsible "+
+// Build a new list" form (assets/js/segment-builder.js — repeatable
+// condition rows, the value input's type switches per field: a real
+// date picker for the two date conditions, plain text for tag, no
+// input at all for "has a project" since that condition needs none).
+// A segment filter AND-combines with the existing tag-filter query arg
+// rather than replacing it. Uses this ecosystem's shared --bhy-space-*
+// design tokens (own-ur-shit's BHY_UI) for the new panel's spacing
+// rather than hand-picked pixel values.
+// RUNTIME-VERIFIED end to end on this actual install: ran the schema
+// migration live, confirmed BHCRM_Segments::apply()'s AND-logic
+// directly (tag+has_project correctly matched only the one person with
+// both, tag-only correctly matched both taggeed people), confirmed the
+// real save/delete admin-post handlers against the live database, and
+// — the real proof — a full live-browser click-through: expanded the
+// builder, switched the field dropdown from "Has tag" to "Registered
+// after" and watched the value input swap from a text field to a real
+// date picker, saved a genuine "Early Registrants" list through the
+// actual form, confirmed the pill appeared and correctly filtered the
+// list (a real user registered after the given date stayed visible),
+// and deleted it through the real UI — all with zero console/PHP
+// errors. Test people/project/segments cleaned up afterward.
 
 // 1.6.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // "Bulk actions on the person list (bulk tag, bulk export-selected) —
@@ -295,12 +335,13 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // change to either save path's actual behavior). Standing caveat:
 // reasoning/brace-balance-checked only, no live PHP+MySQL execution in
 // this pass — not runtime-verified.
-foreach (['people', 'notes', 'tags', 'export', 'event-activity', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
+foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHCRM_Projects', 'activate']);
 register_activation_hook(__FILE__, ['BHCRM_Notes', 'activate']);
+register_activation_hook(__FILE__, ['BHCRM_Segments', 'activate']);
 
 /**
  * Depends only on the core plugin (shared identity) — genuinely nothing
@@ -357,6 +398,7 @@ add_action('plugins_loaded', function () {
     BHCRM_Projects::init();
     BHCRM_Notes::init();
     BHCRM_Tags::init();
+    BHCRM_Segments::init();
     BHCRM_Debug::init();
 
     // BH_Event registration + this plugin's own contribution to
