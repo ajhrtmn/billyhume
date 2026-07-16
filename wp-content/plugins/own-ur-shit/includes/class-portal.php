@@ -118,14 +118,15 @@ class BHI_Portal {
         add_filter('login_redirect', [self::class, 'maybe_redirect_login'], 20, 3);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
 
-        // ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — the Portal as a real
-        // bh_element_surfaces contributor, and one new element-composed
-        // panel registered via THIS class's own bhi_portal_panels
-        // registrant below, mirroring the exact pattern
-        // BHCRM_People::register_element_surface() already established
-        // for the CRM profile surface. See register_element_surface() and
-        // register_elements_panel() for the two halves of this.
-        add_filter('bhi_portal_panels', [self::class, 'register_elements_panel']);
+        // ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — the 'portal_panel'
+        // bh_element_surfaces contributor stays registered (Design Suite's
+        // Element Builder can still compose content against it), but per
+        // AJ's explicit "don't need Custom panel in portal" call, it's no
+        // longer surfaced as its own portal nav tab — register_elements_
+        // panel()/render_elements_panel() are kept (harmless, unused) in
+        // case a real per-user or named panel use case shows up later,
+        // rather than deleting working code for a naming/UX call.
+        // add_filter('bhi_portal_panels', [self::class, 'register_elements_panel']);
     }
 
     /**
