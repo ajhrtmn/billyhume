@@ -57,12 +57,19 @@ class BH_Auth {
         // regardless of playback state. Only shown when the current
         // user actually has a submission for THIS contest — no reason
         // to show it to someone who hasn't entered.
+        $submission_link = '';
         if ($cid && is_user_logged_in() && class_exists('BH_Helpers') && BH_Helpers::has_submitted(get_current_user_id(), $cid) && class_exists('BHI_Portal')) {
             $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/submissions/');
-            $before .= '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
+            $submission_link = '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
         }
         if ($cid && class_exists('BH_Element')) {
-            $before = BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
+            // QA fix, caught live: this used to unconditionally
+            // OVERWRITE $before with render_slot()'s own output,
+            // silently discarding the "Manage my submission" link
+            // assigned above every time — confirmed live, the link
+            // never once rendered on a real page despite the condition
+            // being met. Now appends instead.
+            $before = $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
             $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
 
             // Task #80's real, safe slice: this one DOES need to end up
@@ -89,6 +96,9 @@ class BH_Auth {
             self::attach_extra_zone($attrs, $cid, 'tracklist_extra', 'tracklist-extra');
             self::attach_extra_zone($attrs, $cid, 'now_playing_extra', 'now-playing-extra');
             self::attach_extra_zone($attrs, $cid, 'results_modal_intro', 'results-modal-intro');
+        } elseif ($submission_link) {
+            // BH_Element not loaded — no slot content to merge with, but the submission link still stands on its own.
+            $before = $submission_link;
         }
 
         return $before . '<div ' . $attrs . '></div>' . $after;

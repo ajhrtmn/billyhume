@@ -2,11 +2,23 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.2
+ * Version:     3.6.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.6.3 — real bug, caught live while capturing screenshots of the
+// "Manage my submission" link (3.6.0's own changelog): the link was
+// silently NEVER rendering on any real page. BH_Auth::render() built
+// it into $before, then two lines later unconditionally OVERWROTE
+// $before with BH_Element::render_slot()'s own output, discarding it
+// every time — confirmed live, the link never once appeared despite
+// its condition (logged in, has a real submission) being met. Fixed
+// by capturing the link separately and prepending it to whatever
+// render_slot() returns instead of being clobbered by it. Verified
+// live: the link now renders correctly above the player for a
+// logged-in contestant with a real entry.
 
 // 3.6.2 — accountability audit log wiring (own-ur-shit 3.5.0's own
 // changelog has the full story). Rejecting a submission now logs to
@@ -203,7 +215,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.2');
+define('BH_VER',        '3.6.3');
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.
