@@ -2,11 +2,52 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.7.2
+ * Version:     1.8.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.8.0 — projects<->people relationship redesign, AJ's own framing:
+// "I'm not sure attaching projects to people directly is the move...
+// more like Jira or DevOps... more standard and conventional... needs
+// to be more siloed with 'links'." bhcrm_projects.crm_person_id was a
+// hard single-owner column baked directly into the table — one
+// project, exactly one person, no room for a collaborator or watcher,
+// and no way to extend the same relationship shape to any future
+// entity pair without a new column every time.
+//
+// New: class-links.php, a generic typed relationship table
+// (bhcrm_links: from_type, from_id, to_type, to_id, relation,
+// created_at) — a project can now be linked to any number of people
+// under a typed relation (owner/collaborator/watcher), and the exact
+// same table extends to any future entity pair (a course linked to an
+// instructor, a contest linked to a judge, etc.) with zero schema
+// changes, just a new (from_type, to_type) pairing. Unique key on the
+// full 5-tuple so the same relation can't be linked twice, but a
+// person CAN hold two different relations to the same project as two
+// separate rows.
+//
+// crm_person_id is NOT dropped — still written on create() as a raw
+// legacy fallback — but is no longer read as the source of truth
+// anywhere: list_for_person()/people_for_project()/render_boards()'s
+// "People" column and the new People management panel on a project's
+// board view (BHCRM_Projects::render_people_panel()) all read through
+// BHCRM_Links now. BHCRM_Links::migrate_legacy_project_owners() runs
+// once (gated on its own DB_VERSION option, idempotent via the same
+// UNIQUE key) and backfills every existing project's crm_person_id
+// into a real 'owner' link, so nothing already created loses its
+// person association.
+//
+// Runtime-verified live: created a real project, confirmed the
+// 'owner' link was written automatically; linked a second CRM person
+// as 'watcher' through the new People panel form; confirmed BOTH
+// people see the project on their own person-detail page AND both
+// show correctly (with relation labels) on the Project Tracker
+// cross-person index page; confirmed Remove-link works. Also fixed a
+// real bug caught during this verification: BHCRM_People::
+// active_user_ids() was private, which fataled the new person-picker
+// dropdown — made public (class-people.php).
 
 // 1.7.2 — the person detail page (People/CRM -> click a name) was the
 // worst offender of the "admin pages struggle here" complaint: name,
@@ -66,7 +107,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.7.2');
+define('BHCRM_VER',  '1.8.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,
@@ -358,10 +399,11 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // change to either save path's actual behavior). Standing caveat:
 // reasoning/brace-balance-checked only, no live PHP+MySQL execution in
 // this pass — not runtime-verified.
-foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
+foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 
+register_activation_hook(__FILE__, ['BHCRM_Links', 'activate']);
 register_activation_hook(__FILE__, ['BHCRM_Projects', 'activate']);
 register_activation_hook(__FILE__, ['BHCRM_Notes', 'activate']);
 register_activation_hook(__FILE__, ['BHCRM_Segments', 'activate']);
@@ -418,6 +460,7 @@ add_action('plugins_loaded', function () {
     // way BHCRM_Notes::init()/BHCRM_Tags::init() (implicitly, via their
     // admin_post hooks above) are — the class itself decides what's safe
     // to actually register.
+    BHCRM_Links::init(); // must run before BHCRM_Projects::init() — the projects flow now writes links on create()
     BHCRM_Projects::init();
     BHCRM_Notes::init();
     BHCRM_Tags::init();

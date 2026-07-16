@@ -101,7 +101,7 @@ class BHCRM_People {
     // never filled in a real name still shows up if bh-contest is
     // active and contributes their ID, but a bare list of every WP
     // subscriber with zero activity anywhere would just be noise.
-    private static function active_user_ids() {
+    public static function active_user_ids() {
         // Per QA-REPORT-code-quality.md's cross-plugin finding #2 — this
         // used to run raw SQL directly against core's bhi_profiles table
         // (a real encapsulation violation, doubled by class-export.php

@@ -160,6 +160,8 @@ class BHCRM_Projects {
         add_action('admin_post_bhcrm_project_create', [self::class, 'handle_create']);
         add_action('admin_post_bhcrm_project_save_columns', [self::class, 'handle_save_columns']);
         add_action('admin_post_bhcrm_project_delete', [self::class, 'handle_delete']);
+        add_action('admin_post_bhcrm_project_link', [self::class, 'handle_link_person']);
+        add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
@@ -224,11 +226,21 @@ class BHCRM_Projects {
         return $row;
     }
 
+    /**
+     * QA fix — was a direct WHERE crm_person_id = %d query (a project
+     * has exactly one hard-coded owner). Now backed by BHCRM_Links: a
+     * person sees every project they're linked to under ANY relation
+     * (owner, collaborator, watcher), matching the Jira/DevOps-style
+     * "a project can have multiple people attached" model AJ asked for.
+     */
     public static function list_for_person($person_id) {
         global $wpdb;
+        $ids = class_exists('BHCRM_Links') ? BHCRM_Links::project_ids_for_person($person_id) : [];
+        if (!$ids) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
         $rows = $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . self::table() . ' WHERE crm_person_id = %d ORDER BY updated_at DESC, id DESC',
-            (int) $person_id
+            'SELECT * FROM ' . self::table() . " WHERE id IN ($placeholders) ORDER BY updated_at DESC, id DESC",
+            ...$ids
         ), ARRAY_A);
         if (!$rows) return [];
         foreach ($rows as &$row) {
@@ -277,17 +289,30 @@ class BHCRM_Projects {
             return;
         }
 
-        echo '<table class="widefat striped"><thead><tr><th>Project</th><th>Person</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
         foreach ($rows as $p) {
-            $uid = (int) $p['crm_person_id'];
-            $user = get_userdata($uid);
-            $person_label = $user ? $user->display_name : ('User #' . $uid);
+            // QA fix: a project can now be linked to multiple people
+            // under different relations (BHCRM_Links) — show all of
+            // them, not just the legacy single crm_person_id owner.
+            $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
+            if ($linked) {
+                $labels = array_map(function ($l) {
+                    $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                    return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
+                }, $linked);
+                $person_label = implode(', ', $labels);
+            } else {
+                $uid = (int) $p['crm_person_id'];
+                $user = $uid ? get_userdata($uid) : null;
+                $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
+            }
+            $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
             $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
-            $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $uid . '&project_id=' . (int) $p['id']);
+            $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $board_uid . '&project_id=' . (int) $p['id']);
 
             echo '<tr>';
             echo '<td><a href="' . esc_url($board_url) . '"><strong>' . esc_html($p['name']) . '</strong></a></td>';
-            echo '<td>' . esc_html($person_label) . '</td>';
+            echo '<td>' . $person_label . '</td>';
             echo '<td>' . (int) $card_count . '</td>';
             echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
             echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
@@ -303,13 +328,25 @@ class BHCRM_Projects {
         if ($name === '') $name = 'Untitled project';
         $columns = self::sanitize_columns($columns ?: self::DEFAULT_COLUMNS);
 
+        // crm_person_id is still written for anyone reading the raw
+        // table directly, but it's no longer the source of truth for
+        // ownership — the real link is BHCRM_Links::link_project_person()
+        // below, which is what list_for_person()/people_for_project()
+        // actually read. A project can have zero, one, or many linked
+        // people (owner/collaborator/watcher) — this initial link is
+        // just the creating person getting 'owner' by default.
         $ok = $wpdb->insert(self::table(), [
             'name'           => $name,
             'crm_person_id'  => (int) $person_id,
             'columns_config' => wp_json_encode($columns),
             'updated_at'     => current_time('mysql'),
         ]);
-        return $ok ? (int) $wpdb->insert_id : false;
+        if (!$ok) return false;
+        $id = (int) $wpdb->insert_id;
+        if ($person_id && class_exists('BHCRM_Links')) {
+            BHCRM_Links::link_project_person($id, (int) $person_id, 'owner');
+        }
+        return $id;
     }
 
     public static function update_columns($id, array $columns) {
@@ -581,6 +618,8 @@ class BHCRM_Projects {
 
         echo '<h2>' . esc_html($project['name']) . '</h2>';
 
+        self::render_people_panel($project_id);
+
         echo '<details style="margin-bottom:14px;"><summary style="cursor:pointer;">Edit columns</summary>';
         $nonce = wp_create_nonce('bhcrm_project_columns_' . $project_id);
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
@@ -595,6 +634,83 @@ class BHCRM_Projects {
 
         echo '<noscript><p class="description">The kanban board requires JavaScript.</p></noscript>';
         echo '<div id="bhcrm-kanban-board" class="bhcrm-kanban-board" data-loading="1"><p class="description">Loading board&hellip;</p></div>';
+    }
+
+    /**
+     * The Jira/DevOps-style "linked people" panel on a project's board
+     * view — every person currently linked (with their relation), a
+     * remove link per row, and a form to link someone new under a
+     * chosen relation. Only CRM people (BHCRM_People::active_user_ids())
+     * are offered, same population every other CRM person-picker uses.
+     */
+    private static function render_people_panel($project_id) {
+        $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];
+
+        echo '<div class="bhy-card">';
+        echo '<h3>People</h3>';
+        if ($linked) {
+            echo '<ul style="margin:0 0 12px;">';
+            foreach ($linked as $l) {
+                $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                $remove_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_project_unlink&link_id=' . $l['link_id'] . '&project_id=' . (int) $project_id), 'bhcrm_project_unlink_' . $l['link_id']);
+                echo '<li>' . esc_html($name) . ' — ' . esc_html(self::relation_label($l['relation'])) . ' &middot; <a href="' . esc_url($remove_url) . '" onclick="return confirm(\'Remove this link?\');">Remove</a></li>';
+            }
+            echo '</ul>';
+        } else {
+            echo '<p class="description">No one linked to this project yet.</p>';
+        }
+
+        $people_ids = class_exists('BHCRM_People') ? BHCRM_People::active_user_ids() : [];
+        if ($people_ids) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
+            wp_nonce_field('bhcrm_project_link');
+            echo '<input type="hidden" name="action" value="bhcrm_project_link">';
+            echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
+            echo '<select name="person_id" required><option value="">Choose a person&hellip;</option>';
+            foreach ($people_ids as $pid) {
+                $u = get_userdata($pid);
+                if ($u) echo '<option value="' . (int) $pid . '">' . esc_html($u->display_name) . '</option>';
+            }
+            echo '</select>';
+            echo '<select name="relation">';
+            foreach (BHCRM_Links::RELATIONS as $key => $label) {
+                echo '<option value="' . esc_attr($key) . '">' . esc_html($label) . '</option>';
+            }
+            echo '</select>';
+            echo '<button type="submit" class="button">Link person</button>';
+            echo '</form>';
+        }
+        echo '</div>';
+    }
+
+    private static function relation_label($relation) {
+        return BHCRM_Links::RELATIONS[$relation] ?? ucfirst($relation);
+    }
+
+    public static function handle_link_person() {
+        check_admin_referer('bhcrm_project_link');
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $project_id = (int) ($_POST['project_id'] ?? 0);
+        $person_id = (int) ($_POST['person_id'] ?? 0);
+        $relation = sanitize_key($_POST['relation'] ?? 'owner');
+        if (!isset(BHCRM_Links::RELATIONS[$relation])) $relation = 'owner';
+        if ($project_id && $person_id) {
+            BHCRM_Links::link_project_person($project_id, $person_id, $relation);
+        }
+        wp_safe_redirect(admin_url('admin.php?page=bh-crm&user_id=' . $person_id . '&project_id=' . $project_id));
+        exit;
+    }
+
+    public static function handle_unlink_person() {
+        $link_id = (int) ($_GET['link_id'] ?? 0);
+        check_admin_referer('bhcrm_project_unlink_' . $link_id);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $project_id = (int) ($_GET['project_id'] ?? 0);
+        if ($link_id) BHCRM_Links::unlink_by_id($link_id);
+        $remaining = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];
+        $uid = $remaining ? $remaining[0]['user_id'] : 0;
+        wp_safe_redirect(admin_url('admin.php?page=bh-crm&user_id=' . $uid . '&project_id=' . $project_id));
+        exit;
     }
 
     /** Enqueues the kanban board's own JS/CSS only when actually viewing a project board (?page=bh-crm&project_id=). */
