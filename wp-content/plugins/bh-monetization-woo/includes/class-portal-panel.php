@@ -43,6 +43,7 @@ class BHM_PortalPanel {
 
         echo '<h1>Membership &amp; Wallet</h1>';
 
+        echo '<div class="bhi-portal-section">';
         echo '<h2>Active tiers</h2>';
         $entitlements = self::active_entitlements($user_id);
         if (!$entitlements) {
@@ -60,9 +61,11 @@ class BHM_PortalPanel {
         if (class_exists('BHM_Tiers')) {
             echo '<p><a class="button" href="' . esc_url(BHM_Tiers::tiers_page_url()) . '">Change tier</a></p>';
         }
+        echo '</div>';
 
         if (class_exists('BHM_Wallet')) {
             $balance = BHM_Wallet::balance_cents($user_id);
+            echo '<div class="bhi-portal-section">';
             echo '<h2>Wallet</h2>';
             echo '<p>Balance: <strong>$' . esc_html(number_format($balance / 100, 2)) . '</strong></p>';
 
@@ -78,6 +81,7 @@ class BHM_PortalPanel {
             } else {
                 echo '<p>No wallet activity yet.</p>';
             }
+            echo '</div>';
         }
     }
 }

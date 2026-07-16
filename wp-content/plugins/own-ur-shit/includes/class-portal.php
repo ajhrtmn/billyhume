@@ -538,23 +538,69 @@ class BHI_Portal {
 <?php wp_head(); ?>
 <?php if ($has_style): BHY_Style::inline_css(); endif; ?>
 <style>
-  body.bhi-portal { margin:0; background:var(--bhy-color-bg, #f6f6f7); font-family:var(--bhy-font-body, -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif); }
+  /* QA fix, caught live: every rule below previously referenced
+     --bhy-color-* custom properties (--bhy-color-bg, --bhy-color-
+     surface, --bhy-color-border, --bhy-color-text, --bhy-color-
+     accent-bg, --bhy-color-accent, --bhy-font-body) — none of which
+     this codebase defines ANYWHERE. This ecosystem has two REAL, but
+     DIFFERENT, token systems: --bhy-* (own-ur-shit's admin-only design
+     system, class-ui.php, scoped to .bhy-shell) and --bh-* (BHY_Style::
+     inline_css()'s front-end/entity brand tokens, what the comment
+     just above this block already correctly says the portal draws
+     on). Since the portal is a front-end page, --bh-* is the correct
+     family — the old code just had the wrong exact names, so every
+     declaration silently fell through to its hardcoded fallback
+     (generic WordPress blue #2271b1, plain white/grey) instead of the
+     site's real warm-cream/terracotta brand, on every single portal
+     page load. Confirmed live: inspected the actual page's real
+     <link>/<style> output before this fix and found zero portal-
+     specific styling reaching the DOM in any usable form.
+     Also newly added here: a real mobile breakpoint (the sidebar
+     previously had no @media query at all — a fixed 220px nav plus a
+     820px-capped, 32px-padded main column simply doesn't fit a phone
+     screen) and tighter, token-driven spacing in place of the
+     original's ad hoc pixel values. */
+  body.bhi-portal { margin:0; background:var(--bh-bg, #f6f6f7); color:var(--bh-text, #1d2327); font-family:var(--bh-font-body, -apple-system), -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
   .bhi-portal-shell { display:flex; min-height:100vh; }
-  .bhi-portal-nav { width:220px; flex-shrink:0; background:var(--bhy-color-surface, #fff); border-right:1px solid var(--bhy-color-border, #e2e2e2); padding:24px 0; }
-  .bhi-portal-nav a { display:flex; align-items:center; gap:8px; padding:10px 20px; color:var(--bhy-color-text, #1d2327); text-decoration:none; font-size:14px; }
-  .bhi-portal-nav a.is-active { background:var(--bhy-color-accent-bg, #eef4ff); font-weight:600; }
-  .bhi-portal-main { flex:1; padding:32px; max-width:820px; }
-  .bhi-portal-brand { padding:0 20px 20px; font-weight:700; font-size:16px; }
+  .bhi-portal-nav { width:220px; flex-shrink:0; background:var(--bh-surface, #fff); border-right:1px solid var(--bh-border, #e2e2e2); padding:24px 0; }
+  .bhi-portal-nav a { display:flex; align-items:center; gap:10px; padding:11px 20px; color:var(--bh-text, #1d2327); text-decoration:none; font-size:14px; border-left:3px solid transparent; }
+  .bhi-portal-nav a:hover { background:var(--bh-surface-2, #f6f7f7); }
+  .bhi-portal-nav a.is-active { background:var(--bh-accent-soft, #eef4ff); border-left-color:var(--bh-accent, #2271b1); font-weight:600; }
+  .bhi-portal-main { flex:1; min-width:0; padding:32px 40px; max-width:820px; }
+  .bhi-portal-brand { padding:0 20px 20px; font-family:var(--bh-font-display, inherit); font-weight:700; font-size:16px; }
   /* Shared by every panel — one place so bh-monetization-woo/bh-courses/
      bh-contest's own portal-panel classes don't each hand-roll table/card
      styling that then drifts from each other. */
   .bhi-portal-table { width:100%; border-collapse:collapse; margin-top:8px; }
-  .bhi-portal-table th, .bhi-portal-table td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--bhy-color-border, #e2e2e2); font-size:14px; }
+  .bhi-portal-table th, .bhi-portal-table td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--bh-border, #e2e2e2); font-size:14px; }
+  /* QA fix: panels (bh-monetization-woo, bh-courses, bh-contest) were
+     outputting bare h1/h2/p/ul/table with zero wrapping divs, so
+     adjacent sections (e.g. "Active tiers" + "Wallet") visually blended
+     together with no separation — exactly the "too crammed, no proper
+     padding/margin/gaps" complaint. This is the shared card/section
+     wrapper every panel should use to group related content. */
+  .bhi-portal-section { background:var(--bh-surface, #fff); border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 10px); padding:20px 24px; margin-bottom:20px; }
+  .bhi-portal-section:last-child { margin-bottom:0; }
+  .bhi-portal-section h2 { margin:0 0 14px; font-size:16px; font-weight:600; }
+  .bhi-portal-section > *:last-child { margin-bottom:0; }
   .bhi-portal-course-list { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); margin-top:12px; }
-  .bhi-portal-course-card { border:1px solid var(--bhy-color-border, #e2e2e2); border-radius:8px; padding:16px; background:var(--bhy-color-surface, #fff); }
+  .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); }
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
-  .bhi-portal-progress-bar { height:6px; border-radius:3px; background:#e2e2e2; overflow:hidden; }
-  .bhi-portal-progress-fill { height:100%; background:var(--bhy-color-accent, #2271b1); }
+  .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }
+  .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); }
+
+  /* Mobile: the fixed sidebar becomes a horizontal, scrollable tab strip
+     above the content instead — same navigation, no hidden/hamburger
+     menu to build, and nothing a visitor has to discover. Content
+     padding drops so it isn't fighting a phone's own margins. */
+  @media (max-width: 782px) {
+    .bhi-portal-shell { flex-direction:column; }
+    .bhi-portal-nav { width:100%; display:flex; overflow-x:auto; padding:8px 0; border-right:none; border-bottom:1px solid var(--bh-border, #e2e2e2); -webkit-overflow-scrolling:touch; }
+    .bhi-portal-brand { display:none; } /* the page <title>/site header already says whose account this is */
+    .bhi-portal-nav a { flex-shrink:0; padding:10px 14px; border-left:none; border-bottom:3px solid transparent; }
+    .bhi-portal-nav a.is-active { border-left-color:transparent; border-bottom-color:var(--bh-accent, #2271b1); }
+    .bhi-portal-main { padding:20px 16px; max-width:none; }
+  }
 </style>
 </head>
 <body class="bhi-portal">

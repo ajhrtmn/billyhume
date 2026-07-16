@@ -245,15 +245,23 @@ class OUS_Notifications {
 
         wp_register_style('bhcore-notifications', false);
         wp_enqueue_style('bhcore-notifications');
+        // QA fix: these were hardcoded WP-admin-bar colors (admin blue
+        // #72aee6, etc). Fine for the admin-bar dropdown, but this same
+        // markup also renders inside the front-end portal/shortcode via
+        // render_portal_panel(), where the hardcoded blue clashed hard
+        // against the site's warm cream/terracotta brand. Switched to
+        // --bh-* tokens (own-ur-shit's front-end brand vars, see
+        // class-style.php) with the original hardcoded values kept as
+        // fallbacks, so wp-admin context is unaffected either way.
         wp_add_inline_style('bhcore-notifications', '
             .bhcore-notif-count { background: #d63638; color: #fff; border-radius: 9px; font-size: 11px; padding: 0 5px; margin-left: 2px; }
             .bhcore-notifications-list { max-width: 600px; }
-            .bhcore-notification { border: 1px solid #dcdcde; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
-            .bhcore-notification.bhcore-unread { background: #f0f6fc; border-color: #72aee6; }
-            .bhcore-notif-source { font-size: 11px; text-transform: uppercase; color: #646970; letter-spacing: .04em; }
-            .bhcore-notif-title { font-weight: 600; }
-            .bhcore-notif-body { font-size: 13px; color: #50575e; }
-            .bhcore-notif-time { font-size: 11px; color: #8c8f94; margin-top: 4px; }
+            .bhcore-notification { border: 1px solid var(--bh-border, #dcdcde); border-radius: var(--bh-radius-sm, 6px); padding: 10px 14px; margin-bottom: 8px; background: var(--bh-surface, #fff); }
+            .bhcore-notification.bhcore-unread { background: var(--bh-accent-soft, #f0f6fc); border-color: var(--bh-accent, #72aee6); }
+            .bhcore-notif-source { font-size: 11px; text-transform: uppercase; color: var(--bh-text-dim, #646970); letter-spacing: .04em; }
+            .bhcore-notif-title { font-weight: 600; color: var(--bh-text, inherit); }
+            .bhcore-notif-body { font-size: 13px; color: var(--bh-text-dim, #50575e); }
+            .bhcore-notif-time { font-size: 11px; color: var(--bh-text-dim, #8c8f94); margin-top: 4px; }
             .bhcore-btn.bhcore-mark-all-read { margin-bottom: 10px; }
         ');
 

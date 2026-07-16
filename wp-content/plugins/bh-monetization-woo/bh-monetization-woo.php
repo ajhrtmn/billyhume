@@ -2,12 +2,22 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.12
+ * Version:     0.4.13
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.13 — portal styling QA pass (own-ur-shit's ROADMAP-ux-polish-and-
+// feature-parity-2026-07.md, styling half). BHM_PortalPanel::render()
+// was echoing "Active tiers" and "Wallet" as bare, unwrapped h2/p/ul/
+// table content with zero separating divs — confirmed live on
+// /account/membership/, the two sections visually blended into one
+// continuous list. Wrapped each in the portal's new shared
+// .bhi-portal-section card class (own-ur-shit's class-portal.php).
+// Verified live: two clearly separated cards with proper padding on
+// both desktop and mobile (375px) viewports.
 
 // 0.4.3 — BHM_TestSuite gained real DB-backed coverage for
 // BHM_Wallet::debit()/apply_ledger_delta() (balance/ledger consistency,
@@ -133,7 +143,7 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.12');
+define('BHM_VER',  '0.4.13');
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's

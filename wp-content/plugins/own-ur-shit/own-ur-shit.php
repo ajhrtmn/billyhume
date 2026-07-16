@@ -2,10 +2,49 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.87
+ * Version:     3.4.88
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.88 — portal styling QA pass, AJ's "wrap up the CRM, then make
+// sure styles look sleek and professional on desktop and mobile, not
+// clunky/cramped" request. Three real bugs found and fixed against the
+// live front-end portal (/account/):
+//  1. class-portal.php's own inline <style> block referenced a
+//     fictional, never-defined token scheme (--bhy-color-bg etc) that
+//     doesn't exist anywhere in this codebase — every declaration
+//     silently fell through to hardcoded generic-WP-blue fallbacks, so
+//     the portal NEVER showed the real site brand (warm cream/
+//     terracotta, --bh-* tokens from class-style.php) on any load,
+//     ever. Rewrote every reference to the correct --bh-* names. Also
+//     added the portal's first real mobile breakpoint (@media
+//     max-width:782px — sidebar collapses to a horizontal scrollable
+//     tab strip) since none existed before at all.
+//  2. BHI_PublicProfile::maybe_enqueue()'s enqueue gate checked
+//     has_shortcode($post->post_content, 'bh_profile'), which can
+//     never be true on the portal's own Profile panel — the portal is
+//     a custom template_redirect-intercepted virtual page with no real
+//     $post/post_content. public-profile.css (correct, --bh-*-token-
+//     based) never loaded there; the edit form rendered as completely
+//     raw unstyled HTML. Added an additional
+//     get_query_var(BHI_Portal::QUERY_VAR) check to the gate.
+//  3. class-notifications.php's inline notification-list CSS used
+//     hardcoded WP-admin-bar colors (admin blue #72aee6 etc) — fine
+//     for the admin-bar dropdown this markup also serves, but jarring
+//     against the brand when the same render_portal_panel() output
+//     shows up in the front-end portal. Switched to --bh-* tokens with
+//     the original hardcoded values kept as fallbacks, so the
+//     admin-bar context is visually unchanged.
+// Also added a new shared .bhi-portal-section card-wrapper class to
+// class-portal.php's stylesheet (bh-monetization-woo's Membership &
+// Wallet panel was the first consumer — see that plugin's own 0.4.13
+// changelog) so panels stop hand-rolling section separation that then
+// drifts from each other.
+// All three fixes verified live in-browser: before/after screenshots
+// confirming correct brand colors, a properly laid-out and labeled
+// Profile edit form, on-brand notification cards, and the new mobile
+// breakpoint working correctly at 375x812, zero console/PHP errors.
 
 // 3.4.85 — real bug sweep, not a feature pass: while building bh-
 // monetization-woo's first ServerSideRender block this session, hit a
@@ -1907,7 +1946,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.87');
+define('OUS_VER', '3.4.88');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently

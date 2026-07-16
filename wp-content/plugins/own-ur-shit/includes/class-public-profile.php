@@ -65,7 +65,24 @@ class BHI_PublicProfile {
 
     public static function maybe_enqueue() {
         global $post;
-        if (!$post || !has_shortcode($post->post_content, 'bh_profile')) return;
+        // QA fix, caught live: the Profile portal panel (BHI_Portal's
+        // 'profile' panel, class-portal.php) calls render_portal_panel()
+        // -> render_edit_form() — the SAME edit form this gate exists to
+        // style — but the portal is a custom rewrite-driven virtual page
+        // with no real $post/post_content at all, so
+        // has_shortcode($post->post_content, 'bh_profile') can never be
+        // true there. This CSS never loaded on the portal's Profile tab,
+        // ever — confirmed live by inspecting the actual <link> tags on
+        // a real page load: zero portal-specific stylesheets present,
+        // the edit form rendering as completely unstyled raw HTML
+        // (default browser fieldsets/inputs, no card layout at all).
+        // get_query_var(BHI_Portal::QUERY_VAR) is true for every portal
+        // page load regardless of which panel is active, so this now
+        // also enqueues there — cheap and correct, since every portal
+        // panel benefits from this shared CSS being present, not just
+        // Profile specifically.
+        $on_portal = class_exists('BHI_Portal') && get_query_var(BHI_Portal::QUERY_VAR);
+        if (!$on_portal && (!$post || !has_shortcode($post->post_content, 'bh_profile'))) return;
         wp_enqueue_style('bhi-public-profile', OUS_URL . 'assets/css/public-profile.css', [], OUS_VER);
         $fonts = BHY_Style::google_fonts_url();
         if ($fonts) wp_enqueue_style('bhi-fonts', $fonts, [], null);
