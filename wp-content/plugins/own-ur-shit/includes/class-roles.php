@@ -29,6 +29,8 @@ if (!defined('ABSPATH')) exit;
  * OUS_Notifications/OUS_Jobs.
  */
 class OUS_Roles {
+    const MANAGER_ROLE = 'bhcore_studio_manager';
+
     const DEFAULT_CAPS = [
         // Course instructor: view/manage student progress (bh-courses'
         // BHC_ProgressAdmin). Named generically ("manage_students," not
@@ -62,8 +64,8 @@ class OUS_Roles {
         // $user->add_cap() call, same unlock this class's docblock
         // already documents for bhcore_manage_students — no change
         // needed here for that.
-        'bhcore_design_site' => ['administrator', 'editor'],
-        'bhcore_manage_crm'  => ['administrator', 'editor'],
+        'bhcore_design_site' => ['administrator', 'editor', self::MANAGER_ROLE],
+        'bhcore_manage_crm'  => ['administrator', 'editor', self::MANAGER_ROLE],
         // AJ's own ask, folded into the bh-contest conversion: "attach
         // JS scripting... via the interface builder." A placement's
         // config.custom_js (class-element.php's wrap_placement_html())
@@ -78,6 +80,19 @@ class OUS_Roles {
         // it does not ride along with general design/editing access by
         // default.
         'bhcore_author_custom_js' => ['administrator'],
+        // AJ's own ask: a real "site manager" tier that can do CRM/
+        // contest/course work but is MORE restricted than admin on
+        // sensitive person-level data — phone numbers, wallet balance,
+        // purchase history, refund-fraud flags. Previously nothing in
+        // this ecosystem distinguished "can see the person list" from
+        // "can see their financial/private data" at all: bhcore_manage_
+        // crm gated both identically. This new capability gates ONLY
+        // the sensitive fields (see BHCRM_People::render_profile()'s
+        // phone line and bh-monetization-woo's BHM_CRMIntegration) —
+        // administrator-only, deliberately NOT granted to editor or the
+        // new MANAGER_ROLE below, so a manager account can do real CRM
+        // work while a genuinely private field stays admin-eyes-only.
+        'bhcore_view_crm_sensitive' => ['administrator'],
     ];
 
     // Same reasoning this whole ecosystem repeats everywhere else a
@@ -99,6 +114,8 @@ class OUS_Roles {
     // both call sites are safe to have simultaneously since this is
     // fully idempotent.
     public static function activate() {
+        self::ensure_manager_role();
+
         $caps = apply_filters('bhcore_role_capabilities', self::DEFAULT_CAPS);
         foreach ($caps as $cap => $role_names) {
             foreach ($role_names as $role_name) {
@@ -106,5 +123,33 @@ class OUS_Roles {
                 if ($role && !$role->has_cap($cap)) $role->add_cap($cap);
             }
         }
+    }
+
+    // The first real custom ROLE this ecosystem has ever registered
+    // (every capability above this point rides on a built-in role
+    // instead) — a genuine "Studio Manager" a site owner can assign
+    // from Users -> Add New, distinct from 'editor' so it can be
+    // deliberately withheld from bhcore_view_crm_sensitive above
+    // without also having to strip it back off of 'editor' (which
+    // would be a real behavior change for any site already relying on
+    // editor's existing CRM access).
+    //
+    // Base capability set is editor's OWN current capabilities at
+    // registration time (not a hand-copied static list) — WordPress
+    // core's own bh_contest/bh_course/bh_lesson post types all use the
+    // default 'post' capability_type (confirmed by reading their
+    // register_post_type() calls — no custom capability_type/map_meta_
+    // cap anywhere in this ecosystem), meaning the exact same standard
+    // edit_posts/edit_others_posts/publish_posts/delete_posts capabilities
+    // editor already relies on to manage those content types are what
+    // this role needs too. add_role() is a silent no-op if the role
+    // already exists, so this can't clobber capabilities an admin has
+    // since manually customized on this role after initial creation —
+    // it only creates the role once, the very first time this runs.
+    private static function ensure_manager_role() {
+        if (get_role(self::MANAGER_ROLE)) return;
+        $editor = get_role('editor');
+        $caps = $editor ? $editor->capabilities : ['read' => true, 'edit_posts' => true, 'upload_files' => true];
+        add_role(self::MANAGER_ROLE, 'Studio Manager', $caps);
     }
 }

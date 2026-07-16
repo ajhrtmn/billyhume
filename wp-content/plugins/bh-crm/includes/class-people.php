@@ -314,7 +314,17 @@ class BHCRM_People {
             echo '</tbody></table></div>';
         }
         if ($p['typical_platform']) echo '<p><strong>Usually watches on:</strong> ' . esc_html(ucfirst($p['typical_platform'])) . '</p>';
-        if ($p['phone'] !== '') echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
+        // QA fix: bhcore_manage_crm (granted to editor + the new Studio
+        // Manager role) previously gated the ENTIRE person page,
+        // including this direct phone number — no split existed between
+        // "can see the roster" and "can see private contact info." Now
+        // requires the admin-only bhcore_view_crm_sensitive capability
+        // on top of just reaching this page at all.
+        if ($p['phone'] !== '' && current_user_can('bhcore_view_crm_sensitive')) {
+            echo '<p><strong>Phone</strong> (direct contact only, never shared): ' . esc_html($p['phone']) . '</p>';
+        } elseif ($p['phone'] !== '') {
+            echo '<p><em>Phone on file — hidden (admin only).</em></p>';
+        }
     }
 
     // Same avatar/banner/bio header the public profile page renders

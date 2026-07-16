@@ -2,12 +2,22 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.14
+ * Version:     0.4.15
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.15 — permissions audit follow-through (own-ur-shit 3.4.90's own
+// changelog has the full story). BHM_CRMIntegration::activity_summary()
+// was injecting wallet balance, active tier, purchase history, and
+// refund-fraud flags into the CRM person page — visible to anyone with
+// bhcore_manage_crm (editor, and now the new Studio Manager role),
+// including in the collapsed section's SUMMARY line, before even
+// expanding it. Now requires the new admin-only
+// bhcore_view_crm_sensitive capability; a non-admin manager sees
+// nothing from this integration at all rather than a redacted version.
 
 // 0.4.14 — BHM_Wallet::debit()/apply_delta() now emit BH_Event
 // 'bhm/wallet_debit'/'wallet_credit' after each successful ledger
@@ -151,7 +161,7 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.14');
+define('BHM_VER',  '0.4.15');
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's

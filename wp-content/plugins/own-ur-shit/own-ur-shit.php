@@ -2,10 +2,42 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.89
+ * Version:     3.4.90
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.90 — permissions audit follow-through (AJ's own ask: "audit user
+// roles and permissions... admins and site managers should have access
+// to a good chunk of this... user-owned relationships where admin sees
+// all might be a little more restrictive to non-admin managers"). A
+// prior background audit found: no custom role existed at all (only
+// capability grants on the built-in 'editor' role), and bhcore_manage_
+// crm gated a person's phone number/wallet balance/purchase history/
+// refund-fraud flags identically to the plain person list — no split
+// between "can see the roster" and "can see private/financial data."
+//
+// New: OUS_Roles::MANAGER_ROLE ('bhcore_studio_manager', label "Studio
+// Manager") — this ecosystem's FIRST real custom WordPress role
+// (register_role(), not just a capability grant on an existing role),
+// cloned from editor's own capability set at registration time so it
+// can manage bh_contest/bh_course/bh_lesson content (all use the
+// default 'post' capability_type) plus bhcore_design_site/
+// bhcore_manage_crm. Deliberately distinct from 'editor' rather than
+// just adding more caps to editor, so the new sensitive-data
+// restriction below can apply to a genuinely non-admin "manager"
+// account without also having to strip anything back off of editor
+// (a real behavior change for any site already relying on editor's
+// existing CRM access).
+//
+// New capability: bhcore_view_crm_sensitive, administrator-only —
+// gates the actual sensitive fields (see bh-crm 1.9.1 and
+// bh-monetization-woo 0.4.15's own changelogs for the two real call
+// sites this now protects).
+//
+// idempotent: add_role() is a silent no-op if the role already exists,
+// so ensure_manager_role() only ever creates it once and never clobbers
+// capabilities an admin has since hand-customized on it.
 
 // 3.4.89 — real bug, caught live while wiring more emitters into the
 // CRM's unified activity timeline (bh-crm 1.9.0's own changelog):
@@ -1979,7 +2011,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.89');
+define('OUS_VER', '3.4.90');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently

@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 class BHCRM_Export {
     public static function handle() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_export')) wp_die('Not allowed.');
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_export')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
 

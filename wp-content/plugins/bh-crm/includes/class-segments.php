@@ -158,7 +158,7 @@ class BHCRM_Segments {
     }
 
     public static function handle_save() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_save_segment')) wp_die('Not allowed.');
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_segment')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $name = sanitize_text_field(wp_unslash($_POST['segment_name'] ?? ''));
         $conditions = self::sanitize_conditions(wp_unslash($_POST['conditions'] ?? []));

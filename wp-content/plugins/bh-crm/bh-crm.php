@@ -2,11 +2,30 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.9.0
+ * Version:     1.9.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.9.1 — permissions audit follow-through (own-ur-shit 3.4.90's own
+// changelog has the full story). Two real fixes here:
+//   1. BHCRM_People::render_profile()'s phone number line now also
+//      requires the new admin-only bhcore_view_crm_sensitive
+//      capability, not just bhcore_manage_crm — a non-admin Studio
+//      Manager can still see the person exists and their tags/notes/
+//      projects, but not their direct phone number.
+//   2. Every non-destructive CRM admin-post handler (save note, save/
+//      bulk tag, export, save segment, project create/save-columns/
+//      link/unlink) switched from manage_options to bhcore_manage_crm
+//      — these silently `wp_die()`'d for any editor/manager who could
+//      SEE the CRM menu (bhcore_manage_crm) but couldn't actually use
+//      it, an accidental inconsistency the audit caught. Deliberately
+//      did NOT touch segment delete or project delete — those stay
+//      manage_options (admin-only), matching AJ's own "shouldn't be
+//      able to delete things admins can delete" framing.
+// Verified: administrator role confirmed to hold
+// bhcore_view_crm_sensitive, editor confirmed NOT to.
 
 // 1.9.0 — unified per-person activity timeline + communication log,
 // AJ's own ask: "no unified 'everything that happened with this
@@ -148,7 +167,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.9.0');
+define('BHCRM_VER',  '1.9.1');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

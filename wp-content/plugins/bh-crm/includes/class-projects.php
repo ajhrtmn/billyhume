@@ -587,7 +587,8 @@ class BHCRM_Projects {
     }
 
     public static function handle_create() {
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate — creating a project isn't destructive.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_create')) wp_die('Bad nonce.');
 
         $uid = (int) ($_POST['user_id'] ?? 0);
@@ -608,7 +609,8 @@ class BHCRM_Projects {
     }
 
     public static function handle_save_columns() {
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_columns_' . $project_id)) wp_die('Bad nonce.');
 
@@ -725,7 +727,8 @@ class BHCRM_Projects {
 
     public static function handle_link_person() {
         check_admin_referer('bhcrm_project_link');
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $person_id = (int) ($_POST['person_id'] ?? 0);
         $relation = sanitize_key($_POST['relation'] ?? 'owner');
@@ -740,7 +743,8 @@ class BHCRM_Projects {
     public static function handle_unlink_person() {
         $link_id = (int) ($_GET['link_id'] ?? 0);
         check_admin_referer('bhcrm_project_unlink_' . $link_id);
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_GET['project_id'] ?? 0);
         if ($link_id) BHCRM_Links::unlink_by_id($link_id);
         $remaining = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];

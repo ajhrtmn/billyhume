@@ -94,7 +94,7 @@ class BHCRM_Tags {
     }
 
     public static function handle_bulk_tag() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.');
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $tag = sanitize_text_field(wp_unslash($_POST['bulk_tag'] ?? ''));
         $ids = array_map('intval', (array) ($_POST['bulk_ids'] ?? []));
@@ -114,7 +114,7 @@ class BHCRM_Tags {
     }
 
     public static function handle_save() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.');
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $user_id = (int) ($_POST['user_id'] ?? 0);
         $tags = array_filter(array_map('trim', explode(',', sanitize_text_field($_POST['tags'] ?? ''))));

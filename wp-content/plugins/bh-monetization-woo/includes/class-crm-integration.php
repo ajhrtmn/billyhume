@@ -27,6 +27,15 @@ class BHM_CRMIntegration {
 
     public static function activity_summary($sections, $user_id) {
         global $wpdb;
+        // QA fix: wallet balance, tier, purchase history, and refund-
+        // fraud flags were shown to anyone who could reach the CRM
+        // person page at all (bhcore_manage_crm, granted to editor and
+        // the new Studio Manager role) — including in the collapsed
+        // section SUMMARY line, visible without even expanding it. This
+        // is exactly the "financial/private data" security-audit finding
+        // — gated behind the new admin-only bhcore_view_crm_sensitive
+        // capability instead.
+        if (!current_user_can('bhcore_view_crm_sensitive')) return $sections;
         $entitlements = $wpdb->get_results($wpdb->prepare(
             // id DESC as a tiebreaker — created_at only has 1-second
             // resolution, and the loop below actually depends on this

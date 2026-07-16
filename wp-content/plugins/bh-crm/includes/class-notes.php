@@ -250,7 +250,13 @@ class BHCRM_Notes {
     }
 
     public static function handle_save() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_save_note')) wp_die('Not allowed.');
+        // QA fix: this required manage_options while the CRM menu
+        // itself only requires bhcore_manage_crm (granted to editor and
+        // the new Studio Manager role) -- editors/managers could see
+        // the note form but every save silently died. Adding a note
+        // isn't a destructive action, so it now matches the page's own
+        // access level instead of being accidentally admin-only.
+        if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_note')) wp_die('Not allowed.');
 
         $user_id = (int) ($_POST['user_id'] ?? 0);
         $note_id = self::add($user_id, get_current_user_id(), wp_unslash($_POST['note'] ?? ''), $_POST['reminder_at'] ?? '');
