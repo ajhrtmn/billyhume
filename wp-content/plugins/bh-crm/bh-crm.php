@@ -2,11 +2,37 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.0.0
+ * Version:     2.1.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.1.0 — four UI improvements to the nested sub-task tracker
+// (BHCRM_Subtasks, 2.0.0), AJ's own follow-up after confirming there's
+// no hard depth cap:
+//  1. Breadcrumb collapse — past 5 segments the middle collapses to a
+//     single "…" (itself a real link back into the hidden middle, not
+//     a dead end), keeping the root and last two levels visible.
+//  2. A quiet size warning once a card's WHOLE tree (every level, not
+//     just what's on screen) crosses 50 nodes — never blocking,
+//     just a nudge that it might be time to split into a separate
+//     project.
+//  3. Sibling drag-reorder at any level, via the same vendored
+//     SortableJS the kanban board itself already uses. Posts through
+//     fetch() to a new admin-post handler rather than a real <form> —
+//     this view shares this session's own lesson about nested <form>
+//     elements silently breaking inside certain WP admin contexts, so
+//     drag-end never touches form submission at all.
+//  4. Bulk add — a "one per line" textarea, matching the same pattern
+//     already used elsewhere in this codebase (segment conditions,
+//     project columns), so seeding a deep plan doesn't mean one full
+//     page reload per node.
+// Verified live end-to-end: bulk-added 3 sub-tasks in one submit,
+// dragged/reordered them (confirmed the new order persisted after a
+// reload), and built a real 6-level-deep chain to confirm the
+// breadcrumb actually collapses past the threshold and that its "…"
+// link lands back on the correct hidden level.
 
 // 2.0.0 — real nested sub-task tracking view, replacing Content Studio
 // for this purpose entirely (AJ's own call: "not related in the
@@ -215,7 +241,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.0.0');
+define('BHCRM_VER',  '2.1.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,
