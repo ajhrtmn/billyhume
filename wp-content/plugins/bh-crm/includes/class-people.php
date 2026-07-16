@@ -130,7 +130,13 @@ class BHCRM_People {
         // person's page) could never be opened. $uid is now optional;
         // render_board() itself handles $uid === 0 (no "back to person"
         // link, falls back to "back to Project Tracker").
-        if ($project_id && class_exists('BHCRM_Projects')) {
+        $card_id = isset($_GET['card_id']) ? (int) $_GET['card_id'] : 0;
+        if ($project_id && $card_id && class_exists('BHCRM_Subtasks')) {
+            // A sticky card's own nested sub-task tracker — replaces
+            // Content Studio for this purpose entirely (AJ's own call).
+            $path = isset($_GET['subtask_path']) ? array_values(array_filter(array_map('sanitize_text_field', explode(',', (string) $_GET['subtask_path'])))) : [];
+            BHCRM_Subtasks::render($project_id, $uid, $card_id, $path);
+        } elseif ($project_id && class_exists('BHCRM_Projects')) {
             BHCRM_Projects::render_board($project_id, $uid);
         } elseif ($uid) {
             self::render_detail($uid);

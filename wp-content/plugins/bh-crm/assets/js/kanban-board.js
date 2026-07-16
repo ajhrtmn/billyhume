@@ -269,15 +269,22 @@
         card.appendChild(notesArea);
 
         var actions = el('div', 'bhcrm-kanban-card-actions');
-        if (cfg.studioUrl) {
-            var studioLink = document.createElement('a');
-            studioLink.href = cfg.studioUrl + '&context_type=bh_element&context_id=' + encodeURIComponent(p.content_context_id || p.id);
-            studioLink.target = '_blank';
-            studioLink.rel = 'noopener';
-            studioLink.className = 'button button-small';
-            studioLink.textContent = 'Edit sub-tasks';
-            actions.appendChild(studioLink);
-        }
+        // QA change: this used to open Content Studio (a generic
+        // WordPress block-editor canvas, no board/column concept, no
+        // rollup display of its own) in a new tab. Replaces it
+        // entirely with BHCRM_Subtasks — a real nested tracking view
+        // in-page, same tab, with breadcrumb navigation and a progress
+        // rollup at every level. Same-tab (not target=_blank) since
+        // it's now a real part of this same admin screen, not an
+        // unrelated external tool.
+        var subtaskUrl = new URL(window.location.href);
+        subtaskUrl.searchParams.set('card_id', p.id);
+        subtaskUrl.searchParams.delete('subtask_path');
+        var subtaskLink = document.createElement('a');
+        subtaskLink.href = subtaskUrl.toString();
+        subtaskLink.className = 'button button-small';
+        subtaskLink.textContent = 'View sub-tasks';
+        actions.appendChild(subtaskLink);
 
         var delBtn = el('button', 'button button-small', 'Delete');
         delBtn.addEventListener('click', function () {

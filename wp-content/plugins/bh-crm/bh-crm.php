@@ -2,11 +2,47 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.9.3
+ * Version:     2.0.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.0.0 — real nested sub-task tracking view, replacing Content Studio
+// for this purpose entirely (AJ's own call: "not related in the
+// slightest"). New BHCRM_Subtasks (class-subtasks.php): drilling into
+// a sticky card's sub-tasks now opens a dedicated in-page view — a
+// real breadcrumb trail for moving up/down the tree (AJ's own ask,
+// "a good UX for moving up and down the trees of boards"), a done/
+// total progress rollup recursively computed at EVERY level (not just
+// the top card), and add/toggle/edit/delete for any depth of nesting.
+//
+// Required one small schema addition to the existing 'bhcrm/sub-card'
+// BH_Content block type: a 'uid' attr (a short random string, assigned
+// once at creation) — without it there was no stable way to address
+// "this specific nested sub-task" that survives a reorder or a sibling
+// edit elsewhere in the tree.
+//
+// SCOPING DECISION, disclosed rather than silently half-built: "detail
+// sections that allow links to people and things" — notes (freeform
+// detail) are fully supported today via the block's own existing
+// 'notes' attr; linking a sub-task to a person/project specifically
+// (BHCRM_Links) needs a real integer id to hook into, and a sub-task's
+// only stable identifier is the new string 'uid' this pass adds.
+// Bridging that cleanly is a genuine follow-up design decision, not
+// something to bolt on as an afterthought here.
+//
+// Real bug caught live during verification: a placement's config isn't
+// a flat {title: 'x'} map — BH_Element stores each attr as {literal:
+// 'x'}. Reading the card's title directly off config['title'] silently
+// missed every time, always falling back to generic "Sub-tasks" text.
+// Fixed (BHCRM_Subtasks::card_title()).
+//
+// Verified live end-to-end: created a card, drilled into it, added a
+// sub-task, drilled into THAT, added a grandchild, marked the
+// grandchild done, and confirmed the rollup correctly propagated back
+// up through both levels ("First sub-task (1/1 sub-tasks done)" at the
+// card's own list, "1/2 done at this level (recursively)" one level up).
 
 // 1.9.3 — accountability audit log wiring (own-ur-shit 3.5.0's own
 // changelog has the full story). Segment and project deletion now log
@@ -179,7 +215,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.9.3');
+define('BHCRM_VER',  '2.0.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,
@@ -471,7 +507,7 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // change to either save path's actual behavior). Standing caveat:
 // reasoning/brace-balance-checked only, no live PHP+MySQL execution in
 // this pass — not runtime-verified.
-foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'debug', 'hub', 'style-surface'] as $f) {
+foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'debug', 'hub', 'style-surface'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 
@@ -534,6 +570,7 @@ add_action('plugins_loaded', function () {
     // to actually register.
     BHCRM_Links::init(); // must run before BHCRM_Projects::init() — the projects flow now writes links on create()
     BHCRM_Projects::init();
+    BHCRM_Subtasks::init();
     BHCRM_Notes::init();
     BHCRM_Tags::init();
     BHCRM_Segments::init();

@@ -488,6 +488,14 @@ class BHCRM_Projects {
 
     private static function register_content_block_type() {
         BH_Content::register_block_type('bhcrm/sub-card', [
+            // 'uid' — stable per-node identifier, added alongside the
+            // new BHCRM_Subtasks nested tracking view (see that class's
+            // own docblock): without it, there was no way to address
+            // "this specific sub-task" that survives a reorder or a
+            // sibling edit — a BH_Content tree node otherwise has no id
+            // of its own at all. Assigned once at creation
+            // (BHCRM_Subtasks::handle_add()), never regenerated.
+            'uid'   => ['type' => 'string', 'default' => ''],
             'title' => ['type' => 'string', 'default' => 'Sub-task'],
             'notes' => ['type' => 'html',   'default' => ''],
             'done'  => ['type' => 'bool',   'default' => false],
