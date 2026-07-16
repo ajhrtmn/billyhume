@@ -2,11 +2,41 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.1.0
+ * Version:     2.2.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.2.0 — course correction on the sub-task tracker (2.0.0/2.1.0),
+// AJ's own words: "I thought each subtask would be its own kanban
+// board of tasks" — 2.0.0 built a flat, nested CHECKLIST instead of a
+// real board, a real scope miss on my part. Rebuilt BHCRM_Subtasks so
+// every nesting level renders as a full multi-column kanban board —
+// drag between columns, per-column add — reusing the EXACT same
+// visual/interaction language as the top-level project board
+// (kanban-board.css/.js, same classes, same SortableJS group pattern)
+// rather than inventing a second look.
+//
+// New 'column' schema attr on the existing 'bhcrm/sub-card' block
+// type. All nesting levels share ONE column vocabulary — the parent
+// project's own columns_config — a deliberate scoping choice (one
+// shared set of stages for the whole project) rather than a
+// separately configurable column set per level.
+//
+// The four 2.1.0 improvements (breadcrumb collapse, size warning,
+// drag-reorder, bulk add) all carry forward unchanged in spirit;
+// drag-reorder is now genuinely cross-column (was same-column-only in
+// 2.1.0's flat-list version), and bulk add now asks which column the
+// batch lands in.
+//
+// Verified live: the rebuilt board renders with real columns matching
+// the parent project's own; moved a card between columns via a direct
+// call to the same endpoint subtasks.js's drag handler posts to,
+// confirmed the column and per-column counts updated correctly after
+// reload; drilled into a card to confirm its OWN board renders with
+// the same columns and correctly shows a done sub-task styled the same
+// way the top-level board styles a done card.
 
 // 2.1.0 — four UI improvements to the nested sub-task tracker
 // (BHCRM_Subtasks, 2.0.0), AJ's own follow-up after confirming there's
@@ -241,7 +271,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.1.0');
+define('BHCRM_VER',  '2.2.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

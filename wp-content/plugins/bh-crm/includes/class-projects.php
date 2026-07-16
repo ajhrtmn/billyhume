@@ -499,6 +499,19 @@ class BHCRM_Projects {
             'title' => ['type' => 'string', 'default' => 'Sub-task'],
             'notes' => ['type' => 'html',   'default' => ''],
             'done'  => ['type' => 'bool',   'default' => false],
+            // 'column' — added alongside BHCRM_Subtasks' rebuild into a
+            // REAL kanban board at every nesting level (AJ's own
+            // correction: "I thought each subtask would be its own
+            // kanban board of tasks," not a flat checklist). Every
+            // level of a card's sub-task tree shares the SAME column
+            // vocabulary as the parent project's own board
+            // (BHCRM_Projects::get($project_id)['columns_config']) —
+            // one shared set of stages for the whole project, not a
+            // separately configurable column set per nesting level,
+            // same judgment call this class's own docblock already
+            // makes for why 'column' is a plain literal attr and not
+            // its own slot.
+            'column' => ['type' => 'string', 'default' => ''],
         ], function (array $attrs, $rendered_children, array $block) {
             $title = esc_html((string) $attrs['title']);
             $notes = (string) $attrs['notes'];
