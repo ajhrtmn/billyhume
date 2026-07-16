@@ -282,9 +282,28 @@ class BHCRM_Projects {
         echo '<h1>Project Tracker</h1>';
         echo '<p class="description">Every project board across the CRM. Opening one lands on the same kanban board view reachable from a person\'s own profile — this is just a cross-person index, not a second board implementation.</p>';
 
+        // QA fix: project creation used to be reachable ONLY from a
+        // specific person's profile page (their user_id was baked into
+        // the create form's hidden field, back when a project required
+        // exactly one owner at creation time) — AJ's own framing:
+        // "shouldn't require a weird loop back to people." A project
+        // doesn't need an owner to exist now (BHCRM_Links handles
+        // ownership as an optional link, not a required column), so
+        // creation belongs here, at the top level, same as any other
+        // "Add new" entry point. Linking a person happens afterward on
+        // the board itself (render_people_panel()), same as it would
+        // for a second/third person on an existing project.
+        $nonce = wp_create_nonce('bhcrm_project_create');
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:16px 0;display:flex;gap:8px;align-items:center;">';
+        echo '<input type="hidden" name="action" value="bhcrm_project_create">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+        echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;">';
+        echo '<button class="button button-primary">Create project</button>';
+        echo '</form>';
+
         $rows = self::list_all();
         if (!$rows) {
-            echo '<p>No projects yet. Create one from a person\'s profile in <a href="' . esc_url(admin_url('admin.php?page=bh-crm-hub')) . '">People</a>.</p>';
+            echo '<p>No projects yet — create one above, then link people to it from the board.</p>';
             echo '</div>';
             return;
         }
@@ -576,7 +595,15 @@ class BHCRM_Projects {
         $id = self::create($name, $uid);
 
         $msg = $id ? "Created project #$id." : 'Failed to create project.';
-        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'bhcrm_msg' => rawurlencode($msg)], admin_url('admin.php')));
+        // QA fix: redirect straight to the new project's own board
+        // (now reachable with $uid === 0, see render_board()'s own
+        // fix) instead of back to a person page — correct whether this
+        // came from a person's profile (uid set) or the top-level
+        // Project Tracker create form (uid always 0 there).
+        $args = ['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode($msg)];
+        if ($id) $args['project_id'] = $id;
+        if ($uid) $args['user_id'] = $uid;
+        wp_safe_redirect(add_query_arg($args, admin_url('admin.php')));
         exit;
     }
 
@@ -607,9 +634,18 @@ class BHCRM_Projects {
     }
 
     /** Renders the board view — the bespoke presentation layer's PHP shell; kanban-board.js fills it in against the standard BH_Element REST bridge. Called from BHCRM_People::render() when $_GET['project_id'] is set. */
-    public static function render_board($project_id, $uid) {
+    public static function render_board($project_id, $uid = 0) {
         $project = self::get($project_id);
-        echo '<p><a href="' . esc_url(remove_query_arg('project_id')) . '">&larr; Back to ' . esc_html(get_userdata($uid) ? get_userdata($uid)->display_name : 'person') . '</a></p>';
+        // QA fix: $uid is now optional (a project can be opened
+        // straight from the Project Tracker index with no person
+        // context at all) — fall back to a plain "back to Project
+        // Tracker" link instead of assuming a person is always known.
+        $user = $uid ? get_userdata($uid) : null;
+        if ($user) {
+            echo '<p><a href="' . esc_url(remove_query_arg('project_id')) . '">&larr; Back to ' . esc_html($user->display_name) . '</a></p>';
+        } else {
+            echo '<p><a href="' . esc_url(admin_url('admin.php?page=bh-crm-projects')) . '">&larr; Back to Project Tracker</a></p>';
+        }
 
         if (!$project) {
             echo '<p>Project not found.</p>';

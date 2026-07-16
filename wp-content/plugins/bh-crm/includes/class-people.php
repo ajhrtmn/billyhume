@@ -124,7 +124,13 @@ class BHCRM_People {
         // single-page dispatch (admin.php?page=bh-crm) rather than a new
         // standalone page — see class-projects.php's docblock for why a
         // second page was deliberately avoided on this install.
-        if ($project_id && $uid && class_exists('BHCRM_Projects')) {
+        // QA fix: this used to require a truthy $uid to reach the board
+        // at all — meaning a project with no linked person (created
+        // straight from the Project Tracker index, not looped through a
+        // person's page) could never be opened. $uid is now optional;
+        // render_board() itself handles $uid === 0 (no "back to person"
+        // link, falls back to "back to Project Tracker").
+        if ($project_id && class_exists('BHCRM_Projects')) {
             BHCRM_Projects::render_board($project_id, $uid);
         } elseif ($uid) {
             self::render_detail($uid);

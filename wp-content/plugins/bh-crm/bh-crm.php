@@ -2,11 +2,26 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.8.0
+ * Version:     1.8.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.8.1 — project creation no longer requires looping through a
+// person's profile page, AJ's own framing: "shouldn't require a weird
+// loop back to people and junk." Now that BHCRM_Links makes ownership
+// an optional link rather than a required column (1.8.0), there's no
+// reason project creation needs a person in context at all. Added a
+// "Create project" form directly to the Project Tracker index page
+// (BHCRM_Projects::render_boards()) and fixed the board dispatch
+// (BHCRM_People::render()) and render_board()'s own "back" link, both
+// of which previously hard-required a truthy $uid to even open a
+// project's board — an unowned project couldn't be viewed at all
+// before this fix. People are still linked from the board itself
+// (the existing People panel), just no longer required up front.
+// Verified live: created a project with zero person context, landed
+// directly on its board, linked a person afterward from there.
 
 // 1.8.0 — projects<->people relationship redesign, AJ's own framing:
 // "I'm not sure attaching projects to people directly is the move...
@@ -107,7 +122,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.8.0');
+define('BHCRM_VER',  '1.8.1');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,
