@@ -85,6 +85,11 @@ class BHCRM_Event_Activity {
             'bhc/course_completed'=> 'Completed a course',
             'bhcrm/note_saved'    => 'CRM note updated',
             'bhcrm/tags_saved'    => 'CRM tags updated',
+            'bhcrm/link_created'  => 'Linked to a project',
+            'bh/submission_created' => 'Submitted a contest entry',
+            'bhm/wallet_credit'   => 'Wallet credited',
+            'bhm/wallet_debit'    => 'Wallet debited (play)',
+            'bhcore/email_sent'   => 'Received an email',
         ];
         if (isset($labels[$type])) return $labels[$type];
 

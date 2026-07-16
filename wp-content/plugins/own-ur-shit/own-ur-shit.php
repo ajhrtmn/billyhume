@@ -2,10 +2,43 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.88
+ * Version:     3.4.89
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.89 — real bug, caught live while wiring more emitters into the
+// CRM's unified activity timeline (bh-crm 1.9.0's own changelog):
+// BH_Event::handle_ingest_job()'s INSERT used $wpdb->prepare()'s %s
+// placeholder for dedup_key, which silently casts a PHP null to an
+// empty string, not SQL NULL. dedup_key carries a UNIQUE key, so
+// EVERY event emitted without an explicit dedup_key (the common,
+// "append-only" case — most emit() call sites across this whole
+// ecosystem) collided with the very first such row ever inserted and
+// was silently dropped by INSERT IGNORE, ever since this table
+// existed. Confirmed directly against the live table: dedup_key was
+// stored as '' rather than NULL, and only ONE non-deduped event had
+// ever actually landed. This was silent, ecosystem-wide event-tracking
+// data loss, not a cosmetic bug. Fixed by branching the insert: a null
+// dedup_key now writes a literal SQL NULL (never touching the unique
+// index), a real dedup_key keeps the existing INSERT IGNORE dedup
+// behavior. One-time data fix also applied directly to the live table
+// (UPDATE ... SET dedup_key = NULL WHERE dedup_key = ''). Verified
+// live: a fresh non-deduped emit landed correctly and rendered in
+// bh-crm's activity timeline immediately after the fix, where it had
+// silently failed to appear before it.
+//
+// Also added BH_Event::for_user() — a thin, type-agnostic per-user
+// read helper (newest-first, payload/context pre-decoded) backing the
+// same timeline work, since no such read method existed despite
+// per-user reads already happening ad hoc (bh-crm's own
+// BHCRM_Event_Activity queried the table directly instead).
+//
+// Also added an 'bhcore/email_sent' emit() to
+// OUS_Notifications::send_email_now() — the single choke point every
+// queued notification email sends through — so a person's activity
+// timeline now includes "received an email" entries, addressing AJ's
+// "no email/communication log tied to a person record" gap.
 
 // 3.4.88 — portal styling QA pass, AJ's "wrap up the CRM, then make
 // sure styles look sleek and professional on desktop and mobile, not
@@ -1946,7 +1979,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.88');
+define('OUS_VER', '3.4.89');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently

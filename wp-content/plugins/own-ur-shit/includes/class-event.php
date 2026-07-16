@@ -144,17 +144,46 @@ class BH_Event {
 
         if (!$data['type']) return; // malformed job, nothing sane to insert
 
-        // INSERT IGNORE so a dedup_key collision (two emits racing for
-        // the same once-only key) is a silent no-op, not a thrown
-        // error that would fail the whole job/retry loop.
-        $wpdb->query($wpdb->prepare(
-            "INSERT IGNORE INTO " . self::table() . "
-             (type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)
-             VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, %s)",
-            $data['type'], $data['v'], $data['user_id'], $data['client_id'],
-            $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
-            $data['occurred_at'], $data['dedup_key']
-        ));
+        // BUG FIX, caught live while verifying a new emit() call site:
+        // $wpdb->prepare()'s %s placeholder silently casts a PHP null
+        // to an empty string, NOT SQL NULL — confirmed directly against
+        // this table's real data (dedup_key stored as '' rather than
+        // NULL). dedup_key has a UNIQUE key, so EVERY event emitted
+        // without an explicit dedup_key (the common, "append-only"
+        // case — plays, votes, notes, links, wallet activity, etc.)
+        // was colliding with the very first such row ever inserted and
+        // being silently dropped by INSERT IGNORE ever since this
+        // table existed. Only events that supplied a real dedup_key
+        // (e.g. bhc/enroll) were ever landing correctly. This was
+        // silent data loss across the whole event-tracking system, not
+        // a cosmetic issue — surfaced now because bh-crm's per-person
+        // activity timeline (BHCRM_Event_Activity) reads straight from
+        // this table and was visibly missing rows in a live test.
+        //
+        // Fix: branch the SQL so a real dedup_key uses INSERT IGNORE +
+        // a bound %s (dedup collisions on a genuine repeat key still
+        // silently no-op, as designed), while a null dedup_key is
+        // written as a literal SQL NULL — never touching the unique
+        // index at all, since NULL is never equal to NULL there.
+        if ($data['dedup_key'] === null) {
+            $wpdb->query($wpdb->prepare(
+                "INSERT INTO " . self::table() . "
+                 (type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)
+                 VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, NULL)",
+                $data['type'], $data['v'], $data['user_id'], $data['client_id'],
+                $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
+                $data['occurred_at']
+            ));
+        } else {
+            $wpdb->query($wpdb->prepare(
+                "INSERT IGNORE INTO " . self::table() . "
+                 (type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)
+                 VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, %s)",
+                $data['type'], $data['v'], $data['user_id'], $data['client_id'],
+                $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
+                $data['occurred_at'], $data['dedup_key']
+            ));
+        }
     }
 
     /* ---------------- backfill support for BH_Identity ---------------- */
@@ -170,6 +199,32 @@ class BH_Event {
             "UPDATE " . self::table() . " SET user_id = %d WHERE client_id = %s AND user_id = 0",
             (int) $user_id, (string) $client_id
         ));
+    }
+
+    /* ---------------- per-user reads (CRM unified activity timeline) ---------------- */
+
+    /**
+     * Every event recorded against a given user_id, newest first —
+     * the read side backing bh-crm's per-person activity timeline
+     * (BHCRM_People::render_timeline()). Deliberately a thin,
+     * type-agnostic read (no filtering by type here) — the caller
+     * decides how to label/group rows; this just returns the raw
+     * history. payload/context are returned already json_decode()'d
+     * for convenience.
+     */
+    public static function for_user($user_id, $limit = 50) {
+        global $wpdb;
+        $rows = $wpdb->get_results($wpdb->prepare(
+            'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY occurred_at DESC, id DESC LIMIT %d',
+            (int) $user_id, (int) $limit
+        ), ARRAY_A);
+        if (!$rows) return [];
+        foreach ($rows as &$row) {
+            $row['payload'] = json_decode((string) $row['payload'], true) ?: [];
+            $row['context'] = json_decode((string) $row['context'], true) ?: [];
+        }
+        unset($row);
+        return $rows;
     }
 
     /* ---------------- Debug Tools: minimal metrics view (MVP dashboard) ---------------- */

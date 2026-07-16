@@ -128,7 +128,22 @@ class OUS_Notifications {
         if (!$user || !$user->user_email) return;
         $message = wp_strip_all_tags($body);
         if ($url) $message .= "\n\n" . $url;
-        wp_mail($user->user_email, wp_specialchars_decode($title), $message);
+        $sent = wp_mail($user->user_email, wp_specialchars_decode($title), $message);
+
+        // Feeds the CRM's unified per-person activity timeline (BH_Event
+        // -> bh-crm's BHCRM_Event_Activity) — this is the single choke
+        // point every queued notification email sends through, so this
+        // one emit() covers every email this ecosystem sends via its
+        // own notification system (course/contest/CRM reminders, etc.).
+        // Does NOT cover ad hoc wp_mail() calls made directly elsewhere
+        // (e.g. bh-contest's submission-received confirmation) — those
+        // aren't routed through this class.
+        if ($sent && class_exists('BH_Event')) {
+            BH_Event::emit('bhcore/email_sent', [
+                'user_id' => $user_id, 'subject_type' => 'email', 'subject_id' => 0,
+                'payload' => ['title' => $title],
+            ]);
+        }
     }
 
     /* ---------------- reading ---------------- */

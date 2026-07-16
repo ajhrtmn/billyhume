@@ -2,11 +2,37 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.8.1
+ * Version:     1.9.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.9.0 — unified per-person activity timeline + communication log,
+// AJ's own ask: "no unified 'everything that happened with this
+// person' feed... no email/communication log tied to a person
+// record." Turned out most of the infrastructure already existed —
+// own-ur-shit's BH_Event (bhcore_events table) plus this plugin's own
+// BHCRM_Event_Activity (already rendering it under "Activity" ->
+// "Event Tracking" on the person detail page) — several event types
+// (votes, plays, course enroll/complete, notes/tags) were already
+// flowing in. What was missing was coverage for the events that
+// matter most for "did anything weird happen with this person":
+// project links, contest submissions, wallet activity, and outbound
+// email — added BH_Event::emit() calls at each of those write points
+// (BHCRM_Links::link(), bh-contest's submit(), bh-monetization-woo's
+// BHM_Wallet credit/debit, own-ur-shit's OUS_Notifications::
+// send_email_now()) plus human-readable labels for each in
+// BHCRM_Event_Activity::type_label().
+//
+// Real bug caught live while verifying this: a project-link event
+// wasn't showing up in the timeline at all. Traced to a genuine,
+// ecosystem-wide data-loss bug in BH_Event's own ingest path (fixed in
+// own-ur-shit 3.4.89 — see that plugin's own changelog for the full
+// story) that had been silently dropping nearly every non-deduped
+// event since the table was created. Verified live, post-fix: linking
+// a person to a project now correctly appears in their timeline within
+// one cron cycle.
 
 // 1.8.1 — project creation no longer requires looping through a
 // person's profile page, AJ's own framing: "shouldn't require a weird
@@ -122,7 +148,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.8.1');
+define('BHCRM_VER',  '1.9.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

@@ -2,12 +2,20 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.13
+ * Version:     0.4.14
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.14 — BHM_Wallet::debit()/apply_delta() now emit BH_Event
+// 'bhm/wallet_debit'/'wallet_credit' after each successful ledger
+// write, feeding the CRM's unified per-person activity timeline
+// (bh-crm 1.9.0). Wallet activity was already recorded in this
+// plugin's own ledger table, but wasn't visible in the cross-plugin
+// "everything that happened with this person" view — this is purely
+// additive, the ledger itself is unchanged.
 
 // 0.4.13 — portal styling QA pass (own-ur-shit's ROADMAP-ux-polish-and-
 // feature-parity-2026-07.md, styling half). BHM_PortalPanel::render()
@@ -143,7 +151,7 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.13');
+define('BHM_VER',  '0.4.14');
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's

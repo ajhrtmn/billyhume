@@ -118,7 +118,21 @@ class BHCRM_Links {
             'relation'  => $relation,
             'created_at' => current_time('mysql'),
         ]);
-        return (int) $wpdb->insert_id;
+        $link_id = (int) $wpdb->insert_id;
+
+        // Feeds the CRM's unified per-person activity timeline — only
+        // meaningful when one side of the link IS a person, same as
+        // the rest of this class's project<->person convenience layer.
+        if ($link_id && class_exists('BH_Event')) {
+            $person_id = $to_type === 'person' ? (int) $to_id : ($from_type === 'person' ? (int) $from_id : 0);
+            if ($person_id) {
+                BH_Event::emit('bhcrm/link_created', [
+                    'user_id' => $person_id, 'subject_type' => 'bhcrm_link', 'subject_id' => $link_id,
+                    'payload' => ['from_type' => $from_type, 'from_id' => (int) $from_id, 'to_type' => $to_type, 'to_id' => (int) $to_id, 'relation' => $relation],
+                ]);
+            }
+        }
+        return $link_id;
     }
 
     public static function unlink_by_id($link_id) {

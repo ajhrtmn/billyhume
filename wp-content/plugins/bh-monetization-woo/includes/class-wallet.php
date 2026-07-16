@@ -68,6 +68,16 @@ class BHM_Wallet {
         $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => 'play', 'track_id' => $track_id,
         ]);
+        // Feeds the CRM's unified per-person activity timeline
+        // (BHCRM's render_timeline(), own-ur-shit's BH_Event) — same
+        // "harmless no-op if the core event system isn't loaded"
+        // posture every other emit() call site in this ecosystem uses.
+        if ($ledger_ok !== false && class_exists('BH_Event')) {
+            BH_Event::emit('bhm/wallet_debit', [
+                'user_id' => $user_id, 'subject_type' => 'bhm_wallet', 'subject_id' => $user_id,
+                'payload' => ['cents' => $cents, 'reason' => 'play', 'track_id' => $track_id],
+            ]);
+        }
         if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
             // The balance mutation above already committed — this is a
             // real desync risk (balance moved, ledger didn't record why)
@@ -115,6 +125,12 @@ class BHM_Wallet {
             'user_id' => $user_id, 'delta_cents' => $delta_cents, 'reason' => $reason,
             'track_id' => $track_id, 'wc_order_id' => $order_id,
         ]);
+        if ($ledger_ok !== false && class_exists('BH_Event')) {
+            BH_Event::emit('bhm/wallet_credit', [
+                'user_id' => $user_id, 'subject_type' => 'bhm_wallet', 'subject_id' => $user_id,
+                'payload' => ['cents' => $delta_cents, 'reason' => $reason, 'order_id' => $order_id],
+            ]);
+        }
         if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
             // Same balance/ledger desync risk as debit() above — this is
             // the credit/reversal-side counterpart (top-ups and refund

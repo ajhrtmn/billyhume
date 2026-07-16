@@ -2,11 +2,19 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.5.2
+ * Version:     3.5.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
-if (!defined('ABSPATH')) exit; 
+if (!defined('ABSPATH')) exit;
+
+// 3.5.3 — class-api.php's submit() now emits BH_Event
+// 'bh/submission_created' after a successful submission, and both
+// email send points (submission-received confirmation here, plus
+// every notification-system email via own-ur-shit) now emit
+// 'bhcore/email_sent' — feeding the CRM's unified per-person activity
+// timeline (bh-crm 1.9.0). No change to submission/email behavior
+// itself.
 
 // 3.2.2 — 2026-07-12 — task #80 follow-up (also fixes a stale version
 // mismatch found while making this change: the header above said 3.2.1
@@ -121,7 +129,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.5.2');
+define('BH_VER',        '3.5.3');
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.

@@ -380,14 +380,30 @@ class BH_API {
         }
         update_post_meta($pid, '_bh_audio_id', $aid);
 
+        // Feeds the CRM's unified per-person activity timeline
+        // (BHCRM's render_timeline(), own-ur-shit's BH_Event).
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_created', [
+                'user_id' => $uid, 'subject_type' => 'bh_submission', 'subject_id' => $pid,
+                'payload' => ['contest_id' => $cid, 'title' => $title],
+            ]);
+        }
+
         $user = get_userdata($uid);
         if ($user && $user->user_email) {
             $contest_title = get_the_title($cid);
+            $subject = 'We got your submission — ' . get_bloginfo('name');
             wp_mail(
                 $user->user_email,
-                'We got your submission — ' . get_bloginfo('name'),
+                $subject,
                 "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!"
             );
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bhcore/email_sent', [
+                    'user_id' => $uid, 'subject_type' => 'email', 'subject_id' => 0,
+                    'payload' => ['title' => $subject],
+                ]);
+            }
         }
 
         return self::ok();
