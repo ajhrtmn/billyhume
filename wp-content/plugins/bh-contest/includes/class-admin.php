@@ -971,6 +971,10 @@ class BH_Admin {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_rejected', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid, 'reason_code' => $reason_code]]);
         }
+        // Accountability log, AJ's own ask — a real moderation action (BH_Event above is the contestant's own activity feed, this is the admin-accountability side of the same action).
+        if (class_exists('OUS_Audit')) {
+            OUS_Audit::log('submission_rejected', 'bh_submission', $pid, ['reason_code' => $reason_code, 'contest_id' => $cid]);
+        }
 
         wp_safe_redirect(get_edit_post_link($pid, ''));
         exit;

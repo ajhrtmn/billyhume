@@ -2,12 +2,19 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.16
+ * Version:     0.4.17
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.17 — accountability audit log wiring (own-ur-shit 3.5.0's own
+// changelog has the full story). BHM_Tiers::save() now logs a granular
+// before/after diff of price_cents/annual_price_cents on every tier
+// save, and tier deletion (before_delete_post) logs the tier's name
+// and price before it's gone — AJ's own named example: "who changed
+// what tier."
 
 // 0.4.16 — wallet top-up fraud/abuse velocity cap, AJ's own ask
 // ("perhaps a fraud abuse cap per time period would be ideal").
@@ -173,7 +180,7 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.16');
+define('BHM_VER',  '0.4.17');
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's

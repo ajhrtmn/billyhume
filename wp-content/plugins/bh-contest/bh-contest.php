@@ -2,11 +2,17 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.1
+ * Version:     3.6.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.6.2 — accountability audit log wiring (own-ur-shit 3.5.0's own
+// changelog has the full story). Rejecting a submission now logs to
+// OUS_Audit alongside the existing BH_Event emit — the event feeds
+// the contestant's own activity feed, this is the separate admin-
+// accountability record of the same moderation action.
 
 // 3.6.1 — debug-log wiring pass (own-ur-shit 3.4.91's own changelog
 // has the full story). The submission-received confirmation email and
@@ -197,7 +203,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.1');
+define('BH_VER',        '3.6.2');
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.

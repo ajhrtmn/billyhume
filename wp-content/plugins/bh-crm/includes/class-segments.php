@@ -183,9 +183,20 @@ class BHCRM_Segments {
     }
 
     public static function handle_delete() {
-        if (!current_user_can('manage_options') || !check_admin_referer('bhcrm_delete_segment')) wp_die('Not allowed.');
+        if (!check_admin_referer('bhcrm_delete_segment')) wp_die('Bad nonce.');
+        if (class_exists('OUS_Audit')) {
+            OUS_Audit::require_cap('manage_options');
+        } elseif (!current_user_can('manage_options')) {
+            wp_die('Not allowed.');
+        }
         global $wpdb;
         $id = (int) ($_GET['segment_id'] ?? 0);
+        // Audit log, AJ's own ask: "who deleted what segment" — capture
+        // what it actually was before it's gone.
+        $segment = self::get($id);
+        if ($segment && class_exists('OUS_Audit')) {
+            OUS_Audit::log('segment_deleted', 'bhcrm_segment', $id, ['name' => $segment['name']]);
+        }
         $wpdb->delete(self::table(), ['id' => $id], ['%d']);
         wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'bhcrm_msg' => rawurlencode('List deleted.')], admin_url('admin.php')));
         exit;

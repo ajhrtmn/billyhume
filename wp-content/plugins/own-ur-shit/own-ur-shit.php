@@ -2,10 +2,45 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.91
+ * Version:     3.5.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.5.0 — new accountability audit log, AJ's own ask: "audit, do
+// everything important, and anything those important things touch...
+// yes granular diffs... admin only." New OUS_Audit (class-audit.php):
+// a synchronous accountability log (bhcore_audit_log) distinct from
+// BH_Event's per-person ACTIVITY timeline — that answers "what did
+// this person do," this answers "who changed WHAT to WHAT on a thing
+// that isn't necessarily their own" (a tier's price, a segment someone
+// else built, another user's role).
+//
+// log_diff() stores granular before/after field diffs; log() covers
+// plain "X happened" actions (deletions, rejections). require_cap() is
+// a drop-in for the `if (!current_user_can($cap)) wp_die(...)` pattern
+// used everywhere in this ecosystem's admin-post handlers — it does
+// NOT log every single denial (pure noise), only once a per-user
+// denial count crosses a concerning threshold within a short window
+// (AJ's own "log denies and fails if they exceed a concerning
+// amount"). Also hooks WordPress's own set_user_role action, so
+// granting/revoking any role (including the new Studio Manager) from
+// the Users screen is tracked for free, no bespoke UI needed.
+//
+// Pruning is row-count bound, not time-bound — "keep it unless or
+// until it becomes too much extra bloat" (AJ's own framing): once the
+// table crosses 20,000 rows, the oldest are trimmed back down to
+// 15,000, checked cheaply (throttled via transient) on write rather
+// than a separate cron.
+//
+// Read side: a new "Audit Log" Debug Tools section (already
+// manage_options-only — admin-only per AJ's own ask, no new gate
+// needed). Wired into the highest-value "important things" this pass:
+// bh-crm's segment/project deletion (bh-crm 1.9.3), bh-monetization-
+// woo's tier price changes/deletion (bh-monetization-woo 0.4.17), and
+// bh-contest's submission rejection (bh-contest 3.6.2). Verified live:
+// created and deleted a real segment, confirmed the audit row recorded
+// the actor/action/object/diff correctly and rendered in Debug Tools.
 
 // 3.4.91 — debug-log wiring pass (AJ's own ask: "wire any of those new
 // events into the debug log... that would be useful and helpful for
@@ -2022,7 +2057,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.91');
+define('OUS_VER', '3.5.0');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently
@@ -2329,12 +2364,13 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHI_Activator', 'activate']);
 register_activation_hook(__FILE__, ['OUS_Roles', 'activate']);
+register_activation_hook(__FILE__, ['OUS_Audit', 'activate']);
 register_deactivation_hook(__FILE__, function () {
     // Only the cron schedule this plugin itself created — never touches
     // any other plugin's scheduled events, and the job queue TABLE (and
@@ -2378,6 +2414,7 @@ add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
 OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
+add_action('init',          ['OUS_Audit', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);
 add_action('init',          ['OUS_TestRunner', 'init']);

@@ -53,6 +53,17 @@ class BHM_Tiers {
         add_action('save_post_' . self::CPT, [self::class, 'save']);
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_admin_assets']);
+        add_action('before_delete_post', [self::class, 'log_deletion']);
+    }
+
+    /** Accountability log, AJ's own ask: "who changed what tier" — deletion is the other half of that. */
+    public static function log_deletion($post_id) {
+        $post = get_post($post_id);
+        if (!$post || $post->post_type !== self::CPT || !class_exists('OUS_Audit')) return;
+        OUS_Audit::log('tier_deleted', 'bhm_tier', $post_id, [
+            'name' => $post->post_title,
+            'price_cents' => (int) get_post_meta($post_id, '_bhm_price_cents', true),
+        ]);
     }
 
     // Only the tier edit screen needs the media picker (cover image) —
@@ -183,6 +194,14 @@ class BHM_Tiers {
         if (!isset($_POST['bhm_tier_nonce']) || !wp_verify_nonce($_POST['bhm_tier_nonce'], 'bhm_save_tier')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
+        // Accountability log, AJ's own ask: "who changed what tier" —
+        // a granular before/after diff on the fields that actually
+        // matter (price is the one that affects real money moving).
+        $before = class_exists('OUS_Audit') ? [
+            'price_cents' => (int) get_post_meta($post_id, '_bhm_price_cents', true),
+            'annual_price_cents' => (int) get_post_meta($post_id, '_bhm_annual_price_cents', true),
+        ] : [];
+
         $price_cents = isset($_POST['bhm_price']) ? (int) round(((float) $_POST['bhm_price']) * 100) : 0;
         update_post_meta($post_id, '_bhm_price_cents', $price_cents);
 
@@ -212,6 +231,12 @@ class BHM_Tiers {
 
         if (class_exists('WooCommerce')) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents);
+        }
+
+        if (class_exists('OUS_Audit')) {
+            OUS_Audit::log_diff('tier_saved', 'bhm_tier', $post_id, $before, [
+                'price_cents' => $price_cents, 'annual_price_cents' => $annual_price_cents,
+            ], ['name' => get_the_title($post_id)]);
         }
     }
 

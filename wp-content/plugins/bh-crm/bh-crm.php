@@ -2,11 +2,18 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.9.2
+ * Version:     1.9.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.9.3 — accountability audit log wiring (own-ur-shit 3.5.0's own
+// changelog has the full story). Segment and project deletion now log
+// to OUS_Audit (what it was, before it's gone), and both delete
+// handlers route their capability check through OUS_Audit::
+// require_cap() instead of a bare current_user_can() check, so a
+// concerning burst of denied delete attempts gets flagged.
 
 // 1.9.2 — debug-log wiring pass (own-ur-shit 3.4.91's own changelog
 // has the full story). BHCRM_Links::link()'s insert now logs an error
@@ -172,7 +179,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.9.2');
+define('BHCRM_VER',  '1.9.3');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

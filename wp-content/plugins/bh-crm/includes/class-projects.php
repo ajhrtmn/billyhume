@@ -624,11 +624,21 @@ class BHCRM_Projects {
     }
 
     public static function handle_delete() {
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_delete_' . $project_id)) wp_die('Bad nonce.');
+        if (class_exists('OUS_Audit')) {
+            OUS_Audit::require_cap('manage_options');
+        } elseif (!current_user_can('manage_options')) {
+            wp_die('Not allowed.');
+        }
 
         $uid = (int) ($_POST['user_id'] ?? 0);
+        // Audit log, AJ's own ask: "who deleted what [project]" —
+        // capture the name before it's gone.
+        $project = self::get($project_id);
+        if ($project && class_exists('OUS_Audit')) {
+            OUS_Audit::log('project_deleted', 'bhcrm_project', $project_id, ['name' => $project['name']]);
+        }
         self::delete($project_id);
 
         wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'bhcrm_msg' => 'Project deleted.'], admin_url('admin.php')));
