@@ -355,31 +355,53 @@ class BHCRM_People {
         // when BH_Element isn't loaded — render_slot() itself is the guard.
         $element_ctx = ['user_id' => $uid];
 
-        echo '<p><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
+        echo '<p style="margin-bottom:var(--bhy-space-4,16px);"><a href="' . esc_url(remove_query_arg('user_id')) . '">&larr; All people</a></p>';
 
+        // QA fix: this whole page used to be render_identity_header()
+        // plus five sections (profile/tags/notes/projects/activity)
+        // echoed back to back with only their own internal h2/h3/p
+        // margins for spacing — no card grouping at all, so everything
+        // ran together (confirmed live: name, email, "Profile", "Tags",
+        // "Notes" all reading as one undifferentiated block). Wrapped
+        // each section in .bhy-card, this design system's existing
+        // shared card treatment (own-ur-shit's class-ui.php) — every
+        // other custom admin screen already uses it, this page just
+        // hadn't been brought in line with it yet.
         self::render_identity_header($uid);
-        echo '<h2>' . esc_html($user->display_name) . '</h2>';
+
+        echo '<div class="bhy-card">';
+        echo '<h2 style="text-transform:none;letter-spacing:normal;font-size:var(--bhy-text-xl,20px);color:var(--bhy-ink,inherit);">' . esc_html($user->display_name) . '</h2>';
         echo '<p>' . esc_html($user->user_email) . ' &middot; Registered ' . esc_html(mysql2date('M j, Y', $user->user_registered))
            . ' &middot; <a href="' . esc_url(get_edit_user_link($uid)) . '">Edit WordPress profile</a></p>';
-
         self::render_profile($uid);
+        echo '</div>';
+
+        echo '<div class="bhy-card">';
         BHCRM_Tags::render_editor($uid);
+        echo '</div>';
+
+        echo '<div class="bhy-card">';
         BHCRM_Notes::render_editor($uid);
+        echo '</div>';
 
         // 1.2.0 — project tracker "Projects" section, additive, same
         // "appended after the existing fixed content" placement as the
         // tags/notes editors right above it.
         if (class_exists('BHCRM_Projects')) {
+            echo '<div class="bhy-card">';
             BHCRM_Projects::render_projects_section($uid);
+            echo '</div>';
         }
 
         $sections = apply_filters('bh_crm_activity_summary', [], $uid);
         if ($sections) {
+            echo '<div class="bhy-card">';
             echo '<h3>Activity</h3>';
             foreach ($sections as $section) {
                 echo '<h4>' . esc_html($section['plugin']) . '</h4><p>' . esc_html($section['summary']) . '</p>';
                 if (!empty($section['render'])) call_user_func($section['render']);
             }
+            echo '</div>';
         }
 
         // 1.3.3 — single 'root' slot, renders after the existing fixed

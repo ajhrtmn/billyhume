@@ -2,11 +2,23 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.7.1
+ * Version:     1.7.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.7.2 — the person detail page (People/CRM -> click a name) was the
+// worst offender of the "admin pages struggle here" complaint: name,
+// email, Profile, Tags, Notes, Projects, and Activity all echoed back
+// to back with only their own internal h2/h3/p margins for spacing,
+// no card grouping at all — confirmed live, it read as one
+// undifferentiated block. Wrapped each section in .bhy-card, this
+// design system's existing shared card treatment (own-ur-shit's
+// class-ui.php) that most other custom admin screens already use.
+// Verified live on desktop and mobile (375px): clear card separation,
+// consistent padding/gaps, WP admin's own responsive stacking handles
+// mobile without any extra breakpoint needed here.
 
 // 1.7.1 — admin styling QA pass (ROADMAP-ux-polish-and-feature-parity-
 // 2026-07.md styling half, "admin pages definitely struggle here").
@@ -54,7 +66,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.7.1');
+define('BHCRM_VER',  '1.7.2');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,
