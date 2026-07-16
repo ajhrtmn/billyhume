@@ -37,5 +37,39 @@ class BH_PostTypes {
             'show_in_menu' => self::MENU_PARENT, // nested under Contests, not its own top-level item
             'supports'     => ['title', 'author'],
         ]);
+
+        // Real 'rejected' status, replacing the previous non-existent
+        // one (an admin's only prior option was to leave a submission
+        // stuck at 'pending' forever, or trash it, with zero
+        // notification to the contestant either way — a real gap
+        // surfaced by AJ's own permissions/QA pass this session).
+        // 'publicly_queryable' => false / 'exclude_from_search' =>
+        // true, same posture as 'pending' itself for this CPT (public
+        // => false on the post type already blocks direct access, this
+        // just keeps the status consistent with that).
+        // QA fix, caught live: 'exclude_from_search' => true made
+        // WordPress's post_status => 'any' query expansion (used in
+        // SIX places across this plugin — has_submitted()'s duplicate
+        // check, the portal's own submissions list, the CRM
+        // integration's activity summary, etc.) silently EXCLUDE
+        // rejected submissions entirely — confirmed live: a rejected
+        // submission vanished from the contestant's own portal list.
+        // WP_Query only respects exclude_from_search for CUSTOM
+        // statuses during 'any' expansion (core statuses like
+        // 'pending' are hardcoded exceptions), so this one flag was
+        // silently breaking every 'any' query in the plugin. false is
+        // still safe here — bh_submission itself is 'public' => false
+        // on the post type, so this can never actually surface in a
+        // real front-end search regardless of this flag.
+        register_post_status('rejected', [
+            'label'                     => 'Rejected',
+            'internal'                  => false,
+            'public'                    => false,
+            'exclude_from_search'       => false,
+            'show_in_admin_all_list'    => true,
+            'show_in_admin_status_list' => true,
+            // translators: %s: number of rejected submissions.
+            'label_count'               => _n_noop('Rejected <span class="count">(%s)</span>', 'Rejected <span class="count">(%s)</span>'),
+        ]);
     }
 }

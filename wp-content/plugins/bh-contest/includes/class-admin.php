@@ -2,6 +2,18 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Admin {
+    // Prefab rejection reasons, AJ's own ask: "some real reasoning
+    // behind it" rather than a bare freeform box. 'other' always keeps
+    // the freeform note meaningful even when nothing here fits.
+    const REJECTION_REASONS = [
+        'wrong_file'   => 'Wrong file attached (not the intended track)',
+        'poor_quality' => 'Audio quality issue (clipping, low bitrate, corrupt file)',
+        'ineligible'   => 'Doesn\'t meet contest eligibility rules',
+        'duplicate'    => 'Duplicate of an existing submission',
+        'copyright'    => 'Copyright/rights concern',
+        'other'        => 'Other (see note)',
+    ];
+
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
@@ -23,6 +35,15 @@ class BH_Admin {
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
         add_action('wp_ajax_bh_advance_round', [self::class, 'ajax_advance_round']);
+
+        // Submission review actions — file-replace workflow (a pending
+        // swap needs its own explicit approve/discard, since the swap
+        // doesn't go through a post_status transition the way a
+        // first-time approval does) plus a real reject path with a
+        // reason, both new this pass.
+        add_action('admin_post_bh_approve_swap', [self::class, 'handle_approve_swap']);
+        add_action('admin_post_bh_discard_swap', [self::class, 'handle_discard_swap']);
+        add_action('admin_post_bh_reject_submission', [self::class, 'handle_reject_submission']);
 
         // Submissions list: which contest each one belongs to, plus a filter
         // dropdown — the flat approval queue is unreadable once more than
@@ -421,6 +442,14 @@ class BH_Admin {
         if ($post->post_type !== 'bh_submission') return;
         if ($new_status !== 'publish' || $old_status === 'publish') return;
 
+        // A contestant may have swapped their file before this
+        // submission was ever reviewed (still 'pending' at the time) —
+        // that swap sits in _bh_pending_audio_id same as it would on an
+        // already-published submission. Promote it here so a
+        // first-time approval always announces whatever's actually the
+        // reviewed, current file, not a stale first upload.
+        self::promote_pending_audio($post->ID);
+
         $cid = (int) get_post_meta($post->ID, '_bh_contest_id', true);
         if (!$cid) return;
 
@@ -715,22 +744,232 @@ class BH_Admin {
         return $classes;
     }
 
-    public static function add_meta_boxes() {
-        add_meta_box('bh_approval', 'Submission Details & Approval', function ($post) {
-            $note = get_post_meta($post->ID, '_bh_admin_note', true);
-            $url  = wp_get_attachment_url(get_post_meta($post->ID, '_bh_audio_id', true));
-            $cid  = (int) get_post_meta($post->ID, '_bh_contest_id', true);
+    /**
+     * Submission review box — rebuilt this pass to cover the file-
+     * replace workflow (AJ's own "wrong file uploaded" ask) and a real
+     * reject path. Three states this now renders:
+     *  1. No pending swap, not rejected: original behavior — live
+     *     audio player + the existing "set Status to Published"
+     *     instruction, PLUS a new Reject form.
+     *  2. A pending swap exists (`_bh_pending_audio_id`): shows BOTH
+     *     the currently-live file (still what's actually playing/
+     *     being voted on) and the pending replacement, with Approve/
+     *     Discard buttons for the swap specifically — first-time
+     *     Publish approval and the swap review are two independent
+     *     actions once a submission has ever been approved once.
+     *  3. post_status === 'rejected': shows the stored reason/note
+     *     read-only, plus the same Reject-again path is naturally
+     *     unavailable (nothing to re-reject) — a contestant re-
+     *     submitting a new file automatically flips this back to
+     *     'pending' (see BH_API::replace_audio()).
+     */
+    public static function render_approval_box($post) {
+        $note = get_post_meta($post->ID, '_bh_admin_note', true);
+        $audio_id = (int) get_post_meta($post->ID, '_bh_audio_id', true);
+        $url  = $audio_id ? wp_get_attachment_url($audio_id) : '';
+        $cid  = (int) get_post_meta($post->ID, '_bh_contest_id', true);
+        $pending_id = (int) get_post_meta($post->ID, '_bh_pending_audio_id', true);
 
-            if ($cid && get_post($cid)) {
-                echo '<p><strong>Contest:</strong> <a href="' . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
-            }
-            echo '<h4>Artist Name: ' . esc_html(get_post_meta($post->ID, '_bh_artist_name', true)) . '</h4>';
-            if ($note) echo '<p><strong>Note to Admin:</strong><br><em>' . esc_html($note) . '</em></p>';
-            echo $url
-                ? "<audio controls src='" . esc_url($url) . "' style='width:100%;margin:15px 0;'></audio>"
+        if ($cid && get_post($cid)) {
+            echo '<p><strong>Contest:</strong> <a href="' . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
+        }
+        echo '<h4>Artist Name: ' . esc_html(get_post_meta($post->ID, '_bh_artist_name', true)) . '</h4>';
+        if ($note) echo '<p><strong>Note to Admin:</strong><br><em>' . esc_html($note) . '</em></p>';
+
+        echo '<p><strong>' . ($pending_id ? 'Currently live:' : 'Audio:') . '</strong></p>';
+        echo $url
+            ? "<audio controls src='" . esc_url($url) . "' style='width:100%;margin:0 0 15px;'></audio>"
+            : '<p>No audio attached.</p>';
+
+        if ($pending_id) {
+            $pending_url = wp_get_attachment_url($pending_id);
+            $replaced_at = get_post_meta($post->ID, '_bh_pending_replaced_at', true);
+            $replaced_by = (int) get_post_meta($post->ID, '_bh_pending_replaced_by', true);
+            $by_user = $replaced_by ? get_userdata($replaced_by) : null;
+            echo '<div style="background:#fff8e5;border:1px solid #dba617;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
+            echo '<p style="margin-top:0;"><strong>&#9888; Pending replacement</strong>'
+               . ($replaced_at ? ' — uploaded ' . esc_html(mysql2date('M j, Y g:ia', $replaced_at)) : '')
+               . ($by_user ? ' by ' . esc_html($by_user->display_name) : '') . '</p>';
+            echo $pending_url
+                ? "<audio controls src='" . esc_url($pending_url) . "' style='width:100%;margin:0 0 10px;'></audio>"
                 : '<p>No audio attached.</p>';
+
+            $approve_url = wp_nonce_url(admin_url('admin-post.php?action=bh_approve_swap&submission_id=' . $post->ID), 'bh_approve_swap_' . $post->ID);
+            $discard_url = wp_nonce_url(admin_url('admin-post.php?action=bh_discard_swap&submission_id=' . $post->ID), 'bh_discard_swap_' . $post->ID);
+            echo '<p style="margin-bottom:0;"><a class="button button-primary" href="' . esc_url($approve_url) . '">Approve replacement</a> '
+               . '<a class="button" href="' . esc_url($discard_url) . '" onclick="return confirm(\'Discard this replacement and keep the current file?\');">Discard replacement</a></p>';
+            echo '</div>';
+        }
+
+        if ($post->post_status === 'rejected') {
+            $reason_code = get_post_meta($post->ID, '_bh_rejection_reason_code', true);
+            $reason_note = get_post_meta($post->ID, '_bh_rejection_note', true);
+            echo '<div style="background:#fbeaea;border:1px solid #b32d2e;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
+            echo '<p style="margin:0;"><strong>Rejected</strong> — ' . esc_html(self::REJECTION_REASONS[$reason_code] ?? 'No reason recorded') . '</p>';
+            if ($reason_note) echo '<p style="margin:8px 0 0;"><em>' . esc_html($reason_note) . '</em></p>';
+            echo '</div>';
+        } else {
             echo '<hr><p><strong>To Approve:</strong> set Status to <em>Published</em> and click Update.</p>';
-        }, 'bh_submission', 'normal', 'high');
+
+            // QA fix, caught live: a metabox renders INSIDE WordPress's
+            // own outer post-edit <form id="post">, so a second, nested
+            // <form> here is invalid HTML — the browser silently
+            // resolves a submit click to the OUTER form (a normal post
+            // Update), never actually hitting admin-post.php at all.
+            // Confirmed live: the reject button appeared to work but
+            // the submission's status/meta never actually changed.
+            // Fixed by dropping the nested <form> entirely — these are
+            // plain fields plus a button with no form ancestor, and a
+            // small inline script does a fetch() POST to admin-post.php
+            // directly instead of relying on native form submission.
+            echo '<details><summary style="cursor:pointer;color:#b32d2e;">Reject this submission</summary>';
+            $reject_nonce = wp_create_nonce('bh_reject_submission_' . $post->ID);
+            $box_id = 'bh-reject-box-' . (int) $post->ID;
+            echo '<div id="' . esc_attr($box_id) . '" style="margin-top:10px;">';
+            echo '<p><label>Reason<br><select class="bh-reject-reason">';
+            foreach (self::REJECTION_REASONS as $code => $label) {
+                echo '<option value="' . esc_attr($code) . '">' . esc_html($label) . '</option>';
+            }
+            echo '</select></label></p>';
+            echo '<p><label>Note to contestant (included in their notification)<br>'
+               . '<textarea class="bh-reject-note" rows="3" style="width:100%;"></textarea></label></p>';
+            echo '<button type="button" class="button bh-reject-submit" style="color:#b32d2e;border-color:#b32d2e;">Reject &amp; notify contestant</button>';
+            echo ' <span class="bh-reject-status description"></span>';
+            echo '</div>';
+            echo '<script>(function(){
+                var box = document.getElementById(' . wp_json_encode($box_id) . ');
+                if (!box) return;
+                box.querySelector(".bh-reject-submit").addEventListener("click", function () {
+                    if (!confirm("Reject this submission? The contestant will be notified.")) return;
+                    var btn = this;
+                    var statusEl = box.querySelector(".bh-reject-status");
+                    btn.disabled = true;
+                    var fd = new FormData();
+                    fd.append("action", "bh_reject_submission");
+                    fd.append("submission_id", ' . (int) $post->ID . ');
+                    fd.append("_wpnonce", ' . wp_json_encode($reject_nonce) . ');
+                    fd.append("reason_code", box.querySelector(".bh-reject-reason").value);
+                    fd.append("note", box.querySelector(".bh-reject-note").value);
+                    fetch(' . wp_json_encode(admin_url('admin-post.php')) . ', { method: "POST", credentials: "same-origin", body: fd })
+                        .then(function (res) { if (res.redirected || res.ok) { window.location.reload(); } else { statusEl.textContent = "Something went wrong."; btn.disabled = false; } })
+                        .catch(function () { statusEl.textContent = "Request failed."; btn.disabled = false; });
+                });
+            })();</script>';
+            echo '</details>';
+        }
+    }
+
+    /** Promotes a pending file swap to live: deletes the old attachment, moves pending -> live, clears pending meta. */
+    private static function promote_pending_audio($post_id) {
+        $old_audio = (int) get_post_meta($post_id, '_bh_audio_id', true);
+        $pending = (int) get_post_meta($post_id, '_bh_pending_audio_id', true);
+        if (!$pending) return;
+        if ($old_audio && $old_audio !== $pending) wp_delete_attachment($old_audio, true);
+        update_post_meta($post_id, '_bh_audio_id', $pending);
+        delete_post_meta($post_id, '_bh_pending_audio_id');
+        delete_post_meta($post_id, '_bh_pending_replaced_by');
+        delete_post_meta($post_id, '_bh_pending_replaced_at');
+    }
+
+    public static function handle_approve_swap() {
+        $pid = (int) ($_GET['submission_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.');
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+
+        // QA fix, caught live: this fired the Discord "entry file
+        // updated" announcement unconditionally, even for a submission
+        // that was never actually approved (still 'pending') —
+        // "Approve replacement" and the real first-time Publish
+        // approval are two independent actions, and a still-pending
+        // submission has nothing to publicly re-announce yet (its
+        // first REAL approval, whenever that happens, already
+        // announces fresh via maybe_notify_approval(), which now also
+        // calls promote_pending_audio() itself). Only announce here
+        // when this submission was already publicly live.
+        $was_published = $post->post_status === 'publish';
+
+        self::promote_pending_audio($pid);
+
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        $artist = get_post_meta($pid, '_bh_artist_name', true);
+        $aid = (int) get_post_meta($pid, '_bh_audio_id', true);
+        if ($was_published && $cid && class_exists('BH_Discord')) {
+            BH_Discord::notify_submission($cid, $post->post_title, $artist, $aid ? wp_get_attachment_url($aid) : '', true);
+        }
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_swap_approved', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid]]);
+        }
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    public static function handle_discard_swap() {
+        $pid = (int) ($_GET['submission_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.');
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+
+        $pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
+        if ($pending) wp_delete_attachment($pending, true);
+        delete_post_meta($pid, '_bh_pending_audio_id');
+        delete_post_meta($pid, '_bh_pending_replaced_by');
+        delete_post_meta($pid, '_bh_pending_replaced_at');
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    /**
+     * Real reject path — AJ's own ask: "some real reasoning behind
+     * it." Sets the 'rejected' post_status (registered in
+     * class-post-types.php), stores the prefab reason + freeform note,
+     * and emails the contestant with both — closing the gap where a
+     * rejected submission previously just sat at 'pending' forever
+     * with no notification either way.
+     */
+    public static function handle_reject_submission() {
+        $pid = (int) ($_POST['submission_id'] ?? 0);
+        if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.');
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+
+        $reason_code = sanitize_key($_POST['reason_code'] ?? 'other');
+        if (!isset(self::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
+        $note = sanitize_textarea_field(wp_unslash($_POST['note'] ?? ''));
+
+        update_post_meta($pid, '_bh_rejection_reason_code', $reason_code);
+        update_post_meta($pid, '_bh_rejection_note', $note);
+        wp_update_post(['ID' => $pid, 'post_status' => 'rejected']);
+
+        $author = get_userdata($post->post_author);
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        if ($author && $author->user_email) {
+            $contest_title = $cid ? get_the_title($cid) : 'the contest';
+            $subject = 'About your submission — ' . get_bloginfo('name');
+            $reason_label = self::REJECTION_REASONS[$reason_code];
+            $body = "Hi {$author->user_login},\n\nYour submission \"{$post->post_title}\" for {$contest_title} wasn't accepted this time.\n\nReason: {$reason_label}"
+                  . ($note ? "\n\nNote from the team: {$note}" : '')
+                  . "\n\nIf this was a mistake (e.g. the wrong file got attached), you can upload a replacement from your account portal while submissions are still open, and it'll be reviewed again.";
+            wp_mail($author->user_email, $subject, $body);
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bhcore/email_sent', ['user_id' => (int) $post->post_author, 'subject_type' => 'email', 'subject_id' => 0, 'payload' => ['title' => $subject]]);
+            }
+        }
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_rejected', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid, 'reason_code' => $reason_code]]);
+        }
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    public static function add_meta_boxes() {
+        add_meta_box('bh_approval', 'Submission Details & Approval', [self::class, 'render_approval_box'], 'bh_submission', 'normal', 'high');
 
         add_meta_box('bh_contest_settings', 'Contest Rules & Results', function ($post) {
             wp_nonce_field('bh_save_contest', 'bh_contest_nonce');

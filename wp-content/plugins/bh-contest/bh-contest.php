@@ -2,11 +2,74 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.5.3
+ * Version:     3.6.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.6.0 — the "wrong file uploaded" fix, AJ's own ask, fully scoped
+// this session: admin AND the contestant themselves can replace a
+// submission's audio file, any time the contest's submission window
+// is still open (BH_Helpers::is_submission_open() — same gate a fresh
+// submission itself respects).
+//
+// New: BH_API::replace_audio() (bh/v1/submissions/replace-audio, REST,
+// self-service or admin) writes the new file to _bh_pending_audio_id —
+// NEVER directly over _bh_audio_id — so the currently-live file keeps
+// playing/being voted on unchanged until an admin reviews and approves
+// the swap. Swapping more than once before review deletes the
+// previous pending attachment; only the newest ever needs review.
+// Admin review UI: BH_Admin::render_approval_box() (full rebuild of
+// the old 100%-read-only meta box) now shows both the live file and a
+// pending replacement side by side with Approve/Discard actions.
+//
+// New: a real 'rejected' post_status (class-post-types.php) with a
+// prefab reason-code dropdown (BH_Admin::REJECTION_REASONS) plus a
+// freeform note, both included in a real rejection email to the
+// contestant — closing the gap where a rejected submission previously
+// just sat at 'pending' forever with zero notification either way.
+// Uploading a new file after a rejection automatically flips it back
+// to 'pending', putting it in front of an admin again.
+//
+// New: a "Manage my submission" link on the contest player itself
+// (BH_Auth::render()) for any logged-in contestant who's already
+// entered — a real way to REACH the portal's replace-file flow from
+// the page they'd actually be on when they notice the mistake, per
+// AJ's own ask.
+//
+// Old attachments are deleted on swap-approval (AJ's own call), not
+// kept around. Discord announces a file swap the same way it
+// announces a first approval (AJ's own call: "you choose"), but ONLY
+// when the submission was already actually published — a still-
+// pending submission's file swap doesn't get a premature public
+// announcement (a real bug caught live during this session's own
+// verification: the first cut of this fired Discord even for a
+// submission that had never been approved at all).
+//
+// Two more real bugs caught live during verification, both fixed:
+//  1. The reject button lived inside a metabox, which renders INSIDE
+//     WordPress's own outer post-edit <form> — a second, nested <form>
+//     is invalid HTML, so a submit click silently resolved to the
+//     OUTER form (a plain post Update) and never reached admin-post.php
+//     at all. Rebuilt as plain fields + a button with no form ancestor,
+//     submitting via a small inline fetch() POST instead.
+//  2. register_post_status('rejected', ['exclude_from_search' => true,
+//     ...]) silently broke `post_status => 'any'` everywhere else in
+//     this plugin (6 call sites, including has_submitted()'s own
+//     duplicate-submission check and the portal's submissions list) —
+//     WordPress only respects exclude_from_search for CUSTOM statuses
+//     during 'any' expansion, so a rejected submission was vanishing
+//     from the contestant's own portal view entirely. Fixed by setting
+//     exclude_from_search => false (safe: the post type itself is
+//     already 'public' => false, so this can never surface in a real
+//     front-end search regardless).
+// Verified live end-to-end: rejected a real submission (reason + note
+// stored, status changed), uploaded a replacement from the portal
+// (status correctly flipped pending -> back to pending-with-swap,
+// visible again after the exclude_from_search fix), approved the swap
+// from wp-admin (old file deleted, new file promoted, no premature
+// Discord post since the submission was never published).
 
 // 3.5.3 — class-api.php's submit() now emits BH_Event
 // 'bh/submission_created' after a successful submission, and both
@@ -129,7 +192,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.5.3');
+define('BH_VER',        '3.6.0');
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.

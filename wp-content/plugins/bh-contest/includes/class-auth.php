@@ -48,6 +48,19 @@ class BH_Auth {
         // siblings of the player, not something player.js knows about or
         // touches at all.
         $before = ''; $after = '';
+        // AJ's own ask: a real way for a logged-in contestant to reach
+        // their account portal (where they can now replace a wrong
+        // file, see BH_PortalPanel) from the page they'd actually be
+        // on when they realize the mistake — the contest player itself.
+        // Server-rendered, a real sibling of the JS-owned player div
+        // (never touched/rebuilt by player.js), so this survives
+        // regardless of playback state. Only shown when the current
+        // user actually has a submission for THIS contest — no reason
+        // to show it to someone who hasn't entered.
+        if ($cid && is_user_logged_in() && class_exists('BH_Helpers') && BH_Helpers::has_submitted(get_current_user_id(), $cid) && class_exists('BHI_Portal')) {
+            $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/submissions/');
+            $before .= '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
+        }
         if ($cid && class_exists('BH_Element')) {
             $before = BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
             $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);

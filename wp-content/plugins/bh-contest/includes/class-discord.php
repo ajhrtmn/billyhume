@@ -125,10 +125,16 @@ class BH_Discord {
 
     /* ---------- the three automatic triggers ---------- */
 
-    public static function notify_submission($contest_id, $title, $artist, $audio_url = '') {
+    // $is_file_update distinguishes a first-time approval from a
+    // reviewed file-swap on an already-announced entry (AJ's own call:
+    // "you choose what to do with Discord" for the file-replace
+    // workflow) — same public announcement either way (the channel
+    // should know the audio behind an entry it already saw changed),
+    // just different wording so it doesn't read as a duplicate entry.
+    public static function notify_submission($contest_id, $title, $artist, $audio_url = '', $is_file_update = false) {
         self::send(
             $contest_id,
-            '🎵 New entry approved!',
+            $is_file_update ? '🔄 Entry file updated' : '🎵 New entry approved!',
             "**{$title}** by {$artist}",
             [],
             self::COLOR_SUBMISSION,

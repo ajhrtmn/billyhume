@@ -23,6 +23,13 @@ class BH_API {
         register_rest_route('bh/v1', '/results', ['methods' => 'GET',  'callback' => [self::class, 'results'], 'args' => $carg] + $pub);
         register_rest_route('bh/v1', '/vote',    ['methods' => 'POST', 'callback' => [self::class, 'vote'],    'args' => $idarg + $carg] + $auth);
         register_rest_route('bh/v1', '/submit',  ['methods' => 'POST', 'callback' => [self::class, 'submit'],  'args' => $carg] + $auth);
+        // Contestant self-service "wrong file uploaded" fix — AJ's own
+        // ask this session. Ownership is enforced INSIDE replace_audio()
+        // (post_author === current user), not just is_user_logged_in()
+        // here, same "auth tier here + real ownership check in the
+        // callback" pattern bh-monetization-woo's admin_post_
+        // bhm_manage_subscription handler already uses.
+        register_rest_route('bh/v1', '/submissions/replace-audio', ['methods' => 'POST', 'callback' => [self::class, 'replace_audio'], 'args' => $idarg] + $auth);
         // Admin-only live tally. Completely separate gate from /results —
         // always reflects the true current count regardless of the "Publish
         // Results" checkbox, and only ever answers manage_options users.
@@ -407,6 +414,85 @@ class BH_API {
         }
 
         return self::ok();
+    }
+
+    /**
+     * "Wrong file uploaded" fix — AJ's own ask this session. Available
+     * to the submission's OWN author (self-service) or an admin, any
+     * time the contest's submission window is still open — same
+     * BH_Helpers::is_submission_open() gate submit() itself uses, so a
+     * swap can never happen after the window a fresh submission would
+     * also be rejected in.
+     *
+     * The new file goes into `_bh_pending_audio_id`, NEVER directly
+     * into `_bh_audio_id` — the currently-live file (whatever's
+     * actually being played/voted on right now) keeps serving
+     * unchanged until an admin reviews and approves the swap
+     * (BH_Admin::handle_approve_swap()). If a pending swap already
+     * exists (the contestant swapped more than once before review),
+     * the previous pending attachment is deleted and replaced — only
+     * the newest ever needs review, per AJ's own instruction.
+     */
+    public static function replace_audio($req) {
+        $pid = (int) $req->get_param('submission_id');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') {
+            return self::err('not_found', 'Submission not found.', 404);
+        }
+
+        $uid = get_current_user_id();
+        $is_owner = (int) $post->post_author === $uid;
+        $is_admin = current_user_can('manage_options');
+        if (!$is_owner && !$is_admin) {
+            return self::err('forbidden', 'You can only replace your own submission.', 403);
+        }
+
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        if (!$cid || !BH_Helpers::is_submission_open($cid)) {
+            return self::err('sub_closed', 'Submissions are closed for this contest — the file can no longer be changed.', 403);
+        }
+
+        $f = $req->get_file_params();
+        if (empty($f['audio']['tmp_name'])) return self::err('file', 'Please attach an audio file.', 400);
+        if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);
+        if (empty(wp_check_filetype($f['audio']['name'], BH_Helpers::allowed_audio())['ext'])) {
+            return self::err('file', 'Only MP3 or M4A files are allowed.', 400);
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $aid = media_handle_sideload($f['audio'], $pid);
+        if (is_wp_error($aid)) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'Contest submission replace_audio() media_handle_sideload() failed.', [
+                    'user_id' => $uid, 'submission_id' => $pid, 'filename' => $f['audio']['name'] ?? '', 'wp_error' => $aid->get_error_message(),
+                ], 'BH Contest Submission');
+            }
+            return self::err('upload', 'We could not process that audio file. Please try another.', 400);
+        }
+
+        // Only the newest pending swap survives — delete a prior
+        // unreviewed one rather than stacking pending files.
+        $old_pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
+        if ($old_pending && $old_pending !== $aid) wp_delete_attachment($old_pending, true);
+
+        update_post_meta($pid, '_bh_pending_audio_id', $aid);
+        update_post_meta($pid, '_bh_pending_replaced_by', $uid);
+        update_post_meta($pid, '_bh_pending_replaced_at', current_time('mysql'));
+        // A prior rejection is no longer the last word once a new file
+        // shows up — put it back in front of an admin.
+        if ($post->post_status === 'rejected') wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
+
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_file_replaced', [
+                'user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid,
+                'payload' => ['contest_id' => $cid, 'replaced_by' => $uid, 'is_admin' => $is_admin],
+            ]);
+        }
+
+        return self::ok(['message' => 'Your replacement file is uploaded and waiting for review — your original submission stays active until then.']);
     }
 
     // Always returns a `categories` array — a contest with no named
