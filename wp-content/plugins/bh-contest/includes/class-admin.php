@@ -955,9 +955,17 @@ class BH_Admin {
             $body = "Hi {$author->user_login},\n\nYour submission \"{$post->post_title}\" for {$contest_title} wasn't accepted this time.\n\nReason: {$reason_label}"
                   . ($note ? "\n\nNote from the team: {$note}" : '')
                   . "\n\nIf this was a mistake (e.g. the wrong file got attached), you can upload a replacement from your account portal while submissions are still open, and it'll be reviewed again.";
-            wp_mail($author->user_email, $subject, $body);
-            if (class_exists('BH_Event')) {
+            $sent = wp_mail($author->user_email, $subject, $body);
+            if ($sent && class_exists('BH_Event')) {
                 BH_Event::emit('bhcore/email_sent', ['user_id' => (int) $post->post_author, 'subject_type' => 'email', 'subject_id' => 0, 'payload' => ['title' => $subject]]);
+            } elseif (!$sent && class_exists('OUS_DebugLog')) {
+                // Debug-log wiring pass — a rejection notice failing to
+                // send is worth knowing about: the contestant would
+                // otherwise have no idea their submission was rejected
+                // at all.
+                OUS_DebugLog::log('warning', 'Rejection notification email failed to send (wp_mail() returned false).', [
+                    'user_id' => (int) $post->post_author, 'submission_id' => $pid,
+                ], 'BH Contest Submission');
             }
         }
         if (class_exists('BH_Event')) {

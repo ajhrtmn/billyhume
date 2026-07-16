@@ -143,6 +143,17 @@ class OUS_Notifications {
                 'user_id' => $user_id, 'subject_type' => 'email', 'subject_id' => 0,
                 'payload' => ['title' => $title],
             ]);
+        } elseif (!$sent && class_exists('OUS_DebugLog')) {
+            // Previously silent — wp_mail() returning false (misconfigured
+            // mail transport, rejected recipient, etc.) meant a queued
+            // notification email just silently never arrived, with
+            // nothing anywhere to tell a dev that. Debug-log wiring pass,
+            // AJ's own ask — routine sends feed the activity timeline
+            // above; a failure is exactly the kind of thing worth
+            // surfacing in Debug Tools instead.
+            OUS_DebugLog::log('warning', 'Queued notification email failed to send (wp_mail() returned false).', [
+                'user_id' => $user_id, 'title' => $title,
+            ], 'OUS Notifications');
         }
     }
 

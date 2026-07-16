@@ -400,16 +400,21 @@ class BH_API {
         if ($user && $user->user_email) {
             $contest_title = get_the_title($cid);
             $subject = 'We got your submission — ' . get_bloginfo('name');
-            wp_mail(
+            $sent = wp_mail(
                 $user->user_email,
                 $subject,
                 "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!"
             );
-            if (class_exists('BH_Event')) {
+            if ($sent && class_exists('BH_Event')) {
                 BH_Event::emit('bhcore/email_sent', [
                     'user_id' => $uid, 'subject_type' => 'email', 'subject_id' => 0,
                     'payload' => ['title' => $subject],
                 ]);
+            } elseif (!$sent && class_exists('OUS_DebugLog')) {
+                // Debug-log wiring pass — previously silent on failure.
+                OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
+                    'user_id' => $uid, 'submission_id' => $pid,
+                ], 'BH Contest Submission');
             }
         }
 

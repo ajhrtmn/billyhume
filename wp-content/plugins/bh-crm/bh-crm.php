@@ -2,11 +2,16 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.9.1
+ * Version:     1.9.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.9.2 — debug-log wiring pass (own-ur-shit 3.4.91's own changelog
+// has the full story). BHCRM_Links::link()'s insert now logs an error
+// if the write fails, instead of silently proceeding with a bogus
+// $link_id.
 
 // 1.9.1 — permissions audit follow-through (own-ur-shit 3.4.90's own
 // changelog has the full story). Two real fixes here:
@@ -167,7 +172,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.9.1');
+define('BHCRM_VER',  '1.9.2');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

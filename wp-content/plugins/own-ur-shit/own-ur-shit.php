@@ -2,10 +2,21 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.4.90
+ * Version:     3.4.91
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.4.91 — debug-log wiring pass (AJ's own ask: "wire any of those new
+// events into the debug log... that would be useful and helpful for
+// future dev"). Rather than mirroring every routine BH_Event emission
+// into OUS_DebugLog (that's what the activity timeline is for),
+// OUS_Notifications::send_email_now() now logs a warning specifically
+// when wp_mail() returns false — previously a queued notification
+// email failing to send was completely silent, with nothing anywhere
+// telling a dev it happened. Same fix applied to bh-contest's own two
+// direct wp_mail() call sites (bh-contest 3.6.1) and BHCRM_Links::
+// link()'s insert failure path (bh-crm 1.9.2).
 
 // 3.4.90 — permissions audit follow-through (AJ's own ask: "audit user
 // roles and permissions... admins and site managers should have access
@@ -2011,7 +2022,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.4.90');
+define('OUS_VER', '3.4.91');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently

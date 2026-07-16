@@ -112,12 +112,18 @@ class BHCRM_Links {
         ));
         if ($existing) return (int) $existing;
 
-        $wpdb->insert(self::table(), [
+        $ok = $wpdb->insert(self::table(), [
             'from_type' => $from_type, 'from_id' => (int) $from_id,
             'to_type'   => $to_type,   'to_id'   => (int) $to_id,
             'relation'  => $relation,
             'created_at' => current_time('mysql'),
         ]);
+        if ($ok === false && class_exists('OUS_DebugLog')) {
+            // Debug-log wiring pass — previously silent on failure.
+            OUS_DebugLog::log('error', 'BHCRM_Links::link() insert failed.', [
+                'from_type' => $from_type, 'from_id' => $from_id, 'to_type' => $to_type, 'to_id' => $to_id, 'relation' => $relation, 'db_error' => $wpdb->last_error,
+            ], 'BH CRM Links');
+        }
         $link_id = (int) $wpdb->insert_id;
 
         // Feeds the CRM's unified per-person activity timeline — only
