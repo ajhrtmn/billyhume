@@ -2,11 +2,22 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     1.7.0
+ * Version:     1.7.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.7.1 — admin styling QA pass (ROADMAP-ux-polish-and-feature-parity-
+// 2026-07.md styling half, "admin pages definitely struggle here").
+// The People/CRM list page's toolbar (intro line, tag filter, smart
+// lists card, export button, search box) was a loose sequence of
+// <p>/<input> elements relying on inconsistent default browser
+// paragraph margins for spacing — confirmed live, gaps between rows
+// varied and had no visual relationship to each other. Wrapped the
+// whole toolbar in one flex column with a single --bhy-space-3 gap.
+// Also widened the Activity column (min-width:220px) since its
+// multi-part summary text was wrapping awkwardly at the old width.
 
 // 1.3.6 — 2026-07-13 — ROADMAP-ux-polish-and-feature-parity-2026-07.md
 // item 1 (the one cross-plugin item that pass recommended doing
@@ -43,7 +54,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '1.7.0');
+define('BHCRM_VER',  '1.7.1');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

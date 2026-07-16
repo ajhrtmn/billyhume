@@ -153,11 +153,20 @@ class BHCRM_People {
         $active_segment = $segment_id ? BHCRM_Segments::get($segment_id) : null;
         if ($active_segment) $ids = BHCRM_Segments::apply(array_values($ids), $active_segment['conditions']);
 
-        echo '<p>Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
+        // QA fix: this whole toolbar (intro line, tag filter, smart
+        // lists, export, search) was a loose sequence of <p>/<input>
+        // elements relying on default browser paragraph margins for
+        // spacing — inconsistent gaps between rows, and the export
+        // button/search box had no visual relationship to the tag
+        // filter above them. Wrapped in one flex column with a single
+        // token-driven gap so the whole toolbar reads as one group.
+        echo '<div style="display:flex;flex-direction:column;gap:var(--bhy-space-3,12px);margin-bottom:var(--bhy-space-4,16px);">';
+
+        echo '<p style="margin:0;">Anyone with profile data on file or recorded activity. Click a name for their full detail.</p>';
 
         $all_tags = BHCRM_Tags::all_in_use();
         if ($all_tags) {
-            echo '<p><strong>Filter by tag:</strong> ';
+            echo '<p style="margin:0;"><strong>Filter by tag:</strong> ';
             echo '<a href="' . esc_url(remove_query_arg('tag')) . '">All</a> ';
             foreach ($all_tags as $t) {
                 echo '&middot; <a href="' . esc_url(add_query_arg('tag', $t)) . '"' . ($tag_filter === $t ? ' style="font-weight:700;"' : '') . '>' . esc_html($t) . '</a> ';
@@ -168,7 +177,7 @@ class BHCRM_People {
         self::render_segments_panel($active_segment);
 
         $export_url = wp_nonce_url(admin_url('admin-post.php?action=bhcrm_export' . ($tag_filter ? '&tag=' . urlencode($tag_filter) : '')), 'bhcrm_export');
-        echo '<p><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
+        echo '<p style="margin:0;"><a class="button" href="' . esc_url($export_url) . '">Export CSV (all)</a></p>';
 
         // Search + sortable columns — see BHY_UI::print_design_system_js()
         // for the shared, dependency-free behavior. Genuinely useful here
@@ -176,6 +185,8 @@ class BHCRM_People {
         // "find one person by name" and "sort by most recently
         // registered" matter, unlike a small fixed-size stats table.
         echo '<input type="text" class="bhy-table-search" data-target="#bhcrm-people-table" placeholder="Filter by name, email, or tag&hellip;">';
+
+        echo '</div>';
 
         // ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
         // bulk actions — one <form> wraps the whole table (checkboxes +
@@ -201,7 +212,7 @@ class BHCRM_People {
         echo '<div class="bhy-table-wrap bhy-table-wrap--tall">';
         echo '<table id="bhcrm-people-table" class="wp-list-table widefat striped bhy-sortable"><thead><tr>'
            . '<th style="width:24px;"><input type="checkbox" id="bhcrm-select-all"></th>'
-           . '<th data-sort>Name</th><th data-sort>Email</th><th>Tags</th><th>Activity</th><th data-sort>Registered</th>'
+           . '<th data-sort>Name</th><th data-sort>Email</th><th>Tags</th><th style="min-width:220px;">Activity</th><th data-sort>Registered</th>'
            . '</tr></thead><tbody>';
         foreach ($ids as $uid) {
             $user = get_userdata($uid);
