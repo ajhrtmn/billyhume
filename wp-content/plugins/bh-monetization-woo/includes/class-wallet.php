@@ -24,6 +24,13 @@ class BHM_Wallet {
 
     public static function credit($user_id, $cents, $reason, $track_id = null, $order_id = null) {
         self::apply_delta($user_id, abs((int) $cents), $reason, $track_id, $order_id);
+        // Fraud/abuse velocity cap, AJ's own ask — only real purchased
+        // top-ups count against this, not admin grants or refund-
+        // reversal adjustments (apply_ledger_delta() below is the
+        // separate entry point those use).
+        if ($reason === 'topup' && class_exists('BHM_Fraud')) {
+            BHM_Fraud::track_topup_velocity($user_id, abs((int) $cents));
+        }
     }
 
     // Returns true if the debit succeeded (sufficient balance), false if

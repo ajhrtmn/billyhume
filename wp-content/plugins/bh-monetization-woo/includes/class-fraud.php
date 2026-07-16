@@ -104,4 +104,50 @@ class BHM_Fraud {
         $cutoff = time() - self::REFUND_ABUSE_WINDOW;
         return count(array_filter($log, fn($ts) => $ts > $cutoff));
     }
+
+    /**
+     * Wallet top-up velocity cap — AJ's own ask, added alongside the
+     * self-service top-up review ("perhaps a fraud/abuse cap per time
+     * period would be ideal"). Same posture as refund-pattern
+     * detection above: flags for a human to look at, never silently
+     * blocks the top-up itself — the money has already been captured
+     * by WooCommerce by the time BHM_Wallet::credit() runs, so refusing
+     * to credit it would just strand a paid order, not prevent abuse.
+     * Real defenses against actual card-testing/fraud belong at the
+     * payment gateway; this is a visibility signal for a burst of
+     * top-up activity that's unusual for one account, same "worth a
+     * human look, not proof on its own" framing bh-monetization-woo's
+     * own render_detail() already uses for the other flags.
+     *
+     * Filterable, same pattern as every other tunable in this class.
+     */
+    const TOPUP_VELOCITY_WINDOW = DAY_IN_SECONDS;
+
+    public static function topup_velocity_cap_cents() {
+        return (int) apply_filters('bhm_topup_velocity_cap_cents', 50000); // $500/24h default
+    }
+
+    public static function track_topup_velocity($user_id, $cents) {
+        $log = get_user_meta($user_id, '_bhm_topup_log', true);
+        $log = is_array($log) ? $log : [];
+        $cutoff = time() - self::TOPUP_VELOCITY_WINDOW;
+        $log = array_values(array_filter($log, fn($row) => is_array($row) && ($row['ts'] ?? 0) > $cutoff));
+        $log[] = ['ts' => time(), 'cents' => (int) $cents];
+        update_user_meta($user_id, '_bhm_topup_log', $log);
+
+        $total_cents = array_sum(array_column($log, 'cents'));
+        $flagged = $total_cents >= self::topup_velocity_cap_cents();
+        update_user_meta($user_id, '_bhm_topup_velocity_flagged', $flagged ? '1' : '');
+
+        if ($flagged) {
+            do_action('bhm_topup_velocity_flagged', $user_id, $total_cents);
+        }
+    }
+
+    public static function topup_total_recent_cents($user_id) {
+        $log = get_user_meta($user_id, '_bhm_topup_log', true);
+        $log = is_array($log) ? $log : [];
+        $cutoff = time() - self::TOPUP_VELOCITY_WINDOW;
+        return array_sum(array_column(array_filter($log, fn($row) => is_array($row) && ($row['ts'] ?? 0) > $cutoff), 'cents'));
+    }
 }

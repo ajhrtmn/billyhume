@@ -2,12 +2,24 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.15
+ * Version:     0.4.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.16 — wallet top-up fraud/abuse velocity cap, AJ's own ask
+// ("perhaps a fraud abuse cap per time period would be ideal").
+// BHM_Fraud::track_topup_velocity() flags an account (same "surface
+// for a human, never auto-block" posture the existing refund/play-rate
+// flags already use) when its real purchased top-ups exceed $500 in a
+// rolling 24h window (filterable via 'bhm_topup_velocity_cap_cents').
+// Only fires for the 'topup' reason specifically — admin grants and
+// refund-reversal adjustments don't count against it. Surfaced
+// alongside the existing fraud signals in bh-crm's person view
+// (already gated behind the admin-only bhcore_view_crm_sensitive
+// capability from this session's earlier permissions pass).
 
 // 0.4.15 — permissions audit follow-through (own-ur-shit 3.4.90's own
 // changelog has the full story). BHM_CRMIntegration::activity_summary()
@@ -161,7 +173,7 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.15');
+define('BHM_VER',  '0.4.16');
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's
