@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.23
+ * Version:     0.4.24
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,21 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.23');
+define('BHC_VER',  '0.4.24');
 
+// 0.4.24 — Fixed a stale Test Runner assertion, flagged by AJ from a
+// real failing-test report. class-test-suite.php's catalog-search test
+// still checked for '<p class="bhc-empty">' in render_catalog()'s
+// empty-search output, but that fallback markup hasn't actually
+// rendered in a real environment since the empty state was upgraded to
+// the shared BHY_Style::empty_state_html() component a while back
+// (real title/description/CTA) — BHY_Style is always loaded (own-ur-
+// shit is a hard dependency), so the assertion was checking for
+// markup that could never appear, not catching a real regression.
+// Fixed the TEST to check for the real component's class
+// ('bhy-empty-state'), not by reverting working, better production
+// code to satisfy a stale check. Verified live via Test Runner: 106/106
+// passing across all 6 suites, including this one.
 // 0.4.23 — Course-as-collection UI pass, emphasizing the "every lesson
 // belongs to exactly one course" relationship AJ asked to make visible
 // in the UI, not just the data model.

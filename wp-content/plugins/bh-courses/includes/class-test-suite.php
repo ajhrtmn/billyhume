@@ -160,10 +160,21 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_false(strpos($html_search, 'Aardvark Mastering Basics') !== false, 'search "Zebra" excludes the non-matching course');
 
         // A search matching nothing at all should render the empty-state
-        // message, not a fatal or an unfiltered full list.
+        // message, not a fatal or an unfiltered full list. Stale test,
+        // caught by this exact assertion actually failing in a real
+        // environment: render_catalog()'s empty branch was upgraded to
+        // the shared BHY_Style::empty_state_html() component a while
+        // back (real title/description/CTA, not a bare message) —
+        // BHY_Style is always loaded in a real environment (own-ur-shit
+        // is a hard dependency), so the fallback '<p class="bhc-empty">'
+        // markup this assertion was still checking for never actually
+        // renders anymore. Checks the real component's class now,
+        // rather than reverting working, better production code to
+        // satisfy a stale check.
         $_GET = ['bhc_s' => 'ThisStringMatchesNoFixtureCourseTitleAtAll12345'];
         $html_empty = BHC_Render::render_catalog();
-        $rows[] = OUS_TestRunner::assert_true(strpos($html_empty, 'bhc-empty') !== false, 'a search matching nothing renders the empty-state message, not a fatal or the full unfiltered list');
+        $has_empty_state = strpos($html_empty, 'bhy-empty-state') !== false || strpos($html_empty, 'bhc-empty') !== false;
+        $rows[] = OUS_TestRunner::assert_true($has_empty_state, 'a search matching nothing renders the empty-state message, not a fatal or the full unfiltered list');
 
         $_GET = $saved_get;
 
