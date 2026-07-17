@@ -110,9 +110,35 @@ class OUS_Debug {
     const GROUP_DEFAULT    = 'Diagnostics & Tools';
     const GROUP_ORDER = [self::GROUP_MONITORING, self::GROUP_REFERENCE, self::GROUP_SEED_RESET, self::GROUP_DEFAULT];
 
+    // "Non-technical admin confronted with 17 sections of dev tooling by
+    // default" — the audit's #1 flagged organizational problem, AJ's
+    // own "dev mess pile" complaint made concrete. GROUP_MONITORING
+    // (Job Queue, Event Tracking, Bundled Zip Freshness, Audit Log,
+    // Console & Logs, Test Runner — genuinely useful even for a non-
+    // developer keeping an eye on the site) stays visible always;
+    // everything else (Reference & Docs, Seed & Reset Tools, and
+    // anything landing in the ungrouped default bucket) is hidden
+    // behind this per-USER (not global) preference, so one admin
+    // turning it on never exposes it to every other admin account.
+    const DEV_MODE_META = 'ous_debug_dev_mode';
+
+    public static function is_dev_mode() {
+        return (bool) get_user_meta(get_current_user_id(), self::DEV_MODE_META, true);
+    }
+
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_debug_action', [self::class, 'handle']);
+        add_action('admin_post_ous_debug_toggle_dev_mode', [self::class, 'handle_toggle_dev_mode']);
+    }
+
+    public static function handle_toggle_dev_mode() {
+        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_debug_toggle_dev_mode')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        update_user_meta(get_current_user_id(), self::DEV_MODE_META, self::is_dev_mode() ? 0 : 1);
+        wp_safe_redirect(admin_url('admin.php?page=ous-debug'));
+        exit;
     }
 
     // Buckets $tools (the raw apply_filters('ous_debug_tools', []) result)
@@ -350,6 +376,16 @@ class OUS_Debug {
         }
         if ($notice) echo '<div class="notice notice-success"><p>' . esc_html($notice) . '</p></div>';
 
+        $dev_mode = self::is_dev_mode();
+        $toggle_url = wp_nonce_url(admin_url('admin-post.php?action=ous_debug_toggle_dev_mode'), 'ous_debug_toggle_dev_mode');
+        if ($dev_mode) {
+            echo '<p class="description">Developer mode is on — every registered section is shown. <a href="' . esc_url($toggle_url) . '">Hide developer tools</a> (just for your account; this doesn\'t affect other admins).</p>';
+        } else {
+            echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;padding:10px 14px;margin:12px 0;background:#f6f7f7;">'
+               . 'Showing monitoring &amp; health tools only. Reference docs and seed/reset tools are hidden by default — '
+               . '<a href="' . esc_url($toggle_url) . '"><strong>show developer tools</strong></a> to see everything (just for your account).</div>';
+        }
+
         // Jump links to the API Docs / Codebase Docs SECTIONS further
         // down this same page — the reliable path now (see each class's
         // own render_content()/render_debug_section() comments). The
@@ -360,10 +396,12 @@ class OUS_Debug {
         // capability both confirmed correct — anchor links to the
         // in-page sections below sidestep that entirely rather than
         // waiting on a fix for the standalone pages.
-        echo '<p>'
-           . '<a class="button" href="#ous-section-api-docs">API Docs</a> '
-           . '<a class="button" href="#ous-section-codebase-docs">Codebase Docs</a>'
-           . '</p>';
+        if ($dev_mode) {
+            echo '<p>'
+               . '<a class="button" href="#ous-section-api-docs">API Docs</a> '
+               . '<a class="button" href="#ous-section-codebase-docs">Codebase Docs</a>'
+               . '</p>';
+        }
 
         $tools = apply_filters('ous_debug_tools', []);
         if (!$tools) {
@@ -401,6 +439,14 @@ class OUS_Debug {
         // automatically, so this grouping works immediately even for a
         // section registered before this pass existed and never updated.
         $grouped = self::group_tools($tools);
+        // The actual gate: everything except Monitoring & Health is
+        // simply not in $grouped at all when dev mode is off, so the
+        // quicknav loop and the section loop below both stay
+        // completely unchanged — neither needed its own dev-mode
+        // check bolted on.
+        if (!$dev_mode) {
+            $grouped = array_intersect_key($grouped, [self::GROUP_MONITORING => true]);
+        }
 
         echo '<style>
             .ous-debug-section, #ous-section-reset-all, .ous-debug-group { scroll-margin-top: 90px; }
@@ -440,7 +486,7 @@ class OUS_Debug {
             }
             echo '</span>';
         }
-        echo '<span class="ous-debug-quicknav-group"><a href="#ous-section-reset-all">Reset everything</a></span>';
+        if ($dev_mode) echo '<span class="ous-debug-quicknav-group"><a href="#ous-section-reset-all">Reset everything</a></span>';
         echo '</div>';
 
         // Collapsible per user request — every section starts CLOSED by
@@ -477,11 +523,13 @@ class OUS_Debug {
             echo '</details>';
         }
 
-        echo '<details class="bhy-card" id="ous-section-reset-all">';
-        echo '<summary>Reset everything</summary>';
-        echo '<div class="ous-debug-section-body"><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
-        self::button('__all__', 'reset_all', 'Wipe all test data (every plugin)', '', 'Delete ALL test data from every plugin? This cannot be undone.', false);
-        echo '</div></details>';
+        if ($dev_mode) {
+            echo '<details class="bhy-card" id="ous-section-reset-all">';
+            echo '<summary>Reset everything</summary>';
+            echo '<div class="ous-debug-section-body"><p>Wipes every registered plugin\'s own tagged test data in one pass. Real data is untouched.</p>';
+            self::button('__all__', 'reset_all', 'Wipe all test data (every plugin)', '', 'Delete ALL test data from every plugin? This cannot be undone.', false);
+            echo '</div></details>';
+        }
 
         // Belt-and-suspenders on top of scroll-margin-top: explicitly
         // re-scroll to the hash target on load (covers any browser/

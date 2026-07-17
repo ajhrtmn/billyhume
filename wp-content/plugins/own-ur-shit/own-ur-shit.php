@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.6
+ * Version:     3.5.7
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,27 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.6');
+define('OUS_VER', '3.5.7');
+
+// 3.5.7 — Admin-menu-cleanup pass, item 1: Debug Tools' per-user
+// "developer mode" gate. The audit's #1 flagged organizational problem
+// — ~17 accumulated sections always visible to any manage_options
+// user, mixing genuinely useful monitoring tools with pure dev/QA
+// scaffolding. GROUP_MONITORING (Job Queue, Event Tracking, Bundled
+// Zip Freshness, Audit Log, Console & Logs, Test Runner) now shows
+// always; Reference & Docs, Seed & Reset Tools, and anything in the
+// ungrouped default bucket are hidden behind a new per-USER (not
+// global) toggle, defaulting OFF, so a non-technical admin sees 6
+// sections instead of 17 by default, and one admin turning it on never
+// exposes it to any other admin account. The actual gate is a single
+// array_intersect_key() on $grouped right after grouping — the
+// quicknav loop and section-render loop needed zero changes since
+// everything downstream already just iterates whatever's in $grouped.
+// Verified live: default view shows only Monitoring & Health (6
+// sections); toggling "show developer tools" reveals all 17 correctly,
+// including API Docs/Codebase Docs buttons and Reset Everything, both
+// also now gated.
+
 
 // 3.5.6 — Log-pollution fix, flagged by AJ directly ("I just notice
 // the logs get polluted quickly right now"). Traced to the exact same
