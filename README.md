@@ -1,8 +1,10 @@
 # Own Ur Shit
 
-A self-hosted, no-vendor-lock-in platform for musicians — a WordPress plugin ecosystem that replaces a stack of third-party SaaS tools (streaming pages, contest tools, LMS platforms, fan CRMs, link registries) with one set of plugins an artist actually owns.
+**Digital infrastructure you own, not rent.** Own Ur Shit is a self-hosted WordPress plugin ecosystem that gives an independent musician everything a big-tech platform normally rents them back one subscription at a time — a streaming catalog, contest tools, a learning platform, a fan CRM, monetization — as software they actually own outright, on hosting they control, with no algorithm, no account suspension, and no rented middleman standing between them and their audience.
 
-Everything lives under [`wp-content/plugins/`](wp-content/plugins/). Each plugin depends only on `own-ur-shit` (shared identity, design tokens, and admin dashboard) — never on each other — so any subset can run alone.
+That's the whole point, stated plainly: every rented platform this replaces makes money by inserting itself between a creator and the people who already chose to follow them, and it can change the terms, the price, or the rules at any time — or vanish. Own Ur Shit is the alternative. No ads, ever — not as a business model, not as an option a site owner could flip on. An artist sets their own terms with their own audience directly (tiers, purchases, tips — never a third-party ad network extracting value neither side asked for). It costs what hosting costs, nothing more, and it never asks anyone to trade their audience relationship for a platform's convenience. See [`VISION.md`](wp-content/plugins/VISION.md) for the full philosophy and the honest, in-progress roadmap toward becoming a genuine business-in-a-box for the same reasons.
+
+Everything lives under [`wp-content/plugins/`](wp-content/plugins/). Each plugin depends only on `own-ur-shit` (shared identity, design tokens, and admin dashboard) — never on each other — so any subset can run alone. Install just the two plugins you actually want; nothing here requires the rest.
 
 ## The plugins
 
