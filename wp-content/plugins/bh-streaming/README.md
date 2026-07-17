@@ -70,18 +70,17 @@ anything downstream). Mock codes are deliberately never published in
 this track's structured data (`class-player.php` strips them before
 calling `BH_SEO`).
 
-**PRO registration wizard — roadmapped, not built this pass** (AJ,
-2026-07-17): a guided walkthrough (same `OUS_MediaWizard` "it just
-works" pattern) that helps an artist register directly with their PRO
-(ASCAP/BMI/SESAC/GMR/etc. — deep links + a short explainer, same shape
-as the media/CDN wizard's provider picker), then lets them record their
-PRO name and IPI/CAE number back into the system once affiliated. No
-live-validation "test connection" step is possible here the way the
-media wizard has one — PROs don't expose a public verification API —
-so this is a guided-links-plus-storage flow, not a real integration.
-Deliberately not started this pass to avoid scope creep away from
-higher-priority work; the concrete shape above is here so it doesn't
-need to be re-derived from scratch when picked up.
+**PRO registration wizard — shipped** (`BHS_PROWizard`,
+`includes/class-pro-wizard.php`, own-ur-shit → PRO Registration): a
+guided walkthrough that links an artist directly to their PRO
+(ASCAP/BMI open self-serve signup; SESAC/GMR correctly labeled
+invitation-only, no fake "sign up" button) with a short explainer of
+what a PRO actually does, then lets them record their PRO name, status,
+and IPI/CAE number once affiliated. No live-validation "test
+connection" step exists here the way the media wizard has one — no PRO
+exposes a public verification API — so this is honestly a guided-
+links-plus-storage flow, not a real integration, and is documented as
+such in the class's own docblock.
 
 AJ's own next ask beyond the PRO wizard, also not yet scoped or built:
 PRO affiliation (ASCAP/BMI/SESAC/etc.) and publishing-split management

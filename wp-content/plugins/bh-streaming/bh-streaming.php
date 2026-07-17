@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.7
+ * Version:     0.5.9
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,35 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.7');
+define('BHS_VER',  '0.5.9');
+
+// 0.5.9 — moving the "half-done" mock ISRC logic forward, AJ's own
+// ask: ISRC generation is now real and server-side (BHS_ISRC::issue()),
+// not a client-only Math.random() fill. Two real improvements: (1)
+// the mock path now collision-checks against existing _bhs_isrc rows
+// instead of trusting client-side randomness alone; (2) a new "ISRC
+// Registrant" settings page (own-ur-shit → ISRC Registrant) lets an
+// artist record a REAL registrant code once they've completed the
+// actual, offline national-agency application — once that's on file,
+// the same "Generate ISRC" button starts issuing real, sequential,
+// correctly-shaped codes under that prefix instead of placeholders,
+// with zero further code changes needed. Deliberately does NOT link to
+// a specific "apply here" URL for any country's ISRC agency — that
+// wasn't independently re-verified live in this session, so guessing
+// at it would risk sending someone to a stale or wrong page; the
+// settings page says so plainly instead of guessing.
+
+// 0.5.8 — new BHS_PROWizard (includes/class-pro-wizard.php): the PRO
+// registration guided flow scoped in this plugin's own README ("PRO
+// registration wizard — roadmapped, not built this pass") and built
+// now. Thinner than OUS_MediaWizard by necessity — no PRO exposes a
+// public membership-verification API, and SESAC/GMR are invitation-
+// only with no self-serve signup at all, so this is honestly a guided-
+// links-plus-storage tool, not a live-validated integration. Every
+// linked URL (ascap.com, bmi.com, sesac.com, globalmusicrights.com)
+// was verified live before writing this, not guessed. Stores a single
+// site-wide option (bhs_pro_affiliation) since PRO affiliation is a
+// fact about the rights holder, not any one track.
 
 // 0.5.7 — mock ISRC issuance, built against the shape now so real
 // issuance is a drop-in later (AJ's own ask): new BHS_ISRC
@@ -120,7 +148,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -185,6 +213,8 @@ add_action('plugins_loaded', function () {
     add_action('admin_init',    ['BHS_Activator', 'maybe_create_default_pages']);
     add_action('init',          ['BHS_PostTypes', 'register']);
     add_action('init',          ['BHS_Admin', 'init']);
+    add_action('init',          ['BHS_ISRC', 'init']);
+    add_action('init',          ['BHS_PROWizard', 'init']);
     add_action('init',          ['BHS_Player', 'init']);
     // QA fix, caught live via WP_DEBUG_LOG: same fix as bh-contest's
     // BH_Blocks — hooked normally at 'init' instead of called directly

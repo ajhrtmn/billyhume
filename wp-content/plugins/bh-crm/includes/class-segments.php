@@ -45,6 +45,28 @@ class BHCRM_Segments {
         self::maybe_upgrade();
         add_action('admin_post_bhcrm_save_segment', [self::class, 'handle_save']);
         add_action('admin_post_bhcrm_delete_segment', [self::class, 'handle_delete']);
+        add_action('wp_ajax_bhcrm_preview_segment', [self::class, 'ajax_preview']);
+    }
+
+    /**
+     * Wizard-opportunity survey's own finding: the segment builder had
+     * zero feedback while you built a list — conditions went in blind,
+     * and the only way to see who actually matched was to save first,
+     * then open the resulting list. This is the concrete fix: a live
+     * "N people match" count as each condition changes, computed with
+     * the EXACT same sanitize_conditions()/apply() pair the real save
+     * path uses (never a second, parallel filtering implementation
+     * that could quietly drift from what actually gets saved).
+     */
+    public static function ajax_preview() {
+        check_ajax_referer('bhcrm_preview_segment', 'nonce');
+        if (!current_user_can('bhcore_manage_crm')) wp_send_json_error(['message' => 'Not allowed.'], 403);
+
+        $conditions = self::sanitize_conditions(wp_unslash($_POST['conditions'] ?? []));
+        $ids = apply_filters('bh_crm_active_user_ids', []);
+        $matched = $conditions ? self::apply(array_values(array_unique($ids)), $conditions) : [];
+
+        wp_send_json_success(['count' => count($matched), 'total' => count(array_unique($ids))]);
     }
 
     private static function table() {

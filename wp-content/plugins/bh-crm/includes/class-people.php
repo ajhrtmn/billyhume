@@ -284,7 +284,7 @@ class BHCRM_People {
         echo '<input type="hidden" name="action" value="bhcrm_save_segment">';
         echo '<p><input type="text" name="segment_name" placeholder="Name this list…" style="max-width:280px;"></p>';
         echo '<div id="bhcrm-segment-conditions"></div>';
-        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button></p>';
+        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button> <span id="bhcrm-segment-preview" class="description" style="margin-left:8px;"></span></p>';
         echo '<p><button type="submit" class="button button-primary">Save list</button></p>';
         echo '</form>';
         echo '</details>';
@@ -292,6 +292,7 @@ class BHCRM_People {
 
         wp_enqueue_script('bhcrm-segment-builder', BHCRM_URL . 'assets/js/segment-builder.js', [], BHCRM_VER, true);
         wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentFields', BHCRM_Segments::FIELDS);
+        wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentPreview', ['nonce' => wp_create_nonce('bhcrm_preview_segment')]);
     }
 
     // Real name / platform handles / consent flags, admin-only. Never
