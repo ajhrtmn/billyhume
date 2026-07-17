@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.4
+ * Version:     3.6.5
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,20 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.4');
+define('OUS_VER', '3.6.5');
+
+// 3.6.5 — new OUS_StyleSurface (includes/class-style-surface.php):
+// registers the Media & CDN Setup wizard into the Design Suite
+// gallery — own-ur-shit had ZERO bhy_style_surfaces of its own before
+// this, so its own "it just works" wizard was invisible to the token
+// editor. Real contrast bug caught live and fixed in the same pass:
+// preview_doc()'s own `:host{color:var(--bh-text)}` (correct for
+// every OTHER surface, which uses the dark brand theme) left this
+// wizard's genuinely light wp-admin-style preview with light-on-light
+// text, since --bh-text is a light color on the default dark theme —
+// fixed by setting this preview's own explicit text color rather than
+// inheriting the brand theme's.
+
 
 // 3.6.4 — real "wonky character" bug in the Design Suite gallery,
 // caught live: em-dashes/curly-quotes in a surface's preview HTML
@@ -2678,7 +2691,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2701,6 +2714,7 @@ add_action('init',          ['BHI_Reports', 'init']);
 add_action('init',          ['OUS_MediaWizard', 'init']);
 add_action('init',          ['BH_SEO', 'init']);
 add_action('init',          ['OUS_Metrics', 'init']);
+add_action('init',          ['OUS_StyleSurface', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 

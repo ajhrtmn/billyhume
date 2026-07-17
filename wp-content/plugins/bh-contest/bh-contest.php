@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.2
+ * Version:     3.7.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,16 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.2');
+define('BH_VER',        '3.7.3');
+
+// 3.7.3 — Design Suite gallery gap closed: registered the guided
+// "New Contest" wizard (BH_ContestWizard) as its own surface
+// (class-style-surfaces.php), previously entirely invisible to the
+// token editor. Same contrast bug found and fixed as own-ur-shit's
+// 3.6.5 Media wizard surface — this preview's genuinely light
+// wp-admin-style page was inheriting the dark brand theme's light
+// :host text color, rendering unreadable light-on-light text; fixed
+// with an explicit text color on this preview specifically.
 
 // 3.7.2 — retry-audit pass, AJ's own standing ask (assets/js/bh-judging.js):
 // judge score save had NO .catch() at all — a dropped connection

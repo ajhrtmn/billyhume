@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.9
+ * Version:     0.5.10
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,15 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.9');
+define('BHS_VER',  '0.5.10');
+
+// 0.5.10 — Design Suite gallery gap closed: registered the PRO
+// Registration wizard (BHS_PROWizard) as its own surface
+// (class-style-surface.php), previously entirely invisible to the
+// token editor. Same light-on-light contrast bug found and fixed as
+// own-ur-shit's 3.6.5 Media wizard surface — this preview's own
+// wp-admin-style light background was inheriting the dark brand
+// theme's light :host text color; fixed with an explicit text color.
 
 // 0.5.9 — moving the "half-done" mock ISRC logic forward, AJ's own
 // ask: ISRC generation is now real and server-side (BHS_ISRC::issue()),

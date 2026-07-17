@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.4
+ * Version:     2.4.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -341,7 +341,18 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.4.4');
+define('BHCRM_VER',  '2.4.5');
+
+// 2.4.5 — Design Suite gallery gap closed: registered the kanban
+// Project Tracker board (class-projects.php/kanban-board.js) as its
+// own surface (class-style-surface.php) — the gallery previously only
+// ever showed the CRM profile page, never the kanban board's real,
+// shipped UI. Same light-on-light text-contrast bug found and fixed
+// as the other three new wizard surfaces this pass (own-ur-shit
+// 3.6.5, bh-contest 3.7.3, bh-streaming 0.5.10) — kanban-board.css
+// expects a real light wp-admin background, which was inheriting the
+// dark brand theme's light :host text color; fixed with an explicit
+// text color on this preview specifically.
 
 // 2.4.4 — the smart-list/segment builder's own wizard-opportunity
 // gap, closed: conditions previously went in completely blind, with
