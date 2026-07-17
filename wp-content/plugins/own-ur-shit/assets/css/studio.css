@@ -1,0 +1,36 @@
+/* BH_Studio canvas layout — deliberately plain flex/grid, no
+ * absolute positioning anywhere in this file, matching the same
+ * constraint enforced in studio.js (supports.position: false on every
+ * registered block). */
+
+#bh-studio-root { display: flex; flex-direction: column; height: 720px; }
+
+.bh-studio-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-bottom: 1px solid #dcdcde; background: #fff;
+}
+.bh-studio-saved-at { font-size: 12px; color: #646970; }
+
+.bh-studio-body {
+    flex: 1; display: grid;
+    grid-template-columns: 220px 1fr 280px;
+    min-height: 0;
+}
+
+.bh-studio-layers, .bh-studio-inspector {
+    overflow-y: auto; padding: 12px; background: #f6f7f7;
+}
+.bh-studio-layers { border-right: 1px solid #dcdcde; }
+.bh-studio-inspector { border-left: 1px solid #dcdcde; }
+.bh-studio-layers h3, .bh-studio-inspector h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+    color: #646970; margin: 0 0 8px;
+}
+
+.bh-studio-canvas { overflow-y: auto; background: #fff; padding: 24px; }
+
+.bh-studio-container { min-height: 60px; }
+.bh-button {
+    display: inline-block; padding: 8px 16px; border-radius: 4px;
+    background: var(--bhy-accent, #2271b1); color: #fff; text-decoration: none;
+}

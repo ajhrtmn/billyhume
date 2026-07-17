@@ -27,15 +27,14 @@ Media Session API support for lock-screen playback controls.
 
 ## Requirements
 
-- **BH Identity** (accounts/profiles — likes and playlists need a
-  logged-in user)
-- **BH Style** (the design tokens its own stylesheet is built on)
+- **Own Ur Shit** (the ecosystem core — shared accounts/profiles for
+  likes/playlists, and the design tokens its own stylesheet is built on)
 
-Both need to be installed and active first.
+Needs to be installed and active first.
 
 ## Installation
 
-1. Install and activate BH Identity, then BH Style.
+1. Install and activate Own Ur Shit.
 2. Install and activate this plugin.
 3. Add tracks under **Tracks** in wp-admin — audio + optional artwork,
    both via the normal media uploader.
@@ -53,3 +52,52 @@ Both need to be installed and active first.
 - The recommendation engine iterates the whole catalog per request
   (an N+1-ish query pattern) — fine at the scale this is likely to see
   for a while, worth revisiting if the catalog gets genuinely large.
+
+## Not built yet: rights/registration metadata beyond ISRC
+
+A track can carry a real ISRC now (`_bhs_isrc`, on the track edit
+screen — see `BHS_Admin::render_track_metabox()`), surfaced as
+schema.org's actual `MusicRecording.isrcCode` property wherever
+`[bh_streaming track="..."]` sets SEO data (`BHS_Player::
+maybe_set_seo_data()`). A "Generate placeholder" button fills the
+field with an obviously-fake code (`ZZOUS...` — `ZZ` is ISO 3166-1's
+own reserved "never a real country" code) so the field/storage/schema-
+suppression shape can be exercised now, ahead of Own Ur Shit actually
+registering as a real ISRC issuer (`BHS_ISRC::is_mock()` is the single
+place that pattern is defined — real-issuer work later is a matter of
+generating a real code instead of a placeholder, not a rewrite of
+anything downstream). Mock codes are deliberately never published in
+this track's structured data (`class-player.php` strips them before
+calling `BH_SEO`).
+
+**PRO registration wizard — roadmapped, not built this pass** (AJ,
+2026-07-17): a guided walkthrough (same `OUS_MediaWizard` "it just
+works" pattern) that helps an artist register directly with their PRO
+(ASCAP/BMI/SESAC/GMR/etc. — deep links + a short explainer, same shape
+as the media/CDN wizard's provider picker), then lets them record their
+PRO name and IPI/CAE number back into the system once affiliated. No
+live-validation "test connection" step is possible here the way the
+media wizard has one — PROs don't expose a public verification API —
+so this is a guided-links-plus-storage flow, not a real integration.
+Deliberately not started this pass to avoid scope creep away from
+higher-priority work; the concrete shape above is here so it doesn't
+need to be re-derived from scratch when picked up.
+
+AJ's own next ask beyond the PRO wizard, also not yet scoped or built:
+PRO affiliation (ASCAP/BMI/SESAC/etc.) and publishing-split management
+— a real songwriter/publisher/split data model this plugin doesn't
+have today, closer in shape to bh-monetization-woo's own
+purchase/entitlement records than to anything currently on the track
+CPT. Worth a real design pass (who are the parties, what's the split
+shape, does a track need MULTIPLE writers/publishers with different
+percentages) rather than a couple of guessed text fields.
+
+Separately, AJ also raised something YouTube-Content-ID-shaped —
+automated matching against other audio to catch unauthorized use
+elsewhere. That's a fundamentally different, much larger piece of
+infrastructure (audio fingerprinting + a matching pipeline, not a
+metadata field) and isn't new: it's already named in
+`ROADMAP-safety-and-metrics.md`'s long-term legal/safety section
+("real audio fingerprinting"). Restating the pointer here so it isn't
+lost as a "wait, did we already think about this" moment later —
+still unscoped, still a real future project, not attempted this pass.

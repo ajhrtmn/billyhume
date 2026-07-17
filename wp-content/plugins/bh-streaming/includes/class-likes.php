@@ -34,7 +34,7 @@ class BHS_Likes {
         $t = $wpdb->prefix . 'bhs_likes';
         $uid = get_current_user_id();
         $track_id = (int) $req->get_param('track_id');
-        if (get_post_type($track_id) !== 'bh_track') return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
+        if (get_post_type($track_id) !== 'bhs_track') return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
 
         $existing = $wpdb->get_var($wpdb->prepare("SELECT id FROM $t WHERE user_id = %d AND track_id = %d", $uid, $track_id));
         if ($existing) {

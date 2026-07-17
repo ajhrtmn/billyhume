@@ -1,0 +1,141 @@
+/**
+ * QA rebuild: the previous rules here (.bhc-step-editor,
+ * .bhc-question-editor, .bhc-choice-row, .bhc-image-thumb,
+ * .bhc-video-upload-row/-url-row, .bhc-video-preview, .bhc-add-row)
+ * styled the dead legacy multistep lesson-builder deleted from
+ * admin.js this same pass — removed alongside it rather than kept as
+ * orphaned CSS for markup that no longer exists.
+ */
+
+/* Course-as-collection summary line above the lesson list — "at a
+   glance, what's this course made of" (lesson count/publish split/
+   total steps), the piece a bare orderable list never gave. */
+.bhc-course-stats {
+    font-size: 13px;
+    color: var(--bhy-ink-dim, #646970);
+    background: var(--bhy-surface-2, #f6f7f7);
+    border: 1px solid var(--bhy-border, #dcdcde);
+    border-radius: var(--bhy-radius-sm, 6px);
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+.bhc-course-stats strong { color: var(--bhy-ink, #1d2327); }
+
+/* The lesson-edit screen's "this lesson belongs to" box — the
+   lesson-side emphasis of the same one-course-per-lesson relationship
+   the course-side stats bar/list above emphasizes. A plain unlabeled
+   <select> read as "just another field" before; framing it as the
+   defining fact plus showing this lesson's real position in that
+   course's order (not just a link to go count manually) makes the
+   relationship the first thing an author sees on this screen. */
+.bhc-lesson-course-box {
+    background: var(--bhy-surface-2, #f6f7f7);
+    border: 1px solid var(--bhy-border, #dcdcde);
+    border-radius: var(--bhy-radius-sm, 6px);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+}
+.bhc-lesson-course-label {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--bhy-ink-dim, #646970);
+}
+.bhc-lesson-course-select {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Lesson-order drag-reorder list (class-admin.php's
+   render_course_metabox()) — real cards instead of the previous bare
+   bordered <li>s, matching this ecosystem's design-token conventions. */
+.bhc-order-list {
+    max-width: 640px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bhc-order-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bhy-surface, #fff);
+    border: 1px solid var(--bhy-border, #dcdcde);
+    border-radius: var(--bhy-radius-sm, 6px);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+}
+
+.bhc-order-item:hover {
+    border-color: var(--bhy-accent, #2271b1);
+}
+
+.bhc-order-item.is-drag-chosen {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+}
+
+.bhc-order-item.is-drag-ghost {
+    opacity: .35;
+}
+
+.bhc-order-drag-handle {
+    cursor: grab;
+    color: var(--bhy-ink-dim, #a7aaad);
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 6px; /* real touch target, not just the glyph's own tiny hit area */
+    user-select: none;
+}
+
+.bhc-order-drag-handle:active {
+    cursor: grabbing;
+}
+
+.bhc-order-title {
+    flex: 1;
+    font-weight: 600;
+    color: var(--bhy-ink, #1d2327);
+    text-decoration: none;
+}
+.bhc-order-title:hover {
+    color: var(--bhy-accent, #2271b1);
+    text-decoration: underline;
+}
+
+.bhc-order-steps {
+    font-size: 12px;
+    color: var(--bhy-ink-dim, #646970);
+    white-space: nowrap;
+}
+
+.bhc-order-status {
+    font-size: 11px;
+    font-style: normal;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bhy-surface-2, #f0f0f1);
+    color: var(--bhy-ink-dim, #646970);
+    white-space: nowrap;
+}
+.bhc-order-status-publish {
+    background: color-mix(in srgb, var(--bhy-accent, #2271b1) 15%, transparent);
+    color: var(--bhy-accent, #2271b1);
+}
+
+.bhc-order-unassign {
+    color: var(--bhy-ink-dim, #a7aaad);
+    text-decoration: none;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.bhc-order-unassign:hover {
+    color: #b32d2e;
+    background: #fbeaea;
+}

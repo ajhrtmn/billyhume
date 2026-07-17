@@ -10,7 +10,12 @@ if (!defined('ABSPATH')) exit;
 class BHY_UI {
     public static function swatch_css() {
         return '
-            .bhy-swatch-card { border: 1px solid #dcdcde; border-radius: 6px; padding: 8px; display: flex; gap: 10px; align-items: center; }
+            .bhy-swatch-card {
+                border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px);
+                padding: 8px; display: flex; gap: 10px; align-items: center;
+                transition: border-color var(--bhy-transition, 150ms ease);
+            }
+            .bhy-swatch-card:hover { border-color: var(--bhy-accent, #2271b1); }
             .bhy-swatch {
                 width: 32px; height: 32px; border-radius: 6px; flex: 0 0 auto; border: 1px solid #dcdcde;
                 background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
@@ -79,7 +84,22 @@ class BHY_UI {
             <label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label>
             <select id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>" data-custom-target="<?php echo esc_attr($key); ?>_custom">
                 <?php foreach (BHY_Style::FONT_OPTIONS as $name => $param): ?>
-                    <option value="<?php echo esc_attr($name); ?>" <?php selected($picked, $name); ?>><?php echo esc_html($name); ?></option>
+                    <?php
+                    // 3.4.49 follow-up — AJ's own ask: "would be cool if
+                    // the color and font selectors could preview what
+                    // they look like." An <option>'s font-family CAN be
+                    // styled inline (unlike a color swatch, which most
+                    // browsers ignore inside <option> — colors get a real
+                    // custom dropdown in the ELEMENT inspector instead,
+                    // see element-builder.js's renderStylePropertyField()
+                    // — this select is the separate, site-level Global
+                    // Styles font picker, a different control entirely).
+                    // Only cosmetically useful because enqueue_media()
+                    // (this file's own updated docblock) now also loads
+                    // the real webfont stylesheet on this admin page, not
+                    // just inside the canvas iframes as before.
+                    ?>
+                    <option value="<?php echo esc_attr($name); ?>" style="font-family:'<?php echo esc_attr($name); ?>', sans-serif;" <?php selected($picked, $name); ?>><?php echo esc_html($name); ?></option>
                 <?php endforeach; ?>
                 <option value="Custom" <?php selected($is_custom, true); ?>>Custom…</option>
             </select>
@@ -113,22 +133,72 @@ class BHY_UI {
                together these give a 32px swatch + hex text input + color
                picker enough room to not clip a 7-character hex value. */
             .bhy-layout { display: grid; grid-template-columns: 200px 1fr 380px; gap: 20px; margin-top: 16px; align-items: start; }
-            .bhy-sidebar { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 12px; }
-            .bhy-sidebar-group { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #787c82; margin: 12px 0 4px; }
+            .bhy-sidebar { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-3, 12px); }
+            .bhy-sidebar-group { font-size: var(--bhy-text-xs, 11px); text-transform: uppercase; letter-spacing: .04em; color: var(--bhy-ink-dim, #787c82); margin: var(--bhy-space-3, 12px) 0 4px; }
             .bhy-sidebar-group:first-child { margin-top: 0; }
-            .bhy-story-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
-            .bhy-story-btn:hover { background: #f0f0f1; }
-            .bhy-story-btn.active { background: #2271b1; color: #fff; }
-            .bhy-canvas { background: #1a1a1a; border-radius: 8px; overflow: hidden; min-height: 320px; position: relative; }
-            .bhy-story-frame { width: 100%; height: 600px; max-height: 75vh; border: 0; display: none; }
+            .bhy-story-btn {
+                display: block; width: 100%; text-align: left; background: none;
+                border: none; border-left: 3px solid transparent; padding: 7px 10px; border-radius: var(--bhy-radius-sm, 6px);
+                cursor: pointer; font-size: 13px; color: var(--bhy-ink, #1d2327);
+                transition: background var(--bhy-transition, 150ms ease), border-color var(--bhy-transition, 150ms ease);
+            }
+            .bhy-story-btn:hover { background: var(--bhy-hover-tint, #f0f0f1); }
+            .bhy-story-btn:focus-visible { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); }
+            .bhy-story-btn.active { background: var(--bhy-selected-tint, #f0f6fc); border-left-color: var(--bhy-accent, #2271b1); color: var(--bhy-ink, #1d2327); font-weight: 600; }
+            /* Canvas reads as a "stage" the placed content pops off of —
+               kept deliberately dark/neutral (not white) so any surface
+               being previewed has clear visual separation from the rail/
+               inspector chrome around it. */
+            .bhy-canvas {
+                background: #1a1a1a; border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                overflow: hidden; min-height: 320px; position: relative;
+                box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+            }
+            .bhy-story-frame {
+                width: 100%; height: 600px; max-height: 75vh; border: 0; display: none;
+                /* 3.4.61 — real, live-confirmed regression from the no-
+                   iframes swap: "the Now Playing Bar is escaping the
+                   styles of its container and displaying on the full
+                   page." An iframe naturally contained position:fixed
+                   descendants to ITS OWN viewport — a shadow root inside
+                   a same-document div does NOT do this by default;
+                   position:fixed still resolves against the real page
+                   viewport unless some ancestor establishes a CSS
+                   "containing block" for fixed-position descendants
+                   (per spec: a transform, perspective, filter, or
+                   contain:layout/paint/strict/content). overflow:hidden
+                   ALONE (already set on .bhy-canvas above) does NOT do
+                   this — that was the gap. contain:layout here gives
+                   every shadow-hosted story\'s own position:fixed
+                   elements (bh-contest\'s now-playing bar being the first
+                   one that actually surfaced it) a real containing block
+                   again, restoring the exact visual containment an
+                   iframe used to give for free. */
+                contain: layout;
+            }
             .bhy-story-frame.active { display: block; }
-            .bhy-empty { color: #888; padding: 40px; text-align: center; }
+            .bhy-empty { color: #888; padding: 40px; text-align: center; font-size: var(--bhy-text-base, 13px); }
             .bhy-controls {
-                background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 16px 20px;
+                background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                padding: var(--bhy-space-4, 16px) var(--bhy-space-5, 20px);
                 max-height: 80vh; overflow-y: auto; display: flex; flex-direction: column;
             }
-            .bhy-controls h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; }
+            .bhy-controls h2 {
+                font-size: var(--bhy-text-xs, 11px); font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+                color: var(--bhy-ink-dim, #787c82); margin: var(--bhy-space-5, 20px) 0 var(--bhy-space-2, 8px);
+                padding-bottom: var(--bhy-space-1, 4px); border-bottom: 1px solid var(--bhy-border, #dcdcde);
+            }
             .bhy-controls h2:first-child { margin-top: 0; }
+            /* Consistent control height across every text/select/color
+               input in the inspector, so the many property rows line up
+               instead of each control type sizing itself independently. */
+            .bhy-controls input[type=text], .bhy-controls input[type=number],
+            .bhy-controls select, .bhy-controls button.button {
+                min-height: 30px; transition: border-color var(--bhy-transition, 150ms ease), box-shadow var(--bhy-transition, 150ms ease);
+            }
+            .bhy-controls input[type=text]:focus, .bhy-controls select:focus {
+                border-color: var(--bhy-accent, #2271b1); box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); outline: none;
+            }
 
             /* Always-visible sample chips proving every scale/shape token
                (radius, radius_sm, bar_height, font_scale, space_scale) is
@@ -136,9 +206,9 @@ class BHY_UI {
                is currently selected in the canvas, since no single surface
                is guaranteed to visibly use every token. */
             .bhy-token-preview {
-                display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-                background: #f6f7f7; border: 1px solid #dcdcde; border-radius: 8px;
-                padding: 12px; margin-bottom: 4px;
+                display: flex; flex-wrap: wrap; align-items: center; gap: var(--bhy-space-2, 8px);
+                background: var(--bhy-subtle, #f6f7f7); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
+                padding: var(--bhy-space-3, 12px); margin-bottom: var(--bhy-space-1, 4px);
             }
             .bhy-token-chip {
                 background: var(--bh-surface, #2C120E); color: var(--bh-text, #EDDFCB);
@@ -166,20 +236,53 @@ class BHY_UI {
             }
             .bhy-token-text strong { font-family: var(--bh-font-display, inherit); margin-right: 4px; }
 
-            .bhy-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
-            .bhy-font-field { margin-bottom: 10px; }
+            .bhy-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--bhy-space-2, 8px); }
+            .bhy-font-field { margin-bottom: var(--bhy-space-3, 10px); }
             .bhy-font-field select, .bhy-font-field input { width: 100%; margin-top: 4px; }
-            .bhy-slider-row { margin-bottom: 10px; }
-            .bhy-slider-row label { display: flex; justify-content: space-between; font-size: 12px; gap: 8px; }
+            .bhy-slider-row { margin-bottom: var(--bhy-space-3, 10px); }
+            .bhy-slider-row label { display: flex; justify-content: space-between; font-size: var(--bhy-text-sm, 12px); gap: var(--bhy-space-2, 8px); color: var(--bhy-ink, #1d2327); }
+            .bhy-slider-row .bhy-slider-val { color: var(--bhy-ink-dim, #646970); font-variant-numeric: tabular-nums; }
             .bhy-slider-row input { width: 100%; }
+
+            /* PAGE-BUILDER-DELETE-KEEP-AUDIT.md cleanup (2026-07-13) --
+               ported from the now-deleted assets/css/element-builder.css,
+               where these two rule sets used to live. Genuinely needed
+               here: BHY_Gallery::render_controls() (the real Styles
+               settings form, kept as-is through this cleanup) uses
+               .bhel-field-row for its brand-wordmark row and
+               .bhel-style-group for its Advanced-colors/Category-colors
+               details disclosures -- moved into this shared file rather
+               than re-duplicated inside class-style-gallery.php own
+               render_script(), since this is now a core piece of the
+               design system, not something specific to the deleted
+               builder UI. */
+            .bhel-field-row { margin-bottom: var(--bhy-space-3, 10px); }
+            .bhel-field-row label { display: block; font-size: var(--bhy-text-sm, 12px); font-weight: 600; margin-bottom: 3px; color: var(--bhy-ink, #1d2327); }
+            .bhel-field-row input[type=text], .bhel-field-row input[type=number], .bhel-field-row select, .bhel-field-row textarea {
+                width: 100%; padding: 6px 8px; border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); font-size: var(--bhy-text-sm, 12px);
+            }
+            .bhel-field-row input[type=text]:focus, .bhel-field-row input[type=number]:focus,
+            .bhel-field-row select:focus, .bhel-field-row textarea:focus { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); border-color: var(--bhy-accent, #2271b1); }
+
+            .bhel-style-group { border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); margin-bottom: var(--bhy-space-3, 10px); padding: 0 var(--bhy-space-3, 10px); }
+            .bhel-style-group:hover { border-color: #c9ccd1; }
+            .bhel-style-group-title {
+                cursor: pointer; padding: var(--bhy-space-2, 8px) 0; font-size: var(--bhy-text-sm, 12px); font-weight: 600; color: var(--bhy-ink-dim, #646970);
+                display: flex; align-items: center; gap: 6px; list-style: none;
+            }
+            .bhel-style-group-title:hover { color: var(--bhy-ink, #1d2327); }
+            .bhel-style-group-title::-webkit-details-marker { display: none; }
+            .bhel-style-group-title::before { content: \'▸\'; display: inline-block; transition: transform var(--bhy-transition, 150ms ease); }
+            .bhel-style-group[open] > .bhel-style-group-title::before { transform: rotate(90deg); }
+            .bhel-style-group-body { padding-top: var(--bhy-space-1, 4px); padding-bottom: var(--bhy-space-2, 6px); }
 
             /* Save was previously the last thing in a tall, internally
                scrolling column — easy to lose track of after adjusting a
                dozen controls. Sticking it to the bottom of the panel
                keeps it in view without needing its own scroll container. */
             .bhy-controls p.submit {
-                position: sticky; bottom: -16px; margin: 18px -20px -16px; padding: 12px 20px;
-                background: #fff; border-top: 1px solid #dcdcde; box-shadow: 0 -4px 8px rgba(0,0,0,.04);
+                position: sticky; bottom: -16px; margin: var(--bhy-space-5, 18px) -20px -16px; padding: var(--bhy-space-3, 12px) var(--bhy-space-5, 20px);
+                background: var(--bhy-surface, #fff); border-top: 1px solid var(--bhy-border, #dcdcde); box-shadow: 0 -4px 8px rgba(0,0,0,.04);
             }
             .bhy-controls p.submit .button { width: 100%; text-align: center; }
 
@@ -220,6 +323,103 @@ class BHY_UI {
      * --------------------------------------------------------------- */
     public static function init_shared_admin_assets() {
         add_action('admin_head', [self::class, 'print_design_system_css']);
+        add_action('admin_footer', [self::class, 'print_design_system_js']);
+    }
+
+    /**
+     * Three small, dependency-free behaviors any ecosystem admin screen
+     * opts into just by using the right class/data-attribute — no
+     * per-plugin JS file to write or enqueue:
+     *
+     *   - `input.bhy-table-search[data-target="#some-table-id"]` — typing
+     *     filters that table's tbody rows by plain substring match
+     *     against the row's own text.
+     *   - `table.bhy-sortable` with `<th data-sort>` column headers —
+     *     clicking a header sorts by that column (numeric-aware, toggles
+     *     asc/desc on repeat clicks).
+     *   - `button.bhy-copy-btn[data-copy-target="#some-id"]` — copies
+     *     that element's value (inputs) or text content (everything
+     *     else) to the clipboard, with brief visual confirmation.
+     *
+     * Plain vanilla JS, no jQuery/build step, matching this ecosystem's
+     * existing convention (see OUS_Notifications' admin-bar bell for the
+     * same "own script handle, no assumed dependency" shape).
+     */
+    public static function print_design_system_js() {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        $id = $screen ? $screen->id : '';
+        // Broadened from a literal 'bh-' substring match: real screen ids
+        // in this ecosystem take several shapes WordPress itself derives
+        // (edit-bh_course, edit-bhs_feed_source, bhs_track_page_bhm-
+        // settings, own-ur-shit_page_ous-debug, etc.) — a strict 'bh-'
+        // check missed most of them, silently never printing this CSS/JS
+        // on exactly the screens that use it. Matching the bare 'bh'
+        // prefix (every post type/slug in this ecosystem starts with it)
+        // plus 'ous' (own-ur-shit's own non-'bh' pages) is safe: no core
+        // WordPress screen id contains either as a substring.
+        if ($id !== '' && strpos($id, 'bh') === false && strpos($id, 'ous') === false && strpos($id, 'own-ur-shit') === false) return;
+        ?>
+        <script>
+        (function () {
+            document.addEventListener('input', function (e) {
+                if (!e.target.matches('input.bhy-table-search')) return;
+                var target = document.querySelector(e.target.getAttribute('data-target'));
+                if (!target) return;
+                var q = e.target.value.trim().toLowerCase();
+                target.querySelectorAll('tbody tr').forEach(function (row) {
+                    row.style.display = (!q || row.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
+                });
+            });
+
+            document.addEventListener('click', function (e) {
+                var th = e.target.closest('table.bhy-sortable thead th[data-sort]');
+                if (th) {
+                    var table = th.closest('table');
+                    var tbody = table.querySelector('tbody');
+                    var idx = Array.prototype.indexOf.call(th.parentNode.children, th);
+                    var asc = !th.classList.contains('bhy-sort-asc');
+                    th.parentNode.querySelectorAll('th').forEach(function (t) { t.classList.remove('bhy-sort-asc', 'bhy-sort-desc'); });
+                    th.classList.add(asc ? 'bhy-sort-asc' : 'bhy-sort-desc');
+
+                    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                    rows.sort(function (a, b) {
+                        var av = (a.children[idx] ? a.children[idx].textContent : '').trim();
+                        var bv = (b.children[idx] ? b.children[idx].textContent : '').trim();
+                        var an = parseFloat(av.replace(/[^0-9.\-]/g, '')), bn = parseFloat(bv.replace(/[^0-9.\-]/g, ''));
+                        var cmp = (!isNaN(an) && !isNaN(bn) && String(an) === av.replace(/[^0-9.\-]/g, ''))
+                            ? (an - bn) : av.localeCompare(bv, undefined, {numeric: true, sensitivity: 'base'});
+                        return asc ? cmp : -cmp;
+                    });
+                    rows.forEach(function (r) { tbody.appendChild(r); });
+                    return;
+                }
+
+                var btn = e.target.closest('.bhy-copy-btn');
+                if (btn) {
+                    var target2 = document.querySelector(btn.getAttribute('data-copy-target'));
+                    if (!target2) return;
+                    var text = ('value' in target2) ? target2.value : target2.textContent;
+                    var done = function () {
+                        var original = btn.textContent;
+                        btn.textContent = 'Copied!';
+                        btn.classList.add('bhy-copied');
+                        setTimeout(function () { btn.textContent = original; btn.classList.remove('bhy-copied'); }, 1500);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(done);
+                    } else {
+                        // Fallback for non-HTTPS/older-browser contexts
+                        // where the modern Clipboard API isn't available.
+                        var tmp = document.createElement('textarea');
+                        tmp.value = text; document.body.appendChild(tmp); tmp.select();
+                        document.execCommand('copy'); document.body.removeChild(tmp);
+                        done();
+                    }
+                }
+            });
+        })();
+        </script>
+        <?php
     }
 
     public static function print_design_system_css() {
@@ -229,7 +429,16 @@ class BHY_UI {
         // admin pages), identified by the "page_" hook suffix WordPress
         // gives submenu pages — never on core WP or unrelated plugin
         // screens, so this can't collide with theme/plugin admin CSS.
-        if ($id !== '' && strpos($id, 'bh-') === false && strpos($id, 'own-ur-shit') === false) return;
+        // Broadened from a literal 'bh-' substring match: real screen ids
+        // in this ecosystem take several shapes WordPress itself derives
+        // (edit-bh_course, edit-bhs_feed_source, bhs_track_page_bhm-
+        // settings, own-ur-shit_page_ous-debug, etc.) — a strict 'bh-'
+        // check missed most of them, silently never printing this CSS/JS
+        // on exactly the screens that use it. Matching the bare 'bh'
+        // prefix (every post type/slug in this ecosystem starts with it)
+        // plus 'ous' (own-ur-shit's own non-'bh' pages) is safe: no core
+        // WordPress screen id contains either as a substring.
+        if ($id !== '' && strpos($id, 'bh') === false && strpos($id, 'ous') === false && strpos($id, 'own-ur-shit') === false) return;
         echo '<style>' . self::design_system_css() . '</style>';
     }
 
@@ -246,6 +455,16 @@ class BHY_UI {
                 --bhy-warning: #8a5a00; --bhy-warning-bg: #fef3e2;
                 --bhy-danger: #b3261e; --bhy-danger-bg: #fbe4e2;
                 --bhy-radius: 8px; --bhy-radius-sm: 6px;
+                /* 3.4.33 additions - additive only, nothing above changed.
+                   A single shared micro-transition timing (hover/select/
+                   expand states across the Design Suite shell) plus a
+                   couple of named surface tints so "hovered row" and
+                   "selected row" read the same way everywhere instead of
+                   each screen picking its own ad hoc rgba value. */
+                --bhy-transition: 150ms ease;
+                --bhy-hover-tint: #f6f7f7;
+                --bhy-selected-tint: #f0f6fc;
+                --bhy-focus-ring: 0 0 0 2px rgba(34, 113, 177, .25);
             }
             .bhy-shell h1 { font-size: var(--bhy-text-2xl); margin-bottom: var(--bhy-space-2); }
             .bhy-shell .description { font-size: var(--bhy-text-base); color: var(--bhy-ink-dim); margin-bottom: var(--bhy-space-4); }
@@ -293,12 +512,73 @@ class BHY_UI {
                horizontal-scroll behavior, and (via container query) a
                denser padding once its own available width drops below
                a comfortable reading width, rather than only reacting to
-               the whole browser window\'s size. */
-            .bhy-table-wrap { container-type: inline-size; overflow-x: auto; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
-            .bhy-table-wrap table.wp-list-table { border: none; margin: 0; }
-            .bhy-table-wrap table.wp-list-table thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; }
+               the whole browser window\'s size. Covers both real
+               WP_List_Table output (.wp-list-table) and the plainer
+               .widefat tables several plugins build by hand (BH
+               Courses\' Student Progress — genuinely one column per
+               lesson, the actual worst-case width in this whole
+               ecosystem — and the Job Queue debug table) — the default
+               posture everywhere in this ecosystem is "just use core
+               WordPress admin styling as-is," this wrapper is the one
+               deliberate deviation, and only because a wide data table
+               with no horizontal-scroll affordance is a genuinely bad
+               experience on anything narrower than a desktop, not
+               because plain admin tables needed a makeover. */
+            /* max-height caps every wrapped table at a reasonable number
+               of visible rows before IT scrolls internally, rather than
+               the table pushing the whole admin page taller and taller
+               the more rows it happens to have. overflow-y: auto here
+               (not just overflow-x) makes THIS wrapper the nearest
+               scrolling ancestor, which is also what makes the sticky
+               header below correctly stick to the top of the wrapper\'s
+               own scroll — not the outer page\'s.
+
+               Two sizes, not one, because "how much scroll room does
+               this table deserve" genuinely depends on what else is on
+               the same screen: the DEFAULT (~10-12 rows, 420px) is for
+               a table that\'s one of several cards on the same page —
+               bh-streaming\'s four stats tables, the Debug Tools page\'s
+               several plugin sections, a CRM detail view\'s activity
+               list — where giving any one of them a tall scroll area
+               would just push its siblings further down for no reason.
+               .bhy-table-wrap--tall (~20-24 rows, 760px) opts in for the
+               opposite case: a page whose ENTIRE reason for existing is
+               that one list — Reports/moderation queue, Registry
+               Submissions review, a People directory — where the table
+               IS the page, and cramming it into the same small window
+               as a multi-card dashboard would waste most of the screen. */
+            .bhy-table-wrap { container-type: inline-size; overflow-x: auto; overflow-y: auto; max-height: 420px; -webkit-overflow-scrolling: touch; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
+            .bhy-table-wrap.bhy-table-wrap--tall { max-height: 760px; }
+            .bhy-table-wrap table.wp-list-table, .bhy-table-wrap table.widefat { border: none; margin: 0; }
+            .bhy-table-wrap table.wp-list-table thead th, .bhy-table-wrap table.widefat thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; white-space: nowrap; }
+            /* Hover highlight — makes a dense, striped table easier to
+               scan/track across columns on a single row; doesn\'t fight
+               .striped\'s own alternating background since this is just
+               a slightly darker overlay on whichever row the pointer is
+               actually over. */
+            .bhy-table-wrap table.wp-list-table tbody tr:hover, .bhy-table-wrap table.widefat tbody tr:hover { background: var(--bhy-subtle); }
+            /* Sortable column headers (see BHY_UI\'s shared JS) — a plain
+               visual affordance (pointer cursor, a caret hinting "this
+               is clickable") on any <th data-sort> inside a
+               table.bhy-sortable, so a plugin opts in by adding one class
+               and one data attribute per column, no separate JS to write. */
+            table.bhy-sortable thead th[data-sort] { cursor: pointer; user-select: none; }
+            table.bhy-sortable thead th[data-sort]::after { content: "\2195"; opacity: .35; margin-left: 4px; font-size: var(--bhy-text-xs); }
+            table.bhy-sortable thead th[data-sort].bhy-sort-asc::after { content: "\2191"; opacity: 1; }
+            table.bhy-sortable thead th[data-sort].bhy-sort-desc::after { content: "\2193"; opacity: 1; }
+            /* Search box above a sortable/filterable table — same card-
+               adjacent look as everything else, not a bare unstyled
+               <input>. */
+            input.bhy-table-search { width: 100%; max-width: 320px; margin-bottom: var(--bhy-space-3); padding: 6px 10px; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius-sm); font-size: var(--bhy-text-base); }
+            /* Copy-to-clipboard button — a small icon-ish button that
+               sits right next to a URL/code value instead of relying on
+               "click the box, select all, ctrl+c" as the only way to
+               grab it. */
+            .bhy-copy-btn { font-size: var(--bhy-text-xs); padding: 2px 8px; margin-left: var(--bhy-space-2); cursor: pointer; }
+            .bhy-copy-btn.bhy-copied { color: var(--bhy-success); border-color: var(--bhy-success); }
             @container (max-width: 640px) {
-                .bhy-table-wrap table.wp-list-table th, .bhy-table-wrap table.wp-list-table td { padding: 6px 8px; font-size: var(--bhy-text-sm); }
+                .bhy-table-wrap table.wp-list-table th, .bhy-table-wrap table.wp-list-table td,
+                .bhy-table-wrap table.widefat th, .bhy-table-wrap table.widefat td { padding: 6px 8px; font-size: var(--bhy-text-sm); white-space: nowrap; }
             }
 
             /* Range slider — same "detented" feel the quick-theme swatch
@@ -375,7 +655,14 @@ class BHY_UI {
     // a primary destination — filterable so a future plugin (its own
     // debug/maintenance page) can opt in without touching this file.
     public static function hidden_submenu_slugs() {
-        return apply_filters('bhy_hidden_submenu_slugs', ['ous-debug']);
+        // 'ous-debug' itself used to live here too, back when Debug Tools
+        // was a submenu under the main "Own Ur Shit" hub — it's now its
+        // own top-level "OUS Debug" menu (see class-debug.php), so
+        // there's no longer a hub submenu entry for it to pin. API Docs
+        // still hangs under THAT top-level menu (alongside Debug Tools'
+        // own auto-relabeled first item) and stays pinned to the bottom
+        // of it.
+        return apply_filters('bhy_hidden_submenu_slugs', ['ous-api-docs']);
     }
 
     public static function reorder_hidden_submenus() {

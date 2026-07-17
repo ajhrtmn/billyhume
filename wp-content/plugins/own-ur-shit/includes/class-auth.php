@@ -46,23 +46,51 @@ class BHI_Auth {
         $username = (string) $req->get_param('username');
         $fail_key = 'bhi_login_fail_' . md5(strtolower($username) . '|' . self::ip());
 
-        if ((int) get_transient($fail_key) >= self::LOGIN_MAX_FAILS) {
+        // Was set_transient()/get_transient() — a real, confirmed live
+        // bug this session found the same failure mode causing elsewhere
+        // (OUS_TestRunner's results silently not appearing): on an
+        // install where the persistent object cache is unreliable, a
+        // transient write can report success while never being readable
+        // on a later request. For a security throttle specifically, that
+        // isn't just a UX gap — it means the lockout can silently fail
+        // open, since a login-fail count that never persists never
+        // trips the threshold. See OUS_ReliableStore's own docblock.
+        if ((int) OUS_ReliableStore::get($fail_key, 0) >= self::LOGIN_MAX_FAILS) {
             return new WP_Error('locked_out', 'Too many failed attempts. Please try again in 15 minutes.', ['status' => 429]);
+        }
+
+        // A 2FA code, if this request included one, needs to reach
+        // BHI_TwoFactor::gate_login() — which runs inside WordPress's
+        // own 'authenticate' filter chain, the same chain wp_signon()
+        // below triggers for BOTH this REST endpoint and the classic
+        // wp-login.php form. Populating $_POST here (rather than
+        // duplicating the code-check logic in this method too) keeps
+        // 2FA enforcement a single implementation living in one place.
+        if ($req->get_param('code')) {
+            $_POST['bhcore_2fa_code'] = sanitize_text_field((string) $req->get_param('code'));
         }
 
         $user = wp_signon(['user_login' => $username, 'user_password' => (string) $req->get_param('password'), 'remember' => true], is_ssl());
         if (is_wp_error($user)) {
-            set_transient($fail_key, (int) get_transient($fail_key) + 1, 15 * MINUTE_IN_SECONDS);
+            // A 2FA challenge is a different thing than a wrong password
+            // — it doesn't count against the brute-force lockout (the
+            // password was already right), and the client needs to know
+            // to prompt for a code rather than show "invalid
+            // credentials" and give up.
+            if ($user->get_error_code() === 'bhcore_2fa_required') {
+                return new WP_Error('requires_2fa', 'Enter the 6-digit code from your authenticator app.', ['status' => 401, 'requires_2fa' => true]);
+            }
+            OUS_ReliableStore::increment($fail_key, 15 * MINUTE_IN_SECONDS);
             return new WP_Error('login_failed', 'Invalid username or password.', ['status' => 401]);
         }
 
-        delete_transient($fail_key);
+        OUS_ReliableStore::delete($fail_key);
         return new WP_REST_Response(['success' => true], 200);
     }
 
     public static function register($req) {
         $throttle_key = 'bhi_reg_throttle_' . md5(self::ip());
-        if ((int) get_transient($throttle_key) >= self::REG_THROTTLE) {
+        if ((int) OUS_ReliableStore::get($throttle_key, 0) >= self::REG_THROTTLE) {
             return new WP_Error('throttled', 'Too many registrations from this connection. Please try again later.', ['status' => 429]);
         }
 
@@ -77,9 +105,21 @@ class BHI_Auth {
         if (email_exists($email)) return new WP_Error('email_taken', 'That email is already registered.', ['status' => 409]);
 
         $id = wp_create_user($username, $password, $email);
-        if (is_wp_error($id)) return new WP_Error('create_failed', 'Could not create account.', ['status' => 500]);
+        if (is_wp_error($id)) {
+            // Previously discarded entirely — every account-creation
+            // failure (a real DB/hosting issue, a race the
+            // username_exists()/email_exists() pre-checks above didn't
+            // catch, anything) produced the identical generic client
+            // message with zero trace of the actual cause anywhere.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'wp_create_user() failed during registration.', [
+                    'username' => $username, 'email' => $email, 'wp_error' => $id->get_error_message(),
+                ], 'BHI_Auth');
+            }
+            return new WP_Error('create_failed', 'Could not create account.', ['status' => 500]);
+        }
 
-        set_transient($throttle_key, (int) get_transient($throttle_key) + 1, HOUR_IN_SECONDS);
+        OUS_ReliableStore::increment($throttle_key, HOUR_IN_SECONDS);
 
         $profile_fields = BHI_Profiles::from_request($req);
         if ($profile_fields) BHI_Profiles::save($id, $profile_fields);
@@ -150,10 +190,10 @@ class BHI_Auth {
         if (self::is_email_verified($uid)) return new WP_REST_Response(['success' => true, 'already_verified' => true], 200);
 
         $throttle_key = 'bhi_resend_verify_' . $uid;
-        if (get_transient($throttle_key)) {
+        if (OUS_ReliableStore::get($throttle_key)) {
             return new WP_Error('throttled', 'Please wait a couple of minutes before requesting another email.', ['status' => 429]);
         }
-        set_transient($throttle_key, 1, 2 * MINUTE_IN_SECONDS);
+        OUS_ReliableStore::set($throttle_key, 1, 2 * MINUTE_IN_SECONDS);
 
         $user = get_userdata($uid);
         self::send_verification_email($uid, $user->user_email, $user->user_login);

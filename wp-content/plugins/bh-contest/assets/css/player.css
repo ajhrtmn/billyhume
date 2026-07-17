@@ -85,6 +85,39 @@
 .bh-brand span { color: var(--bh-accent); }
 .bh-brand-logo { display: block; max-height: calc(36px * var(--bh-font-scale)); max-width: 220px; width: auto; height: auto; }
 
+/* Task #80 — a genuinely new, additive header zone (player.js's
+ * injectHeaderExtra(), fed by bh-contest's real 'header_extra'
+ * BH_Element slot). :empty hides it from the flex layout entirely on
+ * every contest that hasn't added anything there — .bh-header is
+ * display:flex + justify-content:space-between, so an always-present
+ * third flex child (even a zero-width one) would still claim a flex
+ * distribution slot and shift .bh-header-actions slightly; :empty
+ * removes it from that calculation completely, so a contest with no
+ * header_extra content renders BYTE-IDENTICAL to before this feature
+ * existed. Only takes part in the layout once real content is injected. */
+.bh-header-extra:empty { display: none; }
+.bh-header-extra { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
+
+/* Task #80 follow-up — three more additive zones, same :empty-hides-it
+ * reasoning as .bh-header-extra above (an unused zone renders byte-
+ * identical to before this feature existed; only takes up any space once
+ * a contest actually has content there).
+ *
+ * .bh-now-playing-extra needs its own explicit caveat, flagged rather
+ * than silently assumed fine: .bh-now-playing-bar (below) is
+ * position:fixed, which removes it from normal document flow — a
+ * sibling placed after it in the DOM does NOT visually render "below"
+ * the bar the way it would for a normally-flowing element, since the
+ * fixed bar no longer reserves any space in the layout. Left in place
+ * (no live browser to iterate against this session) but this is
+ * genuinely untested visually and worth a real click-through — may want
+ * a bottom-margin/padding nudge, or a rethink of exactly where this zone
+ * anchors, once someone can actually see it. */
+.bh-tracklist-extra:empty, .bh-now-playing-extra:empty, .bh-results-modal-intro:empty { display: none; }
+.bh-tracklist-extra { margin-bottom: calc(12px * var(--bh-space-scale)); }
+.bh-now-playing-extra { margin-top: calc(12px * var(--bh-space-scale)); }
+.bh-results-modal-intro { margin-bottom: calc(12px * var(--bh-space-scale)); }
+
 .bh-header-actions {
     display: flex;
     align-items: center;
@@ -279,7 +312,7 @@
 /* ---------------- Modals ---------------- */
 .bh-modal {
     display: none; position: fixed; inset: 0; background: var(--bh-overlay, rgba(13,5,4,0.82));
-    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
     z-index: 10000; align-items: center; justify-content: center; padding: calc(16px * var(--bh-space-scale)); box-sizing: border-box;
 }
 .bh-modal-content {
@@ -293,6 +326,17 @@
    up, especially with the "All" combined view. Auth/submit stay narrow;
    they're just forms. */
 .bh-results-modal .bh-modal-content { max-width: 560px; }
+.bh-share-modal .bh-modal-content { max-width: 480px; }
+.bh-share-cards { display: flex; gap: calc(12px * var(--bh-space-scale)); }
+.bh-share-card-link {
+    flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center;
+    padding: calc(10px * var(--bh-space-scale)); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
+    color: var(--bh-text); font-size: calc(12px * var(--bh-font-scale));
+}
+.bh-share-card-link:hover { border-color: var(--bh-accent); color: var(--bh-accent); }
+.bh-share-card-thumb { width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: calc(var(--bh-radius) - 2px); background: var(--bh-surface-2); }
+.bh-share-hint { font-size: calc(12px * var(--bh-font-scale)); color: var(--bh-text-dim); }
+.bh-share-contest-link { color: var(--bh-accent); word-break: break-all; }
 .bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
 .bh-close { position: absolute; top: 16px; right: 20px; font-size: calc(22px * var(--bh-font-scale)); cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
 .bh-close:hover { color: var(--bh-text); }

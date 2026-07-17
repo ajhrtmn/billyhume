@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="bootstrap.php" colors="true">
+    <testsuites>
+        <testsuite name="bh-courses pure-logic tests">
+            <file>QuizScoringTest.php</file>
+            <file>StepsSanitizationTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

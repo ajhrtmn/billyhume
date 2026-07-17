@@ -2,11 +2,11 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The actual "Storybook-patterned" UI: a sidebar listing every
- * registered surface (grouped by whichever plugin registered it), a
- * live preview canvas showing the selected one, and one shared controls
- * panel — colors, fonts, spacing, theme presets — that updates whatever
- * surface is currently visible in real time as you edit.
+ * BHY_Gallery — the actual "Storybook-patterned" UI: a sidebar listing
+ * every registered surface (grouped by whichever plugin registered it),
+ * a live preview canvas showing the selected one, and one shared
+ * controls panel — colors, fonts, spacing, theme presets — that updates
+ * whatever surface is currently visible in real time as you edit.
  *
  * Not real Storybook (that's a Node build tool with its own dev server
  * — flatly incompatible with shared hosting/no-CLI/no-persistent-Node),
@@ -33,6 +33,35 @@ if (!defined('ABSPATH')) exit;
  * All surfaces share the same global tokens — this isn't per-surface
  * theming, it's "how does one theme look across every part of the
  * product," which is the actual point of a shared design-token system.
+ *
+ * PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — THIS FILE'S OWN
+ * CLEANUP HISTORY, worth reading before touching it again: across an
+ * earlier arc of this same project, this file grew a second, unrelated
+ * job bolted on top of the one above — a hand-rolled Structure/Library
+ * rail/canvas/inspector shell (render_shell(), render_left_rail(), the
+ * Library canvas/inspector panes, ~1,400 lines of embedded JS) meant to
+ * be a general-purpose visual page builder. That whole layer, and the
+ * files it depended on (assets/js/element-builder.js, class-element-
+ * builder.php, class-element-prefab.php, class-element-state.php,
+ * class-component-studio.php and its own JS/CSS), has been DELETED —
+ * not simplified, not deprecated, actually removed — after a real,
+ * honest assessment concluded a custom page builder was solving a
+ * problem WordPress's own block editor already solves, and every
+ * genuinely custom piece of value (the BH_Element_Data data-binding
+ * resolver, the Surface/Slot render_slot() engine real pages actually
+ * use) lives elsewhere and was untouched by this cleanup. This file is
+ * back to doing exactly the one job its own original docblock (above)
+ * describes — nothing else should be added here that isn't "site-wide
+ * design tokens with a live preview."
+ *
+ * render_script()'s live-preview JS keeps one real improvement from the
+ * builder-era code that predates this cleanup and is worth keeping: each
+ * `.bhy-story-frame` attaches its preview document under a real
+ * `attachShadow({mode:'open'})` root instead of a same-origin `<iframe>`
+ * (a live-confirmed fix, 3.4.55 — a real `<iframe>`'s `:root` doesn't
+ * exist inside a shadow tree, so token CSS vars need `:host` instead;
+ * see that block's own comment). Everything else below is the original,
+ * pre-builder-era shape.
  */
 class BHY_Gallery {
     public static function init() {
@@ -42,12 +71,53 @@ class BHY_Gallery {
     }
 
     public static function enqueue_media($hook) {
-        if (strpos($hook, 'bh-style') === false) return;
+        // Widened (DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1) to also match
+        // the 'bh-design' top-level hook — BH_Design_Suite::add_menu()
+        // reuses this same render() callback as the Design Suite landing
+        // page, under a different slug/hook, so the media picker needs to
+        // load there too, not just on the standalone 'bh-style' submenu.
+        if (strpos($hook, 'bh-style') === false && strpos($hook, 'bh-design') === false) return;
         wp_enqueue_media();
+
+        // 3.4.49 follow-up — AJ's own ask: font <option>s should preview
+        // in their real typeface. BHY_UI::font_field()'s <option> tags
+        // carry an inline font-family per option (class-ui.php), but
+        // that's cosmetically useless without the actual webfont files
+        // loaded on THIS page — this stylesheet used to only ever be
+        // enqueued INSIDE the canvas preview docs (preview_doc() below),
+        // never on the real admin page the <select> itself lives on.
+        $font_url = class_exists('BHY_Style') ? BHY_Style::preview_all_fonts_url() : '';
+        if ($font_url) wp_enqueue_style('bhy-font-preview', $font_url, [], null);
     }
 
+    // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 — relocated from a
+    // submenu of 'own-ur-shit' to a submenu of the top-level 'bh-design'
+    // ("Design Suite") menu. Slug ('bh-style') and callback are
+    // UNCHANGED, so every existing admin.php?page=bh-style deep link
+    // keeps working. Capability is 'bhcore_design_site' (class-roles.php,
+    // granted to administrator + editor), not 'manage_options', so a
+    // non-admin employee can reach this page.
+    //
+    // OUS_VER 3.4.31 — real duplication fix, still true after this
+    // cleanup: parent is null ("hidden, reachable by direct link only"),
+    // the SAME pattern class-studio.php's own add_menu() uses — adding a
+    // real second submenu under 'bh-design' corrupts WordPress's own
+    // pairing of the bare 'admin.php?page=bh-design' request with its
+    // intended callback (BH_Design_Suite::add_menu() is the one real,
+    // visible top-level entry; this hidden page is what it actually
+    // renders).
     public static function add_menu() {
-        add_submenu_page('own-ur-shit', 'Style', 'Style', 'manage_options', 'bh-style', [self::class, 'render']);
+        $hook = add_submenu_page(null, 'Designer', 'Designer', 'bhcore_design_site', 'bh-style', [self::class, 'render']);
+        // Log-pollution fix, flagged by AJ directly — only the failure
+        // case is worth a log row; this used to fire an INFO row for
+        // every successful registration too, throttled only to once per
+        // 60 seconds, on every admin page load.
+        if ($hook === false && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error',
+                'add_submenu_page() for Designer (bh-style, hidden/null parent) FAILED (returned false).',
+                [], 'BHY_Gallery::add_menu()'
+            );
+        }
     }
 
     /* ---------- saving (unchanged shape from the original settings page) ---------- */
@@ -76,6 +146,19 @@ class BHY_Gallery {
         $data['radius_sm']   = BHY_Style::safe_number($_POST['radius_sm']   ?? null, 0, 24, 8);
         $data['bar_height']  = BHY_Style::safe_number($_POST['bar_height']  ?? null, 56, 140, 84);
 
+        // Plugin-registered custom sliders (class-style.php's
+        // custom_sliders()) — same sanitize-through-safe_number()
+        // treatment as every built-in field above, just looped instead
+        // of hardcoded, since the set is whatever's registered right now.
+        $custom_sliders = BHY_Style::custom_sliders();
+        if ($custom_sliders) {
+            $data['custom'] = [];
+            foreach ($custom_sliders as $key => $def) {
+                $raw = $_POST['custom_' . $key] ?? ($def['default'] ?? 0);
+                $data['custom'][$key] = BHY_Style::safe_number($raw, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0);
+            }
+        }
+
         update_option(BHY_Style::OPTION, $data);
         wp_safe_redirect(add_query_arg(['page' => 'bh-style', 'saved' => '1'], admin_url('admin.php')));
         exit;
@@ -85,12 +168,19 @@ class BHY_Gallery {
 
     public static function render() {
         $s = BHY_Style::get();
+        // Flatten registered custom-slider values onto $s under
+        // 'custom_<key>' so render_controls() can hand them straight to
+        // BHY_UI::slider_row() exactly like a built-in field — no
+        // separate code path for "a plugin's slider" vs. "our slider".
+        foreach (BHY_Style::custom_sliders() as $key => $def) {
+            $s['custom_' . $key] = $s['custom'][$key] ?? ($def['default'] ?? 0);
+        }
         $surfaces = apply_filters('bhy_style_surfaces', []);
         $grouped = [];
         foreach ($surfaces as $key => $surface) $grouped[$surface['group']][$key] = $surface;
 
         echo '<div class="wrap bhy-gallery">';
-        echo '<h1>Style</h1>';
+        echo '<h1>Design Suite</h1>';
         if (isset($_GET['saved'])) echo '<div class="notice notice-success is-dismissible"><p>Saved.</p></div>';
 
         echo '<div class="bhy-layout">';
@@ -118,12 +208,17 @@ class BHY_Gallery {
         echo '</div>';
     }
 
+    // No-iframes build — content is attached under a real
+    // attachShadow({mode:'open'}) root (render_script()'s own job) rather
+    // than a real same-origin <iframe>, so this emits a plain <div> with
+    // the whole preview document base64-encoded into a data attribute,
+    // not an <iframe src="...">.
     private static function render_canvas($surfaces, $s) {
         echo '<div class="bhy-canvas">';
         $first = true;
         foreach ($surfaces as $key => $surface) {
             $payload = call_user_func($surface['render']);
-            echo '<iframe class="bhy-story-frame' . ($first ? ' active' : '') . '" data-surface="' . esc_attr($key) . '" srcdoc="' . esc_attr(self::preview_doc($payload, $s)) . '"></iframe>';
+            echo '<div class="bhy-story-frame' . ($first ? ' active' : '') . '" data-surface="' . esc_attr($key) . '" data-doc="' . esc_attr(base64_encode(self::preview_doc($payload, $s))) . '"></div>';
             $first = false;
         }
         if (!$surfaces) echo '<div class="bhy-empty">Nothing to preview yet.</div>';
@@ -137,9 +232,15 @@ class BHY_Gallery {
         $font_url = BHY_Style::preview_all_fonts_url();
         return '<!doctype html><html><head><meta charset="utf-8">'
             . ($font_url ? '<link rel="stylesheet" href="' . esc_url($font_url) . '">' : '')
-            . '<link rel="stylesheet" href="' . esc_url($payload['css_url']) . '">'
+            . (!empty($payload['css_url']) ? '<link rel="stylesheet" href="' . esc_url($payload['css_url']) . '">' : '')
             . '<style id="bhy-vars">' . BHY_Style::inline_css() . '</style>'
-            . '<style>body{margin:0;background:var(--bh-bg);color:var(--bh-text);font-family:var(--bh-font-body);}</style>'
+            // Shadow-DOM equivalent of "the box everything sits inside" —
+            // there is no real <body> once this is attached under a
+            // shadow root (render_script() moves only the children over),
+            // so a `body{...}` selector would match nothing; `:host`
+            // targets the .bhy-story-frame div itself, which every moved
+            // child then fills exactly like a real <body> would.
+            . '<style>:host{display:block;margin:0;background:var(--bh-bg);color:var(--bh-text);font-family:var(--bh-font-body);}</style>'
             . '</head><body>' . $payload['html'] . '</body></html>';
     }
 
@@ -160,19 +261,28 @@ class BHY_Gallery {
         echo '</div>';
     }
 
-    private static function render_controls($s) {
-        echo '<div class="bhy-controls">';
+    // Section headers use small-caps/underline styling (.bhy-controls h3,
+    // class-ui.php); anything that isn't a small, always-relevant core
+    // set is a collapsible "<details class='bhel-style-group'>"
+    // disclosure (CSS ported into class-ui.php's shared admin_page_css()
+    // as part of this file's builder-era cleanup — see this file's own
+    // top docblock). Color swatches render through BHY_UI::swatch_field().
+    private static function render_controls($s, $default_group = 'brand') {
+        echo '<div class="bhy-controls" id="bhy-controls-panel">';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="bhy-form">';
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
-        echo '<h2>Live token preview</h2>';
+        echo '<h3>Live token preview</h3>';
         self::render_token_preview($s);
 
-        echo '<h2>Brand</h2>';
-        echo '<p><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p>';
+        echo '<div class="bhy-token-group" data-token-group="brand">';
+        echo '<h3>Brand</h3>';
+        echo '<div class="bhel-field-row"><label>Wordmark</label><p><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p></div>';
+        echo '</div>';
 
-        echo '<h2>Quick theme</h2>';
+        echo '<div class="bhy-token-group" data-token-group="colors">';
+        echo '<div class="bhel-field-row"><label for="bhy-theme-select">Quick theme</label>';
         echo '<select id="bhy-theme-select"><option value="">Choose a theme…</option>';
         foreach (BHY_Style::THEME_GROUPS as $group_label => $themes) {
             echo '<optgroup label="' . esc_attr($group_label) . '">';
@@ -181,36 +291,67 @@ class BHY_Gallery {
             }
             echo '</optgroup>';
         }
-        echo '</select>';
+        echo '</select></div>';
 
-        echo '<h2>Colors</h2>';
-        echo '<div class="bhy-swatch-grid">';
+        // Core colors — always visible, not tucked behind a disclosure.
+        echo '<h3>Colors</h3><div class="bhy-swatch-grid">';
         $color_labels = [
             'color_bg' => 'Background', 'color_surface' => 'Surface', 'color_surface_2' => 'Surface (raised)',
-            'color_border' => 'Border', 'color_text' => 'Text', 'color_text_dim' => 'Text (dim)',
-            'color_accent' => 'Accent', 'color_accent_soft' => 'Accent (soft)', 'color_overlay' => 'Modal backdrop',
+            'color_border' => 'Border', 'color_text' => 'Text', 'color_accent' => 'Accent',
         ];
         foreach ($color_labels as $key => $label) {
             BHY_UI::swatch_field($key, $key, $label, $s[$key]);
         }
         echo '</div>';
 
-        echo '<h2>Category colors</h2><div class="bhy-swatch-grid">';
+        // Less-common colors + the 8 category swatches — collapsible
+        // disclosures instead of one long always-expanded wall of fields.
+        echo '<details class="bhel-style-group"><summary class="bhel-style-group-title">Advanced colors</summary><div class="bhel-style-group-body bhy-swatch-grid">';
+        $advanced_color_labels = [
+            'color_text_dim' => 'Text (dim)', 'color_accent_soft' => 'Accent (soft)', 'color_overlay' => 'Modal backdrop',
+        ];
+        foreach ($advanced_color_labels as $key => $label) {
+            BHY_UI::swatch_field($key, $key, $label, $s[$key]);
+        }
+        echo '</div></details>';
+
+        echo '<details class="bhel-style-group"><summary class="bhel-style-group-title">Category colors</summary><div class="bhel-style-group-body bhy-swatch-grid">';
         for ($i = 1; $i <= 8; $i++) {
             BHY_UI::swatch_field('cat_color_' . $i, 'cat_color_' . $i, 'Category ' . $i, $s['cat_color_' . $i]);
         }
-        echo '</div>';
+        echo '</div></details>';
+        echo '</div>'; // data-token-group="colors"
 
-        echo '<h2>Typography</h2>';
+        echo '<div class="bhy-token-group" data-token-group="typography">';
+        echo '<h3>Typography</h3>';
         BHY_UI::font_field('font_display', 'Display font', $s);
         BHY_UI::font_field('font_body', 'Body font', $s);
+        echo '</div>';
 
-        echo '<h2>Scale</h2>';
+        echo '<div class="bhy-token-group" data-token-group="scale">';
+        echo '<h3>Scale</h3>';
         BHY_UI::slider_row('font_scale', 'Text size', $s, 0.75, 1.6, 0.05, '×');
         BHY_UI::slider_row('space_scale', 'Spacing', $s, 0.6, 1.8, 0.05, '×');
         BHY_UI::slider_row('radius', 'Corner radius', $s, 0, 32, 1, 'px');
         BHY_UI::slider_row('radius_sm', 'Corner radius (small)', $s, 0, 24, 1, 'px');
         BHY_UI::slider_row('bar_height', 'Now-playing bar height', $s, 56, 140, 2, 'px');
+        echo '</div>';
+
+        // Plugin-registered custom sliders — rendered with the exact
+        // same BHY_UI::slider_row() the built-ins above use, in the same
+        // group style as "Scale", so a peer plugin's own token shows up
+        // looking like a first-class part of this page, not a bolted-on
+        // extra. See class-style.php's custom_sliders() docblock for the
+        // registration filter a plugin calls from its own bootstrap.
+        $custom_sliders = BHY_Style::custom_sliders();
+        if ($custom_sliders) {
+            echo '<div class="bhy-token-group" data-token-group="custom">';
+            echo '<h3>Plugin adjustments</h3>';
+            foreach ($custom_sliders as $key => $def) {
+                BHY_UI::slider_row('custom_' . $key, $def['label'] ?? $key, $s, $def['min'] ?? 0, $def['max'] ?? 100, $def['step'] ?? 1, $def['unit'] ?? '');
+            }
+            echo '</div>';
+        }
 
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
         echo '</form></div>';
@@ -231,8 +372,32 @@ class BHY_Gallery {
                     buttons.forEach(function (b) { b.classList.remove('active'); });
                     frames.forEach(function (f) { f.classList.remove('active'); });
                     btn.classList.add('active');
-                    document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]').classList.add('active');
+                    var match = document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]');
+                    if (match) match.classList.add('active');
                 });
+            });
+
+            // Each .bhy-story-frame div's real content lives under its
+            // own attachShadow({mode:'open'}) root, parsed once here from
+            // the data-doc payload PHP encoded — a real fix carried
+            // forward from this file's builder-era code (3.4.55): every
+            // token/color variable this gallery depends on is printed as
+            // `:root{--bh-bg:...}` (BHY_Style::inline_css()), correct for
+            // a real document but meaningless inside a shadow root (no
+            // root element for `:root` to match) — rewritten to `:host`
+            // right after parsing, and again in refreshAllFrames() below
+            // so later live edits don't regress this.
+            frames.forEach(function (frame) {
+                var raw = frame.dataset.doc;
+                if (!raw) return;
+                var html;
+                try { html = atob(raw); } catch (e) { return; }
+                var parsed = new DOMParser().parseFromString(html, 'text/html');
+                var root = frame.attachShadow({ mode: 'open' });
+                Array.prototype.slice.call(parsed.head.children).forEach(function (node) { root.appendChild(node); });
+                Array.prototype.slice.call(parsed.body.children).forEach(function (node) { root.appendChild(node); });
+                var varsTag = root.getElementById('bhy-vars');
+                if (varsTag) varsTag.textContent = varsTag.textContent.replace(':root', ':host');
             });
 
             // Live-edits apply to EVERY registered surface at once, not
@@ -249,10 +414,10 @@ class BHY_Gallery {
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
                 frames.forEach(function (f) {
-                    var doc = f.contentDocument;
+                    var doc = f.shadowRoot;
                     if (!doc) return;
                     var tag = doc.getElementById('bhy-vars');
-                    if (tag) tag.textContent = css;
+                    if (tag) tag.textContent = css.replace(':root', ':host');
                     // Best-effort: surfaces that render the brand wordmark
                     // with these specific ids (e.g. bh-contest's player
                     // header) get it updated live too. Surfaces without
@@ -261,10 +426,11 @@ class BHY_Gallery {
                     if (brand2) { var b2 = doc.getElementById('bh-brand-2'); if (b2) b2.textContent = brand2.value.trim() || brand2.placeholder; }
                 });
                 // The always-visible token preview strip lives in the main
-                // document (not an iframe), so it gets the same rebuilt
-                // token text, just scoped to .bhy-token-preview instead of
-                // :root — every slider stays visible regardless of which
-                // registered surface happens (or doesn't) to use that token.
+                // document (not a preview frame), so it gets the same
+                // rebuilt token text, just scoped to .bhy-token-preview
+                // instead of :root — every slider stays visible regardless
+                // of which registered surface happens (or doesn't) to use
+                // that token.
                 var previewTag = document.getElementById('bhy-preview-vars');
                 if (previewTag) previewTag.textContent = css.replace(':root', '.bhy-token-preview');
             };
@@ -318,6 +484,17 @@ class BHY_Gallery {
                     vars[sliderVarMap[key][0]] = input.value + sliderVarMap[key][1];
                 });
 
+                // Plugin-registered custom sliders (render_controls()'s
+                // "Plugin adjustments" group) — every <input id="custom_*">
+                // maps to --bh-custom-<key>, mirroring BHY_Style::
+                // inline_css()'s server-side naming exactly (sanitize_key()
+                // there, the same underscore-to-dash-safe id here since
+                // PHP's sanitize_key() already only allows [a-z0-9_-]).
+                document.querySelectorAll('input[id^="custom_"]').forEach(function (input) {
+                    var varName = '--bh-custom-' + input.id.slice('custom_'.length);
+                    vars[varName] = input.value + (input.dataset.unit || '');
+                });
+
                 var out = ':root{';
                 Object.keys(vars).forEach(function (k) { out += k + ':' + vars[k] + ';'; });
                 out += '}';
@@ -325,8 +502,7 @@ class BHY_Gallery {
             }
 
             // Range sliders: update their own value label and push the
-            // change to every preview frame. Previously these had no JS
-            // at all — moving one did nothing.
+            // change to every preview frame.
             document.querySelectorAll('.bhy-slider-row input[type=range]').forEach(function (input) {
                 var valSpan = document.getElementById(input.id + '_val');
                 input.addEventListener('input', function () {
@@ -336,8 +512,7 @@ class BHY_Gallery {
             });
 
             // Font selects: toggle the paired "Custom…" text field via
-            // its data-custom-target attribute (previously rendered but
-            // never read by anything) and refresh the preview.
+            // its data-custom-target attribute, and refresh the preview.
             document.querySelectorAll('.bhy-font-field select[data-custom-target]').forEach(function (select) {
                 var target = document.getElementById(select.dataset.customTarget);
                 select.addEventListener('change', function () {

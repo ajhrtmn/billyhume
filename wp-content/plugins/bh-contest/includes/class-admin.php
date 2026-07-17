@@ -2,6 +2,18 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Admin {
+    // Prefab rejection reasons, AJ's own ask: "some real reasoning
+    // behind it" rather than a bare freeform box. 'other' always keeps
+    // the freeform note meaningful even when nothing here fits.
+    const REJECTION_REASONS = [
+        'wrong_file'   => 'Wrong file attached (not the intended track)',
+        'poor_quality' => 'Audio quality issue (clipping, low bitrate, corrupt file)',
+        'ineligible'   => 'Doesn\'t meet contest eligibility rules',
+        'duplicate'    => 'Duplicate of an existing submission',
+        'copyright'    => 'Copyright/rights concern',
+        'other'        => 'Other (see note)',
+    ];
+
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menus']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
@@ -22,6 +34,16 @@ class BH_Admin {
         add_action('admin_post_bh_create_page', [self::class, 'create_page_action']);
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
+        add_action('wp_ajax_bh_advance_round', [self::class, 'ajax_advance_round']);
+
+        // Submission review actions — file-replace workflow (a pending
+        // swap needs its own explicit approve/discard, since the swap
+        // doesn't go through a post_status transition the way a
+        // first-time approval does) plus a real reject path with a
+        // reason, both new this pass.
+        add_action('admin_post_bh_approve_swap', [self::class, 'handle_approve_swap']);
+        add_action('admin_post_bh_discard_swap', [self::class, 'handle_discard_swap']);
+        add_action('admin_post_bh_reject_submission', [self::class, 'handle_reject_submission']);
 
         // Submissions list: which contest each one belongs to, plus a filter
         // dropdown — the flat approval queue is unreadable once more than
@@ -155,11 +177,11 @@ class BH_Admin {
     // having no way to get the underlying data out at all.
     public static function export_csv() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_export')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid  = (int) ($_GET['contest_id'] ?? 0);
         $type = sanitize_key($_GET['type'] ?? '');
-        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.');
+        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.', '', ['back_link' => true]);
 
         $filename = 'bh-' . $type . '-contest-' . $cid . '-' . gmdate('Y-m-d') . '.csv';
         header('Content-Type: text/csv; charset=utf-8');
@@ -186,7 +208,13 @@ class BH_Admin {
             global $wpdb;
             $t = BH_Helpers::table();
             $rows = $wpdb->get_results($wpdb->prepare(
-                "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC", $cid
+                // id ASC as a tiebreaker — created_at only has 1-second
+                // resolution and a real voting window can easily land
+                // many votes in the same second, which makes plain
+                // ORDER BY created_at ASC non-deterministic about intra-
+                // second order for this audit-trail export (same class
+                // of bug caught and fixed in bh-crm's notes feature).
+                "SELECT user_id, category, submission_id, created_at FROM $t WHERE contest_id = %d ORDER BY created_at ASC, id ASC", $cid
             ));
             fputcsv($out, ['Voter', 'Category', 'Submission ID', 'Track Title', 'Voted At']);
             foreach ($rows as $r) {
@@ -222,7 +250,7 @@ class BH_Admin {
 
     public static function quick_schedule() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid   = (int) ($_GET['contest_id'] ?? 0);
         $which = sanitize_key($_GET['which'] ?? '');
@@ -267,7 +295,7 @@ class BH_Admin {
 
     public static function create_page_action() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_create_page')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);
         if ($cid && get_post_type($cid) === 'bh_contest') self::maybe_create_contest_page($cid, true);
@@ -331,7 +359,7 @@ class BH_Admin {
     // a confirmation rather than silently re-notifying everyone.
     public static function send_winner_notifications() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);
         if ($cid && get_post_meta($cid, '_bh_results_published', true) === '1') {
@@ -368,6 +396,7 @@ class BH_Admin {
         $collect(BH_Reveal::overall_results($cid), 'Overall');
 
         $contest_title = get_the_title($cid);
+        $sent = 0; $failed_uids = [];
         foreach ($placements as $uid => $wins) {
             $user = get_userdata($uid);
             if (!$user || !$user->user_email) continue;
@@ -378,7 +407,26 @@ class BH_Admin {
             );
             $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
                 . implode("\n", $lines) . "\n\nWell done!";
-            wp_mail($user->user_email, "You placed in {$contest_title}!", $body);
+            if (wp_mail($user->user_email, "You placed in {$contest_title}!", $body)) {
+                $sent++;
+            } else {
+                $failed_uids[] = $uid;
+            }
+        }
+        // Previously wp_mail()'s return value was ignored entirely — a
+        // bulk send with some/all messages silently rejected by the mail
+        // transport looked identical to a fully successful one from the
+        // admin's side, with no record of WHICH winners never got
+        // notified. wp_mail() itself doesn't expose a failure reason
+        // (that's the well-known limitation OUS_Mail's own roadmap entry
+        // exists to eventually fix — see ROADMAP-platform-evolution.md
+        // Section 2's BH_Mail interface item), but a count + the
+        // specific affected user IDs is still a real, actionable
+        // improvement over nothing.
+        if ($failed_uids && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', "Winner-notification bulk send: $sent sent, " . count($failed_uids) . ' failed.', [
+                'contest_id' => $cid, 'failed_user_ids' => $failed_uids,
+            ], 'BH Contest');
         }
     }
 
@@ -393,6 +441,14 @@ class BH_Admin {
     public static function maybe_notify_approval($new_status, $old_status, $post) {
         if ($post->post_type !== 'bh_submission') return;
         if ($new_status !== 'publish' || $old_status === 'publish') return;
+
+        // A contestant may have swapped their file before this
+        // submission was ever reviewed (still 'pending' at the time) —
+        // that swap sits in _bh_pending_audio_id same as it would on an
+        // already-published submission. Promote it here so a
+        // first-time approval always announces whatever's actually the
+        // reviewed, current file, not a stale first upload.
+        self::promote_pending_audio($post->ID);
 
         $cid = (int) get_post_meta($post->ID, '_bh_contest_id', true);
         if (!$cid) return;
@@ -688,22 +744,294 @@ class BH_Admin {
         return $classes;
     }
 
-    public static function add_meta_boxes() {
-        add_meta_box('bh_approval', 'Submission Details & Approval', function ($post) {
-            $note = get_post_meta($post->ID, '_bh_admin_note', true);
-            $url  = wp_get_attachment_url(get_post_meta($post->ID, '_bh_audio_id', true));
-            $cid  = (int) get_post_meta($post->ID, '_bh_contest_id', true);
+    /**
+     * Submission review box — rebuilt this pass to cover the file-
+     * replace workflow (AJ's own "wrong file uploaded" ask) and a real
+     * reject path. Three states this now renders:
+     *  1. No pending swap, not rejected: original behavior — live
+     *     audio player + the existing "set Status to Published"
+     *     instruction, PLUS a new Reject form.
+     *  2. A pending swap exists (`_bh_pending_audio_id`): shows BOTH
+     *     the currently-live file (still what's actually playing/
+     *     being voted on) and the pending replacement, with Approve/
+     *     Discard buttons for the swap specifically — first-time
+     *     Publish approval and the swap review are two independent
+     *     actions once a submission has ever been approved once.
+     *  3. post_status === 'rejected': shows the stored reason/note
+     *     read-only, plus the same Reject-again path is naturally
+     *     unavailable (nothing to re-reject) — a contestant re-
+     *     submitting a new file automatically flips this back to
+     *     'pending' (see BH_API::replace_audio()).
+     */
+    public static function render_approval_box($post) {
+        $note = get_post_meta($post->ID, '_bh_admin_note', true);
+        $audio_id = (int) get_post_meta($post->ID, '_bh_audio_id', true);
+        $url  = $audio_id ? wp_get_attachment_url($audio_id) : '';
+        $cid  = (int) get_post_meta($post->ID, '_bh_contest_id', true);
+        $pending_id = (int) get_post_meta($post->ID, '_bh_pending_audio_id', true);
 
-            if ($cid && get_post($cid)) {
-                echo '<p><strong>Contest:</strong> <a href="' . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
-            }
-            echo '<h4>Artist Name: ' . esc_html(get_post_meta($post->ID, '_bh_artist_name', true)) . '</h4>';
-            if ($note) echo '<p><strong>Note to Admin:</strong><br><em>' . esc_html($note) . '</em></p>';
-            echo $url
-                ? "<audio controls src='" . esc_url($url) . "' style='width:100%;margin:15px 0;'></audio>"
+        if ($cid && get_post($cid)) {
+            echo '<p><strong>Contest:</strong> <a href="' . esc_url(get_edit_post_link($cid)) . '">' . esc_html(get_the_title($cid)) . '</a></p>';
+        }
+        echo '<h4>Artist Name: ' . esc_html(get_post_meta($post->ID, '_bh_artist_name', true)) . '</h4>';
+        if ($note) echo '<p><strong>Note to Admin:</strong><br><em>' . esc_html($note) . '</em></p>';
+
+        echo '<p><strong>' . ($pending_id ? 'Currently live:' : 'Audio:') . '</strong></p>';
+        echo $url
+            ? "<audio controls src='" . esc_url($url) . "' style='width:100%;margin:0 0 15px;'></audio>"
+            : '<p>No audio attached.</p>';
+
+        if ($pending_id) {
+            $pending_url = wp_get_attachment_url($pending_id);
+            $replaced_at = get_post_meta($post->ID, '_bh_pending_replaced_at', true);
+            $replaced_by = (int) get_post_meta($post->ID, '_bh_pending_replaced_by', true);
+            $by_user = $replaced_by ? get_userdata($replaced_by) : null;
+            echo '<div style="background:#fff8e5;border:1px solid #dba617;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
+            echo '<p style="margin-top:0;"><strong>&#9888; Pending replacement</strong>'
+               . ($replaced_at ? ' — uploaded ' . esc_html(mysql2date('M j, Y g:ia', $replaced_at)) : '')
+               . ($by_user ? ' by ' . esc_html($by_user->display_name) : '') . '</p>';
+            echo $pending_url
+                ? "<audio controls src='" . esc_url($pending_url) . "' style='width:100%;margin:0 0 10px;'></audio>"
                 : '<p>No audio attached.</p>';
+
+            $approve_url = wp_nonce_url(admin_url('admin-post.php?action=bh_approve_swap&submission_id=' . $post->ID), 'bh_approve_swap_' . $post->ID);
+            $discard_url = wp_nonce_url(admin_url('admin-post.php?action=bh_discard_swap&submission_id=' . $post->ID), 'bh_discard_swap_' . $post->ID);
+            echo '<p style="margin-bottom:0;"><a class="button button-primary" href="' . esc_url($approve_url) . '">Approve replacement</a> '
+               . '<a class="button" href="' . esc_url($discard_url) . '" onclick="return confirm(\'Discard this replacement and keep the current file?\');">Discard replacement</a></p>';
+            echo '</div>';
+        }
+
+        if ($post->post_status === 'rejected') {
+            $reason_code = get_post_meta($post->ID, '_bh_rejection_reason_code', true);
+            $reason_note = get_post_meta($post->ID, '_bh_rejection_note', true);
+            echo '<div style="background:#fbeaea;border:1px solid #b32d2e;border-radius:4px;padding:10px 14px;margin-bottom:15px;">';
+            echo '<p style="margin:0;"><strong>Rejected</strong> — ' . esc_html(self::REJECTION_REASONS[$reason_code] ?? 'No reason recorded') . '</p>';
+            if ($reason_note) echo '<p style="margin:8px 0 0;"><em>' . esc_html($reason_note) . '</em></p>';
+            echo '</div>';
+        } else {
             echo '<hr><p><strong>To Approve:</strong> set Status to <em>Published</em> and click Update.</p>';
-        }, 'bh_submission', 'normal', 'high');
+
+            // QA fix, caught live: a metabox renders INSIDE WordPress's
+            // own outer post-edit <form id="post">, so a second, nested
+            // <form> here is invalid HTML — the browser silently
+            // resolves a submit click to the OUTER form (a normal post
+            // Update), never actually hitting admin-post.php at all.
+            // Confirmed live: the reject button appeared to work but
+            // the submission's status/meta never actually changed.
+            // Fixed by dropping the nested <form> entirely — these are
+            // plain fields plus a button with no form ancestor, and a
+            // small inline script does a fetch() POST to admin-post.php
+            // directly instead of relying on native form submission.
+            echo '<details><summary style="cursor:pointer;color:#b32d2e;">Reject this submission</summary>';
+            $reject_nonce = wp_create_nonce('bh_reject_submission_' . $post->ID);
+            $box_id = 'bh-reject-box-' . (int) $post->ID;
+            echo '<div id="' . esc_attr($box_id) . '" style="margin-top:10px;">';
+            echo '<p><label>Reason<br><select class="bh-reject-reason">';
+            foreach (self::REJECTION_REASONS as $code => $label) {
+                echo '<option value="' . esc_attr($code) . '">' . esc_html($label) . '</option>';
+            }
+            echo '</select></label></p>';
+            echo '<p><label>Note to contestant (included in their notification)<br>'
+               . '<textarea class="bh-reject-note" rows="3" style="width:100%;"></textarea></label></p>';
+            echo '<button type="button" class="button bh-reject-submit" style="color:#b32d2e;border-color:#b32d2e;">Reject &amp; notify contestant</button>';
+            echo ' <span class="bh-reject-status description"></span>';
+            echo '</div>';
+            echo '<script>(function(){
+                var box = document.getElementById(' . wp_json_encode($box_id) . ');
+                if (!box) return;
+                box.querySelector(".bh-reject-submit").addEventListener("click", function () {
+                    if (!confirm("Reject this submission? The contestant will be notified.")) return;
+                    var btn = this;
+                    var statusEl = box.querySelector(".bh-reject-status");
+                    btn.disabled = true;
+                    var fd = new FormData();
+                    fd.append("action", "bh_reject_submission");
+                    fd.append("submission_id", ' . (int) $post->ID . ');
+                    fd.append("_wpnonce", ' . wp_json_encode($reject_nonce) . ');
+                    fd.append("reason_code", box.querySelector(".bh-reject-reason").value);
+                    fd.append("note", box.querySelector(".bh-reject-note").value);
+                    fetch(' . wp_json_encode(admin_url('admin-post.php')) . ', { method: "POST", credentials: "same-origin", body: fd })
+                        .then(function (res) { if (res.redirected || res.ok) { window.location.reload(); } else { statusEl.textContent = "Something went wrong."; btn.disabled = false; } })
+                        .catch(function () { statusEl.textContent = "Request failed."; btn.disabled = false; });
+                });
+            })();</script>';
+            echo '</details>';
+        }
+    }
+
+    /** Promotes a pending file swap to live: deletes the old attachment, moves pending -> live, clears pending meta. */
+    private static function promote_pending_audio($post_id) {
+        $old_audio = (int) get_post_meta($post_id, '_bh_audio_id', true);
+        $pending = (int) get_post_meta($post_id, '_bh_pending_audio_id', true);
+        if (!$pending) return;
+        if ($old_audio && $old_audio !== $pending) wp_delete_attachment($old_audio, true);
+        update_post_meta($post_id, '_bh_audio_id', $pending);
+        delete_post_meta($post_id, '_bh_pending_audio_id');
+        delete_post_meta($post_id, '_bh_pending_replaced_by');
+        delete_post_meta($post_id, '_bh_pending_replaced_at');
+    }
+
+    public static function handle_approve_swap() {
+        $pid = (int) ($_GET['submission_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+
+        // QA fix, caught live: this fired the Discord "entry file
+        // updated" announcement unconditionally, even for a submission
+        // that was never actually approved (still 'pending') —
+        // "Approve replacement" and the real first-time Publish
+        // approval are two independent actions, and a still-pending
+        // submission has nothing to publicly re-announce yet (its
+        // first REAL approval, whenever that happens, already
+        // announces fresh via maybe_notify_approval(), which now also
+        // calls promote_pending_audio() itself). Only announce here
+        // when this submission was already publicly live.
+        $was_published = $post->post_status === 'publish';
+
+        self::promote_pending_audio($pid);
+
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        $artist = get_post_meta($pid, '_bh_artist_name', true);
+        $aid = (int) get_post_meta($pid, '_bh_audio_id', true);
+        if ($was_published && $cid && class_exists('BH_Discord')) {
+            BH_Discord::notify_submission($cid, $post->post_title, $artist, $aid ? wp_get_attachment_url($aid) : '', true);
+        }
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_swap_approved', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid]]);
+        }
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    public static function handle_discard_swap() {
+        $pid = (int) ($_GET['submission_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+
+        $pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
+        if ($pending) wp_delete_attachment($pending, true);
+        delete_post_meta($pid, '_bh_pending_audio_id');
+        delete_post_meta($pid, '_bh_pending_replaced_by');
+        delete_post_meta($pid, '_bh_pending_replaced_at');
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    /**
+     * Real reject path — AJ's own ask: "some real reasoning behind
+     * it." Sets the 'rejected' post_status (registered in
+     * class-post-types.php), stores the prefab reason + freeform note,
+     * and emails the contestant with both — closing the gap where a
+     * rejected submission previously just sat at 'pending' forever
+     * with no notification either way.
+     */
+    public static function handle_reject_submission() {
+        $pid = (int) ($_POST['submission_id'] ?? 0);
+        if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+
+        $reason_code = sanitize_key($_POST['reason_code'] ?? 'other');
+        if (!isset(self::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
+        $note = sanitize_textarea_field(wp_unslash($_POST['note'] ?? ''));
+
+        // Real bug this closes: this Reject action is available for a
+        // submission at ANY pre-rejected status, including 'publish' —
+        // an admin can reject an entry that already collected real
+        // votes. Without this, every voter who'd already voted for it
+        // was permanently unable to free that vote slot: class-api.php's
+        // vote() toggle-off used to be gated behind the SAME "belongs to
+        // this contest + still published" check the toggle-ON path
+        // needs, so once this submission left 'publish' status, the
+        // voter's own request to un-vote it hit that same gate and
+        // failed — a trapped, permanently-consumed vote with no UI path
+        // to notice why (the track also vanishes from the public
+        // /tracks list the instant it's rejected). Deleting the rows
+        // here, at the moment of rejection, refunds every affected
+        // voter automatically rather than relying on each of them to
+        // separately discover and retry a now-fixed toggle-off request.
+        global $wpdb;
+        $wpdb->delete(BH_Helpers::table(), ['submission_id' => $pid], ['%d']);
+
+        update_post_meta($pid, '_bh_rejection_reason_code', $reason_code);
+        update_post_meta($pid, '_bh_rejection_note', $note);
+        wp_update_post(['ID' => $pid, 'post_status' => 'rejected']);
+
+        $author = get_userdata($post->post_author);
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        if ($author && $author->user_email) {
+            $contest_title = $cid ? get_the_title($cid) : 'the contest';
+            $subject = 'About your submission — ' . get_bloginfo('name');
+            $reason_label = self::REJECTION_REASONS[$reason_code];
+            $body = "Hi {$author->user_login},\n\nYour submission \"{$post->post_title}\" for {$contest_title} wasn't accepted this time.\n\nReason: {$reason_label}"
+                  . ($note ? "\n\nNote from the team: {$note}" : '')
+                  . "\n\nIf this was a mistake (e.g. the wrong file got attached), you can upload a replacement from your account portal while submissions are still open, and it'll be reviewed again.";
+            $sent = wp_mail($author->user_email, $subject, $body);
+            if ($sent && class_exists('BH_Event')) {
+                BH_Event::emit('bhcore/email_sent', ['user_id' => (int) $post->post_author, 'subject_type' => 'email', 'subject_id' => 0, 'payload' => ['title' => $subject]]);
+            } elseif (!$sent && class_exists('OUS_DebugLog')) {
+                // Debug-log wiring pass — a rejection notice failing to
+                // send is worth knowing about: the contestant would
+                // otherwise have no idea their submission was rejected
+                // at all.
+                OUS_DebugLog::log('warning', 'Rejection notification email failed to send (wp_mail() returned false).', [
+                    'user_id' => (int) $post->post_author, 'submission_id' => $pid,
+                ], 'BH Contest Submission');
+            }
+        }
+        if (class_exists('BH_Event')) {
+            BH_Event::emit('bh/submission_rejected', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid, 'reason_code' => $reason_code]]);
+        }
+        // Accountability log, AJ's own ask — a real moderation action (BH_Event above is the contestant's own activity feed, this is the admin-accountability side of the same action).
+        if (class_exists('OUS_Audit')) {
+            OUS_Audit::log('submission_rejected', 'bh_submission', $pid, ['reason_code' => $reason_code, 'contest_id' => $cid]);
+        }
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    // Hooked onto before_delete_post — permanent deletion only (a
+    // trashed contest is still a real, restorable post, same
+    // "nothing to clean up until it's actually gone" reasoning
+    // bh-courses' cleanup_deleted_course() already uses for lessons).
+    // Real gap this closes: this plugin had ZERO cleanup anywhere for a
+    // permanently-deleted contest — every one of its submissions and
+    // every vote row referencing it became a silent, permanent orphan
+    // with no admin warning and no way to discover the mess later (the
+    // Submissions list filters by _bh_contest_id meta pointing at a
+    // post that no longer exists). Given contests hold real contestant
+    // and voting data, this was a genuine silent-data-loss risk.
+    // Submissions are TRASHED, not hard-deleted, here — a permanently-
+    // deleted contest almost always means "this contest was a mistake/
+    // duplicate," and trashing (rather than permanently deleting) its
+    // submissions preserves a 30-day recovery window for exactly that
+    // "wait, I didn't mean to delete the WHOLE thing" case, matching
+    // how WordPress's own trash already works for everything else here.
+    public static function cleanup_deleted_contest($post_id) {
+        if (get_post_type($post_id) !== 'bh_contest') return;
+
+        $submissions = get_posts([
+            'post_type' => 'bh_submission', 'numberposts' => -1, 'post_status' => 'any',
+            'meta_key' => '_bh_contest_id', 'meta_value' => $post_id,
+        ]);
+        foreach ($submissions as $submission) {
+            wp_trash_post($submission->ID);
+        }
+
+        global $wpdb;
+        $wpdb->delete(BH_Helpers::table(), ['contest_id' => $post_id], ['%d']);
+    }
+
+    public static function add_meta_boxes() {
+        add_meta_box('bh_approval', 'Submission Details & Approval', [self::class, 'render_approval_box'], 'bh_submission', 'normal', 'high');
 
         add_meta_box('bh_contest_settings', 'Contest Rules & Results', function ($post) {
             wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
@@ -918,6 +1246,96 @@ class BH_Admin {
             echo '<p class="description">Voters get their normal 1 (or 2, if they submitted) vote in <em>each</em> category independently. All submissions are eligible in every category — there\'s no per-track assignment.</p>';
         }, 'bh_contest', 'normal', 'default');
 
+        add_meta_box('bh_contest_judging', 'Judging Format', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $format = BH_Helpers::contest_format($post->ID);
+            $rubric = BH_Judging::rubric($post->ID);
+            $rubric_text = implode("\n", array_map(fn($c) => $c['name'] . ':' . $c['max'], $rubric));
+            $judge_ids = BH_Judging::judge_ids($post->ID);
+            $judge_names = [];
+            foreach ($judge_ids as $jid) {
+                $u = get_userdata($jid);
+                if ($u) $judge_names[] = $u->user_login;
+            }
+
+            echo '<p><label><strong>Format</strong><br><select name="bh_contest_format">';
+            echo '<option value="public"' . selected($format, 'public', false) . '>Public voting (default, unchanged)</option>';
+            echo '<option value="judges"' . selected($format, 'judges', false) . '>Judges only — a rubric score replaces public voting</option>';
+            echo '<option value="hybrid"' . selected($format, 'hybrid', false) . '>Hybrid — both run, shown as two separate leaderboards (Judges\' Pick / People\'s Choice)</option>';
+            echo '</select></label></p>';
+
+            echo '<p class="description">Rubric criteria, one per line — "Originality" (defaults to a max of 10) or "Originality:20" for a custom max. Only used when Format is Judges or Hybrid.</p>';
+            echo '<textarea name="bh_rubric" rows="4" style="width:100%;font-family:inherit;">' . esc_textarea($rubric_text) . '</textarea>';
+
+            echo '<p class="description">Judges, one WordPress username per line. Each must already have an account on this site — judges score from the front-end <code>[bh_judge_panel]</code> shortcode, not wp-admin.</p>';
+            echo '<textarea name="bh_judges" rows="3" style="width:100%;font-family:inherit;">' . esc_textarea(implode("\n", $judge_names)) . '</textarea>';
+
+            if ($post->post_status === 'publish' && $judge_ids) {
+                echo '<p class="description" style="margin-top:8px;">Judge panel shortcode: <code>[bh_judge_panel contest="' . esc_html($post->post_name) . '"]</code></p>';
+            }
+        }, 'bh_contest', 'normal', 'default');
+
+        add_meta_box('bh_contest_rounds', 'Rounds (elimination format)', function ($post) {
+            wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
+            $rounds = BH_Rounds::rounds($post->ID);
+            $count = max(1, count($rounds));
+            $active = BH_Rounds::active_round_index($post->ID);
+
+            echo '<p class="description">Leave at 1 round for a normal single-round contest (unchanged default behavior). 2+ rounds turns this into an elimination format — round 1 is the normal submission+voting window; round 2+ only re-votes/re-scores whoever survived the previous cut (leave a round\'s own submission dates blank unless you specifically want it to accept new entries too).</p>';
+            echo '<p><label><strong>Number of rounds</strong> <select id="bh_round_count" name="bh_round_count">';
+            for ($i = 1; $i <= 4; $i++) echo '<option value="' . $i . '"' . selected($count, $i, false) . '>' . $i . '</option>';
+            echo '</select></label></p>';
+
+            if ($post->post_status === 'publish' && count($rounds) > 1) {
+                echo '<p><span class="bhy-badge bhy-badge-dot">Active round: ' . ((int) $active + 1) . ' of ' . count($rounds) . '</span></p>';
+                if (isset($rounds[$active + 1])) {
+                    echo '<p><button type="button" class="button button-primary" id="bh_advance_round" data-contest="' . (int) $post->ID . '" data-nonce="' . esc_attr(wp_create_nonce('bh_advance_round_' . $post->ID)) . '">Close round ' . ((int) $active + 1) . ' &amp; advance to round ' . ((int) $active + 2) . '</button> <span id="bh_advance_round_result" style="margin-left:8px;"></span></p>';
+                    echo '<p class="description">Tallies the active round\'s votes/judge scores now, keeps the configured cut count, and opens the next round for the survivors. Cannot be undone from here.</p>';
+                } else {
+                    echo '<p class="description">This is the final round — nothing left to advance to.</p>';
+                }
+            }
+
+            for ($i = 0; $i < 4; $i++) {
+                $r = $rounds[$i] ?? [];
+                $display = $i < $count ? '' : 'display:none;';
+                echo '<div class="bh-round-block" data-round-index="' . $i . '" style="' . $display . 'border:1px solid #dcdcde;border-radius:4px;padding:10px;margin-bottom:10px;">';
+                echo '<p><strong>Round ' . ($i + 1) . '</strong></p>';
+                echo '<p><label>Name<br><input type="text" name="bh_round_name[]" value="' . esc_attr($r['name'] ?? ('Round ' . ($i + 1))) . '" style="width:100%;"></label></p>';
+                echo '<p><label>Submission opens (blank = no new entries this round)<br><input type="datetime-local" name="bh_round_sub_start[]" value="' . esc_attr(self::dt_for_input($r['sub_start'] ?? '')) . '"></label> ';
+                echo '<label>closes<br><input type="datetime-local" name="bh_round_sub_end[]" value="' . esc_attr(self::dt_for_input($r['sub_end'] ?? '')) . '"></label></p>';
+                echo '<p><label>Voting opens<br><input type="datetime-local" name="bh_round_vote_start[]" value="' . esc_attr(self::dt_for_input($r['vote_start'] ?? '')) . '"></label> ';
+                echo '<label>closes<br><input type="datetime-local" name="bh_round_vote_end[]" value="' . esc_attr(self::dt_for_input($r['vote_end'] ?? '')) . '"></label></p>';
+                echo '<p><label>Cut to (how many advance out of this round)<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
+                echo '</div>';
+            }
+            ?>
+            <script>
+            (function () {
+                var sel = document.getElementById('bh_round_count');
+                var blocks = document.querySelectorAll('.bh-round-block');
+                if (sel) sel.addEventListener('change', function () {
+                    var n = parseInt(sel.value, 10);
+                    blocks.forEach(function (b) { b.style.display = parseInt(b.dataset.roundIndex, 10) < n ? '' : 'none'; });
+                });
+                var btn = document.getElementById('bh_advance_round');
+                if (btn) btn.addEventListener('click', function () {
+                    if (!confirm('Close the active round and advance survivors now? This cannot be undone from here.')) return;
+                    btn.disabled = true;
+                    var body = new URLSearchParams({ action: 'bh_advance_round', contest_id: btn.dataset.contest, nonce: btn.dataset.nonce });
+                    fetch(ajaxurl, { method: 'POST', body: body })
+                        .then(function (r) { return r.json(); })
+                        .then(function (res) {
+                            var out = document.getElementById('bh_advance_round_result');
+                            if (res.success) { out.textContent = 'Advanced — reload to see the new round.'; location.reload(); }
+                            else { out.textContent = (res.data && res.data.message) || 'Could not advance.'; btn.disabled = false; }
+                        });
+                });
+            })();
+            </script>
+            <?php
+        }, 'bh_contest', 'normal', 'default');
+
         add_meta_box('bh_contest_shortcode', 'Shortcode & Page', function ($post) {
             if ($post->post_status !== 'publish') {
                 echo '<p class="description">Publish this contest to get its shortcode and page.</p>';
@@ -928,6 +1346,23 @@ class BH_Admin {
             echo '<p class="description">Paste into any page or post to embed this specific contest. Leaving out the <code>contest</code> attribute always falls back to whichever contest was published most recently — fine for one contest at a time, ambiguous once you\'re running more than one.</p>';
             echo '<hr><p><strong>Page:</strong> ' . self::page_links_html($post->ID) . '</p>';
             echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
+        }, 'bh_contest', 'side', 'default');
+
+        // Separate from the "Contest Branding & Style" override below —
+        // this picks a CARD TEMPLATE (brand vs. poster), not a color
+        // override; a contest that never turns on style override at all
+        // can still choose poster-style share cards.
+        add_meta_box('bh_contest_share_cards', 'Shareable images', function ($post) {
+            $stored_style = get_post_meta($post->ID, '_bh_share_card_style', true);
+            $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
+            echo '<p class="description">Submitters get a "Now entered" and "Vote for me" image after submitting. <strong>Brand</strong> matches this site\'s own live colors; the <strong>Poster</strong> options are bolder, stand-alone looks.</p>';
+            if (class_exists('BH_ShareCard')) {
+                echo '<p><label>Style<br><select name="bh_share_card_style">';
+                foreach (BH_ShareCard::STYLES as $key => $label) {
+                    echo '<option value="' . esc_attr($key) . '"' . selected($style, $key, false) . '>' . esc_html($label) . '</option>';
+                }
+                echo '</select></label></p>';
+            }
         }, 'bh_contest', 'side', 'default');
 
         add_meta_box('bh_contest_style', 'Contest Branding & Style', function ($post) {
@@ -1060,10 +1495,33 @@ class BH_Admin {
         }, 'bh_contest', 'normal', 'default');
     }
 
+    // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — the admin
+    // action that actually closes out a round: capability-gated
+    // (edit_post on the contest) and per-contest nonce'd, since this is
+    // a real, one-way state change (eliminated entries don't come back
+    // from this screen).
+    public static function ajax_advance_round() {
+        $cid = (int) ($_POST['contest_id'] ?? 0);
+        if (!$cid || !current_user_can('edit_post', $cid)) {
+            wp_send_json_error(['message' => 'Not allowed.'], 403);
+        }
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'bh_advance_round_' . $cid)) {
+            wp_send_json_error(['message' => 'Security check failed — reload and try again.'], 403);
+        }
+        $result = BH_Rounds::advance_round($cid);
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()], 400);
+        }
+        wp_send_json_success($result);
+    }
+
     public static function save_contest_meta($post_id) {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
+
+        $posted_style = (string) ($_POST['bh_share_card_style'] ?? '');
+        update_post_meta($post_id, '_bh_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
 
         if (!empty($_POST['bh_sub_always_open'])) {
             // Toggle checked — always-open, regardless of whatever might
@@ -1104,6 +1562,59 @@ class BH_Admin {
         if (isset($_POST['bh_categories'])) {
             $cats = BH_Helpers::parse_categories_input(wp_unslash($_POST['bh_categories']));
             update_post_meta($post_id, '_bh_categories', $cats ? wp_json_encode($cats) : '');
+        }
+
+        if (isset($_POST['bh_contest_format'])) {
+            $format = in_array($_POST['bh_contest_format'], ['judges', 'hybrid'], true) ? $_POST['bh_contest_format'] : 'public';
+            update_post_meta($post_id, '_bh_contest_format', $format);
+        }
+        if (isset($_POST['bh_rubric'])) {
+            $rubric = BH_Judging::parse_rubric_input(wp_unslash($_POST['bh_rubric']));
+            update_post_meta($post_id, '_bh_rubric', $rubric ? wp_json_encode($rubric) : '');
+        }
+        if (isset($_POST['bh_round_name'])) {
+            $names = (array) $_POST['bh_round_name'];
+            $count = max(1, min(4, (int) ($_POST['bh_round_count'] ?? 1)));
+            $sub_starts = (array) ($_POST['bh_round_sub_start'] ?? []);
+            $sub_ends   = (array) ($_POST['bh_round_sub_end'] ?? []);
+            $vote_starts = (array) ($_POST['bh_round_vote_start'] ?? []);
+            $vote_ends   = (array) ($_POST['bh_round_vote_end'] ?? []);
+            $cuts = (array) ($_POST['bh_round_cut'] ?? []);
+
+            $rounds = [];
+            for ($i = 0; $i < $count; $i++) {
+                $name = sanitize_text_field($names[$i] ?? ('Round ' . ($i + 1)));
+                $rounds[] = [
+                    'name' => $name !== '' ? $name : ('Round ' . ($i + 1)),
+                    'sub_start' => sanitize_text_field($sub_starts[$i] ?? ''),
+                    'sub_end' => sanitize_text_field($sub_ends[$i] ?? ''),
+                    'vote_start' => sanitize_text_field($vote_starts[$i] ?? ''),
+                    'vote_end' => sanitize_text_field($vote_ends[$i] ?? ''),
+                    'cut_count' => max(1, (int) ($cuts[$i] ?? 8)),
+                ];
+            }
+            // Exactly 1 round stored as an EMPTY meta value, not a
+            // single-item array — is_multi_round()'s count() > 1 check
+            // (class-rounds.php) means this is functionally identical
+            // either way, but storing '' for the common single-round
+            // case keeps get_post_meta() cheap-and-empty for every
+            // contest that never touches this feature, matching
+            // _bh_categories'/_bh_rubric's own "blank means off" convention.
+            update_post_meta($post_id, '_bh_rounds', $count > 1 ? wp_json_encode($rounds) : '');
+        }
+
+        if (isset($_POST['bh_judges'])) {
+            // Usernames -> IDs, resolved (not trusted) on the way in — a
+            // typo'd or since-deleted username just silently drops from
+            // the list rather than storing a dangling/invalid entry.
+            $ids = [];
+            foreach (preg_split('/[\r\n]+/', wp_unslash($_POST['bh_judges'])) as $line) {
+                $login = trim($line);
+                if ($login === '') continue;
+                $u = get_user_by('login', $login);
+                if ($u) $ids[] = $u->ID;
+            }
+            update_post_meta($post_id, '_bh_judges', $ids ? wp_json_encode(array_values(array_unique($ids))) : '');
         }
 
         update_post_meta($post_id, '_bhy_style_override', isset($_POST['bh_style_override']) ? '1' : '');

@@ -1,0 +1,337 @@
+/**
+ * Kanban board styling — bh-crm's own bespoke presentation layer over
+ * BH_Element placement data (see kanban-board.js's docblock). Vanilla
+ * CSS, no build step, scoped entirely under .bhcrm-kanban-board so it
+ * can never leak into the rest of wp-admin.
+ */
+.bhcrm-kanban-board {
+    margin-top: 10px;
+}
+
+/* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
+   — the board-wide rollup at the top of a level, and a smaller
+   .bhcrm-progress-bar-mini variant inside a card showing that card's
+   own children's rollup. Same fill color as .bhcrm-kanban-card.is-done
+   below, so "green" reads consistently as "done" everywhere. */
+.bhcrm-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 14px;
+}
+
+.bhcrm-progress-bar-mini {
+    margin: 4px 0;
+}
+
+.bhcrm-progress-bar-track {
+    flex: 1;
+    height: 8px;
+    background: #dcdcde;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.bhcrm-progress-bar-mini .bhcrm-progress-bar-track {
+    height: 5px;
+}
+
+.bhcrm-progress-bar-fill {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 999px;
+    transition: width 0.2s ease;
+}
+
+.bhcrm-progress-bar-fill.is-complete {
+    background: #00a32a;
+}
+
+.bhcrm-progress-bar-label {
+    font-size: 12px;
+    color: #646970;
+    white-space: nowrap;
+}
+
+.bhcrm-progress-bar-mini .bhcrm-progress-bar-label {
+    font-size: 11px;
+}
+
+/* Inline-editable card title/description (BHCRM_Subtasks::render_card())
+   — same borderless-until-focused treatment as the top-level board's
+   own .bhcrm-kanban-card-title-input/.bhcrm-kanban-card-notes, so a
+   sub-task card looks and behaves identically to a top-level one. */
+.bhcrm-subtask-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-weight: 600;
+    padding: 2px 4px;
+}
+
+.bhcrm-subtask-title-input:focus {
+    background: #fff;
+    outline: 1px solid #2271b1;
+    border-radius: 3px;
+}
+
+.bhcrm-subtask-title-input.is-done {
+    text-decoration: line-through;
+    color: #777;
+}
+
+.bhcrm-subtask-desc-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    color: #50575e;
+    resize: vertical;
+    padding: 2px 4px;
+    margin-top: 2px;
+}
+
+.bhcrm-subtask-desc-input:focus {
+    background: #fff;
+    border-color: #dcdcde;
+}
+
+.bhcrm-subtask-save-status {
+    font-size: 10px;
+    display: block;
+    min-height: 12px;
+}
+
+.bhcrm-kanban-grid {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.bhcrm-kanban-column {
+    flex: 0 0 260px;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 10px;
+    min-height: 120px;
+}
+
+.bhcrm-kanban-column-header {
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #dcdcde;
+}
+
+.bhcrm-kanban-column-count {
+    font-weight: 400;
+    color: #646970;
+}
+
+.bhcrm-kanban-column-cards {
+    min-height: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bhcrm-kanban-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 4px;
+    padding: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    position: relative;
+}
+
+/* SortableJS's own classes, not ones this file toggles by hand — .is-drag-ghost is the `ghostClass` option in kanban-board.js (the placeholder left in the origin spot while dragging); .sortable-chosen/.sortable-drag are SortableJS's own built-in class names, styled here for visibility during a drag. */
+.bhcrm-kanban-card.is-drag-ghost {
+    opacity: 0.35;
+}
+
+.bhcrm-kanban-card.sortable-chosen {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.bhcrm-kanban-card-drag-handle {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: #a7aaad;
+    cursor: grab;
+    font-size: 12px;
+    line-height: 1;
+    padding: 2px 4px;
+    user-select: none;
+}
+
+.bhcrm-kanban-card-drag-handle:active {
+    cursor: grabbing;
+}
+
+.bhcrm-kanban-card.is-done {
+    border-left-color: #00a32a;
+    background: #f0f8f0;
+}
+
+.bhcrm-kanban-card-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.bhcrm-kanban-card-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-weight: 600;
+    padding: 2px 4px;
+}
+
+.bhcrm-kanban-card-title-input:focus {
+    background: #fff;
+    outline: 1px solid #2271b1;
+    border-radius: 3px;
+}
+
+.bhcrm-kanban-card-notes {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    color: #50575e;
+    resize: vertical;
+    padding: 2px 4px;
+}
+
+.bhcrm-kanban-card-notes:focus {
+    background: #fff;
+    border-color: #dcdcde;
+}
+
+.bhcrm-kanban-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.bhcrm-kanban-add-card {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+}
+
+.bhcrm-kanban-add-card input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ---------------- server-rendered card output (BH_Element::render_slot() elsewhere on the site, and the sub-card BH_Content blocks) — same "bhcrm-" prefix, separate from the board's own editable-card markup above ---------------- */
+
+.bhcrm-sticky-card {
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #2271b1;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #fff;
+}
+
+.bhcrm-sticky-card.is-done {
+    border-left-color: #00a32a;
+}
+
+.bhcrm-sticky-card-title {
+    font-weight: 600;
+}
+
+.bhcrm-sticky-card-notes {
+    font-size: 12px;
+    color: #50575e;
+    margin-top: 4px;
+}
+
+.bhcrm-sticky-card-rollup {
+    font-size: 11px;
+    color: #646970;
+    margin-top: 6px;
+}
+
+.bhcrm-sticky-card-children,
+.bhcrm-sub-card-children {
+    margin-top: 8px;
+    margin-left: 14px;
+    padding-left: 10px;
+    border-left: 2px solid #eee;
+}
+
+.bhcrm-sub-card {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.bhcrm-sub-card.is-done .bhcrm-sub-card-title {
+    color: #00a32a;
+}
+
+.bhcrm-sub-card-notes {
+    font-size: 11px;
+    color: #646970;
+}
+
+/* ---------------- mobile ----------------
+   AJ's own ask: "need the tracker interface to be mobile friendly."
+   Same breakpoint WP core's own admin responsive layout switches at
+   (782px) — below it, fixed-260px side-by-side columns requiring
+   horizontal scroll (fine on desktop, cramped/fiddly on a phone)
+   become full-width stacked sections instead: scroll down through
+   columns like a real page, not sideways through a filmstrip. Applies
+   to BOTH the top-level project board and every BHCRM_Subtasks nested
+   board, since they share this one stylesheet. */
+@media (max-width: 782px) {
+    .bhcrm-kanban-grid {
+        flex-direction: column;
+        overflow-x: visible;
+    }
+
+    .bhcrm-kanban-column {
+        flex: 1 1 auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Bigger touch target — the same 12px handle SortableJS's
+       forceFallback mode (already in use, see kanban-board.js/
+       subtasks.js) needs a real drag start point on, and a fingertip
+       is far less precise than a mouse cursor. */
+    .bhcrm-kanban-card-drag-handle {
+        font-size: 20px;
+        padding: 6px 10px;
+        top: 0;
+        right: 0;
+    }
+
+    .bhcrm-kanban-card {
+        padding-right: 34px; /* room for the now-larger drag handle so it never overlaps the title */
+    }
+
+    .bhcrm-kanban-card-actions {
+        flex-wrap: wrap;
+    }
+
+    .bhcrm-kanban-card-actions .button,
+    .bhcrm-kanban-card-actions summary {
+        min-height: 32px; /* WordPress's own recommended minimum touch target */
+    }
+
+    .bhcrm-progress-bar-label {
+        white-space: normal;
+    }
+}

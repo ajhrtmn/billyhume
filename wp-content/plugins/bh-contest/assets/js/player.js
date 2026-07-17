@@ -12,6 +12,30 @@ const CAT_COLORS = [
     'var(--bh-cat-5, #38BDF8)', 'var(--bh-cat-6, #A3E635)', 'var(--bh-cat-7, #FBBF24)', 'var(--bh-cat-8, #FB7185)',
 ];
 
+// The one place the profile-field list/DOM-class mapping lives now —
+// contract-drift fix, caught by an audit run right after the quiz-
+// shuffle bug (own-ur-shit's BHI_Profiles::TEXT_COLS is the real PHP-
+// side source of truth, already correctly single-sourced there; this
+// was the JS-side counterpart, independently duplicated in THREE
+// places — appendProfileFields()'s own map, prefillSubmitProfile()'s
+// separately-typed copy of the identical map, and applyContactFields()/
+// the contactFields.show default's own hardcoded field-name array).
+// Nothing caught it drifting yet, but nothing PREVENTED it either — a
+// field added to BHI_Profiles::TEXT_COLS in the future would silently
+// never show up in one of these three without a human remembering to
+// update all three by hand. Server field key -> DOM class-suffix
+// mapping is legitimately a bh-contest template concern (not something
+// PHP needs to dictate), so this stays JS-side rather than crossing the
+// PHP/JS boundary via wp_localize_script — the fix is collapsing THREE
+// copies into ONE, not moving the one copy.
+const PROFILE_FIELDS = [
+    { key: 'real_name', cls: 'realname' },
+    { key: 'discord_name', cls: 'discord' },
+    { key: 'twitch_name', cls: 'twitch' },
+    { key: 'youtube_name', cls: 'youtube' },
+];
+const CONTACT_FIELD_KEYS = PROFILE_FIELDS.map(f => f.key).concat(['typical_platform', 'phone']);
+
 class BHPlayer {
     // root: the specific .bh-player-root element for THIS instance. Every
     // DOM lookup below is scoped to root.querySelector(...), never the
@@ -125,6 +149,7 @@ class BHPlayer {
                     <div class="bh-brand">${this.brand.logoUrl
                         ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
                         : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
+                    <div class="bh-header-extra"></div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M5 4h14v2h2v3a4 4 0 0 1-4 4h-.35A6 6 0 0 1 13 16.9V19h3v2H8v-2h3v-2.1A6 6 0 0 1 7.35 13H7a4 4 0 0 1-4-4V6h2V4zm0 4H4.9A2 2 0 0 0 5 8.9V8zm14 0v.9a2 2 0 0 0 .1-.9H19z"/></svg>
@@ -137,6 +162,12 @@ class BHPlayer {
                 </div>
 
                 <div class="bh-category-tabs" style="display:none;"></div>
+
+                <!-- Task #80 follow-up, safe slice #2: a genuinely new,
+                     empty zone above the tracklist that no lookup
+                     elsewhere in this file reads from or requires — see
+                     injectExtraZone() below. -->
+                <div class="bh-tracklist-extra"></div>
 
                 <div class="bh-tracklist">Loading tracks…</div>
 
@@ -155,6 +186,14 @@ class BHPlayer {
                         <svg class="bh-icon-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="display:none;"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
                     </button>
                 </div>
+
+                <!-- Task #80 follow-up, safe slice #3: a new zone AFTER
+                     the now-playing bar, a sibling of it rather than
+                     nested inside — kept fully outside the bar's own flex
+                     layout/selectors (.bh-np-track/.bh-scrubber-container/
+                     .bh-play-pause) so nothing about its playback wiring
+                     is touched. -->
+                <div class="bh-now-playing-extra"></div>
 
                 <div class="bh-modal bh-auth-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="auth">&times;</span>
@@ -228,13 +267,81 @@ class BHPlayer {
                     <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
                 </div></div>
 
+                <div class="bh-modal bh-share-modal"><div class="bh-modal-content">
+                    <span class="bh-close" data-close="share">&times;</span>
+                    <h2>You're in! &#127881;</h2>
+                    <p>Grab a shareable image to spread the word.</p>
+                    <div class="bh-share-cards">
+                        <a class="bh-share-card-link" data-share="entered" href="#" target="_blank" rel="noopener">
+                            <img class="bh-share-card-thumb" data-share-img="entered" alt="Now entered — shareable image">
+                            <span>Get "I entered" image</span>
+                        </a>
+                        <a class="bh-share-card-link" data-share="vote" href="#" target="_blank" rel="noopener">
+                            <img class="bh-share-card-thumb" data-share-img="vote" alt="Vote for me — shareable image">
+                            <span>Get "Vote for me" image</span>
+                        </a>
+                    </div>
+                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post: <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a></p>
+                </div></div>
+
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="results">&times;</span>
                     <h2>Results</h2>
+                    <!-- Task #80 follow-up, safe slice #4: additive only —
+                         sits between the heading and '.bh-results-body',
+                         which is the one element loadResults()-style code
+                         actually looks up and rewrites. -->
+                    <div class="bh-results-modal-intro"></div>
                     <div class="bh-results-body">Loading…</div>
                 </div></div>
             </div>`;
         this.bind();
+        this.injectExtraZone('headerExtra', '.bh-header-extra');
+        // Task #80 follow-up — three more genuinely new, empty divs
+        // (above the tracklist, after the now-playing bar, inside the
+        // results modal), same additive boundary as header_extra: none
+        // of these are read from or required by any this.q(...)-style
+        // lookup elsewhere in this file, so wiring them in carries the
+        // same low risk the first slot already proved out live.
+        this.injectExtraZone('tracklistExtra', '.bh-tracklist-extra');
+        this.injectExtraZone('nowPlayingExtra', '.bh-now-playing-extra');
+        this.injectExtraZone('resultsModalIntro', '.bh-results-modal-intro');
+    }
+
+    // Task #80's real, safe slice — a genuinely new insertion point, not
+    // a rebuild of anything player.js already owns. class-auth.php's
+    // render() base64-encodes each real, server-rendered
+    // 'bh_contest_player' BH_Element slot (editable in the Design Suite
+    // tree, same as any other real placement) onto this.root's own
+    // data-{name} attribute — read once here and dropped into that
+    // zone's own empty div. Generalized off the original, header-extra-
+    // only injectHeaderExtra() once three more zones needed the identical
+    // read/decode/insert logic — datasetKey is the camelCase form of the
+    // data-* attribute (e.g. 'headerExtra' reads this.root.dataset.
+    // headerExtra), selector is that zone's own empty div. Deliberately
+    // does NOT touch .bh-brand/.bh-header-actions, the tracklist itself,
+    // the now-playing bar's own controls, or '.bh-results-body' — every
+    // this.q(...)-style lookup elsewhere in this file keeps working
+    // exactly as before, untouched.
+    injectExtraZone(datasetKey, selector) {
+        const raw = this.root.dataset[datasetKey];
+        if (!raw) return;
+        const target = this.q(selector);
+        if (!target) return;
+        try {
+            // atob() + decodeURIComponent/escape round-trip handles UTF-8
+            // content correctly (plain atob() alone mangles anything
+            // outside Latin1, e.g. a real emoji/accented character in an
+            // announcement) — same reasoning any base64<->UTF8 JS bridge
+            // needs, not specific to this feature.
+            const decoded = decodeURIComponent(escape(atob(raw)));
+            target.innerHTML = decoded;
+        } catch (e) {
+            // Malformed/corrupt attribute — fail silently to an empty
+            // (invisible, since CSS gives it no border/background of its
+            // own) div rather than breaking the rest of the player over
+            // one bad zone render.
+        }
     }
 
     updateAuthUI() {
@@ -309,11 +416,7 @@ class BHPlayer {
     // profile fields have a value, plus their public/private checkbox, to
     // an outgoing FormData using the given field prefix ('reg' or 'sub').
     appendProfileFields(fd, prefix) {
-        const map = {
-            real_name: 'realname', discord_name: 'discord',
-            twitch_name: 'twitch', youtube_name: 'youtube',
-        };
-        for (const [serverKey, cls] of Object.entries(map)) {
+        for (const { key: serverKey, cls } of PROFILE_FIELDS) {
             const val = this.q(`.bh-${prefix}-${cls}`).value.trim();
             if (val) {
                 fd.append(serverKey, val);
@@ -453,8 +556,7 @@ class BHPlayer {
         const { ok, body } = await this.reqIdentity('profile');
         if (!ok || !body.profile) return;
         const p = body.profile;
-        const map = { real_name: 'realname', discord_name: 'discord', twitch_name: 'twitch', youtube_name: 'youtube' };
-        for (const [serverKey, cls] of Object.entries(map)) {
+        for (const { key: serverKey, cls } of PROFILE_FIELDS) {
             const input = this.q(`.bh-sub-${cls}`);
             if (p[serverKey] && !input.value) input.value = p[serverKey];
             this.q(`.bh-sub-${cls}-pub`).checked = !!p[`${serverKey}_public`];
@@ -492,11 +594,31 @@ class BHPlayer {
                 .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             this.toast('Track submitted! It will appear once an admin approves it.');
+            this.showShareModal(body);
         } else {
             this.toast(body.message || 'Upload failed. Check the file and try again.', true);
         }
         btn.disabled = false;
         btn.innerText = 'Upload';
+    }
+
+    // Populates and opens the share modal added alongside the submit
+    // flow — entered_card_url/vote_card_url/contest_page_url all ride
+    // on the submit API's own success response (class-api.php's
+    // submit()), so this needs no second request. Guarded on all three
+    // being present since an older cached copy of this JS talking to a
+    // freshly-updated API (or vice versa during a deploy) shouldn't
+    // throw trying to read a field that isn't there yet.
+    showShareModal(body) {
+        if (!body.entered_card_url || !body.vote_card_url) return;
+        this.q('[data-share="entered"]').href = body.entered_card_url;
+        this.q('[data-share-img="entered"]').src = body.entered_card_url;
+        this.q('[data-share="vote"]').href = body.vote_card_url;
+        this.q('[data-share-img="vote"]').src = body.vote_card_url;
+        const link = this.q('.bh-share-contest-link');
+        link.href = body.contest_page_url || '#';
+        link.textContent = body.contest_page_url || '';
+        this.q('.bh-share-modal').style.display = 'flex';
     }
 
     /* ---------- tracks ---------- */
@@ -520,7 +642,7 @@ class BHPlayer {
         this.renderCategoryTabs();
 
         this.contactFields = body.contact_fields || {
-            show: ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'],
+            show: CONTACT_FIELD_KEYS,
             require_real_name: true, require_handle: true, require_phone: false,
         };
         this.applyContactFields();
@@ -542,7 +664,7 @@ class BHPlayer {
     // wrapper carrying that data-field, not the now-invisible raw select.
     applyContactFields() {
         const cfg = this.contactFields;
-        ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'].forEach(f => {
+        CONTACT_FIELD_KEYS.forEach(f => {
             const el = this.q(`[data-field="${f}"]`);
             if (el) el.style.display = cfg.show.includes(f) ? '' : 'none';
         });

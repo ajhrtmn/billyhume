@@ -1,6 +1,21 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.4.25 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: bh-crm's
+// admin_menus entry gained 'parent' => 'bh-crm-hub' and 'capability' =>
+// 'bhcore_manage_crm' on its existing People entry (was implicitly
+// 'own-ur-shit'/'manage_options'), plus a new second entry relocating
+// the Project Tracker (BHCRM_Projects::render_boards(), new — bh-crm's
+// own class-projects.php) under the same new top-level CRM menu. See
+// class-menu-merge.php's own changelog note for the 'parent'/
+// 'capability' key extension this depends on.
+
+// OUS_VER 3.4.19 — register_debug_section() (the "Bundled Zip
+// Freshness" section) now sets 'group' => OUS_Debug::GROUP_MONITORING
+// (Debug Tools reorganization pass — see class-debug.php's own
+// docblock), filing this under "Monitoring & Health" instead of the
+// default bucket. No other change.
+
 /**
  * As of the v3 core merge, this only tracks the plugins that are still
  * genuinely separate: bh-contest and bh-streaming. Identity and style
@@ -45,7 +60,7 @@ if (!defined('ABSPATH')) exit;
  *                // relocated as direct submenus under Own Ur Shit.
  *                'admin_menus' => [
  *                    ['slug' => 'bh-lyrics-settings', 'label' => 'Lyrics Settings',
- *                     'callback' => ['BHL_Admin', 'render'], 'old_parent' => 'edit.php?post_type=bh_track'],
+ *                     'callback' => ['BHL_Admin', 'render'], 'old_parent' => 'edit.php?post_type=bhs_track'],
  *                ],
  *            ];
  *            return $plugins;
@@ -101,8 +116,44 @@ class OUS_Registry {
             // gets relocated as a direct submenu here instead. No
             // 'old_parent' — BHCRM_People never registers a top-level
             // page of its own for this to remove.
+            //
+            // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: both entries now
+            // relocate under the new 'bh-crm-hub' top-level CRM menu
+            // (bh-crm/includes/class-hub.php, BHCRM_Hub::add_menu())
+            // instead of 'own-ur-shit', gated on the new 'bhcore_manage_crm'
+            // capability instead of 'manage_options' — see class-roles.php.
+            // People's own slug ('bh-crm') is UNCHANGED, so every existing
+            // admin.php?page=bh-crm&... deep link (profile links,
+            // dashboard_link above) keeps working. Project Tracker
+            // (BHCRM_Projects::render_boards(), new — bh-crm/includes/
+            // class-projects.php) is a genuinely new, thin listing page;
+            // it does not replace the existing project_id dispatch inside
+            // BHCRM_People::render(), which stays as-is (§1.5).
+            //
+            // OUS_VER 3.4.31 — People's 'parent' changed from 'bh-crm-hub'
+            // to null (real duplication fix — see the QA walkthrough's
+            // finding that 'bh-crm-hub' top-level and this 'bh-crm'
+            // submenu were TWO independently-visible sidebar rows both
+            // rendering BHCRM_People::render(), the same accidental shape
+            // DESIGN-SUITE-UNIFICATION-PLAN.md's changelog documents for
+            // 'bh-design'/'bh-style'). BHCRM_Hub::add_menu() (bh-crm/
+            // includes/class-hub.php) already registers 'bh-crm-hub' as
+            // a top-level page whose own callback IS this exact same
+            // ['BHCRM_People', 'render'], so it's already the one real,
+            // visible destination — this entry no longer needs its own
+            // sidebar row to be reachable, only its slug ('bh-crm', kept
+            // for every existing deep link above). null here requires
+            // class-menu-merge.php's merge() to distinguish "key absent"
+            // from "key explicitly null" (fixed this same pass — see that
+            // file's own changelog note) since a bare '?? ' default would
+            // have silently ignored this and kept it visible. Project
+            // Tracker is UNCHANGED — it's genuinely distinct content
+            // (BHCRM_Projects::render_boards(), not a duplicate of
+            // People), so it keeps its normal 'bh-crm-hub' parent and
+            // stays a real, visible submenu.
             'admin_menus' => [
-                ['slug' => 'bh-crm', 'label' => 'People/CRM', 'callback' => ['BHCRM_People', 'render']],
+                ['slug' => 'bh-crm', 'label' => 'People', 'callback' => ['BHCRM_People', 'render'], 'parent' => null, 'capability' => 'bhcore_manage_crm'],
+                ['slug' => 'bh-crm-projects', 'label' => 'Project Tracker', 'callback' => ['BHCRM_Projects', 'render_boards'], 'parent' => 'bh-crm-hub', 'capability' => 'bhcore_manage_crm'],
             ],
         ],
         // bh-contest deliberately has NO 'admin_menus' entry: Results and
@@ -131,9 +182,87 @@ class OUS_Registry {
             'file' => 'bh-streaming/bh-streaming.php',
             'depends_on' => [],
             'check_class' => 'BHS_Player',
-            'description' => 'The artist\'s own streaming library and aggregator.',
-            'dashboard_link' => 'edit.php?post_type=bh_track',
+            'description' => 'The artist\'s own streaming library and aggregator — shuffle/queue, shared-listening Jam sessions, and an aggregate metrics dashboard.',
+            'dashboard_link' => 'edit.php?post_type=bhs_track',
             'bundled_zip' => 'bh-streaming.zip',
+        ],
+        // These three used to rely ONLY on their own plugin file
+        // self-registering via the 'ous_registered_plugins' filter (see
+        // each plugin's own class-admin.php / bh-courses.php) — which
+        // works fine for an ALREADY-active plugin, but is a real
+        // chicken-and-egg gap for an install that's still sitting
+        // inactive (or not yet uploaded at all): an inactive plugin's
+        // PHP never runs, so its self-registration filter never fires,
+        // so it can never show up here to BE installed/activated in the
+        // first place. bh-crm/bh-contest/bh-streaming above never hit
+        // this because they were always hardcoded here too — these three
+        // are now hardcoded the same way, closing the gap. Each plugin's
+        // own self-registration filter is left in place (harmless once
+        // active: it just re-sets the same key to equivalent data), so
+        // nothing needs to change in the plugins themselves.
+        'bh-courses' => [
+            'label' => 'BH Courses',
+            'file' => 'bh-courses/bh-courses.php',
+            'depends_on' => [],
+            'check_class' => 'BHC_PostTypes',
+            'description' => 'Courses built from ordered, multistep lessons (text, images, quizzes) with progress tracking and optional supporter-tier gating.',
+            'dashboard_link' => 'edit.php?post_type=bh_course',
+            'bundled_zip' => 'bh-courses.zip',
+        ],
+        'bh-registry' => [
+            'label' => 'BH Registry',
+            'file' => 'bh-registry/bh-registry.php',
+            'depends_on' => [],
+            'check_class' => 'BHR_API',
+            'description' => 'The global, decentralized artist-link registry — ActivityPub/RSS feed links, submitted voluntarily and verified by domain ownership.',
+            'dashboard_link' => 'admin.php?page=bh-registry-review',
+            'bundled_zip' => 'bh-registry.zip',
+            'admin_menus' => [
+                ['slug' => 'bh-registry-review', 'label' => 'Registry Submissions', 'callback' => ['BHR_Admin', 'render']],
+            ],
+        ],
+        'bh-monetization-woo' => [
+            'label' => 'BH Monetization',
+            'file' => 'bh-monetization-woo/bh-monetization-woo.php',
+            'depends_on' => ['woocommerce'],
+            'check_class' => 'BHM_Gate',
+            'description' => 'Supporter tiers, purchases, tips, and pay-per-play for bh-streaming — backed by WooCommerce, with refund/velocity fraud-pattern flagging.',
+            'dashboard_link' => 'admin.php?page=bhm-settings',
+            'bundled_zip' => 'bh-monetization-woo.zip',
+            'admin_menus' => [
+                ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => ['BHM_Admin', 'render']],
+            ],
+        ],
+        // WooCommerce itself — bh-monetization-woo's own bootstrap also
+        // adds this (guarded by isset() so the two never fight), kept
+        // here too so WooCommerce shows up as installable even before
+        // bh-monetization-woo itself has ever been active.
+        'woocommerce' => [
+            'label' => 'WooCommerce',
+            'file' => 'woocommerce/woocommerce.php',
+            'wporg_slug' => 'woocommerce',
+            'check_class' => 'WooCommerce',
+            'description' => 'Required for BH Monetization — payments and commerce, not reimplemented here.',
+        ],
+        // A third-party WordPress.org plugin, not ours to author or
+        // bundle — same 'wporg_slug' shape the docblock above documents
+        // for WooCommerce, installed live from WordPress.org rather than
+        // a local zip extraction. Exists on this dashboard purely as an
+        // easy on-ramp: video (and any other media) in bh-streaming or
+        // bh-courses is regular WordPress media-library content under
+        // the hood, so a transparent offload-to-cloud plugin needs zero
+        // code changes in either of those plugins to work — it rewrites
+        // wp_get_attachment_url() and friends, which is the one API
+        // surface every plugin in this ecosystem already goes through
+        // for media. No check_class since this plugin's real class
+        // names aren't part of this ecosystem's own contract — the
+        // WordPress.org file path is enough for install/activate status.
+        'advanced-media-offloader' => [
+            'label' => 'Advanced Media Offloader',
+            'file' => 'advanced-media-offloader/advanced-media-offloader.php',
+            'wporg_slug' => 'advanced-media-offloader',
+            'depends_on' => [],
+            'description' => 'Optional: offload media (course videos/images, streaming audio/artwork) to Cloudflare R2 or another S3-compatible bucket instead of this server\'s own disk — zero-egress-fee delivery via R2 in particular, and zero code changes needed in bh-streaming or bh-courses since it works at the WordPress media-library layer. Needs your own cloud storage account/credentials, entered on that plugin\'s own Settings screen after install (never a wp-config.php constant this ecosystem would need to define on your behalf) — this just wires up the one-click install.',
         ],
     ];
 
@@ -152,6 +281,23 @@ class OUS_Registry {
                 'depends_on' => [], 'check_class' => '', 'description' => '',
                 'dashboard_link' => '', 'bundled_zip' => '', 'wporg_slug' => '', 'admin_menus' => [],
             ], $info);
+        }
+        return $plugins;
+    }
+
+    // Same list as all(), minus any plugin that wants to stay off the
+    // dashboard specifically in production while it's still being
+    // built out — bh-streaming today, via BHS_Env::hidden_in_production()
+    // (only consulted if that class happens to be loaded; a plugin that
+    // doesn't opt into this convention is simply always shown, same as
+    // before). Deliberately only used for the dashboard CARD listing —
+    // activation/dependency/menu-merge logic still uses all() so
+    // installing or activating a hidden-in-prod plugin from another
+    // route (direct URL, WP-CLI) keeps working exactly as it always has.
+    public static function visible_cards() {
+        $plugins = self::all();
+        if (class_exists('BHS_Env') && BHS_Env::hidden_in_production()) {
+            unset($plugins['bh-streaming']);
         }
         return $plugins;
     }
@@ -186,7 +332,16 @@ class OUS_Registry {
     // installed but simply hasn't loaded yet this request for unrelated
     // reasons, which isn't the same thing as not being installed.
     public static function status($key) {
-        $info = self::all()[$key];
+        // QA fix: guard the lookup like OUS_ActivationManager already
+        // does (isset(OUS_Registry::all()[$key]) before use) instead of
+        // indexing directly — every current caller happens to pass an
+        // already-known-valid key, but an arbitrary/stale key (e.g. a
+        // leftover depends_on entry after a registry filter change)
+        // should fail gracefully, not throw an undefined-array-key
+        // warning on PHP 8.
+        $registry = self::all();
+        if (!isset($registry[$key])) return 'missing';
+        $info = $registry[$key];
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
         $all = get_plugins();
@@ -195,9 +350,11 @@ class OUS_Registry {
     }
 
     public static function version($key) {
+        $registry = self::all();
+        if (!isset($registry[$key])) return '';
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
         $all = get_plugins();
-        $file = self::all()[$key]['file'];
+        $file = $registry[$key]['file'];
         return $all[$file]['Version'] ?? '';
     }
 
@@ -206,5 +363,250 @@ class OUS_Registry {
     // it has no registry key of its own.
     public static function status_by_file($file) {
         return is_plugin_active($file) ? 'active' : 'inactive';
+    }
+
+    /**
+     * Bundled-zip staleness check (added after a real, confirmed
+     * incident: OUS_Installer::install_from_bundle() extracts from
+     * own-ur-shit/bundled/*.zip, a copy shipped INSIDE this plugin —
+     * genuinely separate from whatever's on disk for that peer plugin
+     * right now. A build/deploy pass that updates a peer plugin's own
+     * files but forgets to regenerate its bundled/ copy leaves the
+     * dashboard's "Install"/reinstall path silently serving old code
+     * indefinitely, with no error anywhere — exactly what happened
+     * here. This reads each bundled zip's plugin header directly (no
+     * extraction needed — get_file_data() can read straight out of a
+     * zip stream via a php:// wrapper is overkill; ZipArchive is
+     * already a PHP core extension nearly universally enabled, so this
+     * just opens the entry and regexes the header block the same way
+     * WordPress's own get_file_data() does) and compares it against
+     * the currently-installed version of that same plugin, so a stale
+     * bundle is a visible warning on the debug page instead of a
+     * silent trap.
+     */
+    public static function bundled_zip_report() {
+        $bundled_dir = OUS_PATH . 'bundled/';
+        $rows = [];
+        if (!is_dir($bundled_dir)) return $rows;
+
+        if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        $installed = get_plugins();
+
+        $registry = self::all();
+        // Map bundled_zip filename -> [key, file] so we know which
+        // installed plugin (if any) a given bundle corresponds to.
+        $by_zip = [];
+        foreach ($registry as $key => $info) {
+            if (!empty($info['bundled_zip'])) $by_zip[$info['bundled_zip']] = ['key' => $key, 'file' => $info['file'] ?? ''];
+        }
+
+        foreach (glob($bundled_dir . '*.zip') ?: [] as $zip_path) {
+            $zip_filename = basename($zip_path);
+            $bundled_version = self::read_zip_plugin_version($zip_path);
+
+            $match = $by_zip[$zip_filename] ?? null;
+            $installed_version = null;
+            if ($match && isset($installed[$match['file']])) {
+                $installed_version = $installed[$match['file']]['Version'] ?? null;
+            }
+
+            $rows[] = [
+                'zip' => $zip_filename,
+                'key' => $match['key'] ?? null, // registry key, for the regenerate button below — null when this zip has no matching registry entry to rebuild from
+                'label' => $match['key'] ?? $zip_filename,
+                'bundled_version' => $bundled_version,
+                'installed_version' => $installed_version,
+                // Only a real finding when we could read BOTH versions
+                // and they genuinely differ — missing either side (not
+                // installed yet, or an unreadable zip) isn't staleness,
+                // just an incomplete comparison, so it's reported
+                // separately rather than flagged as a mismatch.
+                'stale' => ($bundled_version && $installed_version && $bundled_version !== $installed_version),
+            ];
+        }
+        return $rows;
+    }
+
+    // Reads the plugin header (just the Version: line, same field
+    // get_file_data() looks for) out of the first .php file at the
+    // root of a zip's single top-level directory, without extracting
+    // the whole archive to disk — this only runs on-demand from the
+    // debug page, not on every request, so the small per-call overhead
+    // of opening the zip is a non-issue.
+    public static function read_zip_plugin_version($zip_path) {
+        if (!class_exists('ZipArchive')) return null;
+        $zip = new ZipArchive();
+        if ($zip->open($zip_path) !== true) return null;
+
+        $version = null;
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            // Only look at a top-level "<folder>/<same-name>.php" entry
+            // (e.g. "bh-courses/bh-courses.php") — the plugin's own
+            // bootstrap file is always named after its folder in this
+            // ecosystem's convention, and reading only that one file
+            // avoids false-matching a header-shaped comment in some
+            // unrelated included class file.
+            if (preg_match('#^([^/]+)/\1\.php$#', $name)) {
+                $contents = $zip->getFromIndex($i);
+                if ($contents && preg_match('/^[ \t\/*#@]*Version:\s*(.+)$/mi', $contents, $m)) {
+                    $version = trim($m[1]);
+                }
+                break;
+            }
+        }
+        $zip->close();
+        return $version;
+    }
+
+    /**
+     * The actual fix for the failure mode bundled_zip_report() only
+     * ever detected, never corrected — a real, confirmed incident
+     * (2026-07-13): four bundled zips sat stale through an entire
+     * session's worth of real fixes, and OUS_Installer::install()
+     * would have silently reinstalled last week's code with zero
+     * warning had anyone hit "Install"/"Reinstall" before this ran.
+     * Fixing it by hand (a raw `zip` shell command) is a real, working
+     * one-time fix but doesn't stop it from happening again next
+     * session — this is the one-click, in-admin way to actually close
+     * the gap, plus OUS_Installer::install_from_bundle()'s own new
+     * pre-flight staleness guard (see that method's docblock) as the
+     * second half of "prevent," not just "detect."
+     *
+     * Rebuilds `bundled/<zip>` directly from the plugin's own live
+     * source directory using ZipArchive (PHP core, no shell-out, same
+     * "no external dependency" posture as everything else in this
+     * ecosystem) — same top-level-folder-per-plugin structure every
+     * existing bundled zip already uses (verified against
+     * bh-registry.zip, the reference "known-good, never-touched-by-
+     * hand" example, before this was written). Writes to a temp file
+     * first and only renames over the real target on full success —
+     * a previous manual-zip session left two orphaned, randomly-named
+     * temp files in bundled/ from a write that never got cleaned up on
+     * failure; this closes that same gap properly rather than
+     * repeating it.
+     */
+    public static function regenerate_bundled_zip($key) {
+        if (!class_exists('ZipArchive')) return new WP_Error('no_ziparchive', 'ZipArchive isn\'t available on this server.');
+
+        $info = self::all()[$key] ?? null;
+        if (!$info || empty($info['bundled_zip']) || empty($info['file'])) {
+            return new WP_Error('unknown_plugin', 'Not a bundled plugin.');
+        }
+
+        $slug = dirname($info['file']); // e.g. 'bh-courses/bh-courses.php' -> 'bh-courses'
+        $source_dir = WP_PLUGIN_DIR . '/' . $slug;
+        if (!is_dir($source_dir)) return new WP_Error('source_missing', "$slug isn't installed here — nothing to bundle from.");
+
+        $final_path = OUS_PATH . 'bundled/' . $info['bundled_zip'];
+        $tmp_path = $final_path . '.tmp-' . wp_generate_password(8, false);
+
+        $zip = new ZipArchive();
+        if ($zip->open($tmp_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            return new WP_Error('open_failed', 'Could not open a temp file for writing in bundled/.');
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($source_dir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($iterator as $item) {
+            $relative = $slug . '/' . substr($item->getPathname(), strlen($source_dir) + 1);
+            // Same exclusions the manual rebuild used this same pass —
+            // OS/VCS clutter, never anything the plugin actually ships.
+            if (basename($item) === '.DS_Store' || strpos($relative, '/.git/') !== false) continue;
+            if ($item->isDir()) {
+                $zip->addEmptyDir($relative);
+            } else {
+                $zip->addFile($item->getPathname(), $relative);
+            }
+        }
+        $zip->close();
+
+        // Confirm the rebuilt zip's own header actually matches what's
+        // on disk RIGHT NOW before it replaces the old one — belt and
+        // suspenders against a partial/corrupt write silently becoming
+        // the new "source of truth" bundle.
+        $rebuilt_version = self::read_zip_plugin_version($tmp_path);
+        $live_data = get_file_data($source_dir . '/' . basename($info['file']), ['Version' => 'Version']);
+        if (!$rebuilt_version || $rebuilt_version !== ($live_data['Version'] ?? null)) {
+            @unlink($tmp_path);
+            return new WP_Error('verify_failed', 'Rebuilt zip failed its own version check — nothing was replaced.');
+        }
+
+        if (!@rename($tmp_path, $final_path)) {
+            @unlink($tmp_path);
+            return new WP_Error('rename_failed', 'Could not replace the old bundled zip (a file-permissions issue on this host).');
+        }
+        return true;
+    }
+
+    public static function register_debug_section($tools) {
+        $tools['bundled-zips'] = [
+            'label' => 'Bundled Zip Freshness',
+            'render' => [self::class, 'render_debug_section'],
+            'handle' => [self::class, 'handle_regenerate'],
+            'reset' => null,
+            // Read-only by default (the report itself changes nothing)
+            // — the one write action (regenerating a bundle FROM the
+            // live source already on this exact install) is gated the
+            // same way any other Debug Tools action is, not exempted
+            // just because the report above it is safe everywhere.
+            'safe_in_production' => true,
+            'group' => OUS_Debug::GROUP_MONITORING,
+        ];
+        return $tools;
+    }
+
+    /** Wired as this section's 'handle' callback — receives ($action, $_POST) same as every other registered Debug Tools handler (OUS_Debug::button()'s own form contract); returns a plain message string, the shared redirect-with-notice dispatcher's own contract. */
+    public static function handle_regenerate($action, $post) {
+        if ($action !== 'regenerate') return 'Unknown action.';
+        $key = sanitize_key($post['bundle_key'] ?? '');
+        $result = self::regenerate_bundled_zip($key);
+        return is_wp_error($result)
+            ? 'Could not regenerate: ' . $result->get_error_message()
+            : "Regenerated the bundled zip for \"$key\" from the current source.";
+    }
+
+    public static function render_debug_section() {
+        $rows = self::bundled_zip_report();
+        if (!$rows) {
+            echo '<p class="description">No bundled/*.zip files found (or ZipArchive isn\'t available on this server).</p>';
+            return;
+        }
+
+        echo '<p class="description">Each of this plugin\'s own peer plugins gets reinstalled from a copy bundled inside <code>own-ur-shit/bundled/</code>, not from whatever is separately deployed elsewhere — this table exists specifically to catch a bundled copy that got left behind after a real update, before it causes a confusing "I updated it but nothing changed" report.</p>';
+
+        echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
+           . '<th>Plugin</th><th>Bundled zip version</th><th>Currently installed version</th><th>Status</th>'
+           . '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            if ($row['stale']) {
+                $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE</span>';
+                // One-click fix, right next to the finding — the whole
+                // point of adding this button was closing the gap
+                // between "detected" and "fixed" that left four zips
+                // stale through an entire real session (see this
+                // method's own docblock). Only rendered when the row
+                // actually matched a registry key with a real source
+                // directory to rebuild from.
+                if ($row['key']) {
+                    ob_start();
+                    OUS_Debug::button('bundled-zips', 'regenerate', 'Regenerate bundled zip', '<input type="hidden" name="bundle_key" value="' . esc_attr($row['key']) . '">', '', false);
+                    $status .= ob_get_clean();
+                }
+            } elseif (!$row['installed_version']) {
+                $status = '<span style="color:#666;">not currently installed — nothing to compare</span>';
+            } elseif (!$row['bundled_version']) {
+                $status = '<span style="color:#666;">could not read bundled zip header</span>';
+            } else {
+                $status = '<span style="color:#fff;background:#00a32a;padding:2px 8px;border-radius:3px;font-size:11px;">up to date</span>';
+            }
+            echo '<tr><td>' . esc_html($row['label']) . ' <span class="description">(' . esc_html($row['zip']) . ')</span></td>'
+               . '<td>' . esc_html($row['bundled_version'] ?? '—') . '</td>'
+               . '<td>' . esc_html($row['installed_version'] ?? '—') . '</td>'
+               . '<td>' . $status . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
     }
 }

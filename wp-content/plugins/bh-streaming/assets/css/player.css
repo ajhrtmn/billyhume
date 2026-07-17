@@ -71,8 +71,18 @@
 .bhs-like-btn.liked { color: var(--bh-accent); }
 .bhs-np-volume { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--bh-text-dim); font-size: 13px; }
 .bhs-np-volume input { width: 70px; }
-.bhs-seek { position: absolute; top: -2px; left: 0; width: 100%; height: 4px; -webkit-appearance: none; background: var(--bh-border); }
+.bhs-seek { position: absolute; top: -2px; left: 0; width: 100%; height: 4px; -webkit-appearance: none; appearance: none; background: var(--bh-border); }
 .bhs-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 0; height: 0; }
+/* Firefox-only pseudo-elements, split out because a browser that
+   doesn't recognize ::-moz-range-thumb drops the whole rule if it's
+   comma-combined with the -webkit- one above — real gap caught by a
+   cross-browser audit: without this, Firefox showed its native
+   slider thumb/track here while every other browser correctly showed
+   none (the progress fill is drawn by a separate element, not by the
+   native thumb). */
+.bhs-seek::-moz-range-thumb { width: 0; height: 0; border: none; background: transparent; }
+.bhs-seek::-moz-range-track { background: transparent; border: none; }
+.bhs-seek::-moz-range-progress { background: transparent; }
 
 /* ---- queue panel ---- */
 .bhs-queue-panel {
@@ -93,8 +103,76 @@
 .bhs-playlist-option { display: block; width: 100%; margin-bottom: 6px; background: var(--bh-surface-2); color: var(--bh-text); text-align: left; }
 #bhs-new-playlist-name { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); margin-bottom: 6px; }
 
+.bhs-share-link { width: 100%; max-width: 480px; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-surface-2); color: var(--bh-text); font-family: monospace; font-size: 12px; margin-top: 8px; }
+
+/* ---- visualizer ---- */
+.bhs-visualizer { width: 60px; height: 40px; display: none; background: var(--bh-bg); border-radius: 4px; flex-shrink: 0; }
+
+/* ---- lyrics / quality / EQ side panels (share the queue panel's basic shape) ---- */
+.bhs-lyrics-panel, .bhs-quality-panel, .bhs-eq-panel {
+    position: fixed; bottom: 90px; right: 16px; width: 320px; max-width: 90vw; max-height: 60vh; overflow-y: auto;
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 8px; padding: 16px; z-index: 90;
+}
+.bhs-lyrics-panel h3, .bhs-quality-panel h3, .bhs-eq-panel h3 { margin-top: 0; }
+.bhs-lyric-line { padding: 4px 0; color: var(--bh-text-dim); transition: color 0.15s; }
+.bhs-lyric-line.active { color: var(--bh-text); font-weight: 700; }
+.bhs-lyric-plain { white-space: pre-line; color: var(--bh-text); }
+
+.bhs-quality-option { display: block; width: 100%; text-align: left; margin-bottom: 6px; background: var(--bh-surface-2); color: var(--bh-text); border: 1px solid var(--bh-border); border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+.bhs-quality-option.active { border-color: var(--bh-accent); color: var(--bh-accent); }
+.bhs-quality-size { color: var(--bh-text-dim); font-size: 11px; }
+
+.bhs-eq-bands { display: flex; gap: 12px; justify-content: space-between; padding: 8px 0; }
+.bhs-eq-band { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--bh-text-dim); }
+.bhs-eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 24px; height: 100px; }
+
+/* ---- import modal (same shape as the auth modal) ---- */
+.bhs-import-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.bhs-import-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; }
+.bhs-import-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
+.bhs-modal-note { font-size: 12px; color: var(--bh-text-dim); }
+
+/* ---- monetization: locked tracks (bh-monetization-woo, if active) ---- */
+.bhs-card-locked .bhs-card-art { opacity: 0.5; filter: grayscale(60%); }
+.bhs-badge-locked { position: absolute; top: 16px; left: 16px; background: rgba(0,0,0,0.7); color: var(--bh-accent); font-size: 12px; padding: 2px 6px; border-radius: 4px; }
+.bhs-lock-detail { max-width: 480px; margin: 24px auto; text-align: center; }
+.bhm-paywall { background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 8px; padding: 20px; }
+.bhm-paywall-title { margin-top: 0; }
+.bhm-paywall-benefits { color: var(--bh-text-dim); font-size: 13px; }
+.bhm-btn { display: inline-block; margin-top: 8px; padding: 10px 18px; border-radius: 6px; background: var(--bh-accent); color: #000; font-weight: 600; text-decoration: none; }
+
 @media (max-width: 700px) {
     .bhs-main { flex-direction: column; }
     .bhs-related { width: 100%; }
     .bhs-queue-panel { width: 100%; right: 0; left: 0; border-radius: 8px 8px 0 0; }
+    .bhs-lyrics-panel, .bhs-quality-panel, .bhs-eq-panel { width: 100%; right: 0; left: 0; border-radius: 8px 8px 0 0; }
 }
+
+/* ---- shuffle + split history/up-next queue ---- */
+#bhs-shuffle-toggle.active { color: var(--bh-accent); }
+.bhs-queue-heading { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--bh-text-dim); padding: 10px 4px 4px; }
+.bhs-queue-heading--now { color: var(--bh-accent); }
+.bhs-queue-item.active { color: var(--bh-accent); font-weight: 600; }
+
+/* ---- Jam ---- */
+.bhs-jam-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.bhs-jam-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; }
+.bhs-jam-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin: 8px 0; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
+.bhs-jam-mode-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bh-text-dim); margin: 10px 0; }
+.bhs-jam-banner {
+    display: flex; align-items: center; gap: 10px; justify-content: center;
+    font-size: 12px; color: var(--bh-text-dim); padding: 6px 0 0;
+}
+.bhs-jam-banner strong { color: var(--bh-accent); }
+.bhs-jam-banner .bhs-link-btn { background: none; border: none; color: var(--bh-accent-soft); cursor: pointer; text-decoration: underline; font-size: 12px; }
+.bhs-jam-participants { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; font-size: 11px; color: var(--bh-text-dim); padding: 4px 0; }
+.bhs-jam-participant button { color: var(--bh-accent-soft); text-decoration: underline; }
+.bhs-jam-participant--muted { opacity: 0.45; }
+.bhs-jam-pending { font-size: 11px; color: var(--bh-accent); padding: 4px 0; text-align: center; }
+
+/* ---- source/stream health (tasks 39-40) ---- */
+.bhs-badge-down { background: rgba(180,40,40,0.85); color: #fff; }
+.bhs-badge-degraded { background: rgba(180,120,20,0.85); color: #fff; }
+.bhs-stream-health { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 4px; margin-bottom: 4px; }
+.bhs-stream-health--poor { background: rgba(180,120,20,0.25); color: #d9a441; }
+.bhs-stream-health--error { background: rgba(180,40,40,0.25); color: #e0554a; }
