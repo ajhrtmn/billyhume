@@ -76,5 +76,61 @@
                 },
             });
         });
+
+        // Inline title/description editing — AJ's own ask, "make them
+        // editable," matching the top-level board's own live-editable
+        // card fields (kanban-board.js) instead of a separate
+        // collapsed edit form. Saves on blur, one fetch per field,
+        // both routed through the same bhcrm_subtask_save handler.
+        function saveField(cardEl, field, value, statusEl) {
+            var fd = new FormData();
+            fd.append('action', 'bhcrm_subtask_save');
+            fd.append('nonce', cfg.nonce);
+            fd.append('project_id', board.dataset.projectId);
+            fd.append('card_id', board.dataset.cardId);
+            fd.append('subtask_path', board.dataset.subtaskPath);
+            fd.append('node_uid', cardEl.dataset.nodeUid);
+            fd.append(field, value);
+
+            if (statusEl) statusEl.textContent = 'Saving…';
+            fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd })
+                .then(function (res) { return res.json(); })
+                .then(function (body) {
+                    if (!statusEl) return;
+                    if (body && body.success) {
+                        statusEl.textContent = 'Saved';
+                        setTimeout(function () { statusEl.textContent = ''; }, 1200);
+                    } else {
+                        statusEl.textContent = (body && body.message) || 'Failed to save.';
+                    }
+                })
+                .catch(function () { if (statusEl) statusEl.textContent = 'Failed to save.'; });
+        }
+
+        board.querySelectorAll('.bhcrm-kanban-card').forEach(function (cardEl) {
+            var titleInput = cardEl.querySelector('.bhcrm-subtask-title-input');
+            var descInput = cardEl.querySelector('.bhcrm-subtask-desc-input');
+            var statusEl = cardEl.querySelector('.bhcrm-subtask-save-status');
+
+            if (titleInput) {
+                var lastTitle = titleInput.value;
+                titleInput.addEventListener('blur', function () {
+                    if (titleInput.value.trim() === '' ) { titleInput.value = lastTitle; return; }
+                    if (titleInput.value === lastTitle) return;
+                    lastTitle = titleInput.value;
+                    saveField(cardEl, 'title', titleInput.value, statusEl);
+                });
+                titleInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') titleInput.blur(); });
+            }
+
+            if (descInput) {
+                var lastDesc = descInput.value;
+                descInput.addEventListener('blur', function () {
+                    if (descInput.value === lastDesc) return;
+                    lastDesc = descInput.value;
+                    saveField(cardEl, 'notes', descInput.value, statusEl);
+                });
+            }
+        });
     });
 })();

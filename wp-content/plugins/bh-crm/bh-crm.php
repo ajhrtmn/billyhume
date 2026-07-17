@@ -2,11 +2,38 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.2.0
+ * Version:     2.3.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.3.0 — inline-editable title/description + a real Track-It-style
+// progress bar on the sub-task board (2.2.0), AJ's own follow-up.
+//
+// Title and description (the block's existing 'notes' attr, just
+// always visible now) are directly editable on the card itself — no
+// more collapsed "Edit" toggle — matching the top-level board's own
+// live-editable card fields exactly. Saves on blur via fetch(), no
+// page reload; BHCRM_Subtasks::handle_save() switched from a nonce-
+// per-node <form> to the same shared per-page nonce handle_reorder()
+// already uses, since there's no real <form> submitting this anymore.
+//
+// New BHCRM_Subtasks::render_progress_bar() replaces the old plain
+// "X/Y done" text with a real filled bar + percentage — both at the
+// top of a board (that level's recursive rollup) and as a smaller
+// variant directly on any card that has its own sub-tasks (that
+// card's own recursive rollup) — "tallies everything up under it," AJ's
+// own words. Also updated the top-level sticky-card's own static
+// render callback (used outside the interactive board) to the same
+// bar treatment for consistency.
+//
+// Verified live: renamed a card's title and set a description via the
+// new inline fields, confirmed both persisted directly against the
+// underlying BH_Content row (not just the local DOM); confirmed a
+// card with its own sub-tasks ("First sub-task") shows its own mini
+// rollup bar directly on the card ("1/5 · 20%"), matching the
+// top-of-board bar's own math exactly.
 
 // 2.2.0 — course correction on the sub-task tracker (2.0.0/2.1.0),
 // AJ's own words: "I thought each subtask would be its own kanban
@@ -271,7 +298,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.2.0');
+define('BHCRM_VER',  '2.3.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

@@ -8,6 +8,101 @@
     margin-top: 10px;
 }
 
+/* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
+   — the board-wide rollup at the top of a level, and a smaller
+   .bhcrm-progress-bar-mini variant inside a card showing that card's
+   own children's rollup. Same fill color as .bhcrm-kanban-card.is-done
+   below, so "green" reads consistently as "done" everywhere. */
+.bhcrm-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 14px;
+}
+
+.bhcrm-progress-bar-mini {
+    margin: 4px 0;
+}
+
+.bhcrm-progress-bar-track {
+    flex: 1;
+    height: 8px;
+    background: #dcdcde;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.bhcrm-progress-bar-mini .bhcrm-progress-bar-track {
+    height: 5px;
+}
+
+.bhcrm-progress-bar-fill {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 999px;
+    transition: width 0.2s ease;
+}
+
+.bhcrm-progress-bar-fill.is-complete {
+    background: #00a32a;
+}
+
+.bhcrm-progress-bar-label {
+    font-size: 12px;
+    color: #646970;
+    white-space: nowrap;
+}
+
+.bhcrm-progress-bar-mini .bhcrm-progress-bar-label {
+    font-size: 11px;
+}
+
+/* Inline-editable card title/description (BHCRM_Subtasks::render_card())
+   — same borderless-until-focused treatment as the top-level board's
+   own .bhcrm-kanban-card-title-input/.bhcrm-kanban-card-notes, so a
+   sub-task card looks and behaves identically to a top-level one. */
+.bhcrm-subtask-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-weight: 600;
+    padding: 2px 4px;
+}
+
+.bhcrm-subtask-title-input:focus {
+    background: #fff;
+    outline: 1px solid #2271b1;
+    border-radius: 3px;
+}
+
+.bhcrm-subtask-title-input.is-done {
+    text-decoration: line-through;
+    color: #777;
+}
+
+.bhcrm-subtask-desc-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    color: #50575e;
+    resize: vertical;
+    padding: 2px 4px;
+    margin-top: 2px;
+}
+
+.bhcrm-subtask-desc-input:focus {
+    background: #fff;
+    border-color: #dcdcde;
+}
+
+.bhcrm-subtask-save-status {
+    font-size: 10px;
+    display: block;
+    min-height: 12px;
+}
+
 .bhcrm-kanban-grid {
     display: flex;
     gap: 14px;

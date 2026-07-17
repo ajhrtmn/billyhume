@@ -200,11 +200,30 @@ class BHCRM_Subtasks {
         $children = &self::children_at($tree, $path);
         [$done_count, $total_count] = class_exists('BHCRM_Projects') ? BHCRM_Projects::rollup_counts($children) : [0, 0];
         if ($total_count > 0) {
-            echo '<p class="description">' . (int) $done_count . '/' . (int) $total_count . ' sub-tasks done at this level (recursively).</p>';
+            self::render_progress_bar($done_count, $total_count);
         }
 
         self::render_board($project_id, $uid, $card_id, $path, $children, $columns);
         self::render_bulk_add_form($project_id, $uid, $card_id, $path, $columns);
+    }
+
+    /**
+     * A real visual progress bar — AJ's own ask, "a Track It style
+     * progress bar that tallies everything up under it" — replacing
+     * the previous plain "X/Y done" text with a filled bar plus the
+     * same count, both driven by the exact same recursive
+     * BHCRM_Projects::rollup_counts() this class already used for the
+     * text-only version. $mini renders a smaller variant sized for
+     * inside a card rather than across the top of a whole board.
+     */
+    private static function render_progress_bar($done, $total, $mini = false) {
+        if ($total <= 0) return;
+        $pct = (int) round(($done / $total) * 100);
+        $class = 'bhcrm-progress-bar' . ($mini ? ' bhcrm-progress-bar-mini' : '');
+        echo '<div class="' . esc_attr($class) . '">'
+           . '<div class="bhcrm-progress-bar-track"><div class="bhcrm-progress-bar-fill' . ($pct >= 100 ? ' is-complete' : '') . '" style="width:' . $pct . '%;"></div></div>'
+           . '<span class="bhcrm-progress-bar-label">' . (int) $done . '/' . (int) $total . ' &middot; ' . $pct . '%</span>'
+           . '</div>';
     }
 
     /**
@@ -282,8 +301,10 @@ class BHCRM_Subtasks {
         $base = self::base_url($project_id, $uid, $card_id);
         $child_path_str = self::path_to_string(array_merge($path, [$node_uid]));
 
-        // data-node-uid is what subtasks.js reads on drag-end to
-        // report each column's new order/membership back to the server.
+        // data-node-uid is what subtasks.js reads on drag-end (to
+        // report column/order) AND on title/description edit (to know
+        // which node a fetch-based save call is for) — the one stable
+        // handle this whole feature is built on.
         echo '<div class="bhcrm-kanban-card' . ($done ? ' is-done' : '') . '" data-node-uid="' . esc_attr($node_uid) . '">';
         echo '<div class="bhcrm-kanban-card-drag-handle" title="Drag to reorder or move columns">&#8942;&#8942;</div>';
 
@@ -297,26 +318,25 @@ class BHCRM_Subtasks {
         wp_nonce_field('bhcrm_subtask_' . $node_uid);
         echo '<button type="submit" class="button button-small" title="Toggle done" style="padding:0 4px;min-height:auto;line-height:1.6;">' . ($done ? '&#9745;' : '&#9744;') . '</button>';
         echo '</form>';
-        echo ' <strong' . ($done ? ' style="text-decoration:line-through;color:var(--bhy-ink-dim,#777);"' : '') . '>' . esc_html($title) . '</strong>';
+        // Inline-editable title — AJ's own ask, "make them editable,"
+        // matching the top-level board's own live-editable card title
+        // (kanban-board.js's renderCard()) exactly rather than a
+        // separate collapsed edit form. Saves on blur/Enter via
+        // fetch(), no page reload — subtasks.js wires the change event.
+        echo '<input type="text" class="bhcrm-subtask-title-input' . ($done ? ' is-done' : '') . '" value="' . esc_attr($title) . '">';
         echo '</div>';
 
-        if ($child_total > 0) echo '<div class="description" style="font-size:11px;margin:2px 0;">' . (int) $child_done . '/' . (int) $child_total . ' sub-tasks done</div>';
-        if ($notes) echo '<div class="bhcrm-sub-card-notes">' . wp_kses_post($notes) . '</div>';
+        if ($child_total > 0) self::render_progress_bar($child_done, $child_total, true);
+
+        // Description — AJ's own ask for "a description field." This
+        // is the block's existing 'notes' attr, just always visible
+        // and directly editable now instead of hidden behind a
+        // collapsed "Edit" toggle.
+        echo '<textarea class="bhcrm-subtask-desc-input" rows="2" placeholder="Add a description…">' . esc_textarea(wp_strip_all_tags($notes)) . '</textarea>';
+        echo '<span class="bhcrm-subtask-save-status description"></span>';
 
         echo '<div class="bhcrm-kanban-card-actions">';
         echo '<a class="button button-small" href="' . esc_url($base . '&subtask_path=' . urlencode($child_path_str)) . '">Open board &rarr;</a>';
-
-        echo '<details style="display:inline-block;"><summary style="cursor:pointer;font-size:11px;display:inline;">Edit</summary>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:6px;">';
-        echo '<input type="hidden" name="action" value="bhcrm_subtask_save">';
-        echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '"><input type="hidden" name="user_id" value="' . (int) $uid . '"><input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<input type="hidden" name="subtask_path" value="' . esc_attr(self::path_to_string($path)) . '">';
-        echo '<input type="hidden" name="node_uid" value="' . esc_attr($node_uid) . '">';
-        wp_nonce_field('bhcrm_subtask_' . $node_uid);
-        echo '<p><input type="text" name="title" value="' . esc_attr($title) . '" style="width:100%;"></p>';
-        echo '<p><textarea name="notes" rows="2" style="width:100%;" placeholder="Details, links, context…">' . esc_textarea(wp_strip_all_tags($notes)) . '</textarea></p>';
-        echo '<button type="submit" class="button button-small">Save</button>';
-        echo '</form></details>';
 
         $delete_url = wp_nonce_url($base . '&subtask_path=' . urlencode(self::path_to_string($path)), 'bhcrm_subtask_delete_' . $node_uid);
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;" onsubmit="return confirm(\'Delete this sub-task and everything nested under it?\');">';
@@ -515,26 +535,37 @@ class BHCRM_Subtasks {
         self::redirect_back($project_id, $uid, $card_id, $path);
     }
 
+    /**
+     * Fetch-based, not a page-reload form — AJAX-style save for the
+     * now-inline-editable title/description fields (AJ's own ask,
+     * "make them editable"). Same shared per-page nonce
+     * handle_reorder() already uses (localized once as cfg.nonce,
+     * covering every JS-driven mutation on this view) rather than a
+     * per-node nonce field, since there's no real `<form>` submitting
+     * this anymore.
+     */
     public static function handle_save() {
+        check_ajax_referer('bhcrm_subtask_reorder', 'nonce');
         $project_id = (int) ($_POST['project_id'] ?? 0);
-        $uid = (int) ($_POST['user_id'] ?? 0);
         $card_id = (int) ($_POST['card_id'] ?? 0);
         $path = self::path_from_string($_POST['subtask_path'] ?? '');
         $node_uid = sanitize_text_field($_POST['node_uid'] ?? '');
-        check_admin_referer('bhcrm_subtask_' . $node_uid);
         $card = self::require_access($project_id, $card_id);
 
         $content_id = (int) ($card['content_context_id'] ?: $card['id']);
         $tree = BH_Content::get('bh_element', $content_id);
         $node = &self::find_node($tree, array_merge($path, [$node_uid]));
-        if ($node !== null) {
-            $title = sanitize_text_field(wp_unslash($_POST['title'] ?? ''));
-            if ($title !== '') $node['attrs']['title'] = $title;
-            $node['attrs']['notes'] = wp_kses_post(wp_unslash($_POST['notes'] ?? ''));
-            BH_Content::save('bh_element', $content_id, $tree);
-        }
+        if ($node === null) wp_send_json_error(['message' => 'Sub-task not found.']);
 
-        self::redirect_back($project_id, $uid, $card_id, $path);
+        if (isset($_POST['title'])) {
+            $title = sanitize_text_field(wp_unslash($_POST['title']));
+            if ($title !== '') $node['attrs']['title'] = $title;
+        }
+        if (isset($_POST['notes'])) {
+            $node['attrs']['notes'] = wp_kses_post(wp_unslash($_POST['notes']));
+        }
+        BH_Content::save('bh_element', $content_id, $tree);
+        wp_send_json_success(['title' => $node['attrs']['title']]);
     }
 
     public static function handle_delete() {

@@ -470,7 +470,19 @@ class BHCRM_Projects {
                     $tree = BH_Content::get('bh_element', (int) $instance['id']);
                     [$done_count, $total] = BHCRM_Projects::rollup_counts($tree);
                     if ($total > 0) {
-                        $rollup_html = '<div class="bhcrm-sticky-card-rollup">' . (int) $done_count . '/' . (int) $total . ' sub-tasks done</div>';
+                        // Track-It-style bar, same as BHCRM_Subtasks::
+                        // render_progress_bar()'s mini variant — this
+                        // renderer is a separate, server-only code path
+                        // (the interactive kanban-board.js draws its own
+                        // card DOM client-side and doesn't call this),
+                        // so the bar markup is duplicated inline here
+                        // rather than shared, matching this render
+                        // callback's existing self-contained style.
+                        $pct = (int) round(($done_count / $total) * 100);
+                        $rollup_html = '<div class="bhcrm-sticky-card-rollup">'
+                            . '<div class="bhcrm-progress-bar-track" style="height:5px;background:#dcdcde;border-radius:999px;overflow:hidden;margin-bottom:2px;">'
+                            . '<div class="bhcrm-progress-bar-fill' . ($pct >= 100 ? ' is-complete' : '') . '" style="height:100%;width:' . $pct . '%;background:' . ($pct >= 100 ? '#00a32a' : '#2271b1') . ';"></div>'
+                            . '</div>' . (int) $done_count . '/' . (int) $total . ' sub-tasks done (' . $pct . '%)</div>';
                     }
                 }
 
