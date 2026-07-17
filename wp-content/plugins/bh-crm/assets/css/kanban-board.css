@@ -285,3 +285,53 @@
     font-size: 11px;
     color: #646970;
 }
+
+/* ---------------- mobile ----------------
+   AJ's own ask: "need the tracker interface to be mobile friendly."
+   Same breakpoint WP core's own admin responsive layout switches at
+   (782px) — below it, fixed-260px side-by-side columns requiring
+   horizontal scroll (fine on desktop, cramped/fiddly on a phone)
+   become full-width stacked sections instead: scroll down through
+   columns like a real page, not sideways through a filmstrip. Applies
+   to BOTH the top-level project board and every BHCRM_Subtasks nested
+   board, since they share this one stylesheet. */
+@media (max-width: 782px) {
+    .bhcrm-kanban-grid {
+        flex-direction: column;
+        overflow-x: visible;
+    }
+
+    .bhcrm-kanban-column {
+        flex: 1 1 auto;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Bigger touch target — the same 12px handle SortableJS's
+       forceFallback mode (already in use, see kanban-board.js/
+       subtasks.js) needs a real drag start point on, and a fingertip
+       is far less precise than a mouse cursor. */
+    .bhcrm-kanban-card-drag-handle {
+        font-size: 20px;
+        padding: 6px 10px;
+        top: 0;
+        right: 0;
+    }
+
+    .bhcrm-kanban-card {
+        padding-right: 34px; /* room for the now-larger drag handle so it never overlaps the title */
+    }
+
+    .bhcrm-kanban-card-actions {
+        flex-wrap: wrap;
+    }
+
+    .bhcrm-kanban-card-actions .button,
+    .bhcrm-kanban-card-actions summary {
+        min-height: 32px; /* WordPress's own recommended minimum touch target */
+    }
+
+    .bhcrm-progress-bar-label {
+        white-space: normal;
+    }
+}

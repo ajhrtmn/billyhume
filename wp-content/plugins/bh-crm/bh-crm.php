@@ -2,11 +2,54 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.3.0
+ * Version:     2.4.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.0 — mobile-friendly layout, auto-done-on-drop, and closing a
+// real gap in the recursive rollup display (2.3.0's own follow-up).
+//
+// MOBILE: kanban-board.css gets a 782px breakpoint (same one WP core's
+// own admin layout switches at) — fixed-260px side-by-side columns
+// requiring horizontal scroll become full-width stacked sections on a
+// phone, with a bigger drag handle and larger touch targets on every
+// button. Applies to both the top-level project board and every
+// nested sub-task board (one shared stylesheet). Drag itself was
+// already touch-capable — SortableJS's forceFallback:true (already
+// set on both boards from the original build) uses real pointer
+// events instead of the native HTML5 drag API's poor mobile support.
+//
+// AUTO-DONE-ON-DROP: dropping a card into the LAST column (the
+// project's own "done" convention — same as Track-It and every other
+// kanban tool) now auto-checks it, on both the top-level board
+// (kanban-board.js) and every nested sub-task board
+// (BHCRM_Subtasks::handle_reorder(), server-side). Deliberately one-
+// directional — dragging OUT of that column does not un-check it, so
+// reorganizing columns can never silently erase a completion someone
+// set on purpose.
+//
+// TOP-LEVEL ROLLUP GAP: the interactive project board never actually
+// showed a card's own recursive sub-task tally at all — the math
+// (rollup_counts()) was already fully recursive, walking every
+// descendant at any depth, but the client-side board (a thin layer
+// over BH_Element's generic REST bridge, which returns a placement's
+// config but never its BH_Content tree) had no way to get those
+// numbers. New BHCRM_Projects::rest_rollups() (bh-crm/v1/rollups, a
+// small bh-crm-owned route kept separate from own-ur-shit's generic
+// placements endpoint) is fetched once per board load and rendered as
+// the same progress-bar treatment the nested boards already use — now
+// every card, at every level, shows the true tally of everything
+// under it, "add up for every grandchild and such," AJ's own words.
+//
+// Verified live: confirmed the mobile breakpoint stacks all four
+// columns full-width with no horizontal scroll; confirmed dropping a
+// card into "Done" (simulated via the same REST payload a real drag
+// produces) persisted both the column AND done=true together;
+// confirmed the top-level card now shows its real recursive rollup
+// ("1/9 · 11%") directly on the card, matching the nested view's own
+// math exactly.
 
 // 2.3.0 — inline-editable title/description + a real Track-It-style
 // progress bar on the sub-task board (2.2.0), AJ's own follow-up.
@@ -298,7 +341,7 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.3.0');
+define('BHCRM_VER',  '2.4.0');
 
 // 1.7.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md Section 3:
 // saved smart lists/segments — the last item in the CRM depth pass,

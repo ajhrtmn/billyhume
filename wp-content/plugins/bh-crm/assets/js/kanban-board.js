@@ -71,6 +71,16 @@
     var state = {
         placements: [], // raw rows from GET .../placements/{surface}/{context}, slot 'board' only
         sortables: [], // live Sortable instances, one per column list — destroyed before each re-render since render() wipes the DOM they're attached to
+        // {placementId: [done, total]} — a card's own recursive
+        // sub-task rollup (AJ's own ask: "each card should track the
+        // total progress of everything under it... display it back up
+        // on the card itself"). NOT part of the generic BH_Element
+        // placements response (that returns a placement's own config/
+        // attrs, never its BH_Content tree) — fetched once per board
+        // load from bh-crm's own small rollups route
+        // (BHCRM_Projects::rest_rollups()) instead of a per-card round
+        // trip.
+        rollups: {},
     };
 
     function el(tag, className, text) {
@@ -84,9 +94,20 @@
         return 'placements/' + encodeURIComponent(cfg.surface) + '/' + encodeURIComponent(cfg.projectId);
     }
 
+    function loadRollups() {
+        if (!cfg.rollupsUrl) return Promise.resolve();
+        return fetch(cfg.rollupsUrl + '?project_id=' + encodeURIComponent(cfg.projectId), {
+            headers: { 'X-WP-Nonce': cfg.nonce },
+            credentials: 'same-origin',
+        }).then(function (res) { return res.ok ? res.json() : {}; })
+            .then(function (data) { state.rollups = data || {}; })
+            .catch(function () { state.rollups = {}; });
+    }
+
     function load() {
         root.setAttribute('data-loading', '1');
-        api(placementsPath()).then(function (grouped) {
+        Promise.all([api(placementsPath()), loadRollups()]).then(function (results) {
+            var grouped = results[0];
             state.placements = (grouped && grouped.board) ? grouped.board : [];
             render();
         }).catch(function (err) {
@@ -141,6 +162,14 @@
      */
     function reorderFromDom() {
         var columns = cfg.columns || [];
+        // Last column = "done", same one-directional convention
+        // BHCRM_Subtasks::handle_reorder() uses server-side for the
+        // nested boards — AJ's own ask: "should update to done once
+        // the task has been dragged to done." Dropping OUT of the done
+        // column deliberately does NOT un-check it, so reorganizing
+        // columns can never silently erase a completion someone set
+        // on purpose.
+        var doneColumn = columns[columns.length - 1];
         var next = [];
         columns.forEach(function (colName) {
             var list = root.querySelector('.bhcrm-kanban-column[data-column="' + CSS.escape(colName) + '"] .bhcrm-kanban-column-cards');
@@ -150,6 +179,7 @@
                 var p = state.placements.find(function (x) { return x.id === id; });
                 if (!p) return;
                 setAttrLiteral(p, 'column', colName);
+                if (colName === doneColumn) setAttrLiteral(p, 'done', true);
                 next.push(p);
             });
         });
@@ -256,6 +286,27 @@
         });
         titleRow.appendChild(titleInput);
         card.appendChild(titleRow);
+
+        // A card's own recursive sub-task rollup — AJ's own ask, "each
+        // card should track the total progress of everything under
+        // it... display it back up on the card itself... add up for
+        // every grandchild." Same visual treatment
+        // (BHCRM_Subtasks::render_progress_bar()'s mini variant) as
+        // the nested sub-task board itself, so a top-level card and a
+        // deeply-nested one read the same way.
+        var rollup = state.rollups[p.id];
+        if (rollup && rollup[1] > 0) {
+            var rDone = rollup[0], rTotal = rollup[1];
+            var pct = Math.round((rDone / rTotal) * 100);
+            var bar = el('div', 'bhcrm-progress-bar bhcrm-progress-bar-mini');
+            var track = el('div', 'bhcrm-progress-bar-track');
+            var fill = el('div', 'bhcrm-progress-bar-fill' + (pct >= 100 ? ' is-complete' : ''));
+            fill.style.width = pct + '%';
+            track.appendChild(fill);
+            bar.appendChild(track);
+            bar.appendChild(el('span', 'bhcrm-progress-bar-label', rDone + '/' + rTotal + ' · ' + pct + '%'));
+            card.appendChild(bar);
+        }
 
         var notesArea = document.createElement('textarea');
         notesArea.className = 'bhcrm-kanban-card-notes';

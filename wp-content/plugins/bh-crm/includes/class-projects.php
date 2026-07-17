@@ -163,6 +163,44 @@ class BHCRM_Projects {
         add_action('admin_post_bhcrm_project_link', [self::class, 'handle_link_person']);
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
+        add_action('rest_api_init', [self::class, 'register_rest_routes']);
+    }
+
+    /**
+     * The top-level interactive board (kanban-board.js) never showed a
+     * card's own recursive sub-task rollup at all — a real gap AJ
+     * caught: "each card should track the total progress of everything
+     * under it... display it back up on the card itself." The rollup
+     * math itself (rollup_counts()) was already fully recursive from
+     * day one; what was missing is a way for the CLIENT-SIDE board (a
+     * thin presentation layer over BH_Element's generic REST bridge,
+     * which returns each placement's own config/attrs but never its
+     * BH_Content tree) to actually get those numbers without a
+     * separate per-card round trip. One small bh-crm-owned route,
+     * fetched once per board load, keeps this bh-crm-specific concern
+     * out of own-ur-shit's generic placements endpoint entirely.
+     */
+    public static function register_rest_routes() {
+        register_rest_route('bh-crm/v1', '/rollups', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'rest_rollups'],
+            'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
+            'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
+        ]);
+    }
+
+    public static function rest_rollups($req) {
+        $project_id = (int) $req->get_param('project_id');
+        $out = [];
+        if (class_exists('BH_Element') && class_exists('BH_Content')) {
+            foreach (BH_Element::get_placements('bhcrm_project_board', $project_id, 'board') as $p) {
+                $content_id = (int) ($p['content_context_id'] ?: $p['id']);
+                $tree = BH_Content::get('bh_element', $content_id);
+                [$done, $total] = self::rollup_counts($tree);
+                if ($total > 0) $out[$p['id']] = [$done, $total];
+            }
+        }
+        return new WP_REST_Response($out, 200);
     }
 
     /* =================================================================
@@ -822,6 +860,10 @@ class BHCRM_Projects {
             // contract element-builder.js already uses — no new route,
             // no new auth mechanism.
             'restUrl'    => esc_url_raw(rest_url('ous/v1/elements/')),
+            // bh-crm's own small rollups route (rest_rollups() above) —
+            // a separate namespace from the generic BH_Element bridge
+            // above, same wp_rest cookie-nonce.
+            'rollupsUrl' => esc_url_raw(rest_url('bh-crm/v1/rollups')),
             'studioUrl'  => esc_url_raw(admin_url('admin.php?page=bh-studio')),
             'nonce'      => wp_create_nonce('wp_rest'),
             'surface'    => 'bhcrm_project_board',

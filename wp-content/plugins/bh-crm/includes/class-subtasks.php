@@ -272,7 +272,8 @@ class BHCRM_Subtasks {
         echo '<div class="bhcrm-kanban-board"><div class="bhcrm-kanban-grid" id="bhcrm-subtask-board"'
            . ' data-reorder-nonce="' . esc_attr(wp_create_nonce('bhcrm_subtask_reorder')) . '"'
            . ' data-project-id="' . (int) $project_id . '" data-user-id="' . (int) $uid . '" data-card-id="' . (int) $card_id . '"'
-           . ' data-subtask-path="' . esc_attr(self::path_to_string($path)) . '">';
+           . ' data-subtask-path="' . esc_attr(self::path_to_string($path)) . '"'
+           . ' data-done-column="' . esc_attr(end($columns)) . '">';
 
         foreach ($columns as $col) {
             $cards_in_col = $by_column[$col];
@@ -497,6 +498,16 @@ class BHCRM_Subtasks {
         $by_uid = [];
         foreach ($children as $node) $by_uid[$node['attrs']['uid'] ?? ''] = $node;
 
+        // Last column in the project's own list is treated as "done"
+        // — same convention Track-It (and every other kanban tool)
+        // uses, and matches this project's own DEFAULT_COLUMNS ending
+        // in 'Done'. AJ's own ask: "should update to done once the
+        // task has been dragged to done." Deliberately one-directional
+        // — dropping INTO the done column marks it done; dragging back
+        // OUT does not un-mark it, so reorganizing columns can never
+        // silently erase a completion someone set on purpose.
+        $done_column = end($columns);
+
         $reordered = [];
         foreach ($layout as $entry) {
             $node_uid = sanitize_text_field($entry['uid'] ?? '');
@@ -505,6 +516,7 @@ class BHCRM_Subtasks {
             if (!in_array($column, $columns, true)) $column = $columns[0];
             $node = $by_uid[$node_uid];
             $node['attrs']['column'] = $column;
+            if ($column === $done_column) $node['attrs']['done'] = true;
             $reordered[] = $node;
             unset($by_uid[$node_uid]);
         }

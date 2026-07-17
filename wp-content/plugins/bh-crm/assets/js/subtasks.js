@@ -45,7 +45,13 @@
             fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd })
                 .then(function (res) { return res.json(); })
                 .then(function (body) {
-                    if (!body || !body.success) window.location.reload();
+                    // Always reload on a successful write, not just a
+                    // failure — dropping a card into the "done" column
+                    // server-side auto-checks it (AJ's own ask), and
+                    // that state (plus every ancestor card's own
+                    // recursive progress bar) needs a real re-render,
+                    // not just a client-side guess at what changed.
+                    window.location.reload();
                 })
                 .catch(function () { window.location.reload(); });
         }
