@@ -107,3 +107,22 @@ add_action('bhc_course_completed', function ($user_id, $course_id) {
         'BH Courses'
     );
 }, 10, 2);
+
+// The enrollment-side counterpart to the completion notification above
+// — same pattern, same class_exists() guard. Previously a student got
+// zero confirmation that enrolling worked, only silent access; this is
+// the first thing they hear from the course.
+add_action('bhc_enrolled', function ($user_id, $course_id) {
+    if (!class_exists('OUS_Notifications')) return;
+    $course = get_post($course_id);
+    if (!$course) return;
+
+    OUS_Notifications::notify(
+        $user_id,
+        'course_enrolled',
+        'Enrolled: ' . $course->post_title,
+        'You\'re in — start whenever you\'re ready.',
+        get_permalink($course_id),
+        'BH Courses'
+    );
+}, 10, 2);

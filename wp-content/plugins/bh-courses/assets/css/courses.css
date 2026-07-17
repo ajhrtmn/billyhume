@@ -194,3 +194,25 @@
 .bhc-lesson-next { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; text-align: center; }
 .bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .bhc-step-back { margin-right: 8px; }
+
+/* ---- mobile: the lesson/quiz-taking UI specifically ----
+   A real gap the LMS audit caught: this whole file had zero @media
+   breakpoints, unlike the catalog page. The stepper happened to wrap
+   via flex-wrap already, but nothing here was actually TUNED for a
+   phone — step cards kept desktop padding, quiz choice rows kept a
+   spread-out flex layout that gets cramped under ~360px, and the step
+   dots stayed full 26px/gap-6px (fine on desktop, easy to fat-finger
+   on a phone). This is the UI a student most plausibly uses on a
+   phone specifically (mid-lesson, on the go), so it gets its own
+   deliberate pass rather than relying on the catalog's breakpoint to
+   somehow cover it too. */
+@media (max-width: 480px) {
+    .bhc-step { padding: 14px; }
+    .bhc-step-video { max-height: 220px; }
+    .bhc-stepper-dot { width: 32px; height: 32px; font-size: 12px; } /* larger tap target, not just a smaller desktop dot shrunk further */
+    .bhc-btn { width: 100%; text-align: center; }
+    .bhc-lesson-next { padding: 14px; }
+    .bhc-lesson-next .bhc-btn { margin-top: 8px; }
+    .bhc-quiz-choice-review { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .bhc-lesson-breadcrumb { flex-direction: column; align-items: flex-start; gap: 4px; }
+}

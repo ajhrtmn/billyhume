@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.18
+ * Version:     0.4.19
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,46 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.18');
+define('BHC_VER',  '0.4.19');
 
+// 0.4.19 — Deep LMS audit follow-through: instructor aggregate stats,
+// stalled-student nudges, mobile lesson/quiz UI, stepper a11y.
+// (1) class-progress-admin.php's Student Progress page gets a new "At a
+// glance" panel (render_summary()) above the per-student table:
+// per-lesson completion rate, per-lesson average quiz score (averaged
+// per-quiz-step then across quiz steps, not one flat AVG(score), so a
+// lesson's harder/longer quiz can't get diluted by an easier one more
+// students reached), and a stalled-student count/flag (14+ days quiet,
+// not finished) — previously this page was raw per-student rows only,
+// unusable at any real class size. students_for_course()/
+// last_activity() moved from this file to BHC_Progress as public
+// last_activity_for_course()/students_for_course() so the new
+// class-nudges.php job reads off the same query instead of a second
+// copy.
+// (2) New class-nudges.php: a daily OUS_Jobs job (self-rescheduling,
+// no new cron infra) that finds students stalled 14+ days on an
+// unfinished course and sends exactly one OUS_Notifications nudge,
+// throttled via usermeta so the same student isn't renudged more than
+// once per 14-day window even if still stalled next run. Paired with a
+// new bhc_enrolled action (class-progress.php's enroll_if_needed(),
+// fired only on the real INSERT, never the repeat-visit no-op) and its
+// class-crm-integration.php listener — previously enrollment was
+// completely silent; course completion was the only lifecycle
+// notification anywhere in this plugin.
+// (3) courses.css gets its first @media breakpoint anywhere in the
+// file (max-width:480px) — the lesson/quiz-taking UI specifically
+// (step padding, video max-height, larger stepper-dot tap targets,
+// full-width buttons, stacked breadcrumb, stacked quiz-choice review
+// rows), a real gap the audit caught: the catalog page had responsive
+// treatment, this file's step walker and quiz form never did. Stepper
+// dots also get a real aria-label (class-render-lesson.php) — the
+// type glyph (T/I/V/Q) was pure CSS ::before content, invisible to a
+// screen reader on its own.
+// Verified live: resized to 375px and confirmed the lesson page's
+// breadcrumb stacks, the mark-complete button goes full-width, and the
+// stepper dot is larger; the Student Progress page's new summary panel
+// renders correct completion-rate/quiz-avg/stalled-count for the QA
+// test course.
 // 0.4.18 — Second half of the same course<->lesson UX integration pass:
 // data-integrity guard + student-facing visual stepper.
 // (1) class-admin.php's save_lesson() now validates a posted
@@ -479,7 +517,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -515,6 +553,7 @@ add_action('plugins_loaded', function () {
     }
     add_action('init', ['BHC_CrmIntegration', 'init']);
     add_action('init', ['BHC_ProgressAdmin', 'init']);
+    add_action('init', ['BHC_Nudges', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);
     if (class_exists('BH_Content')) add_action('init', ['BHC_ContentBridge', 'init']);
     add_action('init', ['BHC_PortalPanel', 'init']);

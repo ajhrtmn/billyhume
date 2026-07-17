@@ -67,8 +67,86 @@ class BHC_ProgressAdmin {
 
         if (!$selected_id) { echo '</div>'; return; }
         self::render_override_form($selected_id);
+        self::render_summary($selected_id);
         self::render_course_table($selected_id);
         echo '</div>';
+    }
+
+    // Stalled = has recorded activity but hasn't touched this course in
+    // this many days and hasn't finished it — the raw "last activity"
+    // column already on the per-student table told you WHEN someone was
+    // last active, but never flagged that as a problem; an instructor
+    // with more than a handful of students had to eyeball every row
+    // themselves to notice who'd gone quiet.
+    const STALLED_DAYS = 14;
+
+    /* ---------------- aggregate summary (per-lesson completion rate,
+       avg quiz score, stalled-student count) ----------------
+       The per-student table below already has all the per-step raw
+       data this rolls up — deliberately NOT a new report page/data
+       source, just a different aggregation of the same bhc_progress
+       rows, same relationship BHC_PostTypes::step_count() already has
+       to lesson_order()/BHC_Steps::count(). */
+    private static function render_summary($course_id) {
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        $students = self::students_for_course($course_id);
+        if (!$lesson_ids || !$students) return;
+
+        $stalled_cutoff = current_time('timestamp') - (self::STALLED_DAYS * DAY_IN_SECONDS);
+        $stalled = 0;
+        foreach ($students as $user_id) {
+            if (BHC_Progress::is_course_completed($user_id, $course_id)) continue;
+            $last = BHC_Progress::last_activity_for_course($user_id, $course_id);
+            if ($last && strtotime($last) < $stalled_cutoff) $stalled++;
+        }
+
+        echo '<div class="bhy-card" style="margin:16px 0;padding:16px;border:1px solid #dcdcde;background:#fff;">';
+        echo '<h2 style="margin-top:0;font-size:14px;">At a glance</h2>';
+        if ($stalled > 0) {
+            echo '<p><strong style="color:#b32d2e;">' . (int) $stalled . ' student' . ($stalled === 1 ? '' : 's') . '</strong> active before but quiet for ' . self::STALLED_DAYS . '+ days and not yet finished — flagged &#9888; in the table below.</p>';
+        } else {
+            echo '<p class="description">No stalled students right now (none quiet ' . self::STALLED_DAYS . '+ days without finishing).</p>';
+        }
+
+        echo '<table class="widefat striped" style="max-width:720px;"><thead><tr><th>Lesson</th><th>Completion rate</th><th>Avg. quiz score</th></tr></thead><tbody>';
+        foreach ($lesson_ids as $lesson_id) {
+            $step_count = BHC_Steps::count($lesson_id);
+            $finished = 0;
+            foreach ($students as $user_id) {
+                if ($step_count && count(BHC_Progress::completed_steps($user_id, $lesson_id)) >= $step_count) $finished++;
+            }
+            $rate = count($students) ? round(($finished / count($students)) * 100) : 0;
+            $quiz_avg = self::lesson_avg_quiz_score($lesson_id);
+
+            echo '<tr><td>' . esc_html(get_the_title($lesson_id)) . '</td>';
+            echo '<td>' . (int) $rate . '% (' . (int) $finished . '/' . count($students) . ')</td>';
+            echo '<td>' . ($quiz_avg === null ? '&#8212;' : (int) round($quiz_avg) . '%') . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
+    }
+
+    // Averages every quiz step's mean score, then averages those means —
+    // deliberately not a single flat AVG(score) across all quiz rows in
+    // the lesson, which would let a lesson with one easy 2-question quiz
+    // and one hard 10-question quiz have the easy one dominate just
+    // because more students reached it. Null if the lesson has no quiz
+    // steps at all, so the table can show "—" instead of a misleading 0%.
+    private static function lesson_avg_quiz_score($lesson_id) {
+        global $wpdb;
+        $steps = BHC_Steps::get($lesson_id);
+        $quiz_indexes = [];
+        foreach ($steps as $i => $step) if (($step['type'] ?? '') === 'quiz') $quiz_indexes[] = $i;
+        if (!$quiz_indexes) return null;
+
+        $sums = [];
+        foreach ($quiz_indexes as $i) {
+            $avg = $wpdb->get_var($wpdb->prepare(
+                "SELECT AVG(score) FROM " . $wpdb->prefix . "bhc_progress WHERE lesson_id = %d AND step_index = %d AND score IS NOT NULL",
+                $lesson_id, $i
+            ));
+            if ($avg !== null) $sums[] = (float) $avg;
+        }
+        return $sums ? array_sum($sums) / count($sums) : null;
     }
 
     /* ---------------- manual override ---------------- */
@@ -199,15 +277,18 @@ class BHC_ProgressAdmin {
         foreach ($lesson_titles as $title) echo '<th>' . esc_html($title) . '</th>';
         echo '</tr></thead><tbody>';
 
+        $stalled_cutoff = current_time('timestamp') - (self::STALLED_DAYS * DAY_IN_SECONDS);
+
         foreach ($students as $user_id) {
             $percent = BHC_Progress::course_percent($user_id, $course_id);
             $completed = BHC_Progress::is_course_completed($user_id, $course_id);
-            $last_activity = self::last_activity($user_id, $lesson_ids);
+            $last_activity = BHC_Progress::last_activity_for_course($user_id, $course_id);
             $user = get_userdata($user_id);
             $name = $user ? ($user->display_name ?: $user->user_login) : "User #$user_id";
+            $is_stalled = !$completed && $last_activity && strtotime($last_activity) < $stalled_cutoff;
 
             echo '<tr>';
-            echo '<td><strong>' . esc_html($name) . '</strong></td>';
+            echo '<td><strong>' . esc_html($name) . '</strong>' . ($is_stalled ? ' <span title="Quiet ' . self::STALLED_DAYS . '+ days, not finished" style="color:#b32d2e;">&#9888;</span>' : '') . '</td>';
             echo '<td><div class="bhc-admin-progress-bar" style="background:#e0e0e0;border-radius:3px;width:120px;height:8px;display:inline-block;overflow:hidden;vertical-align:middle;"><div style="background:#2271b1;height:100%;width:' . (int) $percent . '%;"></div></div> ' . (int) $percent . '%</td>';
             echo '<td>' . ($completed ? '&#10003; Yes' : '&#8212;') . '</td>';
             echo '<td>' . ($last_activity ? esc_html(human_time_diff(strtotime($last_activity), current_time('timestamp')) . ' ago') : '&#8212;') . '</td>';
@@ -223,29 +304,11 @@ class BHC_ProgressAdmin {
         echo '<p class="description">' . count($students) . ' student(s) with recorded activity. ' . (int) $total_steps . ' total step(s) in this course.</p>';
     }
 
-    // Every distinct user_id with a progress row on ANY lesson belonging
-    // to this course — a plain join against the lesson order rather
-    // than a separate "roster" concept, since access itself is already
-    // governed by BHC_Gate (tier + drip); this page is reporting on
-    // activity, not managing enrollment as a gate of its own.
+    // Thin wrapper kept for call-site brevity — the real implementation
+    // moved to BHC_Progress (shared with class-nudges.php's stalled-
+    // student check) so this page and the nudge job read off one query,
+    // not two independently-maintained copies.
     private static function students_for_course($course_id) {
-        global $wpdb;
-        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
-        if (!$lesson_ids) return [];
-        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
-        return array_map('intval', $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT user_id FROM {$wpdb->prefix}bhc_progress WHERE lesson_id IN ($placeholders) ORDER BY user_id",
-            $lesson_ids
-        )));
-    }
-
-    private static function last_activity($user_id, $lesson_ids) {
-        if (!$lesson_ids) return null;
-        global $wpdb;
-        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
-        return $wpdb->get_var($wpdb->prepare(
-            "SELECT MAX(completed_at) FROM {$wpdb->prefix}bhc_progress WHERE user_id = %d AND lesson_id IN ($placeholders)",
-            array_merge([$user_id], $lesson_ids)
-        ));
+        return BHC_Progress::students_for_course($course_id);
     }
 }

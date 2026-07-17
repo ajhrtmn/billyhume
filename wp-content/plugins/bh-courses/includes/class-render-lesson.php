@@ -97,8 +97,12 @@ class BHC_Render_Lesson {
             $classes = 'bhc-stepper-dot bhc-stepper-' . esc_attr($step['type']);
             if ($is_done) $classes .= ' bhc-stepper-done';
             if ($is_current) $classes .= ' bhc-stepper-current';
+            // aria-label carries the same "Step N: Type" info the ::before
+            // glyph conveys visually — the glyph itself is pure CSS
+            // content, invisible to a screen reader on its own.
             echo '<button type="button" class="' . $classes . '" data-target-index="' . (int) $i . '"'
                 . (!$reachable ? ' disabled' : '') . ' title="Step ' . (int) ($i + 1) . ': ' . esc_attr(ucfirst($step['type'])) . '"'
+                . ' aria-label="Step ' . (int) ($i + 1) . ': ' . esc_attr(ucfirst($step['type'])) . ($is_done ? ' (completed)' : '') . '"'
                 . ' aria-current="' . ($is_current ? 'step' : 'false') . '"></button>';
         }
         echo '</div>';

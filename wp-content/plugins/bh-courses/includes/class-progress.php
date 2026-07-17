@@ -227,6 +227,33 @@ class BHC_Progress {
         return $total ? (int) round(($done / $total) * 100) : 0;
     }
 
+    // Every distinct user_id with a progress row on ANY lesson belonging
+    // to this course — moved here from class-progress-admin.php (which
+    // had its own private copy) so class-nudges.php's stalled-student
+    // check and the admin Student Progress page read off one shared
+    // implementation instead of two that could drift apart.
+    public static function students_for_course($course_id) {
+        global $wpdb;
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return [];
+        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
+        return array_map('intval', $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT user_id FROM {$wpdb->prefix}bhc_progress WHERE lesson_id IN ($placeholders) ORDER BY user_id",
+            $lesson_ids
+        )));
+    }
+
+    public static function last_activity_for_course($user_id, $course_id) {
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return null;
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
+        return $wpdb->get_var($wpdb->prepare(
+            "SELECT MAX(completed_at) FROM {$wpdb->prefix}bhc_progress WHERE user_id = %d AND lesson_id IN ($placeholders)",
+            array_merge([$user_id], $lesson_ids)
+        ));
+    }
+
     // The lesson-level sibling of class-render.php's own step-level
     // "first not-yet-completed" logic (render_lesson_steps()'s
     // $start_index calc) — same idea, one level up, for the course-page
@@ -264,12 +291,21 @@ class BHC_Progress {
         // Deduplicated by design — dedup_key means a repeat visit's
         // repeat call to this cheap-no-op method never records a second
         // 'bhc/enroll' event for the same user+course.
-        if ($wpdb->rows_affected === 1 && class_exists('BH_Event')) {
-            BH_Event::emit('bhc/enroll', [
-                'user_id' => $user_id,
-                'subject_type' => 'bhc_course', 'subject_id' => (int) $course_id,
-                'dedup_key' => "bhc/enroll:$user_id:$course_id",
-            ]);
+        if ($wpdb->rows_affected === 1) {
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bhc/enroll', [
+                    'user_id' => $user_id,
+                    'subject_type' => 'bhc_course', 'subject_id' => (int) $course_id,
+                    'dedup_key' => "bhc/enroll:$user_id:$course_id",
+                ]);
+            }
+            // Real WP action, same "first real consumer of
+            // OUS_Notifications" shape as bhc_course_completed
+            // (class-crm-integration.php) — a student previously got no
+            // confirmation at all that enrolling "took," only silent
+            // access. Only fires on the actual INSERT (rows_affected===1),
+            // never on the cheap repeat-visit no-op above.
+            do_action('bhc_enrolled', $user_id, $course_id);
         }
     }
 
