@@ -27,6 +27,23 @@
             });
             var counter = lesson.querySelector('.bhc-step-current');
             if (counter) counter.textContent = index + 1;
+            lesson.querySelectorAll('.bhc-stepper-dot').forEach(function (dot) {
+                var dotIndex = parseInt(dot.dataset.targetIndex, 10);
+                dot.classList.toggle('bhc-stepper-current', dotIndex === index);
+                dot.setAttribute('aria-current', dotIndex === index ? 'step' : 'false');
+            });
+        }
+
+        // Marks a dot done and unlocks the next one — called wherever a
+        // step is completed (button click, quiz pass, or the video
+        // watch-threshold auto-complete below), so the stepper always
+        // reflects real progress instead of drifting out of sync with
+        // the .bhc-step-done class it mirrors.
+        function markStepDone(index) {
+            var dot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + index + '"]');
+            if (dot) dot.classList.add('bhc-stepper-done');
+            var nextDot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + (index + 1) + '"]');
+            if (nextDot) nextDot.disabled = false;
         }
 
         function advance(fromIndex) {
@@ -78,6 +95,7 @@
                         if (btn) { btn.disabled = true; btn.style.display = ''; btn.textContent = 'Completed'; }
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
+                        markStepDone(index);
                         advance(index);
                     });
             }
@@ -133,8 +151,18 @@
                     e.target.textContent = 'Completed';
                     step.classList.add('bhc-step-done');
                     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
+                    markStepDone(index);
                     advance(index);
                 });
+        });
+
+        lesson.addEventListener('click', function (e) {
+            if (!e.target.classList.contains('bhc-stepper-dot') || e.target.disabled) return;
+            var targetIndex = parseInt(e.target.dataset.targetIndex, 10);
+            lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+            var nextBlock = lesson.querySelector('.bhc-lesson-next');
+            if (nextBlock) nextBlock.style.display = 'none';
+            showStep(targetIndex);
         });
 
         // Builds the same per-question breakdown markup/classes
@@ -226,6 +254,7 @@
                     e.target.querySelectorAll('input').forEach(function (el) { el.disabled = true; });
 
                     step.classList.add('bhc-step-done');
+                    markStepDone(index);
                     if (result.passed) {
                         // Do NOT auto-advance here — the whole point of
                         // the breakdown above is for the student to

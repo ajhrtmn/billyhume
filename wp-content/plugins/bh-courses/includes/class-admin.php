@@ -354,7 +354,34 @@ class BHC_Admin {
         if (!current_user_can('edit_post', $post_id)) return;
 
         if (isset($_POST['bhc_lesson_nonce']) && wp_verify_nonce($_POST['bhc_lesson_nonce'], 'bhc_save_lesson')) {
-            if (isset($_POST['bhc_course_id'])) update_post_meta($post_id, '_bhc_course_id', (int) $_POST['bhc_course_id']);
+            if (isset($_POST['bhc_course_id'])) {
+                $new_course_id = (int) $_POST['bhc_course_id'];
+                // Validated against a real, non-trashed bh_course rather
+                // than trusted as-posted — a crafted or stale POST
+                // (e.g. a course deleted in another tab since this
+                // screen loaded) would otherwise leave the lesson
+                // pointing at nothing, exactly the desync class of bug
+                // AJ's own audit flagged.
+                if ($new_course_id && get_post_type($new_course_id) !== 'bh_course') $new_course_id = 0;
+
+                $old_course_id = BHC_PostTypes::course_for_lesson($post_id);
+                update_post_meta($post_id, '_bhc_course_id', $new_course_id);
+
+                // Keep the course's own _bhc_lesson_order (the inverse,
+                // independently-stored pointer) in sync automatically
+                // instead of relying on the author to separately drag
+                // this lesson into place on the course screen — the
+                // exact "two pointers, nothing keeps them in sync" gap
+                // the audit called out. Order-list edits made from the
+                // course screen itself still win on that screen's own
+                // save (save_course() below), this only keeps a lesson
+                // reassigned from ITS OWN screen from vanishing off its
+                // old course or failing to appear on its new one.
+                if ($old_course_id !== $new_course_id) {
+                    if ($old_course_id) self::remove_lesson_from_order($old_course_id, $post_id);
+                    if ($new_course_id) self::add_lesson_to_order($new_course_id, $post_id);
+                }
+            }
 
             $after_days = sanitize_text_field($_POST['bhc_available_after_days'] ?? '');
             $on_date = sanitize_text_field($_POST['bhc_available_on_date'] ?? '');
@@ -384,6 +411,40 @@ class BHC_Admin {
         // preferred resolution.
     }
 
+    private static function remove_lesson_from_order($course_id, $lesson_id) {
+        $order = BHC_PostTypes::lesson_order($course_id);
+        $order = array_values(array_diff($order, [(int) $lesson_id]));
+        update_post_meta($course_id, '_bhc_lesson_order', $order);
+    }
+
+    private static function add_lesson_to_order($course_id, $lesson_id) {
+        $order = BHC_PostTypes::lesson_order($course_id);
+        if (!in_array((int) $lesson_id, $order, true)) {
+            $order[] = (int) $lesson_id;
+            update_post_meta($course_id, '_bhc_lesson_order', $order);
+        }
+    }
+
+    // Hooked onto before_delete_post (permanent deletion only — a
+    // trashed-but-restorable course still exists as a real post, so
+    // there's nothing to clean up until it's actually gone). Any lesson
+    // still pointing at the deleted course via _bhc_course_id would
+    // otherwise become a silent orphan referencing a post ID that no
+    // longer exists — the exact risk BHC_Gate::user_can_access_course()
+    // and class-render-lesson.php's own comments already acknowledge
+    // tolerating; this closes it at the source instead of just
+    // tolerating it everywhere that reads the meta.
+    public static function cleanup_deleted_course($post_id) {
+        if (get_post_type($post_id) !== 'bh_course') return;
+        $lessons = get_posts([
+            'post_type' => 'bh_lesson', 'numberposts' => -1, 'post_status' => 'any',
+            'meta_key' => '_bhc_course_id', 'meta_value' => $post_id,
+        ]);
+        foreach ($lessons as $lesson) {
+            delete_post_meta($lesson->ID, '_bhc_course_id');
+        }
+    }
+
     /* ---------------- list table ---------------- */
 
     public static function course_columns($cols) {
@@ -403,5 +464,35 @@ class BHC_Admin {
             $t = BHM_Tiers::get($tier);
             echo esc_html($t['name'] ?? 'Gated');
         }
+    }
+
+    public static function lesson_columns($cols) {
+        $new = [];
+        foreach ($cols as $k => $v) {
+            $new[$k] = $v;
+            if ($k === 'title') $new['bhc_course'] = 'Course';
+        }
+        return $new;
+    }
+
+    // Surfaces the orphan/desync risk directly in the list table
+    // (previously only visible by reading postmeta by hand) — a lesson
+    // with no course, or one whose _bhc_course_id points at a course
+    // that's since been deleted (which cleanup_deleted_course() now
+    // prevents going forward, but pre-existing data or direct DB edits
+    // could still produce), shows a clear flag instead of silently
+    // being unreachable from any course screen.
+    public static function lesson_column_content($col, $post_id) {
+        if ($col !== 'bhc_course') return;
+        $course_id = BHC_PostTypes::course_for_lesson($post_id);
+        if (!$course_id) {
+            echo '<span style="color:#b32d2e;">&mdash; none —</span>';
+            return;
+        }
+        if (get_post_type($course_id) !== 'bh_course') {
+            echo '<span style="color:#b32d2e;">&mdash; orphaned (course deleted) —</span>';
+            return;
+        }
+        echo '<a href="' . esc_url(get_edit_post_link($course_id)) . '">' . esc_html(get_the_title($course_id)) . '</a>';
     }
 }

@@ -82,6 +82,27 @@ class BHC_Render_Lesson {
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
         echo '<div class="bhc-step-progress">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 
+        // Visual stepper: every step type-tagged and shown at a glance
+        // (previously "Step X of Y" was plain text with zero sense of
+        // what's ahead or what kind of content each step is — every
+        // type shared one flat card look). Dots up through the current
+        // step are clickable (courses.js), same reachability rule the
+        // existing per-step "Back" buttons already use — never lets a
+        // student skip ahead to an unseen step from here.
+        echo '<div class="bhc-stepper" role="tablist">';
+        foreach ($steps as $i => $step) {
+            $is_done = in_array($i, $completed, true);
+            $is_current = $i === $start_index;
+            $reachable = $is_done || $i <= $start_index;
+            $classes = 'bhc-stepper-dot bhc-stepper-' . esc_attr($step['type']);
+            if ($is_done) $classes .= ' bhc-stepper-done';
+            if ($is_current) $classes .= ' bhc-stepper-current';
+            echo '<button type="button" class="' . $classes . '" data-target-index="' . (int) $i . '"'
+                . (!$reachable ? ' disabled' : '') . ' title="Step ' . (int) ($i + 1) . ': ' . esc_attr(ucfirst($step['type'])) . '"'
+                . ' aria-current="' . ($is_current ? 'step' : 'false') . '"></button>';
+        }
+        echo '</div>';
+
         foreach ($steps as $i => $step) {
             $is_done = in_array($i, $completed, true);
             $visible = $i === $start_index ? '' : ' style="display:none;"';

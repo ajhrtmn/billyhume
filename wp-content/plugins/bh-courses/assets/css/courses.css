@@ -109,8 +109,44 @@
 .bhc-lesson-position { white-space: nowrap; }
 
 /* ---- lesson step walker ---- */
-.bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
-.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+.bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
+
+/* Visual stepper: one dot per step, type-tagged (a small letter glyph,
+   not a stock icon set this codebase doesn't otherwise pull in) so a
+   student can see at a glance what kind of content is ahead, not just
+   how many steps remain. Reachable (done or current-or-earlier) dots
+   are real buttons; everything past the current step is [disabled] —
+   courses.js enforces the same "can't skip ahead" rule the per-step
+   Back buttons already relied on. */
+.bhc-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.bhc-stepper-dot {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--bh-border);
+    background: var(--bh-surface); color: var(--bh-text-dim); font-size: 11px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;
+    padding: 0;
+}
+.bhc-stepper-dot::before { content: 'T'; }
+.bhc-stepper-image::before { content: 'I'; }
+.bhc-stepper-video::before { content: 'V'; }
+.bhc-stepper-quiz::before { content: 'Q'; }
+.bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
+.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-soft); border-color: var(--bh-accent); color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
+.bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
+
+/* Per-type accent so the step cards themselves aren't visually
+   interchangeable — a thin left border echoing the stepper dot's type,
+   not a full re-theme (the content itself should stay the focal
+   point). */
+.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+/* Scoped to the outer .bhc-step wrapper specifically — a text step's
+   INNER content div is coincidentally also named .bhc-step-text (see
+   render_step()'s own markup), so an unscoped rule here would double-
+   apply a border to that nested div too. */
+.bhc-step.bhc-step-text { border-left-color: var(--bh-text-dim); }
+.bhc-step.bhc-step-image { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-video { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-quiz { border-left-color: var(--bh-accent); }
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
 .bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }

@@ -369,8 +369,43 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.17');
+define('BHC_VER',  '0.4.18');
 
+// 0.4.18 — Second half of the same course<->lesson UX integration pass:
+// data-integrity guard + student-facing visual stepper.
+// (1) class-admin.php's save_lesson() now validates a posted
+// bhc_course_id against a real, non-trashed bh_course before writing
+// it (a stale/crafted POST no longer leaves a lesson pointing at
+// nothing), and auto-syncs the inverse pointer — the course's own
+// _bhc_lesson_order — whenever a lesson's course assignment changes
+// from the LESSON screen (add_lesson_to_order()/remove_lesson_from_order()),
+// closing the "two independent pointers, nothing keeps them in sync"
+// gap the audit flagged. A new before_delete_post hook
+// (cleanup_deleted_course()) clears _bhc_course_id off any lesson still
+// pointing at a course once it's permanently deleted (not on trash —
+// a trashed course is still a real, restorable post). The bh_lesson
+// list table gets a new "Course" column (lesson_columns()/
+// lesson_column_content()) that surfaces "— none —" / "— orphaned
+// (course deleted) —" directly instead of requiring a postmeta lookup
+// to notice.
+// (2) class-render-lesson.php's render_lesson_steps() now renders a
+// .bhc-stepper row of per-step dots (type-tagged T/I/V/Q glyphs,
+// done/current state) above the step walker, replacing the previous
+// plain "Step X of Y" text as the only progress signal; dots up
+// through the current step are clickable (courses.js), same
+// can't-skip-ahead rule the existing per-step Back buttons already
+// enforced. Every step card also gets a type-colored left border
+// (courses.css) instead of every step type sharing one identical flat
+// look. courses.js's showStep()/advance() and all three completion
+// paths (mark-complete button, quiz submit, video watch-threshold
+// auto-complete) now keep the stepper's done/current state in sync via
+// a new markStepDone() helper, so it can't drift from the .bhc-step-done
+// class it mirrors.
+// Verified live: republished the QA test lesson with a course
+// assignment change from the lesson screen and confirmed the course's
+// lesson order picked it up without a manual course-screen edit; the
+// stepper renders with the correct type glyph and advances/locks
+// correctly through mark-complete.
 // 0.4.17 — Course<->lesson UX integration pass, prompted by AJ's own
 // audit of the two authoring/navigation gaps this found: (1) a student
 // who deep-linked into a lesson (or just wanted out mid-lesson) had no
@@ -499,6 +534,9 @@ add_action('plugins_loaded', function () {
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
     add_filter('manage_bh_course_posts_columns', ['BHC_Admin', 'course_columns']);
     add_action('manage_bh_course_posts_custom_column', ['BHC_Admin', 'course_column_content'], 10, 2);
+    add_filter('manage_bh_lesson_posts_columns', ['BHC_Admin', 'lesson_columns']);
+    add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
+    add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
 
     add_action('wp_ajax_bhc_submit_quiz', ['BHC_Progress', 'ajax_submit_quiz']);
     add_action('wp_ajax_bhc_mark_complete', ['BHC_Progress', 'ajax_mark_complete']);
