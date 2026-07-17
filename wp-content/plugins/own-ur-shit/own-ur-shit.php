@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.2
+ * Version:     3.5.3
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,18 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.2');
+define('OUS_VER', '3.5.3');
+
+// 3.5.3 — Two more BH_ShareCard styles: 'poster-frame' (centered type,
+// bordered inset frame with corner registration-mark ticks) and
+// 'poster-block' (a solid color block with a reversed-color eyebrow tag
+// and a big single-letter monogram, title continuing onto the dark
+// remainder) — genuinely distinct compositions, not recolors of the
+// existing diagonal-band 'poster'. New STYLES const is the one place a
+// style gets registered/labeled now, so consuming plugins' picker UIs
+// read off it instead of each hardcoding their own copy of "which
+// styles exist." Verified by rendering both to real PNGs and looking
+// at them.
 
 // 3.5.2 — New shared BH_ShareCard engine (includes/class-share-card.php):
 // server-side generated (PHP GD, no headless browser/external service)

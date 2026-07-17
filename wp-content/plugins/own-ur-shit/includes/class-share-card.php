@@ -6,14 +6,20 @@ if (!defined('ABSPATH')) exit;
  * headless-browser dependency) — one implementation reused by any
  * plugin that wants a "shareable moment" card (bh-courses: course
  * completion; bh-contest: submission entered / vote-for-me), instead
- * of each plugin rolling its own GD code. Two selectable visual
- * styles, both real, not a placeholder-then-real-one-later split:
- * 'brand' reads the site's own live --bh-* palette (BH_Style::get()),
- * for a card that looks like it belongs next to everything else this
- * ecosystem renders; 'poster' is a deliberately bolder, stand-alone
- * treatment (big diagonal accent band, condensed all-caps display
- * type) for when a plugin/entity wants something louder than the
- * site's own chrome.
+ * of each plugin rolling its own GD code. 'brand' reads the site's own
+ * live --bh-* palette (BH_Style::get()), for a card that looks like it
+ * belongs next to everything else this ecosystem renders; the
+ * 'poster-*' styles are deliberately bolder, stand-alone treatments
+ * (fixed high-contrast colors, not the live site palette) for when a
+ * plugin/entity wants something louder than the site's own chrome —
+ * three distinct compositions today (diagonal band, bordered frame,
+ * color block), not three names for the same layout.
+ *
+ * STYLES is the one place a new style gets registered — every caller
+ * (admin style-picker UIs in bh-courses/bh-contest, this class's own
+ * dispatch) reads off this list rather than each hardcoding its own
+ * copy of "which styles exist," so adding a future style (e.g. a
+ * custom-logo/custom-asset-driven one) is a one-place change.
  *
  * Standard 1200x630 OG-image size throughout — the one dimension every
  * major platform (X/Twitter, Facebook, Discord, iMessage) actually
@@ -22,6 +28,18 @@ if (!defined('ABSPATH')) exit;
 class BH_ShareCard {
     const WIDTH = 1200;
     const HEIGHT = 630;
+
+    // key => label, in the order a picker UI should list them.
+    const STYLES = [
+        'brand' => 'Brand (matches site colors)',
+        'poster' => 'Poster — Diagonal',
+        'poster-frame' => 'Poster — Framed',
+        'poster-block' => 'Poster — Color Block',
+    ];
+
+    public static function is_valid_style($style) {
+        return isset(self::STYLES[$style]);
+    }
 
     private static function font($name) {
         return OUS_PATH . 'assets/fonts/' . $name;
@@ -77,15 +95,18 @@ class BH_ShareCard {
      * to imagepng()/imagedestroy() it.
      */
     public static function generate(array $args) {
-        $style = ($args['style'] ?? 'brand') === 'poster' ? 'poster' : 'brand';
+        $style = self::is_valid_style($args['style'] ?? '') ? $args['style'] : 'brand';
         $eyebrow = (string) ($args['eyebrow'] ?? '');
         $title = (string) ($args['title'] ?? '');
         $subtitle = (string) ($args['subtitle'] ?? '');
         $entity_id = $args['entity_id'] ?? null;
 
-        return $style === 'poster'
-            ? self::render_poster($eyebrow, $title, $subtitle)
-            : self::render_brand($eyebrow, $title, $subtitle, $entity_id);
+        switch ($style) {
+            case 'poster': return self::render_poster($eyebrow, $title, $subtitle);
+            case 'poster-frame': return self::render_poster_frame($eyebrow, $title, $subtitle);
+            case 'poster-block': return self::render_poster_block($eyebrow, $title, $subtitle);
+            default: return self::render_brand($eyebrow, $title, $subtitle, $entity_id);
+        }
     }
 
     /* ---------------- brand style ----------------
@@ -210,6 +231,122 @@ class BH_ShareCard {
         $box = imagettfbbox(20, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];
         imagettftext($im, 20, 0, self::WIDTH - 80 - $mark_width, self::HEIGHT - 45, $white, $body_font, $mark);
+
+        return $im;
+    }
+
+    /* ---------------- poster-frame style ----------------
+       A concert-poster inset border with centered type — a genuinely
+       different composition from the diagonal-band 'poster' (centered
+       vs. left-aligned, a contained border vs. a bleeding shape,
+       cream-on-near-black vs. white-on-near-black), not a recolor of
+       the same layout. Corner tick marks are the one decorative flourish,
+       echoing a printed poster's own registration/crop marks. */
+    private static function render_poster_frame($eyebrow, $title, $subtitle) {
+        $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
+        $bg = self::gd_color($im, '#161311');
+        $cream = self::gd_color($im, '#F3E9DC');
+        $accent = self::gd_color($im, '#E8A33D');
+        imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, $bg);
+
+        $margin = 44;
+        imagesetthickness($im, 2);
+        imagerectangle($im, $margin, $margin, self::WIDTH - $margin, self::HEIGHT - $margin, $accent);
+
+        // Corner tick marks, just outside the frame — a printed-poster
+        // registration-mark reference, purely decorative.
+        $tick = 16;
+        foreach ([[$margin, $margin], [self::WIDTH - $margin, $margin], [$margin, self::HEIGHT - $margin], [self::WIDTH - $margin, self::HEIGHT - $margin]] as $corner) {
+            [$cx, $cy] = $corner;
+            imageline($im, $cx - $tick, $cy, $cx + $tick, $cy, $accent);
+            imageline($im, $cx, $cy - $tick, $cx, $cy + $tick, $accent);
+        }
+
+        $display_font = self::font('BebasNeue-Regular.ttf');
+        $body_font = self::font('WorkSans-Variable.ttf');
+        $inner_width = self::WIDTH - ($margin + 60) * 2;
+        $y = 200;
+
+        if ($eyebrow !== '') {
+            $text = mb_strtoupper($eyebrow);
+            $box = imagettfbbox(22, 0, $body_font, $text);
+            $tw = $box[2] - $box[0];
+            imagettftext($im, 22, 0, (int) ((self::WIDTH - $tw) / 2), $y, $accent, $body_font, $text);
+            $y += 80;
+        }
+
+        $title_lines = self::wrap_text(mb_strtoupper($title), $display_font, 80, $inner_width);
+        foreach (array_slice($title_lines, 0, 2) as $line) {
+            $box = imagettfbbox(80, 0, $display_font, $line);
+            $tw = $box[2] - $box[0];
+            imagettftext($im, 80, 0, (int) ((self::WIDTH - $tw) / 2), $y, $cream, $display_font, $line);
+            $y += 82;
+        }
+
+        if ($subtitle !== '') {
+            $y += 24;
+            $box = imagettfbbox(24, 0, $body_font, $subtitle);
+            $tw = $box[2] - $box[0];
+            imagettftext($im, 24, 0, (int) ((self::WIDTH - $tw) / 2), $y, $accent, $body_font, $subtitle);
+        }
+
+        $mark = 'OWN UR SHIT';
+        $box = imagettfbbox(16, 0, $body_font, $mark);
+        $mw = $box[2] - $box[0];
+        imagettftext($im, 16, 0, (int) ((self::WIDTH - $mw) / 2), self::HEIGHT - $margin - 22, $cream, $body_font, $mark);
+
+        return $im;
+    }
+
+    /* ---------------- poster-block style ----------------
+       A solid color block on the left third with reversed (dark-on-
+       accent) type, title continuing onto the dark right two-thirds —
+       the "album-art tile" composition: big flat color shape as the
+       dominant visual weight, rather than a line/border doing the work
+       'poster'/'poster-frame' use. Left-aligned throughout, unlike
+       poster-frame's centered layout. */
+    private static function render_poster_block($eyebrow, $title, $subtitle) {
+        $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
+        $dark = self::gd_color($im, '#0E1116');
+        $block = self::gd_color($im, '#3D5AFE');
+        $white = self::gd_color($im, '#ffffff');
+        imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, $dark);
+
+        $block_width = 360;
+        imagefilledrectangle($im, 0, 0, $block_width, self::HEIGHT, $block);
+
+        $display_font = self::font('BebasNeue-Regular.ttf');
+        $body_font = self::font('WorkSans-Variable.ttf');
+
+        // Eyebrow lives INSIDE the block, reversed color — the block
+        // itself functions as a tag/label, not just a background shape.
+        if ($eyebrow !== '') {
+            imagettftext($im, 20, 0, 44, 100, $dark, $body_font, mb_strtoupper($eyebrow));
+        }
+        // A big single-letter monogram (the title's first character) —
+        // the block's dominant visual element, same "one bold graphic
+        // mark" reasoning album-art tiles/app icons lean on, filling
+        // space a plain color rectangle would otherwise leave empty.
+        $initial = mb_strtoupper(mb_substr(trim($title), 0, 1)) ?: '#';
+        imagettftext($im, 180, 0, 44, 420, $white, $display_font, $initial);
+
+        $x = $block_width + 60;
+        $y = 220;
+        $title_lines = self::wrap_text($title, $body_font, 52, self::WIDTH - $x - 60);
+        foreach (array_slice($title_lines, 0, 3) as $line) {
+            imagettftext($im, 52, 0, $x + 1, $y, $white, $body_font, $line);
+            imagettftext($im, 52, 0, $x, $y, $white, $body_font, $line);
+            $y += 64;
+        }
+        if ($subtitle !== '') {
+            $y += 16;
+            imagettftext($im, 24, 0, $x, $y, self::gd_color($im, '#9AA5C0'), $body_font, $subtitle);
+        }
+
+        $mark = 'OWN UR SHIT';
+        $mbox = imagettfbbox(16, 0, $body_font, $mark);
+        $mw = $mbox[2] - $mbox[0];
+        imagettftext($im, 16, 0, self::WIDTH - 44 - $mw, self::HEIGHT - 40, self::gd_color($im, '#9AA5C0'), $body_font, $mark);
 
         return $im;
     }
