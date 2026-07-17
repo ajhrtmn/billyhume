@@ -65,19 +65,21 @@ class BHI_Reports {
         ?>
         <style>
             /* AJ's own ask: this widget was colliding with bh-contest's
-               fixed bottom player bar on contest pages. Rather than this
-               plugin (own-ur-shit core, no dependency on bh-contest)
-               detecting that bar's presence in JS, it reads the SAME
-               --bh-bar-height custom property bh-contest's own player.css
-               already sets on :root for exactly this purpose (its own
-               .bh-toast component already positions itself above the bar
-               this same way — see player.css). CSS custom properties
-               cascade through :root regardless of which stylesheet
-               defined them, so this works with zero coupling: on a page
-               where that property isn't defined at all (no player bar),
-               the var() fallback (0px) makes this behave exactly as
-               before. */
-            .bhi-tech-report { position: fixed; right: 16px; bottom: calc(16px + var(--bh-bar-height, 0px)); z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+               fixed bottom player bar on contest pages. First attempt
+               read bh-contest's --bh-bar-height CSS custom property
+               (set on :root by player.css) — real bug, caught live by
+               AJ, not by re-reading the code: player.css also loads on
+               Archive/Results-Reveal-only pages (they share its fonts/
+               theme vars), which do NOT render the actual
+               .bh-now-playing-bar element, but :root still defines the
+               property regardless of whether the bar exists — a
+               phantom ~84px gap under the button with nothing there to
+               justify it. Fixed with real DOM detection instead (below,
+               in JS): only apply the offset when .bh-now-playing-bar
+               genuinely exists on the page. Default bottom stays 16px;
+               JS adds the real, measured bar height via inline style
+               only when the element is actually present. */
+            .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
             .bhi-tech-report-toggle {
                 background: var(--bhy-surface, #fff); color: var(--bhy-ink-dim, #646970);
                 border: 1px solid var(--bhy-border, #dcdcde); border-radius: 999px;
@@ -171,6 +173,42 @@ class BHI_Reports {
 
             var root = document.getElementById('bhi-tech-report');
             if (!root) return;
+
+            // Real DOM detection, not a CSS-variable proxy (see the
+            // comment above this widget's own CSS block for why the
+            // first attempt was wrong) — only clears space for the bar
+            // when it's actually rendered on THIS page. getBoundingClientRect().height
+            // (not a hardcoded 84px) so this stays correct even if the
+            // bar's own height ever changes (e.g. its mobile breakpoint,
+            // player.css line ~483) without this file needing to know
+            // that number at all. Re-checked on resize, not just once at
+            // load, since the bar's mobile height differs from desktop.
+            function repositionAboveBar() {
+                var bar = document.querySelector('.bh-now-playing-bar');
+                root.style.bottom = bar ? (16 + bar.getBoundingClientRect().height) + 'px' : '16px';
+            }
+            repositionAboveBar();
+            window.addEventListener('resize', repositionAboveBar);
+            // The bar is built client-side by bh-contest's own player.js
+            // (this.root.innerHTML = ... in its constructor), not
+            // server-rendered — synchronous in practice, but this
+            // widget's own script tag order relative to player.js's isn't
+            // guaranteed, so a MutationObserver catches the bar showing
+            // up a tick later instead of leaving the button misplaced
+            // until the next window resize (which might never happen).
+            // Disconnects itself the first time it actually finds the
+            // bar — nothing left running once the one thing it's
+            // watching for has happened.
+            if (window.MutationObserver) {
+                var barWatcher = new MutationObserver(function () {
+                    if (document.querySelector('.bh-now-playing-bar')) {
+                        repositionAboveBar();
+                        barWatcher.disconnect();
+                    }
+                });
+                barWatcher.observe(document.body, { childList: true, subtree: true });
+            }
+
             var toggle = root.querySelector('.bhi-tech-report-toggle');
             var panel = root.querySelector('.bhi-tech-report-panel');
             var text = root.querySelector('.bhi-tech-report-text');

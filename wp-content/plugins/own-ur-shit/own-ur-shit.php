@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.8
+ * Version:     3.5.9
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,24 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.8');
+define('OUS_VER', '3.5.9');
+
+// 3.5.9 — Real bug in 3.5.8's own player-bar fix, caught live by AJ
+// ("definitely isn't at the bottom when the player bar is gone"): the
+// --bh-bar-height CSS-variable approach was wrong because bh-contest's
+// player.css also loads on Archive/Results-Reveal-only pages (shared
+// fonts/theme vars) that never render the actual .bh-now-playing-bar
+// element — :root still defined the property regardless, leaving a
+// phantom ~84px gap under the button on pages with no bar to justify
+// it. Replaced with real DOM detection: JS checks for
+// .bh-now-playing-bar's actual presence and measured height (not a
+// hardcoded number), re-checked on resize and via a MutationObserver
+// (the bar is built client-side by player.js, not server-rendered, so
+// script-order timing isn't guaranteed). Verified live on both the
+// Reveal Party page (no bar — button now flush at 16px, confirmed the
+// original bug is gone) and the real player page (bar present — button
+// still clears it correctly).
+
 
 // 3.5.8 — Two AJ-flagged fixes to the technical-report widget.
 // (1) It was colliding with bh-contest's fixed bottom player bar on
