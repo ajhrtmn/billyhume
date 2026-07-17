@@ -59,7 +59,31 @@ A track can carry a real ISRC now (`_bhs_isrc`, on the track edit
 screen — see `BHS_Admin::render_track_metabox()`), surfaced as
 schema.org's actual `MusicRecording.isrcCode` property wherever
 `[bh_streaming track="..."]` sets SEO data (`BHS_Player::
-maybe_set_seo_data()`). AJ's own next ask, not yet scoped or built:
+maybe_set_seo_data()`). A "Generate placeholder" button fills the
+field with an obviously-fake code (`ZZOUS...` — `ZZ` is ISO 3166-1's
+own reserved "never a real country" code) so the field/storage/schema-
+suppression shape can be exercised now, ahead of Own Ur Shit actually
+registering as a real ISRC issuer (`BHS_ISRC::is_mock()` is the single
+place that pattern is defined — real-issuer work later is a matter of
+generating a real code instead of a placeholder, not a rewrite of
+anything downstream). Mock codes are deliberately never published in
+this track's structured data (`class-player.php` strips them before
+calling `BH_SEO`).
+
+**PRO registration wizard — roadmapped, not built this pass** (AJ,
+2026-07-17): a guided walkthrough (same `OUS_MediaWizard` "it just
+works" pattern) that helps an artist register directly with their PRO
+(ASCAP/BMI/SESAC/GMR/etc. — deep links + a short explainer, same shape
+as the media/CDN wizard's provider picker), then lets them record their
+PRO name and IPI/CAE number back into the system once affiliated. No
+live-validation "test connection" step is possible here the way the
+media wizard has one — PROs don't expose a public verification API —
+so this is a guided-links-plus-storage flow, not a real integration.
+Deliberately not started this pass to avoid scope creep away from
+higher-priority work; the concrete shape above is here so it doesn't
+need to be re-derived from scratch when picked up.
+
+AJ's own next ask beyond the PRO wizard, also not yet scoped or built:
 PRO affiliation (ASCAP/BMI/SESAC/etc.) and publishing-split management
 — a real songwriter/publisher/split data model this plugin doesn't
 have today, closer in shape to bh-monetization-woo's own

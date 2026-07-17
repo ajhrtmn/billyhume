@@ -116,8 +116,26 @@ class BHS_Admin {
         // in ROADMAP-safety-and-metrics.md's long-term legal/safety
         // section, not something this field touches.
         $isrc = get_post_meta($post->ID, '_bhs_isrc', true);
+        $is_mock = (bool) get_post_meta($post->ID, '_bhs_isrc_is_mock', true);
         echo '<p><label><strong>ISRC</strong> <span class="description">(International Standard Recording Code, optional)</span><br>'
-           . '<input type="text" name="bhs_isrc" value="' . esc_attr($isrc) . '" style="width:100%;" placeholder="e.g. USRC17607839" pattern="[A-Za-z]{2}[A-Za-z0-9]{3}\d{2}\d{5}"></label></p>';
+           . '<input type="text" id="bhs_isrc_field" name="bhs_isrc" value="' . esc_attr($isrc) . '" style="width:75%;" placeholder="e.g. USRC17607839" pattern="[A-Za-z]{2}[A-Za-z0-9]{3}\d{2}\d{5}"> '
+           . '<button type="button" class="button" id="bhs_isrc_mock_btn">Generate placeholder</button></label></p>';
+        echo '<p class="description" id="bhs_isrc_mock_note" style="' . ($is_mock ? '' : 'display:none;') . 'color:#996800;">'
+           . 'This is a placeholder, not a real registered ISRC — see BHS_ISRC::generate_mock() in class-isrc.php. It won\'t be published in this track\'s structured data until replaced with a real code.</p>';
+        echo '<script>
+        document.getElementById("bhs_isrc_mock_btn").addEventListener("click", function () {
+            var field = document.getElementById("bhs_isrc_field");
+            var note = document.getElementById("bhs_isrc_mock_note");
+            var yy = String(new Date().getFullYear()).slice(-2);
+            var seq = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+            field.value = "ZZOUS" + yy + seq;
+            note.style.display = "";
+        });
+        document.getElementById("bhs_isrc_field").addEventListener("input", function () {
+            var note = document.getElementById("bhs_isrc_mock_note");
+            if (!/^ZZOUS\d{7}$/.test(this.value)) note.style.display = "none";
+        });
+        </script>';
 
         echo '<p><strong>Release</strong> <span class="description">(optional — groups this track into an album/EP)</span></p>';
         echo '<select name="bhs_release_id"><option value="">— None —</option>';
@@ -281,7 +299,15 @@ class BHS_Admin {
         // assigned by the RIGHTS HOLDER, not the aggregator an external
         // feed pulled the track from, so it stays editable even on an
         // imported track.
-        if (isset($_POST['bhs_isrc']))        update_post_meta($post_id, '_bhs_isrc', sanitize_text_field($_POST['bhs_isrc']));
+        if (isset($_POST['bhs_isrc'])) {
+            $isrc_val = sanitize_text_field($_POST['bhs_isrc']);
+            update_post_meta($post_id, '_bhs_isrc', $isrc_val);
+            // Re-derived server-side from the value itself (never
+            // trusted from a hidden POST field) — BHS_ISRC::is_mock()
+            // is the one place this pattern is defined, shared with
+            // class-player.php's own check before publishing isrcCode.
+            update_post_meta($post_id, '_bhs_isrc_is_mock', class_exists('BHS_ISRC') && BHS_ISRC::is_mock($isrc_val) ? 1 : 0);
+        }
 
         // The save-side counterpart to render_track_monetization_metabox()
         // above — whatever fields bh-monetization-woo's own UI rendered

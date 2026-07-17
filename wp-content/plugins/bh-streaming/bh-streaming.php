@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.6
+ * Version:     0.5.7
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,20 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.6');
+define('BHS_VER',  '0.5.7');
+
+// 0.5.7 — mock ISRC issuance, built against the shape now so real
+// issuance is a drop-in later (AJ's own ask): new BHS_ISRC
+// (includes/class-isrc.php) recognizes a placeholder pattern
+// ("ZZOUS..." — ZZ is ISO 3166-1's own reserved "never a real
+// country" code, so it can't collide with a real ISRC once issued for
+// real). Track edit screen gets a "Generate placeholder" button; the
+// save handler re-derives the mock flag server-side rather than
+// trusting a hidden POST field. maybe_set_seo_data() now strips a mock
+// ISRC before it ever reaches published schema.org data — a fake code
+// never gets published as if it were real. PRO-registration wizard
+// scoped and written up in this plugin's own README rather than built
+// this pass, to stay on higher-priority work.
 
 // 0.5.6 — closes ROADMAP-discoverability.md's own named gap: [bh_streaming]
 // now optionally accepts a `track` or `release` ID attribute
@@ -107,7 +120,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 

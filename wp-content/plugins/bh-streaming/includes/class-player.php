@@ -228,6 +228,14 @@ class BHS_Player {
             $art_id = (int) get_post_meta($track_id, '_bhs_artwork_id', true);
             $image = $art_id ? wp_get_attachment_image_url($art_id, 'large') : null;
             $isrc = get_post_meta($track_id, '_bhs_isrc', true);
+            // A mock/placeholder ISRC (BHS_ISRC::is_mock()) never goes
+            // into published structured data — publishing something
+            // shaped like a real ISRC that isn't one would misrepresent
+            // the recording's actual registration status, exactly the
+            // failure mode the 'ZZ' reserved-country-code choice exists
+            // to prevent at the storage layer; this is the same
+            // guarantee carried through to what search engines see.
+            if ($isrc && class_exists('BHS_ISRC') && BHS_ISRC::is_mock($isrc)) $isrc = '';
 
             BH_SEO::set_page_data([
                 'title' => $post->post_title . ($artist ? ' by ' . $artist : '') . ' — ' . get_bloginfo('name'),
