@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.1
+ * Version:     3.5.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,29 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.1');
+define('OUS_VER', '3.5.2');
+
+// 3.5.2 — New shared BH_ShareCard engine (includes/class-share-card.php):
+// server-side generated (PHP GD, no headless browser/external service)
+// 1200x630 social-share PNG cards, two selectable visual styles —
+// 'brand' reads the site's live BH_Style palette; 'poster' is a
+// deliberately louder, stand-alone look (Bebas Neue on a diagonal
+// accent band) independent of whatever theme preset is active. Two new
+// vendored OFL-licensed fonts (assets/fonts/: BebasNeue-Regular.ttf,
+// WorkSans-Variable.ttf — the latter fetched as Google Fonts' current
+// variable-font release since the old static-weight files were removed
+// upstream; GD renders its default instance fine, faux-bold via a
+// 1px-offset double-draw where a bolder weight is wanted). First
+// consumers are bh-courses (course-completion card) and bh-contest
+// ("entered"/"vote for me" cards) — this class has zero knowledge of
+// either, pure reusable rendering. Caught and fixed two real bugs by
+// actually rendering test PNGs and looking at them, not just reading
+// the coordinates: the poster style's eyebrow label originally
+// overlapped the display-type headline (needed more vertical clearance
+// than the eyebrow's own font size suggested), and the bottom-right
+// wordmark was rendered in a near-black color that was invisible
+// against the near-black background in the one corner the diagonal
+// accent band doesn't reach.
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently
@@ -2432,7 +2454,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
