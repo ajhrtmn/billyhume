@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.5
+ * Version:     0.5.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,24 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.5');
+define('BHS_VER',  '0.5.6');
+
+// 0.5.6 — closes ROADMAP-discoverability.md's own named gap: [bh_streaming]
+// now optionally accepts a `track` or `release` ID attribute
+// (BHS_Player::maybe_set_seo_data()) and, if given, sets real
+// MusicRecording/MusicAlbum schema.org JSON-LD via BH_SEO — the same
+// mechanism bh-courses/bh-contest already use for Course/Event. Purely
+// additive: the SPA shell (#bhs-app) itself is completely untouched,
+// this is server-side metadata only. Also adds a real ISRC field to
+// the track edit screen (_bhs_isrc, BHS_Admin::render_track_metabox())
+// surfaced as MusicRecording.isrcCode — AJ's own ask for real rights/
+// registration metadata, not just a catalog record. PRO affiliation/
+// publishing-split management and audio-fingerprinting/Content-ID-
+// style matching are both flagged as real, larger, not-yet-scoped
+// follow-ups in this plugin's own README rather than guessed at here.
+// Verified live: a real published track rendered correct MusicRecording
+// JSON-LD (name, byArtist, image) with zero change to player mount/
+// behavior, and exactly one canonical tag.
 
 // 0.5.5 — real cross-browser gap, caught by a grounded browser-quirk
 // audit of every first-party .css/.js file in the ecosystem (not

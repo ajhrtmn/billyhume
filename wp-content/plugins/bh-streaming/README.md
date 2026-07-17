@@ -52,3 +52,28 @@ Needs to be installed and active first.
 - The recommendation engine iterates the whole catalog per request
   (an N+1-ish query pattern) — fine at the scale this is likely to see
   for a while, worth revisiting if the catalog gets genuinely large.
+
+## Not built yet: rights/registration metadata beyond ISRC
+
+A track can carry a real ISRC now (`_bhs_isrc`, on the track edit
+screen — see `BHS_Admin::render_track_metabox()`), surfaced as
+schema.org's actual `MusicRecording.isrcCode` property wherever
+`[bh_streaming track="..."]` sets SEO data (`BHS_Player::
+maybe_set_seo_data()`). AJ's own next ask, not yet scoped or built:
+PRO affiliation (ASCAP/BMI/SESAC/etc.) and publishing-split management
+— a real songwriter/publisher/split data model this plugin doesn't
+have today, closer in shape to bh-monetization-woo's own
+purchase/entitlement records than to anything currently on the track
+CPT. Worth a real design pass (who are the parties, what's the split
+shape, does a track need MULTIPLE writers/publishers with different
+percentages) rather than a couple of guessed text fields.
+
+Separately, AJ also raised something YouTube-Content-ID-shaped —
+automated matching against other audio to catch unauthorized use
+elsewhere. That's a fundamentally different, much larger piece of
+infrastructure (audio fingerprinting + a matching pipeline, not a
+metadata field) and isn't new: it's already named in
+`ROADMAP-safety-and-metrics.md`'s long-term legal/safety section
+("real audio fingerprinting"). Restating the pointer here so it isn't
+lost as a "wait, did we already think about this" moment later —
+still unscoped, still a real future project, not attempted this pass.

@@ -54,11 +54,13 @@ class BHS_Player {
         ]);
     }
 
-    public static function render() {
+    public static function render($atts = []) {
         // Hidden (not removed) in production while this is still being
         // actively built out — see class-env.php. Dev/staging renders
         // exactly as before.
         if (BHS_Env::hidden_in_production()) return '';
+
+        self::maybe_set_seo_data($atts);
 
         return '
         <div class="bhs-app" id="bhs-app">
@@ -196,5 +198,73 @@ class BHS_Player {
                 </div>
             </div>
         </div>';
+    }
+
+    /**
+     * ROADMAP-discoverability.md Section 3's own named gap, closed:
+     * [bh_streaming] previously had NO way to attach real per-item
+     * schema.org data, because the shortcode always rendered the same
+     * whole-library SPA shell with zero server-side knowledge of any
+     * single track/release. This is metadata-only — it doesn't change
+     * what the SPA mounts or does; a page embeds a track/release ID
+     * (`[bh_streaming track="123"]` / `[bh_streaming release="45"]`)
+     * purely so this method has something to look up. Track wins if
+     * both are somehow given. Public/access-gated tracks still get
+     * indexed with correct metadata — 'MusicRecording' describing the
+     * WORK, not the locked audio file itself, same posture bh-courses'
+     * Course schema takes (the course description is public even
+     * though the lessons are gated).
+     */
+    private static function maybe_set_seo_data($atts) {
+        if (!class_exists('BH_SEO')) return;
+        $atts = shortcode_atts(['track' => '', 'release' => ''], is_array($atts) ? $atts : []);
+
+        if ($atts['track'] !== '') {
+            $track_id = (int) $atts['track'];
+            $post = $track_id ? get_post($track_id) : null;
+            if (!$post || $post->post_type !== 'bhs_track') return;
+
+            $artist = get_post_meta($track_id, '_bhs_artist', true);
+            $art_id = (int) get_post_meta($track_id, '_bhs_artwork_id', true);
+            $image = $art_id ? wp_get_attachment_image_url($art_id, 'large') : null;
+            $isrc = get_post_meta($track_id, '_bhs_isrc', true);
+
+            BH_SEO::set_page_data([
+                'title' => $post->post_title . ($artist ? ' by ' . $artist : '') . ' — ' . get_bloginfo('name'),
+                'description' => $post->post_title . ($artist ? ', by ' . $artist : '') . ' on ' . get_bloginfo('name'),
+                'image' => $image,
+                'type' => 'music.song',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'MusicRecording',
+                    'name' => $post->post_title,
+                    'byArtist' => $artist ? ['@type' => 'MusicGroup', 'name' => $artist] : null,
+                    'image' => $image,
+                    'isrcCode' => $isrc ?: null,
+                ],
+            ]);
+        } elseif ($atts['release'] !== '') {
+            $release_id = (int) $atts['release'];
+            $post = $release_id ? get_post($release_id) : null;
+            if (!$post || $post->post_type !== 'bhs_release') return;
+
+            $artist = get_post_meta($release_id, '_bhs_release_artist', true);
+            $art_id = (int) get_post_meta($release_id, '_bhs_release_artwork_id', true);
+            $image = $art_id ? wp_get_attachment_image_url($art_id, 'large') : null;
+
+            BH_SEO::set_page_data([
+                'title' => $post->post_title . ($artist ? ' by ' . $artist : '') . ' — ' . get_bloginfo('name'),
+                'description' => $post->post_title . ($artist ? ', by ' . $artist : '') . ' on ' . get_bloginfo('name'),
+                'image' => $image,
+                'type' => 'music.album',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'MusicAlbum',
+                    'name' => $post->post_title,
+                    'byArtist' => $artist ? ['@type' => 'MusicGroup', 'name' => $artist] : null,
+                    'image' => $image,
+                ],
+            ]);
+        }
     }
 }

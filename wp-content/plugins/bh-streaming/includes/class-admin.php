@@ -102,6 +102,23 @@ class BHS_Admin {
 
         echo '<p><label><strong>Artist</strong><br><input type="text" name="bhs_artist" value="' . esc_attr($artist) . '" style="width:100%;" placeholder="Artist name"' . ($is_external ? ' disabled' : '') . '></label></p>';
 
+        // AJ's own ask: real rights/registration metadata, not just a
+        // catalog record. ISRC specifically because schema.org's own
+        // MusicRecording type has a real 'isrcCode' property — this
+        // becomes indexable structured data (see maybe_set_seo_data()
+        // in class-player.php), not just an admin-only reference field.
+        // PRO affiliation (ASCAP/BMI/etc.) and publishing-split
+        // management are a larger, not-yet-scoped feature (a
+        // songwriter/publisher data model this plugin doesn't have
+        // yet) — flagged in this plugin's own README rather than
+        // guessed at here. Full audio-fingerprinting/Content-ID-style
+        // matching is a separate, much larger ambition already named
+        // in ROADMAP-safety-and-metrics.md's long-term legal/safety
+        // section, not something this field touches.
+        $isrc = get_post_meta($post->ID, '_bhs_isrc', true);
+        echo '<p><label><strong>ISRC</strong> <span class="description">(International Standard Recording Code, optional)</span><br>'
+           . '<input type="text" name="bhs_isrc" value="' . esc_attr($isrc) . '" style="width:100%;" placeholder="e.g. USRC17607839" pattern="[A-Za-z]{2}[A-Za-z0-9]{3}\d{2}\d{5}"></label></p>';
+
         echo '<p><strong>Release</strong> <span class="description">(optional — groups this track into an album/EP)</span></p>';
         echo '<select name="bhs_release_id"><option value="">— None —</option>';
         foreach (get_posts(['post_type' => 'bhs_release', 'post_status' => 'publish', 'posts_per_page' => -1]) as $r) {
@@ -260,6 +277,11 @@ class BHS_Admin {
         }
         if (isset($_POST['bhs_artwork_id']))  update_post_meta($post_id, '_bhs_artwork_id', (int) $_POST['bhs_artwork_id']);
         if (isset($_POST['bhs_release_id']))  update_post_meta($post_id, '_bhs_release_id', (int) $_POST['bhs_release_id']);
+        // Not source-locked like artist/audio above — an ISRC is
+        // assigned by the RIGHTS HOLDER, not the aggregator an external
+        // feed pulled the track from, so it stays editable even on an
+        // imported track.
+        if (isset($_POST['bhs_isrc']))        update_post_meta($post_id, '_bhs_isrc', sanitize_text_field($_POST['bhs_isrc']));
 
         // The save-side counterpart to render_track_monetization_metabox()
         // above — whatever fields bh-monetization-woo's own UI rendered
