@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.1
+ * Version:     2.4.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -341,7 +341,18 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.4.1');
+define('BHCRM_VER',  '2.4.2');
+
+// 2.4.2 — First real contributor to own-ur-shit's new shared Metrics
+// dashboard (OUS_Metrics, class-metrics.php): two widgets appended to
+// includes/class-people.php (People tracked, Relationship links). The
+// first real consumer of OUS_Metrics::event_trend_monthly() rather
+// than its 30-day daily event_trend() — AJ's own live framing while
+// this dashboard was being wired up across all three CRM-adjacent
+// plugins: "Not short term trends, long term patterns." A relationship
+// graph is a slower-moving thing than a vote or an enrollment; a daily
+// sparkline of it would mostly be noise. class_exists()-guarded; does
+// nothing if own-ur-shit's metrics class isn't present.
 
 // 2.4.1 — Log-pollution fix (own-ur-shit 3.5.6's own changelog has the
 // full explanation): class-hub.php's log_result() only logs a

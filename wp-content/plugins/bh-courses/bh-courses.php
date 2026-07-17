@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.25
+ * Version:     0.4.26
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,16 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.25');
+define('BHC_VER',  '0.4.26');
+
+// 0.4.26 — First real contributor to own-ur-shit's new shared Metrics
+// dashboard (OUS_Metrics, class-metrics.php): three widgets in
+// includes/class-crm-integration.php (Enrollments, Course completions,
+// Avg. quiz score), built in tandem with that dashboard per AJ's own
+// "foundational infrastructure, not a bolt-on" instruction. Reads
+// bhc/enroll and bhc/course_completed events already flowing — no new
+// instrumentation added. class_exists()-guarded; does nothing if
+// own-ur-shit's metrics class isn't present.
 
 // 0.4.25 — Whole-course duplication ("Duplicate this course as a
 // template") — a fresh audit against Teachable/Thinkific/Kajabi/

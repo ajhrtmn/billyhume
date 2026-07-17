@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.7
+ * Version:     3.6.8
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,15 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.7');
+define('BH_VER',        '3.6.8');
+
+// 3.6.8 — First real contributor to own-ur-shit's new shared Metrics
+// dashboard (OUS_Metrics, class-metrics.php): two widgets in
+// includes/class-crm-integration.php (Submissions, Votes cast), same
+// "tandem infrastructure" pass as bh-courses' own version of this
+// registration. Reads bh/submission_created and bh/vote events already
+// flowing — see class-api.php's own emit() call sites. class_exists()-
+// guarded; does nothing if own-ur-shit's metrics class isn't present.
 
 // 3.6.7 — Contract-drift fix in player.js, flagged by an audit run
 // right after the quiz-shuffle bug this same session (the same failure

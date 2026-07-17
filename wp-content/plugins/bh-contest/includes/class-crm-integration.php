@@ -86,3 +86,24 @@ class BH_CRMIntegration {
         }
     }
 }
+
+// First real bh-contest contributor to the shared Metrics dashboard
+// (own-ur-shit's OUS_Metrics) — same "build in tandem, not as a later
+// bolt-on" instruction as bh-courses' own version of this same
+// registration (class-crm-integration.php). Both event types
+// (bh/vote, bh/submission_created) already flow — see class-api.php's
+// own emit() call sites — so this is pure aggregation, no new
+// tracking instrumentation needed.
+add_filter('bhcore_metrics_widgets', function ($widgets) {
+    if (!class_exists('OUS_Metrics')) return $widgets;
+
+    $widgets[] = ['source' => 'BH Contest', 'render' => function () {
+        $trend = OUS_Metrics::event_trend('bh/submission_created', 30);
+        OUS_Metrics::render_card('Submissions', array_sum($trend), 'Last 30 days', $trend);
+    }];
+    $widgets[] = ['source' => 'BH Contest', 'render' => function () {
+        $trend = OUS_Metrics::event_trend('bh/vote', 30);
+        OUS_Metrics::render_card('Votes cast', array_sum($trend), 'Last 30 days (includes un-votes)', $trend);
+    }];
+    return $widgets;
+});

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.1
+ * Version:     3.6.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,24 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.1');
+define('OUS_VER', '3.6.2');
+
+// 3.6.2 — new OUS_Metrics (includes/class-metrics.php): the shared
+// creator-dashboard VISION.md's own roadmap has named since before
+// this pass, built now as real foundational infrastructure rather
+// than a later bolt-on — AJ's own explicit ask to grow this in tandem
+// with bh-courses/bh-contest/bh-crm. Pure read/aggregate layer over
+// bhcore_events (BH_Event's own table); writes nothing new. Gated to
+// manage_options, renders counts/trends only, never a per-visitor
+// identity lookup. Ships with both a daily event_trend() (0-filled,
+// 30-day default) and a monthly event_trend_monthly() (0-filled,
+// 12-month default) — the second added per AJ's own live follow-up
+// on this exact feature: "Not short term trends, long term patterns."
+// First three real contributors, all shipped in this same pass:
+// bh-courses (enrollments, completions, avg. quiz score —
+// class-crm-integration.php), bh-contest (submissions, votes — same
+// file name), bh-crm (people tracked, relationship-link growth —
+// class-people.php, the first real consumer of the monthly view).
 
 // 3.6.1 — Slice 1 of ROADMAP-discoverability.md: new BH_SEO
 // (includes/class-seo.php), a shared meta/OG/Twitter-Card/JSON-LD
@@ -2627,7 +2644,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2649,6 +2666,7 @@ add_action('init',          ['BHI_PublicProfile', 'init']);
 add_action('init',          ['BHI_Reports', 'init']);
 add_action('init',          ['OUS_MediaWizard', 'init']);
 add_action('init',          ['BH_SEO', 'init']);
+add_action('init',          ['OUS_Metrics', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 

@@ -126,3 +126,39 @@ add_action('bhc_enrolled', function ($user_id, $course_id) {
         'BH Courses'
     );
 }, 10, 2);
+
+// First real bh-courses contributor to the shared Metrics dashboard
+// (own-ur-shit's OUS_Metrics, class-metrics.php) — AJ's own ask to
+// build this in tandem with the LMS/contest hardening rather than as a
+// later bolt-on. Two cards from BH_Event data (already flowing —
+// bhc/enroll and bhc/course_completed have been real, live events
+// since earlier this session, not new instrumentation added just for
+// this), one from a direct bhc_progress query for the metric BH_Event
+// doesn't carry (score isn't part of the enroll/complete event
+// payloads, and re-deriving it from events would just be a slower,
+// more roundabout version of the same query bhc_progress already
+// answers directly).
+add_filter('bhcore_metrics_widgets', function ($widgets) {
+    if (!class_exists('OUS_Metrics')) return $widgets;
+
+    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+        $trend = OUS_Metrics::event_trend('bhc/enroll', 30);
+        OUS_Metrics::render_card('Enrollments', array_sum($trend), 'Last 30 days', $trend);
+    }];
+    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+        $trend = OUS_Metrics::event_trend('bhc/course_completed', 30);
+        OUS_Metrics::render_card('Course completions', array_sum($trend), 'Last 30 days', $trend);
+    }];
+    $widgets[] = ['source' => 'BH Courses', 'render' => function () {
+        global $wpdb;
+        // Only rows with a real score (quiz steps) — plain text/image
+        // steps store score=NULL (see class-progress.php's own
+        // NULL-vs-placeholder handling), which would silently drag a
+        // naive AVG() toward 0 if included.
+        $avg = $wpdb->get_var(
+            "SELECT AVG(score) FROM {$wpdb->prefix}bhc_progress WHERE score IS NOT NULL AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+        );
+        OUS_Metrics::render_card('Avg. quiz score', $avg !== null ? round($avg) . '%' : '—', 'Last 30 days, all courses');
+    }];
+    return $widgets;
+});

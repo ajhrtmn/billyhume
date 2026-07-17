@@ -440,3 +440,28 @@ class BHCRM_People {
         }
     }
 }
+
+// First real bh-crm contributor to the shared Metrics dashboard
+// (own-ur-shit's OUS_Metrics) — same "build in tandem" instruction as
+// bh-courses/bh-contest's own versions of this registration, plus AJ's
+// own live follow-up on this exact feature: "Not short term trends,
+// long term patterns" — so this is also the first real consumer of
+// OUS_Metrics::event_trend_monthly() rather than the 30-day daily
+// event_trend() the other two plugins use. A relationship graph
+// (bhcrm/link_created) is inherently a slower-moving thing than a
+// vote or an enrollment; a daily sparkline of it would mostly just be
+// noise.
+add_filter('bhcore_metrics_widgets', function ($widgets) {
+    if (!class_exists('OUS_Metrics')) return $widgets;
+
+    $widgets[] = ['source' => 'BH CRM', 'render' => function () {
+        global $wpdb;
+        $people = count(apply_filters('bh_crm_active_user_ids', []));
+        OUS_Metrics::render_card('People tracked', $people, 'Total, all-time');
+    }];
+    $widgets[] = ['source' => 'BH CRM', 'render' => function () {
+        $trend = OUS_Metrics::event_trend_monthly('bhcrm/link_created', 12);
+        OUS_Metrics::render_card('Relationship links', array_sum($trend), 'Last 12 months', $trend);
+    }];
+    return $widgets;
+});
