@@ -267,9 +267,25 @@ class BHC_Render_Lesson {
             } else {
                 $disable_inputs = $exhausted || $already_passed;
                 echo '<form class="bhc-quiz-form" data-max-attempts="' . $max_attempts . '" data-attempts-used="' . $attempts_used . '">';
-                foreach ($step['questions'] as $qi => $q) {
+
+                // Shuffle DISPLAY order only — every field's name/value
+                // stays tied to the question/choice's ORIGINAL array
+                // index (data-question-index, the "q{n}" field name, and
+                // each radio's value), the same indices
+                // BHC_Steps::score_quiz() and courses.js's FormData
+                // parsing already read. That's what makes this purely a
+                // rendering concern: shuffle the KEY ORDER walked below,
+                // never the data itself, so scoring needed zero changes.
+                $question_order = array_keys($step['questions']);
+                if (!empty($step['shuffle_questions'])) shuffle($question_order);
+
+                foreach ($question_order as $qi) {
+                    $q = $step['questions'][$qi];
                     echo '<fieldset class="bhc-quiz-question" data-question-index="' . (int) $qi . '"><legend>' . esc_html($q['question']) . '</legend>';
-                    foreach ($q['choices'] as $ci => $choice) {
+                    $choice_order = array_keys($q['choices']);
+                    if (!empty($step['shuffle_choices'])) shuffle($choice_order);
+                    foreach ($choice_order as $ci) {
+                        $choice = $q['choices'][$ci];
                         echo '<label class="bhc-quiz-choice"><input type="radio" name="q' . (int) $qi . '" value="' . (int) $ci . '"' . ($disable_inputs ? ' disabled' : '') . '> <span class="bhc-choice-text">' . esc_html($choice) . '</span></label>';
                     }
                     echo '</fieldset>';

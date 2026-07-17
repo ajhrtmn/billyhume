@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.20
+ * Version:     0.4.21
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,41 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.20');
+define('BHC_VER',  '0.4.21');
 
+// 0.4.21 — LMS up-beefing pass: quiz question/answer shuffling + lesson
+// duplication.
+// (1) New shuffle_questions/shuffle_choices toggles on the bhc/quiz
+// block (courses-studio-blocks.js), plumbed through BH_Content's schema
+// (class-content-bridge.php) into _bhc_steps. class-render-lesson.php
+// now walks a shuffled KEY ORDER when rendering questions/choices —
+// every form field's name/value stays tied to the ORIGINAL index
+// (BHC_Steps::score_quiz() and courses.js's FormData parsing both
+// already read those, unchanged), so this is purely a display-order
+// concern with zero scoring risk.
+// REAL BUG, caught only by actually testing end-to-end (not by reading
+// the code): BHC_Steps::save() re-sanitizes every step through its own
+// explicit per-type field whitelist — the single ONLY writer of
+// _bhc_steps. Adding the two new attrs to the block schema and the
+// renderer wasn't enough; this whitelist didn't know about them yet, so
+// every save silently dropped shuffle_questions/shuffle_choices and the
+// front end kept rendering in fixed order no matter what the toggle
+// showed. Fixed by adding both fields to the quiz branch's whitelist.
+// Verified via direct DB inspection (confirmed the fields were actually
+// missing from stored postmeta, not just "maybe not shuffling") and via
+// six repeated curl fetches of a real quiz step post-fix, confirming
+// the rendered choice order actually varies while each choice's `value`
+// stays correctly tied to its real answer throughout.
+// (2) New "Duplicate" row action on the Lessons list (class-admin.php:
+// lesson_row_actions()/handle_duplicate_lesson()) — clones post_content
+// (the real block tree), _bhc_steps, course assignment (and adds the
+// clone to that course's own lesson order via the existing
+// add_lesson_to_order() helper), and drip settings; always lands as a
+// draft. Closes the "building a second similar lesson means rebuilding
+// from scratch" gap the deep LMS audit flagged. Verified live: real
+// duplicate of a real lesson, confirmed the clone's block content,
+// course assignment, and course-side lesson count all came through
+// correctly.
 // 0.4.20 — "Anything fun for social sharing?" — AJ's own ask this
 // session. New class-share-cards.php: a course-completion share-card
 // endpoint (?bhc_share_card={course}&u={user}, public/no-login since a
@@ -593,6 +626,8 @@ add_action('plugins_loaded', function () {
     add_filter('manage_bh_course_posts_columns', ['BHC_Admin', 'course_columns']);
     add_action('manage_bh_course_posts_custom_column', ['BHC_Admin', 'course_column_content'], 10, 2);
     add_filter('manage_bh_lesson_posts_columns', ['BHC_Admin', 'lesson_columns']);
+    add_filter('post_row_actions', ['BHC_Admin', 'lesson_row_actions'], 10, 2);
+    add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
     add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
 

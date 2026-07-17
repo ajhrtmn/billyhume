@@ -186,6 +186,14 @@ class BHC_ContentBridge {
         BH_Content::register_block_type('bhc/quiz', [
             'passing_score' => ['type' => 'int', 'default' => 70],
             'max_attempts' => ['type' => 'int', 'default' => 0],
+            // Quiz depth pass — display-order randomization only, never
+            // touches scoring: class-render-lesson.php renders questions/
+            // choices in shuffled visual order but keeps every form
+            // field's name/value tied to the ORIGINAL index (the same
+            // indices BHC_Steps::score_quiz() and courses.js's FormData
+            // read already expect), so this needed zero scoring changes.
+            'shuffle_questions' => ['type' => 'bool', 'default' => false],
+            'shuffle_choices' => ['type' => 'bool', 'default' => false],
         ], function ($attrs, $rendered_children) {
             return '<div class="bhc-step bhc-step-quiz" data-passing-score="' . (int) $attrs['passing_score'] . '">' . $rendered_children . '</div>';
         });

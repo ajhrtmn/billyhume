@@ -130,6 +130,17 @@ class BHC_Steps {
                     // the SAME course, so this lives per-step, not as a
                     // plugin-wide setting.
                     'max_attempts' => max(0, (int) ($step['max_attempts'] ?? 0)),
+                    // Real bug, caught live (not by reading the code): this
+                    // whitelist is the ONLY writer of _bhc_steps, so adding
+                    // the shuffle_questions/shuffle_choices block attrs to
+                    // BH_Content's schema and class-render-lesson.php's
+                    // rendering wasn't enough — every save through here was
+                    // silently dropping both fields since this list didn't
+                    // know about them yet, and the front end kept rendering
+                    // in fixed, unshuffled order no matter what the block
+                    // editor's toggle showed.
+                    'shuffle_questions' => !empty($step['shuffle_questions']),
+                    'shuffle_choices' => !empty($step['shuffle_choices']),
                     'questions' => $questions,
                 ];
             } elseif ($type === 'resource') {

@@ -476,6 +476,59 @@ class BHC_Admin {
         }
     }
 
+    /* ---------------- duplicate lesson ----------------
+       "Building a second similar lesson means rebuilding from scratch"
+       — a real gap the deep LMS audit called out (no lesson-duplication
+       anywhere). A plain row-action + admin-post handler, same pattern
+       WordPress core's own "Duplicate" plugins use, not a bespoke UI. */
+    public static function lesson_row_actions($actions, $post) {
+        if ($post->post_type !== 'bh_lesson' || !current_user_can('edit_post', $post->ID)) return $actions;
+        $url = wp_nonce_url(
+            admin_url('admin-post.php?action=bhc_duplicate_lesson&lesson_id=' . (int) $post->ID),
+            'bhc_duplicate_lesson_' . $post->ID
+        );
+        $actions['bhc_duplicate'] = '<a href="' . esc_url($url) . '">Duplicate</a>';
+        return $actions;
+    }
+
+    public static function handle_duplicate_lesson() {
+        $lesson_id = (int) ($_GET['lesson_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_lesson_' . $lesson_id)) wp_die('Security check failed.', 403);
+        if (!current_user_can('edit_post', $lesson_id)) wp_die('Not allowed.', 403);
+        $original = get_post($lesson_id);
+        if (!$original || $original->post_type !== 'bh_lesson') wp_die('Lesson not found.', 404);
+
+        // post_content (the real Gutenberg block tree) is the actual
+        // source of truth — BHC_ContentBridge's save_post_bh_lesson hook
+        // regenerates _bhc_steps from it on the new lesson's own first
+        // save. Also copying _bhc_steps directly below means the clone
+        // renders correctly immediately, before anyone has touched it,
+        // rather than showing "no steps yet" until the next save.
+        $new_id = wp_insert_post([
+            'post_type' => 'bh_lesson',
+            'post_status' => 'draft', // never auto-publish a clone — same "review before it's live" posture as any other duplicate-content tool
+            'post_title' => $original->post_title . ' (Copy)',
+            'post_content' => $original->post_content,
+            'post_author' => get_current_user_id(),
+        ], true);
+        if (is_wp_error($new_id)) wp_die('Could not duplicate this lesson.', 500);
+
+        $course_id = (int) get_post_meta($lesson_id, '_bhc_course_id', true);
+        if ($course_id) {
+            update_post_meta($new_id, '_bhc_course_id', $course_id);
+            self::add_lesson_to_order($course_id, $new_id); // same helper save_lesson() uses to keep the course's own order in sync
+        }
+        $steps = get_post_meta($lesson_id, '_bhc_steps', true);
+        if (is_array($steps)) update_post_meta($new_id, '_bhc_steps', $steps);
+        foreach (['_bhc_available_after_days', '_bhc_available_on_date'] as $key) {
+            $val = get_post_meta($lesson_id, $key, true);
+            if ($val !== '') update_post_meta($new_id, $key, $val);
+        }
+
+        wp_safe_redirect(get_edit_post_link($new_id, 'raw'));
+        exit;
+    }
+
     public static function lesson_columns($cols) {
         $new = [];
         foreach ($cols as $k => $v) {

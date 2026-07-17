@@ -215,6 +215,8 @@
         attributes: {
             passing_score: { type: 'number', default: 70 },
             max_attempts: { type: 'number', default: 0 },
+            shuffle_questions: { type: 'boolean', default: false },
+            shuffle_choices: { type: 'boolean', default: false },
         },
         supports: { html: false },
         edit: function (props) {
@@ -232,7 +234,9 @@
                 el(wp.blockEditor.InspectorControls, {},
                     el(wp.components.PanelBody, { title: __('Quiz settings') },
                         el(wp.components.RangeControl, { label: __('Passing score (%)'), value: attrs.passing_score, onChange: function (v) { setAttrs({ passing_score: v }); }, min: 0, max: 100 }),
-                        el(wp.components.RangeControl, { label: __('Max attempts (0 = unlimited)'), value: attrs.max_attempts, onChange: function (v) { setAttrs({ max_attempts: v }); }, min: 0, max: 20 })
+                        el(wp.components.RangeControl, { label: __('Max attempts (0 = unlimited)'), value: attrs.max_attempts, onChange: function (v) { setAttrs({ max_attempts: v }); }, min: 0, max: 20 }),
+                        el(wp.components.ToggleControl, { label: __('Shuffle question order'), checked: attrs.shuffle_questions, onChange: function (v) { setAttrs({ shuffle_questions: v }); } }),
+                        el(wp.components.ToggleControl, { label: __('Shuffle answer order'), checked: attrs.shuffle_choices, onChange: function (v) { setAttrs({ shuffle_choices: v }); } })
                     )
                 ),
                 el('div', innerBlocksProps)
