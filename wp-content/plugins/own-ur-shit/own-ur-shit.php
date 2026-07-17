@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.3
+ * Version:     3.6.4
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,24 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.3');
+define('OUS_VER', '3.6.4');
+
+// 3.6.4 — real "wonky character" bug in the Design Suite gallery,
+// caught live: em-dashes/curly-quotes in a surface's preview HTML
+// (e.g. bh-crm's own live-slot instructional text) rendered as
+// garbled characters ("â€" instead of "—"). Root cause: class-
+// style-gallery.php's own JS decoded each surface's base64-encoded
+// preview document with plain atob(), which returns a raw binary
+// string (one JS character per BYTE, not a properly UTF-8-decoded
+// string) — any multi-byte character came through as 2-3 separate
+// mis-rendered characters the moment DOMParser parsed that raw byte
+// string as text. The PHP side (base64_encode()) was never the
+// problem; fixed the decode side with a real UTF-8-safe path
+// (Uint8Array + TextDecoder('utf-8')) instead. Confirmed via direct
+// DOM inspection before the fix that the underlying source PHP files
+// and DB were completely clean UTF-8 — this was purely a client-side
+// decode bug, not a data-corruption one. Verified live across every
+// registered surface after the fix (CRM/Contest/Courses all clean).
 
 // 3.6.3 — real production fatal, caught live on the billyhume.wasmer.app
 // deploy: "Uncaught Error: Class ActionScheduler not found" in

@@ -391,7 +391,22 @@ class BHY_Gallery {
                 var raw = frame.dataset.doc;
                 if (!raw) return;
                 var html;
-                try { html = atob(raw); } catch (e) { return; }
+                // Real "wonky character" bug, caught live: atob() decodes
+                // base64 into a binary string where every JS character is
+                // ONE BYTE, not a proper UTF-8-decoded string. Any
+                // multi-byte character in a surface's preview text (an
+                // em-dash, a curly quote) came through as 2-3 separate
+                // mis-rendered characters once DOMParser parsed that raw
+                // byte string as if it were already-decoded text. PHP's
+                // base64_encode() (see self::preview_doc()'s own caller)
+                // was never the problem — it correctly encodes whatever
+                // UTF-8 bytes it's given; the decode side just wasn't
+                // undoing that correctly. TextDecoder('utf-8') is the
+                // real fix, not a format change on the PHP side.
+                try {
+                    var bytes = Uint8Array.from(atob(raw), function (c) { return c.charCodeAt(0); });
+                    html = new TextDecoder('utf-8').decode(bytes);
+                } catch (e) { return; }
                 var parsed = new DOMParser().parseFromString(html, 'text/html');
                 var root = frame.attachShadow({ mode: 'open' });
                 Array.prototype.slice.call(parsed.head.children).forEach(function (node) { root.appendChild(node); });
