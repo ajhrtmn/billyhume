@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.7
+ * Version:     3.5.8
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,25 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.7');
+define('OUS_VER', '3.5.8');
+
+// 3.5.8 — Two AJ-flagged fixes to the technical-report widget.
+// (1) It was colliding with bh-contest's fixed bottom player bar on
+// contest pages. Fixed via CSS only, zero JS/DOM-detection needed:
+// reads the same --bh-bar-height custom property bh-contest's own
+// player.css already sets on :root (its .bh-toast component already
+// positions itself above the bar the identical way) — cascades
+// globally regardless of which stylesheet defined it, and the var()
+// fallback (0px) means pages without that property behave exactly as
+// before. Verified live on both a contest page (sits above the bar)
+// and a non-contest page (stays at the normal 16px offset).
+// (2) Added the first real retry/backoff logic anywhere in this
+// ecosystem's JS (checked: nothing else had one). Retries only on
+// network failure or a 5xx server error, never on 4xx (bad nonce,
+// rate-limited, validation failure — retrying those just repeats the
+// same failure) — exponential backoff with jitter, up to 3 attempts,
+// with a "Retrying…" label so it's not silent.
+
 
 // 3.5.7 — Admin-menu-cleanup pass, item 1: Debug Tools' per-user
 // "developer mode" gate. The audit's #1 flagged organizational problem

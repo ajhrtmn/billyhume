@@ -64,7 +64,20 @@ class BHI_Reports {
         $nonce = wp_create_nonce('wp_rest');
         ?>
         <style>
-            .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+            /* AJ's own ask: this widget was colliding with bh-contest's
+               fixed bottom player bar on contest pages. Rather than this
+               plugin (own-ur-shit core, no dependency on bh-contest)
+               detecting that bar's presence in JS, it reads the SAME
+               --bh-bar-height custom property bh-contest's own player.css
+               already sets on :root for exactly this purpose (its own
+               .bh-toast component already positions itself above the bar
+               this same way — see player.css). CSS custom properties
+               cascade through :root regardless of which stylesheet
+               defined them, so this works with zero coupling: on a page
+               where that property isn't defined at all (no player bar),
+               the var() fallback (0px) makes this behave exactly as
+               before. */
+            .bhi-tech-report { position: fixed; right: 16px; bottom: calc(16px + var(--bh-bar-height, 0px)); z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
             .bhi-tech-report-toggle {
                 background: var(--bhy-surface, #fff); color: var(--bhy-ink-dim, #646970);
                 border: 1px solid var(--bhy-border, #dcdcde); border-radius: 999px;
@@ -196,29 +209,56 @@ class BHI_Reports {
                     + '\nBrowser: ' + navigator.userAgent
                     + '\nRecent actions this session:\n' + trailLines
                     + '\n\n' + reason;
-                fetch(<?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1/reports'))); ?>, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': <?php echo wp_json_encode($nonce); ?> },
-                    body: JSON.stringify({ target_type: 'technical', target_id: 0, category: 'technical', reason: context }),
-                }).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
-                  .then(function (res) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Send report';
-                    if (res.ok) {
-                        if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Thanks — we got it.', 'success');
-                        else alert('Thanks — we got it.');
-                        text.value = '';
-                        setOpen(false);
-                    } else {
-                        var msg = (res.body && res.body.message) || 'Could not send that — please try again.';
-                        if (typeof BHCoreToast !== 'undefined') BHCoreToast.show(msg, 'error');
-                        else alert(msg);
-                    }
-                  }).catch(function () {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Send report';
-                    if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Could not send that — check your connection and try again.', 'error');
-                  });
+                // Elegant retry, AJ's own ask — the first real one
+                // anywhere in this ecosystem's JS (checked: nothing else
+                // has actual retry/backoff logic today). Retries ONLY on
+                // network failure (fetch() itself rejecting — offline, a
+                // dropped connection, a timeout) or a 5xx server error —
+                // never on a 4xx (bad nonce, rate-limited, validation
+                // failure), since retrying those just repeats the same
+                // failure and wastes the user's wait. Exponential backoff
+                // with jitter (500ms, ~1.2s, ~2.6s) across up to 3
+                // attempts total — a report is exactly the kind of
+                // "silently dropped on a flaky connection" failure that
+                // matters, since the whole point is capturing a problem
+                // the user is already frustrated by.
+                submitReport(0);
+                function submitReport(attempt) {
+                    fetch(<?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1/reports'))); ?>, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': <?php echo wp_json_encode($nonce); ?> },
+                        body: JSON.stringify({ target_type: 'technical', target_id: 0, category: 'technical', reason: context }),
+                    }).then(function (r) {
+                        return r.json().catch(function () { return {}; }).then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
+                    }).then(function (res) {
+                        if (!res.ok && res.status >= 500 && attempt < 2) {
+                            submitBtn.textContent = 'Retrying…';
+                            setTimeout(function () { submitReport(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                            return;
+                        }
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Send report';
+                        if (res.ok) {
+                            if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Thanks — we got it.', 'success');
+                            else alert('Thanks — we got it.');
+                            text.value = '';
+                            setOpen(false);
+                        } else {
+                            var msg = (res.body && res.body.message) || 'Could not send that — please try again.';
+                            if (typeof BHCoreToast !== 'undefined') BHCoreToast.show(msg, 'error');
+                            else alert(msg);
+                        }
+                    }).catch(function () {
+                        if (attempt < 2) {
+                            submitBtn.textContent = 'Retrying…';
+                            setTimeout(function () { submitReport(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                            return;
+                        }
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Send report';
+                        if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Could not send that — check your connection and try again.', 'error');
+                    });
+                }
             });
         })();
         </script>
