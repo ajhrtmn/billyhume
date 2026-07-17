@@ -140,6 +140,32 @@ class BHI_PublicProfile {
         $banner = $data['banner_id'] ? wp_get_attachment_image_url((int) $data['banner_id'], 'large') : '';
         if (!$avatar) $avatar = get_avatar_url($user_id, ['size' => 200]);
 
+        // BH_SEO Slice 1 reference consumer — ROADMAP-discoverability.md.
+        // This is exactly the "already has the real data in hand, just
+        // hand it off" case the class's own docblock describes: no
+        // separate lookup needed, everything below already resolved.
+        // Person, not MusicGroup — an individual account's profile, not
+        // necessarily a band; a future artist-specific profile type
+        // could reasonably use MusicGroup instead once that distinction
+        // exists in the data model.
+        if (class_exists('BH_SEO')) {
+            BH_SEO::set_page_data([
+                'title' => $user->display_name . ' — ' . get_bloginfo('name'),
+                'description' => $data['bio'] ?: ($user->display_name . '\'s profile on ' . get_bloginfo('name')),
+                'url' => self::profile_url($user_id),
+                'image' => $avatar,
+                'type' => 'profile',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Person',
+                    'name' => $user->display_name,
+                    'url' => self::profile_url($user_id),
+                    'image' => $avatar ?: null,
+                    'description' => $data['bio'] ?: null,
+                ],
+            ]);
+        }
+
         ob_start(); ?>
         <div class="bhi-profile bhi-profile--public">
             <?php if ($banner): ?>

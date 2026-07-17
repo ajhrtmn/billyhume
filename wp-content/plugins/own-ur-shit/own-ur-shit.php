@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.0
+ * Version:     3.6.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,26 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.0');
+define('OUS_VER', '3.6.1');
+
+// 3.6.1 — Slice 1 of ROADMAP-discoverability.md: new BH_SEO
+// (includes/class-seo.php), a shared meta/OG/Twitter-Card/JSON-LD
+// renderer plus an /llms.txt endpoint — a full grep beforehand
+// confirmed zero meta/OG/schema.org output existed anywhere in this
+// ecosystem. Reference consumer: BHI_PublicProfile's public profile
+// view now calls BH_SEO::set_page_data() with a real schema.org
+// Person block. Real bug caught live (not by reading the code): a
+// page ended up with TWO conflicting rel=canonical tags — WordPress
+// core's own default (pointing at the literal page permalink) plus
+// this class's own (pointing at the semantic content URL, e.g. a
+// shortcode's ?bh_user=1) — fixed by having set_page_data() remove
+// core's default canonical outright once this class is given
+// authority over a page's SEO data. Verified live end-to-end: a real
+// published page with the [bh_profile] shortcode, confirmed correct
+// og:title/description/image, a valid schema.org Person JSON-LD block
+// matching the real profile data, and exactly one canonical tag after
+// the fix.
+
 
 // 3.6.0 — Tier A of ROADMAP-guided-setup-wizards.md, built for real:
 // OUS_MediaWizard (new includes/class-media-wizard.php), a guided
@@ -2608,7 +2627,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2629,6 +2648,7 @@ add_action('rest_api_init', ['BHI_Auth', 'register_routes']);
 add_action('init',          ['BHI_PublicProfile', 'init']);
 add_action('init',          ['BHI_Reports', 'init']);
 add_action('init',          ['OUS_MediaWizard', 'init']);
+add_action('init',          ['BH_SEO', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 
