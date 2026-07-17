@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.9
+ * Version:     3.7.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,17 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.9');
+define('BH_VER',        '3.7.0');
+
+// 3.7.0 — ROADMAP-discoverability.md Section 3's own per-content-type
+// schema.org plan: BH_Auth::render() now calls BH_SEO::set_page_data()
+// with a real Event JSON-LD block (name, description, startDate/
+// endDate from _bh_start/_bh_end, organizer) for any resolved contest
+// — 'eventAttendanceMode' deliberately set to OnlineEventAttendanceMode
+// and 'location' deliberately omitted, since a music-contest vote has
+// no physical venue to report. class_exists()-guarded. Verified live
+// on a real published contest: correct Event block, correct dates,
+// single canonical tag.
 
 // 3.6.9 — real cross-browser gap, caught by a grounded browser-quirk
 // audit of every first-party .css/.js file in the ecosystem: .bh-modal

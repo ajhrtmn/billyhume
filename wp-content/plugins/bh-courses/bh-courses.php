@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.26
+ * Version:     0.4.27
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,17 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.26');
+define('BHC_VER',  '0.4.27');
+
+// 0.4.27 — ROADMAP-discoverability.md Section 3's own per-content-type
+// schema.org plan: BHC_Render_Course::render_course() now calls
+// BH_SEO::set_page_data() with a real Course/CourseInstance JSON-LD
+// block (name, description, image, provider, instructor) — the second
+// real BH_SEO consumer after BHI_PublicProfile's Person block, and the
+// first for actual content rather than an identity page. class_exists()-
+// guarded; does nothing if own-ur-shit's BH_SEO isn't present. Verified
+// live: a real published course rendered exactly one JSON-LD Course
+// block and one canonical tag (no duplicate-canonical regression).
 
 // 0.4.26 — First real contributor to own-ur-shit's new shared Metrics
 // dashboard (OUS_Metrics, class-metrics.php): three widgets in

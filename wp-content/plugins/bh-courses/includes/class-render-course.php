@@ -73,6 +73,38 @@ class BHC_Render_Course {
         $course_id = (int) ($atts['id'] ?? get_the_ID());
         if (!$course_id || get_post_type($course_id) !== 'bh_course') return '';
 
+        if (class_exists('BH_SEO')) {
+            $instructor = BHC_PostTypes::instructor($course_id);
+            BH_SEO::set_page_data([
+                'title' => get_the_title($course_id) . ' — ' . get_bloginfo('name'),
+                'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: (get_the_title($course_id) . ', a course on ' . get_bloginfo('name')),
+                'url' => get_permalink($course_id),
+                'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
+                'type' => 'website',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Course',
+                    'name' => get_the_title($course_id),
+                    'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: null,
+                    'url' => get_permalink($course_id),
+                    'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
+                    'provider' => [
+                        '@type' => 'Organization',
+                        'name' => get_bloginfo('name'),
+                        'sameAs' => home_url(),
+                    ],
+                    'hasCourseInstance' => $instructor ? [
+                        '@type' => 'CourseInstance',
+                        'courseMode' => 'online',
+                        'instructor' => [
+                            '@type' => 'Person',
+                            'name' => $instructor->display_name ?: $instructor->user_login,
+                        ],
+                    ] : null,
+                ],
+            ]);
+        }
+
         $uid = get_current_user_id();
         $locked = !BHC_Gate::user_can_access_course($uid, $course_id);
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);

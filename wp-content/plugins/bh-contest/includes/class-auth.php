@@ -32,6 +32,39 @@ class BH_Auth {
             }
         }
 
+        if ($cid && class_exists('BH_SEO')) {
+            $start = get_post_meta($cid, '_bh_start', true);
+            $end   = get_post_meta($cid, '_bh_end', true);
+            $desc  = wp_strip_all_tags(get_post_field('post_content', $cid)) ?: (get_the_title($cid) . ' — vote now on ' . get_bloginfo('name'));
+
+            BH_SEO::set_page_data([
+                'title' => get_the_title($cid) . ' — ' . get_bloginfo('name'),
+                'description' => $desc,
+                'url' => get_permalink($cid),
+                'type' => 'website',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'Event',
+                    'name' => get_the_title($cid),
+                    'description' => $desc,
+                    'url' => get_permalink($cid),
+                    // Music-contest voting is inherently online — no
+                    // physical venue exists to report, so 'location'
+                    // is deliberately omitted rather than filled with
+                    // a placeholder that would misrepresent the event.
+                    'eventAttendanceMode' => 'https://schema.org/OnlineEventAttendanceMode',
+                    'eventStatus' => 'https://schema.org/EventScheduled',
+                    'startDate' => $start ? mysql2date('c', $start) : null,
+                    'endDate' => $end ? mysql2date('c', $end) : null,
+                    'organizer' => [
+                        '@type' => 'Organization',
+                        'name' => get_bloginfo('name'),
+                        'url' => home_url(),
+                    ],
+                ],
+            ]);
+        }
+
         static $i = 0; $i++;
         $attrs = 'class="bh-player-root" id="bh-player-root-' . $i . '" data-contest="' . esc_attr($cid ?: '') . '"';
         if ($cid) {
