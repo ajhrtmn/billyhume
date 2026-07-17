@@ -19,6 +19,22 @@ class BHS_Admin {
 
         add_filter('manage_bhs_track_posts_columns', [self::class, 'columns']);
         add_action('manage_bhs_track_posts_custom_column', [self::class, 'column_content'], 10, 2);
+        add_action('wp_ajax_bhs_issue_isrc', [self::class, 'ajax_issue_isrc']);
+    }
+
+    /**
+     * Moved server-side (BHS_ISRC::issue()) rather than the field's
+     * earlier pure-client Math.random() fill — real issuance needs a
+     * real, server-tracked sequence counter (BHS_ISRC's own docblock
+     * explains why), and even the mock path benefits from a real
+     * collision check against existing rows instead of trusting
+     * client-side randomness alone.
+     */
+    public static function ajax_issue_isrc() {
+        check_ajax_referer('bhs_issue_isrc', 'nonce');
+        if (!current_user_can('edit_posts')) wp_send_json_error(['message' => 'Not allowed.'], 403);
+        $isrc = BHS_ISRC::issue();
+        wp_send_json_success(['isrc' => $isrc, 'is_mock' => BHS_ISRC::is_mock($isrc)]);
     }
 
     public static function enqueue_media($hook) {
@@ -117,19 +133,34 @@ class BHS_Admin {
         // section, not something this field touches.
         $isrc = get_post_meta($post->ID, '_bhs_isrc', true);
         $is_mock = (bool) get_post_meta($post->ID, '_bhs_isrc_is_mock', true);
+        $has_registrant = class_exists('BHS_ISRC') && BHS_ISRC::is_real_registrant_configured();
+        $gen_label = $has_registrant ? 'Generate ISRC' : 'Generate placeholder';
         echo '<p><label><strong>ISRC</strong> <span class="description">(International Standard Recording Code, optional)</span><br>'
            . '<input type="text" id="bhs_isrc_field" name="bhs_isrc" value="' . esc_attr($isrc) . '" style="width:75%;" placeholder="e.g. USRC17607839" pattern="[A-Za-z]{2}[A-Za-z0-9]{3}\d{2}\d{5}"> '
-           . '<button type="button" class="button" id="bhs_isrc_mock_btn">Generate placeholder</button></label></p>';
+           . '<button type="button" class="button" id="bhs_isrc_mock_btn">' . esc_html($gen_label) . '</button> '
+           . '<span id="bhs_isrc_spinner" style="display:none;">…</span></label></p>';
+        if (!$has_registrant) {
+            echo '<p class="description">No real ISRC registrant is on file yet — <a href="' . esc_url(admin_url('admin.php?page=bhs-isrc-registrant')) . '">set one up</a> once you\'ve completed the real registrant application, and this button starts issuing real codes instead of placeholders.</p>';
+        }
         echo '<p class="description" id="bhs_isrc_mock_note" style="' . ($is_mock ? '' : 'display:none;') . 'color:#996800;">'
-           . 'This is a placeholder, not a real registered ISRC — see BHS_ISRC::generate_mock() in class-isrc.php. It won\'t be published in this track\'s structured data until replaced with a real code.</p>';
+           . 'This is a placeholder, not a real registered ISRC — see BHS_ISRC::issue() in class-isrc.php. It won\'t be published in this track\'s structured data until replaced with a real code.</p>';
         echo '<script>
         document.getElementById("bhs_isrc_mock_btn").addEventListener("click", function () {
-            var field = document.getElementById("bhs_isrc_field");
-            var note = document.getElementById("bhs_isrc_mock_note");
-            var yy = String(new Date().getFullYear()).slice(-2);
-            var seq = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-            field.value = "ZZOUS" + yy + seq;
-            note.style.display = "";
+            var btn = this, field = document.getElementById("bhs_isrc_field"), note = document.getElementById("bhs_isrc_mock_note"), spinner = document.getElementById("bhs_isrc_spinner");
+            btn.disabled = true; spinner.style.display = "";
+            var body = new URLSearchParams({ action: "bhs_issue_isrc", nonce: ' . wp_json_encode(wp_create_nonce('bhs_issue_isrc')) . ' });
+            fetch(ajaxurl, { method: "POST", body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    btn.disabled = false; spinner.style.display = "none";
+                    if (!res.success) { alert((res.data && res.data.message) || "Could not issue an ISRC."); return; }
+                    field.value = res.data.isrc;
+                    note.style.display = res.data.is_mock ? "" : "none";
+                })
+                .catch(function () {
+                    btn.disabled = false; spinner.style.display = "none";
+                    alert("Could not reach the server — check your connection and try again.");
+                });
         });
         document.getElementById("bhs_isrc_field").addEventListener("input", function () {
             var note = document.getElementById("bhs_isrc_mock_note");
