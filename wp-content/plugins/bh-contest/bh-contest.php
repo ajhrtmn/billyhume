@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.4
+ * Version:     3.6.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,26 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.4');
+define('BH_VER',        '3.6.5');
+
+// 3.6.5 — "Anything fun for social sharing?" — AJ's own ask this
+// session. New class-share-cards.php: "Now Entered"/"Vote Now" share
+// cards (?bh_share_entered={id} / ?bh_share_vote={id}, public/no-login
+// — a submission's own audio/notes/contact info stays locked down as
+// before, this card renders only a title/artist/contest name), via the
+// new shared BH_ShareCard engine (own-ur-shit 3.5.2). No per-submission
+// public page exists to deep-link to (bh_submission is 'public' =>
+// false, no single template) — the "vote" card instead pairs with the
+// contest's own auto-created page URL (_bh_page_id), returned alongside
+// the card URLs on the submit API's success response and surfaced by a
+// new share modal in player.js, shown right after a successful upload.
+// New per-contest "Brand"/"Poster" card-style radio (a new, separate
+// meta box from the existing style-override one — this picks a card
+// TEMPLATE, not a color override) saved to _bh_share_card_style.
+// Verified live against real seeded submission data (not just a
+// synthetic test): both card endpoints render the correct artist/song/
+// contest name pulled from actual postmeta.
+
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.
@@ -443,7 +462,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'blocks'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -539,6 +558,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Blocks', 'init']);
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
+    add_action('init',          ['BH_ShareCards', 'init']);
 
     // Registers this plugin's seeding/reset actions into the shared
     // Debug Tools page (see OUS_Debug in the core plugin) — the

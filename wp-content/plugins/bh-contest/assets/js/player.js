@@ -243,6 +243,23 @@ class BHPlayer {
                     <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
                 </div></div>
 
+                <div class="bh-modal bh-share-modal"><div class="bh-modal-content">
+                    <span class="bh-close" data-close="share">&times;</span>
+                    <h2>You're in! &#127881;</h2>
+                    <p>Grab a shareable image to spread the word.</p>
+                    <div class="bh-share-cards">
+                        <a class="bh-share-card-link" data-share="entered" href="#" target="_blank" rel="noopener">
+                            <img class="bh-share-card-thumb" data-share-img="entered" alt="Now entered — shareable image">
+                            <span>Get "I entered" image</span>
+                        </a>
+                        <a class="bh-share-card-link" data-share="vote" href="#" target="_blank" rel="noopener">
+                            <img class="bh-share-card-thumb" data-share-img="vote" alt="Vote for me — shareable image">
+                            <span>Get "Vote for me" image</span>
+                        </a>
+                    </div>
+                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post: <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a></p>
+                </div></div>
+
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="results">&times;</span>
                     <h2>Results</h2>
@@ -558,11 +575,31 @@ class BHPlayer {
                 .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             this.toast('Track submitted! It will appear once an admin approves it.');
+            this.showShareModal(body);
         } else {
             this.toast(body.message || 'Upload failed. Check the file and try again.', true);
         }
         btn.disabled = false;
         btn.innerText = 'Upload';
+    }
+
+    // Populates and opens the share modal added alongside the submit
+    // flow — entered_card_url/vote_card_url/contest_page_url all ride
+    // on the submit API's own success response (class-api.php's
+    // submit()), so this needs no second request. Guarded on all three
+    // being present since an older cached copy of this JS talking to a
+    // freshly-updated API (or vice versa during a deploy) shouldn't
+    // throw trying to read a field that isn't there yet.
+    showShareModal(body) {
+        if (!body.entered_card_url || !body.vote_card_url) return;
+        this.q('[data-share="entered"]').href = body.entered_card_url;
+        this.q('[data-share-img="entered"]').src = body.entered_card_url;
+        this.q('[data-share="vote"]').href = body.vote_card_url;
+        this.q('[data-share-img="vote"]').src = body.vote_card_url;
+        const link = this.q('.bh-share-contest-link');
+        link.href = body.contest_page_url || '#';
+        link.textContent = body.contest_page_url || '';
+        this.q('.bh-share-modal').style.display = 'flex';
     }
 
     /* ---------- tracks ---------- */

@@ -1298,6 +1298,16 @@ class BH_Admin {
             echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
         }, 'bh_contest', 'side', 'default');
 
+        // Separate from the "Contest Branding & Style" override below —
+        // this picks a CARD TEMPLATE (brand vs. poster), not a color
+        // override; a contest that never turns on style override at all
+        // can still choose poster-style share cards.
+        add_meta_box('bh_contest_share_cards', 'Shareable images', function ($post) {
+            $style = get_post_meta($post->ID, '_bh_share_card_style', true) === 'poster' ? 'poster' : 'brand';
+            echo '<p class="description">Submitters get a "Now entered" and "Vote for me" image after submitting. <strong>Brand</strong> matches this site\'s own live colors; <strong>Poster</strong> is a bolder, stand-alone look.</p>';
+            echo '<p><label><input type="radio" name="bh_share_card_style" value="brand"' . checked($style, 'brand', false) . '> Brand</label> &nbsp; <label><input type="radio" name="bh_share_card_style" value="poster"' . checked($style, 'poster', false) . '> Poster</label></p>';
+        }, 'bh_contest', 'side', 'default');
+
         add_meta_box('bh_contest_style', 'Contest Branding & Style', function ($post) {
             wp_nonce_field('bh_save_contest', 'bh_contest_nonce');
             $on = get_post_meta($post->ID, '_bhy_style_override', true);
@@ -1452,6 +1462,8 @@ class BH_Admin {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
+
+        update_post_meta($post_id, '_bh_share_card_style', ($_POST['bh_share_card_style'] ?? '') === 'poster' ? 'poster' : 'brand');
 
         if (!empty($_POST['bh_sub_always_open'])) {
             // Toggle checked — always-open, regardless of whatever might

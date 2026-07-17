@@ -418,7 +418,18 @@ class BH_API {
             }
         }
 
-        return self::ok();
+        // submission_id + the two share-card URLs ride along on the
+        // success response so the submit form's own JS can offer
+        // "Get shareable image" immediately, without a second request —
+        // same shape class-share-cards.php's card_url() builds, just
+        // called from here since this is a REST context, not a
+        // template_redirect one.
+        $share = class_exists('BH_ShareCards') ? [
+            'entered_card_url' => BH_ShareCards::entered_card_url($pid),
+            'vote_card_url' => BH_ShareCards::vote_card_url($pid),
+            'contest_page_url' => BH_ShareCards::contest_page_url($cid),
+        ] : [];
+        return self::ok(['submission_id' => $pid] + $share);
     }
 
     /**
