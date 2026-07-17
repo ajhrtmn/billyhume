@@ -67,3 +67,24 @@ Still roadmap-only. The Section 5 sequencing below (a joint design pass before a
 4. Only after that joint design pass exists: branching's backend (progress/drip/percent-complete rework) and the mind-map/graph authoring UI can be scoped and sequenced against each other for real, informed by whichever direction the design pass actually recommends.
 
 Everything in Sections 1 and 2 can proceed in parallel with the Section 3/4 design pass — neither touches `BHC_Progress`'s core model, so there's no risk of the two tracks colliding.
+
+## 6. Feature/UX parity audit vs. Teachable/Thinkific/Kajabi/LearnDash/LifterLMS (2026-07-17)
+
+A fresh, code-grounded gap analysis against major LMS platforms, run after this session's production-hardening + course-as-collection UI pass. Whole-course duplication (the top must-have finding) is already built (`BHC_VER` 0.4.25) — everything below is still open. Confirmed by reading the code, not assumed.
+
+**Must-have tier** (a creator switching from a major platform would notice these missing):
+- **Modules/sections grouping lessons within a course** — confirmed `lesson_order()` (`class-post-types.php`) is a flat list; every competitor has an intermediate grouping level (Teachable "sections," Thinkific "chapters," LearnDash "topics"). **Medium** effort — likely a lightweight ordered-meta grouping layer rather than a new CPT, plus admin UI and `class-render-course.php` changes. The single biggest remaining structural gap.
+- **Coupon/discount codes wired to course tiers** — WooCommerce core has coupons; unconfirmed whether they're actually exposed in the tier checkout flow (`bh-monetization-woo/includes/class-tiers.php`/`class-frontend.php`). **Small if just wiring, medium if not.**
+- **Bulk student CSV import/roster enrollment** — not present (only a legacy completion-record import referenced in `class-crm-integration.php`, not a roster importer). **Small-medium.** Matters most for anyone migrating an existing cohort from another platform.
+- **Course bundles** (buy N courses as one package) — no such concept in `bh-monetization-woo`. **Medium.**
+- **PWA parity with bh-streaming** — `bh-streaming` has a real PWA (manifest, service worker, install prompt per its own README); `bh-courses` has nothing comparable. **Small-medium** — the pattern already exists in the sibling plugin to port from.
+
+**Strong differentiators, not must-haves** (building these well would genuinely exceed the major platforms, not just match them):
+- **Instructor-reviewed assignments** (upload work, get feedback/grade) — `BHC_Steps::VALID_TYPES` is `text, image, video, quiz, resource`; no assignment type exists, only auto-graded quiz. **Medium.**
+- **Live sessions/webinars** (scheduled session step, Zoom-style embed) — Kajabi's flagship differentiator; no equivalent step type. **Medium-large.**
+- **Payment plans** (split pay instead of upfront) — needs WC Subscriptions/Deposits logic, likely not wired for tiers today. **Medium-large.**
+- **Badges/achievements beyond the single certificate feature, and course-level community/discussion** (`class-comments.php` is confirmed per-lesson only, not a course-wide forum) — **medium** each.
+- **Affiliate/referral program** — no `affiliate`/`referral` code anywhere in either plugin. **Large** — normally its own plugin's worth of work (commission tracking, payout, links).
+- **Analytics beyond the "At a glance" panel** (per-lesson completion rate, quiz average, stalled-student flag, already built) — no cross-course dashboard, no revenue/enrollment trend charts. **Medium-large.** The existing panel already covers the must-have baseline; this is about going further, not catching up.
+
+**Suggested next pick, if/when this track resumes**: modules/sections — it's the one item every course-creator-facing competitor treats as basic information architecture, not a premium feature, and it's the most-visible remaining gap against the "AAA+, better than the best" bar.
