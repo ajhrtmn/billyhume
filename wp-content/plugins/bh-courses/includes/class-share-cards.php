@@ -36,15 +36,16 @@ class BHC_ShareCards {
         $user_id = (int) ($_GET['u'] ?? 0);
         $course = get_post($course_id);
 
-        if (!$course || $course->post_type !== 'bh_course') wp_die('Course not found.', 404);
+        if (!$course || $course->post_type !== 'bh_course') wp_die('Course not found.', '', ['response' => 404, 'back_link' => true]);
         if (!$user_id || !class_exists('BHC_Progress') || !BHC_Progress::is_course_completed($user_id, $course_id)) {
-            wp_die('Nothing to share yet — this course hasn\'t been completed by that student.', 404);
+            wp_die('Nothing to share yet — this course hasn\'t been completed by that student.', '', ['response' => 404, 'back_link' => true]);
         }
-        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', 501);
+        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
 
         $user = get_userdata($user_id);
         $name = $user ? ($user->display_name ?: $user->user_login) : 'A student';
-        $style = get_post_meta($course_id, '_bhc_share_card_style', true) === 'poster' ? 'poster' : 'brand';
+        $stored_style = get_post_meta($course_id, '_bhc_share_card_style', true);
+        $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
 
         BH_ShareCard::output_png([
             'style' => $style,

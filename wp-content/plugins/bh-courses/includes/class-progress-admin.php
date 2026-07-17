@@ -42,7 +42,7 @@ class BHC_ProgressAdmin {
     }
 
     public static function render() {
-        if (!current_user_can(self::required_cap())) wp_die('Not allowed.');
+        if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
         self::maybe_handle_override(); // processes + queues a settings_errors() notice before any output below
 
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);

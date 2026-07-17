@@ -238,7 +238,21 @@
                     if (result.max_attempts) {
                         attemptsNote = result.passed ? '' : (result.attempts_remaining > 0 ? ' (' + result.attempts_remaining + ' attempt' + (result.attempts_remaining === 1 ? '' : 's') + ' remaining)' : ' (no attempts remaining)');
                     }
-                    resultBox.textContent = 'Score: ' + result.score + '% (' + result.correct + '/' + result.total + ' correct) — ' + (result.passed ? 'Passed!' : 'Not quite.' + attemptsNote);
+                    // result.correct is deliberately null on an already-
+                    // passed replay (class-progress.php's ajax_submit_quiz()
+                    // doesn't recompute a count it already knows the
+                    // answer to) — the literal string "null" rendering
+                    // inline was a real, live bug, not hypothetical: any
+                    // replayed/duplicate submit against an already-passed
+                    // quiz hit this. Re-derived from score/total rather
+                    // than assumed to equal total — a pass doesn't mean
+                    // every question was right, just that score cleared
+                    // the passing threshold (BHC_Steps::score_quiz()'s own
+                    // score = round(correct/total*100), inverted here).
+                    var correctCount = (result.correct === null || result.correct === undefined)
+                        ? Math.round((result.score / 100) * result.total)
+                        : result.correct;
+                    resultBox.textContent = 'Score: ' + result.score + '% (' + correctCount + '/' + result.total + ' correct) — ' + (result.passed ? 'Passed!' : 'Not quite.' + attemptsNote);
 
                     // The real per-question breakdown, once — every choice
                     // marked correct/incorrect. Lock the inputs so the

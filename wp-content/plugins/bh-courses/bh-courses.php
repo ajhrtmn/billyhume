@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.21
+ * Version:     0.4.22
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,33 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.21');
+define('BHC_VER',  '0.4.22');
 
+// 0.4.22 — Production-hardening pass, from a fresh audit ahead of real
+// users.
+// (1) New before_delete_post cleanup (cleanup_deleted_lesson()) — the
+// mirror-image gap to cleanup_deleted_course(): a permanently-deleted
+// lesson left its own ID sitting in its parent course's
+// _bhc_lesson_order forever. Masked (every render call site already
+// filters on post_status !== 'publish'), but real: the Lessons-count
+// admin column over-reported forever, and any future code trusting
+// lesson_order() without that same defensive filter would silently
+// include a dangling ID.
+// (2) Real, confirmed live bug: courses.js rendered the literal string
+// "null" in the score summary on any replayed/duplicate quiz submit
+// against an already-passed quiz — class-progress.php's
+// ajax_submit_quiz() deliberately returns correct: null on that path
+// (it doesn't recompute a count it already knows the answer to), and
+// courses.js had no guard for it. Fixed by re-deriving the correct
+// count from score/total (score = round(correct/total*100), inverted)
+// rather than assuming a pass means every question was right.
+// (3) wp_die() calls across share-card/certificate endpoints and the
+// Student Progress page now pass back_link => true; the certificate
+// endpoint's "log in" dead-end now redirects to a real login URL that
+// returns to the certificate link afterward instead of just saying
+// "log in" with no way to; stream_pdf() now guards against a missing
+// vendored FPDF file with a real 500 message instead of a raw PHP
+// fatal (white-screen) error.
 // 0.4.21 — LMS up-beefing pass: quiz question/answer shuffling + lesson
 // duplication.
 // (1) New shuffle_questions/shuffle_choices toggles on the bhc/quiz
@@ -630,6 +655,7 @@ add_action('plugins_loaded', function () {
     add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
     add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
+    add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_lesson']);
 
     add_action('wp_ajax_bhc_submit_quiz', ['BHC_Progress', 'ajax_submit_quiz']);
     add_action('wp_ajax_bhc_mark_complete', ['BHC_Progress', 'ajax_mark_complete']);

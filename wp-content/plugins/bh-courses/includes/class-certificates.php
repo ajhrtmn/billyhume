@@ -56,10 +56,19 @@ class BHC_Certificates {
         $course_id = (int) $_GET['bhc_certificate'];
         $user_id = get_current_user_id();
 
-        if (!$user_id) wp_die('Log in to download your certificate.', 401);
-        if (!self::course_offers_certificate($course_id)) wp_die('This course doesn\'t offer a certificate.', 404);
+        // Redirects to login with this exact URL as the return
+        // destination, rather than dead-ending — a logged-out student
+        // who followed a certificate link (e.g. from an old email, or a
+        // bookmarked link) previously got a bare "log in" message with
+        // no actual way to do so short of hunting down the login page
+        // themselves and re-finding this URL from scratch.
+        if (!$user_id) {
+            wp_safe_redirect(wp_login_url(esc_url_raw($_SERVER['REQUEST_URI'] ?? home_url())));
+            exit;
+        }
+        if (!self::course_offers_certificate($course_id)) wp_die('This course doesn\'t offer a certificate.', '', ['response' => 404, 'back_link' => true]);
         if (!class_exists('BHC_Progress') || !BHC_Progress::is_course_completed($user_id, $course_id)) {
-            wp_die('Complete this course to unlock its certificate.', 403);
+            wp_die('Complete this course to unlock its certificate.', '', ['response' => 403, 'back_link' => true]);
         }
 
         self::stream_pdf($user_id, $course_id);
@@ -67,7 +76,19 @@ class BHC_Certificates {
     }
 
     private static function stream_pdf($user_id, $course_id) {
-        if (!class_exists('FPDF')) require_once OUS_PATH . 'vendor/fpdf/fpdf.php';
+        // A raw require_once fatal (a white-screen PHP error, the least
+        // graceful outcome possible for "student earned a certificate,
+        // clicks download") if the vendored FPDF file is ever missing —
+        // a partial deploy, an over-aggressive .gitignore, OUS_PATH
+        // resolving wrong in some environment. A real 500 with a real
+        // message costs one extra file_exists() check.
+        if (!class_exists('FPDF')) {
+            $fpdf_path = OUS_PATH . 'vendor/fpdf/fpdf.php';
+            if (!file_exists($fpdf_path)) {
+                wp_die('Certificate generation is temporarily unavailable — please contact support.', '', ['response' => 500, 'back_link' => true]);
+            }
+            require_once $fpdf_path;
+        }
 
         $course_title = get_the_title($course_id);
         $user = get_userdata($user_id);

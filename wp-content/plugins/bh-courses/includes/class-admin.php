@@ -187,11 +187,21 @@ class BHC_Admin {
         // Always on (there's no opt-in checkbox, unlike the certificate
         // above) — the generated share-card image is harmless to offer
         // even on a course nobody ever shares; only the VISUAL style is
-        // a real choice, not whether the feature exists at all.
-        $card_style = get_post_meta($post->ID, '_bhc_share_card_style', true) === 'poster' ? 'poster' : 'brand';
+        // a real choice, not whether the feature exists at all. Reads
+        // BH_ShareCard::STYLES rather than hardcoding a brand/poster
+        // pair — a future style registered there (a fourth poster
+        // variant, a custom-logo style) shows up here automatically.
+        $card_style = class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style(get_post_meta($post->ID, '_bhc_share_card_style', true))
+            ? get_post_meta($post->ID, '_bhc_share_card_style', true) : 'brand';
         echo '<h4>Shareable completion image</h4>';
-        echo '<p class="description">A "' . esc_html(get_the_title($post->ID) ?: 'course') . ' complete!" image a student can grab from the finish screen and post/attach anywhere. <strong>Brand</strong> matches this site\'s own live colors; <strong>Poster</strong> is a bolder, stand-alone look.</p>';
-        echo '<p><label><input type="radio" name="bhc_share_card_style" value="brand"' . checked($card_style, 'brand', false) . '> Brand</label> &nbsp; <label><input type="radio" name="bhc_share_card_style" value="poster"' . checked($card_style, 'poster', false) . '> Poster</label></p>';
+        echo '<p class="description">A "' . esc_html(get_the_title($post->ID) ?: 'course') . ' complete!" image a student can grab from the finish screen and post/attach anywhere. <strong>Brand</strong> matches this site\'s own live colors; the <strong>Poster</strong> options are bolder, stand-alone looks.</p>';
+        if (class_exists('BH_ShareCard')) {
+            echo '<p><label>Style<br><select name="bhc_share_card_style">';
+            foreach (BH_ShareCard::STYLES as $key => $label) {
+                echo '<option value="' . esc_attr($key) . '"' . selected($card_style, $key, false) . '>' . esc_html($label) . '</option>';
+            }
+            echo '</select></label></p>';
+        }
 
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
@@ -232,7 +242,8 @@ class BHC_Admin {
         update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_enabled', !empty($_POST['bhc_certificate_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
-        update_post_meta($post_id, '_bhc_share_card_style', ($_POST['bhc_share_card_style'] ?? '') === 'poster' ? 'poster' : 'brand');
+        $posted_style = (string) ($_POST['bhc_share_card_style'] ?? '');
+        update_post_meta($post_id, '_bhc_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
         // Only ever written if bh-monetization-woo is active enough to
         // have rendered the select above — a crafted POST on a site
         // without it does nothing harmful (BHM_Gate simply isn't
@@ -453,6 +464,20 @@ class BHC_Admin {
         foreach ($lessons as $lesson) {
             delete_post_meta($lesson->ID, '_bhc_course_id');
         }
+    }
+
+    // The mirror-image gap the production-hardening audit flagged: a
+    // permanently-deleted LESSON left its own ID sitting in its parent
+    // course's _bhc_lesson_order forever — masked (every render call
+    // site already filters on get_post_status() !== 'publish', so
+    // nothing visibly broke) but real: the "Lessons" list-table column
+    // (course_column_content() below) over-counted forever, and any
+    // future code trusting lesson_order() without that same defensive
+    // filter would silently include a dangling ID.
+    public static function cleanup_deleted_lesson($post_id) {
+        if (get_post_type($post_id) !== 'bh_lesson') return;
+        $course_id = BHC_PostTypes::course_for_lesson($post_id);
+        if ($course_id) self::remove_lesson_from_order($course_id, $post_id);
     }
 
     /* ---------------- list table ---------------- */
