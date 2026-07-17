@@ -111,3 +111,41 @@ class BHM_CRMIntegration {
         echo '</tbody></table></div>';
     }
 }
+
+// First real bh-monetization-woo contributor to the shared Metrics
+// dashboard (own-ur-shit's OUS_Metrics) — same "tandem infrastructure"
+// pass as bh-courses/bh-contest/bh-crm's own versions of this
+// registration, filling the one real gap left: revenue/entitlement
+// data wasn't represented anywhere on that dashboard. No BH_Event
+// exists for a purchase/entitlement grant today (only
+// bhm/wallet_credit and bhm/wallet_debit do — see class-wallet.php),
+// so this reads bhm_entitlements directly rather than inventing event
+// data that doesn't exist yet.
+add_filter('bhcore_metrics_widgets', function ($widgets) {
+    if (!class_exists('OUS_Metrics')) return $widgets;
+
+    $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
+        global $wpdb;
+        $active_tiers = (int) $wpdb->get_var(
+            "SELECT COUNT(DISTINCT user_id) FROM {$wpdb->prefix}bhm_entitlements
+             WHERE type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > NOW())"
+        );
+        OUS_Metrics::render_card('Active supporters', $active_tiers, 'Current subscription/tier entitlements');
+    }];
+    $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT DATE(created_at) as d, COUNT(*) as c FROM {$wpdb->prefix}bhm_entitlements
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY d", ARRAY_A
+        );
+        $by_day = [];
+        foreach ($rows as $r) $by_day[$r['d']] = (int) $r['c'];
+        $trend = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $day = gmdate('Y-m-d', time() - $i * DAY_IN_SECONDS);
+            $trend[$day] = $by_day[$day] ?? 0;
+        }
+        OUS_Metrics::render_card('New entitlements', array_sum($trend), 'Purchases + tier grants, last 30 days', $trend);
+    }];
+    return $widgets;
+});

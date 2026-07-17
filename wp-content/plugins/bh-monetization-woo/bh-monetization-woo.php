@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.17
+ * Version:     0.4.18
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -180,7 +180,15 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.17');
+define('BHM_VER',  '0.4.18');
+
+// 0.4.18 — first real contributor to own-ur-shit's shared Metrics
+// dashboard (OUS_Metrics): two widgets in class-crm-integration.php
+// (Active supporters, New entitlements) — closes the one real gap left
+// in that dashboard's "tandem infrastructure" build-out (courses/
+// contest/CRM already contribute). Reads bhm_entitlements directly
+// rather than BH_Event, since no purchase/entitlement event exists yet
+// (only wallet_credit/wallet_debit do).
 
 // 0.4.12 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86. class-crm-integration.php's
