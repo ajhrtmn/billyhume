@@ -30,14 +30,133 @@ class BHI_Reports {
         'abuse'      => 'Harassment / abusive content',
         'ownership'  => "This isn't rightfully theirs (ownership dispute / takedown)",
         'spam'       => 'Spam or scam',
+        'technical'  => 'Technical difficulty / bug report',
         'other'      => 'Something else',
     ];
+
+    // Reused, not reinvented, for "report a technical difficulty" — AJ's
+    // own ask this session. Every other category here reports a specific
+    // piece of CONTENT (target_type + target_id both required); a bug
+    // report has no content to point at, so this is the one category
+    // allowed a zero target_id (see rest_submit()'s relaxed check below)
+    // rather than standing up a second, parallel queue/admin screen for
+    // what is functionally the same "collect it, let a human triage it"
+    // workflow this class already provides.
+    const TECHNICAL_TARGET_TYPE = 'technical';
     const RATE_LIMIT = 5;   // max reports per user per hour — a real moderation signal, not a way to bury someone in noise
     const RATE_WINDOW = HOUR_IN_SECONDS;
 
     public static function init() {
         add_action('admin_post_bhi_submit_report', [self::class, 'handle_submit']);
         add_action('admin_menu', [self::class, 'add_admin_page']);
+        // Ecosystem-wide "report a technical difficulty" widget — AJ's
+        // own ask. Front-end only (a logged-in admin already has this
+        // plugin's own Debug Tools/error logs; a confused site VISITOR
+        // hitting something broken is who this is actually for), and
+        // logged-in only, matching report_button_html()'s own existing
+        // "log in to report" posture rather than accepting anonymous
+        // reports this queue has no way to follow up on.
+        add_action('wp_footer', [self::class, 'render_technical_report_widget']);
+    }
+
+    public static function render_technical_report_widget() {
+        if (!is_user_logged_in() || is_admin()) return;
+        $nonce = wp_create_nonce('wp_rest');
+        ?>
+        <style>
+            .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+            .bhi-tech-report-toggle {
+                background: var(--bhy-surface, #fff); color: var(--bhy-ink-dim, #646970);
+                border: 1px solid var(--bhy-border, #dcdcde); border-radius: 999px;
+                padding: 8px 16px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+            }
+            .bhi-tech-report-toggle:hover { color: var(--bhy-accent, #2271b1); border-color: var(--bhy-accent, #2271b1); }
+            .bhi-tech-report-panel {
+                position: absolute; right: 0; bottom: calc(100% + 8px); width: 280px;
+                background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde);
+                border-radius: 8px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.16);
+            }
+            .bhi-tech-report-intro { margin: 0 0 8px; font-size: 12px; color: var(--bhy-ink-dim, #646970); }
+            .bhi-tech-report-text {
+                width: 100%; box-sizing: border-box; font-size: 13px; padding: 8px;
+                border: 1px solid var(--bhy-border, #dcdcde); border-radius: 6px; resize: vertical;
+            }
+            .bhi-tech-report-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+            .bhi-tech-report-cancel { background: none; border: none; color: var(--bhy-ink-dim, #646970); cursor: pointer; font-size: 13px; }
+            .bhi-tech-report-submit {
+                background: var(--bhy-accent, #2271b1); color: #fff; border: none; border-radius: 6px;
+                padding: 6px 14px; font-size: 13px; cursor: pointer;
+            }
+            .bhi-tech-report-submit:disabled { opacity: .6; cursor: default; }
+            @media (max-width: 480px) { .bhi-tech-report-panel { width: calc(100vw - 32px); } }
+        </style>
+        <div id="bhi-tech-report" class="bhi-tech-report">
+            <button type="button" class="bhi-tech-report-toggle" aria-expanded="false">Report a problem</button>
+            <div class="bhi-tech-report-panel" hidden>
+                <p class="bhi-tech-report-intro">Something not working right? Describe it below — we'll see exactly what page you were on.</p>
+                <textarea class="bhi-tech-report-text" rows="4" maxlength="1000" placeholder="What happened? What did you expect instead?"></textarea>
+                <div class="bhi-tech-report-actions">
+                    <button type="button" class="bhi-tech-report-cancel">Cancel</button>
+                    <button type="button" class="bhi-tech-report-submit">Send report</button>
+                </div>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var root = document.getElementById('bhi-tech-report');
+            if (!root) return;
+            var toggle = root.querySelector('.bhi-tech-report-toggle');
+            var panel = root.querySelector('.bhi-tech-report-panel');
+            var text = root.querySelector('.bhi-tech-report-text');
+            var submitBtn = root.querySelector('.bhi-tech-report-submit');
+            var cancelBtn = root.querySelector('.bhi-tech-report-cancel');
+
+            function setOpen(open) {
+                panel.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (open) text.focus();
+            }
+            toggle.addEventListener('click', function () { setOpen(panel.hidden); });
+            cancelBtn.addEventListener('click', function () { setOpen(false); text.value = ''; });
+
+            submitBtn.addEventListener('click', function () {
+                var reason = text.value.trim();
+                if (!reason) { text.focus(); return; }
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending…';
+                // Auto-captured context, not something the reporter has
+                // to think to include — the whole point of this widget
+                // over a generic "email us" link is that whoever
+                // triages it in the admin queue sees exactly what page
+                // and browser this happened on without a back-and-forth.
+                var context = 'Page: ' + window.location.href + '\nBrowser: ' + navigator.userAgent + '\n\n' + reason;
+                fetch(<?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1/reports'))); ?>, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': <?php echo wp_json_encode($nonce); ?> },
+                    body: JSON.stringify({ target_type: 'technical', target_id: 0, category: 'technical', reason: context }),
+                }).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+                  .then(function (res) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Send report';
+                    if (res.ok) {
+                        if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Thanks — we got it.', 'success');
+                        else alert('Thanks — we got it.');
+                        text.value = '';
+                        setOpen(false);
+                    } else {
+                        var msg = (res.body && res.body.message) || 'Could not send that — please try again.';
+                        if (typeof BHCoreToast !== 'undefined') BHCoreToast.show(msg, 'error');
+                        else alert(msg);
+                    }
+                  }).catch(function () {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Send report';
+                    if (typeof BHCoreToast !== 'undefined') BHCoreToast.show('Could not send that — check your connection and try again.', 'error');
+                  });
+            });
+        })();
+        </script>
+        <?php
     }
 
     // A REST twin of handle_submit() for any plugin whose front end is
@@ -55,7 +174,12 @@ class BHI_Reports {
     public static function rest_submit($req) {
         $target_type = sanitize_key((string) $req->get_param('target_type'));
         $target_id = (int) $req->get_param('target_id');
-        if (!$target_type || !$target_id) return new WP_Error('invalid', 'Missing target.', ['status' => 400]);
+        // A technical-difficulty report has no piece of content to
+        // point at — target_id = 0 is only valid for that one category,
+        // never silently accepted for a content report missing its ID.
+        if (!$target_type || (!$target_id && $target_type !== self::TECHNICAL_TARGET_TYPE)) {
+            return new WP_Error('invalid', 'Missing target.', ['status' => 400]);
+        }
 
         $uid = get_current_user_id();
         $rl_key = 'bhi_report_rl_' . $uid;
@@ -189,7 +313,8 @@ class BHI_Reports {
         echo '<table class="wp-list-table widefat striped"><thead><tr><th>When</th><th>Reporter</th><th>Target</th><th>Category</th><th>Reason</th><th>Action</th></tr></thead><tbody>';
         foreach ($reports as $r) {
             $reporter = get_userdata($r->reporter_user_id);
-            $label = apply_filters('bhi_report_target_label', $r->target_type . ' #' . $r->target_id, $r->target_type, $r->target_id);
+            $default_label = $r->target_type === self::TECHNICAL_TARGET_TYPE ? 'Technical report (no specific content)' : $r->target_type . ' #' . $r->target_id;
+            $label = apply_filters('bhi_report_target_label', $default_label, $r->target_type, $r->target_id);
             $multi = $status_filter === 'open' && (int) $r->distinct_reporters >= 3;
             echo '<tr' . ($multi ? ' style="background:#fbeaea;"' : '') . '>';
             echo '<td>' . esc_html($r->created_at) . '</td>';

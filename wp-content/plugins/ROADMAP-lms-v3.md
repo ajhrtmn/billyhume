@@ -51,6 +51,14 @@ The genuinely compelling reason to take this seriously rather than dismiss it: i
 
 Not proposing this gets built now. Flagging it as *possibly the same project as branching's authoring problem*, which is itself useful scoping information.
 
+### 4a. Broader framing: not LMS-only — a general "code-free visual scripting" surface (AJ, 2026-07-17)
+
+Raised again independently, this time explicitly scoped BEYOND the LMS: "a mindmap/node graph based choose-your-own-adventure GUI for more complex courses, or even eventually a code-free visual scripting interface for just about anything that could benefit from it." Worth recording as the more ambitious version of Section 4 above, not a separate idea — if a node/edge graph canvas gets built at all, scoping it as a generic authoring surface from the start (rather than an LMS-specific tool later generalized) avoids a rebuild.
+
+Concretely, what a generic version implies beyond LMS branching: the graph's *nodes* would need to be able to represent something other than a lesson/step — plausibly a `BH_Element` placement, a `BH_Content` block, or an arbitrary action/condition pair — and the *edges* would need to carry more than "if this quiz answer, go here" (e.g. "if this tier gate passes," "if this event fired," "on a schedule"). That's a real superset of what Section 4 above already scoped, not a different feature: the same open questions apply (what a node IS, whether this is `BHC_Progress`'s branching surface or something `BH_Element`/`BH_Content` sit underneath instead, real graph-library UI work) plus one new one — how far "just about anything" should extend before this stops being a course-authoring tool and becomes a general low-code automation layer for the whole ecosystem (Zapier-in-WordPress territory), which is a much bigger commitment than either Section 3 or Section 4 alone.
+
+Still roadmap-only. The Section 5 sequencing below (a joint design pass before any code) is the right gate for this broader framing too — if anything, more so, since a general visual-scripting layer is a bigger, longer-lived architectural commitment than a course-branching tool would be on its own.
+
 ## 5. Suggested sequencing (dependency-driven, not ambition-driven)
 
 1. **Interactive video overlays** (Section 1) — buildable now, independent of everything else here, extends an existing step type. No prerequisite work.

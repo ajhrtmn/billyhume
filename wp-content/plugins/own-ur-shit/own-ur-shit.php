@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.3
+ * Version:     3.5.4
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,24 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.3');
+define('OUS_VER', '3.5.4');
+
+// 3.5.4 — Ecosystem-wide "report a technical difficulty" widget, AJ's
+// own ask. Reuses the existing BHI_Reports moderation queue (a new
+// 'technical' category + the existing bhi/v1/reports REST endpoint)
+// instead of standing up a second, parallel admin screen — every other
+// report category requires a real target_type+target_id (a piece of
+// content to point at); a bug report has none, so rest_submit() now
+// allows target_id=0 specifically for the 'technical' category, and
+// the admin queue's Target column shows a real label for it instead of
+// a bare "technical #0". A small floating "Report a problem" widget
+// (wp_footer, logged-in front-end visitors only) auto-captures the
+// current page URL and browser UA into the report so whoever triages
+// the queue doesn't need a back-and-forth to find out what page/
+// browser it happened on. Verified live end-to-end: submitted a real
+// report from the front end, confirmed the toast, and confirmed it
+// landed in Own Ur Shit → Reports with the correct label/category/
+// captured context.
 
 // 3.5.3 — Two more BH_ShareCard styles: 'poster-frame' (centered type,
 // bordered inset frame with corner registration-mark ticks) and
