@@ -62,10 +62,25 @@ class OUS_MenuMerge {
                 $parent = array_key_exists('parent', $item) ? $item['parent'] : 'own-ur-shit';
                 $capability = $item['capability'] ?? 'manage_options';
                 $hook = add_submenu_page($parent, $item['label'], $item['label'], $capability, $item['slug'], $item['callback']);
-                if (class_exists('OUS_DebugLog')) {
-                    OUS_DebugLog::log_throttled('info', 'menu_merge_' . $item['slug'], 60,
-                        'OUS_MenuMerge: add_submenu_page() for ' . $item['slug'] . ' (parent ' . $parent . ', capability ' . $capability . ') returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-                        ['hook_suffix' => $hook, 'parent' => $parent, 'capability' => $capability],
+                // Log-pollution fix, flagged by AJ directly ("logs get
+                // polluted quickly") — this used to log an INFO row for
+                // EVERY successful registration, throttled only to once
+                // per 60 SECONDS per slug, on every single admin page
+                // load. At real usage volume that fills the debug log's
+                // whole 1000-row cap (OUS_DebugLog::MAX_ROWS) within a
+                // handful of admin page visits, crowding out genuinely
+                // rare warning/error rows. The duplicate-menu-
+                // registration bug class this was built to catch is
+                // real (documented in this file's own changelog above)
+                // — but the signal that actually matters is FAILURE
+                // ($hook === false), never "registered exactly as
+                // expected," which is what happens on every request.
+                // Only the failure case still logs now, unthrottled
+                // (it's rare enough that throttling was never the point).
+                if ($hook === false && class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('error',
+                        'OUS_MenuMerge: add_submenu_page() for ' . $item['slug'] . ' (parent ' . $parent . ', capability ' . $capability . ') FAILED (returned false).',
+                        ['parent' => $parent, 'capability' => $capability],
                         'OUS_MenuMerge::merge()'
                     );
                 }

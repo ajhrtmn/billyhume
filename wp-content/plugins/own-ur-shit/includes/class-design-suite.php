@@ -106,11 +106,15 @@ class BH_Design_Suite {
         self::log_result('bh-design (relabeled first submenu)', $hook2);
     }
 
+    // Log-pollution fix, flagged by AJ directly — only the failure case
+    // is worth a log row; this used to fire an INFO row for every
+    // successful registration too, throttled only to once per 60
+    // seconds, on every admin page load.
     private static function log_result($what, $hook) {
-        if (!class_exists('OUS_DebugLog')) return; // harmless no-op if the logger didn't load for some reason — same posture as every other class_exists() guard in this ecosystem
-        OUS_DebugLog::log_throttled('info', 'design_suite_menu_' . sanitize_key($what), 60,
-            'add_menu_page()/add_submenu_page() for ' . $what . ' returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-            ['hook_suffix' => $hook, 'current_user_can_cap' => current_user_can(self::CAP) ? 'TRUE' : 'FALSE'],
+        if ($hook !== false || !class_exists('OUS_DebugLog')) return;
+        OUS_DebugLog::log('error',
+            'add_menu_page()/add_submenu_page() for ' . $what . ' FAILED (returned false).',
+            ['current_user_can_cap' => current_user_can(self::CAP) ? 'TRUE' : 'FALSE'],
             'BH_Design_Suite::add_menu()'
         );
     }

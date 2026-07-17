@@ -235,10 +235,14 @@ class BH_Studio {
     // Slug/callback/capability are otherwise unchanged from before this pass.
     public static function add_menu() {
         $hook = add_submenu_page(null, 'Content Studio', 'Content Studio', 'bhcore_design_site', 'bh-studio', [self::class, 'render']);
-        if (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log_throttled('info', 'studio_menu', 60,
-                'add_submenu_page() for Content Studio (bh-studio, hidden/null parent — reachable by direct link only, see this method\'s own comment) returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-                ['hook_suffix' => $hook], 'BH_Studio::add_menu()'
+        // Log-pollution fix, flagged by AJ directly — only the failure
+        // case is worth a log row; this used to fire an INFO row for
+        // every successful registration too, throttled only to once per
+        // 60 seconds, on every admin page load.
+        if ($hook === false && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error',
+                'add_submenu_page() for Content Studio (bh-studio, hidden/null parent) FAILED (returned false).',
+                [], 'BH_Studio::add_menu()'
             );
         }
     }

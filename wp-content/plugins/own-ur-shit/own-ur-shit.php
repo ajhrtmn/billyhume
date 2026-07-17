@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.5
+ * Version:     3.5.6
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,33 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.5');
+define('OUS_VER', '3.5.6');
+
+// 3.5.6 — Log-pollution fix, flagged by AJ directly ("I just notice
+// the logs get polluted quickly right now"). Traced to the exact same
+// pattern copied across 5 files (class-menu-merge.php, class-hub.php
+// [bh-crm], class-studio.php, class-design-suite.php, class-style-
+// gallery.php): every one of them logged an INFO row for a SUCCESSFUL
+// admin-menu registration, throttled only to once per 60 SECONDS, on
+// every single admin page load — with OUS_DebugLog::MAX_ROWS capped
+// at 1000, this filled the whole log within a handful of admin page
+// visits, crowding out genuinely rare warning/error rows. Confirmed
+// live before fixing: reloaded two admin pages, saw 4+ fresh
+// OUS_MenuMerge INFO rows from that alone. Fixed by only logging the
+// FAILURE case (add_menu_page()/add_submenu_page() returning false)
+// across all 5 — the success path carried zero diagnostic value once
+// the underlying duplicate-menu-registration bug class these were
+// built to catch is understood and stable. Deliberately did NOT touch
+// class-portal.php's/class-storefront.php's own similar-looking
+// rewrite-rule-check logging — that one is reasoned differently and
+// documented at length (a past real bug produced total silence
+// indistinguishable from "working fine," which is specifically what
+// that logging exists to rule out) and is already throttled to once
+// every 2-5 minutes, a genuinely different risk profile from firing on
+// every request. Verified live: reloaded admin pages after the fix,
+// confirmed zero new OUS_MenuMerge/BHCRM_Hub/BH_Studio/BH_Design_Suite/
+// BHY_Gallery rows appeared.
+
 
 // 3.5.5 — Enriched the "report a technical difficulty" widget with
 // real diagnostic context, per AJ's own follow-up ask. Two additions

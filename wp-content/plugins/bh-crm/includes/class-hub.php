@@ -65,11 +65,16 @@ class BHCRM_Hub {
         self::log_result('bh-crm-hub (relabeled first submenu)', $hook2);
     }
 
+    // Log-pollution fix, flagged by AJ directly — this used to log an
+    // INFO row for every SUCCESSFUL registration too, throttled only to
+    // once per 60 seconds, on every admin page load. Same fix as
+    // OUS_MenuMerge::merge()'s own version of this exact pattern: only
+    // the failure case is worth a log row at all.
     private static function log_result($what, $hook) {
-        if (!class_exists('OUS_DebugLog')) return; // harmless no-op if the core logger didn't load — same posture as every other class_exists() guard in this ecosystem
-        OUS_DebugLog::log_throttled('info', 'bhcrm_hub_menu_' . sanitize_key($what), 60,
-            'add_menu_page()/add_submenu_page() for ' . $what . ' returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-            ['hook_suffix' => $hook, 'current_user_can_cap' => current_user_can(self::CAP) ? 'TRUE' : 'FALSE'],
+        if ($hook !== false || !class_exists('OUS_DebugLog')) return;
+        OUS_DebugLog::log('error',
+            'add_menu_page()/add_submenu_page() for ' . $what . ' FAILED (returned false).',
+            ['current_user_can_cap' => current_user_can(self::CAP) ? 'TRUE' : 'FALSE'],
             'BHCRM_Hub::add_menu()'
         );
     }

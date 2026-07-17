@@ -108,10 +108,14 @@ class BHY_Gallery {
     // renders).
     public static function add_menu() {
         $hook = add_submenu_page(null, 'Designer', 'Designer', 'bhcore_design_site', 'bh-style', [self::class, 'render']);
-        if (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log_throttled('info', 'style_gallery_menu', 60,
-                'add_submenu_page() for Designer (bh-style, hidden/null parent — reachable by direct link only, see this method\'s own comment) returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-                ['hook_suffix' => $hook], 'BHY_Gallery::add_menu()'
+        // Log-pollution fix, flagged by AJ directly — only the failure
+        // case is worth a log row; this used to fire an INFO row for
+        // every successful registration too, throttled only to once per
+        // 60 seconds, on every admin page load.
+        if ($hook === false && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error',
+                'add_submenu_page() for Designer (bh-style, hidden/null parent) FAILED (returned false).',
+                [], 'BHY_Gallery::add_menu()'
             );
         }
     }
