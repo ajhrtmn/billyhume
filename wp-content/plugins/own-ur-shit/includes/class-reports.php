@@ -103,6 +103,59 @@ class BHI_Reports {
         </div>
         <script>
         (function () {
+            // Recent-action trail — AJ's own ask: "recent user actions
+            // taken or other things like that" as extra report context.
+            // A capped (last 12), sessionStorage-backed log of clicked
+            // interactive elements' visible labels — never keystrokes,
+            // never field VALUES/PII, just "what did they click and
+            // roughly when" — so whoever triages a report can see the
+            // path that led there, not just the final page. Lives at
+            // module scope (not inside the widget's own IIFE below) so
+            // it starts recording from page load, before the widget is
+            // ever opened — the whole point is capturing what happened
+            // BEFORE the user realized something was wrong. sessionStorage
+            // (not a variable) so the trail survives a real navigation
+            // between pages within the same tab/session, since a report
+            // is very often filed one or two pages after whatever
+            // actually broke.
+            var TRAIL_KEY = 'bhi_action_trail';
+            var TRAIL_MAX = 12;
+            function pushTrail(label) {
+                if (!label) return;
+                var trail;
+                try { trail = JSON.parse(sessionStorage.getItem(TRAIL_KEY) || '[]'); } catch (e) { trail = []; }
+                trail.push({ l: label.slice(0, 80), t: Date.now() });
+                if (trail.length > TRAIL_MAX) trail = trail.slice(-TRAIL_MAX);
+                try { sessionStorage.setItem(TRAIL_KEY, JSON.stringify(trail)); } catch (e) { /* storage full/disabled — trail just stays shorter, not fatal */ }
+            }
+            pushTrail('Loaded: ' + document.title);
+            document.addEventListener('click', function (e) {
+                var el = e.target.closest('button, a, [role="button"], input[type="submit"]');
+                if (!el) return;
+                var label = (el.getAttribute('aria-label') || el.textContent || el.value || '').trim().replace(/\s+/g, ' ');
+                if (label) pushTrail('Clicked: ' + label);
+            }, true);
+
+            // Coarse "which feature area" guess from known root markers
+            // already on the page — not a claim about which FILE is
+            // involved (this is client-side, it can't know that), but a
+            // real hint that saves the triager from guessing "was this
+            // even in the LMS?" from the URL alone.
+            var SURFACE_MARKERS = [
+                ['.bhc-lesson', 'BH Courses — lesson/quiz step walker'],
+                ['.bhc-catalog', 'BH Courses — course catalog'],
+                ['.bhc-course-view', 'BH Courses — course detail page'],
+                ['.bh-player-root', 'BH Contest — submission/voting player'],
+                ['.bhs-player', 'BH Streaming — audio player'],
+                ['.bhy-shell', 'Own Ur Shit — portal/account UI'],
+            ];
+            function detectSurface() {
+                for (var i = 0; i < SURFACE_MARKERS.length; i++) {
+                    if (document.querySelector(SURFACE_MARKERS[i][0])) return SURFACE_MARKERS[i][1];
+                }
+                return 'Unrecognized page (no known feature marker found)';
+            }
+
             var root = document.getElementById('bhi-tech-report');
             if (!root) return;
             var toggle = root.querySelector('.bhi-tech-report-toggle');
@@ -127,9 +180,22 @@ class BHI_Reports {
                 // Auto-captured context, not something the reporter has
                 // to think to include — the whole point of this widget
                 // over a generic "email us" link is that whoever
-                // triages it in the admin queue sees exactly what page
-                // and browser this happened on without a back-and-forth.
-                var context = 'Page: ' + window.location.href + '\nBrowser: ' + navigator.userAgent + '\n\n' + reason;
+                // triages it in the admin queue sees exactly what page,
+                // browser, feature area, and recent click path led here
+                // without a back-and-forth. Extended per AJ's own ask
+                // ("recent user actions... other valuable context") on
+                // top of the page/browser info already captured.
+                var trail;
+                try { trail = JSON.parse(sessionStorage.getItem(TRAIL_KEY) || '[]'); } catch (e) { trail = []; }
+                var trailLines = trail.map(function (entry) {
+                    var secondsAgo = Math.round((Date.now() - entry.t) / 1000);
+                    return '  - ' + entry.l + ' (' + secondsAgo + 's before report)';
+                }).join('\n') || '  (none captured this session)';
+                var context = 'Page: ' + window.location.href
+                    + '\nFeature area (best guess): ' + detectSurface()
+                    + '\nBrowser: ' + navigator.userAgent
+                    + '\nRecent actions this session:\n' + trailLines
+                    + '\n\n' + reason;
                 fetch(<?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1/reports'))); ?>, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': <?php echo wp_json_encode($nonce); ?> },

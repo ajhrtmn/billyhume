@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.4
+ * Version:     3.5.5
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,25 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.4');
+define('OUS_VER', '3.5.5');
+
+// 3.5.5 — Enriched the "report a technical difficulty" widget with
+// real diagnostic context, per AJ's own follow-up ask. Two additions
+// on top of the existing page-URL/browser capture: (1) a coarse
+// "feature area" guess (BH Courses lesson/catalog, BH Contest player,
+// BH Streaming player, portal UI) from known DOM root markers already
+// present on the page — not a claim about which FILE is involved
+// (this is client-side, it can't know that), but a real triage hint
+// instead of making an admin guess from the URL alone. (2) A capped
+// (last 12), sessionStorage-backed recent-action trail — every clicked
+// button/link's visible label plus a relative timestamp, recording
+// from page load (not just from when the widget opens), so a report
+// filed a page or two after the actual problem still shows the path
+// that led there. Deliberately never captures keystrokes or field
+// values — only what was clicked, never what was typed. Verified live
+// end-to-end: real click trail (a vote, opening the widget, sending
+// the report) and the correct feature-area guess both showed up
+// exactly as expected in the admin queue.
 
 // 3.5.4 — Ecosystem-wide "report a technical difficulty" widget, AJ's
 // own ask. Reuses the existing BHI_Reports moderation queue (a new
