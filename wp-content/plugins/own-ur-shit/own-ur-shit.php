@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.2
+ * Version:     3.6.3
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,24 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.2');
+define('OUS_VER', '3.6.3');
+
+// 3.6.3 — real production fatal, caught live on the billyhume.wasmer.app
+// deploy: "Uncaught Error: Class ActionScheduler not found" in
+// class-jobs.php, site-wide 500 on every request. Root cause: action-
+// scheduler.php's own bootstrap doesn't define the ActionScheduler
+// facade class synchronously — it defers to a 'plugins_loaded'
+// priority-1 callback it registers itself. OUS_Jobs::init() requires
+// that file from INSIDE a 'plugins_loaded' callback at the default
+// priority (10), by which point WordPress has already passed priority
+// 1 for that hook firing — the self-registered callback silently never
+// runs, ActionScheduler never gets defined, and the later
+// ActionScheduler::init() call fatals. Never surfaced locally because
+// WooCommerce's own bundled Action Scheduler copy usually wins the
+// race and defines the class first. Fixed by calling
+// ActionScheduler_Versions::initialize_latest_version() directly and
+// synchronously right after the require, instead of trusting hook
+// timing that had already passed.
 
 // 3.6.2 — new OUS_Metrics (includes/class-metrics.php): the shared
 // creator-dashboard VISION.md's own roadmap has named since before
