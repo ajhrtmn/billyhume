@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.8
+ * Version:     3.6.9
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,15 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.8');
+define('BH_VER',        '3.6.9');
+
+// 3.6.9 — real cross-browser gap, caught by a grounded browser-quirk
+// audit of every first-party .css/.js file in the ecosystem: .bh-modal
+// used unprefixed `backdrop-filter: blur(2px)` with no
+// `-webkit-backdrop-filter` fallback, so older Safari silently drops
+// the blur (flat overlay, no glass effect) instead of degrading
+// gracefully. Added the prefixed declaration alongside the standard
+// one.
 
 // 3.6.8 — First real contributor to own-ur-shit's new shared Metrics
 // dashboard (OUS_Metrics, class-metrics.php): two widgets in

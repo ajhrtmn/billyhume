@@ -71,8 +71,18 @@
 .bhs-like-btn.liked { color: var(--bh-accent); }
 .bhs-np-volume { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--bh-text-dim); font-size: 13px; }
 .bhs-np-volume input { width: 70px; }
-.bhs-seek { position: absolute; top: -2px; left: 0; width: 100%; height: 4px; -webkit-appearance: none; background: var(--bh-border); }
+.bhs-seek { position: absolute; top: -2px; left: 0; width: 100%; height: 4px; -webkit-appearance: none; appearance: none; background: var(--bh-border); }
 .bhs-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 0; height: 0; }
+/* Firefox-only pseudo-elements, split out because a browser that
+   doesn't recognize ::-moz-range-thumb drops the whole rule if it's
+   comma-combined with the -webkit- one above — real gap caught by a
+   cross-browser audit: without this, Firefox showed its native
+   slider thumb/track here while every other browser correctly showed
+   none (the progress fill is drawn by a separate element, not by the
+   native thumb). */
+.bhs-seek::-moz-range-thumb { width: 0; height: 0; border: none; background: transparent; }
+.bhs-seek::-moz-range-track { background: transparent; border: none; }
+.bhs-seek::-moz-range-progress { background: transparent; }
 
 /* ---- queue panel ---- */
 .bhs-queue-panel {

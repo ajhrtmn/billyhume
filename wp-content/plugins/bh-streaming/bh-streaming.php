@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.4
+ * Version:     0.5.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -40,7 +40,22 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.4');
+define('BHS_VER',  '0.5.5');
+
+// 0.5.5 — real cross-browser gap, caught by a grounded browser-quirk
+// audit of every first-party .css/.js file in the ecosystem (not
+// guessed): .bhs-seek's WebKit thumb was intentionally sized to 0x0
+// (the seek progress is drawn by a separate fill element, not the
+// native thumb), but there was no ::-moz-range-thumb counterpart, so
+// Firefox rendered its own native, VISIBLE slider thumb/track here
+// while every other browser correctly showed none. Added the Firefox
+// pseudo-elements (split into their own rule — a browser that doesn't
+// recognize ::-moz-range-thumb drops the whole selector if it's
+// comma-combined with -webkit-). Not verified against a real Firefox
+// render in this session (only a Chromium-based preview pane was
+// available) — the fix follows documented ::-moz-range-* syntax
+// correctly, but flagging that it's unverified against the actual
+// engine it targets.
 
 // 0.5.4 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
 // shortcode-to-block conversion continues, following bh-monetization-
