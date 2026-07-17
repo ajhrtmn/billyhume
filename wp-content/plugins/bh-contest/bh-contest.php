@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.0
+ * Version:     3.7.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,23 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.0');
+define('BH_VER',        '3.7.1');
+
+// 3.7.1 — new BH_ContestWizard (includes/class-contest-wizard.php): a
+// guided "New Contest" flow, the "it just works" design principle
+// applied to the single most confusing screen in this ecosystem (the
+// real edit screen spans 7 metaboxes, 30+ interdependent fields —
+// confirmed by direct code read, not guessed). Covers name/submission
+// window/voting window/categories/judging format only; rounds,
+// Discord, contact-field customization, and branding stay on the real
+// edit screen with sensible defaults. Reuses the real save path —
+// populates $_POST with that screen's own field names and lets
+// wp_insert_post() fire the real save_post_bh_contest hook — rather
+// than duplicating BH_Admin::save_contest_meta()'s validation logic.
+// Real bug caught and fixed during live verification: the save
+// handler checks isset($_POST['bh_results_published']), not
+// truthiness, so the wizard's first draft (setting it to '') still
+// saved results as published — fixed by unset() instead.
 
 // 3.7.0 — ROADMAP-discoverability.md Section 3's own per-content-type
 // schema.org plan: BH_Auth::render() now calls BH_SEO::set_page_data()
@@ -528,7 +544,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -606,6 +622,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Auth', 'init']);
     add_action('rest_api_init', ['BH_API', 'register_routes']);
     add_action('init',          ['BH_Admin', 'init']);
+    add_action('init',          ['BH_ContestWizard', 'init']);
     add_action('before_delete_post', ['BH_Admin', 'cleanup_deleted_contest']);
     add_action('init',          ['BH_CRMIntegration', 'init']);
     add_action('init',          ['BH_StyleSurfaces', 'init']);

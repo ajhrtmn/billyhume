@@ -60,6 +60,8 @@ class BHM_Admin {
                 : '<strong>WooCommerce Subscriptions isn\'t active</strong> — supporter tiers will sell as one-time, 30-day access instead of automatic recurring billing. Install WooCommerce Subscriptions (a separate, official, paid extension — WooCommerce core has no subscription billing of its own) if you want true recurring tiers.'
             ) . '</p>';
 
+            self::render_get_paid_card();
+
             $topup_options = get_option('bhm_wallet_topup_options', [500 => 5.00, 1000 => 10.00, 2500 => 25.00]);
             echo '<h2>Pay-per-play wallet top-up amounts</h2>';
             echo '<p class="description">The fixed top-up amounts fans see when adding play credit. Stored as cents-of-credit → USD price (usually 1:1, i.e. $5 buys 500 cents / $5.00 of play credit — a discount tier is just a price lower than the cents value).</p>';
@@ -82,6 +84,37 @@ class BHM_Admin {
             } else {
                 echo '<p><em>Not set yet.</em></p>';
             }
+        }
+        echo '</div>';
+    }
+
+    /**
+     * "It just works" applied to the one real gap the wizard-opportunity
+     * survey found: this plugin has NO payment-gateway screen of its
+     * own — real Stripe/PayPal/card processing is configured entirely
+     * in WooCommerce core's own checkout settings, which is exactly the
+     * kind of raw, technical, third-party screen VISION.md's "it just
+     * works" principle exists to wrap. Rather than reimplementing
+     * gateway configuration (WooCommerce core already ships a real
+     * guided Payments setup task), this is a thin, honest launcher: a
+     * REAL check of whether a gateway is actually enabled right now
+     * (WC_Payment_Gateways::get_available_payment_gateways() — a live
+     * API call, never a guess) plus a direct link into WooCommerce's
+     * own screen. Same "wrap what already exists, don't rebuild it"
+     * posture as OUS_MediaWizard pointing at Advanced Media Offloader.
+     */
+    private static function render_get_paid_card() {
+        $enabled = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : [];
+        $payments_url = admin_url('admin.php?page=wc-settings&tab=checkout');
+
+        echo '<div class="bhy-alert" style="border-left:3px solid ' . ($enabled ? '#1DB954' : '#d63638') . ';background:#f6f7f7;padding:14px 16px;margin:16px 0;max-width:760px;">';
+        if ($enabled) {
+            $names = implode(', ', array_map(fn($g) => $g->get_title(), $enabled));
+            echo '<p><strong>&#9989; Ready to get paid.</strong> Active payment method' . (count($enabled) === 1 ? '' : 's') . ': ' . esc_html($names) . '.</p>';
+            echo '<p><a class="button" href="' . esc_url($payments_url) . '">Manage payment methods</a></p>';
+        } else {
+            echo '<p><strong>&#10060; No payment method is enabled yet.</strong> Tiers and purchases can be created, but a fan can\'t actually pay for anything until at least one gateway (Stripe, PayPal, WooCommerce Payments, etc.) is turned on.</p>';
+            echo '<p><a class="button button-primary" href="' . esc_url($payments_url) . '">Set up a payment method &rarr;</a> <span class="description">Opens WooCommerce\'s own guided payments setup — real card processing is configured there, not duplicated here.</span></p>';
         }
         echo '</div>';
     }

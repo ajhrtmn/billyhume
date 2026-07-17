@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.18
+ * Version:     0.4.19
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -180,7 +180,17 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.18');
+define('BHM_VER',  '0.4.19');
+
+// 0.4.19 — "Get Paid" card on the Monetization Settings screen
+// (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_
+// Gateways::get_available_payment_gateways() — a real API call, never
+// a guess) of whether any payment gateway is actually enabled, plus a
+// direct link into WooCommerce core's own guided payments setup. This
+// plugin has no gateway config screen of its own — real Stripe/PayPal
+// credentials live entirely in WooCommerce core — so the honest, "it
+// just works" move is a thin launcher pointing at WC's own onboarding,
+// not a duplicate settings UI.
 
 // 0.4.18 — first real contributor to own-ur-shit's shared Metrics
 // dashboard (OUS_Metrics): two widgets in class-crm-integration.php
