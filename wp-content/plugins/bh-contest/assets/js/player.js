@@ -12,6 +12,30 @@ const CAT_COLORS = [
     'var(--bh-cat-5, #38BDF8)', 'var(--bh-cat-6, #A3E635)', 'var(--bh-cat-7, #FBBF24)', 'var(--bh-cat-8, #FB7185)',
 ];
 
+// The one place the profile-field list/DOM-class mapping lives now —
+// contract-drift fix, caught by an audit run right after the quiz-
+// shuffle bug (own-ur-shit's BHI_Profiles::TEXT_COLS is the real PHP-
+// side source of truth, already correctly single-sourced there; this
+// was the JS-side counterpart, independently duplicated in THREE
+// places — appendProfileFields()'s own map, prefillSubmitProfile()'s
+// separately-typed copy of the identical map, and applyContactFields()/
+// the contactFields.show default's own hardcoded field-name array).
+// Nothing caught it drifting yet, but nothing PREVENTED it either — a
+// field added to BHI_Profiles::TEXT_COLS in the future would silently
+// never show up in one of these three without a human remembering to
+// update all three by hand. Server field key -> DOM class-suffix
+// mapping is legitimately a bh-contest template concern (not something
+// PHP needs to dictate), so this stays JS-side rather than crossing the
+// PHP/JS boundary via wp_localize_script — the fix is collapsing THREE
+// copies into ONE, not moving the one copy.
+const PROFILE_FIELDS = [
+    { key: 'real_name', cls: 'realname' },
+    { key: 'discord_name', cls: 'discord' },
+    { key: 'twitch_name', cls: 'twitch' },
+    { key: 'youtube_name', cls: 'youtube' },
+];
+const CONTACT_FIELD_KEYS = PROFILE_FIELDS.map(f => f.key).concat(['typical_platform', 'phone']);
+
 class BHPlayer {
     // root: the specific .bh-player-root element for THIS instance. Every
     // DOM lookup below is scoped to root.querySelector(...), never the
@@ -392,11 +416,7 @@ class BHPlayer {
     // profile fields have a value, plus their public/private checkbox, to
     // an outgoing FormData using the given field prefix ('reg' or 'sub').
     appendProfileFields(fd, prefix) {
-        const map = {
-            real_name: 'realname', discord_name: 'discord',
-            twitch_name: 'twitch', youtube_name: 'youtube',
-        };
-        for (const [serverKey, cls] of Object.entries(map)) {
+        for (const { key: serverKey, cls } of PROFILE_FIELDS) {
             const val = this.q(`.bh-${prefix}-${cls}`).value.trim();
             if (val) {
                 fd.append(serverKey, val);
@@ -536,8 +556,7 @@ class BHPlayer {
         const { ok, body } = await this.reqIdentity('profile');
         if (!ok || !body.profile) return;
         const p = body.profile;
-        const map = { real_name: 'realname', discord_name: 'discord', twitch_name: 'twitch', youtube_name: 'youtube' };
-        for (const [serverKey, cls] of Object.entries(map)) {
+        for (const { key: serverKey, cls } of PROFILE_FIELDS) {
             const input = this.q(`.bh-sub-${cls}`);
             if (p[serverKey] && !input.value) input.value = p[serverKey];
             this.q(`.bh-sub-${cls}-pub`).checked = !!p[`${serverKey}_public`];
@@ -623,7 +642,7 @@ class BHPlayer {
         this.renderCategoryTabs();
 
         this.contactFields = body.contact_fields || {
-            show: ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'],
+            show: CONTACT_FIELD_KEYS,
             require_real_name: true, require_handle: true, require_phone: false,
         };
         this.applyContactFields();
@@ -645,7 +664,7 @@ class BHPlayer {
     // wrapper carrying that data-field, not the now-invisible raw select.
     applyContactFields() {
         const cfg = this.contactFields;
-        ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'].forEach(f => {
+        CONTACT_FIELD_KEYS.forEach(f => {
             const el = this.q(`[data-field="${f}"]`);
             if (el) el.style.display = cfg.show.includes(f) ? '' : 'none';
         });

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.6
+ * Version:     3.6.7
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,8 +222,21 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.6');
+define('BH_VER',        '3.6.7');
 
+// 3.6.7 — Contract-drift fix in player.js, flagged by an audit run
+// right after the quiz-shuffle bug this same session (the same failure
+// mode: a field list that SHOULD be single-sourced, independently
+// duplicated across multiple call sites, currently in sync by luck
+// rather than by construction). own-ur-shit's BHI_Profiles::TEXT_COLS
+// is already correctly single-sourced on the PHP side; this was the
+// JS-side counterpart — appendProfileFields()'s field/DOM-class map,
+// prefillSubmitProfile()'s separately-typed copy of the identical map,
+// and applyContactFields()/contactFields.show's own hardcoded field-
+// name array were three independent literals. Collapsed into one
+// PROFILE_FIELDS/CONTACT_FIELD_KEYS pair at module scope; all three
+// consumers now read off it. Verified live: submit modal renders every
+// field correctly, prefill still works, zero console errors.
 // 3.6.6 — Production-hardening pass, from a fresh audit ahead of real
 // users: two real data-integrity/UX bugs, closed.
 // (1) Trapped vote slot: class-api.php's vote() gated its TOGGLE-OFF
