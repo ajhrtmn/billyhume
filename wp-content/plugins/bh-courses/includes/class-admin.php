@@ -152,13 +152,40 @@ class BHC_Admin {
         // from the dropdown every single time, a real friction point
         // AJ's own audit caught.
         $add_lesson_url = admin_url('post-new.php?post_type=bh_lesson&bhc_course_id=' . (int) $post->ID);
+
+        // "Emphasize through the UI that every lesson belongs to
+        // exactly one course" — AJ's own ask. A course is a real
+        // COLLECTION of lessons, not just a list to drag-reorder: this
+        // summary line is the "at a glance, what's this course made
+        // of" a plain list never gave, and every lesson row below is
+        // now a genuine management surface (a real edit link — it was
+        // static text before — a step count, and a one-click way to
+        // detach a lesson from this collection) rather than just an
+        // orderable label.
+        $published_count = count(array_filter($ordered, fn($l) => $l->post_status === 'publish'));
+        $draft_count = count($ordered) - $published_count;
+        $total_steps = class_exists('BHC_Steps') ? array_sum(array_map(fn($l) => BHC_Steps::count($l->ID), $ordered)) : 0;
+        echo '<div class="bhc-course-stats">'
+            . '<strong>' . count($ordered) . '</strong> lesson' . (count($ordered) === 1 ? '' : 's')
+            . ' &middot; <strong>' . $published_count . '</strong> published'
+            . ($draft_count ? ' &middot; <strong>' . $draft_count . '</strong> draft' : '')
+            . ' &middot; <strong>' . $total_steps . '</strong> total step' . ($total_steps === 1 ? '' : 's')
+            . '</div>';
+
         echo '<p class="description">Drag to reorder. Only lessons whose "Belongs to course" field (below, on the lesson itself) points here show up. <a href="' . esc_url($add_lesson_url) . '">+ Add New Lesson to this course</a></p>';
         echo '<ul id="bhc-lesson-order-list" class="bhc-order-list">';
         foreach ($ordered as $l) {
+            $step_count = class_exists('BHC_Steps') ? BHC_Steps::count($l->ID) : 0;
+            $unassign_url = wp_nonce_url(
+                admin_url('admin-post.php?action=bhc_unassign_lesson&lesson_id=' . (int) $l->ID . '&course_id=' . (int) $post->ID),
+                'bhc_unassign_lesson_' . $l->ID
+            );
             echo '<li class="bhc-order-item" data-id="' . (int) $l->ID . '">'
                . '<span class="bhc-order-drag-handle" title="Drag to reorder">&#8942;&#8942;</span>'
-               . '<span class="bhc-order-title">' . esc_html($l->post_title) . '</span>'
-               . '<em class="bhc-order-status">' . esc_html($l->post_status) . '</em>'
+               . '<a class="bhc-order-title" href="' . esc_url(get_edit_post_link($l->ID, 'raw')) . '">' . esc_html($l->post_title) . '</a>'
+               . '<span class="bhc-order-steps">' . (int) $step_count . ' step' . ($step_count === 1 ? '' : 's') . '</span>'
+               . '<em class="bhc-order-status bhc-order-status-' . esc_attr($l->post_status) . '">' . esc_html($l->post_status) . '</em>'
+               . '<a class="bhc-order-unassign" href="' . esc_url($unassign_url) . '" onclick="return confirm(\'Remove ' . esc_js($l->post_title) . ' from this course? The lesson itself isn\\\'t deleted.\');" title="Remove from this course">&times;</a>'
                . '</li>';
         }
         echo '</ul>';
@@ -272,17 +299,33 @@ class BHC_Admin {
         }
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
 
-        echo '<p><label>Belongs to course<br><select name="bhc_course_id">';
-        echo '<option value="0">— none yet —</option>';
+        // "Every lesson belongs to exactly one course" — AJ's own ask
+        // to emphasize this relationship in the UI, not just enforce it
+        // in the data model. This box led with a plain unlabeled select
+        // before; now it's framed as the defining fact about what a
+        // lesson IS, with the lesson's actual position inside that
+        // course's own order shown right here (previously only visible
+        // by going to the course screen and counting).
+        echo '<div class="bhc-lesson-course-box">';
+        echo '<p class="bhc-lesson-course-label">This lesson belongs to</p>';
+        echo '<select name="bhc_course_id" class="bhc-lesson-course-select">';
+        echo '<option value="0">— No course yet —</option>';
         foreach ($courses as $c) {
             echo '<option value="' . (int) $c->ID . '"' . selected($current_course, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
         }
-        echo '</select></label></p>';
+        echo '</select>';
         if ($current_course) {
-            echo '<p class="description"><a href="' . esc_url(get_edit_post_link($current_course)) . '">&larr; Back to ' . esc_html(get_the_title($current_course)) . '</a> to place this lesson in the lesson order.</p>';
+            $position = BHC_PostTypes::lesson_position($post->ID);
+            $lesson_count = BHC_PostTypes::lesson_count($current_course);
+            echo '<p class="description">';
+            if ($position !== null) {
+                echo 'Lesson ' . ($position + 1) . ' of ' . $lesson_count . ' &mdash; ';
+            }
+            echo '<a href="' . esc_url(get_edit_post_link($current_course)) . '">&larr; Back to ' . esc_html(get_the_title($current_course)) . '</a> to reorder or manage the full lesson list.</p>';
         } else {
             echo '<p class="description">After saving, go to that course\'s own edit screen to place this lesson in the lesson order.</p>';
         }
+        echo '</div>';
 
         // Drip scheduling — see class-gate.php's docblock: exactly one
         // of these two, never both, matching "self-paced" vs. "scheduled
@@ -551,6 +594,28 @@ class BHC_Admin {
         }
 
         wp_safe_redirect(get_edit_post_link($new_id, 'raw'));
+        exit;
+    }
+
+    // Detaches a lesson from a course without deleting the lesson
+    // itself — the "×" quick-action in render_course_metabox()'s
+    // lesson list. Clears _bhc_course_id AND removes the ID from that
+    // course's _bhc_lesson_order in one step (the same two-sided-
+    // pointer relationship save_lesson()'s course-reassignment sync
+    // already keeps consistent — this is the same operation, just
+    // triggered from the course side instead of the lesson side).
+    public static function handle_unassign_lesson() {
+        $lesson_id = (int) ($_GET['lesson_id'] ?? 0);
+        $course_id = (int) ($_GET['course_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_unassign_lesson_' . $lesson_id)) wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        if (!current_user_can('edit_post', $lesson_id) || !current_user_can('edit_post', $course_id)) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
+        $lesson = get_post($lesson_id);
+        if (!$lesson || $lesson->post_type !== 'bh_lesson') wp_die('Lesson not found.', '', ['response' => 404, 'back_link' => true]);
+
+        delete_post_meta($lesson_id, '_bhc_course_id');
+        self::remove_lesson_from_order($course_id, $lesson_id);
+
+        wp_safe_redirect(get_edit_post_link($course_id, 'raw'));
         exit;
     }
 

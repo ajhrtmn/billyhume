@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.22
+ * Version:     0.4.23
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,29 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.22');
+define('BHC_VER',  '0.4.23');
 
+// 0.4.23 — Course-as-collection UI pass, emphasizing the "every lesson
+// belongs to exactly one course" relationship AJ asked to make visible
+// in the UI, not just the data model.
+// Course screen (render_course_metabox()): a new stats line above the
+// lesson list ("N lessons · N published · N draft · N total steps") —
+// previously a bare orderable list gave no at-a-glance sense of the
+// course as a collection. Each lesson row is now a real management
+// surface: the title is a genuine edit link (previously static text —
+// getting to a lesson meant leaving this screen and finding it in All
+// Lessons), a step count, a real status pill, and a new "×" quick
+// action (handle_unassign_lesson(), new admin-post handler) that
+// detaches a lesson from the course without deleting the lesson
+// itself.
+// Lesson screen (render_lesson_metabox()): the course dropdown is now
+// inside a labeled "THIS LESSON BELONGS TO" box, and when a course is
+// already assigned it shows this lesson's real position ("Lesson 2 of
+// 5") via the existing BHC_PostTypes::lesson_position() — previously
+// only visible by going to the course screen and counting.
+// Verified live: real stats bar rendering correct counts, lesson-row
+// edit links/step counts/status pills, and the lesson-screen position
+// line all confirmed against a real 2-lesson course.
 // 0.4.22 — Production-hardening pass, from a fresh audit ahead of real
 // users.
 // (1) New before_delete_post cleanup (cleanup_deleted_lesson()) — the
@@ -653,6 +674,7 @@ add_action('plugins_loaded', function () {
     add_filter('manage_bh_lesson_posts_columns', ['BHC_Admin', 'lesson_columns']);
     add_filter('post_row_actions', ['BHC_Admin', 'lesson_row_actions'], 10, 2);
     add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
+    add_action('admin_post_bhc_unassign_lesson', ['BHC_Admin', 'handle_unassign_lesson']);
     add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_lesson']);
