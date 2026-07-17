@@ -130,7 +130,33 @@ class OUS_Jobs {
         add_action('plugins_loaded', function () {
             if (!class_exists('ActionScheduler') && self::library_available()) {
                 require_once self::vendor_path();
-                add_action('init', function () { ActionScheduler::init(self::vendor_path()); }, 1);
+                // Real production fatal, caught live: action-scheduler.php's
+                // OWN bootstrap doesn't define the ActionScheduler facade
+                // class synchronously on require — it just requires
+                // ActionScheduler_Versions and registers ITS OWN
+                // 'plugins_loaded' priority-1 callback
+                // (ActionScheduler_Versions::initialize_latest_version) to
+                // do the actual work. But we're inside a 'plugins_loaded'
+                // callback registered at the DEFAULT priority (10) — by the
+                // time this code runs, WordPress has already passed
+                // priority 1 for this hook firing, so that newly-added
+                // priority-1 callback silently never runs this pass. The
+                // class then never gets defined, and the add_action('init', ...)
+                // below fatals with "Class ActionScheduler not found" the
+                // moment it runs. Fix: call initialize_latest_version()
+                // directly and synchronously instead of trusting the hook
+                // timing — it's the exact same call action-scheduler.php's
+                // own hook would have made, just not deferred to a hook
+                // stage that's already passed. This went unnoticed locally
+                // because WooCommerce's own bundled Action Scheduler copy
+                // usually loads and defines the class first, making the
+                // class_exists() check above true and skipping this whole
+                // branch — it only surfaced on a fresh deploy where that
+                // race went the other way.
+                if (class_exists('ActionScheduler_Versions')) {
+                    ActionScheduler_Versions::initialize_latest_version();
+                }
+                add_action('init', function () { if (class_exists('ActionScheduler')) ActionScheduler::init(self::vendor_path()); }, 1);
             }
         });
 
