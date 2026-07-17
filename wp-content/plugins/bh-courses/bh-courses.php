@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.27
+ * Version:     0.4.28
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,22 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.27');
+define('BHC_VER',  '0.4.28');
+
+// 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
+// (1) "Mark complete" step-completion now has real retry-with-backoff
+// (matching own-ur-shit's class-reports.php reference pattern) —
+// previously had NO .catch() at all, so a dropped connection silently
+// failed with zero feedback. Safe to retry: the server side is an
+// upsert on lesson_id+step_index, not an insert-only log. (2) Quiz
+// submission gets the OPPOSITE fix — the submit button is now disabled
+// the instant the form submits (re-enabled only on a real failure),
+// since a quiz submission burns a real attempt server-side per call
+// and was previously vulnerable to a double-submit (double-click, or
+// a slow connection) silently costing a student an attempt. No retry
+// added there on purpose — retrying a request that actually succeeded
+// server-side but whose response just didn't arrive would have the
+// same cost.
 
 // 0.4.27 — ROADMAP-discoverability.md Section 3's own per-content-type
 // schema.org plan: BHC_Render_Course::render_course() now calls

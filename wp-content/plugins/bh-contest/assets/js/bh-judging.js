@@ -17,7 +17,8 @@
             return scores;
         }
 
-        function save(entry, status) {
+        function save(entry, status, attempt) {
+            attempt = attempt || 0;
             var body = new URLSearchParams();
             body.set('contest_id', BHJudgeData.contestId);
             body.set('submission_id', entry.dataset.submissionId);
@@ -44,6 +45,25 @@
                     if (statusEl) statusEl.textContent = submitted ? 'Submitted' : 'Draft';
                     if (submitBtn) submitBtn.textContent = submitted ? 'Update submission' : 'Submit score';
                     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(submitted ? 'Score submitted.' : 'Draft saved.', 'success'); }
+                })
+                .catch(function () {
+                    // Retry-audit pass, AJ's own standing ask: this had
+                    // no .catch() at all — a dropped connection here
+                    // silently failed with zero feedback, and (worse)
+                    // a judge could reasonably think their submitted
+                    // score went through when it never left the
+                    // browser. Safe to retry — the server side
+                    // (BH_Judging::save_score()) is a real
+                    // ON DUPLICATE KEY UPDATE upsert keyed on judge+
+                    // submission+category, confirmed by reading it, not
+                    // an insert-only log a retry could duplicate.
+                    if (attempt < 2) {
+                        if (statusEl) statusEl.textContent = 'Retrying…';
+                        setTimeout(function () { save(entry, status, attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                        return;
+                    }
+                    var msg = 'Could not reach the server — your score was NOT saved. Check your connection and try again.';
+                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); } else { alert(msg); }
                 });
         }
 

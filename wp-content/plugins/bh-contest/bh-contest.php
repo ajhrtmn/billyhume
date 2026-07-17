@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.1
+ * Version:     3.7.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,17 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.1');
+define('BH_VER',        '3.7.2');
+
+// 3.7.2 — retry-audit pass, AJ's own standing ask (assets/js/bh-judging.js):
+// judge score save had NO .catch() at all — a dropped connection
+// silently failed with zero feedback, and a judge could reasonably
+// believe a submitted score went through when it never left the
+// browser. Added retry-with-backoff (verified BH_Judging::save_score()
+// is a real ON DUPLICATE KEY UPDATE upsert keyed on judge+submission+
+// category before adding this — a retry here can't create a
+// duplicate row) and, if retries are exhausted, an explicit "your
+// score was NOT saved" message rather than silence.
 
 // 3.7.1 — new BH_ContestWizard (includes/class-contest-wizard.php): a
 // guided "New Contest" flow, the "it just works" design principle

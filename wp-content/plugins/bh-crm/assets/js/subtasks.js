@@ -32,7 +32,8 @@
             return layout;
         }
 
-        function save() {
+        function save(attempt) {
+            attempt = attempt || 0;
             var fd = new FormData();
             fd.append('action', 'bhcrm_subtask_reorder');
             fd.append('nonce', cfg.nonce);
@@ -53,7 +54,27 @@
                     // not just a client-side guess at what changed.
                     window.location.reload();
                 })
-                .catch(function () { window.location.reload(); });
+                .catch(function () {
+                    // Retry-audit pass, AJ's own standing ask: this
+                    // used to reload() unconditionally in the catch
+                    // block too, which on a real network failure
+                    // silently threw away the drag-drop the user just
+                    // made — the reload shows the OLD server layout,
+                    // no error, no sign the write never happened.
+                    // Reordering a full layout is idempotent (same
+                    // layout saved twice = same end state), so a real
+                    // retry is safe here; only give up and reload
+                    // (accepting the loss, but at least visibly) after
+                    // retries are exhausted.
+                    if (attempt < 2) {
+                        setTimeout(function () { save(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                        return;
+                    }
+                    if (typeof BHCoreToast !== 'undefined') {
+                        BHCoreToast.show('Could not save that change — reloading to the last saved state.', 'error');
+                    }
+                    window.location.reload();
+                });
         }
 
         // Also update the visible per-column counts immediately on
@@ -88,7 +109,8 @@
         // card fields (kanban-board.js) instead of a separate
         // collapsed edit form. Saves on blur, one fetch per field,
         // both routed through the same bhcrm_subtask_save handler.
-        function saveField(cardEl, field, value, statusEl) {
+        function saveField(cardEl, field, value, statusEl, attempt) {
+            attempt = attempt || 0;
             var fd = new FormData();
             fd.append('action', 'bhcrm_subtask_save');
             fd.append('nonce', cfg.nonce);
@@ -110,7 +132,19 @@
                         statusEl.textContent = (body && body.message) || 'Failed to save.';
                     }
                 })
-                .catch(function () { if (statusEl) statusEl.textContent = 'Failed to save.'; });
+                .catch(function () {
+                    // Retry-audit pass, AJ's own standing ask: this
+                    // single-field overwrite is idempotent (same value
+                    // saved twice = same end state), so a real network
+                    // blip is safe to retry rather than immediately
+                    // reporting failure on the first dropped connection.
+                    if (attempt < 2) {
+                        if (statusEl) statusEl.textContent = 'Retrying…';
+                        setTimeout(function () { saveField(cardEl, field, value, statusEl, attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                        return;
+                    }
+                    if (statusEl) statusEl.textContent = 'Failed to save.';
+                });
         }
 
         board.querySelectorAll('.bhcrm-kanban-card').forEach(function (cardEl) {

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.2
+ * Version:     2.4.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -341,7 +341,20 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.4.2');
+define('BHCRM_VER',  '2.4.3');
+
+// 2.4.3 — retry-audit pass, AJ's own standing ask (assets/js/subtasks.js):
+// the subtask-board reorder save had a real bug, not just a missing
+// nicety — its OWN failure handler called window.location.reload()
+// unconditionally, meaning a genuine network failure silently threw
+// away the drag-drop the user just made (reload shows the old server
+// layout, no error, no sign the write never happened). Now retries
+// with backoff first (a full-layout save is idempotent — same layout
+// twice is the same end state) and only reloads — with a visible error
+// toast — once retries are exhausted. The per-field inline-edit save
+// (saveField()) gets the same retry treatment for the same reason
+// (single-field overwrite is idempotent); it previously just reported
+// "Failed to save" on the very first network blip.
 
 // 2.4.2 — First real contributor to own-ur-shit's new shared Metrics
 // dashboard (OUS_Metrics, class-metrics.php): two widgets appended to

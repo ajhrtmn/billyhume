@@ -129,31 +129,58 @@
                 lesson_id: lessonId,
                 step_index: index,
             });
-            fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
-                .then(function (r) { return r.json(); })
-                .then(function (res) {
-                    if (!res.success) {
-                        var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
-                        // BHCoreToast (own-ur-shit core, loaded globally —
-                        // see class-toast.php) is called directly here,
-                        // not via the PHP-side OUS_Toast::queue() hand-off,
-                        // because this is an AJAX flow with no redirect to
-                        // hand a message across. typeof-guarded so this
-                        // still degrades to the pre-existing alert() if
-                        // own-ur-shit's toast script hasn't loaded for any
-                        // reason (older core version, script blocked, etc.)
-                        // — same "harmless no-op" posture as every other
-                        // optional integration point in this ecosystem.
-                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); } else { alert(errMsg); }
-                        return;
-                    }
-                    e.target.disabled = true;
-                    e.target.textContent = 'Completed';
-                    step.classList.add('bhc-step-done');
-                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
-                    markStepDone(index);
-                    advance(index);
-                });
+
+            // Retry-with-backoff, matching the reference pattern this
+            // ecosystem's own reports flow set (own-ur-shit's
+            // class-reports.php) — retry-audit pass, AJ's own standing
+            // ask. Marking a step complete is idempotent (the server
+            // side is an upsert on lesson_id+step_index, not an insert-
+            // only log), so a real network blip retrying this is safe
+            // in a way it would NOT be for, say, quiz submission —
+            // this call previously had no .catch() at all, so a
+            // dropped connection silently failed with zero feedback.
+            e.target.disabled = true;
+            var originalLabel = e.target.textContent;
+            submitMarkComplete(0);
+            function submitMarkComplete(attempt) {
+                fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res.success) {
+                            e.target.disabled = false;
+                            e.target.textContent = originalLabel;
+                            var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
+                            // BHCoreToast (own-ur-shit core, loaded globally —
+                            // see class-toast.php) is called directly here,
+                            // not via the PHP-side OUS_Toast::queue() hand-off,
+                            // because this is an AJAX flow with no redirect to
+                            // hand a message across. typeof-guarded so this
+                            // still degrades to the pre-existing alert() if
+                            // own-ur-shit's toast script hasn't loaded for any
+                            // reason (older core version, script blocked, etc.)
+                            // — same "harmless no-op" posture as every other
+                            // optional integration point in this ecosystem.
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); } else { alert(errMsg); }
+                            return;
+                        }
+                        e.target.textContent = 'Completed';
+                        step.classList.add('bhc-step-done');
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
+                        markStepDone(index);
+                        advance(index);
+                    })
+                    .catch(function () {
+                        if (attempt < 2) {
+                            e.target.textContent = 'Retrying…';
+                            setTimeout(function () { submitMarkComplete(attempt + 1); }, 500 * Math.pow(2, attempt) + Math.random() * 200);
+                            return;
+                        }
+                        e.target.disabled = false;
+                        e.target.textContent = originalLabel;
+                        var msg = 'Could not reach the server — check your connection and try again.';
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); } else { alert(msg); }
+                    });
+            }
         });
 
         lesson.addEventListener('click', function (e) {
@@ -207,6 +234,20 @@
             var step = e.target.closest('.bhc-step');
             var index = parseInt(step.dataset.stepIndex, 10);
 
+            // Retry-audit pass, AJ's own standing ask: quiz submission
+            // is explicitly NOT safe to blind-retry — the server side
+            // burns a real attempt (max_attempts) per call, so a retry
+            // (or, before this fix, a double-click / accidental double
+            // submit on a slow connection) could cost a student an
+            // attempt for a request that actually succeeded. The fix
+            // here is the opposite of retry: disable the button up
+            // front so a second submit physically can't fire while the
+            // first is in flight, and only re-enable on a real failure
+            // (never on success, since a successful submit already
+            // shows results/locks the form below).
+            var quizSubmitBtn = e.target.querySelector('button[type="submit"]');
+            if (quizSubmitBtn) quizSubmitBtn.disabled = true;
+
             var body = new URLSearchParams({ action: 'bhc_submit_quiz', nonce: BHCData.nonce, lesson_id: lessonId, step_index: index });
             var formData = new FormData(e.target);
             for (var pair of formData.entries()) {
@@ -218,6 +259,7 @@
                 .then(function (res) {
                     var resultBox = e.target.querySelector('.bhc-quiz-result');
                     if (!res.success) {
+                        if (quizSubmitBtn) quizSubmitBtn.disabled = false;
                         // Attempts-exhausted (403) comes back as an error with
                         // attempts_used/max_attempts rather than a generic
                         // failure — show it inline and lock the form instead
@@ -287,6 +329,23 @@
                         e.target.appendChild(continueBtn);
                     } else if (result.max_attempts && result.attempts_remaining === 0) {
                         e.target.querySelectorAll('input, button[type="submit"]').forEach(function (el) { el.disabled = true; });
+                    }
+                })
+                .catch(function () {
+                    // Deliberately NO retry here (unlike mark-complete/
+                    // subtask-save/judge-score above) — quiz submission
+                    // burns a real attempt server-side per call, so a
+                    // blind retry after a request that actually
+                    // succeeded (e.g. the response just failed to come
+                    // back) could cost a student an attempt for nothing.
+                    // Re-enabling the button lets them submit again
+                    // deliberately, once, rather than the code guessing.
+                    if (quizSubmitBtn) quizSubmitBtn.disabled = false;
+                    var resultBox = e.target.querySelector('.bhc-quiz-result');
+                    if (resultBox) {
+                        resultBox.style.display = '';
+                        resultBox.className = 'bhc-quiz-result bhc-fail';
+                        resultBox.textContent = 'Could not reach the server — check your connection and submit again.';
                     }
                 });
         });
