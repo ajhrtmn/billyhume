@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.9
+ * Version:     3.6.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,34 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.9');
+define('OUS_VER', '3.6.0');
+
+// 3.6.0 — Tier A of ROADMAP-guided-setup-wizards.md, built for real:
+// OUS_MediaWizard (new includes/class-media-wizard.php), a guided
+// media/CDN setup screen wrapping the already-installed Advanced Media
+// Offloader plugin — six providers (Cloudflare R2 recommended by
+// default, Amazon S3, Backblaze B2, DigitalOcean Spaces, Wasabi, and
+// generic S3-compatible), each with plain-language tradeoffs, a direct
+// deep link to that provider's own credentials dashboard, and a REAL
+// live connection test (reuses ADVMO's own provider classes'
+// checkConnection() — an actual headBucket() API call, never a format-
+// only check) on save. Writes directly into ADVMO's own
+// advmo_settings/advmo_credentials option shape, confirmed correct by
+// reading GeneralSettings::sanitize()/sanitize_credentials() first.
+// Azure Blob Storage is explicitly NOT offered — Advanced Media
+// Offloader has no Azure integration at all (S3-API-only), stated
+// honestly in the UI rather than silently omitted or faked.
+// Nested under the 'own-ur-shit' top-level menu specifically, not
+// 'ous-debug' — this install has a documented, still-unexplained
+// WordPress-core bug where new submenu slugs under THAT parent
+// resolved to the wrong screen (see VISION.md), so this reuses an
+// already-proven-working parent instead of re-testing into that risk.
+// Verified live end-to-end: filled real-shaped (fake) R2 credentials,
+// confirmed the save wrote the exact correct option shape (checked
+// directly against the database), and confirmed the live connection
+// test correctly FAILED against those fake credentials with a clear,
+// honest error — proving this isn't a fake-success screen.
+
 
 // 3.5.9 — Real bug in 3.5.8's own player-bar fix, caught live by AJ
 // ("definitely isn't at the bottom when the player bar is gone"): the
@@ -2581,7 +2608,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2601,6 +2628,7 @@ add_action('init',          ['BHI_Auth', 'init']);
 add_action('rest_api_init', ['BHI_Auth', 'register_routes']);
 add_action('init',          ['BHI_PublicProfile', 'init']);
 add_action('init',          ['BHI_Reports', 'init']);
+add_action('init',          ['OUS_MediaWizard', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 
