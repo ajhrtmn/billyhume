@@ -16,7 +16,12 @@ class BH_PostTypes {
             // singular_name/all_items stay plain since those show up in
             // body text ("Add New Contest," "All Contests"), where a
             // prefix would read oddly.
-            'labels'       => ['name' => 'Contests', 'menu_name' => 'OUS · Contest', 'singular_name' => 'Contest', 'all_items' => 'Contests'],
+            // QA fix, caught live: 'edit_item'/'add_new_item' were
+            // never set, so every real edit screen showed the generic
+            // WP core fallback "Edit Post"/"Add Post" instead of
+            // "Edit Contest"/"Add Contest" — confirmed live via
+            // screenshot.
+            'labels'       => ['name' => 'Contests', 'menu_name' => 'OUS · Contest', 'singular_name' => 'Contest', 'all_items' => 'Contests', 'edit_item' => 'Edit Contest', 'add_new_item' => 'Add New Contest', 'new_item' => 'New Contest', 'view_item' => 'View Contest'],
             'public'       => false,
             'show_ui'      => true,
             'show_in_menu' => true, // this CPT IS the top-level anchor
@@ -31,7 +36,7 @@ class BH_PostTypes {
         ]);
 
         register_post_type('bh_submission', [
-            'labels'       => ['name' => 'Submissions', 'singular_name' => 'Submission', 'menu_name' => 'Submissions'],
+            'labels'       => ['name' => 'Submissions', 'singular_name' => 'Submission', 'menu_name' => 'Submissions', 'edit_item' => 'Review Submission', 'add_new_item' => 'Add New Submission', 'view_item' => 'View Submission'],
             'public'       => false,
             'show_ui'      => true,
             'show_in_menu' => self::MENU_PARENT, // nested under Contests, not its own top-level item

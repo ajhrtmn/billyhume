@@ -2,11 +2,18 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.3
+ * Version:     3.6.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.6.4 — bh_contest/bh_submission were both missing
+// 'edit_item'/'add_new_item' labels, so every real edit screen showed
+// WordPress core's generic "Edit Post"/"Add Post" fallback instead of
+// "Edit Contest"/"Review Submission" — caught live while working on
+// own-ur-shit 3.5.1's wide-admin-layout fix. Added full label sets to
+// both post type registrations (class-post-types.php).
 
 // 3.6.3 — real bug, caught live while capturing screenshots of the
 // "Manage my submission" link (3.6.0's own changelog): the link was
@@ -215,7 +222,7 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.3');
+define('BH_VER',        '3.6.4');
 
 // 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.

@@ -2,10 +2,78 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.5.0
+ * Version:     3.5.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.5.1 — a shared, opt-in wide-layout fix for custom post-edit
+// screens, AJ's own ask after looking at the contest edit screen
+// specifically: "many admin pages suffer from the same issues." New
+// OUS_AdminLayout (class-admin-layout.php): several post types in
+// this ecosystem (bh_contest, bh_submission, bhm_tier, bh_course) were
+// still on WordPress's default two-column post-edit chrome — one
+// narrow stacked column of meta boxes plus a fixed ~280px sidebar —
+// wasting real horizontal space on a wide screen. Confirmed live: the
+// sidebar's own "Contest Rules & Results" box was visibly overflowing
+// its column with real content, while the main column sat mostly
+// empty beside it.
+//
+// AJ's own follow-up after seeing a layout-only first cut: "the
+// sidebar is awful and should be the main content... I'd be fine with
+// no sidebar, just a bunch of well laid out widgets." Final shape:
+// every meta box (Publish included) becomes one card in a single
+// uniform CSS grid — no distinct sidebar column at all —
+// using display:contents on WordPress's own nested container divs to
+// flatten its DOM structure for LAYOUT purposes only (the elements
+// stay exactly where WordPress put them, so its own drag-reorder JS,
+// which operates on the DOM/event model rather than visual position,
+// keeps working). Cards reuse this ecosystem's existing --bhy-*
+// design tokens (already loaded on every one of these screens) rather
+// than staying raw WordPress white-box chrome — subtle shadow,
+// consistent padding, the same uppercase card-header treatment
+// .bhy-card already uses elsewhere. A second follow-up ("it looks
+// awful in the screenshots") is what prompted that visual pass — the
+// very first cut only rearranged stock metaboxes without restyling
+// them at all.
+//
+// Two real bugs caught live during this pass, both fixed: (1) a
+// title-only CPT (no 'editor' support) gets a DIFFERENT WordPress core
+// template shape than a normal post-editor screen — normal-priority
+// meta boxes land in a separate #postbox-container-2 sibling, not
+// nested inside #post-body-content — a first cut that only widened
+// #post-body-content's margin left the two containers stacking
+// vertically instead of side by side, pushing everything thousands of
+// pixels down the page; the display:contents approach handles both
+// DOM shapes identically. (2) bh_contest/bh_submission were both
+// missing 'edit_item'/'add_new_item' labels, so every edit screen
+// showed generic "Edit Post"/"Add Post" — fixed (bh-contest 3.6.4).
+//
+// Entirely opt-in per post type via the
+// 'ous_wide_admin_layout_post_types' filter, and a complete no-op
+// below a 1200px viewport — WordPress's own default single-column
+// mobile layout is untouched (AJ's own explicit ask: "make sure we
+// are still highly mobile friendly, for admin and client GUIs").
+// Verified live at 1110px (mobile-style single column, WP default
+// unchanged), 1366px and 1600px (every field across Publish/Contest
+// Rules & Results/Voting Categories/Judging Format/Rounds confirmed
+// present with real saved content, no horizontal overflow at either
+// width).
+//
+// Final round: AJ's own follow-up, "no so much white space cuz of the
+// grid... it just looks wrong." A real CSS Grid limitation, not a bug
+// — Grid lays out in strict rows, so a short card (Publish) beside a
+// much taller one (Contest Rules & Results) leaves a large dead gap
+// underneath it that grid-auto-flow:dense can't fix (it only backfills
+// LATER gaps, not one directly beside a tall same-row neighbor).
+// Switched from CSS Grid to CSS multi-columns (`columns: 360px 3`,
+// `break-inside: avoid` on each card, `column-span: all` on the
+// title) — genuine top-to-bottom masonry-style packing with zero JS
+// measurement pass. One real tradeoff, accepted: reading order becomes
+// top-to-bottom-then-next-column rather than left-to-right-then-wrap
+// — fine here since these are independent cards, not a sequence.
+// Verified live: cards now visibly pack tight with no orphaned
+// whitespace under short ones.
 
 // 3.5.0 — new accountability audit log, AJ's own ask: "audit, do
 // everything important, and anything those important things touch...
@@ -2057,7 +2125,7 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.5.0');
+define('OUS_VER', '3.5.1');
 
 // 3.4.87 — QA fix: a full ecosystem-wide re-audit of every hook-timing
 // fix claimed this session (both the "nested init callback silently
@@ -2364,7 +2432,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2415,6 +2483,7 @@ OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
+add_action('init',          ['OUS_AdminLayout', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);
 add_action('init',          ['OUS_TestRunner', 'init']);
