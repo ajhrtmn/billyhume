@@ -18,6 +18,48 @@
 
         var fields = window.bhcrmSegmentFields || {};
         var rowIndex = 0;
+        var previewEl = document.getElementById('bhcrm-segment-preview');
+
+        // Live match-count preview — wizard-opportunity survey's own
+        // finding: conditions previously went in completely blind, with
+        // no way to see who'd actually match until AFTER saving and
+        // opening the resulting list. Debounced so typing a tag name
+        // doesn't fire a request per keystroke; uses the exact same
+        // sanitize_conditions()/apply() pair the real save path uses
+        // (BHCRM_Segments::ajax_preview()), never a second client-side
+        // guess at the filtering logic.
+        var previewTimer = null;
+        function schedulePreview() {
+            if (!previewEl) return;
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(runPreview, 350);
+        }
+        function runPreview() {
+            var rows = container.querySelectorAll('.bhcrm-segment-row');
+            var conditions = [];
+            rows.forEach(function (row) {
+                var select = row.querySelector('select');
+                var input = row.querySelector('input');
+                if (select && input && (input.value !== '' || select.value === 'has_project')) {
+                    conditions.push({ field: select.value, value: input.value });
+                }
+            });
+            if (!conditions.length) { previewEl.textContent = ''; return; }
+
+            previewEl.textContent = 'Checking…';
+            var body = new URLSearchParams({ action: 'bhcrm_preview_segment', nonce: (window.bhcrmSegmentPreview || {}).nonce || '' });
+            conditions.forEach(function (c, i) {
+                body.append('conditions[' + i + '][field]', c.field);
+                body.append('conditions[' + i + '][value]', c.value);
+            });
+            fetch(ajaxurl, { method: 'POST', body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) { previewEl.textContent = ''; return; }
+                    previewEl.textContent = res.data.count + ' of ' + res.data.total + ' people match';
+                })
+                .catch(function () { previewEl.textContent = ''; });
+        }
 
         function addRow() {
             var i = rowIndex++;
@@ -61,10 +103,11 @@
                     input.placeholder = select.value === 'tag' ? 'tag name' : 'value';
                     input.style.maxWidth = '200px';
                 }
+                input.addEventListener('input', schedulePreview);
                 valueWrap.appendChild(input);
             }
 
-            select.addEventListener('change', renderValueInput);
+            select.addEventListener('change', function () { renderValueInput(); schedulePreview(); });
             renderValueInput();
 
             var removeBtn = document.createElement('button');
@@ -72,7 +115,7 @@
             removeBtn.className = 'button-link';
             removeBtn.textContent = 'Remove';
             removeBtn.style.color = '#b32d2e';
-            removeBtn.addEventListener('click', function () { row.remove(); });
+            removeBtn.addEventListener('click', function () { row.remove(); schedulePreview(); });
 
             row.appendChild(select);
             row.appendChild(valueWrap);
