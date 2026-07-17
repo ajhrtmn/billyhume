@@ -169,6 +169,25 @@ class BH_API {
         $sid   = (int) $req->get_param('submission_id');
         $limit = BH_Helpers::vote_limit($uid, $cid);
 
+        // Toggle-off is checked BEFORE the "belongs to this contest /
+        // still published" gate below — a real trapped-vote bug, found
+        // by tracing what happens when an admin rejects a submission
+        // AFTER it already collected votes (handle_reject_submission()
+        // sets post_status = 'rejected', class-admin.php): every voter
+        // who'd already voted for it used to hit the publish-status
+        // check on every future request for that submission_id and get
+        // "That track does not belong to this contest" — permanently
+        // unable to free that vote slot, with the track invisible on
+        // /tracks so they couldn't even see what was consuming it.
+        // Freeing an EXISTING vote is always safe regardless of the
+        // submission's current status (it can only ever reduce a tally,
+        // never let anyone vote for something invalid); only casting a
+        // NEW vote needs the full validity gate below.
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d AND round = %d",
+            $uid, $cid, $cat, $sid, $round
+        ));
+
         // The track must actually belong to THIS contest — without this
         // check a client could vote on a submission from a different
         // contest while pointed at this one, corrupting both tallies.
@@ -181,23 +200,23 @@ class BH_API {
         // limited votes in that category, and would retroactively count
         // if the submission were approved later, without the voter
         // having chosen against the actual field of approved tracks.
-        $sub = get_post($sid);
-        if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
-            || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
-            return self::err('bad', 'That track does not belong to this contest.', 400);
+        // Only enforced on the toggle-ON path — see the toggle-off
+        // comment above for why an existing vote must always be freeable.
+        if (!$existing) {
+            $sub = get_post($sid);
+            if (!$sub || $sub->post_type !== 'bh_submission' || $sub->post_status !== 'publish'
+                || (int) get_post_meta($sid, '_bh_contest_id', true) !== $cid) {
+                return self::err('bad', 'That track does not belong to this contest.', 400);
+            }
+            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: an
+            // entry that didn't survive a prior cut can't collect new
+            // votes in the current round — no-op check for a single-
+            // round contest, where every submission is always eligible
+            // for round 0.
+            if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
+                return self::err('eliminated', 'This entry did not advance to the current round.', 400);
+            }
         }
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: an entry
-        // that didn't survive a prior cut can't collect new votes in the
-        // current round — no-op check for a single-round contest, where
-        // every submission is always eligible for round 0.
-        if (class_exists('BH_Rounds') && !BH_Rounds::is_eligible($sid, $cid)) {
-            return self::err('eliminated', 'This entry did not advance to the current round.', 400);
-        }
-
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $t WHERE user_id = %d AND contest_id = %d AND category = %s AND submission_id = %d AND round = %d",
-            $uid, $cid, $cat, $sid, $round
-        ));
 
         // Toggle off.
         if ($existing) {

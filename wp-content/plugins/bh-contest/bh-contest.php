@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.6.5
+ * Version:     3.6.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,34 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.6.5');
+define('BH_VER',        '3.6.6');
+
+// 3.6.6 — Production-hardening pass, from a fresh audit ahead of real
+// users: two real data-integrity/UX bugs, closed.
+// (1) Trapped vote slot: class-api.php's vote() gated its TOGGLE-OFF
+// path behind the same "submission still belongs to this contest and
+// is still published" check the toggle-ON path needs. An admin
+// rejecting an already-published, already-voted-on submission (the
+// Reject UI is available at any pre-rejected status, confirmed live)
+// permanently trapped every affected voter's vote — they could never
+// free that slot again, and the track vanishes from the public /tracks
+// list the same moment, so there was no UI path to even notice why.
+// Fixed two ways: the API now only enforces that gate on new votes
+// (an existing vote can always be freed regardless of the submission's
+// current status), and handle_reject_submission() (class-admin.php)
+// now deletes that submission's vote rows at the moment of rejection,
+// auto-refunding every affected voter rather than relying on each of
+// them separately hitting a now-fixed toggle-off request.
+// (2) New before_delete_post cleanup (cleanup_deleted_contest()) —
+// this plugin had ZERO cleanup anywhere for a permanently-deleted
+// contest; every submission and vote row referencing it became a
+// silent, undiscoverable orphan. Submissions are trashed (not hard-
+// deleted) to preserve a real recovery window.
+// Also: wp_die() calls across admin-post handlers and share-card/
+// certificate endpoints now pass back_link => true instead of dead-
+// ending with no way back except the browser Back button.
+// Verified live: submission edit screen and reject flow render with no
+// fatal errors after these changes.
 
 // 3.6.5 — "Anything fun for social sharing?" — AJ's own ask this
 // session. New class-share-cards.php: "Now Entered"/"Vote Now" share
@@ -540,6 +567,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Auth', 'init']);
     add_action('rest_api_init', ['BH_API', 'register_routes']);
     add_action('init',          ['BH_Admin', 'init']);
+    add_action('before_delete_post', ['BH_Admin', 'cleanup_deleted_contest']);
     add_action('init',          ['BH_CRMIntegration', 'init']);
     add_action('init',          ['BH_StyleSurfaces', 'init']);
     add_action('init',          ['BH_ElementSurface', 'init']);

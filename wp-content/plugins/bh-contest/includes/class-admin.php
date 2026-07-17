@@ -177,11 +177,11 @@ class BH_Admin {
     // having no way to get the underlying data out at all.
     public static function export_csv() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_export')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid  = (int) ($_GET['contest_id'] ?? 0);
         $type = sanitize_key($_GET['type'] ?? '');
-        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.');
+        if (!$cid || !in_array($type, ['submissions', 'votes'], true)) wp_die('Invalid export request.', '', ['back_link' => true]);
 
         $filename = 'bh-' . $type . '-contest-' . $cid . '-' . gmdate('Y-m-d') . '.csv';
         header('Content-Type: text/csv; charset=utf-8');
@@ -250,7 +250,7 @@ class BH_Admin {
 
     public static function quick_schedule() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid   = (int) ($_GET['contest_id'] ?? 0);
         $which = sanitize_key($_GET['which'] ?? '');
@@ -295,7 +295,7 @@ class BH_Admin {
 
     public static function create_page_action() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_create_page')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);
         if ($cid && get_post_type($cid) === 'bh_contest') self::maybe_create_contest_page($cid, true);
@@ -359,7 +359,7 @@ class BH_Admin {
     // a confirmation rather than silently re-notifying everyone.
     public static function send_winner_notifications() {
         if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
-            wp_die('Not allowed.');
+            wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);
         if ($cid && get_post_meta($cid, '_bh_results_published', true) === '1') {
@@ -873,10 +873,10 @@ class BH_Admin {
 
     public static function handle_approve_swap() {
         $pid = (int) ($_GET['submission_id'] ?? 0);
-        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.');
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
         // QA fix, caught live: this fired the Discord "entry file
         // updated" announcement unconditionally, even for a submission
@@ -908,10 +908,10 @@ class BH_Admin {
 
     public static function handle_discard_swap() {
         $pid = (int) ($_GET['submission_id'] ?? 0);
-        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.');
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
         $pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
         if ($pending) wp_delete_attachment($pending, true);
@@ -933,14 +933,32 @@ class BH_Admin {
      */
     public static function handle_reject_submission() {
         $pid = (int) ($_POST['submission_id'] ?? 0);
-        if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.');
-        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         $post = get_post($pid);
-        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.');
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
         $reason_code = sanitize_key($_POST['reason_code'] ?? 'other');
         if (!isset(self::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
         $note = sanitize_textarea_field(wp_unslash($_POST['note'] ?? ''));
+
+        // Real bug this closes: this Reject action is available for a
+        // submission at ANY pre-rejected status, including 'publish' —
+        // an admin can reject an entry that already collected real
+        // votes. Without this, every voter who'd already voted for it
+        // was permanently unable to free that vote slot: class-api.php's
+        // vote() toggle-off used to be gated behind the SAME "belongs to
+        // this contest + still published" check the toggle-ON path
+        // needs, so once this submission left 'publish' status, the
+        // voter's own request to un-vote it hit that same gate and
+        // failed — a trapped, permanently-consumed vote with no UI path
+        // to notice why (the track also vanishes from the public
+        // /tracks list the instant it's rejected). Deleting the rows
+        // here, at the moment of rejection, refunds every affected
+        // voter automatically rather than relying on each of them to
+        // separately discover and retry a now-fixed toggle-off request.
+        global $wpdb;
+        $wpdb->delete(BH_Helpers::table(), ['submission_id' => $pid], ['%d']);
 
         update_post_meta($pid, '_bh_rejection_reason_code', $reason_code);
         update_post_meta($pid, '_bh_rejection_note', $note);
@@ -978,6 +996,38 @@ class BH_Admin {
 
         wp_safe_redirect(get_edit_post_link($pid, ''));
         exit;
+    }
+
+    // Hooked onto before_delete_post — permanent deletion only (a
+    // trashed contest is still a real, restorable post, same
+    // "nothing to clean up until it's actually gone" reasoning
+    // bh-courses' cleanup_deleted_course() already uses for lessons).
+    // Real gap this closes: this plugin had ZERO cleanup anywhere for a
+    // permanently-deleted contest — every one of its submissions and
+    // every vote row referencing it became a silent, permanent orphan
+    // with no admin warning and no way to discover the mess later (the
+    // Submissions list filters by _bh_contest_id meta pointing at a
+    // post that no longer exists). Given contests hold real contestant
+    // and voting data, this was a genuine silent-data-loss risk.
+    // Submissions are TRASHED, not hard-deleted, here — a permanently-
+    // deleted contest almost always means "this contest was a mistake/
+    // duplicate," and trashing (rather than permanently deleting) its
+    // submissions preserves a 30-day recovery window for exactly that
+    // "wait, I didn't mean to delete the WHOLE thing" case, matching
+    // how WordPress's own trash already works for everything else here.
+    public static function cleanup_deleted_contest($post_id) {
+        if (get_post_type($post_id) !== 'bh_contest') return;
+
+        $submissions = get_posts([
+            'post_type' => 'bh_submission', 'numberposts' => -1, 'post_status' => 'any',
+            'meta_key' => '_bh_contest_id', 'meta_value' => $post_id,
+        ]);
+        foreach ($submissions as $submission) {
+            wp_trash_post($submission->ID);
+        }
+
+        global $wpdb;
+        $wpdb->delete(BH_Helpers::table(), ['contest_id' => $post_id], ['%d']);
     }
 
     public static function add_meta_boxes() {
@@ -1303,9 +1353,16 @@ class BH_Admin {
         // override; a contest that never turns on style override at all
         // can still choose poster-style share cards.
         add_meta_box('bh_contest_share_cards', 'Shareable images', function ($post) {
-            $style = get_post_meta($post->ID, '_bh_share_card_style', true) === 'poster' ? 'poster' : 'brand';
-            echo '<p class="description">Submitters get a "Now entered" and "Vote for me" image after submitting. <strong>Brand</strong> matches this site\'s own live colors; <strong>Poster</strong> is a bolder, stand-alone look.</p>';
-            echo '<p><label><input type="radio" name="bh_share_card_style" value="brand"' . checked($style, 'brand', false) . '> Brand</label> &nbsp; <label><input type="radio" name="bh_share_card_style" value="poster"' . checked($style, 'poster', false) . '> Poster</label></p>';
+            $stored_style = get_post_meta($post->ID, '_bh_share_card_style', true);
+            $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
+            echo '<p class="description">Submitters get a "Now entered" and "Vote for me" image after submitting. <strong>Brand</strong> matches this site\'s own live colors; the <strong>Poster</strong> options are bolder, stand-alone looks.</p>';
+            if (class_exists('BH_ShareCard')) {
+                echo '<p><label>Style<br><select name="bh_share_card_style">';
+                foreach (BH_ShareCard::STYLES as $key => $label) {
+                    echo '<option value="' . esc_attr($key) . '"' . selected($style, $key, false) . '>' . esc_html($label) . '</option>';
+                }
+                echo '</select></label></p>';
+            }
         }, 'bh_contest', 'side', 'default');
 
         add_meta_box('bh_contest_style', 'Contest Branding & Style', function ($post) {
@@ -1463,7 +1520,8 @@ class BH_Admin {
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        update_post_meta($post_id, '_bh_share_card_style', ($_POST['bh_share_card_style'] ?? '') === 'poster' ? 'poster' : 'brand');
+        $posted_style = (string) ($_POST['bh_share_card_style'] ?? '');
+        update_post_meta($post_id, '_bh_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
 
         if (!empty($_POST['bh_sub_always_open'])) {
             // Toggle checked — always-open, regardless of whatever might

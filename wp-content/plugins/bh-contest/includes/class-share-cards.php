@@ -62,7 +62,7 @@ class BH_ShareCards {
     private static function serve($raw_id, $eyebrow) {
         $submission_id = (int) $raw_id;
         $submission = get_post($submission_id);
-        if (!$submission || $submission->post_type !== 'bh_submission') wp_die('Submission not found.', 404);
+        if (!$submission || $submission->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['response' => 404, 'back_link' => true]);
 
         $contest_id = (int) get_post_meta($submission_id, '_bh_contest_id', true);
         $contest = $contest_id ? get_post($contest_id) : null;
@@ -72,9 +72,10 @@ class BH_ShareCards {
             $artist = $author ? ($author->display_name ?: $author->user_login) : 'An artist';
         }
 
-        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', 501);
+        if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
 
-        $style = $contest_id && get_post_meta($contest_id, '_bh_share_card_style', true) === 'poster' ? 'poster' : 'brand';
+        $stored_style = $contest_id ? get_post_meta($contest_id, '_bh_share_card_style', true) : '';
+        $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
         $subtitle = $contest ? ('"' . $submission->post_title . '" — ' . $contest->post_title) : $submission->post_title;
 
         BH_ShareCard::output_png([
