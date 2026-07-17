@@ -55,13 +55,30 @@ class BHC_Render_Lesson {
         // to show based on which of the two is true (see
         // .bhc-lesson-next below).
         $next_lesson_id = null;
+        $lesson_position = null;
+        $lesson_count = null;
         if ($course_id) {
             $order = BHC_PostTypes::lesson_order($course_id);
             $pos = array_search((int) $lesson_id, $order, true);
             if ($pos !== false && isset($order[$pos + 1])) $next_lesson_id = $order[$pos + 1];
+            if ($pos !== false) { $lesson_position = $pos + 1; $lesson_count = count($order); }
         }
 
         ob_start();
+
+        // Persistent way back to the course, rendered unconditionally
+        // (not gated on lesson completion like .bhc-lesson-next below)
+        // — a student who deep-links into a lesson or just wants out
+        // mid-lesson previously had no exit until finishing every step.
+        if ($course_id) {
+            echo '<div class="bhc-lesson-breadcrumb">';
+            echo '<a href="' . esc_url(get_permalink($course_id)) . '">&larr; ' . esc_html(get_the_title($course_id)) . '</a>';
+            if ($lesson_position) {
+                echo '<span class="bhc-lesson-position">Lesson ' . (int) $lesson_position . ' of ' . (int) $lesson_count . '</span>';
+            }
+            echo '</div>';
+        }
+
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
         echo '<div class="bhc-step-progress">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 

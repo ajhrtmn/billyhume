@@ -369,8 +369,30 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.16');
+define('BHC_VER',  '0.4.17');
 
+// 0.4.17 — Course<->lesson UX integration pass, prompted by AJ's own
+// audit of the two authoring/navigation gaps this found: (1) a student
+// who deep-linked into a lesson (or just wanted out mid-lesson) had no
+// way back to the course until finishing every step — the only
+// "back to course" link lived in .bhc-lesson-next, gated on completing
+// the LAST step. class-render-lesson.php's render_lesson_steps() now
+// renders a persistent .bhc-lesson-breadcrumb (course title link +
+// "Lesson X of Y", computed from the course's saved _bhc_lesson_order)
+// unconditionally, before the step walker, alongside the existing
+// completion-gated nav which is unchanged. New CSS in courses.css.
+// (2) Admin authoring required manual re-navigation both directions:
+// the course screen's lesson list linked to a blank post-new.php (the
+// author re-picked the course from a dropdown every time), and the
+// lesson screen never linked back to its course despite having the ID
+// already in scope. class-admin.php's render_course_metabox() now
+// links to post-new.php?post_type=bh_lesson&bhc_course_id={id}; the
+// new render_lesson_metabox() picks that up via $_GET (only when the
+// lesson doesn't already have a saved course — never overrides real
+// data) to pre-select the dropdown, and renders a real "&larr; Back to
+// {course title}" link once a course is chosen instead of just
+// descriptive text. php -l clean on both changed files; not yet
+// run against real WordPress+MySQL in this pass.
 // 0.4.16 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
 // sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12/
 // bh-contest 3.5.2. class-crm-integration.php's activity_summary(): the

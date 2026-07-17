@@ -97,6 +97,17 @@
 .bhc-lesson-list-preview li { color: var(--bh-text-dim); }
 .bhc-attempts-note { font-size: 13px; color: var(--bh-text-dim); margin: 8px 0; }
 
+/* ---- persistent course breadcrumb (always visible, not gated on
+   lesson completion — see .bhc-lesson-next below for the completion-
+   gated "what's next" nav) ---- */
+.bhc-lesson-breadcrumb {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    font-size: 13px; color: var(--bh-text-dim); margin-bottom: 14px;
+}
+.bhc-lesson-breadcrumb a { font-weight: 600; color: var(--bh-text); }
+.bhc-lesson-breadcrumb a:hover { color: var(--bh-accent); }
+.bhc-lesson-position { white-space: nowrap; }
+
 /* ---- lesson step walker ---- */
 .bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
 .bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }

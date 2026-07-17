@@ -94,7 +94,16 @@ class BHC_Admin {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         if (!in_array(get_post_type(), ['bh_course', 'bh_lesson'], true)) return;
         wp_enqueue_media();
-        wp_enqueue_script('bhc-admin', BHC_URL . 'assets/js/admin.js', ['jquery'], BHC_VER, true);
+        // Vendored, not npm — this ecosystem's own no-build-step
+        // convention (see bh-crm's kanban-board.js/.css docblocks for
+        // the same reasoning). Only the lesson-order list actually
+        // uses it; admin.js itself no-ops the rest of its own code
+        // when it's not on a screen that needs it.
+        wp_enqueue_script('sortablejs', BHC_URL . 'assets/js/vendor/sortable.min.js', [], '1.15.6', true);
+        // No longer depends on jQuery — the rebuilt reorder widget is
+        // plain vanilla JS + SortableJS, same as this rebuild's own
+        // docblock explains.
+        wp_enqueue_script('bhc-admin', BHC_URL . 'assets/js/admin.js', ['sortablejs'], BHC_VER, true);
         wp_enqueue_style('bhc-admin', BHC_URL . 'assets/css/admin.css', [], BHC_VER);
     }
 
@@ -102,6 +111,17 @@ class BHC_Admin {
 
     public static function render_course_metabox($post) {
         wp_nonce_field('bhc_save_course', 'bhc_course_nonce');
+
+        // "Preview as student" — the Lesson screen has had this for a
+        // while (see render_steps_metabox() below); the Course screen
+        // never did, a real gap AJ's own audit caught. Same real-
+        // permalink-or-preview-link pattern: a published course links
+        // straight to its own detail page (BHC_Render_Course, the
+        // catalog-entry-clicked-into page with the syllabus/enroll
+        // CTA), a draft uses WordPress's own preview-link mechanism
+        // since a draft's permalink 404s for anyone without edit rights.
+        $course_preview_url = get_post_status($post->ID) === 'publish' ? get_permalink($post->ID) : get_preview_post_link($post->ID);
+        echo '<p><a class="button button-primary" href="' . esc_url($course_preview_url) . '" target="_blank" rel="noopener">Preview as student &rarr;</a></p>';
 
         $lesson_ids = BHC_PostTypes::lesson_order($post->ID);
         $all_lessons = get_posts([
@@ -116,11 +136,30 @@ class BHC_Admin {
         }
         foreach ($all_lessons as $l) if (!in_array($l, $ordered, true)) $ordered[] = $l;
 
-        echo '<p class="description">Drag to reorder. Only lessons whose "Belongs to course" field (below, on the lesson itself) points here show up. Add a new lesson from <a href="' . esc_url(admin_url('post-new.php?post_type=bh_lesson')) . '">Add New Lesson</a>, set its course, then it appears here to order.</p>';
-        echo '<ul id="bhc-lesson-order-list" style="max-width:500px;">';
+        // QA rebuild: the drag-reorder list used to be native HTML5
+        // drag/drop (draggable="true") — no touch support at all (a
+        // real gap on an iPad, which is a completely plausible device
+        // for editing a course from), no visual drop indicator, and a
+        // fixed inline-styled look. Now SortableJS (assets/js/
+        // vendor/sortable.min.js, forceFallback:true — same
+        // touch-capable approach bh-crm's kanban board already
+        // proved out), with a real drag handle instead of the whole
+        // row being draggable (so clicking the row itself, or a future
+        // per-lesson action, doesn't fight drag detection).
+        // Prefills the new lesson's course via ?bhc_course_id=, read by
+        // render_lesson_metabox() below — previously this linked to a
+        // blank post-new.php and made the author re-pick the course
+        // from the dropdown every single time, a real friction point
+        // AJ's own audit caught.
+        $add_lesson_url = admin_url('post-new.php?post_type=bh_lesson&bhc_course_id=' . (int) $post->ID);
+        echo '<p class="description">Drag to reorder. Only lessons whose "Belongs to course" field (below, on the lesson itself) points here show up. <a href="' . esc_url($add_lesson_url) . '">+ Add New Lesson to this course</a></p>';
+        echo '<ul id="bhc-lesson-order-list" class="bhc-order-list">';
         foreach ($ordered as $l) {
-            echo '<li class="bhc-order-item" draggable="true" data-id="' . (int) $l->ID . '" style="padding:8px 10px;border:1px solid #ccc;margin-bottom:4px;background:#fff;cursor:move;">'
-               . '&#8942;&#8942; ' . esc_html($l->post_title) . ' <em style="color:#888;">(' . esc_html($l->post_status) . ')</em></li>';
+            echo '<li class="bhc-order-item" data-id="' . (int) $l->ID . '">'
+               . '<span class="bhc-order-drag-handle" title="Drag to reorder">&#8942;&#8942;</span>'
+               . '<span class="bhc-order-title">' . esc_html($l->post_title) . '</span>'
+               . '<em class="bhc-order-status">' . esc_html($l->post_status) . '</em>'
+               . '</li>';
         }
         echo '</ul>';
         echo '<input type="hidden" name="bhc_lesson_order" id="bhc_lesson_order" value="' . esc_attr(implode(',', array_map(fn($l) => $l->ID, $ordered))) . '">';
@@ -203,6 +242,13 @@ class BHC_Admin {
     public static function render_lesson_metabox($post) {
         wp_nonce_field('bhc_save_lesson', 'bhc_lesson_nonce');
         $current_course = BHC_PostTypes::course_for_lesson($post->ID);
+        // A brand-new lesson started from the course screen's "+ Add
+        // New Lesson to this course" link (see render_course_metabox()
+        // above) arrives with ?bhc_course_id= set — pre-select it here
+        // rather than making the author pick it again from the dropdown.
+        if (!$current_course && !empty($_GET['bhc_course_id'])) {
+            $current_course = (int) $_GET['bhc_course_id'];
+        }
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
 
         echo '<p><label>Belongs to course<br><select name="bhc_course_id">';
@@ -211,7 +257,11 @@ class BHC_Admin {
             echo '<option value="' . (int) $c->ID . '"' . selected($current_course, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
         }
         echo '</select></label></p>';
-        echo '<p class="description">After saving, go to that course\'s own edit screen to place this lesson in the lesson order.</p>';
+        if ($current_course) {
+            echo '<p class="description"><a href="' . esc_url(get_edit_post_link($current_course)) . '">&larr; Back to ' . esc_html(get_the_title($current_course)) . '</a> to place this lesson in the lesson order.</p>';
+        } else {
+            echo '<p class="description">After saving, go to that course\'s own edit screen to place this lesson in the lesson order.</p>';
+        }
 
         // Drip scheduling — see class-gate.php's docblock: exactly one
         // of these two, never both, matching "self-paced" vs. "scheduled
