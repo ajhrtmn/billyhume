@@ -134,6 +134,18 @@ class BHC_Render_Lesson {
         } elseif ($course_id) {
             echo '<p class="bhc-course-complete">&#127881; You\'ve completed this course!</p>';
             echo '<a class="bhc-btn" href="' . esc_url(get_permalink($course_id)) . '">Back to course</a>';
+            // "Anything fun for social sharing?" — a generated card
+            // image (class-share-cards.php, BH_ShareCard), not just a
+            // plain text link. Direct image URL rather than a "share
+            // intent" with an auto-attached image — X/Discord/iMessage
+            // all unfurl a bare image URL into a real inline image when
+            // pasted, which is the actual "share this" moment most
+            // platforms support without needing OAuth media-upload
+            // plumbing this plugin has no reason to build.
+            if ($uid && class_exists('BHC_ShareCards')) {
+                $card_url = BHC_ShareCards::card_url($uid, $course_id);
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($card_url) . '" target="_blank" rel="noopener">&#128241; Get shareable image</a>';
+            }
         }
         echo '</div>';
 

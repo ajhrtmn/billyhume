@@ -184,6 +184,15 @@ class BHC_Admin {
         echo '<p><label><input type="checkbox" name="bhc_certificate_enabled" value="1" id="bhc_certificate_enabled"' . checked($certificate_enabled, true, false) . '> <strong>Offer a downloadable certificate when a student finishes this course</strong></label></p>';
         echo '<p><label>Signed by <span class="description">(optional — printed on the certificate, e.g. an instructor\'s name)</span><br><input type="text" name="bhc_certificate_signature" value="' . esc_attr($certificate_signature) . '" style="max-width:400px;width:100%;"></label></p>';
 
+        // Always on (there's no opt-in checkbox, unlike the certificate
+        // above) — the generated share-card image is harmless to offer
+        // even on a course nobody ever shares; only the VISUAL style is
+        // a real choice, not whether the feature exists at all.
+        $card_style = get_post_meta($post->ID, '_bhc_share_card_style', true) === 'poster' ? 'poster' : 'brand';
+        echo '<h4>Shareable completion image</h4>';
+        echo '<p class="description">A "' . esc_html(get_the_title($post->ID) ?: 'course') . ' complete!" image a student can grab from the finish screen and post/attach anywhere. <strong>Brand</strong> matches this site\'s own live colors; <strong>Poster</strong> is a bolder, stand-alone look.</p>';
+        echo '<p><label><input type="radio" name="bhc_share_card_style" value="brand"' . checked($card_style, 'brand', false) . '> Brand</label> &nbsp; <label><input type="radio" name="bhc_share_card_style" value="poster"' . checked($card_style, 'poster', false) . '> Poster</label></p>';
+
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
             $required_benefit = BHC_Gate::required_benefit($post->ID);
@@ -223,6 +232,7 @@ class BHC_Admin {
         update_post_meta($post_id, '_bhc_comments_enabled', !empty($_POST['bhc_comments_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_enabled', !empty($_POST['bhc_certificate_enabled']) ? 1 : 0);
         update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
+        update_post_meta($post_id, '_bhc_share_card_style', ($_POST['bhc_share_card_style'] ?? '') === 'poster' ? 'poster' : 'brand');
         // Only ever written if bh-monetization-woo is active enough to
         // have rendered the select above — a crafted POST on a site
         // without it does nothing harmful (BHM_Gate simply isn't

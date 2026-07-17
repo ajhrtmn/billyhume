@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.19
+ * Version:     0.4.20
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,26 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.19');
+define('BHC_VER',  '0.4.20');
 
+// 0.4.20 — "Anything fun for social sharing?" — AJ's own ask this
+// session. New class-share-cards.php: a course-completion share-card
+// endpoint (?bhc_share_card={course}&u={user}, public/no-login since a
+// share card is meant to be viewed by people who are NOT the student,
+// including a social platform's own link-preview crawler), gated on
+// that student having actually completed the course. Generated via the
+// new shared BH_ShareCard engine (own-ur-shit 3.5.2), same on-demand-
+// not-stored posture class-certificates.php already uses. A "Get
+// shareable image" button now appears alongside "Back to course" on
+// the lesson page's course-complete block (class-render-lesson.php).
+// New per-course "Brand"/"Poster" card-style radio in the Course
+// Details meta box (class-admin.php), saved to _bhc_share_card_style,
+// defaulting to 'brand'. Verified live: toggled a real course between
+// both styles and confirmed the generated PNG actually changed
+// (caught and worked around a real gotcha — the endpoint's own
+// Cache-Control header meant the browser served a stale cached copy
+// of the FIRST style fetched at that exact URL until a cache-busting
+// query string forced a real refetch).
 // 0.4.19 — Deep LMS audit follow-through: instructor aggregate stats,
 // stalled-student nudges, mobile lesson/quiz UI, stepper a11y.
 // (1) class-progress-admin.php's Student Progress page gets a new "At a
@@ -517,7 +535,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -559,6 +577,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_PortalPanel', 'init']);
     add_action('init', ['BHC_Comments', 'init']);
     add_action('init', ['BHC_Certificates', 'init']);
+    add_action('init', ['BHC_ShareCards', 'init']);
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
