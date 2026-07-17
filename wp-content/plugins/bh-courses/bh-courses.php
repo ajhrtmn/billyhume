@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.24
+ * Version:     0.4.25
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,8 +369,23 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.24');
+define('BHC_VER',  '0.4.25');
 
+// 0.4.25 — Whole-course duplication ("Duplicate this course as a
+// template") — a fresh audit against Teachable/Thinkific/Kajabi/
+// LearnDash/LifterLMS flagged this as the most-common missing
+// instructor tool: only per-lesson duplication existed before this.
+// New "Duplicate" row action on the Courses list (course_row_actions()/
+// handle_duplicate_course()) clones the course post, its catalog/
+// gating/certificate/share-card meta, its categories/topics/featured
+// image, and every one of its lessons — each lesson gets its own
+// independent clone (same core copy logic handle_duplicate_lesson()
+// already uses, never shared IDs between two courses), rebuilt into a
+// fresh _bhc_lesson_order for the new course. Both course and lessons
+// land as drafts. Verified live: a real 2-lesson course (including its
+// quiz step) duplicated correctly, with the new course's stats bar
+// correctly showing "2 lessons · 0 published · 2 draft · 3 total
+// steps" and its share-card style setting carried over.
 // 0.4.24 — Fixed a stale Test Runner assertion, flagged by AJ from a
 // real failing-test report. class-test-suite.php's catalog-search test
 // still checked for '<p class="bhc-empty">' in render_catalog()'s
@@ -686,8 +701,10 @@ add_action('plugins_loaded', function () {
     add_action('manage_bh_course_posts_custom_column', ['BHC_Admin', 'course_column_content'], 10, 2);
     add_filter('manage_bh_lesson_posts_columns', ['BHC_Admin', 'lesson_columns']);
     add_filter('post_row_actions', ['BHC_Admin', 'lesson_row_actions'], 10, 2);
+    add_filter('post_row_actions', ['BHC_Admin', 'course_row_actions'], 10, 2);
     add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
     add_action('admin_post_bhc_unassign_lesson', ['BHC_Admin', 'handle_unassign_lesson']);
+    add_action('admin_post_bhc_duplicate_course', ['BHC_Admin', 'handle_duplicate_course']);
     add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_lesson']);

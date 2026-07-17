@@ -523,6 +523,94 @@ class BHC_Admin {
         if ($course_id) self::remove_lesson_from_order($course_id, $post_id);
     }
 
+    /* ---------------- duplicate course (whole-course template/re-run) ----------------
+       "Duplicate this course as a template" — the single most-flagged
+       missing instructor tool in a fresh audit against Teachable/
+       Thinkific/Kajabi/LearnDash/LifterLMS: every one of them supports
+       whole-course duplication, and only per-LESSON duplication existed
+       here before this. Deliberately built by CLONING every lesson via
+       the same logic handle_duplicate_lesson() already uses (never a
+       shortcut like sharing lesson IDs between two courses) — a
+       template re-run needs its own independent copy of every lesson so
+       editing one cohort's content never touches another's. */
+    public static function course_row_actions($actions, $post) {
+        if ($post->post_type !== 'bh_course' || !current_user_can('edit_post', $post->ID)) return $actions;
+        $url = wp_nonce_url(
+            admin_url('admin-post.php?action=bhc_duplicate_course&course_id=' . (int) $post->ID),
+            'bhc_duplicate_course_' . $post->ID
+        );
+        $actions['bhc_duplicate'] = '<a href="' . esc_url($url) . '">Duplicate</a>';
+        return $actions;
+    }
+
+    public static function handle_duplicate_course() {
+        $course_id = (int) ($_GET['course_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_course_' . $course_id)) wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        if (!current_user_can('edit_post', $course_id)) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
+        $original = get_post($course_id);
+        if (!$original || $original->post_type !== 'bh_course') wp_die('Course not found.', '', ['response' => 404, 'back_link' => true]);
+
+        $new_course_id = wp_insert_post([
+            'post_type' => 'bh_course',
+            'post_status' => 'draft', // never auto-publish a clone — same posture as lesson duplication
+            'post_title' => $original->post_title . ' (Copy)',
+            'post_content' => $original->post_content,
+            'post_author' => get_current_user_id(),
+        ], true);
+        if (is_wp_error($new_course_id)) wp_die('Could not duplicate this course.', '', ['response' => 500, 'back_link' => true]);
+
+        // Catalog/gating/certificate/share-card meta — a flat copy list
+        // rather than trying to be clever about which fields "should"
+        // carry over; every one of these is a course-level SETTING, not
+        // enrollment/progress data, so copying all of them is correct.
+        foreach ([
+            '_bhc_instructor_id', '_bhc_difficulty', '_bhc_duration_note',
+            '_bhc_comments_enabled', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
+            '_bhm_required_tier', '_bhm_required_benefit',
+        ] as $key) {
+            $val = get_post_meta($course_id, $key, true);
+            if ($val !== '') update_post_meta($new_course_id, $key, $val);
+        }
+        foreach (['bhc_course_category', 'bhc_course_topic'] as $tax) {
+            $terms = wp_get_object_terms($course_id, $tax, ['fields' => 'ids']);
+            if (!is_wp_error($terms) && $terms) wp_set_object_terms($new_course_id, $terms, $tax);
+        }
+        $thumb_id = get_post_thumbnail_id($course_id);
+        if ($thumb_id) set_post_thumbnail($new_course_id, $thumb_id);
+
+        // Every lesson gets its OWN independent clone (never shared IDs
+        // between two courses) — same core steps/copy logic
+        // handle_duplicate_lesson() uses, just driven from this side and
+        // built up as a fresh _bhc_lesson_order for the new course
+        // instead of redirecting to any one lesson's edit screen.
+        $new_order = [];
+        foreach (BHC_PostTypes::lesson_order($course_id) as $lesson_id) {
+            $lesson = get_post($lesson_id);
+            if (!$lesson) continue;
+            $new_lesson_id = wp_insert_post([
+                'post_type' => 'bh_lesson',
+                'post_status' => 'draft',
+                'post_title' => $lesson->post_title,
+                'post_content' => $lesson->post_content,
+                'post_author' => get_current_user_id(),
+            ], true);
+            if (is_wp_error($new_lesson_id)) continue;
+
+            update_post_meta($new_lesson_id, '_bhc_course_id', $new_course_id);
+            $steps = get_post_meta($lesson_id, '_bhc_steps', true);
+            if (is_array($steps)) update_post_meta($new_lesson_id, '_bhc_steps', $steps);
+            foreach (['_bhc_available_after_days', '_bhc_available_on_date'] as $key) {
+                $val = get_post_meta($lesson_id, $key, true);
+                if ($val !== '') update_post_meta($new_lesson_id, $key, $val);
+            }
+            $new_order[] = $new_lesson_id;
+        }
+        update_post_meta($new_course_id, '_bhc_lesson_order', $new_order);
+
+        wp_safe_redirect(get_edit_post_link($new_course_id, 'raw'));
+        exit;
+    }
+
     /* ---------------- list table ---------------- */
 
     public static function course_columns($cols) {
