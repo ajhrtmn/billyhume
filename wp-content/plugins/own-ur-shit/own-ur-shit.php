@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.7
+ * Version:     3.6.8
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2164,7 +2164,11 @@ if (!defined('ABSPATH')) exit;
 // can't be clipped by an ancestor's scroll container. RUNTIME-VERIFIED
 // at a 375px mobile viewport — menu previously would have been clipped
 // at the modal's bottom edge, now renders in full.
-define('OUS_VER', '3.6.7');
+// 3.6.8 — BH_Commerce::upsert_product() gained trial_length/trial_period
+// args (WC Subscriptions' own free-trial fields), the real prerequisite
+// bh-monetization-woo's new per-tier free-trial field needed — see
+// bh-monetization-woo's own changelog for the consumer.
+define('OUS_VER', '3.6.8');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:

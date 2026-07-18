@@ -92,6 +92,12 @@ class BHM_Frontend {
             if (!empty($t['annual_price_cents'])) {
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr</div>';
             }
+            // Real conversion-facing surface for the trial value stored
+            // via BHM_Tiers — a trial nobody can see before checking out
+            // isn't a conversion lever, it's just hidden product config.
+            if (!empty($t['trial_days']) && class_exists('BH_Commerce') && BH_Commerce::has_subscriptions()) {
+                echo '<div class="bhm-tier-trial">' . (int) $t['trial_days'] . '-day free trial</div>';
+            }
             if ($t['benefits']) echo '<p class="bhm-tier-benefits">' . esc_html($t['benefits']) . '</p>';
             // Structured benefits list — a real <ul>, separate from the
             // free-text paragraph above (see BHM_Tiers::render_metabox()

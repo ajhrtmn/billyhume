@@ -56,6 +56,8 @@ class BH_Commerce {
      *   subscription (bool, default false)    — real recurring billing IF has_subscriptions() is also true
      *   subscription_period (string, default 'month')
      *   subscription_period_interval (int, default 1)
+     *   trial_length (int, default 0)          — free-trial length before the first real charge; 0 = no trial. Only meaningful with subscription => true and has_subscriptions().
+     *   trial_period (string, default 'day')    — WC Subscriptions' own unit: day/week/month/year
      */
     public static function upsert_product($existing_id, array $args) {
         if (!self::available()) return 0;
@@ -86,9 +88,16 @@ class BH_Commerce {
         $product->set_downloadable($downloadable);
         $product->set_catalog_visibility($catalog_visibility);
         if ($use_subscription && method_exists($product, 'set_props')) {
+            $trial_length = (int) ($args['trial_length'] ?? 0);
             $product->set_props([
                 'subscription_period' => (string) ($args['subscription_period'] ?? 'month'),
                 'subscription_period_interval' => (int) ($args['subscription_period_interval'] ?? 1),
+                // 0 is WC Subscriptions' own "no trial" value — always set
+                // explicitly (not just when > 0) so turning a trial back
+                // off actually clears a previously-set one instead of
+                // leaving it stuck.
+                'trial_length' => $trial_length,
+                'trial_period' => (string) ($args['trial_period'] ?? 'day'),
             ]);
         }
         $product->save();

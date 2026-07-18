@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.19
+ * Version:     0.4.21
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -180,7 +180,29 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.19');
+// 0.4.20 — free trials, the one genuinely open item left in
+// ROADMAP-platform-evolution.md Section 4 besides gifting (promo/discount
+// codes already work today via WooCommerce's own native checkout coupon
+// field, confirmed nothing in this plugin disables it). A tier's edit
+// screen (class-tiers.php) now has a "Free trial (days)" field, synced
+// through to BOTH the monthly and annual WC Subscription product via
+// BH_Commerce::upsert_product()'s new trial_length/trial_period args
+// (own-ur-shit 3.6.8), and surfaced on the fan-facing tier picker
+// (class-frontend.php) as an "N-day free trial" badge — a trial nobody
+// can see before checking out isn't a real conversion lever, it's just
+// hidden product config.
+// 0.4.21 — real bug caught live in this same pass, via a DB error in the
+// debug log: BHM_PortalPanel::active_entitlements() (class-portal-panel.php)
+// queried a nonexistent `tier_id` column on `bhm_entitlements` — the real
+// column is `object_id` (class-activator.php's own CREATE TABLE). The
+// portal's "Membership & Wallet" panel was silently showing "No active
+// supporter tier" for EVERY user regardless of real entitlement state,
+// since the underlying query errored out and returned nothing. Fixed the
+// column name, and also scoped the query to type IN
+// ('subscription','streaming_tier') — this table also holds one-time
+// track/release purchase entitlements, which would have shown up as
+// bogus "Tier #123" rows once the column-name bug was fixed.
+define('BHM_VER',  '0.4.21');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_

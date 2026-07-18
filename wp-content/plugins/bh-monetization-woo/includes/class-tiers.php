@@ -152,6 +152,20 @@ class BHM_Tiers {
         }
         echo '</p>';
 
+        // Free trial — ROADMAP-platform-evolution.md Section 4's one
+        // remaining open item besides gifting/promo codes (promo codes
+        // already work today via WooCommerce's own native checkout
+        // coupon field, no code needed there). Days rather than a
+        // period+length pair: "N days" is what an artist actually reaches
+        // for, and any week/month/year trial is exactly representable as
+        // a day count.
+        $trial_days = (int) get_post_meta($post->ID, '_bhm_trial_days', true);
+        echo '<p><label><strong>Free trial (days, optional)</strong> <span class="description">— 0 = no trial</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="' . esc_attr($trial_days) . '" style="width:100px;"></label>';
+        if (!$has_subs) {
+            echo '<br><span class="description">Requires WooCommerce Subscriptions to actually delay the first charge — without it this stores the value but the one-time fallback purchase still charges immediately.</span>';
+        }
+        echo '</p>';
+
         echo '<p><label><strong>Benefits</strong> <span class="description">(free text — shown to fans on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
 
         // Structured benefits list — one bullet per line, rendered as a
@@ -208,6 +222,9 @@ class BHM_Tiers {
         $annual_price_cents = isset($_POST['bhm_annual_price']) ? (int) round(((float) $_POST['bhm_annual_price']) * 100) : 0;
         update_post_meta($post_id, '_bhm_annual_price_cents', $annual_price_cents);
 
+        $trial_days = isset($_POST['bhm_trial_days']) ? max(0, (int) $_POST['bhm_trial_days']) : 0;
+        update_post_meta($post_id, '_bhm_trial_days', $trial_days);
+
         if (isset($_POST['bhm_benefits'])) update_post_meta($post_id, '_bhm_benefits', sanitize_textarea_field($_POST['bhm_benefits']));
 
         // One-per-line -> a clean string array, dropping blank lines so a
@@ -230,7 +247,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
 
         if (class_exists('WooCommerce')) {
-            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents);
+            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
         }
 
         if (class_exists('OUS_Audit')) {
@@ -249,6 +266,7 @@ class BHM_Tiers {
             'id' => $post->ID, 'name' => $post->post_title,
             'price_cents' => (int) get_post_meta($post->ID, '_bhm_price_cents', true),
             'annual_price_cents' => (int) get_post_meta($post->ID, '_bhm_annual_price_cents', true),
+            'trial_days' => (int) get_post_meta($post->ID, '_bhm_trial_days', true),
             'benefits' => (string) get_post_meta($post->ID, '_bhm_benefits', true),
             'benefits_list' => (array) get_post_meta($post->ID, '_bhm_benefits_list', true),
             'cover_image_id' => (int) get_post_meta($post->ID, '_bhm_cover_image_id', true),

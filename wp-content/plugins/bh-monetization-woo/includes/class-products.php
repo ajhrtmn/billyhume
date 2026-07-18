@@ -92,7 +92,7 @@ class BHM_Products {
     // since the artist may just be toggling the field back and forth
     // while drafting; a stale-but-hidden annual product is harmless —
     // catalog_visibility is already 'hidden', same as the monthly one).
-    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0) {
+    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0, $trial_days = 0) {
         if (!class_exists('WooCommerce')) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
         $existing_annual_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id_annual', true);
@@ -106,6 +106,16 @@ class BHM_Products {
                 'subscription' => true, // BH_Commerce itself degrades to a plain Simple product if WooCommerce Subscriptions isn't active
                 'subscription_period' => 'month',
                 'subscription_period_interval' => 1,
+                // Free trial, ROADMAP-platform-evolution.md Section 4's
+                // remaining open item — a real conversion lever Patreon
+                // itself offers per-tier. Days is the unit this plugin's
+                // own admin field uses; WC Subscriptions' trial_period
+                // unit is fixed to 'day' here rather than exposed as a
+                // second dropdown, since "N days" is the one artists
+                // actually reach for and a week/month/year trial is
+                // exactly representable as a day count anyway.
+                'trial_length' => (int) $trial_days,
+                'trial_period' => 'day',
             ]);
             if ($product_id) {
                 update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
@@ -121,6 +131,8 @@ class BHM_Products {
                     'subscription' => true,
                     'subscription_period' => 'year',
                     'subscription_period_interval' => 1,
+                    'trial_length' => (int) $trial_days,
+                    'trial_period' => 'day',
                 ]);
                 if ($annual_id) {
                     update_post_meta($tier_post_id, '_bhm_wc_product_id_annual', $annual_id);
