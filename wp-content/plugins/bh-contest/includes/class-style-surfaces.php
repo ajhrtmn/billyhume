@@ -45,7 +45,7 @@ class BH_StyleSurfaces {
     public static function wizard_preview() {
         ob_start();
         ?>
-<div class="wrap" style="background:#f0f0f1;color:#1d2327;padding:16px;margin:0;">
+<div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
     <h1>New Contest &mdash; Guided Setup</h1>
     <p class="description">Covers what every contest needs to run. Rounds, Discord notifications, contact-field customization, and branding all stay on the real edit screen with sensible defaults.</p>
 

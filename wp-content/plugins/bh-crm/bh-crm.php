@@ -341,7 +341,14 @@ if (!defined('ABSPATH')) exit;
 // card into a different column (confirmed its column attr updated AND
 // its position preserved correctly relative to the other column's
 // existing card), reloaded the page and confirmed both survived.
-define('BHCRM_VER',  '2.4.5');
+// 2.4.6 — the Project Tracker kanban preview's Design Suite entry
+// (includes/class-style-surface.php) inherited the gallery's brand
+// font-family token same as every real brand surface, so an exotic
+// Typography pick restyled this fake wp-admin screen too, which a real
+// wp-admin page never does. Fixed with an explicit system-font-stack
+// override, matching the same fix applied to the other 3 "fake
+// wp-admin" previews across the ecosystem this pass.
+define('BHCRM_VER',  '2.4.6');
 
 // 2.4.5 — Design Suite gallery gap closed: registered the kanban
 // Project Tracker board (class-projects.php/kanban-board.js) as its

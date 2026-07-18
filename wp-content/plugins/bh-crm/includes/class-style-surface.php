@@ -80,7 +80,7 @@ class BHCRM_StyleSurface {
     public static function kanban_preview() {
         ob_start();
         ?>
-<div style="background:#f0f0f1;color:#1d2327;padding:8px;">
+<div style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:8px;">
 <div class="bhcrm-kanban-board" style="display:flex;gap:12px;padding:12px;overflow-x:auto;">
     <div class="bhcrm-kanban-column" data-column="To Do" style="min-width:220px;">
         <div class="bhcrm-kanban-column-header">To Do<span class="bhcrm-kanban-column-count"> (2)</span></div>

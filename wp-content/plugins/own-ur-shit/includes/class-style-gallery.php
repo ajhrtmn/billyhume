@@ -293,7 +293,29 @@ class BHY_Gallery {
 
         echo '<div class="bhy-token-group" data-token-group="brand">';
         echo '<h3>Brand</h3>';
-        echo '<div class="bhel-field-row"><label>Wordmark</label><p><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p></div>';
+        echo '<div class="bhel-field-row"><label>Wordmark</label><p style="display:flex;gap:8px;margin:6px 0 0;"><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part" style="flex:1;"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part" style="flex:1;"></p></div>';
+
+        // Real gap, caught live: BHY_Style::logo_url()/'brand_logo_id'
+        // have been part of the data model and the real save() handler
+        // (above in this file) since before this pass — brand.js/the
+        // player's own header already render a logo when one is set
+        // (BHY_Style::get_brand_payload(), 'logoUrl') — but the
+        // inspector never actually had an upload control for it, so
+        // there was no way to ever set brand_logo_id from this screen
+        // at all. wp.media() is already enqueued on this exact page
+        // (enqueue_media(), above in this class) so this needed no new
+        // asset, just the missing control — same upload-button/preview
+        // shape bh-streaming's own artwork picker uses
+        // (class-admin.php's pick() helper).
+        $logo_id = (int) ($s['brand_logo_id'] ?? 0);
+        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
+        echo '<div class="bhel-field-row" style="margin-top:14px;">';
+        echo '<label>Logo <span class="description">(optional — shown instead of the wordmark text above wherever a surface renders one)</span></label>';
+        echo '<div style="display:flex;align-items:center;gap:12px;margin-top:6px;">';
+        echo '<div id="bhy-logo-preview" style="width:64px;height:64px;border:1px solid var(--bhy-border,#dcdcde);border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">' . ($logo_url ? '<img src="' . esc_url($logo_url) . '" style="width:100%;height:100%;object-fit:contain;">' : '<span class="description" style="font-size:11px;">None</span>') . '</div>';
+        echo '<input type="hidden" id="brand_logo_id" name="brand_logo_id" value="' . esc_attr($logo_id) . '">';
+        echo '<span><button type="button" class="button" id="bhy-logo-upload">' . ($logo_id ? 'Change logo' : 'Upload logo') . '</button> <button type="button" class="button-link" id="bhy-logo-clear" style="' . ($logo_id ? '' : 'display:none;') . 'color:#b32d2e;margin-left:6px;">Remove</button></span>';
+        echo '</div></div>';
         echo '</div>';
 
         echo '<div class="bhy-token-group" data-token-group="colors">';
@@ -407,6 +429,51 @@ class BHY_Gallery {
             });
             setCurrentLabel(document.querySelector('.bhy-story-btn.active') || buttons[0]);
 
+            // Logo upload — wp.media() is already enqueued on this page
+            // (BHY_Gallery::enqueue_media()), reused here rather than a
+            // new asset. Same upload-button/preview/clear shape
+            // bh-streaming's own artwork picker uses.
+            (function () {
+                var uploadBtn = document.getElementById('bhy-logo-upload');
+                var clearBtn = document.getElementById('bhy-logo-clear');
+                var hidden = document.getElementById('brand_logo_id');
+                var preview = document.getElementById('bhy-logo-preview');
+                if (!uploadBtn) return;
+                // Real bug, caught live: this script prints inline as part
+                // of the page's own content, before wp_footer runs — and
+                // wp.media()'s own scripts (enqueued via wp_enqueue_media())
+                // load in the footer, so `window.wp.media` doesn't exist
+                // yet at THIS script's execution time even though it's
+                // fully available by the time a user actually clicks.
+                // Bailing here at setup time (the original bug) meant the
+                // click listener never got attached at all, so the button
+                // silently did nothing forever. Checking wp.media lazily,
+                // inside the handler, is the real fix.
+                var frame = null;
+                uploadBtn.addEventListener('click', function () {
+                    if (!window.wp || !window.wp.media) return;
+                    if (frame) { frame.open(); return; }
+                    frame = wp.media({ title: 'Choose a logo', button: { text: 'Use this' }, multiple: false, library: { type: 'image' } });
+                    frame.on('select', function () {
+                        var att = frame.state().get('selection').first().toJSON();
+                        hidden.value = att.id;
+                        var thumbUrl = (att.sizes && att.sizes.medium) ? att.sizes.medium.url : att.url;
+                        preview.innerHTML = '<img src="' + thumbUrl + '" style="width:100%;height:100%;object-fit:contain;">';
+                        uploadBtn.textContent = 'Change logo';
+                        clearBtn.style.display = '';
+                        if (window.refreshAllFrames) window.refreshAllFrames();
+                    });
+                    frame.open();
+                });
+                clearBtn.addEventListener('click', function () {
+                    hidden.value = '';
+                    preview.innerHTML = '<span class="description" style="font-size:11px;">None</span>';
+                    uploadBtn.textContent = 'Upload logo';
+                    clearBtn.style.display = 'none';
+                    if (window.refreshAllFrames) window.refreshAllFrames();
+                });
+            })();
+
             // Each .bhy-story-frame div's real content lives under its
             // own attachShadow({mode:'open'}) root, parsed once here from
             // the data-doc payload PHP encoded — a real fix carried
@@ -458,6 +525,18 @@ class BHY_Gallery {
                 var css = buildCssText();
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
+                // Real gap, AJ's own report ("logo doesn't appear to update
+                // in the style viewer"): this only ever wrote the wordmark
+                // TEXT into #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
+                // never appeared here at all, even though the real front-end
+                // (bh-contest/assets/js/player.js's own brand.logoUrl check)
+                // correctly swaps to an <img> when one's set. Mirrors that
+                // same logoUrl-present check here, reusing whatever src the
+                // logo preview box already resolved to (same attachment,
+                // no extra request needed).
+                var logoIdEl = document.getElementById('brand_logo_id');
+                var logoImgEl = document.querySelector('#bhy-logo-preview img');
+                var logoUrl = (logoIdEl && logoIdEl.value && logoImgEl) ? logoImgEl.src : '';
                 frames.forEach(function (f) {
                     var doc = f.shadowRoot;
                     if (!doc) return;
@@ -467,8 +546,20 @@ class BHY_Gallery {
                     // with these specific ids (e.g. bh-contest's player
                     // header) get it updated live too. Surfaces without
                     // these ids simply no-op here.
-                    if (brand1) { var b1 = doc.getElementById('bh-brand-1'); if (b1) b1.textContent = brand1.value.trim() || brand1.placeholder; }
-                    if (brand2) { var b2 = doc.getElementById('bh-brand-2'); if (b2) b2.textContent = brand2.value.trim() || brand2.placeholder; }
+                    var brandEl = doc.getElementById('bh-brand');
+                    if (!brandEl) return;
+                    if (logoUrl) {
+                        brandEl.innerHTML = '<img class="bh-brand-logo" src="' + logoUrl + '" alt="" style="max-height:32px;max-width:140px;object-fit:contain;">';
+                        return;
+                    }
+                    // No logo set — make sure the text spans exist (they
+                    // won't if a logo was previously shown this session)
+                    // before writing the wordmark text into them.
+                    if (!doc.getElementById('bh-brand-1')) {
+                        brandEl.innerHTML = '<span id="bh-brand-1"></span><span id="bh-brand-2"></span>';
+                    }
+                    var b1 = doc.getElementById('bh-brand-1'); if (b1 && brand1) b1.textContent = brand1.value.trim() || brand1.placeholder;
+                    var b2 = doc.getElementById('bh-brand-2'); if (b2 && brand2) b2.textContent = brand2.value.trim() || brand2.placeholder;
                 });
                 // The always-visible token preview strip lives in the main
                 // document (not a preview frame), so it gets the same
@@ -588,6 +679,13 @@ class BHY_Gallery {
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 });
             });
+
+            // Real gap, AJ's own report ("logo doesn't appear to update in
+            // the style viewer"): refreshAllFrames() was only ever called
+            // in response to an edit — ANY logo already saved from a
+            // previous visit never got drawn into a freshly loaded page's
+            // frames at all, since nothing had "changed" yet to trigger it.
+            refreshAllFrames();
         })();
         </script>
         <?php

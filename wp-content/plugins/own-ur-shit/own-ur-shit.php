@@ -2125,7 +2125,46 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.6');
+// 3.6.7 — four real, live-verified bugs from the same Design Suite QA
+// pass:
+//   1. Font-family leak: the 4 "fake wp-admin" wizard/kanban previews
+//      (Media & CDN Setup, New Contest, PRO Registration, Project
+//      Tracker) inherited `:host{font-family:var(--bh-font-body)}` same
+//      as every real brand surface, so picking an exotic Typography
+//      font restyled these wp-admin-style previews too — a real
+//      wp-admin screen never does that. Fixed with an explicit system-
+//      font-stack override on each preview's wrap div.
+//   2. Brand logo upload, end-to-end: `brand_logo_id` existed in the
+//      data model with zero UI to set it. Added a real wp.media()
+//      upload control to the Brand section (class-style-gallery.php).
+//   3. Real bug caught mid-build: the upload button's click listener
+//      never attached at all — its setup-time guard checked for
+//      `window.wp.media`, but this script prints inline BEFORE
+//      wp_footer (where wp.media's own scripts load), so the guard
+//      always failed and silently no-op'd forever. Fixed by checking
+//      wp.media lazily inside the click handler instead of at setup.
+//   4. Real bug, AJ's own report ("logo doesn't appear to update in the
+//      style viewer"): refreshAllFrames() only ever updated the
+//      wordmark TEXT, never swapped in a logo image, and was never
+//      even called on initial page load — a previously-saved logo
+//      never appeared until some unrelated edit happened to trigger a
+//      refresh. Fixed both: logo-aware swap logic, and an initial call.
+// RUNTIME-VERIFIED: uploaded a real attachment through the real
+// wp.media() frame, confirmed it opens (previously didn't), confirmed
+// the preview + hidden field update, saved, reloaded, confirmed the
+// Player surface's header now shows the logo image instead of
+// "YourBrand" text.
+//
+// Also this pass, bh-contest 1.x (see that plugin's own changelog):
+// the custom "Where do you usually watch?" dropdown's open menu is
+// `position:absolute` inside a `overflow-y:auto` modal — clips on any
+// engine when the field sits close to the modal's scrolled edge, worse
+// on a short viewport. Fixed by switching the menu to `position:fixed`,
+// computed from the trigger's real screen coordinates on open, so it
+// can't be clipped by an ancestor's scroll container. RUNTIME-VERIFIED
+// at a 375px mobile viewport — menu previously would have been clipped
+// at the modal's bottom edge, now renders in full.
+define('OUS_VER', '3.6.7');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:

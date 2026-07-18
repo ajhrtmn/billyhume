@@ -31,7 +31,7 @@ class BHS_StyleSurface {
     public static function pro_wizard_preview() {
         ob_start();
         ?>
-<div class="wrap" style="background:#f0f0f1;color:#1d2327;padding:16px;margin:0;">
+<div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
     <h1>PRO Registration</h1>
     <div class="notice notice-success" style="padding:12px;"><p><strong>On file:</strong> BMI &mdash; Affiliated, membership confirmed (IPI/CAE: 123456789)</p></div>
 

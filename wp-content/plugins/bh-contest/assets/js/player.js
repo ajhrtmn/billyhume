@@ -488,13 +488,35 @@ class BHPlayer {
             });
         };
 
+        // Real bug, AJ's own report (possibly Safari-specific, but not a
+        // browser quirk — it's a genuine layout bug in any engine): this
+        // menu is `position:absolute` inside `.bh-modal-content`, which is
+        // `overflow-y:auto` so long forms can scroll. Any absolutely-
+        // positioned child that would render past that container's visible
+        // edge gets clipped by the SAME overflow that lets the form
+        // scroll — worst on a short viewport (a phone) where the modal
+        // scrolls more and this field sits closer to the bottom edge, so
+        // the open menu could get cut off or invisible. Fixed by switching
+        // the menu to `position:fixed`, positioned from the trigger's real
+        // screen coordinates the moment it opens — that escapes the
+        // scrolling container entirely rather than trying to out-z-index
+        // a clip that z-index can't affect.
+        const positionMenu = () => {
+            const r = trigger.getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.left = r.left + 'px';
+            menu.style.top = (r.bottom + 4) + 'px';
+            menu.style.width = r.width + 'px';
+        };
         trigger.onclick = (e) => {
             e.stopPropagation();
             const willOpen = !wrap.classList.contains('open');
             document.querySelectorAll('.bh-select-wrap.open').forEach(w => w.classList.remove('open'));
-            if (willOpen) { renderOptions(); wrap.classList.add('open'); }
+            if (willOpen) { renderOptions(); positionMenu(); wrap.classList.add('open'); }
         };
         document.addEventListener('click', () => wrap.classList.remove('open'));
+        window.addEventListener('scroll', () => { if (wrap.classList.contains('open')) positionMenu(); }, true);
+        window.addEventListener('resize', () => { if (wrap.classList.contains('open')) positionMenu(); });
 
         // Exposed so code elsewhere that sets select.value directly
         // (bypassing the trigger, e.g. prefillSubmitProfile) can ask the

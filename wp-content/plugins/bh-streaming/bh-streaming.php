@@ -40,7 +40,14 @@ if (!defined('ABSPATH')) exit;
 // — see own-ur-shit 3.4.82's own changelog for the fix (the component
 // now embeds its style on every call). Confirmed both variants render
 // at the correct size on desktop and 375px mobile after the fix.
-define('BHS_VER',  '0.5.10');
+// 0.5.11 — the PRO Registration wizard's Design Suite preview
+// (includes/class-style-surface.php) inherited the gallery's brand
+// font-family token same as every real brand surface, so an exotic
+// Typography pick restyled this fake wp-admin screen too, which a real
+// wp-admin page never does. Fixed with an explicit system-font-stack
+// override, matching the same fix applied to the other 3 "fake
+// wp-admin" previews across the ecosystem this pass.
+define('BHS_VER',  '0.5.11');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO
 // Registration wizard (BHS_PROWizard) as its own surface

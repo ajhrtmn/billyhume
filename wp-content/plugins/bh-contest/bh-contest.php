@@ -222,7 +222,23 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.3');
+// 3.7.4 — real bug, AJ's own report ("stylrs are working for the custom
+// drowndowns... they dont on the live site", later narrowed to Safari):
+// enhanceSelect()'s open menu (assets/js/player.js) was `position:
+// absolute` inside `.bh-modal-content`, which is `overflow-y:auto` so
+// long forms can scroll — any absolutely-positioned child rendering past
+// that container's own visible edge gets clipped by the SAME overflow
+// that lets the form scroll. Worst on a short viewport where the modal
+// scrolls more and the platform-picker field sits closer to the bottom
+// edge. Fixed by switching the menu to `position:fixed`, computed from
+// the trigger's real screen coordinates the moment it opens (assets/css/
+// player.css's z-index bumped past .bh-modal's own 10000 to match, since
+// a `fixed` element stacks against the whole page, not just its local
+// context). RUNTIME-VERIFIED at a 375px mobile viewport: the menu
+// previously would have been clipped at the modal's scrolled bottom
+// edge, now renders in full and selection still updates the real
+// <select> correctly.
+define('BH_VER',        '3.7.4');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface
