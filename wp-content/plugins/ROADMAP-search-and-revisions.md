@@ -36,9 +36,9 @@ Contests/tracks/releases/tiers don't have their own canonical single-item URL at
 
 ### Sequencing (smallest real slice first, per this ecosystem's own "one real example, not every consumer at once" convention)
 
-1. `OUS_Search` shell + `ous_search_providers` filter + REST route, with exactly ONE real provider (bh-courses, since it's already public/cheapest) — proves the mechanism end-to-end.
-2. Front-end search UI (the actual visible feature) — wired against that one provider first, so there's something real to click through before adding more data sources.
-3. Add the remaining four providers (contest, streaming, CRM, registry) one at a time, each independently testable.
+1. ✅ **SHIPPED** — `OUS_Search` shell + `ous_search_providers` filter + REST route, with exactly ONE real provider (bh-courses) — proves the mechanism end-to-end.
+2. ✅ **SHIPPED** — Front-end search UI (`[ous_search]` shortcode, live-as-you-type, real brand-token styling) — runtime-verified against a real course title.
+3. **Not yet done** — the remaining four providers (contest, streaming, CRM, registry), one at a time, each independently testable.
 4. Not in scope for v1: full-text relevance ranking/a dedicated search index — `LIKE`-based matching is the honest, correct-for-catalog-size choice here, same reasoning `BHS_Recommendations`/`BHM_Recommendations` already used for content-based scoring instead of a real ML/index-backed system.
 
 ## 2. In-admin version history for user-built content
@@ -58,13 +58,19 @@ Contests/tracks/releases/tiers don't have their own canonical single-item URL at
 - **`OUS_Revisions::restore($object_type, $object_id, $version)`** — does NOT write the object's live table itself (that's consumer-specific — bh-crm knows how to write a person record, `OUS_Revisions` doesn't) — instead returns the snapshot data and fires a `do_action('ous_revision_restore_requested', $object_type, $object_id, $snapshot)` the consumer listens for and applies however its own save path already works. Keeps the shared service genuinely object-agnostic, same reasoning `BH_Content`'s renderer registry stays agnostic about what a block IS.
 - **A shared, reusable "Version History" admin UI fragment** (a metabox/panel renderer any consumer can drop in, listing `history()`'s rows with a "Restore" button per row) — so a consumer gets a real, consistent UI for free, not just the storage API. Matches the "one shared service, zero central registration" spirit one level further than `OUS_Jobs`/`OUS_Notifications` do (neither of those ships a reusable UI fragment, but a revisions feature is worthless without one).
 
-### Sequencing (one real consumer first, matching this doc's own naming of candidates)
+### Sequencing — revised after building it, per AJ's own live steer ("versioning is most important for anything that is a post, like contests and lessons")
 
-1. `OUS_Revisions` shell (table + `snapshot`/`history`/`get_version`/`restore`) + the shared Version History UI fragment — no consumer wired yet, but fully testable via Debug Tools seed actions (matching every other shared service's own debug-tools test pattern).
-2. **First real consumer: bh-crm notes/tags** (named as a candidate in `ROADMAP-platform-evolution.md` Section 7a, and the most bounded/lowest-risk object shape — a person's notes array, not a complex nested tree). `BHCRM_People::save()` calls `snapshot()` after every save; the person-detail screen gets a "Version History" panel.
-3. Once #2 is proven end-to-end (real save → real snapshot → real restore, verified live), extend to the other named candidates one at a time: `BHY_Style`/`BHY_UI` configs, contest configurations (bh-contest), LMS courses/lessons/quizzes (bh-courses, natural now that lesson content is real `BH_Content`/block data), portal layouts. Each is its own small, independently-shippable slice — not a big-bang rollout.
-4. Not in scope for v1: a visual diff view between two versions (a real, distinct feature layered on top of `get_version()` once basic restore is proven) — flagged, not built.
+Bh-crm notes turned out to be the WRONG first consumer once actually inspected: notes are already append-only history (one row per note, never overwritten) — a second history mechanism on top would be redundant, not useful. Two better-fit real consumers shipped instead:
+
+1. ✅ **SHIPPED** — `OUS_Revisions` shell (table + `snapshot`/`history`/`get_version`/`restore`) + the shared Version History UI fragment.
+2. ✅ **SHIPPED** — `bh_course`/`bh_lesson` gained real `'revisions'` post-type support. A lesson's steps genuinely are `post_content` now — WordPress core's own native revision/restore UI already works correctly for free, zero `OUS_Revisions` wiring needed for content that already lives in `wp_posts`.
+3. ✅ **SHIPPED** — `bh_contest`: real configuration (dates, rounds, rubric, contact requirements, brand style) lives entirely in postmeta, never `post_content` — native WP revisions capture nothing meaningful for it. `BH_Admin::save_contest_meta()` snapshots the full `_bh_*`/`_bhy_style_json` meta state on every save; a real "Version History" metabox (side column) with working Restore.
+4. ✅ **SHIPPED** — `BHM_Tiers` (bh-monetization-woo): a tier's full field set (price, benefits, annual pricing, trial days) is a clean overwrite-on-save object. Same wiring, verified with a real price-change/restore cycle.
+5. Not yet done: `BHY_Style`/`BHY_UI` configs, portal layouts (still-open candidates from `ROADMAP-platform-evolution.md` Section 7a) — same small, independently-shippable pattern as #3/#4 above, whenever picked up next.
+6. Not in scope for v1: a visual diff view between two versions (a real, distinct feature layered on top of `get_version()` once basic restore is proven) — flagged, not built.
+
+**Two real bugs found and fixed during this build**, both now documented in `own-ur-shit`'s own changelog (3.7.1): `render_history_panel()`'s original per-row `<form>` broke the real post-save (nested forms aren't valid HTML; fixed with a GET link + nonce, matching this ecosystem's own "Move to Trash" convention), and `OUS_AdminLayout::BREAKPOINT` was an all-or-nothing 1200px gate that left a real dead zone of the OLD cramped admin layout between ~850-1200px — lowered to WordPress core's own 782px admin-menu collapse point.
 
 ## Status
 
-**NOT YET BUILT — this document is the scope, written before any code.** Both sections above describe the plan to work from; implementation starts with Section 1's step 1 and Section 2's step 1 (the shared-service shells), since both are prerequisites for everything else in their own section.
+**Both shared services shipped, with real first consumers, in the same pass this doc was written.** Search: shell + one provider (bh-courses) + the real front-end UI, all runtime-verified. Revisions: shell + shared UI fragment + three real consumers (bh_lesson/bh_course via native WP revisions, bh_contest and BHM_Tiers via `OUS_Revisions` directly), all runtime-verified including a full save/restore cycle. Remaining work in both sections (the other four search providers; `BHY_Style`/portal-layout revisions consumers) is sequenced above, not started.
