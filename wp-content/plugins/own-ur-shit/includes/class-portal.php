@@ -500,7 +500,19 @@ class BHI_Portal {
         usort($panels, function ($a, $b) {
             return ($a['priority'] ?? 10) <=> ($b['priority'] ?? 10);
         });
-        return array_values($panels);
+        $panels = array_values($panels);
+
+        // Admin-editable order/visibility overrides (OUS_PortalLayout) —
+        // applied last, on top of whatever the filter contributed, so a
+        // panel provider never needs to know this exists.
+        if (class_exists('OUS_PortalLayout')) {
+            $panels = OUS_PortalLayout::apply($panels);
+            usort($panels, function ($a, $b) {
+                return ($a['priority'] ?? 10) <=> ($b['priority'] ?? 10);
+            });
+        }
+
+        return $panels;
     }
 
     public static function get_panel($id) {
