@@ -70,6 +70,9 @@ class BH_Auth {
         if ($cid) {
             $payload = BHY_Style::entity_style_payload($cid);
             if ($payload) $attrs .= ' data-style-overrides="' . esc_attr(wp_json_encode($payload)) . '"';
+            if (get_post_meta($cid, '_bh_allow_audio_optional', true)) {
+                $attrs .= ' data-allow-audio-optional="1"';
+            }
         }
 
         // bh-contest's first real BH_Element surface (class-element-

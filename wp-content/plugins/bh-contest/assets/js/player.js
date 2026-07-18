@@ -50,6 +50,10 @@ class BHPlayer {
         this.maxBytes = D.maxBytes || 20971520;
         this.brand = D.brand || { part1: 'Your', part2: 'Brand', logoUrl: '' };
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
+        // Per-contest "Allow submitting without audio yet" setting
+        // (class-admin.php's Contest Rules & Results box) — off by
+        // default, an admin opts a specific contest in.
+        this.allowAudioOptional = root.dataset.allowAudioOptional === '1';
 
         // Per-contest style override (accent + category colors + brand),
         // set server-side only when a contest has "Override site
@@ -263,7 +267,7 @@ class BHPlayer {
                         <span class="bh-file-label-text">Choose an audio file…</span>
                         <input type="file" class="bh-sub-file bh-file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
                     </label>
-                    <small>MP3 or M4A · Max 20MB</small>
+                    <small class="bh-file-hint">MP3 or M4A · Max 20MB</small>
                     <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
                 </div></div>
 
@@ -357,7 +361,10 @@ class BHPlayer {
 
         this.q('.bh-login-btn').onclick   = openAuth;
         this.q('.bh-logout-btn').onclick  = e => { e.preventDefault(); this.logout(); };
-        this.q('.bh-submit-btn').onclick  = () => { show('submit'); this.prefillSubmitProfile(); };
+        this.q('.bh-submit-btn').onclick  = () => {
+            show('submit'); this.prefillSubmitProfile();
+            if (this.allowAudioOptional) this.q('.bh-file-hint').textContent = 'MP3 or M4A · Max 20MB · optional — you can attach this later from your account portal';
+        };
         this.q('.bh-results-btn').onclick = () => this.loadResults();
         this.q('.bh-auth-submit').onclick = () => this.auth();
         this.q('.bh-upload-btn').onclick  = () => this.upload();
@@ -599,14 +606,22 @@ class BHPlayer {
         const note = this.q('.bh-sub-note').value.trim();
         const btn = this.q('.bh-upload-btn');
 
-        if (!file || !title || !artist) return this.toast('Add a song title, artist name, and an audio file.', true);
-        if (file.size > this.maxBytes) return this.toast('That file is over 20MB. Please choose a smaller one.', true);
+        // Audio is only optional when THIS contest's own admin turned on
+        // "Allow submitting without audio yet" — every other contest
+        // keeps the original all-three-required behavior unchanged.
+        if (!title || !artist || (!file && !this.allowAudioOptional)) {
+            return this.toast(this.allowAudioOptional
+                ? 'Add a song title and artist name.'
+                : 'Add a song title, artist name, and an audio file.', true);
+        }
+        if (file && file.size > this.maxBytes) return this.toast('That file is over 20MB. Please choose a smaller one.', true);
 
         btn.disabled = true;
-        btn.innerText = 'Uploading… please wait';
+        btn.innerText = file ? 'Uploading… please wait' : 'Saving…';
 
         const fd = new FormData();
-        fd.append('title', title); fd.append('artist', artist); fd.append('note', note); fd.append('audio', file);
+        fd.append('title', title); fd.append('artist', artist); fd.append('note', note);
+        if (file) fd.append('audio', file);
         this.appendProfileFields(fd, 'sub');
 
         const { ok, body } = await this.req('submit', { method: 'POST', body: fd });
@@ -615,8 +630,15 @@ class BHPlayer {
             this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
                 .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
-            this.toast('Track submitted! It will appear once an admin approves it.');
-            this.showShareModal(body);
+            if (body.needs_audio) {
+                // No share cards yet — nothing to share until a real
+                // track exists (showShareModal() would have nothing
+                // meaningful to point at).
+                this.toast(body.message || 'Submission started! Attach your audio file from your account portal to finish.');
+            } else {
+                this.toast('Track submitted! It will appear once an admin approves it.');
+                this.showShareModal(body);
+            }
         } else {
             this.toast(body.message || 'Upload failed. Check the file and try again.', true);
         }

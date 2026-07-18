@@ -1075,6 +1075,16 @@ class BH_Admin {
             echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
             echo '</div>';
 
+            // Off by default — a submission with no audio yet ('draft'
+            // status) can't earn the bonus vote or reach admin review
+            // until it's finished (class-api.php's submit()/replace_audio()),
+            // but it DOES reserve the entry (blocks a second attempt) —
+            // an admin opts a specific contest into this rather than it
+            // being silently on everywhere, since most contests want a
+            // real file at submit time.
+            $allow_audio_optional = (bool) get_post_meta($post->ID, '_bh_allow_audio_optional', true);
+            echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . '> Allow submitting without audio yet — a fan can reserve their entry with title/artist/contact info, then finish by uploading a file later (from their account portal) any time before submissions close</label></p>';
+
             $contact_cfg = BH_Helpers::contact_config($post->ID);
             $field_labels = [
                 'real_name' => 'Real name', 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
@@ -1598,6 +1608,7 @@ class BH_Admin {
             if (isset($_POST['bh_sub_start'])) update_post_meta($post_id, '_bh_sub_start', sanitize_text_field($_POST['bh_sub_start']));
             if (isset($_POST['bh_sub_end']))   update_post_meta($post_id, '_bh_sub_end', sanitize_text_field($_POST['bh_sub_end']));
         }
+        update_post_meta($post_id, '_bh_allow_audio_optional', !empty($_POST['bh_allow_audio_optional']) ? '1' : '');
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');

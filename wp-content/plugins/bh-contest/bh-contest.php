@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.8
+ * Version:     3.7.9
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -267,7 +267,16 @@ if (!defined('ABSPATH')) exit;
 // bh_show_in_menu/_bh_menu_label) that keeps a real "Contests" submenu
 // in every site Navigation menu in sync automatically (OUS_MenuSync,
 // own-ur-shit core) — no manual menu-builder editing needed.
-define('BH_VER',        '3.7.8');
+// 3.7.9 — a contest can opt into "Allow submitting without audio yet"
+// (Contest Rules & Results box, off by default): a fan can reserve
+// their entry with title/artist/contact info alone, then finish by
+// uploading a file later from their account portal (BH_PortalPanel),
+// any time before submissions close. Direct response to a real gap
+// found via manual QA — someone with everything but an exported audio
+// file ready had no way to reserve a slot before a deadline. Reuses
+// the existing replace-audio upload form/endpoint for the first-time
+// attach rather than adding a new one.
+define('BH_VER',        '3.7.9');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface
