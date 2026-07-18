@@ -67,6 +67,7 @@ class BHY_Gallery {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhy_save_settings', [self::class, 'save']);
+        add_action('admin_post_bhy_restore_style_revision', [self::class, 'handle_restore_revision']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
     }
 
@@ -160,7 +161,40 @@ class BHY_Gallery {
         }
 
         update_option(BHY_Style::OPTION, $data);
+
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $data);
+        }
+
         wp_safe_redirect(add_query_arg(['page' => 'bh-style', 'saved' => '1'], admin_url('admin.php')));
+        exit;
+    }
+
+    // OUS_Revisions::render_history_panel()'s Restore link points here.
+    // Writes the stored snapshot straight back to the option — same
+    // direct-restore reasoning bh_contest's own restore handler uses
+    // (the snapshot IS already the target shape, no need to re-simulate
+    // a fake $_POST through save() itself).
+    public static function handle_restore_revision() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhy_restore_style')) {
+            wp_die('Invalid request.');
+        }
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bhy_style', 1, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+
+        update_option(BHY_Style::OPTION, $snapshot['data']);
+
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $snapshot['data'], 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(add_query_arg(['page' => 'bh-style'], admin_url('admin.php')));
         exit;
     }
 
@@ -391,6 +425,23 @@ class BHY_Gallery {
         }
 
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+
+        // OUS_Revisions consumer, ROADMAP-search-and-revisions.md
+        // Section 2's last named candidate. A single, site-wide config
+        // (BHY_Style::OPTION is one option, not a per-post object) —
+        // object_id is a constant 1 rather than a real post/entity ID,
+        // since there's only ever one of these on the whole site.
+        // render_history_panel() itself is just links, not a <form>
+        // (fixed earlier this same pass), so it's safe to nest inside
+        // this page's own big <form id="bhy-form"> without repeating
+        // the nested-form bug that broke BHM_Tiers/bh_contest saves.
+        if (class_exists('OUS_Revisions')) {
+            echo '<div class="bhy-token-group" data-token-group="revisions">';
+            echo '<h3>Version History</h3>';
+            OUS_Revisions::render_history_panel('bhy_style', 1, 'bhy_restore_style_revision', 'bhy_restore_style');
+            echo '</div>';
+        }
+
         echo '</form></div>';
     }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.7.1
+ * Version:     3.7.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2217,7 +2217,22 @@ if (!defined('ABSPATH')) exit;
 //      collapse breakpoint (782px) — genuinely mobile/tablet territory
 //      keeps the plain stock layout; everything wider now gets the
 //      masonry treatment.
-define('OUS_VER', '3.7.1');
+// 3.7.2 — last real OUS_Revisions consumer named in
+// ROADMAP-search-and-revisions.md Section 2's sequencing: BHY_Style
+// (Design Suite's global design tokens). A single, site-wide config —
+// object_id is a constant 1 rather than a real post/entity ID, since
+// there's only ever one of these on the whole site. Every save
+// snapshots the full token set; a "Version History" panel sits right
+// in the Design Suite page with a working Restore link.
+// Portal layouts (this section's other named candidate) deliberately
+// NOT wired — checked first and confirmed there's no actual
+// admin-editable "layout" config yet (panels are hardcoded via the
+// bhi_portal_panels filter, not something an admin can reorder/save
+// today), so there is nothing real yet to snapshot. Building a
+// consumer for a config that doesn't exist would be exactly the
+// "building for a hypothetical" this ecosystem's own conventions
+// avoid — flagged as still open, not silently skipped.
+define('OUS_VER', '3.7.2');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:
