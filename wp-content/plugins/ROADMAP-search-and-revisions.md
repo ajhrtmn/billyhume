@@ -38,7 +38,9 @@ Contests/tracks/releases/tiers don't have their own canonical single-item URL at
 
 1. ✅ **SHIPPED** — `OUS_Search` shell + `ous_search_providers` filter + REST route, with exactly ONE real provider (bh-courses) — proves the mechanism end-to-end.
 2. ✅ **SHIPPED** — Front-end search UI (`[ous_search]` shortcode, live-as-you-type, real brand-token styling) — runtime-verified against a real course title.
-3. **Not yet done** — the remaining four providers (contest, streaming, CRM, registry), one at a time, each independently testable.
+3. ✅ **SHIPPED (2 of 4 originally-planned providers)** — bh-contest (published contests only, linking to the real contest page) and bh-registry (reuses the same `active`/verified-only gate its own public REST search already enforces) — both runtime-verified live.
+   - ✅ **bh-crm deliberately, permanently excluded** — per AJ's own standing rule stated directly: "err on the side of safety and privacy — search shouldn't take people where they aren't allowed to go." This REST route is fully public/unauthenticated; bh-crm holds real private person records and must never share this dispatch layer. A future admin-only CRM search (inside wp-admin, capability-gated) would be a legitimate, separate feature — not a "todo" on this list.
+   - **bh-streaming still open, for a different reason** — no privacy issue, just no canonical per-item URL to link a result to yet (confirmed in `ROADMAP-discoverability.md`). Needs either a query-param deep link the player SPA can read on load, or a real single-track page, before it can be wired.
 4. Not in scope for v1: full-text relevance ranking/a dedicated search index — `LIKE`-based matching is the honest, correct-for-catalog-size choice here, same reasoning `BHS_Recommendations`/`BHM_Recommendations` already used for content-based scoring instead of a real ML/index-backed system.
 
 ## 2. In-admin version history for user-built content
