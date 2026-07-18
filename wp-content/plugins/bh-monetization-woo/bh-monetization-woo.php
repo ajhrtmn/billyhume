@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.21
+ * Version:     0.4.22
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -202,7 +202,22 @@ if (!defined('ABSPATH')) exit;
 // ('subscription','streaming_tier') — this table also holds one-time
 // track/release purchase entitlements, which would have shown up as
 // bogus "Tier #123" rows once the column-name bug was fixed.
-define('BHM_VER',  '0.4.21');
+// 0.4.22 — gift memberships: ROADMAP-platform-evolution.md Section 4's
+// last genuinely open item, now built. A "Gift this" form on the tier
+// picker captures a recipient email at add-to-cart time
+// (BHM_Gifts::capture_gift_email(), a real WooCommerce cart-item-data
+// extension point); on_order_completed() checks for it and, instead of
+// granting the BUYER an entitlement, creates a redemption code
+// (bhm_gift_redemptions, BHM_Activator DB_VERSION 1.4) and emails the
+// recipient a claim link. [bhm_redeem_gift] renders the claim form
+// (prompting login/signup first if needed); claiming grants a real
+// 30-day streaming_tier entitlement via BHM_Products::grant_gift_entitlement().
+// A matching Debug Tools action (simulate_gift_order) drives the same
+// real order-completion code path as the existing tier-order simulation,
+// plus a "recent gift redemptions" table with clickable claim links —
+// wp_mail() isn't reliable on a bare local install, so the redemption
+// itself needs to be testable without depending on real email delivery.
+define('BHM_VER',  '0.4.22');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_
@@ -344,7 +359,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   own parallel recurring-billing logic (which would directly violate
  *   the ecosystem's "don't reinvent what already exists" principle).
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -374,6 +389,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Wallet', 'init']);
     add_action('init',          ['BHM_Admin', 'init']);
     add_action('init',          ['BHM_Products', 'init']);
+    add_action('init',          ['BHM_Gifts', 'init']);
     add_action('init',          ['BHM_Downloads', 'init']);
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);

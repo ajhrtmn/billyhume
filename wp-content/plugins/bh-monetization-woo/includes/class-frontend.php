@@ -117,6 +117,27 @@ class BHM_Frontend {
                 if (!empty($t['wc_product_id_annual'])) {
                     echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">Join annually</a>';
                 }
+                // Gifting — "buy this tier on someone else's behalf"
+                // (ROADMAP-platform-evolution.md Section 4). A plain GET
+                // form straight to the ordinary add-to-cart URL (same
+                // cart flow every other purchase uses) rather than a
+                // separate checkout path — BHM_Gifts::capture_gift_email()
+                // is the only thing that treats this purchase
+                // differently, and only once the recipient email is
+                // actually present.
+                echo '<details class="bhm-tier-gift"><summary>Gift this</summary>';
+                // A GET form submission discards whatever query string is
+                // already on its own `action` attribute — the base cart
+                // URL is the right target here, not add_to_cart_url()
+                // (which appends ?add-to-cart=N that would just get
+                // silently dropped), with add-to-cart supplied as an
+                // ordinary hidden field instead.
+                echo '<form method="get" action="' . esc_url(wc_get_cart_url()) . '">';
+                echo '<input type="hidden" name="add-to-cart" value="' . (int) $t['wc_product_id'] . '">';
+                echo '<input type="hidden" name="bhm_gift" value="1">';
+                echo '<input type="email" name="bhm_gift_email" placeholder="Recipient\'s email" required>';
+                echo '<button type="submit" class="bhm-btn bhm-btn-secondary">Send gift</button>';
+                echo '</form></details>';
             }
             echo '</div>';
         }

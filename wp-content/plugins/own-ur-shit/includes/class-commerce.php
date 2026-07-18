@@ -139,6 +139,13 @@ class BH_Commerce {
             $items[] = [
                 'product_id' => $item->get_product_id(),
                 'quantity' => $item->get_quantity(),
+                // Gifting support (bh-monetization-woo): a line item can
+                // carry a recipient email captured at add-to-cart time —
+                // passed through generically here (rather than a
+                // WooCommerce-specific getter) so this stays a normal
+                // field on the interface's own item shape, not a
+                // WC_Order_Item leak.
+                'gift_email' => (string) $item->get_meta('_bhm_gift_email'),
             ];
         }
 
