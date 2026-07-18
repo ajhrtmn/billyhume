@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.10
+ * Version:     3.7.11
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -286,7 +286,17 @@ if (!defined('ABSPATH')) exit;
 // judges-only contest's leaderboard mislabeling its rubric percentage
 // as "N votes" (BH_Judging::judge_results() reuses the `votes` JSON
 // key for shape compatibility — a real percentage, not a vote count).
-define('BH_VER',        '3.7.10');
+// 3.7.11 — [bh_judge_panel] gets real ecosystem theming, per AJ's own
+// direct feedback ("its ugly"): the panel previously enqueued zero CSS
+// at all (bare unstyled browser controls) and its "Save draft" button
+// referenced a bh-btn-secondary class that never existed in player.css
+// (real bug, not just missing polish). Now enqueues player.css itself
+// (opts into the whole --bh-* design-token system via a bh-container
+// wrapper, same surface family as the contest player) plus a new
+// judging.css for panel-only layout, reuses the existing .bh-scrubber
+// slider style for rubric criteria, and fixes the button class to the
+// real bh-btn-outline/bh-btn-primary pair.
+define('BH_VER',        '3.7.11');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface
