@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.11
+ * Version:     0.5.12
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -47,7 +47,17 @@ if (!defined('ABSPATH')) exit;
 // wp-admin page never does. Fixed with an explicit system-font-stack
 // override, matching the same fix applied to the other 3 "fake
 // wp-admin" previews across the ecosystem this pass.
-define('BHS_VER',  '0.5.11');
+// 0.5.12 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
+// Section 1's last originally-open item, closed. Tracks previously had
+// nowhere real for a search result to link to (no canonical per-item
+// URL, only ever reachable through the [bh_streaming] SPA) — added a
+// real `?bhs_track=ID` deep-link the player already reads on load
+// (player.js's maybeOpenTrackDeepLink(), same shape
+// maybeOpenSharedPlaylist() already established), showing just that
+// one track's real card, ready to play with an explicit click (no
+// autoplay — browser policy would block it anyway, and it's bad UX
+// regardless).
+define('BHS_VER',  '0.5.12');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO
 // Registration wizard (BHS_PROWizard) as its own surface
