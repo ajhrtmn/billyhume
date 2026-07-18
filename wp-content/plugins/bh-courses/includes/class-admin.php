@@ -115,10 +115,36 @@ class BHC_Admin {
         $items = [];
         foreach ($posts as $p) {
             $label = get_post_meta($p->ID, '_bhc_menu_label', true) ?: $p->post_title;
-            $items[] = ['label' => $label, 'url' => get_permalink($p->ID)];
+            $items[] = ['label' => $label, 'url' => self::menu_url_for_course($p->ID)];
         }
 
         OUS_MenuSync::sync_group('courses', 'Courses', $items);
+    }
+
+    /**
+     * A bh_course's own permalink renders a bare, generic single-post
+     * template — no lesson list, no enroll/continue flow, nothing a
+     * real visitor should land on (confirmed live: it shows a broken
+     * "Written by in" byline and nothing else). The actual course
+     * experience only ever lives on whichever real page happens to
+     * embed `[bh_course id="X"]` (same "no canonical URL of its own"
+     * situation ROADMAP-discoverability.md already documented for
+     * contests) — unlike bh-contest, courses have no `_bh_page_id`
+     * meta linking the two, since these pages were hand-built rather
+     * than auto-created. Detected here by a direct shortcode search
+     * instead, published pages only. Falls back to the raw permalink
+     * only if no embedding page exists at all.
+     */
+    private static function menu_url_for_course($course_id) {
+        global $wpdb;
+        $like = '%[bh_course id="' . $course_id . '"%';
+        $like2 = "%[bh_course id='" . $course_id . "'%";
+        $page_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND (post_content LIKE %s OR post_content LIKE %s) LIMIT 1",
+            $like, $like2
+        ));
+        if ($page_id) return get_permalink((int) $page_id);
+        return get_permalink($course_id);
     }
 
     public static function maybe_resync_menu_for_post($post_id) {
