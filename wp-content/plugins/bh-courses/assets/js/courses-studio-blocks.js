@@ -175,9 +175,17 @@
                                 return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_id ? __('Change video') : __('Select video'));
                             },
                         }),
-                        attrs.over_limit_mb
+                        // Recomputed against the CURRENT live limit on every
+                        // render, not just trusted from the stored
+                        // attribute — attrs.over_limit_mb was only ever
+                        // correct at the moment the file was selected, so
+                        // if the site's limit is later raised, lowered, or
+                        // was 0 (no limit) all along, a stale stored value
+                        // would otherwise keep showing a wrong warning
+                        // (e.g. "over this site's 0MB limit").
+                        (attrs.over_limit_mb && window.BHCMaxVideoMB && attrs.over_limit_mb > window.BHCMaxVideoMB)
                             ? el('p', { className: 'bhc-video-size-warning', style: { color: '#b32d2e' } },
-                                __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + (window.BHCMaxVideoMB || 0) + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
+                                __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + window.BHCMaxVideoMB + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
                             : null
                     ),
                 el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v) { setAttrs({ caption: v }); } }),
