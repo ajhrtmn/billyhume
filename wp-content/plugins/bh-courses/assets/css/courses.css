@@ -241,6 +241,22 @@
 .bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .bhc-step-back { margin-right: 8px; }
 
+/* ---- course-completion moment: the one real payoff in the whole
+   course-taking flow, so it gets a visually distinct treatment (a
+   gradient ring derived from the same --bh-accent used everywhere else,
+   not a new color) instead of sitting flush with the plain surface
+   around it ---- */
+.bhc-completion {
+    text-align: center; padding: 4px;
+    background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
+    border-radius: 14px;
+}
+.bhc-completion > * { background: var(--bh-surface); }
+.bhc-completion-eyebrow { font-size: 13px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; padding: 20px 20px 0; border-radius: 12px 12px 0 0; margin: 0; }
+.bhc-completion-title { font-family: var(--bh-font-heading); font-size: 22px; padding: 4px 20px 16px; margin: 0; }
+.bhc-completion-card { display: block; width: 100%; height: auto; }
+.bhc-completion-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px 20px; border-radius: 0 0 12px 12px; }
+
 /* ---- mobile: the lesson/quiz-taking UI specifically ----
    A real gap the LMS audit caught: this whole file had zero @media
    breakpoints, unlike the catalog page. The stepper happened to wrap

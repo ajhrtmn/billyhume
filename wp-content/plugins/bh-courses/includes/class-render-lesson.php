@@ -142,20 +142,37 @@ class BHC_Render_Lesson {
         if ($next_lesson_id) {
             echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">Next Lesson &rarr;</a>';
         } elseif ($course_id) {
-            echo '<p class="bhc-course-complete">&#127881; You\'ve completed this course!</p>';
-            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($course_id)) . '">Back to course</a>';
-            // "Anything fun for social sharing?" — a generated card
-            // image (class-share-cards.php, BH_ShareCard), not just a
-            // plain text link. Direct image URL rather than a "share
-            // intent" with an auto-attached image — X/Discord/iMessage
-            // all unfurl a bare image URL into a real inline image when
-            // pasted, which is the actual "share this" moment most
-            // platforms support without needing OAuth media-upload
-            // plumbing this plugin has no reason to build.
+            // The one real "payoff" moment in the whole course-taking
+            // flow — previously a plain text line + emoji, no visual
+            // weight at all relative to however many steps/hours got a
+            // student here. The share card (BHC_ShareCards, generated via
+            // the shared BH_ShareCard engine) already existed but was
+            // buried as a small "get shareable image" link that opened
+            // the PNG in a new tab; showing it inline as the actual
+            // centerpiece is what makes this feel earned instead of a
+            // footnote.
+            echo '<div class="bhc-completion">';
+            echo '<p class="bhc-completion-eyebrow">&#127881; Course complete</p>';
+            echo '<h2 class="bhc-completion-title">' . esc_html(get_the_title($course_id)) . '</h2>';
+            $card_url = null;
             if ($uid && class_exists('BHC_ShareCards')) {
                 $card_url = BHC_ShareCards::card_url($uid, $course_id);
-                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($card_url) . '" target="_blank" rel="noopener">&#128241; Get shareable image</a>';
+                // Same direct-image-URL posture as the share link below
+                // (not a "share intent") — shown here purely as the
+                // visual centerpiece; the link further down is still
+                // what a student actually shares/downloads.
+                echo '<img class="bhc-completion-card" src="' . esc_url($card_url) . '" alt="" width="1200" height="630" loading="lazy">';
             }
+            echo '<div class="bhc-completion-actions">';
+            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($course_id)) . '">Back to course</a>';
+            if ($uid && class_exists('BHC_Certificates') && BHC_Certificates::course_offers_certificate($course_id) && BHC_Progress::is_course_completed($uid, $course_id)) {
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate</a>';
+            }
+            if ($card_url) {
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($card_url) . '" target="_blank" rel="noopener">&#128241; Share this</a>';
+            }
+            echo '</div>';
+            echo '</div>';
         }
         echo '</div>';
 
