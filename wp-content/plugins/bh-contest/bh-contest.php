@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.9
+ * Version:     3.7.10
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -276,7 +276,17 @@ if (!defined('ABSPATH')) exit;
 // file ready had no way to reserve a slot before a deadline. Reuses
 // the existing replace-audio upload form/endpoint for the first-time
 // attach rather than adding a new one.
-define('BH_VER',        '3.7.9');
+// 3.7.10 — real bug found via manual QA: a hybrid-format contest's
+// regular Results modal silently dropped the Judges' Pick leaderboard
+// entirely, showing only People's Choice — the REST payload always
+// carried a second judge_results key (class-api.php's results()), but
+// player.js's renderResultsBody() never read it. Now renders both,
+// clearly labeled, matching the Reveal Party feature's own existing
+// "two leaderboards, not a blended score" convention. Also fixed a
+// judges-only contest's leaderboard mislabeling its rubric percentage
+// as "N votes" (BH_Judging::judge_results() reuses the `votes` JSON
+// key for shape compatibility — a real percentage, not a vote count).
+define('BH_VER',        '3.7.10');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface

@@ -437,6 +437,8 @@
 .bh-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* ---------------- Results list ---------------- */
+.bh-results-subhead { font-family: var(--bh-font-display); font-size: calc(13px * var(--bh-font-scale)); text-transform: uppercase; letter-spacing: 0.04em; color: var(--bh-text-dim); margin: calc(18px * var(--bh-space-scale)) 0 calc(6px * var(--bh-space-scale)); }
+.bh-results-subhead:first-child { margin-top: 0; }
 .bh-results-list { list-style: none; margin: 0; padding: 0; }
 .bh-results-list li { display: flex; align-items: center; gap: calc(14px * var(--bh-space-scale)); padding: calc(12px * var(--bh-space-scale)) 0; margin-bottom: calc(4px * var(--bh-space-scale)); border-bottom: 1px solid var(--bh-border); flex-wrap: wrap; }
 .bh-results-list li:last-child { border-bottom: none; margin-bottom: 0; }

@@ -869,12 +869,18 @@ class BHPlayer {
         if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
 
         this._resultsCats = cats;
+        this._resultsFormat = body.format || 'public';
         this._resultsActive = cats.length > 1 ? 'all' : cats[0].slug;
         this.renderResultsBody();
     }
 
-    renderResultsList(results) {
-        if (!results || !results.length) return '<p class="bh-results-empty">No votes have been cast yet.</p>';
+    // unit: 'votes' (default, real vote count) or 'score' — BH_Judging::
+    // judge_results() reuses the same `votes` JSON key for a rubric
+    // score/percentage (not an actual vote count), so a judged
+    // leaderboard needs its own label rather than rendering a
+    // nonsensical "75 votes".
+    renderResultsList(results, unit = 'votes') {
+        if (!results || !results.length) return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
         const medals = ['🥇', '🥈', '🥉'];
         return `<ol class="bh-results-list">${results.map(r => `
             <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
@@ -883,7 +889,7 @@ class BHPlayer {
                     <span class="bh-results-song">${this.esc(r.title)}</span>
                     <span class="bh-results-artist">${this.esc(r.artist)}</span>
                 </span>
-                <span class="bh-results-votes">${r.votes} vote${r.votes === 1 ? '' : 's'}</span>
+                <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
 
@@ -891,6 +897,14 @@ class BHPlayer {
     // count across the whole contest, with a colored category badge per
     // row (matching the tab colors) so it reads as "all of it in one
     // place" rather than a confusing mash-up.
+    //
+    // Known gap, not fixed here (multi-category + judges/hybrid is a
+    // narrower combination than the single-category case renderResultsBody()
+    // just got fixed for): this cross-category view only ever reads
+    // `.results`, so a judges-only contest's scores would render as
+    // "votes" here, and a hybrid contest's judge_results leaderboard
+    // wouldn't appear in the "All" tab at all. Flagged for whenever a
+    // real multi-category judged contest needs this tab.
     renderAllResultsList(cats) {
         const rows = [];
         cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
@@ -923,9 +937,34 @@ class BHPlayer {
               `).join('')}</div>`
             : '';
 
-        const body = this._resultsActive === 'all'
-            ? this.renderAllResultsList(cats)
-            : this.renderResultsList((cats.find(c => c.slug === this._resultsActive) || cats[0]).results);
+        let body;
+        if (this._resultsActive === 'all') {
+            body = this.renderAllResultsList(cats);
+        } else {
+            const activeCat = cats.find(c => c.slug === this._resultsActive) || cats[0];
+            // Real gap found via manual QA: the REST payload has always
+            // carried a second `judge_results` leaderboard for a hybrid
+            // contest (class-api.php's results(), "a second leaderboard
+            // rather than blending the two into one score") but this
+            // modal never once read it — a hybrid contest silently lost
+            // its Judges' Pick leaderboard here (only the separate
+            // Reveal Party feature rendered both). A 'judges'-format
+            // contest is unaffected: its judge scores already ARE
+            // `results` server-side, no second key involved.
+            if (activeCat.judge_results) {
+                // hybrid: two distinct leaderboards, per class-reveal.php's
+                // own "two clearly-labeled leaderboards, not a blended
+                // score" convention.
+                body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
+                     + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
+            } else {
+                // 'judges' format: `results` itself IS the rubric score
+                // (class-api.php's results() substitutes it directly),
+                // so it needs the 'score' unit label too — otherwise a
+                // judges-only contest renders a nonsensical "75 votes".
+                body = this.renderResultsList(activeCat.results, this._resultsFormat === 'judges' ? 'score' : 'votes');
+            }
+        }
 
         out.innerHTML = tabs + body;
 
