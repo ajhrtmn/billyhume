@@ -110,7 +110,21 @@ class BH_PortalPanel {
             // puts it back in front of an admin, see BH_API::
             // replace_audio()).
             if ($window_open) {
+                $artist_name = (string) get_post_meta($sub->ID, '_bh_artist_name', true);
+                // Real gap this closes: previously the only self-service
+                // fix available was replacing the audio FILE — a typo'd
+                // song/artist title had no fix short of emailing an
+                // admin. Same window-open gating as the file-replace
+                // form below, same reasoning (still editable while the
+                // contest is accepting submissions).
                 echo '<tr><td colspan="5">';
+                echo '<form class="bh-edit-details-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">';
+                echo '<label style="font-size:13px;">Song title: <input type="text" class="bh-edit-title" value="' . esc_attr($sub->post_title) . '" required></label>';
+                echo '<label style="font-size:13px;">Artist name: <input type="text" class="bh-edit-artist" value="' . esc_attr($artist_name) . '"></label>';
+                echo '<button type="submit" class="button">Save details</button>';
+                echo '<span class="bh-edit-status description"></span>';
+                echo '</form>';
+
                 echo '<form class="bh-replace-audio-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
                 echo '<label style="font-size:13px;">' . ($pending_id ? 'Upload a different replacement:' : 'Wrong file? Upload a replacement:') . ' <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" required></label>';
                 echo '<button type="submit" class="button">Upload replacement</button>';

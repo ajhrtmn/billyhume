@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.4
+ * Version:     3.7.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -238,7 +238,16 @@ if (!defined('ABSPATH')) exit;
 // previously would have been clipped at the modal's scrolled bottom
 // edge, now renders in full and selection still updates the real
 // <select> correctly.
-define('BH_VER',        '3.7.4');
+// 3.7.5 — real feature gap closed, named explicitly in
+// ROADMAP-platform-evolution.md Section 6: the portal's Contest
+// Submissions panel let a contestant replace their audio FILE
+// (replace_audio(), 3.x) but had no way to fix a typo'd song/artist
+// title without emailing an admin. Added a real "edit-details" REST
+// route (class-api.php) and an inline edit form in the portal panel
+// (class-portal-panel.php), gated the same way as the file-replace
+// form (owner or admin, only while the contest's submission window is
+// still open).
+define('BH_VER',        '3.7.5');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface

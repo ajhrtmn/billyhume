@@ -30,6 +30,19 @@ class BH_API {
         // callback" pattern bh-monetization-woo's admin_post_
         // bhm_manage_subscription handler already uses.
         register_rest_route('bh/v1', '/submissions/replace-audio', ['methods' => 'POST', 'callback' => [self::class, 'replace_audio'], 'args' => $idarg] + $auth);
+        // Real gap, named explicitly in ROADMAP-platform-evolution.md
+        // Section 6: the portal's Contest Submissions panel let a
+        // contestant swap the AUDIO FILE (replace_audio() above) but had
+        // no way to fix a typo'd song/artist title without emailing an
+        // admin — "edit your submission" was described as a genuine
+        // capability gap this portal build should close, not just a UI
+        // move. Same ownership + submission-window gating as
+        // replace_audio(), same reasoning: still editable while the
+        // contest is accepting submissions, locked once it closes.
+        register_rest_route('bh/v1', '/submissions/edit-details', ['methods' => 'POST', 'callback' => [self::class, 'edit_details'], 'args' => $idarg + [
+            'title'  => ['sanitize_callback' => 'sanitize_text_field'],
+            'artist' => ['sanitize_callback' => 'sanitize_text_field'],
+        ]] + $auth);
         // Admin-only live tally. Completely separate gate from /results —
         // always reflects the true current count regardless of the "Publish
         // Results" checkbox, and only ever answers manage_options users.
@@ -528,6 +541,43 @@ class BH_API {
         }
 
         return self::ok(['message' => 'Your replacement file is uploaded and waiting for review — your original submission stays active until then.']);
+    }
+
+    /**
+     * Song title + artist name, the two fields a contestant can typo at
+     * submit time with no self-service fix until now. Deliberately NOT
+     * touching the audio file (replace_audio() above already owns that)
+     * or re-opening admin review — a title/artist correction doesn't
+     * need the same "goes back to pending" treatment a new audio file
+     * does, since nothing about the actual submitted work changed.
+     */
+    public static function edit_details($req) {
+        $pid = (int) $req->get_param('submission_id');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') {
+            return self::err('not_found', 'Submission not found.', 404);
+        }
+
+        $uid = get_current_user_id();
+        $is_owner = (int) $post->post_author === $uid;
+        $is_admin = current_user_can('manage_options');
+        if (!$is_owner && !$is_admin) {
+            return self::err('forbidden', 'You can only edit your own submission.', 403);
+        }
+
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        if (!$cid || !BH_Helpers::is_submission_open($cid)) {
+            return self::err('sub_closed', 'Submissions are closed for this contest — details can no longer be changed.', 403);
+        }
+
+        $title = sanitize_text_field($req->get_param('title'));
+        if ($title === '') return self::err('title', 'Song title can\'t be empty.', 400);
+        $artist = sanitize_text_field($req->get_param('artist'));
+
+        wp_update_post(['ID' => $pid, 'post_title' => $title]);
+        update_post_meta($pid, '_bh_artist_name', $artist);
+
+        return self::ok(['message' => 'Saved.', 'title' => $title, 'artist' => $artist]);
     }
 
     // Always returns a `categories` array — a contest with no named
