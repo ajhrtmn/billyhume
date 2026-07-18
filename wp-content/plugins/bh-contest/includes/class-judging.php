@@ -284,11 +284,8 @@ class BH_Judging {
             $subs = array_values(array_filter($subs, fn($s) => BH_Rounds::is_eligible($s->ID, $cid)));
         }
 
-        // Reuses the main player's own design-token stylesheet — the
-        // panel previously enqueued nothing at all (raw unstyled browser
-        // controls, caught live: "its ugly") — plus a small panel-only
-        // stylesheet for the entry-card/slider layout this shortcode
-        // needs that player.css has no equivalent of.
+        // Reuses the main player's design-token stylesheet plus a small
+        // panel-only stylesheet for entry-card/slider layout.
         wp_enqueue_style('bh-player', BH_URL . 'assets/css/player.css', [], BH_VER);
         wp_enqueue_style('bh-judging', BH_URL . 'assets/css/judging.css', ['bh-player'], BH_VER);
         wp_enqueue_script('bh-judging', BH_URL . 'assets/js/bh-judging.js', [], BH_VER, true);

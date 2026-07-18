@@ -2232,46 +2232,26 @@ if (!defined('ABSPATH')) exit;
 // consumer for a config that doesn't exist would be exactly the
 // "building for a hypothetical" this ecosystem's own conventions
 // avoid — flagged as still open, not silently skipped.
-// 3.7.3 — OUS_SetupWizard (new), AJ's own direct ask: "a fresh
-// ecosystem install guided setup wizard would be a high value
-// addition." A concrete, single first-run flow (welcome → activate the
-// whole ecosystem → brand basics → done), reusing the real, already-
-// working install/activate mechanics (OUS_Installer/
-// OUS_ActivationManager/OUS_Registry, the same ones OUS_Dashboard's own
-// "Install & Activate Everything" button already calls) rather than
-// rebuilding them — this only adds the missing sequenced, friendly
-// walkthrough on top. Deliberately distinct in scope from
-// ROADMAP-guided-setup-wizards.md's own proposed OUS_Wizard framework
-// (per-feature external-service credential setup, zero code written) —
-// built directly as one concrete flow rather than through a not-yet-
-// existing generic framework, matching this codebase's own "one real
-// example before generalizing" convention. Steps are computed from
-// real current state (which plugins are active, whether the wordmark
-// still reads the literal placeholder defaults), not a stored progress
-// flag, so revisiting later correctly skips whatever's already done.
-// A self-hiding banner on the main dashboard points a fresh install at
-// it; it also stays reachable from its own permanent submenu item.
-// 3.7.4 — OUS_PortalLayout (new): the real, admin-editable portal
-// layout config the 3.7.2-era comment above flagged as missing. A
-// "Portal Layout" admin page (numeric priority + hide checkbox per
-// panel, no drag-and-drop dependency needed) storing overrides in
-// option bhi_portal_layout, applied by BHI_Portal::get_panels() on top
-// of whatever bhi_portal_panels filter contributes. Closes the last
-// open item on ROADMAP-search-and-revisions.md: wired into
-// OUS_Revisions as its own consumer (object_type 'portal_layout'),
-// with a real Version History + Restore panel on the same page.
+// 3.7.3 — OUS_SetupWizard (new): a concrete first-run flow (welcome →
+// activate the ecosystem → brand basics → done), reusing existing
+// install/activate mechanics (OUS_Installer/OUS_ActivationManager/
+// OUS_Registry) rather than rebuilding them. Steps are computed from
+// real current state, not a stored progress flag. Self-hiding banner
+// on the main dashboard links to it; also reachable via its own
+// submenu item.
+// 3.7.4 — OUS_PortalLayout (new): admin-editable portal panel
+// order/visibility (priority number + hide checkbox per panel),
+// applied by BHI_Portal::get_panels() on top of whatever
+// bhi_portal_panels filter contributes. Wired into OUS_Revisions as
+// its own consumer (object_type 'portal_layout'), with a Version
+// History + Restore panel on the same page.
 // 3.7.5 — OUS_MenuSync (new): lets a plugin maintain its own submenu
-// group inside every real site Navigation menu automatically, per AJ's
-// own framing ("I wish everything could kinda decide on its own where
-// it belongs without having to go through the painful WordPress menu
-// builder"). Writes ordinary core/navigation-submenu +
-// core/navigation-link blocks straight into the wp_navigation post(s) —
-// confirmed by reading a live Navigation menu's real post_content, not
-// assumed — which is also Etch-compatible by construction per
-// ETCH-COMPATIBILITY-NOTES.md (Etch authors to the same real Gutenberg
-// storage). First two consumers: bh-contest and bh-courses each gained
-// a "Site Menu" box (checkbox + optional label override) and resync
-// their own group on save/trash/untrash/delete.
+// group inside every site Navigation menu automatically, by writing
+// core/navigation-submenu + core/navigation-link blocks straight into
+// the wp_navigation post(s) — Etch-compatible by construction per
+// ETCH-COMPATIBILITY-NOTES.md. First two consumers: bh-contest and
+// bh-courses each gained a "Site Menu" box (checkbox + optional label
+// override) that resyncs on save/trash/untrash/delete.
 define('OUS_VER', '3.7.5');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and

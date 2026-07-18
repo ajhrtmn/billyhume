@@ -3,8 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * OUS_SetupWizard — a guided, step-by-step first-run flow for a fresh
- * ecosystem install, per AJ's own direct ask ("a fresh ecosystem
- * install guided setup wizard would be a high value addition").
+ * ecosystem install.
  *
  * Deliberately NOT a rebuild of anything that already works: the real
  * install/activate mechanics (`OUS_Installer`, `OUS_ActivationManager`,

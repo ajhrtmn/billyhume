@@ -270,32 +270,24 @@ if (!defined('ABSPATH')) exit;
 // 3.7.9 — a contest can opt into "Allow submitting without audio yet"
 // (Contest Rules & Results box, off by default): a fan can reserve
 // their entry with title/artist/contact info alone, then finish by
-// uploading a file later from their account portal (BH_PortalPanel),
-// any time before submissions close. Direct response to a real gap
-// found via manual QA — someone with everything but an exported audio
-// file ready had no way to reserve a slot before a deadline. Reuses
-// the existing replace-audio upload form/endpoint for the first-time
-// attach rather than adding a new one.
-// 3.7.10 — real bug found via manual QA: a hybrid-format contest's
-// regular Results modal silently dropped the Judges' Pick leaderboard
-// entirely, showing only People's Choice — the REST payload always
-// carried a second judge_results key (class-api.php's results()), but
-// player.js's renderResultsBody() never read it. Now renders both,
-// clearly labeled, matching the Reveal Party feature's own existing
-// "two leaderboards, not a blended score" convention. Also fixed a
-// judges-only contest's leaderboard mislabeling its rubric percentage
-// as "N votes" (BH_Judging::judge_results() reuses the `votes` JSON
-// key for shape compatibility — a real percentage, not a vote count).
-// 3.7.11 — [bh_judge_panel] gets real ecosystem theming, per AJ's own
-// direct feedback ("its ugly"): the panel previously enqueued zero CSS
-// at all (bare unstyled browser controls) and its "Save draft" button
-// referenced a bh-btn-secondary class that never existed in player.css
-// (real bug, not just missing polish). Now enqueues player.css itself
-// (opts into the whole --bh-* design-token system via a bh-container
-// wrapper, same surface family as the contest player) plus a new
-// judging.css for panel-only layout, reuses the existing .bh-scrubber
-// slider style for rubric criteria, and fixes the button class to the
-// real bh-btn-outline/bh-btn-primary pair.
+// uploading a file later from their account portal (BH_PortalPanel).
+// Reuses the existing replace-audio upload form/endpoint for the
+// first-time attach rather than adding a new one.
+// 3.7.10 — fixed: a hybrid-format contest's Results modal only ever
+// showed the People's Choice leaderboard, dropping Judges' Pick
+// entirely (the REST payload always carried a second judge_results
+// key, class-api.php's results(), but player.js never read it). Now
+// renders both, labeled, matching Reveal Party's own convention. Also
+// fixed a judges-only contest mislabeling its rubric percentage as
+// "N votes" (BH_Judging::judge_results() reuses the `votes` key for
+// shape compatibility).
+// 3.7.11 — [bh_judge_panel] gets real ecosystem theming: previously
+// enqueued zero CSS (bare unstyled browser controls) and its "Save
+// draft" button referenced a bh-btn-secondary class that never existed
+// in player.css. Now enqueues player.css (bh-container wrapper, same
+// design-token system the contest player uses) plus a new judging.css
+// for panel layout, reuses .bh-scrubber for rubric sliders, and fixes
+// the button classes to the real bh-btn-outline/bh-btn-primary pair.
 define('BH_VER',        '3.7.11');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided

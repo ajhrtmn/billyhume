@@ -389,16 +389,15 @@ class BHC_Admin {
     }
 
     /**
-     * Same real gap bh-contest already solved for itself
+     * Same gap bh-contest already solved for itself
      * (maybe_create_contest_page()) — a bh_course's own permalink
      * renders a broken, generic single-post stub (no lesson list, no
-     * enroll flow; confirmed live via manual QA). Creates a simple page
-     * wrapping this course's shortcode the first time it's published,
-     * cross-linked via _bhc_page_id/_bhc_course_ref, so a brand-new
-     * course has a real working public page with zero extra manual
-     * steps. Won't duplicate: skipped if a live (non-trashed) page is
-     * already linked, unless $force is passed (the "Create page"
-     * fallback link).
+     * enroll flow). Creates a simple page wrapping this course's
+     * shortcode the first time it's published, cross-linked via
+     * _bhc_page_id/_bhc_course_ref, so a brand-new course has a real
+     * working public page with zero extra manual steps. Won't
+     * duplicate: skipped if a live (non-trashed) page is already
+     * linked, unless $force is passed (the "Create page" fallback link).
      */
     public static function maybe_create_course_page($course_id, $force = false) {
         if (!$force && get_post_status($course_id) !== 'publish') return;

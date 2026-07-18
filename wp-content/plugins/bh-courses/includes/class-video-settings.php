@@ -2,25 +2,20 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A configurable max direct-upload size for lesson video steps — AJ's
- * own direct ask, prompted by manual QA raising the local dev
- * environment's upload limit to 4GB to test a real video upload: "Id
- * be ok forcing CDN for over a max mb/gb variable setting... I don't
- * know Bluehost's or Wasmer's rules or ideals." Rather than guessing at
- * what any given host actually allows, this is an admin-set policy
- * (default OFF — 0 means no limit, byte-for-byte today's unchanged
- * behavior) that steers an author toward the video block's EXISTING
- * "URL (oEmbed)" source (YouTube/Vimeo) once a file would exceed it —
- * the right answer for genuinely long video anyway (self-hosting
- * multi-hour files has no adaptive bitrate, no CDN, and eats the
- * host's own storage/bandwidth quota regardless of PHP's upload
- * ceiling).
+ * A configurable max direct-upload size for lesson video steps. Rather
+ * than guessing at what any given host allows, this is an admin-set
+ * policy (default 0 = no limit, unchanged behavior) that steers an
+ * author toward the video block's existing "URL (oEmbed)" source
+ * (YouTube/Vimeo) once a file exceeds it — the right answer for long
+ * video anyway (self-hosting large files has no adaptive bitrate/CDN
+ * and eats the host's own storage/bandwidth regardless of PHP's
+ * upload ceiling).
  *
- * Enforced in TWO places, deliberately: the block editor warns/blocks
- * before an author even finishes picking a file (cheap, immediate
- * feedback), and BHC_ContentBridge::sync_legacy_steps() re-checks the
- * real attached file size on every save (authoritative — a REST-based
- * or programmatic save never touches the JS at all).
+ * Enforced in two places: the block editor warns before an author
+ * finishes picking a file (immediate feedback, non-blocking), and
+ * BHC_ContentBridge::sync_legacy_steps() re-checks the real attached
+ * file size on every save (authoritative — a REST/programmatic save
+ * never touches the JS).
  */
 class BHC_VideoSettings {
     const OPTION = 'bhc_max_direct_video_mb';

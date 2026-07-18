@@ -898,13 +898,9 @@ class BHPlayer {
     // row (matching the tab colors) so it reads as "all of it in one
     // place" rather than a confusing mash-up.
     //
-    // Known gap, not fixed here (multi-category + judges/hybrid is a
-    // narrower combination than the single-category case renderResultsBody()
-    // just got fixed for): this cross-category view only ever reads
-    // `.results`, so a judges-only contest's scores would render as
-    // "votes" here, and a hybrid contest's judge_results leaderboard
-    // wouldn't appear in the "All" tab at all. Flagged for whenever a
-    // real multi-category judged contest needs this tab.
+    // Known gap: only ever reads `.results`, so a judges/hybrid contest
+    // with 2+ categories would mislabel scores as "votes" here and
+    // never show judge_results in the "All" tab. Not yet fixed.
     renderAllResultsList(cats) {
         const rows = [];
         cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
@@ -942,26 +938,16 @@ class BHPlayer {
             body = this.renderAllResultsList(cats);
         } else {
             const activeCat = cats.find(c => c.slug === this._resultsActive) || cats[0];
-            // Real gap found via manual QA: the REST payload has always
-            // carried a second `judge_results` leaderboard for a hybrid
-            // contest (class-api.php's results(), "a second leaderboard
-            // rather than blending the two into one score") but this
-            // modal never once read it — a hybrid contest silently lost
-            // its Judges' Pick leaderboard here (only the separate
-            // Reveal Party feature rendered both). A 'judges'-format
-            // contest is unaffected: its judge scores already ARE
-            // `results` server-side, no second key involved.
+            // A hybrid contest's REST payload carries a second
+            // `judge_results` leaderboard (class-api.php's results()) —
+            // render both, labeled, matching Reveal Party's own
+            // "two leaderboards, not a blended score" convention.
+            // 'judges' format has no second key: `results` itself IS
+            // the rubric score, substituted server-side.
             if (activeCat.judge_results) {
-                // hybrid: two distinct leaderboards, per class-reveal.php's
-                // own "two clearly-labeled leaderboards, not a blended
-                // score" convention.
                 body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
                      + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
             } else {
-                // 'judges' format: `results` itself IS the rubric score
-                // (class-api.php's results() substitutes it directly),
-                // so it needs the 'score' unit label too — otherwise a
-                // judges-only contest renders a nonsensical "75 votes".
                 body = this.renderResultsList(activeCat.results, this._resultsFormat === 'judges' ? 'score' : 'votes');
             }
         }

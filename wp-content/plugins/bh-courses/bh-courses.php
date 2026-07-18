@@ -383,22 +383,17 @@ if (!defined('ABSPATH')) exit;
 // own-ur-shit core) — no manual menu-builder editing needed.
 // 0.4.31 — a course now gets a real, working public page automatically
 // on first publish (maybe_create_course_page(), same pattern bh-contest
-// already uses), fixing a real gap found via manual QA: a course's own
-// permalink renders a broken generic single-post stub with no lesson
-// list or enroll flow. Cross-linked via _bhc_page_id/_bhc_course_ref,
-// with a "Create page" fallback link and a backlink box on the page's
-// own edit screen. The site-menu auto-sync now checks _bhc_page_id
-// first before falling back to its shortcode search.
+// uses): a course's own permalink renders a broken generic single-post
+// stub with no lesson list or enroll flow. Cross-linked via
+// _bhc_page_id/_bhc_course_ref, with a "Create page" fallback link and
+// a backlink box on the page's own edit screen. Site-menu auto-sync
+// now checks _bhc_page_id first before its shortcode-search fallback.
 // 0.4.32 — a configurable max direct-upload size for lesson videos
-// (new "Video Settings" submenu, default 0 = no limit, unchanged
-// behavior). AJ's own ask, prompted by raising this dev environment's
-// PHP upload ceiling to test a real video: since neither Bluehost's
-// nor Wasmer's real hosting limits are known yet, an admin sets
-// whatever ceiling actually fits wherever this ends up running. Over
-// it, the video block's existing URL (oEmbed) source is the steered
-// answer, not a hard block — enforced client-side (inline warning,
-// deliberately no confirm()/alert()) and authoritatively server-side
-// (BHC_ContentBridge's own save hook, a transient admin notice, never
+// (new "Video Settings" submenu, default 0 = no limit). Over it, the
+// video block's existing URL (oEmbed) source is the steered answer,
+// not a hard block — enforced client-side (inline warning, no
+// confirm()/alert()) and authoritatively server-side
+// (BHC_ContentBridge's save hook, a transient admin notice, never
 // blocking the save itself).
 define('BHC_VER',  '0.4.32');
 

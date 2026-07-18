@@ -333,10 +333,8 @@ class BH_API {
                 : 'Submissions have closed for this contest.';
             return self::err('sub_closed', $msg, 403);
         }
-        // A draft (submitted with no audio yet — see below) gets a
-        // distinct, actionable message pointing them at how to finish,
-        // rather than the flatly wrong "you already submitted" a
-        // still-incomplete entry would otherwise imply.
+        // A draft (no audio yet — see below) gets its own message
+        // pointing at how to finish, not "you already submitted".
         $existing_draft = BH_Helpers::draft_submission_for($uid, $cid);
         if ($existing_draft) {
             return self::err('needs_audio', 'You already started a submission for this contest — finish it by uploading your audio file from your account portal.', 409, ['submission_id' => $existing_draft]);
@@ -360,16 +358,10 @@ class BH_API {
         }
 
         // A fan can start a submission with no audio file yet and attach
-        // it later (from the account portal, BH_PortalPanel — the exact
-        // same upload form/endpoint an audio REPLACEMENT already uses,
-        // see replace_audio() below) — a real gap found via manual QA:
-        // someone with title/artist/contact info ready but no exported
-        // MP3 yet had no way to reserve their entry before a deadline.
-        // Per-contest, defaulting OFF (audio required at submit time,
-        // byte-for-byte the original behavior) — an admin opts a
-        // specific contest into allowing draft entries via the
-        // "Allow submitting without audio yet" checkbox (Contest Rules
-        // & Results box), never a silent ecosystem-wide behavior change.
+        // it later from the account portal (BH_PortalPanel, reusing
+        // replace_audio()'s upload form below). Per-contest, off by
+        // default — an admin opts in via "Allow submitting without
+        // audio yet" (Contest Rules & Results box).
         $allow_draft = (bool) get_post_meta($cid, '_bh_allow_audio_optional', true);
         $f = $req->get_file_params();
         $has_file = !empty($f['audio']['tmp_name']);
@@ -430,11 +422,9 @@ class BH_API {
         update_post_meta($pid, '_bh_admin_note', sanitize_textarea_field($req->get_param('note')));
 
         if (!$has_file) {
-            // Nothing to review yet — skip the confirmation email/CRM
-            // event entirely here; finish_submission() (shared with
-            // replace_audio()'s first-time-attach branch) fires both
-            // the moment audio actually shows up, since that's the
-            // point a submission is genuinely "in."
+            // No email/CRM event yet — notify_submission_complete()
+            // fires once audio actually shows up (here or via
+            // replace_audio()), the point a submission is genuinely "in".
             return self::ok([
                 'submission_id' => $pid,
                 'needs_audio' => true,
@@ -569,13 +559,10 @@ class BH_API {
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
 
-        // A DRAFT submission (allow-draft-entries feature — submit()'s
-        // own docblock) has no live audio at all yet — this is that
-        // submission's real FIRST file, not a swap of something already
-        // being played/voted on, so it goes straight into _bh_audio_id
-        // and the submission becomes genuinely reviewable for the first
-        // time (draft -> pending), sharing submit()'s own completion
-        // notice rather than the pending-swap path below.
+        // A draft submission has no live audio yet — this is its real
+        // first file, not a swap, so it goes straight into _bh_audio_id
+        // and becomes reviewable (draft -> pending), sharing submit()'s
+        // completion notice rather than the pending-swap path below.
         if ($post->post_status === 'draft' && !get_post_meta($pid, '_bh_audio_id', true)) {
             update_post_meta($pid, '_bh_audio_id', $aid);
             wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
