@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.0
+ * Version:     0.5.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -275,7 +275,17 @@ if (!defined('ABSPATH')) exit;
 // button/price now render in the real brand accent color instead of
 // generic WooCommerce black, and confirmed zero PHP errors across the
 // whole pass via a live error-log check.
-define('BHM_VER',  '0.5.0');
+// 0.5.1 — first real consumer of own-ur-shit 3.7.0's new OUS_Revisions
+// shared service (ROADMAP-search-and-revisions.md Section 2). A tier's
+// full field set is a clean fit: a genuinely overwrite-on-save single
+// object (unlike bh-crm's own notes, which are already append-only
+// history and don't need a second history mechanism). BHM_Tiers::save()
+// now snapshots the tier's complete state on every save; the tier edit
+// screen gets a real "Version History" panel (OUS_Revisions' own
+// shared UI fragment) with working Restore buttons that re-apply a
+// prior version through the SAME save path (including re-syncing the
+// WooCommerce product), not a raw postmeta write.
+define('BHM_VER',  '0.5.1');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_

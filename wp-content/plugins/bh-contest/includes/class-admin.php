@@ -24,6 +24,7 @@ class BH_Admin {
         // it out of the way without hiding or removing it.
         add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
+        add_action('admin_post_bh_restore_contest_revision', [self::class, 'handle_restore_revision']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
@@ -1348,6 +1349,12 @@ class BH_Admin {
             echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
         }, 'bh_contest', 'side', 'default');
 
+        if (class_exists('OUS_Revisions')) {
+            add_meta_box('bh_contest_revisions', 'Version History', function ($post) {
+                OUS_Revisions::render_history_panel('bh_contest', $post->ID, 'bh_restore_contest_revision', 'bh_restore_contest_' . $post->ID);
+            }, 'bh_contest', 'side', 'default');
+        }
+
         // Separate from the "Contest Branding & Style" override below —
         // this picks a CARD TEMPLATE (brand vs. poster), not a color
         // override; a contest that never turns on style override at all
@@ -1640,7 +1647,71 @@ class BH_Admin {
         }
         update_post_meta($post_id, '_bhy_style_json', $style ? wp_json_encode($style) : '');
 
+        // Real OUS_Revisions consumer, AJ's own framing: "versioning is
+        // most important for anything that is a post, like contests and
+        // lessons." Lessons get WordPress core's own NATIVE post-
+        // revisions for free (bh_lesson's real post_content, just
+        // needed 'revisions' support added — see class-post-types.php).
+        // A contest is different: its real configuration (dates, rounds,
+        // rubric, contact requirements, brand style) lives entirely in
+        // postmeta, never post_content/title — native WP revisions
+        // would capture nothing meaningful for it. get_post_meta()'s
+        // full flat dump is the honest "complete current state" here,
+        // rather than hand-curating a field list that would silently
+        // drift out of sync with this save method's own field list.
+        if (class_exists('OUS_Revisions')) {
+            $all_meta = get_post_meta($post_id);
+            $flat = [];
+            foreach ($all_meta as $key => $values) {
+                if (strpos($key, '_bh_') === 0 || $key === '_bhy_style_json') $flat[$key] = $values[0] ?? '';
+            }
+            OUS_Revisions::snapshot('bh_contest', $post_id, $flat);
+        }
+
         self::maybe_create_contest_page($post_id);
+    }
+
+    // OUS_Revisions::render_history_panel()'s Restore button posts here.
+    // Writes every stored _bh_*/_bhy_style_json meta key straight back —
+    // simple direct restore rather than routing through
+    // save_contest_meta() (that method expects real $_POST field names
+    // from the actual settings form, not a stored meta-key-shaped
+    // snapshot; re-simulating a fake $_POST would be more fragile than
+    // just writing the meta back directly, since the snapshot already
+    // IS the target shape).
+    public static function handle_restore_revision() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post_id = (int) ($_GET['object_id'] ?? 0);
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bh_restore_contest_' . $post_id)) {
+            wp_die('Invalid request.');
+        }
+        if (!$post_id || get_post_type($post_id) !== 'bh_contest') wp_die('Not a contest.');
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bh_contest', $post_id, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+
+        foreach ((array) $snapshot['data'] as $key => $value) {
+            update_post_meta($post_id, $key, $value);
+        }
+
+        // The restore itself is also a real save — same "undo an
+        // accidental restore the same way" reasoning as BHM_Tiers'
+        // own restore handler.
+        if (class_exists('OUS_Revisions')) {
+            $all_meta = get_post_meta($post_id);
+            $flat = [];
+            foreach ($all_meta as $key => $values) {
+                if (strpos($key, '_bh_') === 0 || $key === '_bhy_style_json') $flat[$key] = $values[0] ?? '';
+            }
+            OUS_Revisions::snapshot('bh_contest', $post_id, $flat, 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(get_edit_post_link($post_id, ''));
+        exit;
     }
 
     // <input type="datetime-local"> requires "YYYY-MM-DDTHH:MM" (a literal

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.28
+ * Version:     0.4.29
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,15 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.28');
+// 0.4.29 — bh_course/bh_lesson gained real 'revisions' post-type
+// support (ROADMAP-search-and-revisions.md Section 2, AJ's own framing:
+// "versioning is most important for anything that is a post, like
+// contests and lessons"). A lesson's steps genuinely are post_content
+// now (bh-courses 0.4.9's real post-editor migration) — WordPress
+// core's own native revision/restore UI already works correctly for
+// free the moment this one flag exists, no OUS_Revisions wiring needed
+// for content that already lives in wp_posts.
+define('BHC_VER',  '0.4.29');
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
 // (1) "Mark complete" step-completion now has real retry-with-backoff

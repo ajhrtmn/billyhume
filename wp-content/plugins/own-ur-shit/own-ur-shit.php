@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.8
+ * Version:     3.7.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2168,7 +2168,56 @@ if (!defined('ABSPATH')) exit;
 // args (WC Subscriptions' own free-trial fields), the real prerequisite
 // bh-monetization-woo's new per-tier free-trial field needed — see
 // bh-monetization-woo's own changelog for the consumer.
-define('OUS_VER', '3.6.8');
+// 3.7.0 — two new shared services, ROADMAP-search-and-revisions.md's
+// scoped first slices. Minor bump: real new capability, not a bug fix.
+//   1. OUS_Revisions (new) — in-admin version history for admin-built
+//      content that doesn't already get it free from wp_posts. Stores
+//      a FULL object-state snapshot per save (not a diff — a genuinely
+//      different tool from OUS_Audit's own diff-only, pruned log),
+//      auto-versioned per (object_type, object_id), plus a shared
+//      "Version History" admin UI fragment (render_history_panel())
+//      any consumer drops in rather than building its own restore UI.
+//      No consumer wired yet in this pass — see bh-crm's own changelog
+//      for the first real one.
+//   2. OUS_Search (new) — unified site search dispatch layer
+//      ([ous_search] shortcode + `ous/v1/search` REST route). WordPress
+//      core's own ?s= search only ever covered bh_course/bh_lesson (the
+//      one CPT registered public); everything else (contests, tracks,
+//      tiers, CRM, registry) was closed off by design or isn't a post
+//      type at all. `ous_search_providers` is a zero-central-
+//      registration filter, same shape as bhy_style_surfaces/
+//      bhi_portal_panels — one real provider wired at v1 (bh-courses,
+//      cheapest to prove the mechanism), remaining providers a
+//      sequenced follow-up per the roadmap doc.
+// 3.7.1 — two real bugs caught live while wiring OUS_Revisions'
+// consumers:
+//   1. class-revisions.php's render_history_panel() originally rendered
+//      a real <form> per row — but every consumer renders this INSIDE
+//      a metabox, which is itself already inside wp-admin's single,
+//      page-wide <form id="post">, and a browser doesn't support nested
+//      forms; it silently merges the inner form's fields into the outer
+//      one. That meant clicking the page's own real "Update"/"Publish"
+//      button submitted the WRONG `action` value and WordPress's
+//      post.php fell back to redirecting to the plain post list instead
+//      of actually saving — a real tier/contest save silently broke
+//      the moment the Version History panel existed on the same screen.
+//      Fixed with a plain GET link + nonce (the same pattern this
+//      ecosystem's own "Move to Trash" link already uses), and the
+//      panel's own layout changed from a fixed table to a real CSS
+//      masonry (`columns`) so it degrades correctly in both the wide
+//      "normal" metabox context and WordPress's narrow "side" column.
+//   2. OUS_AdminLayout::BREAKPOINT was hard-set to 1200px as an
+//      all-or-nothing gate, not a graceful degradation point — the
+//      masonry treatment it enables is already fluid on its own, so the
+//      only real effect of that constant was leaving a ~350px-wide dead
+//      zone (roughly 850-1200px) where the OLD cramped stock WordPress
+//      two-column layout came back with zero warning, the exact
+//      "sidebar overflowing, main column empty" problem this whole
+//      class exists to fix. Lowered to WordPress core's own admin-menu
+//      collapse breakpoint (782px) — genuinely mobile/tablet territory
+//      keeps the plain stock layout; everything wider now gets the
+//      masonry treatment.
+define('OUS_VER', '3.7.1');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:
@@ -2763,13 +2812,14 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHI_Activator', 'activate']);
 register_activation_hook(__FILE__, ['OUS_Roles', 'activate']);
 register_activation_hook(__FILE__, ['OUS_Audit', 'activate']);
+register_activation_hook(__FILE__, ['OUS_Revisions', 'activate']);
 register_deactivation_hook(__FILE__, function () {
     // Only the cron schedule this plugin itself created — never touches
     // any other plugin's scheduled events, and the job queue TABLE (and
@@ -2818,6 +2868,8 @@ OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
+add_action('init',          ['OUS_Revisions', 'init']);
+add_action('init',          ['OUS_Search', 'init']);
 add_action('init',          ['OUS_AdminLayout', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);

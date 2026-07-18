@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.5
+ * Version:     3.7.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -247,7 +247,18 @@ if (!defined('ABSPATH')) exit;
 // (class-portal-panel.php), gated the same way as the file-replace
 // form (owner or admin, only while the contest's submission window is
 // still open).
-define('BH_VER',        '3.7.5');
+// 3.7.6 — first real OUS_Revisions consumer for postmeta-only config
+// (ROADMAP-search-and-revisions.md Section 2, AJ's own framing:
+// "versioning is most important for anything that is a post, like
+// contests and lessons"). A contest's real configuration (dates,
+// rounds, rubric, contact requirements, brand style) lives entirely in
+// postmeta, never post_content/title — WordPress core's own native
+// post-revisions (the right tool for lessons, see bh-courses' own
+// changelog) would capture nothing meaningful here. save_contest_meta()
+// now snapshots every _bh_*/_bhy_style_json meta key on every save; a
+// new "Version History" metabox (side column) lists past versions with
+// working Restore buttons.
+define('BH_VER',        '3.7.6');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface
