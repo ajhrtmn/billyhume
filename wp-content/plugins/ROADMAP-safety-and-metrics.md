@@ -1,45 +1,38 @@
 # Own Ur Shit ecosystem — safety/anti-fraud and fan-metrics roadmap
 
-This covers the ideas discussed after the last security pass (bh-monetization-woo refund flagging, bh-streaming Jam kick, own-ur-shit's shared report queue). It splits them into what's realistically simple to build next versus what's genuinely bigger scope — new infrastructure, legal exposure, or a real shift in this ecosystem's "presentation, not surveillance" posture. Nothing here is built yet; this is the plan to work from next.
+This covers the ideas discussed after the last security pass (bh-monetization-woo refund flagging, bh-streaming Jam kick, own-ur-shit's shared report queue). It splits them into what's realistically simple to build versus what's genuinely bigger scope — new infrastructure, legal exposure, or a real shift in this ecosystem's "presentation, not surveillance" posture.
 
-## Near-term implementation plan
+**Status update:** every item in the "near-term implementation plan" below is now built and wired — confirmed via direct code inspection, not just assumed from this doc's own earlier wording. Kept here (rather than deleted) as a reference for where each one actually lives, since the doc previously (and wrongly) implied these were still open.
 
-These all reuse data and patterns that already exist in the codebase — no new consent/privacy infrastructure, no third-party integrations, no legal review needed to ship them.
+## Near-term implementation plan — all shipped
 
-### 1. Artist-facing aggregate metrics dashboard (bh-streaming)
-A new admin page reusing data that already exists: `bhm_play_log` (bh-monetization-woo, if active) and `_bhs_play_count`/`bhs_likes` (bh-streaming's own tables) for plays over time and top tracks/releases; Jam's `skip_votes` history for a skip-rate signal per track (a track that gets voted off constantly is a real, actionable signal an artist doesn't currently see anywhere); country-level geo from IP, bucketed into a daily aggregate count at write time and never stored per-listener; referrer source (registry vs. shared playlist link vs. Jam invite vs. direct) captured the same way. Nothing here is per-fan — it's all aggregate counts, so it ships with zero new privacy surface.
-**Scope:** one new admin page in bh-streaming, a couple of new aggregate-only DB columns/tables (e.g. a `bhs_daily_stats` rollup), no new PII collected.
+### 1. Artist-facing aggregate metrics dashboard (bh-streaming) — BUILT
+`BHS_Stats` (`bh-streaming/includes/class-stats.php`) — a real `bhs_daily_stats` rollup table, referrer classification, and an admin report. Aggregate-only, no per-listener data stored.
 
-### 2. Refund/fraud pattern: device+IP correlation
-Extends the refund-flagging from the last pass. Right now `_bhm_refund_log` is purely per-account; add a lightweight per-request fingerprint (IP + a persistent, non-tracking cookie id) recorded alongside each refund/order, so a flagged pattern can also surface "this same device/IP is behind N different accounts with refund patterns" — catching the "same person, new username" evasion without building real fingerprinting.
-**Scope:** a new column on the existing refund-log meta, a correlation query surfaced in the existing bh-crm activity view (no new UI surface, just a richer flag).
+### 2. Refund/fraud pattern: device+IP correlation — BUILT
+`bh-monetization-woo/includes/class-fraud.php:36-70` — `track_refund_pattern()`, table `bhm_refund_fingerprints`, hooked to `woocommerce_order_status_refunded`/`cancelled`. Surfaced in bh-crm via `class-crm-integration.php`.
 
-### 3. Purchase/pay-per-play velocity checks
-A simple rate-based flag: N wallet debits or purchase attempts from one account within a short window (e.g. 10 pay-per-plays in under a minute) sets the same kind of review flag the refund pattern already does. Useful both for a compromised account being drained and for someone testing stolen payment methods.
-**Scope:** reuses `bhm_play_log`/order data already being written; one new threshold check in `BHM_Products`, surfaced the same way refund flags are.
+### 3. Purchase/pay-per-play velocity checks — BUILT
+`bh-monetization-woo/includes/class-products.php:377,392-410` — `check_play_velocity()`. Wallet top-up velocity cap in `class-fraud.php:109-144`. Surfaced in bh-crm via `class-crm-integration.php:67,71,102-105`.
 
-### 4. Registry: report-volume queue prioritization
-The `bhi_reports` table already exists. Add a simple rule: if a single `target_type`+`target_id` gets 3+ independent reports (different reporters) within a short window, bump it to the top of the admin Reports queue rather than sorting purely by created_at. No new data collection, just a better sort/highlight on data already being captured.
-**Scope:** one query change in `BHI_Reports::render_admin_page()`, plus a visual "multiple reports" flag.
+### 4. Registry: report-volume queue prioritization — BUILT
+Lives in **own-ur-shit core**, not bh-registry (this doc's original wording implied the latter) — `class-reports.php:437-446` sorts by `COUNT(DISTINCT reporter_user_id) DESC` and highlights rows with 3+ reporters in red.
 
-### 5. Jam: lightweight per-listener mute
-Cheaper than a report or a host kick — any participant can locally mute (hide badges/hide from "who's here") a specific other user, entirely client-side/local preference, no admin involvement, no data sent anywhere. Distinct from kick (host-only, removes someone from the session) — this just lets an individual listener curate who they see.
-**Scope:** a small addition to the Jam front-end only (localStorage-backed mute list, filtered into `jamRenderParticipants`); no server changes.
+### 5. Jam: lightweight per-listener mute — BUILT
+`bh-streaming/assets/js/player.js:1396-1438` — correctly client-side/localStorage-only, matching this doc's original scope exactly.
 
-### 6. Jam: participant cap + invite-approval mode
-A max-participants setting on session creation (protects against a leaked invite code turning into an open room), plus an optional "host must approve joins" mode as an alternative to open-by-code joining.
-**Scope:** one new field on `bhs_jam_sessions.state_json`, a join-request/approve step added to the existing join flow.
+### 6. Jam: participant cap + invite-approval mode — BUILT
+`bh-streaming/includes/class-jam.php:211-226,274,278-286`.
 
-### 7. Duplicate-audio-hash detection across accounts
-On local-import and feed-sync (the two "not vetted" content paths already excluded from monetization), compute a content hash of the uploaded/aggregated audio file and flag when the same hash appears under a different account/artist — a strong signal of scraping or someone re-uploading another artist's catalog as their own. This is a cheaper, real first step toward the bigger fingerprinting idea below, without needing a third-party service.
-**Scope:** a hash column on `bh_track` posts, a lookup on import/sync, surfaced as a flag in the existing admin catalog view (not auto-blocked — same "flag for a human" philosophy as everything else here).
+### 7. Duplicate-audio-hash detection across accounts — BUILT
+`bh-streaming/includes/class-audio-hash.php:34-76` — `hash_and_check()` (sha1_file, cross-account match), fires `bhs_duplicate_audio_flagged`, surfaced in `class-admin.php:412`.
 
 ## Long-term vision
 
 Bigger scope: either real infrastructure this ecosystem doesn't have yet, a genuine shift in its privacy posture, or things that need legal input before shipping.
 
+- ~~**Two-factor authentication**~~ — **BUILT**, not long-term anymore: `own-ur-shit/includes/class-two-factor.php` (TOTP, enrollment AJAX, `authenticate` filter, mirrored in REST login).
 - **Real audio fingerprinting** against known-catalog databases (Content-ID-style), almost certainly via a third-party API rather than something built in-house — the duplicate-hash check above is the practical stepping stone toward this, not a replacement for it.
-- **Two-factor authentication** for accounts, especially artist accounts that control payout-adjacent settings — closes the account-takeover gap flagged earlier.
 - **Formal DMCA notice/counter-notice workflow** with real legal timelines and a defined process, distinct from the report-queue intake that already exists — this needs actual legal review, not just more code.
 - **Per-fan demographic profiling and targeted messaging** (location/age/purchase-history segmentation, "email everyone in Chicago about a show") — genuinely useful to a working musician, but the point where a real privacy policy, consent flow, and likely GDPR/CCPA compliance work become necessary before writing any code. Should be a deliberate decision, not something that creeps in through smaller features.
 - **Royalty-split payout engine** — already flagged as future work in bh-monetization-woo's own README (dividing a subscription pool by relative plays across an artist's catalog).
