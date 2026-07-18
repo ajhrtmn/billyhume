@@ -83,6 +83,23 @@ class BHC_Admin {
         $label = get_post_meta($post->ID, '_bhc_menu_label', true);
         echo '<p><label><input type="checkbox" name="bhc_show_in_menu" value="1"' . checked($checked, true, false) . '> Show under <strong>Courses</strong> in the site menu</label></p>';
         echo '<p><label>Menu label (optional)<br><input type="text" name="bhc_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
+
+        echo '<hr><p><strong>Page:</strong> ' . self::page_link_html($post->ID) . '</p>';
+        echo '<p class="description">A simple page with this course\'s shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one. This is the real public page a student sees — the course\'s own permalink is not a full experience.</p>';
+    }
+
+    // Same "View · Edit" / "Create page" fallback link pattern
+    // BH_Admin::page_links_html() already uses for contests.
+    private static function page_link_html($course_id) {
+        $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
+        if ($page_id && get_post_status($page_id) && get_post_status($page_id) !== 'trash') {
+            return '<a href="' . esc_url(get_permalink($page_id)) . '" target="_blank">View</a> &middot; <a href="' . esc_url(get_edit_post_link($page_id)) . '">Edit</a>';
+        }
+        $url = wp_nonce_url(
+            admin_url('admin-post.php?action=bhc_create_page&course_id=' . (int) $course_id),
+            'bhc_create_page'
+        );
+        return '<a href="' . esc_url($url) . '">Create page</a>';
     }
 
     public static function save_site_menu_settings($post_id) {
@@ -126,24 +143,29 @@ class BHC_Admin {
      * template — no lesson list, no enroll/continue flow, nothing a
      * real visitor should land on (confirmed live: it shows a broken
      * "Written by in" byline and nothing else). The actual course
-     * experience only ever lives on whichever real page happens to
-     * embed `[bh_course id="X"]` (same "no canonical URL of its own"
-     * situation ROADMAP-discoverability.md already documented for
-     * contests) — unlike bh-contest, courses have no `_bh_page_id`
-     * meta linking the two, since these pages were hand-built rather
-     * than auto-created. Detected here by a direct shortcode search
-     * instead, published pages only. Falls back to the raw permalink
-     * only if no embedding page exists at all.
+     * experience only ever lives on whichever real page embeds
+     * `[bh_course id="X"]`. Courses published after maybe_create_course_page()
+     * shipped have an authoritative `_bhc_page_id` link (same convention
+     * bh-contest already uses) — checked first since it's a direct
+     * lookup, not a scan. Falls back to a shortcode search for courses
+     * that predate that feature and were hand-wrapped in a manually
+     * built page (e.g. the original "Songwriting Fundamentals"). Only
+     * falls back to the raw permalink if neither finds anything.
      */
     private static function menu_url_for_course($course_id) {
+        $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
+        if ($page_id && get_post_status($page_id) === 'publish') {
+            return get_permalink($page_id);
+        }
+
         global $wpdb;
         $like = '%[bh_course id="' . $course_id . '"%';
         $like2 = "%[bh_course id='" . $course_id . "'%";
-        $page_id = $wpdb->get_var($wpdb->prepare(
+        $found_id = $wpdb->get_var($wpdb->prepare(
             "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'page' AND post_status = 'publish' AND (post_content LIKE %s OR post_content LIKE %s) LIMIT 1",
             $like, $like2
         ));
-        if ($page_id) return get_permalink((int) $page_id);
+        if ($found_id) return get_permalink((int) $found_id);
         return get_permalink($course_id);
     }
 
@@ -362,6 +384,62 @@ class BHC_Admin {
             $known_keys = array_keys(BHM_Tiers::benefit_registry());
             update_post_meta($post_id, '_bhm_required_benefit', in_array($key, $known_keys, true) ? $key : '');
         }
+
+        self::maybe_create_course_page($post_id);
+    }
+
+    /**
+     * Same real gap bh-contest already solved for itself
+     * (maybe_create_contest_page()) — a bh_course's own permalink
+     * renders a broken, generic single-post stub (no lesson list, no
+     * enroll flow; confirmed live via manual QA). Creates a simple page
+     * wrapping this course's shortcode the first time it's published,
+     * cross-linked via _bhc_page_id/_bhc_course_ref, so a brand-new
+     * course has a real working public page with zero extra manual
+     * steps. Won't duplicate: skipped if a live (non-trashed) page is
+     * already linked, unless $force is passed (the "Create page"
+     * fallback link).
+     */
+    public static function maybe_create_course_page($course_id, $force = false) {
+        if (!$force && get_post_status($course_id) !== 'publish') return;
+
+        $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
+        $status  = $page_id ? get_post_status($page_id) : false;
+        if ($page_id && $status && $status !== 'trash') return;
+
+        $new_id = wp_insert_post([
+            'post_title'   => get_the_title($course_id) ?: 'Course',
+            'post_type'    => 'page',
+            'post_status'  => 'publish',
+            'post_content' => '[bh_course id="' . (int) $course_id . '"]',
+        ], true);
+        if (is_wp_error($new_id)) return;
+
+        update_post_meta($course_id, '_bhc_page_id', $new_id);
+        update_post_meta($new_id, '_bhc_course_ref', $course_id);
+    }
+
+    public static function create_course_page_action() {
+        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_create_page')) {
+            wp_die('Not allowed.', '', ['back_link' => true]);
+        }
+        $course_id = (int) ($_GET['course_id'] ?? 0);
+        if ($course_id && get_post_type($course_id) === 'bh_course') self::maybe_create_course_page($course_id, true);
+        wp_safe_redirect(wp_get_referer() ?: admin_url('edit.php?post_type=bh_course'));
+        exit;
+    }
+
+    // Small backlink box on the auto-created page's own edit screen —
+    // same convention as bh-contest's add_page_backlink_meta_box().
+    public static function add_page_backlink_meta_box($post) {
+        $course_id = (int) get_post_meta($post->ID, '_bhc_course_ref', true);
+        if (!$course_id || !get_post($course_id)) return;
+
+        add_meta_box('bhc_page_backlink', 'BH Course', function () use ($course_id) {
+            echo '<p>This page hosts the course:</p>';
+            echo '<p><strong>' . esc_html(get_the_title($course_id)) . '</strong></p>';
+            echo '<p><a href="' . esc_url(get_edit_post_link($course_id)) . '" class="button">Edit Course</a></p>';
+        }, 'page', 'side', 'high');
     }
 
     /* ---------------- lesson metabox (course assignment) ---------------- */

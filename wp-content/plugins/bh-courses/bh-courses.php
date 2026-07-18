@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.30
+ * Version:     0.4.31
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -381,7 +381,15 @@ if (!defined('ABSPATH')) exit;
 // bhc_show_in_menu/_bhc_menu_label) that keeps a real "Courses" submenu
 // in every site Navigation menu in sync automatically (OUS_MenuSync,
 // own-ur-shit core) — no manual menu-builder editing needed.
-define('BHC_VER',  '0.4.30');
+// 0.4.31 — a course now gets a real, working public page automatically
+// on first publish (maybe_create_course_page(), same pattern bh-contest
+// already uses), fixing a real gap found via manual QA: a course's own
+// permalink renders a broken generic single-post stub with no lesson
+// list or enroll flow. Cross-linked via _bhc_page_id/_bhc_course_ref,
+// with a "Create page" fallback link and a backlink box on the page's
+// own edit screen. The site-menu auto-sync now checks _bhc_page_id
+// first before falling back to its shortcode search.
+define('BHC_VER',  '0.4.31');
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
 // (1) "Mark complete" step-completion now has real retry-with-backoff
@@ -739,9 +747,11 @@ add_action('plugins_loaded', function () {
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
+    add_action('add_meta_boxes_page', ['BHC_Admin', 'add_page_backlink_meta_box']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_course']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_catalog_details']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_site_menu_settings']);
+    add_action('admin_post_bhc_create_page', ['BHC_Admin', 'create_course_page_action']);
     add_action('wp_trash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('untrash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('before_delete_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
