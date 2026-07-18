@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.5
+ * Version:     2.4.6
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */

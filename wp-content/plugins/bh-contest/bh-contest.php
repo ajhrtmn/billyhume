@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.3
+ * Version:     3.7.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
