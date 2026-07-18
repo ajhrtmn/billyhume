@@ -50,6 +50,12 @@ class BHM_Frontend {
         // most of the time. The admin screen still lets an artist
         // override it explicitly if they'd rather.
         add_action('save_post_page', [self::class, 'maybe_remember_tiers_page']);
+        // Same auto-detect for the gift-claim page — BHM_Gifts::redeem_page_url()
+        // needs a real page to point a claim link at, and requiring a
+        // manual setting before gifting can be tested at all would be a
+        // needless "it just works" violation for something this cheap to
+        // auto-detect.
+        add_action('save_post_page', [self::class, 'maybe_remember_gift_redeem_page']);
         // Logged-in-only — no _nopriv variant, since an anonymous
         // visitor has no subscription of their own to pause/resume.
         add_action('admin_post_bhm_manage_subscription', [self::class, 'handle_manage_subscription']);
@@ -59,6 +65,13 @@ class BHM_Frontend {
         $post = get_post($post_id);
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_tiers')) {
             update_option('bhm_tiers_page_id', $post_id);
+        }
+    }
+
+    public static function maybe_remember_gift_redeem_page($post_id) {
+        $post = get_post($post_id);
+        if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_redeem_gift')) {
+            update_option('bhm_gift_redeem_page_id', $post_id);
         }
     }
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.22
+ * Version:     0.4.23
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -217,7 +217,13 @@ if (!defined('ABSPATH')) exit;
 // plus a "recent gift redemptions" table with clickable claim links —
 // wp_mail() isn't reliable on a bare local install, so the redemption
 // itself needs to be testable without depending on real email delivery.
-define('BHM_VER',  '0.4.22');
+// 0.4.23 — the gift-claim page had no auto-detect the way the tier
+// picker's own page already does (BHM_Frontend::maybe_remember_tiers_page()),
+// so BHM_Gifts::redeem_page_url() fell back to the homepage until an
+// admin manually wired up an option that didn't even have a settings UI
+// yet. Added the same save_post_page auto-detect for any page carrying
+// [bhm_redeem_gift], matching the existing tiers-page convention exactly.
+define('BHM_VER',  '0.4.23');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_
