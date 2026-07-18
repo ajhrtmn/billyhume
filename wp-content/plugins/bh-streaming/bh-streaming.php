@@ -9,160 +9,72 @@
 if (!defined('ABSPATH')) exit;
 
 // 0.5.1 — logging depth pass: BHS_Feeds::check_external_track_health()
-// previously updated a track's health status with zero log trace —
-// the only way to discover a dead external feed was manually browsing
-// post meta. Now logs an info/warning entry on every ok<->down/degraded
-// TRANSITION (not every check, which runs on a schedule and would
-// otherwise flood the log). Standing caveat: reasoning/brace-balance-
-// checked only, not run against a real WordPress+MySQL install.
-// 0.5.2 — BHS_Stats::record_play()/record_skip() (class-stats.php) now
-// also emit BH_Event 'bhs/play'/'bhs/skip' events (own-ur-shit's new
-// BH_Event envelope, class-event.php) alongside the existing
-// bhs_daily_stats aggregate rollup — additive only, the artist
-// dashboard's own data path is unchanged. See
-// EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6. Standing caveat:
-// reasoning/brace-balance-checked only, not run against a real
-// WordPress+MySQL install.
-// 0.5.3 — UX-AUDIT-2026-07.md: the "All Tracks" library view's bare
-// "No tracks match." replaced with the shared
-// BHY_Style::empty_state_html() component (own-ur-shit 3.4.82),
-// pre-rendered server-side (class-player.php's BHSData.emptyStateZero/
-// emptyStateFiltered) since this view is JS-rendered, not PHP — one
-// source of truth with the same component bh-courses' catalog now
-// uses, not a second bespoke JS empty state. player.js picks zero vs.
-// filtered based on whether a search term or genre filter is
-// currently active, same distinction the catalog already makes.
-// RUNTIME-VERIFIED, with a real bug caught in the same pass: the
-// component's <style> block was originally only embedded once per
-// request, which broke the moment this exact swap-between-two-
-// variants pattern replaced `library.innerHTML` a second time,
-// silently destroying the first fragment's <style> tag along with it
-// — see own-ur-shit 3.4.82's own changelog for the fix (the component
-// now embeds its style on every call). Confirmed both variants render
-// at the correct size on desktop and 375px mobile after the fix.
-// 0.5.11 — the PRO Registration wizard's Design Suite preview
-// (includes/class-style-surface.php) inherited the gallery's brand
-// font-family token same as every real brand surface, so an exotic
-// Typography pick restyled this fake wp-admin screen too, which a real
-// wp-admin page never does. Fixed with an explicit system-font-stack
-// override, matching the same fix applied to the other 3 "fake
-// wp-admin" previews across the ecosystem this pass.
-// 0.5.12 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
-// Section 1's last originally-open item, closed. Tracks previously had
-// nowhere real for a search result to link to (no canonical per-item
-// URL, only ever reachable through the [bh_streaming] SPA) — added a
-// real `?bhs_track=ID` deep-link the player already reads on load
-// (player.js's maybeOpenTrackDeepLink(), same shape
-// maybeOpenSharedPlaylist() already established), showing just that
-// one track's real card, ready to play with an explicit click (no
-// autoplay — browser policy would block it anyway, and it's bad UX
-// regardless).
+// previously updated a track's health status with zero log trace — the only way
+// to discover a dead external feed was manually browsing post meta. Now logs an
+// info/warning entry on every ok<->down/degraded TRANSITION (not every check,
+// which runs on a schedule and would otherwise flood the log).
 define('BHS_VER',  '0.5.12');
 
-// 0.5.10 — Design Suite gallery gap closed: registered the PRO
-// Registration wizard (BHS_PROWizard) as its own surface
-// (class-style-surface.php), previously entirely invisible to the
-// token editor. Same light-on-light contrast bug found and fixed as
-// own-ur-shit's 3.6.5 Media wizard surface — this preview's own
-// wp-admin-style light background was inheriting the dark brand
-// theme's light :host text color; fixed with an explicit text color.
+// 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
+// wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
+// previously entirely invisible to the token editor. Same light-on-light
+// contrast bug found and fixed as own-ur-shit's 3.6.5 Media wizard surface —
+// this preview's own wp-admin-style light background was inheriting the dark
+// brand theme's light :host text color; fixed with an explicit text color.
 
-// 0.5.9 — moving the "half-done" mock ISRC logic forward, AJ's own
-// ask: ISRC generation is now real and server-side (BHS_ISRC::issue()),
-// not a client-only Math.random() fill. Two real improvements: (1)
-// the mock path now collision-checks against existing _bhs_isrc rows
-// instead of trusting client-side randomness alone; (2) a new "ISRC
-// Registrant" settings page (own-ur-shit → ISRC Registrant) lets an
-// artist record a REAL registrant code once they've completed the
-// actual, offline national-agency application — once that's on file,
-// the same "Generate ISRC" button starts issuing real, sequential,
-// correctly-shaped codes under that prefix instead of placeholders,
-// with zero further code changes needed. Deliberately does NOT link to
-// a specific "apply here" URL for any country's ISRC agency — that
-// wasn't independently re-verified live in this session, so guessing
-// at it would risk sending someone to a stale or wrong page; the
-// settings page says so plainly instead of guessing.
+// 0.5.9 — moving the "half-done" mock ISRC logic forward, AJ's own ask: ISRC
+// generation is now real and server-side (BHS_ISRC::issue()), not a client-only
+// Math.random() fill. Two real improvements: (1) the mock path now collision-
+// checks against existing _bhs_isrc rows instead of trusting client-side
+// randomness alone; (2) a new "ISRC Registrant" settings page (own-ur-shit →
+// ISRC Registrant) lets an artist record a REAL registrant code once they've
+// completed the actual, offline national-agency application — once that's on
+// file, the same "Generate ISRC" button starts issuing real, sequential,
+// correctly-shaped codes under that prefix instead of placeholders, with zero
+// further code changes needed.
 
 // 0.5.8 — new BHS_PROWizard (includes/class-pro-wizard.php): the PRO
-// registration guided flow scoped in this plugin's own README ("PRO
-// registration wizard — roadmapped, not built this pass") and built
-// now. Thinner than OUS_MediaWizard by necessity — no PRO exposes a
-// public membership-verification API, and SESAC/GMR are invitation-
-// only with no self-serve signup at all, so this is honestly a guided-
-// links-plus-storage tool, not a live-validated integration. Every
-// linked URL (ascap.com, bmi.com, sesac.com, globalmusicrights.com)
-// was verified live before writing this, not guessed. Stores a single
-// site-wide option (bhs_pro_affiliation) since PRO affiliation is a
-// fact about the rights holder, not any one track.
+// registration guided flow scoped in this plugin's own README ("PRO registration
+// wizard — roadmapped, not built this pass") and built now. Thinner than
+// OUS_MediaWizard by necessity — no PRO exposes a public membership-verification
+// API, and SESAC/GMR are invitation- only with no self-serve signup at all, so
+// this is honestly a guided- links-plus-storage tool, not a live-validated
+// integration.
 
-// 0.5.7 — mock ISRC issuance, built against the shape now so real
-// issuance is a drop-in later (AJ's own ask): new BHS_ISRC
-// (includes/class-isrc.php) recognizes a placeholder pattern
-// ("ZZOUS..." — ZZ is ISO 3166-1's own reserved "never a real
-// country" code, so it can't collide with a real ISRC once issued for
-// real). Track edit screen gets a "Generate placeholder" button; the
-// save handler re-derives the mock flag server-side rather than
-// trusting a hidden POST field. maybe_set_seo_data() now strips a mock
-// ISRC before it ever reaches published schema.org data — a fake code
-// never gets published as if it were real. PRO-registration wizard
-// scoped and written up in this plugin's own README rather than built
-// this pass, to stay on higher-priority work.
+// 0.5.7 — mock ISRC issuance, built against the shape now so real issuance is a
+// drop-in later (AJ's own ask): new BHS_ISRC (includes/class-isrc.php)
+// recognizes a placeholder pattern ("ZZOUS..." — ZZ is ISO 3166-1's own reserved
+// "never a real country" code, so it can't collide with a real ISRC once issued
+// for real). Track edit screen gets a "Generate placeholder" button; the save
+// handler re-derives the mock flag server-side rather than trusting a hidden
+// POST field. maybe_set_seo_data() now strips a mock ISRC before it ever reaches
+// published schema.org data — a fake code never gets published as if it were
+// real.
 
-// 0.5.6 — closes ROADMAP-discoverability.md's own named gap: [bh_streaming]
-// now optionally accepts a `track` or `release` ID attribute
+// 0.5.6 — closes ROADMAP-discoverability.md's own named gap: [bh_streaming] now
+// optionally accepts a `track` or `release` ID attribute
 // (BHS_Player::maybe_set_seo_data()) and, if given, sets real
-// MusicRecording/MusicAlbum schema.org JSON-LD via BH_SEO — the same
-// mechanism bh-courses/bh-contest already use for Course/Event. Purely
-// additive: the SPA shell (#bhs-app) itself is completely untouched,
-// this is server-side metadata only. Also adds a real ISRC field to
-// the track edit screen (_bhs_isrc, BHS_Admin::render_track_metabox())
-// surfaced as MusicRecording.isrcCode — AJ's own ask for real rights/
-// registration metadata, not just a catalog record. PRO affiliation/
-// publishing-split management and audio-fingerprinting/Content-ID-
-// style matching are both flagged as real, larger, not-yet-scoped
-// follow-ups in this plugin's own README rather than guessed at here.
-// Verified live: a real published track rendered correct MusicRecording
-// JSON-LD (name, byArtist, image) with zero change to player mount/
-// behavior, and exactly one canonical tag.
+// MusicRecording/MusicAlbum schema.org JSON-LD via BH_SEO — the same mechanism
+// bh-courses/bh-contest already use for Course/Event. Purely additive: the SPA
+// shell (#bhs-app) itself is completely untouched, this is server-side metadata
+// only.
 
-// 0.5.5 — real cross-browser gap, caught by a grounded browser-quirk
-// audit of every first-party .css/.js file in the ecosystem (not
-// guessed): .bhs-seek's WebKit thumb was intentionally sized to 0x0
-// (the seek progress is drawn by a separate fill element, not the
-// native thumb), but there was no ::-moz-range-thumb counterpart, so
-// Firefox rendered its own native, VISIBLE slider thumb/track here
-// while every other browser correctly showed none. Added the Firefox
-// pseudo-elements (split into their own rule — a browser that doesn't
-// recognize ::-moz-range-thumb drops the whole selector if it's
-// comma-combined with -webkit-). Not verified against a real Firefox
-// render in this session (only a Chromium-based preview pane was
-// available) — the fix follows documented ::-moz-range-* syntax
-// correctly, but flagging that it's unverified against the actual
-// engine it targets.
+// 0.5.5 — real cross-browser gap, caught by a grounded browser-quirk audit of
+// every first-party .css/.js file in the ecosystem (not guessed): .bhs-seek's
+// WebKit thumb was intentionally sized to 0x0 (the seek progress is drawn by a
+// separate fill element, not the native thumb), but there was no ::-moz-range-
+// thumb counterpart, so Firefox rendered its own native, VISIBLE slider
+// thumb/track here while every other browser correctly showed none. Added the
+// Firefox pseudo-elements (split into their own rule — a browser that doesn't
+// recognize ::-moz-range-thumb drops the whole selector if it's comma-combined
+// with -webkit-).
 
-// 0.5.4 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
-// shortcode-to-block conversion continues, following bh-monetization-
-// woo (0.4.9-0.4.11) and bh-contest (3.5.0)'s same wp.serverSideRender
-// pattern. One new block, 'bhs/player' (class-blocks.php, assets/js/
-// bhs-blocks.js) — [bh_streaming] takes no attributes and BHS_Player::
-// render() is a single fixed mount div, so the block needs neither
-// attributes nor an Inspector picker. Old shortcode untouched. Respects
-// BHS_Env::hidden_in_production() exactly like the shortcode always
-// has (render_callback calls BHS_Player::render() directly).
-// Same class of regression already caught once in bh-contest 3.5.0,
-// fixed here BEFORE shipping rather than after: BHS_Player::
-// maybe_enqueue()'s asset gate only ever checked has_shortcode(), which
-// a block-authored page has none of — fixed with has_block() alongside
-// it, same as bh-contest's three blocks got.
-// RUNTIME-VERIFIED end to end on this actual install: confirmed the
-// block registered and rendering the real player markup via the exact
-// REST block-renderer endpoint the editor calls, then built a real page
-// with the block and loaded it in a live browser — confirmed player.js
-// actually enqueued (has_block() fix working), confirmed it made its
-// own real REST calls (tracks/releases/likes/playlists all 200 OK),
-// and confirmed the full app UI (tabs, search, genre filter, Import my
-// music, the shared empty-state component) rendered and hydrated
-// correctly with zero console errors. Test page cleaned up afterward.
+// 0.5.4 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG shortcode-
+// to-block conversion continues, following bh-monetization- woo (0.4.9-0.4.11)
+// and bh-contest (3.5.0)'s same wp.serverSideRender pattern. One new block,
+// 'bhs/player' (class-blocks.php, assets/js/ bhs-blocks.js) — [bh_streaming]
+// takes no attributes and BHS_Player:: render() is a single fixed mount div, so
+// the block needs neither attributes nor an Inspector picker.
 define('BHS_PATH', plugin_dir_path(__FILE__));
 define('BHS_URL',  plugin_dir_url(__FILE__));
 
