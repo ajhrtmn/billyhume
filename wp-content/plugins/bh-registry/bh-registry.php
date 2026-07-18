@@ -9,27 +9,17 @@
  */
 if (!defined('ABSPATH')) exit;
 
-// 0.1.2 — logging depth pass: all three remote-verification checks
-// (domain ownership challenge, open-feed fetch, ActivityPub actor fetch)
-// previously discarded the failure reason entirely — an artist's "not
-// verified" result gave neither them nor an admin any way to tell
-// "you never set this up" apart from "our request to your server
-// failed." Standing caveat: reasoning/brace-balance-checked only.
-// 0.1.3 — bundled zip regenerated to match installed version, no code change
+// 0.1.2 — All three remote-verification checks (domain ownership challenge,
+// open-feed fetch, ActivityPub actor fetch) now surface the actual failure
+// reason instead of discarding it, so "not verified" distinguishes
+// "never set up" from "our request to your server failed".
+// 0.1.3 — bundled zip regenerated to match installed version, no code change.
 // 0.1.4 — class-debug.php's register() now sets 'group' =>
-// OUS_Debug::GROUP_SEED_RESET on this plugin's Debug Tools section, part
-// of own-ur-shit's Debug Tools reorganization pass. No functional change
-// to this plugin itself. Standing caveat: reasoning/brace-balance-
-// checked only, not run against a real WordPress+MySQL install.
-// 0.1.5 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
-// Section 1 sequencing. Reuses the exact same 'active'/verified-only
-// gate BHR_API::list_artists() already enforces for its own public
-// search — pending/rejected artists never surface here regardless of
-// query. Links to the real registry directory page (auto-detected the
-// same way bh-monetization-woo already does for its own tier/gift
-// pages) — no per-artist canonical URL exists yet (the directory is
-// one client-rendered page), so a search result lands a fan on the
-// real browse page rather than a dead link.
+// OUS_Debug::GROUP_SEED_RESET, part of the Debug Tools reorganization.
+// 0.1.5 — OUS_Search consumer. Reuses BHR_API::list_artists()'s
+// 'active'/verified-only gate, so pending/rejected artists never surface in
+// search. Links to the registry directory page since no per-artist
+// canonical URL exists yet (the directory is one client-rendered page).
 define('BHR_VER',  '0.1.5');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
