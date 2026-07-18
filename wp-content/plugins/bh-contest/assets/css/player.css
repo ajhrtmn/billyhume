@@ -23,6 +23,23 @@
     --bh-text-dim: #B99584;
     --bh-accent: #C1503A;
     --bh-accent-soft: #E0A184;
+    /* Derived, not hand-picked — a genuine gap this token system had:
+       --bh-accent-soft is a separate admin-configurable field (Settings
+       & Style's color_accent_soft) with no enforced relationship to
+       --bh-accent at all, so nothing stopped it from landing light-on-
+       light against --bh-text on a dark theme (confirmed: ~1.4:1
+       contrast in two real components before this existed). This is a
+       small, fixed proportion of --bh-accent mixed into --bh-surface —
+       always dark (surface dominates the mix), always legible with
+       --bh-text on top, and it recomputes automatically for ANY chosen
+       accent/surface pair instead of needing a second hand-picked color
+       that could accidentally fail contrast again. Use this — never
+       --bh-accent-soft — anywhere an accent-tinted color sits BEHIND
+       body text; --bh-accent-soft stays reserved for its original job
+       (a lighter one-off, e.g. hovering an already-accent-colored
+       element).
+    */
+    --bh-accent-muted-bg: color-mix(in srgb, var(--bh-accent) 18%, var(--bh-surface));
     --bh-bar-height: 84px;
     --bh-radius: 12px;
     --bh-radius-sm: 8px;

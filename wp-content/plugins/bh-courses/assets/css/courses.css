@@ -128,8 +128,13 @@
 .bhc-sidebar-course-link:hover { color: var(--bh-accent); }
 .bhc-sidebar-lesson-list { margin-top: 10px; max-height: 60vh; overflow-y: auto; }
 .bhc-sidebar-lesson-list li { padding: 8px 6px; font-size: 13px; }
+/* --bh-accent-soft is a LIGHT hover-state tint in this dark theme, not
+   a text-safe background — pairing it with --bh-text (near-white) gave
+   ~1.4:1 contrast, nearly illegible. --bh-accent-muted-bg is the
+   derived-from-accent-and-surface token built for exactly this case. */
 .bhc-sidebar-lesson-list li.bhc-lesson-current {
-    background: var(--bh-accent-soft); border-radius: 6px; font-weight: 600;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left: 3px solid var(--bh-accent); border-radius: 4px; font-weight: 600;
+    padding-left: 3px;
 }
 .bhc-sidebar-lesson-list li.bhc-lesson-current a { color: var(--bh-text); }
 
@@ -161,7 +166,7 @@
 .bhc-stepper-video::before { content: 'V'; }
 .bhc-stepper-quiz::before { content: 'Q'; }
 .bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
-.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-soft); border-color: var(--bh-accent); color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
@@ -191,7 +196,41 @@
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
 .bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
-.bhc-step-video { width: 100%; max-height: 480px; border-radius: 6px; margin-bottom: 8px; background: #000; }
+/* max-width/max-height + width/height:auto (not width:100%) is
+   deliberate — it lets the video scale down to fit either constraint
+   while preserving its OWN intrinsic aspect ratio, same pattern a
+   responsive image uses to avoid distortion. width:100% here would
+   force the box to full column width regardless of the video's real
+   ratio, which for anything other than roughly 16:9 either stretches/
+   squashes the picture (no object-fit, no explicit height, so the
+   browser can't do anything else) or leaves the native <video>
+   controls bar spanning a width that doesn't match the visible
+   picture underneath it — both is what "wonky controls" looked like. */
+/* Scoped to the tag (video.bhc-step-video), NOT the bare class — the
+   outer step wrapper div ALSO carries the literal class "bhc-step-video"
+   (from the bhc-step-{type} naming convention, same collision already
+   flagged in this file's own comment above for .bhc-step-text). An
+   unscoped rule here made the WHOLE STEP WRAPPER shrink to the video's
+   own intrinsic width (via the width:auto/margin:auto below), visibly
+   offsetting every other control in that step — not just the video. */
+video.bhc-step-video {
+    /* max-width/max-height + width/height:auto (not width:100%) is
+       deliberate — it lets the video scale down to fit either
+       constraint while preserving its OWN intrinsic aspect ratio, same
+       pattern a responsive image uses to avoid distortion. width:100%
+       here would force the box to full column width regardless of the
+       video's real ratio, which for anything other than roughly 16:9
+       either stretches/squashes the picture (no object-fit, no explicit
+       height, so the browser can't do anything else) or leaves the
+       native controls bar spanning a width that doesn't match the
+       visible picture underneath it. */
+    display: block; max-width: 100%; max-height: 480px; width: auto; height: auto; margin: 0 auto 8px; border-radius: 6px;
+    /* --bh-surface-2 (a dark shade already derived from the same accent
+       family everywhere else in this design system) replaces a flat
+       #000 — pure black reads as an unstyled fallback, not an
+       intentional frame. */
+    background: var(--bh-surface-2); border: 1px solid var(--bh-border);
+}
 .bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
 .bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
 
@@ -211,10 +250,13 @@
 .bhc-quiz-choice:hover { background: var(--bh-border); }
 /* :has(input:checked) is the only signal a plain radio+label gives us —
    there's no JS-added "selected" class, so the checked state itself has
-   to drive the persistent highlight. */
-.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-soft); font-weight: 600; }
+   to drive the persistent highlight. --bh-accent-muted-bg (not
+   --bh-accent-soft, a light hover tint with no contrast guarantee
+   against body text) keeps this legible regardless of the site's
+   chosen accent color. */
+.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); font-weight: 600; }
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
-.bhc-quiz-result.bhc-pass { background: var(--bh-accent-soft); }
+.bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
 .bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-continue { display: inline-block; }
@@ -230,7 +272,7 @@
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 6px 10px; border-radius: 6px; margin-top: 4px;
 }
-.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-soft); font-weight: 600; }
+.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); font-weight: 600; }
 .bhc-quiz-choice-review.bhc-choice-incorrect { background: var(--bh-border); text-decoration: line-through; opacity: 0.85; }
 .bhc-choice-marker { font-size: 12px; color: var(--bh-text-dim); white-space: nowrap; }
 .bhc-quiz-choice-review.bhc-correct .bhc-choice-marker { color: var(--bh-accent); }

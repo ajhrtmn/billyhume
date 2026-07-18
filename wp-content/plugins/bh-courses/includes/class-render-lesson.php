@@ -79,7 +79,14 @@ class BHC_Render_Lesson {
             echo '</div>';
         }
 
-        echo '<div class="bhc-lesson-layout">';
+        // alignwide is the theme's own opt-in mechanism (theme.json's
+        // wideSize, 1340px in Twenty Twenty-Five) for a block that wants
+        // more than the default constrained content width (645px) — this
+        // layout is a direct child of .entry-content.is-layout-constrained,
+        // so it qualifies for the same core-generated CSS rule real
+        // Gutenberg blocks use, without this plugin needing to fight the
+        // theme's own width constraint with a bespoke override.
+        echo '<div class="bhc-lesson-layout alignwide">';
         // Persistent lesson list + overall progress, so a student can jump
         // to any earlier lesson or see how much of the course is left
         // without leaving this page — previously the only course-level
