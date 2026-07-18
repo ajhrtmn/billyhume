@@ -274,6 +274,7 @@ class BHPlayer {
                 <div class="bh-modal bh-share-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="share">&times;</span>
                     <h2>You're in! &#127881;</h2>
+                    <p class="bh-share-next"></p>
                     <p>Grab a shareable image to spread the word.</p>
                     <div class="bh-share-cards">
                         <a class="bh-share-card-link" data-share="entered" href="#" target="_blank" rel="noopener">
@@ -655,6 +656,23 @@ class BHPlayer {
     // throw trying to read a field that isn't there yet.
     showShareModal(body) {
         if (!body.entered_card_url || !body.vote_card_url) return;
+        // The one concrete "what happens next" a fan sees between
+        // submitting and however far off the reveal party is — there's no
+        // stored reveal date (that's admin-triggered live), so the
+        // voting/contest end date is the best real anchor available.
+        // Falls back to a plain reassurance if the contest has no set end.
+        const nextEl = this.q('.bh-share-next');
+        if (nextEl) {
+            if (body.vote_end) {
+                const d = new Date(body.vote_end.replace(' ', 'T'));
+                const label = isNaN(d) ? null : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+                nextEl.textContent = label
+                    ? `Voting closes ${label} — winners are announced live at the Reveal Party.`
+                    : 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+            } else {
+                nextEl.textContent = 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+            }
+        }
         this.q('[data-share="entered"]').href = body.entered_card_url;
         this.q('[data-share-img="entered"]').src = body.entered_card_url;
         this.q('[data-share="vote"]').href = body.vote_card_url;

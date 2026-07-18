@@ -336,6 +336,21 @@
 .bh-share-card-link:hover { border-color: var(--bh-accent); color: var(--bh-accent); }
 .bh-share-card-thumb { width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: calc(var(--bh-radius) - 2px); background: var(--bh-surface-2); }
 .bh-share-hint { font-size: calc(12px * var(--bh-font-scale)); color: var(--bh-text-dim); }
+/* The "what happens next" beat — set apart from the plain share-hint
+   text below it so a fan's eye actually lands on it, not just the
+   generic "you're in" heading. --bh-surface-2 + --bh-accent is this
+   ecosystem's existing dark-surface/accent-text pairing (used
+   throughout this file) — --bh-accent-soft is a LIGHT tint meant for
+   hover states, not a text background, so pairing it with accent text
+   was a real contrast failure (~1.5:1), caught and fixed before this
+   shipped. */
+.bh-share-next {
+    background: var(--bh-surface-2); color: var(--bh-accent); font-weight: 600;
+    border-left: 3px solid var(--bh-accent);
+    font-size: calc(13px * var(--bh-font-scale)); padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
+    border-radius: var(--bh-radius);
+}
+.bh-share-next:empty { display: none; }
 .bh-share-contest-link { color: var(--bh-accent); word-break: break-all; }
 .bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
 .bh-close { position: absolute; top: 16px; right: 20px; font-size: calc(22px * var(--bh-font-scale)); cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
