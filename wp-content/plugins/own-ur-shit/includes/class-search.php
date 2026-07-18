@@ -23,6 +23,28 @@ if (!defined('ABSPATH') ) exit;
  * size choice here, same reasoning BHS_Recommendations/
  * BHM_Recommendations already used for content-based scoring instead of
  * a real ML/index-backed system.
+ *
+ * Providers wired: bh-courses, bh-contest (published contests only,
+ * linking to the contest's real page — never bh_submission, which
+ * holds real people's contact info/audio files), bh-registry (only
+ * 'active'/verified artists, the same gate its own public REST search
+ * already enforces).
+ *
+ * Deliberately NOT wired, by design, not by omission — this REST route
+ * is `permission_callback => __return_true` (fully public, unauthenticated),
+ * so anything registered here is exposed to anonymous visitors:
+ * - **bh-crm**: real, private person records (contact info, notes,
+ *   tags) about real people. AJ's own standing rule, stated directly:
+ *   "err on the side of safety and privacy — search shouldn't take
+ *   people where they aren't allowed to go." A future admin-only CRM
+ *   search (inside wp-admin, capability-gated) would be a legitimate,
+ *   SEPARATE feature — it must never share this public dispatch layer.
+ * - **bh-streaming**: no privacy issue, just no real destination yet —
+ *   tracks/releases have no canonical per-item URL at all (confirmed in
+ *   ROADMAP-discoverability.md), only ever reachable through the
+ *   client-rendered player SPA. Wiring this properly needs either a
+ *   query-param deep link the player can read on load, or a real
+ *   single-track page — a real follow-up, not done here.
  */
 class OUS_Search {
     public static function init() {

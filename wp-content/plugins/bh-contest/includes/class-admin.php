@@ -25,6 +25,13 @@ class BH_Admin {
         add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
         add_action('admin_post_bh_restore_contest_revision', [self::class, 'handle_restore_revision']);
+        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
+        // sequencing. Public-safe: a published contest's title/existence
+        // is already public information (the contest page itself is a
+        // real, publicly-viewable page) — this only searches published
+        // contests, never bh_submission (real people's contact info/
+        // audio files, correctly kept out of any public-facing lookup).
+        add_filter('ous_search_providers', [self::class, 'register_search_provider']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
@@ -1520,6 +1527,36 @@ class BH_Admin {
             wp_send_json_error(['message' => $result->get_error_message()], 400);
         }
         wp_send_json_success($result);
+    }
+
+    public static function register_search_provider($providers) {
+        $providers['contests'] = [self::class, 'search_contests'];
+        return $providers;
+    }
+
+    public static function search_contests($query, $limit) {
+        $posts = get_posts([
+            'post_type' => 'bh_contest', 'post_status' => 'publish',
+            's' => $query, 'posts_per_page' => $limit,
+        ]);
+        $out = [];
+        foreach ($posts as $p) {
+            // A contest has no canonical URL of its own — it only ever
+            // lives at whatever real page embeds its shortcode
+            // (ROADMAP-discoverability.md's own finding). Skip a result
+            // with nowhere real to send someone rather than link to a
+            // dead/nonexistent page.
+            $page_id = (int) get_post_meta($p->ID, '_bh_page_id', true);
+            if (!$page_id || get_post_status($page_id) !== 'publish') continue;
+            $out[] = [
+                'type' => 'Contest',
+                'title' => $p->post_title,
+                'excerpt' => '',
+                'url' => get_permalink($page_id),
+                'icon' => 'dashicons-microphone',
+            ];
+        }
+        return $out;
     }
 
     public static function save_contest_meta($post_id) {

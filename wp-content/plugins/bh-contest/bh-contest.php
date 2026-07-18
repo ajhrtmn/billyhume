@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.6
+ * Version:     3.7.7
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -258,7 +258,12 @@ if (!defined('ABSPATH')) exit;
 // now snapshots every _bh_*/_bhy_style_json meta key on every save; a
 // new "Version History" metabox (side column) lists past versions with
 // working Restore buttons.
-define('BH_VER',        '3.7.6');
+// 3.7.7 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
+// Section 1 sequencing. Published contests are searchable via
+// [ous_search]/ous/v1/search — deliberately public-safe: only
+// published contests (never bh_submission, which holds real people's
+// contact info/audio files), linking to the contest's real page.
+define('BH_VER',        '3.7.7');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface
