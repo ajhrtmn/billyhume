@@ -79,6 +79,16 @@ class BHC_Render_Lesson {
             echo '</div>';
         }
 
+        echo '<div class="bhc-lesson-layout">';
+        // Persistent lesson list + overall progress, so a student can jump
+        // to any earlier lesson or see how much of the course is left
+        // without leaving this page — previously the only course-level
+        // context here was the one-line breadcrumb above.
+        if ($course_id && class_exists('BHC_Render_Course')) {
+            echo BHC_Render_Course::render_lesson_sidebar($course_id, $uid, $lesson_id);
+        }
+        echo '<div class="bhc-lesson-main">';
+
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
         echo '<div class="bhc-step-progress">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 
@@ -164,7 +174,9 @@ class BHC_Render_Lesson {
             echo BH_Element::render_slot('bh_courses_lesson', (int) $lesson_id, 'root', ['user_id' => $uid]);
         }
 
-        echo '</div>';
+        echo '</div>'; // .bhc-lesson
+        echo '</div>'; // .bhc-lesson-main
+        echo '</div>'; // .bhc-lesson-layout
         return ob_get_clean();
     }
 

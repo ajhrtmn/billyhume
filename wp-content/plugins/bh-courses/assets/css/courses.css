@@ -108,6 +108,37 @@
 .bhc-lesson-breadcrumb a:hover { color: var(--bh-accent); }
 .bhc-lesson-position { white-space: nowrap; }
 
+/* ---- course-page overall progress bar (unlocked, enrolled view) ---- */
+.bhc-progress-bar-large { height: 8px; margin-bottom: 4px; }
+
+/* ---- persistent lesson-nav sidebar, shown on the lesson page next to
+   the step content so a student can jump to any other lesson or see
+   overall course progress without leaving the lesson ---- */
+.bhc-lesson-layout { display: flex; gap: 28px; align-items: flex-start; }
+.bhc-lesson-main { flex: 1 1 auto; min-width: 0; }
+.bhc-course-sidebar {
+    flex: 0 0 240px; position: sticky; top: 20px;
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
+    padding: 16px;
+}
+.bhc-sidebar-course-link {
+    display: block; font-family: var(--bh-font-heading); font-weight: 600; font-size: 14px;
+    color: var(--bh-text); margin-bottom: 10px;
+}
+.bhc-sidebar-course-link:hover { color: var(--bh-accent); }
+.bhc-sidebar-lesson-list { margin-top: 10px; max-height: 60vh; overflow-y: auto; }
+.bhc-sidebar-lesson-list li { padding: 8px 6px; font-size: 13px; }
+.bhc-sidebar-lesson-list li.bhc-lesson-current {
+    background: var(--bh-accent-soft); border-radius: 6px; font-weight: 600;
+}
+.bhc-sidebar-lesson-list li.bhc-lesson-current a { color: var(--bh-text); }
+
+@media (max-width: 780px) {
+    .bhc-lesson-layout { flex-direction: column; }
+    .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
+    .bhc-sidebar-lesson-list { max-height: none; }
+}
+
 /* ---- lesson step walker ---- */
 .bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
 
