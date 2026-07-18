@@ -23,7 +23,16 @@
 
         function showStep(index) {
             lesson.querySelectorAll('.bhc-step').forEach(function (el) {
-                el.style.display = (parseInt(el.dataset.stepIndex, 10) === index) ? '' : 'none';
+                var isTarget = parseInt(el.dataset.stepIndex, 10) === index;
+                el.style.display = isTarget ? '' : 'none';
+                el.classList.remove('bhc-step-entering');
+                if (isTarget) {
+                    // Force a reflow so re-adding the class retriggers the
+                    // CSS animation even when this same step was shown
+                    // before (e.g. navigating back and forward again).
+                    void el.offsetWidth;
+                    el.classList.add('bhc-step-entering');
+                }
             });
             var counter = lesson.querySelector('.bhc-step-current');
             if (counter) counter.textContent = index + 1;
@@ -41,7 +50,15 @@
         // the .bhc-step-done class it mirrors.
         function markStepDone(index) {
             var dot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + index + '"]');
-            if (dot) dot.classList.add('bhc-stepper-done');
+            if (dot) {
+                dot.classList.add('bhc-stepper-done');
+                // A brief pulse on the dot itself — the one small "that
+                // counted" moment for finishing a step, not just a silent
+                // class swap. Removed after the animation so it can
+                // replay if this step is ever completed again.
+                dot.classList.add('bhc-stepper-pulse');
+                setTimeout(function () { dot.classList.remove('bhc-stepper-pulse'); }, 500);
+            }
             var nextDot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + (index + 1) + '"]');
             if (nextDot) nextDot.disabled = false;
         }
@@ -58,7 +75,12 @@
                 // way forward except manually finding the course page).
                 lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson.querySelector('.bhc-lesson-next');
-                if (nextBlock) nextBlock.style.display = '';
+                if (nextBlock) {
+                    nextBlock.style.display = '';
+                    nextBlock.classList.remove('bhc-step-entering');
+                    void nextBlock.offsetWidth;
+                    nextBlock.classList.add('bhc-step-entering');
+                }
             }
         }
 

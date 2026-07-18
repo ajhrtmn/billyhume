@@ -164,6 +164,16 @@
 .bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-soft); border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
+
+/* ---- step transitions: a small, consistent "this just arrived" moment
+   instead of an instant jump-cut between step/next-lesson blocks ---- */
+.bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering { animation: bhc-step-in 0.35s ease; }
+@keyframes bhc-step-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes bhc-pulse { 0% { box-shadow: 0 0 0 0 var(--bh-accent-soft); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering, .bhc-stepper-dot.bhc-stepper-pulse { animation: none; }
+}
 
 /* Per-type accent so the step cards themselves aren't visually
    interchangeable — a thin left border echoing the stepper dot's type,
