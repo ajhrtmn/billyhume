@@ -166,7 +166,12 @@
 
 .bhc-quiz-question { border: none; margin-bottom: 16px; }
 .bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
-.bhc-quiz-choice { display: block; padding: 6px 0; cursor: pointer; }
+.bhc-quiz-choice { display: block; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: background-color 0.15s ease; }
+.bhc-quiz-choice:hover { background: var(--bh-border); }
+/* :has(input:checked) is the only signal a plain radio+label gives us —
+   there's no JS-added "selected" class, so the checked state itself has
+   to drive the persistent highlight. */
+.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-soft); font-weight: 600; }
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
 .bhc-quiz-result.bhc-pass { background: var(--bh-accent-soft); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
