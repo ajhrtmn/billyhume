@@ -62,12 +62,32 @@ class OUS_Dashboard {
         ]);
     }
 
+    private static function ecosystem_fully_active_for_banner() {
+        foreach (array_keys(OUS_Registry::all()) as $key) {
+            if (OUS_Registry::status($key) !== 'active') return false;
+        }
+        return true;
+    }
+
     /* ---------- rendering ---------- */
 
     public static function render() {
         echo '<div class="wrap ous-dashboard">';
         echo '<h1>Own Ur Shit</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
+
+        // First-run nudge, AJ's own ask ("a fresh ecosystem install
+        // guided setup wizard would be a high value addition") — a
+        // brand-new install lands on this same page (own-ur-shit's own
+        // activation redirect) with nothing active yet; this is the
+        // one moment worth pointing at the guided flow before the wall
+        // of individual plugin cards below. Self-hides once the
+        // ecosystem is fully active — a returning admin who already
+        // finished setup doesn't need to see this every time, though
+        // Guided Setup itself stays reachable from the submenu either way.
+        if (class_exists('OUS_SetupWizard') && !self::ecosystem_fully_active_for_banner()) {
+            echo '<div class="bhy-alert bhy-alert-info"><p><strong>New here?</strong> The <a href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard')) . '">Guided Setup</a> walks you through activating everything and setting your brand basics, in order.</p></div>';
+        }
 
         if (isset($_GET['ous_activated'])) {
             echo '<div class="notice notice-success is-dismissible"><p>Activated.</p></div>';

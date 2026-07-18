@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.7.2
+ * Version:     3.7.3
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2232,7 +2232,26 @@ if (!defined('ABSPATH')) exit;
 // consumer for a config that doesn't exist would be exactly the
 // "building for a hypothetical" this ecosystem's own conventions
 // avoid — flagged as still open, not silently skipped.
-define('OUS_VER', '3.7.2');
+// 3.7.3 — OUS_SetupWizard (new), AJ's own direct ask: "a fresh
+// ecosystem install guided setup wizard would be a high value
+// addition." A concrete, single first-run flow (welcome → activate the
+// whole ecosystem → brand basics → done), reusing the real, already-
+// working install/activate mechanics (OUS_Installer/
+// OUS_ActivationManager/OUS_Registry, the same ones OUS_Dashboard's own
+// "Install & Activate Everything" button already calls) rather than
+// rebuilding them — this only adds the missing sequenced, friendly
+// walkthrough on top. Deliberately distinct in scope from
+// ROADMAP-guided-setup-wizards.md's own proposed OUS_Wizard framework
+// (per-feature external-service credential setup, zero code written) —
+// built directly as one concrete flow rather than through a not-yet-
+// existing generic framework, matching this codebase's own "one real
+// example before generalizing" convention. Steps are computed from
+// real current state (which plugins are active, whether the wordmark
+// still reads the literal placeholder defaults), not a stored progress
+// flag, so revisiting later correctly skips whatever's already done.
+// A self-hiding banner on the main dashboard points a fresh install at
+// it; it also stays reachable from its own permanent submenu item.
+define('OUS_VER', '3.7.3');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:
@@ -2827,7 +2846,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2885,6 +2904,7 @@ add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
 add_action('init',          ['OUS_Revisions', 'init']);
 add_action('init',          ['OUS_Search', 'init']);
+add_action('init',          ['OUS_SetupWizard', 'init']);
 add_action('init',          ['OUS_AdminLayout', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);
