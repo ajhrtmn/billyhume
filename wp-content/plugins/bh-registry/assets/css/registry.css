@@ -13,6 +13,20 @@
 .bhr-empty { color: var(--bh-text-dim, #B99584); grid-column: 1 / -1; }
 .bhr-report-link { display: block; margin-top: 8px; background: none; border: none; padding: 0; font-size: 11px; color: var(--bh-text-dim, #B99584); text-decoration: underline; cursor: pointer; }
 
+/* Inline reveal replacing a native prompt() — see registry.js's
+   bindReportButtons(). */
+.bhr-report-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.bhr-report-form[hidden] { display: none; }
+.bhr-report-reason {
+    width: 100%; box-sizing: border-box; resize: vertical; font-size: 12px;
+    padding: 6px 8px; border-radius: 6px; border: 1px solid var(--bh-border, #3D1B14);
+    background: var(--bh-bg, #150705); color: inherit;
+}
+.bhr-report-form-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.bhr-report-form-actions button { font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--bh-border, #3D1B14); background: none; color: inherit; cursor: pointer; }
+.bhr-report-submit { background: var(--bh-accent, #C1503A); border-color: var(--bh-accent, #C1503A); color: #fff; }
+.bhr-report-submit:disabled { opacity: 0.6; cursor: default; }
+
 .bhr-submit-modal { position: fixed; inset: 0; background: var(--bh-overlay, #0D0504D1); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .bhr-submit-modal-inner { background: var(--bh-surface, #220C0A); border-radius: 10px; padding: 24px; max-width: 460px; width: 100%; position: relative; max-height: 90vh; overflow-y: auto; }
 .bhr-modal-close { position: absolute; top: 12px; right: 12px; background: none; border: none; color: inherit; font-size: 20px; cursor: pointer; }
