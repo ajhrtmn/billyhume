@@ -286,7 +286,11 @@ class BHPlayer {
                             <span>Get "Vote for me" image</span>
                         </a>
                     </div>
-                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post: <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a></p>
+                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post:</p>
+                    <div class="bh-share-link-row">
+                        <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a>
+                        <button type="button" class="bh-copy-link-btn" data-copy-target=".bh-share-contest-link" title="Copy link">Copy</button>
+                    </div>
                 </div></div>
 
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
@@ -390,6 +394,33 @@ class BHPlayer {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
+
+        // Copy-to-clipboard: the one genuinely missing utility this
+        // ecosystem's micro-interaction survey found — a fan is
+        // explicitly told to "pair this link" but previously had to
+        // select/copy it by hand. navigator.clipboard requires a secure
+        // context (https or localhost); falls back to leaving the plain
+        // link selectable (which already worked) if unavailable.
+        const copyBtn = this.q('.bh-copy-link-btn');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                const target = this.q(copyBtn.dataset.copyTarget);
+                const text = target ? (target.href || target.textContent) : '';
+                if (!text || !navigator.clipboard) return;
+                navigator.clipboard.writeText(text).then(() => {
+                    const original = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.classList.add('is-copied');
+                    setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove('is-copied'); }, 1500);
+                }).catch(() => {
+                    // Permission denied or unsupported — the link text
+                    // itself is still a plain selectable/copyable <a>,
+                    // same fallback that already existed before this
+                    // button was added, so there's nothing broken here,
+                    // just nothing extra to confirm.
+                });
+            };
+        }
 
         // Event delegation: one listener covers every (re-rendered) track row.
         this.q('.bh-tracklist').addEventListener('click', e => {

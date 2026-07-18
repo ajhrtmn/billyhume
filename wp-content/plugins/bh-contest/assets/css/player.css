@@ -352,6 +352,15 @@
 }
 .bh-share-next:empty { display: none; }
 .bh-share-contest-link { color: var(--bh-accent); word-break: break-all; }
+.bh-share-link-row { display: flex; align-items: center; gap: calc(8px * var(--bh-space-scale)); }
+.bh-share-link-row .bh-share-contest-link { flex: 1; min-width: 0; }
+.bh-copy-link-btn {
+    flex-shrink: 0; font-size: calc(11px * var(--bh-font-scale)); padding: calc(4px * var(--bh-space-scale)) calc(10px * var(--bh-space-scale));
+    border-radius: var(--bh-radius-sm, var(--bh-radius)); border: 1px solid var(--bh-border); background: var(--bh-surface-2); color: var(--bh-text);
+    cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease;
+}
+.bh-copy-link-btn:hover { border-color: var(--bh-accent); }
+.bh-copy-link-btn.is-copied { background: var(--bh-accent); border-color: var(--bh-accent); color: #fff; }
 .bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
 .bh-close { position: absolute; top: 16px; right: 20px; font-size: calc(22px * var(--bh-font-scale)); cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
 .bh-close:hover { color: var(--bh-text); }
