@@ -24,6 +24,13 @@ class BH_Admin {
         // it out of the way without hiding or removing it.
         add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
+        // A contest leaving 'publish' (trash/delete) or coming back
+        // (untrash) also has to drop or restore its own menu entry —
+        // save_contest_meta() alone only fires on an actual edit-screen
+        // save, not on these list-table/quick actions.
+        add_action('wp_trash_post', [self::class, 'maybe_resync_menu_for_post']);
+        add_action('untrash_post', [self::class, 'maybe_resync_menu_for_post']);
+        add_action('before_delete_post', [self::class, 'maybe_resync_menu_for_post']);
         add_action('admin_post_bh_restore_contest_revision', [self::class, 'handle_restore_revision']);
         // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
         // sequencing. Public-safe: a published contest's title/existence
@@ -1362,6 +1369,20 @@ class BH_Admin {
             }, 'bh_contest', 'side', 'default');
         }
 
+        add_meta_box('bh_contest_site_menu', 'Site Menu', function ($post) {
+            $page_id = (int) get_post_meta($post->ID, '_bh_page_id', true);
+            $has_page = $page_id && get_post_status($page_id) === 'publish';
+            $checked = (bool) get_post_meta($post->ID, '_bh_show_in_menu', true);
+            $label = get_post_meta($post->ID, '_bh_menu_label', true);
+
+            if (!$has_page) {
+                echo '<p class="description">Publish this contest (and its auto-created page) first — a contest with nowhere real to send a visitor can\'t appear in the menu.</p>';
+                return;
+            }
+            echo '<p><label><input type="checkbox" name="bh_show_in_menu" value="1"' . checked($checked, true, false) . '> Show under <strong>Contests</strong> in the site menu</label></p>';
+            echo '<p><label>Menu label (optional)<br><input type="text" name="bh_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
+        }, 'bh_contest', 'side', 'default');
+
         // Separate from the "Contest Branding & Style" override below —
         // this picks a CARD TEMPLATE (brand vs. poster), not a color
         // override; a contest that never turns on style override at all
@@ -1696,6 +1717,11 @@ class BH_Admin {
         // full flat dump is the honest "complete current state" here,
         // rather than hand-curating a field list that would silently
         // drift out of sync with this save method's own field list.
+        update_post_meta($post_id, '_bh_show_in_menu', !empty($_POST['bh_show_in_menu']) ? '1' : '');
+        if (isset($_POST['bh_menu_label'])) {
+            update_post_meta($post_id, '_bh_menu_label', sanitize_text_field($_POST['bh_menu_label']));
+        }
+
         if (class_exists('OUS_Revisions')) {
             $all_meta = get_post_meta($post_id);
             $flat = [];
@@ -1706,6 +1732,42 @@ class BH_Admin {
         }
 
         self::maybe_create_contest_page($post_id);
+        self::resync_menu();
+    }
+
+    /**
+     * Rebuilds the "Contests" submenu group (OUS_MenuSync) from
+     * whatever contests currently have the menu toggle on — called
+     * after any save, trash, untrash, or delete so the live menu never
+     * drifts from what's actually checked. Ordered by start date so an
+     * upcoming/current contest surfaces before older ones.
+     */
+    public static function resync_menu() {
+        if (!class_exists('OUS_MenuSync')) return;
+
+        $posts = get_posts([
+            'post_type'   => 'bh_contest',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'meta_key'    => '_bh_show_in_menu',
+            'meta_value'  => '1',
+            'orderby'     => 'date',
+            'order'       => 'DESC',
+        ]);
+
+        $items = [];
+        foreach ($posts as $p) {
+            $page_id = (int) get_post_meta($p->ID, '_bh_page_id', true);
+            if (!$page_id || get_post_status($page_id) !== 'publish') continue;
+            $label = get_post_meta($p->ID, '_bh_menu_label', true) ?: $p->post_title;
+            $items[] = ['label' => $label, 'url' => get_permalink($page_id)];
+        }
+
+        OUS_MenuSync::sync_group('contests', 'Contests', $items);
+    }
+
+    public static function maybe_resync_menu_for_post($post_id) {
+        if (get_post_type($post_id) === 'bh_contest') self::resync_menu();
     }
 
     // OUS_Revisions::render_history_panel()'s Restore button posts here.

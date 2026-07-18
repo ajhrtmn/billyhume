@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.29
+ * Version:     0.4.30
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -377,7 +377,11 @@ if (!defined('ABSPATH')) exit;
 // core's own native revision/restore UI already works correctly for
 // free the moment this one flag exists, no OUS_Revisions wiring needed
 // for content that already lives in wp_posts.
-define('BHC_VER',  '0.4.29');
+// 0.4.30 — a course can opt into a "Site Menu" checkbox (new metabox,
+// bhc_show_in_menu/_bhc_menu_label) that keeps a real "Courses" submenu
+// in every site Navigation menu in sync automatically (OUS_MenuSync,
+// own-ur-shit core) — no manual menu-builder editing needed.
+define('BHC_VER',  '0.4.30');
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
 // (1) "Mark complete" step-completion now has real retry-with-backoff
@@ -737,6 +741,10 @@ add_action('plugins_loaded', function () {
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_course']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_catalog_details']);
+    add_action('save_post_bh_course', ['BHC_Admin', 'save_site_menu_settings']);
+    add_action('wp_trash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
+    add_action('untrash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
+    add_action('before_delete_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('save_post_bh_lesson', ['BHC_Admin', 'save_lesson']);
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
     add_filter('manage_bh_course_posts_columns', ['BHC_Admin', 'course_columns']);

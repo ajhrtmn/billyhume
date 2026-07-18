@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.7.4
+ * Version:     3.7.5
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2260,7 +2260,19 @@ if (!defined('ABSPATH')) exit;
 // open item on ROADMAP-search-and-revisions.md: wired into
 // OUS_Revisions as its own consumer (object_type 'portal_layout'),
 // with a real Version History + Restore panel on the same page.
-define('OUS_VER', '3.7.4');
+// 3.7.5 — OUS_MenuSync (new): lets a plugin maintain its own submenu
+// group inside every real site Navigation menu automatically, per AJ's
+// own framing ("I wish everything could kinda decide on its own where
+// it belongs without having to go through the painful WordPress menu
+// builder"). Writes ordinary core/navigation-submenu +
+// core/navigation-link blocks straight into the wp_navigation post(s) —
+// confirmed by reading a live Navigation menu's real post_content, not
+// assumed — which is also Etch-compatible by construction per
+// ETCH-COMPATIBILITY-NOTES.md (Etch authors to the same real Gutenberg
+// storage). First two consumers: bh-contest and bh-courses each gained
+// a "Site Menu" box (checkbox + optional label override) and resync
+// their own group on save/trash/untrash/delete.
+define('OUS_VER', '3.7.5');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
 // remnants of stuff" report:
@@ -2855,7 +2867,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 

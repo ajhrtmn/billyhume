@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.7
+ * Version:     3.7.8
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -263,7 +263,11 @@ if (!defined('ABSPATH')) exit;
 // [ous_search]/ous/v1/search — deliberately public-safe: only
 // published contests (never bh_submission, which holds real people's
 // contact info/audio files), linking to the contest's real page.
-define('BH_VER',        '3.7.7');
+// 3.7.8 — a contest can opt into a "Site Menu" checkbox (new metabox,
+// bh_show_in_menu/_bh_menu_label) that keeps a real "Contests" submenu
+// in every site Navigation menu in sync automatically (OUS_MenuSync,
+// own-ur-shit core) — no manual menu-builder editing needed.
+define('BH_VER',        '3.7.8');
 
 // 3.7.3 — Design Suite gallery gap closed: registered the guided
 // "New Contest" wizard (BH_ContestWizard) as its own surface

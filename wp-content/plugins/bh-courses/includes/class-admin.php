@@ -29,6 +29,7 @@ class BHC_Admin {
         // splits its own catalog-facing fields from its own
         // access/monetization ones across separate metaboxes.
         add_meta_box('bhc_course_catalog', 'Catalog Details', [self::class, 'render_catalog_metabox'], 'bh_course', 'side', 'default');
+        add_meta_box('bhc_course_site_menu', 'Site Menu', [self::class, 'render_site_menu_metabox'], 'bh_course', 'side', 'default');
         add_meta_box('bhc_lesson_details', 'Lesson Details', [self::class, 'render_lesson_metabox'], 'bh_lesson', 'normal', 'high');
         add_meta_box('bhc_lesson_steps', 'Lesson Steps', [self::class, 'render_steps_metabox'], 'bh_lesson', 'normal', 'high');
     }
@@ -70,6 +71,58 @@ class BHC_Admin {
         echo '<p class="description">The catalog always shows a computed lesson count (' . (int) BHC_PostTypes::lesson_count($post->ID) . ' lesson' . (BHC_PostTypes::lesson_count($post->ID) === 1 ? '' : 's') . ' right now) whether or not this is filled in — this is an optional, more human estimate shown alongside it.</p>';
 
         echo '<p class="description">Category and tags: see the standard <strong>Course Categories</strong> / <strong>Course Topics</strong> boxes elsewhere on this screen.</p>';
+    }
+
+    public static function render_site_menu_metabox($post) {
+        wp_nonce_field('bhc_save_menu', 'bhc_menu_nonce');
+        if (get_post_status($post->ID) !== 'publish') {
+            echo '<p class="description">Publish this course first — a course with no live permalink can\'t appear in the menu.</p>';
+            return;
+        }
+        $checked = (bool) get_post_meta($post->ID, '_bhc_show_in_menu', true);
+        $label = get_post_meta($post->ID, '_bhc_menu_label', true);
+        echo '<p><label><input type="checkbox" name="bhc_show_in_menu" value="1"' . checked($checked, true, false) . '> Show under <strong>Courses</strong> in the site menu</label></p>';
+        echo '<p><label>Menu label (optional)<br><input type="text" name="bhc_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
+    }
+
+    public static function save_site_menu_settings($post_id) {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (!isset($_POST['bhc_menu_nonce']) || !wp_verify_nonce($_POST['bhc_menu_nonce'], 'bhc_save_menu')) return;
+        if (!current_user_can('edit_post', $post_id)) return;
+
+        update_post_meta($post_id, '_bhc_show_in_menu', !empty($_POST['bhc_show_in_menu']) ? '1' : '');
+        if (isset($_POST['bhc_menu_label'])) {
+            update_post_meta($post_id, '_bhc_menu_label', sanitize_text_field($_POST['bhc_menu_label']));
+        }
+
+        self::resync_course_menu();
+    }
+
+    /** Same shape as BH_Admin::resync_menu() in bh-contest — see that docblock. */
+    public static function resync_course_menu() {
+        if (!class_exists('OUS_MenuSync')) return;
+
+        $posts = get_posts([
+            'post_type'   => 'bh_course',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'meta_key'    => '_bhc_show_in_menu',
+            'meta_value'  => '1',
+            'orderby'     => 'title',
+            'order'       => 'ASC',
+        ]);
+
+        $items = [];
+        foreach ($posts as $p) {
+            $label = get_post_meta($p->ID, '_bhc_menu_label', true) ?: $p->post_title;
+            $items[] = ['label' => $label, 'url' => get_permalink($p->ID)];
+        }
+
+        OUS_MenuSync::sync_group('courses', 'Courses', $items);
+    }
+
+    public static function maybe_resync_menu_for_post($post_id) {
+        if (get_post_type($post_id) === 'bh_course') self::resync_course_menu();
     }
 
     public static function save_catalog_details($post_id) {
