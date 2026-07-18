@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.31
+ * Version:     0.4.32
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -389,7 +389,18 @@ if (!defined('ABSPATH')) exit;
 // with a "Create page" fallback link and a backlink box on the page's
 // own edit screen. The site-menu auto-sync now checks _bhc_page_id
 // first before falling back to its shortcode search.
-define('BHC_VER',  '0.4.31');
+// 0.4.32 — a configurable max direct-upload size for lesson videos
+// (new "Video Settings" submenu, default 0 = no limit, unchanged
+// behavior). AJ's own ask, prompted by raising this dev environment's
+// PHP upload ceiling to test a real video: since neither Bluehost's
+// nor Wasmer's real hosting limits are known yet, an admin sets
+// whatever ceiling actually fits wherever this ends up running. Over
+// it, the video block's existing URL (oEmbed) source is the steered
+// answer, not a hard block — enforced client-side (inline warning,
+// deliberately no confirm()/alert()) and authoritatively server-side
+// (BHC_ContentBridge's own save hook, a transient admin notice, never
+// blocking the save itself).
+define('BHC_VER',  '0.4.32');
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
 // (1) "Mark complete" step-completion now has real retry-with-backoff
@@ -696,7 +707,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -732,6 +743,8 @@ add_action('plugins_loaded', function () {
     }
     add_action('init', ['BHC_CrmIntegration', 'init']);
     add_action('init', ['BHC_ProgressAdmin', 'init']);
+    add_action('init', ['BHC_VideoSettings', 'init']);
+    add_action('admin_notices', ['BHC_VideoSettings', 'maybe_show_notice']);
     add_action('init', ['BHC_Nudges', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);
     if (class_exists('BH_Content')) add_action('init', ['BHC_ContentBridge', 'init']);

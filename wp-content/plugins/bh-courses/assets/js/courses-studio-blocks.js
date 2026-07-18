@@ -125,6 +125,13 @@
             // Mark-complete-button behavior, unchanged), matching
             // bhc/quiz's own max_attempts "0 = unlimited" convention.
             watch_threshold: { type: 'number', default: 0 },
+            // Client-side-only convenience flag (BHC_VideoSettings'
+            // own docblock) — set when a picked file exceeds the
+            // configured direct-upload limit, purely to render the
+            // inline warning below; never read server-side (the
+            // authoritative check re-derives file size fresh from the
+            // real attachment on every save instead of trusting this).
+            over_limit_mb: { type: 'number', default: 0 },
         },
         supports: { html: false },
         edit: function (props) {
@@ -143,11 +150,35 @@
                         el(wp.blockEditor.MediaUpload, {
                             allowedTypes: ['video'],
                             value: attrs.attachment_id,
-                            onSelect: function (media) { setAttrs({ attachment_id: media.id }); },
+                            // Immediate, cheap feedback before an author
+                            // even finishes — BHC_VideoSettings::check_tree()
+                            // still re-checks the real file server-side on
+                            // save (authoritative; this is a convenience
+                            // only, a REST/programmatic save never runs
+                            // this JS at all). window.BHCMaxVideoMB is
+                            // localized per-request (0 = no limit, the
+                            // default — never blocks anything here).
+                            // Deliberately no window.confirm()/alert() —
+                            // a blocking native dialog here is a known
+                            // hazard in this ecosystem's own automated
+                            // QA tooling (and a worse UX generally); the
+                            // file is always accepted, with a plain
+                            // inline warning shown instead via
+                            // over_limit_mb state.
+                            onSelect: function (media) {
+                                var maxMB = window.BHCMaxVideoMB || 0;
+                                var sizeBytes = media.filesizeInBytes || (media.filesize ? media.filesize * 1024 : 0);
+                                var overLimit = maxMB && sizeBytes && (sizeBytes / 1048576) > maxMB;
+                                setAttrs({ attachment_id: media.id, over_limit_mb: overLimit ? Math.round(sizeBytes / 1048576) : 0 });
+                            },
                             render: function (obj) {
                                 return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_id ? __('Change video') : __('Select video'));
                             },
-                        })
+                        }),
+                        attrs.over_limit_mb
+                            ? el('p', { className: 'bhc-video-size-warning', style: { color: '#b32d2e' } },
+                                __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + (window.BHCMaxVideoMB || 0) + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
+                            : null
                     ),
                 el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v) { setAttrs({ caption: v }); } }),
                 el(wp.components.RangeControl, {
