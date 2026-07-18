@@ -59,12 +59,110 @@ class BHM_Storefront {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_studio_blocks']);
         add_action('wp_enqueue_scripts', [self::class, 'enqueue_frontend_assets']);
 
+        // Real Gutenberg registration, ROADMAP-platform-evolution.md
+        // Section 5's payoff: an artist authoring a product's own
+        // long-description content (WooCommerce products already
+        // support the ordinary post editor) can now drop these blocks
+        // in directly, not just inside BH_Studio's separate canvas — the
+        // exact boundary this file's own docblock previously flagged as
+        // "not added here, since no current consumer renders storefront
+        // documents that way." register_block_type()'s render_callback
+        // reuses the SAME PHP renderers BH_Content already calls; only
+        // the registration mechanism differs (WordPress core's own
+        // do_blocks()/render_block() pipeline vs. BH_Content::render()).
+        add_action('init', [self::class, 'register_core_blocks']);
+        add_action('enqueue_block_editor_assets', [self::class, 'enqueue_editor_blocks']);
+        // Real gap, caught live while testing this pass: WooCommerce core
+        // unconditionally hardcodes the block editor OFF for products
+        // (WC_Post_Types::gutenberg_can_edit_post_type() always returns
+        // false for post_type 'product', priority 10) — so a product's
+        // own long-description content couldn't ever actually be
+        // composed with bh/*/bhm/* blocks no matter what got registered
+        // above; it was still stuck on the classic TinyMCE editor.
+        // Overriding back to true at a later priority is the "wrap
+        // WooCommerce, don't fight it" version of turning this on,
+        // matching how this ecosystem already treats every other
+        // WooCommerce screen as something to enhance rather than route
+        // around.
+        add_filter('use_block_editor_for_post_type', [self::class, 'enable_block_editor_for_products'], 20, 2);
+        // Zero-authoring default: every real single-product page gets a
+        // related-items section for free. Priority 20 so it runs after
+        // WooCommerce's own tabs (Description, etc. — priority 10) have
+        // already rendered, so an explicitly-placed bhm/related-products
+        // block inside the description has already set the
+        // "don't double-render" flag by the time this checks it.
+        add_action('woocommerce_after_single_product_summary', ['BHM_Recommendations', 'auto_render_related'], 20);
+
         if (class_exists('BH_Studio')) {
             add_filter('bh_studio_block_types', [self::class, 'register_studio_block_types']);
         }
         if (class_exists('BH_Content')) {
             self::register_content_block_types();
         }
+    }
+
+    public static function enable_block_editor_for_products($can_edit, $post_type) {
+        return $post_type === 'product' ? true : $can_edit;
+    }
+
+    // Real WordPress block registration (distinct from BH_Content's own
+    // registration above, which only ever renders through
+    // BH_Content::render() — a product's post_content goes through
+    // core's own the_content()/do_blocks() instead). Dynamic blocks
+    // (client save() returns null), so post_content only ever stores
+    // the block comment + attributes, never baked HTML — same "live
+    // WooCommerce data on every request" posture as the BH_Content
+    // registration.
+    public static function register_core_blocks() {
+        if (!function_exists('register_block_type')) return;
+        register_block_type('bhm/product-grid', [
+            'api_version' => 3,
+            'render_callback' => [self::class, 'render_product_grid_block'],
+            'attributes' => [
+                'collection' => ['type' => 'string', 'default' => ''],
+                'category'   => ['type' => 'string', 'default' => ''],
+                'columns'    => ['type' => 'integer', 'default' => 4],
+                'limit'      => ['type' => 'integer', 'default' => 12],
+                'showFilters' => ['type' => 'boolean', 'default' => false],
+            ],
+        ]);
+        register_block_type('bhm/product-filter', [
+            'api_version' => 3,
+            'render_callback' => [self::class, 'render_product_filter_block'],
+            'attributes' => [
+                'showPrice' => ['type' => 'boolean', 'default' => true],
+                'showCategory' => ['type' => 'boolean', 'default' => true],
+                'showStock' => ['type' => 'boolean', 'default' => true],
+            ],
+        ]);
+        if (class_exists('BHM_Recommendations')) {
+            register_block_type('bhm/related-products', [
+                'api_version' => 3,
+                'render_callback' => ['BHM_Recommendations', 'render_related_products_block_public'],
+                'attributes' => [
+                    'productId' => ['type' => 'integer', 'default' => 0],
+                    'limit' => ['type' => 'integer', 'default' => 8],
+                    'heading' => ['type' => 'string', 'default' => 'You may also like'],
+                ],
+            ]);
+        }
+    }
+
+    // Unlike maybe_enqueue_studio_blocks() (gated to the bh-studio admin
+    // page only), this fires on EVERY real block editor screen — a
+    // product edit screen, a page, anywhere — so these blocks show up
+    // in the ordinary inserter wherever an artist is actually composing
+    // real post_content. The client registration file itself already
+    // guards on wp.blocks/wp.element/etc. existing, so enqueuing it
+    // broadly is safe.
+    public static function enqueue_editor_blocks() {
+        wp_enqueue_script(
+            'bhm-storefront-studio-blocks-core',
+            BHM_URL . 'assets/js/storefront-studio-blocks.js',
+            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor'],
+            defined('BHM_VER') ? BHM_VER : null,
+            true
+        );
     }
 
     /* ---------------- collections taxonomy ---------------- */
@@ -228,6 +326,14 @@ class BHM_Storefront {
             'showCategory' => ['type' => 'bool', 'default' => true],
             'showStock' => ['type' => 'bool', 'default' => true],
         ], [self::class, 'render_product_filter_block']);
+
+        if (class_exists('BHM_Recommendations')) {
+            BH_Content::register_block_type('bhm/related-products', [
+                'productId' => ['type' => 'int', 'default' => 0],
+                'limit' => ['type' => 'int', 'default' => 8],
+                'heading' => ['type' => 'string', 'default' => 'You may also like'],
+            ], ['BHM_Recommendations', 'render_related_products_block_public']);
+        }
     }
 
     /**
@@ -287,7 +393,7 @@ class BHM_Storefront {
         return ob_get_clean();
     }
 
-    private static function render_product_cards($products) {
+    public static function render_product_cards($products) {
         if (!$products) return '<p class="description">No products found.</p>';
         $out = '';
         foreach ($products as $product) {
@@ -397,6 +503,7 @@ class BHM_Storefront {
     public static function register_studio_block_types($types) {
         $types['bhm/product-grid'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Product Grid'];
         $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
+        $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Related Products'];
         return $types;
     }
 }

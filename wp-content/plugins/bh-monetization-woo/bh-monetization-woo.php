@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.23
+ * Version:     0.5.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -223,7 +223,59 @@ if (!defined('ABSPATH')) exit;
 // admin manually wired up an option that didn't even have a settings UI
 // yet. Added the same save_post_page auto-detect for any page carrying
 // [bhm_redeem_gift], matching the existing tiers-page convention exactly.
-define('BHM_VER',  '0.4.23');
+// 0.5.0 — storefront/merchandising (ROADMAP-platform-evolution.md
+// Section 5), the last two open items: individual product pages and
+// "customers also bought" relations. Minor bump, not patch: real new
+// user-facing capability, not a bug fix.
+//   1. BHM_Recommendations (new) — a product's own version of
+//      bh-streaming's BHS_Recommendations content-based scoring
+//      (shared bhm_collection/product_cat/product_tag terms, weighted
+//      3/2/1 same shape as tracks' artist/release/genre), explicitly
+//      reusing that approach per the roadmap's own suggestion rather
+//      than inventing a second one. Every real single-product page now
+//      gets a "You may also like" section automatically
+//      (woocommerce_after_single_product_summary), no authoring
+//      required.
+//   2. Real Gutenberg registration for bhm/product-grid,
+//      bhm/product-filter, and the new bhm/related-products
+//      (register_block_type() + render_callback, reusing the same PHP
+//      renderers BH_Content's own registration already calls) — closes
+//      the exact boundary class-storefront.php's own docblock had
+//      already flagged as unaddressed ("if either is ever placed
+//      inside a document rendered through WordPress's normal
+//      the_content() path... not added here, since no current consumer
+//      renders storefront documents that way").
+//   3. Real bug found while wiring #2 in: WooCommerce core
+//      unconditionally hardcodes the block editor OFF for products
+//      (WC_Post_Types::gutenberg_can_edit_post_type() always returns
+//      false) — so a product's own description could never actually
+//      be composed with blocks no matter what got registered. Added a
+//      later-priority filter override, the "wrap WooCommerce, don't
+//      route around it" version of turning this back on.
+//   4. Real bug found while light-polishing the single-product page:
+//      storefront.css referenced a fictional, never-defined
+//      --bhy-color-* token scheme identical to the one own-ur-shit
+//      3.4.88 already found and fixed in class-portal.php — every
+//      declaration silently fell through to hardcoded fallbacks.
+//      Rewritten to the real --bh-* tokens BHY_Style actually emits.
+//      Second real bug in the same pass: the price/button rules only
+//      matched the CLASSIC WooCommerce template's markup
+//      (`.summary .price` etc.) — this site (and any block-theme
+//      WooCommerce install) renders the product page as real Woo
+//      Blocks with a completely different DOM shape and no `.summary`
+//      ancestor at all, so the rules silently matched nothing.
+//      Rescoped to selectors stable across both template modes.
+// RUNTIME-VERIFIED: created two real test products sharing a category,
+// confirmed the bhm/related-products block appears in the real product
+// block-editor inserter (not confused with WooCommerce's own native
+// "Related Products" block, which looks identical in the search
+// results), confirmed it server-renders the actual other product on
+// the live single-product page, confirmed the automatic
+// "You may also like" section renders too, confirmed the add-to-cart
+// button/price now render in the real brand accent color instead of
+// generic WooCommerce black, and confirmed zero PHP errors across the
+// whole pass via a live error-log check.
+define('BHM_VER',  '0.5.0');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_
@@ -365,7 +417,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   own parallel recurring-billing logic (which would directly violate
  *   the ecosystem's "don't reinvent what already exists" principle).
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
