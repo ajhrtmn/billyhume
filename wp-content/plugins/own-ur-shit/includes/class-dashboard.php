@@ -176,7 +176,16 @@ class OUS_Dashboard {
         if ($html === '') return; // nothing placed yet — render nothing, not an empty heading
 
         echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
-        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=bh-element-builder')) . '">Design Suite &rarr; Element Builder</a>.</p>';
+        // Real dead-link bug, caught and fixed: pointed at
+        // admin.php?page=bh-element-builder, a page deleted in an
+        // earlier cleanup pass (class-style-gallery.php's own docblock)
+        // and never replaced. There IS a real management UI for this
+        // specific surface/slot, just relocated — Debug Tools' own
+        // "Element Builder" section (class-element.php's
+        // render_debug_section()) is a real add/remove/reorder list,
+        // just scoped to exactly this one surface/slot (dashboard/main,
+        // context 0) rather than a general visual builder.
+        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=ous-debug#ous-section-bh-element')) . '">Debug Tools &rarr; Element Builder</a>.</p>';
         echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
     }
 

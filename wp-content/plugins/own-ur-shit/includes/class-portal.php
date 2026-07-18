@@ -195,7 +195,14 @@ class BHI_Portal {
         $ctx = ['user_id' => get_current_user_id()];
         $html = BH_Element::render_slot('portal_panel', 0, 'body', $ctx);
         if ($html === '') {
-            echo '<p>Nothing has been placed here yet — an admin can compose this panel\'s content from <a href="' . esc_url(admin_url('admin.php?page=bh-element-builder')) . '">Design Suite &rarr; Element Builder</a> (surface "portal_panel", slot "body").</p>';
+            // Real dead-link bug, caught and fixed: this used to point
+            // at admin.php?page=bh-element-builder — a real page in an
+            // earlier arc of this project, since deleted (see
+            // class-style-gallery.php's own docblock on why) and never
+            // replaced with an equivalent admin UI. No such page exists
+            // to link to anymore; stating that honestly rather than
+            // leaving a broken link in a real, live empty-state message.
+            echo '<p>Nothing has been placed here yet (surface "portal_panel", slot "body") — no admin UI for composing placements exists in this version.</p>';
             return;
         }
         echo $html; // phpcs:ignore -- BH_Element::render_slot()'s own output is already escaped/kses'd per-element at the render_placement() boundary, same trust posture render_slot()'s other call sites (dashboard, CRM) already use.

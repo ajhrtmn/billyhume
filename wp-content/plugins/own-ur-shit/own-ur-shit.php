@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.5
+ * Version:     3.6.6
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,36 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.5');
+define('OUS_VER', '3.6.6');
+
+// 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
+// remnants of stuff" report:
+// (1) Real leftover test data found and deleted directly from
+//     wp_bhcore_element_placements (id 3, a stray "bh/note" placement
+//     with literal text "rety78" styled in the accent color) — it was
+//     rendering live inside the bh_crm_profile surface's Design Suite
+//     preview since that surface renders REAL placements, not a
+//     mockup, and context 0 is the preview-only default context no
+//     real user profile ever uses.
+// (2) Two real dead links fixed (class-dashboard.php, class-portal.php):
+//     both pointed at admin.php?page=bh-element-builder, a page
+//     deleted in an earlier cleanup pass and never replaced. The
+//     dashboard one now correctly points at Debug Tools' own real,
+//     functioning Element Builder section (a genuine add/remove/
+//     reorder list, just scoped to dashboard/main); the portal one
+//     honestly states no admin UI exists for that surface/slot,
+//     since Debug Tools' section doesn't cover it.
+// (3) Inspector UX fix, AJ's own follow-up ask: the "Live token
+//     preview" panel never had any real connection to whichever
+//     surface was selected in the canvas (correctly so — these are
+//     genuine GLOBAL tokens, one theme applied everywhere, never
+//     per-surface theming) but the UI never SAID that, reading as if
+//     something was broken/disconnected. Renamed to "Shape & scale
+//     reference" with an explicit "not tied to the surface above"
+//     caption, and added a real "Previewing: X" label
+//     (class-style-gallery.php's render_script()) that stays in sync
+//     with the actual canvas selection live.
+
 
 // 3.6.5 — new OUS_StyleSurface (includes/class-style-surface.php):
 // registers the Media & CDN Setup wizard into the Design Suite

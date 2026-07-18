@@ -273,7 +273,22 @@ class BHY_Gallery {
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
-        echo '<h3>Live token preview</h3>';
+        // Real usability fix, AJ's own ask: this panel used to say
+        // "Live token preview" with zero connection to whichever
+        // surface is actually selected in the canvas — reading as if
+        // IT were the live view, when the real live view is the canvas
+        // itself, right there on screen. Renamed to be honest about
+        // what this specific widget is (a fixed reference strip for
+        // the shape/scale tokens — radius, bar height, font/space
+        // scale — that many individual surfaces never happen to
+        // exercise visibly, e.g. Player never shows --bh-radius
+        // without opening a modal) and added a real "Previewing: X"
+        // label that updates live from the canvas selection
+        // (render_script()'s surface-switch handler), so the
+        // connection between "what I'm looking at" and "what these
+        // controls affect" is stated outright instead of implied.
+        echo '<p class="description" style="margin:0 0 4px;">Editing global styles — applies everywhere. Previewing: <strong id="bhy-current-surface-label">&hellip;</strong></p>';
+        echo '<h3>Shape &amp; scale reference <span class="description" style="text-transform:none;font-weight:400;">(always the same, not tied to the surface above)</span></h3>';
         self::render_token_preview($s);
 
         echo '<div class="bhy-token-group" data-token-group="brand">';
@@ -366,6 +381,19 @@ class BHY_Gallery {
         (function () {
             var frames = document.querySelectorAll('.bhy-story-frame');
             var buttons = document.querySelectorAll('.bhy-story-btn');
+            var currentLabel = document.getElementById('bhy-current-surface-label');
+
+            // Real usability fix, AJ's own ask: the inspector's controls
+            // are genuine GLOBAL tokens (one theme, applied everywhere —
+            // this was never per-surface theming, see this file's own
+            // top docblock), so there's nothing surface-specific for
+            // them to show when you switch surfaces. What WAS missing
+            // is any visible link between "the surface I just clicked"
+            // and "the controls I'm about to touch" — this just keeps
+            // that one label in sync with the real canvas selection.
+            function setCurrentLabel(btn) {
+                if (currentLabel && btn) currentLabel.textContent = btn.textContent;
+            }
 
             buttons.forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -374,8 +402,10 @@ class BHY_Gallery {
                     btn.classList.add('active');
                     var match = document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]');
                     if (match) match.classList.add('active');
+                    setCurrentLabel(btn);
                 });
             });
+            setCurrentLabel(document.querySelector('.bhy-story-btn.active') || buttons[0]);
 
             // Each .bhy-story-frame div's real content lives under its
             // own attachShadow({mode:'open'}) root, parsed once here from
