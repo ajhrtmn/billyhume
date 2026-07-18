@@ -27,7 +27,46 @@ class BH_StyleSurfaces {
             'group' => 'Contest', 'label' => 'Results',
             'render' => [self::class, 'results_preview'],
         ];
+        // Design Suite gallery gap: the guided "New Contest" wizard
+        // (BH_ContestWizard, built this session — VISION.md's own
+        // "it just works" principle) is a real wp-admin screen
+        // (.wrap/.button/.notice — WP core's own admin chrome), so
+        // this preview loads WP core's own common.min.css rather than
+        // this plugin's player.css (which the OTHER three surfaces
+        // above correctly use, since their real markup uses THIS
+        // plugin's own custom classes instead).
+        $surfaces['bh-contest-wizard'] = [
+            'group' => 'Contest', 'label' => 'New Contest wizard',
+            'render' => [self::class, 'wizard_preview'],
+        ];
         return $surfaces;
+    }
+
+    public static function wizard_preview() {
+        ob_start();
+        ?>
+<div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
+    <h1>New Contest &mdash; Guided Setup</h1>
+    <p class="description">Covers what every contest needs to run. Rounds, Discord notifications, contact-field customization, and branding all stay on the real edit screen with sensible defaults.</p>
+
+    <h2>1. Name</h2>
+    <p><input type="text" style="width:100%;max-width:480px;" value="Summer Anthem Contest"></p>
+
+    <h2>2. Submissions</h2>
+    <p><label><input type="checkbox" checked> Open the moment this contest is published (recommended)</label></p>
+
+    <h2>3. Voting</h2>
+    <p>Opens: <input type="datetime-local"> <button class="button button-small">When submissions close</button></p>
+    <p>Closes: <input type="datetime-local"></p>
+
+    <h2>4. Categories <span class="description">(optional)</span></h2>
+    <textarea rows="3" style="width:100%;max-width:480px;font-family:inherit;">Best Vocals
+Best Production</textarea>
+
+    <p style="margin-top:20px;"><button class="button button-primary button-hero">Create contest</button></p>
+</div>
+        <?php
+        return ['css_url' => admin_url('css/common.min.css'), 'html' => ob_get_clean()];
     }
 
     private static function css_url() {

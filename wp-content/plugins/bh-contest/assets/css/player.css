@@ -383,7 +383,13 @@
 .bh-select-chevron { flex: 0 0 auto; color: var(--bh-text-dim); transition: transform 0.15s ease; }
 .bh-select-wrap.open .bh-select-chevron { transform: rotate(180deg); }
 .bh-select-menu {
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+    /* JS (BHPlayer.enhanceSelect()) switches this to `position:fixed` with
+       real left/top/width the moment it opens, so it renders outside
+       .bh-modal-content's own overflow-y:auto and can't get clipped by it
+       — this absolute/z-index:20 pair is only the pre-JS/no-JS fallback
+       shape. z-index bumped past .bh-modal's own 10000 since a `fixed`
+       menu stacks against the whole page, not just this local context. */
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 10001;
     background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm);
     box-shadow: 0 10px 30px rgba(0,0,0,0.45); max-height: 220px; overflow-y: auto;
     display: none; padding: calc(4px * var(--bh-space-scale));
@@ -431,6 +437,8 @@
 .bh-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* ---------------- Results list ---------------- */
+.bh-results-subhead { font-family: var(--bh-font-display); font-size: calc(13px * var(--bh-font-scale)); text-transform: uppercase; letter-spacing: 0.04em; color: var(--bh-text-dim); margin: calc(18px * var(--bh-space-scale)) 0 calc(6px * var(--bh-space-scale)); }
+.bh-results-subhead:first-child { margin-top: 0; }
 .bh-results-list { list-style: none; margin: 0; padding: 0; }
 .bh-results-list li { display: flex; align-items: center; gap: calc(14px * var(--bh-space-scale)); padding: calc(12px * var(--bh-space-scale)) 0; margin-bottom: calc(4px * var(--bh-space-scale)); border-bottom: 1px solid var(--bh-border); flex-wrap: wrap; }
 .bh-results-list li:last-child { border-bottom: none; margin-bottom: 0; }

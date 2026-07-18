@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.4.19
+ * Version:     0.5.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -180,7 +180,112 @@ if (!defined('ABSPATH')) exit;
 // created a real tier post and a real bhm_entitlements row directly in
 // the database and loaded the real [bhm_tiers] page to exercise this,
 // not just a syntax check.
-define('BHM_VER',  '0.4.19');
+// 0.4.20 — free trials, the one genuinely open item left in
+// ROADMAP-platform-evolution.md Section 4 besides gifting (promo/discount
+// codes already work today via WooCommerce's own native checkout coupon
+// field, confirmed nothing in this plugin disables it). A tier's edit
+// screen (class-tiers.php) now has a "Free trial (days)" field, synced
+// through to BOTH the monthly and annual WC Subscription product via
+// BH_Commerce::upsert_product()'s new trial_length/trial_period args
+// (own-ur-shit 3.6.8), and surfaced on the fan-facing tier picker
+// (class-frontend.php) as an "N-day free trial" badge — a trial nobody
+// can see before checking out isn't a real conversion lever, it's just
+// hidden product config.
+// 0.4.21 — real bug caught live in this same pass, via a DB error in the
+// debug log: BHM_PortalPanel::active_entitlements() (class-portal-panel.php)
+// queried a nonexistent `tier_id` column on `bhm_entitlements` — the real
+// column is `object_id` (class-activator.php's own CREATE TABLE). The
+// portal's "Membership & Wallet" panel was silently showing "No active
+// supporter tier" for EVERY user regardless of real entitlement state,
+// since the underlying query errored out and returned nothing. Fixed the
+// column name, and also scoped the query to type IN
+// ('subscription','streaming_tier') — this table also holds one-time
+// track/release purchase entitlements, which would have shown up as
+// bogus "Tier #123" rows once the column-name bug was fixed.
+// 0.4.22 — gift memberships: ROADMAP-platform-evolution.md Section 4's
+// last genuinely open item, now built. A "Gift this" form on the tier
+// picker captures a recipient email at add-to-cart time
+// (BHM_Gifts::capture_gift_email(), a real WooCommerce cart-item-data
+// extension point); on_order_completed() checks for it and, instead of
+// granting the BUYER an entitlement, creates a redemption code
+// (bhm_gift_redemptions, BHM_Activator DB_VERSION 1.4) and emails the
+// recipient a claim link. [bhm_redeem_gift] renders the claim form
+// (prompting login/signup first if needed); claiming grants a real
+// 30-day streaming_tier entitlement via BHM_Products::grant_gift_entitlement().
+// A matching Debug Tools action (simulate_gift_order) drives the same
+// real order-completion code path as the existing tier-order simulation,
+// plus a "recent gift redemptions" table with clickable claim links —
+// wp_mail() isn't reliable on a bare local install, so the redemption
+// itself needs to be testable without depending on real email delivery.
+// 0.4.23 — the gift-claim page had no auto-detect the way the tier
+// picker's own page already does (BHM_Frontend::maybe_remember_tiers_page()),
+// so BHM_Gifts::redeem_page_url() fell back to the homepage until an
+// admin manually wired up an option that didn't even have a settings UI
+// yet. Added the same save_post_page auto-detect for any page carrying
+// [bhm_redeem_gift], matching the existing tiers-page convention exactly.
+// 0.5.0 — storefront/merchandising (ROADMAP-platform-evolution.md
+// Section 5), the last two open items: individual product pages and
+// "customers also bought" relations. Minor bump, not patch: real new
+// user-facing capability, not a bug fix.
+//   1. BHM_Recommendations (new) — a product's own version of
+//      bh-streaming's BHS_Recommendations content-based scoring
+//      (shared bhm_collection/product_cat/product_tag terms, weighted
+//      3/2/1 same shape as tracks' artist/release/genre), explicitly
+//      reusing that approach per the roadmap's own suggestion rather
+//      than inventing a second one. Every real single-product page now
+//      gets a "You may also like" section automatically
+//      (woocommerce_after_single_product_summary), no authoring
+//      required.
+//   2. Real Gutenberg registration for bhm/product-grid,
+//      bhm/product-filter, and the new bhm/related-products
+//      (register_block_type() + render_callback, reusing the same PHP
+//      renderers BH_Content's own registration already calls) — closes
+//      the exact boundary class-storefront.php's own docblock had
+//      already flagged as unaddressed ("if either is ever placed
+//      inside a document rendered through WordPress's normal
+//      the_content() path... not added here, since no current consumer
+//      renders storefront documents that way").
+//   3. Real bug found while wiring #2 in: WooCommerce core
+//      unconditionally hardcodes the block editor OFF for products
+//      (WC_Post_Types::gutenberg_can_edit_post_type() always returns
+//      false) — so a product's own description could never actually
+//      be composed with blocks no matter what got registered. Added a
+//      later-priority filter override, the "wrap WooCommerce, don't
+//      route around it" version of turning this back on.
+//   4. Real bug found while light-polishing the single-product page:
+//      storefront.css referenced a fictional, never-defined
+//      --bhy-color-* token scheme identical to the one own-ur-shit
+//      3.4.88 already found and fixed in class-portal.php — every
+//      declaration silently fell through to hardcoded fallbacks.
+//      Rewritten to the real --bh-* tokens BHY_Style actually emits.
+//      Second real bug in the same pass: the price/button rules only
+//      matched the CLASSIC WooCommerce template's markup
+//      (`.summary .price` etc.) — this site (and any block-theme
+//      WooCommerce install) renders the product page as real Woo
+//      Blocks with a completely different DOM shape and no `.summary`
+//      ancestor at all, so the rules silently matched nothing.
+//      Rescoped to selectors stable across both template modes.
+// RUNTIME-VERIFIED: created two real test products sharing a category,
+// confirmed the bhm/related-products block appears in the real product
+// block-editor inserter (not confused with WooCommerce's own native
+// "Related Products" block, which looks identical in the search
+// results), confirmed it server-renders the actual other product on
+// the live single-product page, confirmed the automatic
+// "You may also like" section renders too, confirmed the add-to-cart
+// button/price now render in the real brand accent color instead of
+// generic WooCommerce black, and confirmed zero PHP errors across the
+// whole pass via a live error-log check.
+// 0.5.1 — first real consumer of own-ur-shit 3.7.0's new OUS_Revisions
+// shared service (ROADMAP-search-and-revisions.md Section 2). A tier's
+// full field set is a clean fit: a genuinely overwrite-on-save single
+// object (unlike bh-crm's own notes, which are already append-only
+// history and don't need a second history mechanism). BHM_Tiers::save()
+// now snapshots the tier's complete state on every save; the tier edit
+// screen gets a real "Version History" panel (OUS_Revisions' own
+// shared UI fragment) with working Restore buttons that re-apply a
+// prior version through the SAME save path (including re-syncing the
+// WooCommerce product), not a raw postmeta write.
+define('BHM_VER',  '0.5.1');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): a live check (WC_Payment_
@@ -322,7 +427,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   own parallel recurring-billing logic (which would directly violate
  *   the ecosystem's "don't reinvent what already exists" principle).
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -352,6 +457,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Wallet', 'init']);
     add_action('init',          ['BHM_Admin', 'init']);
     add_action('init',          ['BHM_Products', 'init']);
+    add_action('init',          ['BHM_Gifts', 'init']);
     add_action('init',          ['BHM_Downloads', 'init']);
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);

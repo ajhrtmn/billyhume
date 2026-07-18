@@ -30,6 +30,19 @@ class BH_API {
         // callback" pattern bh-monetization-woo's admin_post_
         // bhm_manage_subscription handler already uses.
         register_rest_route('bh/v1', '/submissions/replace-audio', ['methods' => 'POST', 'callback' => [self::class, 'replace_audio'], 'args' => $idarg] + $auth);
+        // Real gap, named explicitly in ROADMAP-platform-evolution.md
+        // Section 6: the portal's Contest Submissions panel let a
+        // contestant swap the AUDIO FILE (replace_audio() above) but had
+        // no way to fix a typo'd song/artist title without emailing an
+        // admin — "edit your submission" was described as a genuine
+        // capability gap this portal build should close, not just a UI
+        // move. Same ownership + submission-window gating as
+        // replace_audio(), same reasoning: still editable while the
+        // contest is accepting submissions, locked once it closes.
+        register_rest_route('bh/v1', '/submissions/edit-details', ['methods' => 'POST', 'callback' => [self::class, 'edit_details'], 'args' => $idarg + [
+            'title'  => ['sanitize_callback' => 'sanitize_text_field'],
+            'artist' => ['sanitize_callback' => 'sanitize_text_field'],
+        ]] + $auth);
         // Admin-only live tally. Completely separate gate from /results —
         // always reflects the true current count regardless of the "Publish
         // Results" checkbox, and only ever answers manage_options users.
@@ -320,6 +333,12 @@ class BH_API {
                 : 'Submissions have closed for this contest.';
             return self::err('sub_closed', $msg, 403);
         }
+        // A draft (no audio yet — see below) gets its own message
+        // pointing at how to finish, not "you already submitted".
+        $existing_draft = BH_Helpers::draft_submission_for($uid, $cid);
+        if ($existing_draft) {
+            return self::err('needs_audio', 'You already started a submission for this contest — finish it by uploading your audio file from your account portal.', 409, ['submission_id' => $existing_draft]);
+        }
         if (BH_Helpers::has_submitted($uid, $cid)) return self::err('duplicate', 'You have already submitted a track to this contest.', 403);
 
         // Fold in whatever profile fields rode along with this submission —
@@ -338,12 +357,21 @@ class BH_API {
             );
         }
 
+        // A fan can start a submission with no audio file yet and attach
+        // it later from the account portal (BH_PortalPanel, reusing
+        // replace_audio()'s upload form below). Per-contest, off by
+        // default — an admin opts in via "Allow submitting without
+        // audio yet" (Contest Rules & Results box).
+        $allow_draft = (bool) get_post_meta($cid, '_bh_allow_audio_optional', true);
         $f = $req->get_file_params();
-        if (empty($f['audio']['tmp_name'])) return self::err('file', 'Please attach an audio file.', 400);
-        if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);
-        // Server-side type gate — the client `accept` attribute is cosmetic.
-        if (empty(wp_check_filetype($f['audio']['name'], BH_Helpers::allowed_audio())['ext'])) {
-            return self::err('file', 'Only MP3 or M4A files are allowed.', 400);
+        $has_file = !empty($f['audio']['tmp_name']);
+        if (!$has_file && !$allow_draft) return self::err('file', 'Please attach an audio file.', 400);
+        if ($has_file) {
+            if ($f['audio']['size'] > BH_MAX_BYTES) return self::err('file', 'Audio file must be 20MB or smaller.', 400);
+            // Server-side type gate — the client `accept` attribute is cosmetic.
+            if (empty(wp_check_filetype($f['audio']['name'], BH_Helpers::allowed_audio())['ext'])) {
+                return self::err('file', 'Only MP3 or M4A files are allowed.', 400);
+            }
         }
 
         $title = sanitize_text_field($req->get_param('title'));
@@ -370,7 +398,13 @@ class BH_API {
         $pid = wp_insert_post([
             'post_title'  => $title,
             'post_type'   => 'bh_submission',
-            'post_status' => 'pending',
+            // A no-file entry (only reachable when $allow_draft is on)
+            // is genuinely NOT ready for review yet — 'draft' keeps it
+            // out of the admin approval queue and out of
+            // has_approved_submission()'s bonus-vote check, but
+            // has_submitted()'s 'any'-status query still correctly
+            // blocks a second entry attempt while it's outstanding.
+            'post_status' => $has_file ? 'pending' : 'draft',
             'post_author' => $uid,
         ], true);
         if (is_wp_error($pid)) {
@@ -386,6 +420,17 @@ class BH_API {
         update_post_meta($pid, '_bh_contest_id', $cid);
         update_post_meta($pid, '_bh_artist_name', sanitize_text_field($req->get_param('artist')));
         update_post_meta($pid, '_bh_admin_note', sanitize_textarea_field($req->get_param('note')));
+
+        if (!$has_file) {
+            // No email/CRM event yet — notify_submission_complete()
+            // fires once audio actually shows up (here or via
+            // replace_audio()), the point a submission is genuinely "in".
+            return self::ok([
+                'submission_id' => $pid,
+                'needs_audio' => true,
+                'message' => "Submission started! Attach your audio file anytime before the deadline from your account portal to finish entering.",
+            ]);
+        }
 
         $aid = media_handle_sideload($f['audio'], $pid);
         if (is_wp_error($aid)) {
@@ -405,9 +450,29 @@ class BH_API {
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
         update_post_meta($pid, '_bh_audio_id', $aid);
+        self::notify_submission_complete($pid, $uid, $cid, $title);
 
-        // Feeds the CRM's unified per-person activity timeline
-        // (BHCRM's render_timeline(), own-ur-shit's BH_Event).
+        // submission_id + the two share-card URLs ride along on the
+        // success response so the submit form's own JS can offer
+        // "Get shareable image" immediately, without a second request —
+        // same shape class-share-cards.php's card_url() builds, just
+        // called from here since this is a REST context, not a
+        // template_redirect one.
+        $share = class_exists('BH_ShareCards') ? [
+            'entered_card_url' => BH_ShareCards::entered_card_url($pid),
+            'vote_card_url' => BH_ShareCards::vote_card_url($pid),
+            'contest_page_url' => BH_ShareCards::contest_page_url($cid),
+        ] : [];
+        return self::ok(['submission_id' => $pid] + $share);
+    }
+
+    // Shared by submit() (audio attached in the same request) and
+    // replace_audio()'s first-time-attach branch (audio attached later
+    // from the portal) — a submission is only genuinely "in" for review
+    // once real audio exists, so this is the one place both paths
+    // converge to fire the CRM timeline event + confirmation email,
+    // rather than maintaining two copies of the same notice text.
+    private static function notify_submission_complete($pid, $uid, $cid, $title) {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_created', [
                 'user_id' => $uid, 'subject_type' => 'bh_submission', 'subject_id' => $pid,
@@ -430,25 +495,11 @@ class BH_API {
                     'payload' => ['title' => $subject],
                 ]);
             } elseif (!$sent && class_exists('OUS_DebugLog')) {
-                // Debug-log wiring pass — previously silent on failure.
                 OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
                     'user_id' => $uid, 'submission_id' => $pid,
                 ], 'BH Contest Submission');
             }
         }
-
-        // submission_id + the two share-card URLs ride along on the
-        // success response so the submit form's own JS can offer
-        // "Get shareable image" immediately, without a second request —
-        // same shape class-share-cards.php's card_url() builds, just
-        // called from here since this is a REST context, not a
-        // template_redirect one.
-        $share = class_exists('BH_ShareCards') ? [
-            'entered_card_url' => BH_ShareCards::entered_card_url($pid),
-            'vote_card_url' => BH_ShareCards::vote_card_url($pid),
-            'contest_page_url' => BH_ShareCards::contest_page_url($cid),
-        ] : [];
-        return self::ok(['submission_id' => $pid] + $share);
     }
 
     /**
@@ -508,6 +559,17 @@ class BH_API {
             return self::err('upload', 'We could not process that audio file. Please try another.', 400);
         }
 
+        // A draft submission has no live audio yet — this is its real
+        // first file, not a swap, so it goes straight into _bh_audio_id
+        // and becomes reviewable (draft -> pending), sharing submit()'s
+        // completion notice rather than the pending-swap path below.
+        if ($post->post_status === 'draft' && !get_post_meta($pid, '_bh_audio_id', true)) {
+            update_post_meta($pid, '_bh_audio_id', $aid);
+            wp_update_post(['ID' => $pid, 'post_status' => 'pending']);
+            self::notify_submission_complete($pid, (int) $post->post_author, $cid, $post->post_title);
+            return self::ok(['message' => 'Submission complete — your track is now pending review!']);
+        }
+
         // Only the newest pending swap survives — delete a prior
         // unreviewed one rather than stacking pending files.
         $old_pending = (int) get_post_meta($pid, '_bh_pending_audio_id', true);
@@ -528,6 +590,43 @@ class BH_API {
         }
 
         return self::ok(['message' => 'Your replacement file is uploaded and waiting for review — your original submission stays active until then.']);
+    }
+
+    /**
+     * Song title + artist name, the two fields a contestant can typo at
+     * submit time with no self-service fix until now. Deliberately NOT
+     * touching the audio file (replace_audio() above already owns that)
+     * or re-opening admin review — a title/artist correction doesn't
+     * need the same "goes back to pending" treatment a new audio file
+     * does, since nothing about the actual submitted work changed.
+     */
+    public static function edit_details($req) {
+        $pid = (int) $req->get_param('submission_id');
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') {
+            return self::err('not_found', 'Submission not found.', 404);
+        }
+
+        $uid = get_current_user_id();
+        $is_owner = (int) $post->post_author === $uid;
+        $is_admin = current_user_can('manage_options');
+        if (!$is_owner && !$is_admin) {
+            return self::err('forbidden', 'You can only edit your own submission.', 403);
+        }
+
+        $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
+        if (!$cid || !BH_Helpers::is_submission_open($cid)) {
+            return self::err('sub_closed', 'Submissions are closed for this contest — details can no longer be changed.', 403);
+        }
+
+        $title = sanitize_text_field($req->get_param('title'));
+        if ($title === '') return self::err('title', 'Song title can\'t be empty.', 400);
+        $artist = sanitize_text_field($req->get_param('artist'));
+
+        wp_update_post(['ID' => $pid, 'post_title' => $title]);
+        update_post_meta($pid, '_bh_artist_name', $artist);
+
+        return self::ok(['message' => 'Saved.', 'title' => $title, 'artist' => $artist]);
     }
 
     // Always returns a `categories` array — a contest with no named

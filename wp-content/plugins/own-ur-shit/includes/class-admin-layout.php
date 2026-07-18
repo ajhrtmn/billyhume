@@ -33,7 +33,23 @@ if (!defined('ABSPATH')) exit;
  * this ecosystem.
  */
 class OUS_AdminLayout {
-    const BREAKPOINT = 1200; // px — below this, WordPress's own default layout is left untouched
+    // Real bug, caught live: 1200px was an all-or-nothing gate, not a
+    // graceful degradation point — the masonry treatment below
+    // (`columns: 360px 3`) is ALREADY fluid on its own (the browser
+    // computes min(3, floor(available_width / 360)) columns, naturally
+    // collapsing to 2 then 1 as the viewport narrows, no media query
+    // needed for that part). The only thing gated on this constant is
+    // whether the nicer card treatment applies AT ALL — so anywhere
+    // between roughly 850px (WordPress's own admin sidebar collapse
+    // point) and 1200px got the OLD cramped stock two-column layout
+    // back with zero warning, the exact "sidebar overflowing, main
+    // column empty" problem this whole class exists to fix. Lowered to
+    // WordPress core's own well-known admin-menu collapse breakpoint
+    // (782px, where wp-admin's sidebar itself already goes icon-only) —
+    // below that is genuinely mobile/tablet territory where WP's own
+    // plain stacked default is the right call; everything wider now
+    // gets the masonry treatment, closing the awkward gap.
+    const BREAKPOINT = 782; // px — below this, WordPress's own default layout is left untouched
 
     public static function init() {
         add_action('admin_head-post.php', [self::class, 'maybe_print_css']);

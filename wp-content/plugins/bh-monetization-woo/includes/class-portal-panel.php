@@ -28,12 +28,22 @@ class BHM_PortalPanel {
         return $panels;
     }
 
+    // Real bug, caught live via a fatal-adjacent DB error in the debug
+    // log: this queried an `ORDER BY tier_id` column that doesn't exist
+    // on `bhm_entitlements` (the real column, per class-activator.php's
+    // own CREATE TABLE, is `object_id` — a tier entitlement's object_id
+    // IS the tier post ID, just not named `tier_id`). Also widened to
+    // only ever select tier-granting entitlement types: this table also
+    // holds one-time track/release PURCHASE entitlements
+    // (grant_entitlement()'s 'purchase' type), which have nothing to do
+    // with "active tiers" and would have shown up here as bogus
+    // "Tier #123" rows once the column-name bug above was fixed.
     private static function active_entitlements($user_id) {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         $now = current_time('mysql');
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $t WHERE user_id = %d AND (expires_at IS NULL OR expires_at > %s) ORDER BY tier_id ASC",
+            "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > %s) ORDER BY object_id ASC",
             $user_id, $now
         ), ARRAY_A);
     }
@@ -51,8 +61,8 @@ class BHM_PortalPanel {
         } else {
             echo '<ul>';
             foreach ($entitlements as $ent) {
-                $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($ent['tier_id']) : null;
-                $label = $tier ? $tier['name'] : ('Tier #' . $ent['tier_id']);
+                $tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($ent['object_id']) : null;
+                $label = $tier ? $tier['name'] : ('Tier #' . $ent['object_id']);
                 $expiry = $ent['expires_at'] ? ('renews/expires ' . esc_html($ent['expires_at'])) : 'ongoing';
                 echo '<li><strong>' . esc_html($label) . '</strong> — ' . esc_html($expiry) . '</li>';
             }

@@ -241,6 +241,34 @@
         bindCardClicks(tracks);
     }
 
+    /* ---------- deep-linking a single track (OUS_Search's own real destination) ---------- */
+
+    // ROADMAP-search-and-revisions.md's own honest flag: tracks/releases
+    // have no canonical per-item URL at all, only ever reachable through
+    // this shortcode's client-rendered SPA — a search result had nowhere
+    // real to link to. Same query-param-read-on-load shape
+    // maybeOpenSharedPlaylist() already established for exactly this
+    // kind of "arrive here from outside already knowing what you want"
+    // case. Deliberately does NOT auto-play (browser autoplay policy
+    // would silently block it anyway, and starting audio without an
+    // explicit click is bad UX regardless) — shows just that one track,
+    // ready to play with the same real click-to-play path every other
+    // card already uses.
+    function maybeOpenTrackDeepLink() {
+        var params = new URLSearchParams(window.location.search);
+        var trackId = parseInt(params.get('bhs_track'), 10);
+        if (!trackId) return false;
+
+        var track = allTracks.find(function (t) { return t.id === trackId; });
+        if (!track) {
+            library.innerHTML = '<p class="bhs-empty">That track isn\'t available.</p>';
+            return true;
+        }
+        library.innerHTML = '<h2 class="bhs-release-title">' + esc(track.title) + '</h2><div class="bhs-grid">' + trackCardHtml(track) + '</div>';
+        bindCardClicks([track]);
+        return true;
+    }
+
     /* ---------- viewing someone else's shared playlist (read-only, no auth) ---------- */
 
     function maybeOpenSharedPlaylist() {
@@ -1512,7 +1540,7 @@
         // (read-only, no tabs needed) — everything else above still
         // loads normally first since the shared view's own track
         // lookups depend on allTracks already being populated.
-        if (!maybeOpenSharedPlaylist()) renderView();
+        if (!maybeOpenSharedPlaylist() && !maybeOpenTrackDeepLink()) renderView();
     }).catch(function () {
         library.innerHTML = '<p class="bhs-empty">Could not load the library right now.</p>';
     });

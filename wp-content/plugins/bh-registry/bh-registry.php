@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.4
+ * Version:     0.1.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -21,7 +21,16 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BHR_VER',  '0.1.4');
+// 0.1.5 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
+// Section 1 sequencing. Reuses the exact same 'active'/verified-only
+// gate BHR_API::list_artists() already enforces for its own public
+// search — pending/rejected artists never surface here regardless of
+// query. Links to the real registry directory page (auto-detected the
+// same way bh-monetization-woo already does for its own tier/gift
+// pages) — no per-artist canonical URL exists yet (the directory is
+// one client-rendered page), so a search result lands a fan on the
+// real browse page rather than a dead link.
+define('BHR_VER',  '0.1.5');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

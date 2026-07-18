@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.2
+ * Version:     3.7.11
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -222,7 +222,82 @@ if (!defined('ABSPATH')) exit;
 // of own-ur-shit's Debug Tools reorganization pass. No functional change
 // to this plugin itself. Standing caveat: reasoning/brace-balance-
 // checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.2');
+// 3.7.4 — real bug, AJ's own report ("stylrs are working for the custom
+// drowndowns... they dont on the live site", later narrowed to Safari):
+// enhanceSelect()'s open menu (assets/js/player.js) was `position:
+// absolute` inside `.bh-modal-content`, which is `overflow-y:auto` so
+// long forms can scroll — any absolutely-positioned child rendering past
+// that container's own visible edge gets clipped by the SAME overflow
+// that lets the form scroll. Worst on a short viewport where the modal
+// scrolls more and the platform-picker field sits closer to the bottom
+// edge. Fixed by switching the menu to `position:fixed`, computed from
+// the trigger's real screen coordinates the moment it opens (assets/css/
+// player.css's z-index bumped past .bh-modal's own 10000 to match, since
+// a `fixed` element stacks against the whole page, not just its local
+// context). RUNTIME-VERIFIED at a 375px mobile viewport: the menu
+// previously would have been clipped at the modal's scrolled bottom
+// edge, now renders in full and selection still updates the real
+// <select> correctly.
+// 3.7.5 — real feature gap closed, named explicitly in
+// ROADMAP-platform-evolution.md Section 6: the portal's Contest
+// Submissions panel let a contestant replace their audio FILE
+// (replace_audio(), 3.x) but had no way to fix a typo'd song/artist
+// title without emailing an admin. Added a real "edit-details" REST
+// route (class-api.php) and an inline edit form in the portal panel
+// (class-portal-panel.php), gated the same way as the file-replace
+// form (owner or admin, only while the contest's submission window is
+// still open).
+// 3.7.6 — first real OUS_Revisions consumer for postmeta-only config
+// (ROADMAP-search-and-revisions.md Section 2, AJ's own framing:
+// "versioning is most important for anything that is a post, like
+// contests and lessons"). A contest's real configuration (dates,
+// rounds, rubric, contact requirements, brand style) lives entirely in
+// postmeta, never post_content/title — WordPress core's own native
+// post-revisions (the right tool for lessons, see bh-courses' own
+// changelog) would capture nothing meaningful here. save_contest_meta()
+// now snapshots every _bh_*/_bhy_style_json meta key on every save; a
+// new "Version History" metabox (side column) lists past versions with
+// working Restore buttons.
+// 3.7.7 — real OUS_Search consumer, ROADMAP-search-and-revisions.md
+// Section 1 sequencing. Published contests are searchable via
+// [ous_search]/ous/v1/search — deliberately public-safe: only
+// published contests (never bh_submission, which holds real people's
+// contact info/audio files), linking to the contest's real page.
+// 3.7.8 — a contest can opt into a "Site Menu" checkbox (new metabox,
+// bh_show_in_menu/_bh_menu_label) that keeps a real "Contests" submenu
+// in every site Navigation menu in sync automatically (OUS_MenuSync,
+// own-ur-shit core) — no manual menu-builder editing needed.
+// 3.7.9 — a contest can opt into "Allow submitting without audio yet"
+// (Contest Rules & Results box, off by default): a fan can reserve
+// their entry with title/artist/contact info alone, then finish by
+// uploading a file later from their account portal (BH_PortalPanel).
+// Reuses the existing replace-audio upload form/endpoint for the
+// first-time attach rather than adding a new one.
+// 3.7.10 — fixed: a hybrid-format contest's Results modal only ever
+// showed the People's Choice leaderboard, dropping Judges' Pick
+// entirely (the REST payload always carried a second judge_results
+// key, class-api.php's results(), but player.js never read it). Now
+// renders both, labeled, matching Reveal Party's own convention. Also
+// fixed a judges-only contest mislabeling its rubric percentage as
+// "N votes" (BH_Judging::judge_results() reuses the `votes` key for
+// shape compatibility).
+// 3.7.11 — [bh_judge_panel] gets real ecosystem theming: previously
+// enqueued zero CSS (bare unstyled browser controls) and its "Save
+// draft" button referenced a bh-btn-secondary class that never existed
+// in player.css. Now enqueues player.css (bh-container wrapper, same
+// design-token system the contest player uses) plus a new judging.css
+// for panel layout, reuses .bh-scrubber for rubric sliders, and fixes
+// the button classes to the real bh-btn-outline/bh-btn-primary pair.
+define('BH_VER',        '3.7.11');
+
+// 3.7.3 — Design Suite gallery gap closed: registered the guided
+// "New Contest" wizard (BH_ContestWizard) as its own surface
+// (class-style-surfaces.php), previously entirely invisible to the
+// token editor. Same contrast bug found and fixed as own-ur-shit's
+// 3.6.5 Media wizard surface — this preview's genuinely light
+// wp-admin-style page was inheriting the dark brand theme's light
+// :host text color, rendering unreadable light-on-light text; fixed
+// with an explicit text color on this preview specifically.
 
 // 3.7.2 — retry-audit pass, AJ's own standing ask (assets/js/bh-judging.js):
 // judge score save had NO .catch() at all — a dropped connection

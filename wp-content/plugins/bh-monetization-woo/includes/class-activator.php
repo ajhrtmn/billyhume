@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) exit;
  *   what actually happened, not just a single opaque number.
  */
 class BHM_Activator {
-    const DB_VERSION = '1.3'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release
+    const DB_VERSION = '1.4'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system)
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -161,8 +161,33 @@ class BHM_Activator {
             KEY fingerprint (fingerprint)
         ) $charset;");
 
+        // Gifting: buying a tier "for" someone else doesn't grant the
+        // BUYER an entitlement at all — it creates a redemption code and
+        // emails the recipient a claim link (class-products.php's
+        // on_order_completed(), class-gifts.php's claim flow). One row
+        // per gift purchased, whether or not it's been claimed yet —
+        // status distinguishes "waiting", "claimed", so a fan (or the
+        // artist, via a future admin view) can see what's still
+        // outstanding, not just silently lose track of an unredeemed gift.
+        $gifts = $wpdb->prefix . 'bhm_gift_redemptions';
+        dbDelta("CREATE TABLE $gifts (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            code varchar(32) NOT NULL,
+            tier_id bigint(20) unsigned NOT NULL,
+            buyer_user_id bigint(20) unsigned NOT NULL,
+            recipient_email varchar(191) NOT NULL,
+            wc_order_id bigint(20) unsigned DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            redeemed_by_user_id bigint(20) unsigned DEFAULT NULL,
+            redeemed_at datetime DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY code (code),
+            KEY recipient_email (recipient_email)
+        ) $charset;");
+
         if ($wpdb->last_error) return false;
-        foreach ([$entitlements, $wallet, $ledger, $play_log, $fingerprints] as $t) {
+        foreach ([$entitlements, $wallet, $ledger, $play_log, $fingerprints, $gifts] as $t) {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) !== $t) return false;
         }
         return true;

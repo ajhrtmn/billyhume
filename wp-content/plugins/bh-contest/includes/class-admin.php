@@ -24,6 +24,21 @@ class BH_Admin {
         // it out of the way without hiding or removing it.
         add_filter('postbox_classes_bh_contest_bh_contest_style', [self::class, 'maybe_collapse_style_box']);
         add_action('save_post_bh_contest', [self::class, 'save_contest_meta']);
+        // A contest leaving 'publish' (trash/delete) or coming back
+        // (untrash) also has to drop or restore its own menu entry —
+        // save_contest_meta() alone only fires on an actual edit-screen
+        // save, not on these list-table/quick actions.
+        add_action('wp_trash_post', [self::class, 'maybe_resync_menu_for_post']);
+        add_action('untrash_post', [self::class, 'maybe_resync_menu_for_post']);
+        add_action('before_delete_post', [self::class, 'maybe_resync_menu_for_post']);
+        add_action('admin_post_bh_restore_contest_revision', [self::class, 'handle_restore_revision']);
+        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
+        // sequencing. Public-safe: a published contest's title/existence
+        // is already public information (the contest page itself is a
+        // real, publicly-viewable page) — this only searches published
+        // contests, never bh_submission (real people's contact info/
+        // audio files, correctly kept out of any public-facing lookup).
+        add_filter('ous_search_providers', [self::class, 'register_search_provider']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
@@ -1060,6 +1075,16 @@ class BH_Admin {
             echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
             echo '</div>';
 
+            // Off by default — a submission with no audio yet ('draft'
+            // status) can't earn the bonus vote or reach admin review
+            // until it's finished (class-api.php's submit()/replace_audio()),
+            // but it DOES reserve the entry (blocks a second attempt) —
+            // an admin opts a specific contest into this rather than it
+            // being silently on everywhere, since most contests want a
+            // real file at submit time.
+            $allow_audio_optional = (bool) get_post_meta($post->ID, '_bh_allow_audio_optional', true);
+            echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . '> Allow submitting without audio yet — a fan can reserve their entry with title/artist/contact info, then finish by uploading a file later (from their account portal) any time before submissions close</label></p>';
+
             $contact_cfg = BH_Helpers::contact_config($post->ID);
             $field_labels = [
                 'real_name' => 'Real name', 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
@@ -1348,6 +1373,26 @@ class BH_Admin {
             echo '<p class="description">A simple page with this shortcode was created automatically when you published. If you deleted it, "Create page" makes a new one.</p>';
         }, 'bh_contest', 'side', 'default');
 
+        if (class_exists('OUS_Revisions')) {
+            add_meta_box('bh_contest_revisions', 'Version History', function ($post) {
+                OUS_Revisions::render_history_panel('bh_contest', $post->ID, 'bh_restore_contest_revision', 'bh_restore_contest_' . $post->ID);
+            }, 'bh_contest', 'side', 'default');
+        }
+
+        add_meta_box('bh_contest_site_menu', 'Site Menu', function ($post) {
+            $page_id = (int) get_post_meta($post->ID, '_bh_page_id', true);
+            $has_page = $page_id && get_post_status($page_id) === 'publish';
+            $checked = (bool) get_post_meta($post->ID, '_bh_show_in_menu', true);
+            $label = get_post_meta($post->ID, '_bh_menu_label', true);
+
+            if (!$has_page) {
+                echo '<p class="description">Publish this contest (and its auto-created page) first — a contest with nowhere real to send a visitor can\'t appear in the menu.</p>';
+                return;
+            }
+            echo '<p><label><input type="checkbox" name="bh_show_in_menu" value="1"' . checked($checked, true, false) . '> Show under <strong>Contests</strong> in the site menu</label></p>';
+            echo '<p><label>Menu label (optional)<br><input type="text" name="bh_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
+        }, 'bh_contest', 'side', 'default');
+
         // Separate from the "Contest Branding & Style" override below —
         // this picks a CARD TEMPLATE (brand vs. poster), not a color
         // override; a contest that never turns on style override at all
@@ -1515,6 +1560,36 @@ class BH_Admin {
         wp_send_json_success($result);
     }
 
+    public static function register_search_provider($providers) {
+        $providers['contests'] = [self::class, 'search_contests'];
+        return $providers;
+    }
+
+    public static function search_contests($query, $limit) {
+        $posts = get_posts([
+            'post_type' => 'bh_contest', 'post_status' => 'publish',
+            's' => $query, 'posts_per_page' => $limit,
+        ]);
+        $out = [];
+        foreach ($posts as $p) {
+            // A contest has no canonical URL of its own — it only ever
+            // lives at whatever real page embeds its shortcode
+            // (ROADMAP-discoverability.md's own finding). Skip a result
+            // with nowhere real to send someone rather than link to a
+            // dead/nonexistent page.
+            $page_id = (int) get_post_meta($p->ID, '_bh_page_id', true);
+            if (!$page_id || get_post_status($page_id) !== 'publish') continue;
+            $out[] = [
+                'type' => 'Contest',
+                'title' => $p->post_title,
+                'excerpt' => '',
+                'url' => get_permalink($page_id),
+                'icon' => 'dashicons-microphone',
+            ];
+        }
+        return $out;
+    }
+
     public static function save_contest_meta($post_id) {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
@@ -1533,6 +1608,7 @@ class BH_Admin {
             if (isset($_POST['bh_sub_start'])) update_post_meta($post_id, '_bh_sub_start', sanitize_text_field($_POST['bh_sub_start']));
             if (isset($_POST['bh_sub_end']))   update_post_meta($post_id, '_bh_sub_end', sanitize_text_field($_POST['bh_sub_end']));
         }
+        update_post_meta($post_id, '_bh_allow_audio_optional', !empty($_POST['bh_allow_audio_optional']) ? '1' : '');
         if (isset($_POST['bh_start'])) update_post_meta($post_id, '_bh_start', sanitize_text_field($_POST['bh_start']));
         if (isset($_POST['bh_end']))   update_post_meta($post_id, '_bh_end', sanitize_text_field($_POST['bh_end']));
         update_post_meta($post_id, '_bh_results_published', isset($_POST['bh_results_published']) ? '1' : '0');
@@ -1640,7 +1716,112 @@ class BH_Admin {
         }
         update_post_meta($post_id, '_bhy_style_json', $style ? wp_json_encode($style) : '');
 
+        // Real OUS_Revisions consumer, AJ's own framing: "versioning is
+        // most important for anything that is a post, like contests and
+        // lessons." Lessons get WordPress core's own NATIVE post-
+        // revisions for free (bh_lesson's real post_content, just
+        // needed 'revisions' support added — see class-post-types.php).
+        // A contest is different: its real configuration (dates, rounds,
+        // rubric, contact requirements, brand style) lives entirely in
+        // postmeta, never post_content/title — native WP revisions
+        // would capture nothing meaningful for it. get_post_meta()'s
+        // full flat dump is the honest "complete current state" here,
+        // rather than hand-curating a field list that would silently
+        // drift out of sync with this save method's own field list.
+        update_post_meta($post_id, '_bh_show_in_menu', !empty($_POST['bh_show_in_menu']) ? '1' : '');
+        if (isset($_POST['bh_menu_label'])) {
+            update_post_meta($post_id, '_bh_menu_label', sanitize_text_field($_POST['bh_menu_label']));
+        }
+
+        if (class_exists('OUS_Revisions')) {
+            $all_meta = get_post_meta($post_id);
+            $flat = [];
+            foreach ($all_meta as $key => $values) {
+                if (strpos($key, '_bh_') === 0 || $key === '_bhy_style_json') $flat[$key] = $values[0] ?? '';
+            }
+            OUS_Revisions::snapshot('bh_contest', $post_id, $flat);
+        }
+
         self::maybe_create_contest_page($post_id);
+        self::resync_menu();
+    }
+
+    /**
+     * Rebuilds the "Contests" submenu group (OUS_MenuSync) from
+     * whatever contests currently have the menu toggle on — called
+     * after any save, trash, untrash, or delete so the live menu never
+     * drifts from what's actually checked. Ordered by start date so an
+     * upcoming/current contest surfaces before older ones.
+     */
+    public static function resync_menu() {
+        if (!class_exists('OUS_MenuSync')) return;
+
+        $posts = get_posts([
+            'post_type'   => 'bh_contest',
+            'post_status' => 'publish',
+            'numberposts' => -1,
+            'meta_key'    => '_bh_show_in_menu',
+            'meta_value'  => '1',
+            'orderby'     => 'date',
+            'order'       => 'DESC',
+        ]);
+
+        $items = [];
+        foreach ($posts as $p) {
+            $page_id = (int) get_post_meta($p->ID, '_bh_page_id', true);
+            if (!$page_id || get_post_status($page_id) !== 'publish') continue;
+            $label = get_post_meta($p->ID, '_bh_menu_label', true) ?: $p->post_title;
+            $items[] = ['label' => $label, 'url' => get_permalink($page_id)];
+        }
+
+        OUS_MenuSync::sync_group('contests', 'Contests', $items);
+    }
+
+    public static function maybe_resync_menu_for_post($post_id) {
+        if (get_post_type($post_id) === 'bh_contest') self::resync_menu();
+    }
+
+    // OUS_Revisions::render_history_panel()'s Restore button posts here.
+    // Writes every stored _bh_*/_bhy_style_json meta key straight back —
+    // simple direct restore rather than routing through
+    // save_contest_meta() (that method expects real $_POST field names
+    // from the actual settings form, not a stored meta-key-shaped
+    // snapshot; re-simulating a fake $_POST would be more fragile than
+    // just writing the meta back directly, since the snapshot already
+    // IS the target shape).
+    public static function handle_restore_revision() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post_id = (int) ($_GET['object_id'] ?? 0);
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bh_restore_contest_' . $post_id)) {
+            wp_die('Invalid request.');
+        }
+        if (!$post_id || get_post_type($post_id) !== 'bh_contest') wp_die('Not a contest.');
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bh_contest', $post_id, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+
+        foreach ((array) $snapshot['data'] as $key => $value) {
+            update_post_meta($post_id, $key, $value);
+        }
+
+        // The restore itself is also a real save — same "undo an
+        // accidental restore the same way" reasoning as BHM_Tiers'
+        // own restore handler.
+        if (class_exists('OUS_Revisions')) {
+            $all_meta = get_post_meta($post_id);
+            $flat = [];
+            foreach ($all_meta as $key => $values) {
+                if (strpos($key, '_bh_') === 0 || $key === '_bhy_style_json') $flat[$key] = $values[0] ?? '';
+            }
+            OUS_Revisions::snapshot('bh_contest', $post_id, $flat, 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(get_edit_post_link($post_id, ''));
+        exit;
     }
 
     // <input type="datetime-local"> requires "YYYY-MM-DDTHH:MM" (a literal

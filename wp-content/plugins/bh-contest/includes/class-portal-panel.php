@@ -71,7 +71,13 @@ class BH_PortalPanel {
             $window_open = $contest_id && class_exists('BH_Helpers') && BH_Helpers::is_submission_open($contest_id);
             $pending_id = (int) get_post_meta($sub->ID, '_bh_pending_audio_id', true);
 
+            // A 'draft' here specifically means "reserved, audio not
+            // attached yet" (contest's own "Allow submitting without
+            // audio yet" setting) — not a generic WP draft, so it gets
+            // its own label rather than the raw ucfirst('draft').
+            $needs_audio = $sub->post_status === 'draft' && !get_post_meta($sub->ID, '_bh_audio_id', true);
             $status_label = ucfirst($sub->post_status);
+            if ($needs_audio) $status_label = '<span style="color:#dba617;font-weight:600;">Needs audio file</span>';
             if ($sub->post_status === 'rejected') $status_label = '<span style="color:#b32d2e;font-weight:600;">Rejected</span>';
             if ($pending_id) $status_label .= ' <span style="color:#dba617;">(replacement pending review)</span>';
 
@@ -110,10 +116,29 @@ class BH_PortalPanel {
             // puts it back in front of an admin, see BH_API::
             // replace_audio()).
             if ($window_open) {
+                $artist_name = (string) get_post_meta($sub->ID, '_bh_artist_name', true);
+                // Real gap this closes: previously the only self-service
+                // fix available was replacing the audio FILE — a typo'd
+                // song/artist title had no fix short of emailing an
+                // admin. Same window-open gating as the file-replace
+                // form below, same reasoning (still editable while the
+                // contest is accepting submissions).
                 echo '<tr><td colspan="5">';
+                echo '<form class="bh-edit-details-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">';
+                echo '<label style="font-size:13px;">Song title: <input type="text" class="bh-edit-title" value="' . esc_attr($sub->post_title) . '" required></label>';
+                echo '<label style="font-size:13px;">Artist name: <input type="text" class="bh-edit-artist" value="' . esc_attr($artist_name) . '"></label>';
+                echo '<button type="submit" class="button">Save details</button>';
+                echo '<span class="bh-edit-status description"></span>';
+                echo '</form>';
+
                 echo '<form class="bh-replace-audio-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
-                echo '<label style="font-size:13px;">' . ($pending_id ? 'Upload a different replacement:' : 'Wrong file? Upload a replacement:') . ' <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" required></label>';
-                echo '<button type="submit" class="button">Upload replacement</button>';
+                if ($needs_audio) {
+                    $label = 'Finish your entry — upload your audio file:';
+                } else {
+                    $label = $pending_id ? 'Upload a different replacement:' : 'Wrong file? Upload a replacement:';
+                }
+                echo '<label style="font-size:13px;">' . esc_html($label) . ' <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" required></label>';
+                echo '<button type="submit" class="button' . ($needs_audio ? ' button-primary' : '') . '">' . ($needs_audio ? 'Complete submission' : 'Upload replacement') . '</button>';
                 echo '<span class="bh-replace-status description"></span>';
                 echo '</form>';
                 echo '</td></tr>';

@@ -5,6 +5,45 @@ class BHS_Player {
     public static function init() {
         add_shortcode('bh_streaming', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
+        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
+        // — the piece deliberately left open earlier ("no canonical
+        // per-item URL to link a result to"), now closed via
+        // player.js's own maybeOpenTrackDeepLink() reading a real
+        // ?bhs_track=ID query param on the streaming page. Public-safe
+        // the same way bh-contest's own provider is: track TITLES are
+        // already public information (the whole point of a streaming
+        // catalog), and the deep link only ever shows that one track's
+        // existing public card — it doesn't bypass whatever lock/gate
+        // BHM_Gate already enforces for actual playback.
+        add_filter('ous_search_providers', [self::class, 'register_search_provider']);
+    }
+
+    public static function register_search_provider($providers) {
+        $providers['tracks'] = [self::class, 'search_tracks'];
+        return $providers;
+    }
+
+    public static function search_tracks($query, $limit) {
+        $page_id = (int) get_option('bhs_streaming_page_id', 0);
+        if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
+
+        $posts = get_posts([
+            'post_type' => 'bhs_track', 'post_status' => 'publish',
+            's' => $query, 'posts_per_page' => $limit,
+        ]);
+        $base_url = get_permalink($page_id);
+        $out = [];
+        foreach ($posts as $p) {
+            $artist = get_post_meta($p->ID, '_bhs_artist', true);
+            $out[] = [
+                'type' => 'Track',
+                'title' => $p->post_title,
+                'excerpt' => $artist ? (string) $artist : '',
+                'url' => add_query_arg('bhs_track', $p->ID, $base_url),
+                'icon' => 'dashicons-format-audio',
+            ];
+        }
+        return $out;
     }
 
     public static function maybe_enqueue() {

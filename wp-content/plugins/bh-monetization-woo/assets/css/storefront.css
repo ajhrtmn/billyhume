@@ -1,19 +1,31 @@
 /* Storefront browse/collection/listing styling — draws on BHY_Style's
- * design tokens (--bhy-* custom properties) rather than a second,
- * disconnected visual language, same rule BH_Studio's own canvas CSS
- * follows. Plain flex/grid throughout, no absolute positioning. */
+ * design tokens (the --bh-* custom properties BHY_Style::inline_css()
+ * actually emits, printed on every front-end page via wp_head).
+ *
+ * Real bug fixed here: every rule below previously referenced a
+ * fictional, never-defined --bhy-color-* scheme (--bhy-color-border,
+ * --bhy-color-surface, --bhy-color-accent, --bhy-color-text-muted) that
+ * doesn't exist anywhere in this codebase — own-ur-shit 3.4.88 already
+ * found and fixed the IDENTICAL bug in class-portal.php's own inline
+ * styles ("every declaration silently fell through to hardcoded
+ * generic-WP-blue fallbacks, so the portal NEVER showed the real site
+ * brand... ever"), but this sibling file wasn't part of that pass and
+ * had the same problem. Every reference below is now the real --bh-*
+ * name BHY_Style actually writes (--bh-border, --bh-surface,
+ * --bh-accent, --bh-text-dim, etc.), same as bh-contest/bh-crm/
+ * bh-streaming's own front-end CSS already does it correctly. */
 
 .bhm-storefront-wrap { max-width:1200px; margin:0 auto; padding:32px 20px; }
 .bhm-collection-title { font-size:28px; margin:0 0 8px; }
-.bhm-collection-desc { color:var(--bhy-color-text-muted, #646970); margin:0 0 24px; }
+.bhm-collection-desc { color:var(--bh-text-dim, #646970); margin:0 0 24px; }
 
 .bhm-product-filter {
     display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;
-    padding:16px; margin-bottom:24px; border:1px solid var(--bhy-color-border, #e2e2e2);
-    border-radius:8px; background:var(--bhy-color-surface, #fafafa);
+    padding:16px; margin-bottom:24px; border:1px solid var(--bh-border, #e2e2e2);
+    border-radius:var(--bh-radius, 8px); background:var(--bh-surface, #fafafa);
 }
-.bhm-product-filter label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--bhy-color-text-muted, #646970); }
-.bhm-product-filter input, .bhm-product-filter select { padding:6px 8px; border:1px solid var(--bhy-color-border, #ccc); border-radius:4px; font-size:14px; }
+.bhm-product-filter label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--bh-text-dim, #646970); }
+.bhm-product-filter input, .bhm-product-filter select { padding:6px 8px; border:1px solid var(--bh-border, #ccc); border-radius:var(--bh-radius-sm, 4px); font-size:14px; }
 .bhm-product-filter .button { align-self:flex-end; }
 
 .bhm-product-grid {
@@ -28,15 +40,49 @@
 
 .bhm-product-card {
     display:flex; flex-direction:column; gap:8px; text-decoration:none; color:inherit;
-    border:1px solid var(--bhy-color-border, #e2e2e2); border-radius:8px; overflow:hidden;
-    background:var(--bhy-color-surface, #fff); transition:box-shadow .15s ease;
+    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 8px); overflow:hidden;
+    background:var(--bh-surface, #fff); transition:box-shadow .15s ease, border-color .15s ease;
 }
-.bhm-product-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); }
+.bhm-product-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); border-color:var(--bh-accent, #2271b1); }
 .bhm-product-card-image img { width:100%; height:auto; display:block; aspect-ratio:1/1; object-fit:cover; }
-.bhm-product-card-title { padding:0 12px; font-weight:600; font-size:14px; }
-.bhm-product-card-price { padding:0 12px 12px; color:var(--bhy-color-accent, #2271b1); font-weight:600; }
+.bhm-product-card-title { padding:0 12px; font-weight:600; font-size:14px; color:var(--bh-text, inherit); }
+.bhm-product-card-price { padding:0 12px 12px; color:var(--bh-accent, #2271b1); font-weight:600; }
 
 .bhm-studio-block-placeholder {
-    padding:16px; border:1px dashed var(--bhy-color-border, #ccc); border-radius:6px;
-    background:var(--bhy-color-surface, #f6f7f7); font-size:13px; color:var(--bhy-color-text-muted, #646970);
+    padding:16px; border:1px dashed var(--bh-border, #ccc); border-radius:var(--bh-radius-sm, 6px);
+    background:var(--bh-surface, #f6f7f7); font-size:13px; color:var(--bh-text-dim, #646970);
+}
+
+/* "You may also like" — the automatic (or explicitly block-placed)
+ * related-products section, BHM_Recommendations::render_related_products_block(). */
+.bhm-related-products { margin-top:40px; padding-top:24px; border-top:1px solid var(--bh-border, #e2e2e2); }
+.bhm-related-products-heading { font-size:20px; margin:0 0 16px; color:var(--bh-text, inherit); }
+
+/* Single-product light polish, ROADMAP-platform-evolution.md Section 5 —
+ * WooCommerce's own stock single-product template stays (cart/checkout
+ * logic is never reimplemented here), but its price/button now read as
+ * this ecosystem's own brand rather than generic WooCommerce purple.
+ *
+ * Real bug, caught live: the first version of these rules only matched
+ * the CLASSIC WooCommerce template's markup (`.summary .price`,
+ * `.summary .single_add_to_cart_button`) — this site (and any
+ * block-theme WooCommerce install, confirmed via the
+ * `woocommerce-uses-block-theme` body class) instead renders the
+ * product page as real Woo Blocks (`.wc-block-components-product-price`,
+ * `.wp-block-woocommerce-add-to-cart-form`), an entirely different DOM
+ * shape with no `.summary` ancestor at all — so every rule below
+ * silently matched nothing and the button stayed plain WooCommerce
+ * black. `.single_add_to_cart_button` itself is the one class name
+ * that's stable across BOTH template modes; scoping to that directly
+ * (dropping the `.summary` requirement) covers both. */
+.single-product .price,
+.single-product .wc-block-components-product-price { color:var(--bh-accent, #2271b1); }
+.single-product .button,
+.single-product .single_add_to_cart_button {
+    background:var(--bh-accent, #2271b1); border-color:var(--bh-accent, #2271b1); color:var(--bh-bg, #fff);
+    border-radius:var(--bh-radius-sm, 4px); transition:background .15s ease;
+}
+.single-product .button:hover,
+.single-product .single_add_to_cart_button:hover {
+    background:var(--bh-accent-soft, #1d5f8f); border-color:var(--bh-accent-soft, #1d5f8f);
 }

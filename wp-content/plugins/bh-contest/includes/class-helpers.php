@@ -363,6 +363,27 @@ class BH_Helpers {
         return !empty($q->posts);
     }
 
+    // A submission created with no audio file yet (contest's own "Allow
+    // submitting without audio yet" setting, class-api.php's submit())
+    // sits in 'draft' status until one is attached. Returns that
+    // submission's ID (for a "finish it" link/message) or 0 — a
+    // distinct check from has_submitted() above, which already counts
+    // 'draft' as "any status" for duplicate-blocking purposes but can't
+    // tell the caller WHICH kind of "already submitted" it found.
+    public static function draft_submission_for($uid, $cid) {
+        $q = new WP_Query([
+            'post_type'      => 'bh_submission',
+            'author'         => $uid,
+            'post_status'    => 'draft',
+            'meta_key'       => '_bh_contest_id',
+            'meta_value'     => $cid,
+            'fields'         => 'ids',
+            'posts_per_page' => 1,
+            'no_found_rows'  => true,
+        ]);
+        return $q->posts ? (int) $q->posts[0] : 0;
+    }
+
     // Deliberately NOT the same check as has_submitted() above. A pending
     // (unapproved) submission still correctly blocks a second entry via
     // has_submitted(), but it must NOT earn the bonus vote — otherwise

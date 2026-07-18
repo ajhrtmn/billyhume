@@ -50,6 +50,10 @@ class BHPlayer {
         this.maxBytes = D.maxBytes || 20971520;
         this.brand = D.brand || { part1: 'Your', part2: 'Brand', logoUrl: '' };
         this.contest = root.dataset.contest || ''; // '' = server falls back to newest published
+        // Per-contest "Allow submitting without audio yet" setting
+        // (class-admin.php's Contest Rules & Results box) — off by
+        // default, an admin opts a specific contest in.
+        this.allowAudioOptional = root.dataset.allowAudioOptional === '1';
 
         // Per-contest style override (accent + category colors + brand),
         // set server-side only when a contest has "Override site
@@ -263,7 +267,7 @@ class BHPlayer {
                         <span class="bh-file-label-text">Choose an audio file…</span>
                         <input type="file" class="bh-sub-file bh-file-input" accept=".mp3,.m4a,audio/mpeg,audio/mp4">
                     </label>
-                    <small>MP3 or M4A · Max 20MB</small>
+                    <small class="bh-file-hint">MP3 or M4A · Max 20MB</small>
                     <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
                 </div></div>
 
@@ -357,7 +361,10 @@ class BHPlayer {
 
         this.q('.bh-login-btn').onclick   = openAuth;
         this.q('.bh-logout-btn').onclick  = e => { e.preventDefault(); this.logout(); };
-        this.q('.bh-submit-btn').onclick  = () => { show('submit'); this.prefillSubmitProfile(); };
+        this.q('.bh-submit-btn').onclick  = () => {
+            show('submit'); this.prefillSubmitProfile();
+            if (this.allowAudioOptional) this.q('.bh-file-hint').textContent = 'MP3 or M4A · Max 20MB · optional — you can attach this later from your account portal';
+        };
         this.q('.bh-results-btn').onclick = () => this.loadResults();
         this.q('.bh-auth-submit').onclick = () => this.auth();
         this.q('.bh-upload-btn').onclick  = () => this.upload();
@@ -488,13 +495,35 @@ class BHPlayer {
             });
         };
 
+        // Real bug, AJ's own report (possibly Safari-specific, but not a
+        // browser quirk — it's a genuine layout bug in any engine): this
+        // menu is `position:absolute` inside `.bh-modal-content`, which is
+        // `overflow-y:auto` so long forms can scroll. Any absolutely-
+        // positioned child that would render past that container's visible
+        // edge gets clipped by the SAME overflow that lets the form
+        // scroll — worst on a short viewport (a phone) where the modal
+        // scrolls more and this field sits closer to the bottom edge, so
+        // the open menu could get cut off or invisible. Fixed by switching
+        // the menu to `position:fixed`, positioned from the trigger's real
+        // screen coordinates the moment it opens — that escapes the
+        // scrolling container entirely rather than trying to out-z-index
+        // a clip that z-index can't affect.
+        const positionMenu = () => {
+            const r = trigger.getBoundingClientRect();
+            menu.style.position = 'fixed';
+            menu.style.left = r.left + 'px';
+            menu.style.top = (r.bottom + 4) + 'px';
+            menu.style.width = r.width + 'px';
+        };
         trigger.onclick = (e) => {
             e.stopPropagation();
             const willOpen = !wrap.classList.contains('open');
             document.querySelectorAll('.bh-select-wrap.open').forEach(w => w.classList.remove('open'));
-            if (willOpen) { renderOptions(); wrap.classList.add('open'); }
+            if (willOpen) { renderOptions(); positionMenu(); wrap.classList.add('open'); }
         };
         document.addEventListener('click', () => wrap.classList.remove('open'));
+        window.addEventListener('scroll', () => { if (wrap.classList.contains('open')) positionMenu(); }, true);
+        window.addEventListener('resize', () => { if (wrap.classList.contains('open')) positionMenu(); });
 
         // Exposed so code elsewhere that sets select.value directly
         // (bypassing the trigger, e.g. prefillSubmitProfile) can ask the
@@ -577,14 +606,22 @@ class BHPlayer {
         const note = this.q('.bh-sub-note').value.trim();
         const btn = this.q('.bh-upload-btn');
 
-        if (!file || !title || !artist) return this.toast('Add a song title, artist name, and an audio file.', true);
-        if (file.size > this.maxBytes) return this.toast('That file is over 20MB. Please choose a smaller one.', true);
+        // Audio is only optional when THIS contest's own admin turned on
+        // "Allow submitting without audio yet" — every other contest
+        // keeps the original all-three-required behavior unchanged.
+        if (!title || !artist || (!file && !this.allowAudioOptional)) {
+            return this.toast(this.allowAudioOptional
+                ? 'Add a song title and artist name.'
+                : 'Add a song title, artist name, and an audio file.', true);
+        }
+        if (file && file.size > this.maxBytes) return this.toast('That file is over 20MB. Please choose a smaller one.', true);
 
         btn.disabled = true;
-        btn.innerText = 'Uploading… please wait';
+        btn.innerText = file ? 'Uploading… please wait' : 'Saving…';
 
         const fd = new FormData();
-        fd.append('title', title); fd.append('artist', artist); fd.append('note', note); fd.append('audio', file);
+        fd.append('title', title); fd.append('artist', artist); fd.append('note', note);
+        if (file) fd.append('audio', file);
         this.appendProfileFields(fd, 'sub');
 
         const { ok, body } = await this.req('submit', { method: 'POST', body: fd });
@@ -593,8 +630,15 @@ class BHPlayer {
             this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
                 .forEach(el => el.value = '');
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
-            this.toast('Track submitted! It will appear once an admin approves it.');
-            this.showShareModal(body);
+            if (body.needs_audio) {
+                // No share cards yet — nothing to share until a real
+                // track exists (showShareModal() would have nothing
+                // meaningful to point at).
+                this.toast(body.message || 'Submission started! Attach your audio file from your account portal to finish.');
+            } else {
+                this.toast('Track submitted! It will appear once an admin approves it.');
+                this.showShareModal(body);
+            }
         } else {
             this.toast(body.message || 'Upload failed. Check the file and try again.', true);
         }
@@ -825,12 +869,18 @@ class BHPlayer {
         if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
 
         this._resultsCats = cats;
+        this._resultsFormat = body.format || 'public';
         this._resultsActive = cats.length > 1 ? 'all' : cats[0].slug;
         this.renderResultsBody();
     }
 
-    renderResultsList(results) {
-        if (!results || !results.length) return '<p class="bh-results-empty">No votes have been cast yet.</p>';
+    // unit: 'votes' (default, real vote count) or 'score' — BH_Judging::
+    // judge_results() reuses the same `votes` JSON key for a rubric
+    // score/percentage (not an actual vote count), so a judged
+    // leaderboard needs its own label rather than rendering a
+    // nonsensical "75 votes".
+    renderResultsList(results, unit = 'votes') {
+        if (!results || !results.length) return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
         const medals = ['🥇', '🥈', '🥉'];
         return `<ol class="bh-results-list">${results.map(r => `
             <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
@@ -839,7 +889,7 @@ class BHPlayer {
                     <span class="bh-results-song">${this.esc(r.title)}</span>
                     <span class="bh-results-artist">${this.esc(r.artist)}</span>
                 </span>
-                <span class="bh-results-votes">${r.votes} vote${r.votes === 1 ? '' : 's'}</span>
+                <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
 
@@ -847,6 +897,10 @@ class BHPlayer {
     // count across the whole contest, with a colored category badge per
     // row (matching the tab colors) so it reads as "all of it in one
     // place" rather than a confusing mash-up.
+    //
+    // Known gap: only ever reads `.results`, so a judges/hybrid contest
+    // with 2+ categories would mislabel scores as "votes" here and
+    // never show judge_results in the "All" tab. Not yet fixed.
     renderAllResultsList(cats) {
         const rows = [];
         cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
@@ -879,9 +933,24 @@ class BHPlayer {
               `).join('')}</div>`
             : '';
 
-        const body = this._resultsActive === 'all'
-            ? this.renderAllResultsList(cats)
-            : this.renderResultsList((cats.find(c => c.slug === this._resultsActive) || cats[0]).results);
+        let body;
+        if (this._resultsActive === 'all') {
+            body = this.renderAllResultsList(cats);
+        } else {
+            const activeCat = cats.find(c => c.slug === this._resultsActive) || cats[0];
+            // A hybrid contest's REST payload carries a second
+            // `judge_results` leaderboard (class-api.php's results()) —
+            // render both, labeled, matching Reveal Party's own
+            // "two leaderboards, not a blended score" convention.
+            // 'judges' format has no second key: `results` itself IS
+            // the rubric score, substituted server-side.
+            if (activeCat.judge_results) {
+                body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
+                     + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
+            } else {
+                body = this.renderResultsList(activeCat.results, this._resultsFormat === 'judges' ? 'score' : 'votes');
+            }
+        }
 
         out.innerHTML = tabs + body;
 

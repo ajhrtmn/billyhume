@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.28
+ * Version:     0.4.32
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -369,7 +369,33 @@ if (!defined('ABSPATH')) exit;
 // count, and the comment itself) disappears completely, not just the
 // reply form; removed the drip date and confirmed everything reappears
 // correctly.
-define('BHC_VER',  '0.4.28');
+// 0.4.29 — bh_course/bh_lesson gained real 'revisions' post-type
+// support (ROADMAP-search-and-revisions.md Section 2, AJ's own framing:
+// "versioning is most important for anything that is a post, like
+// contests and lessons"). A lesson's steps genuinely are post_content
+// now (bh-courses 0.4.9's real post-editor migration) — WordPress
+// core's own native revision/restore UI already works correctly for
+// free the moment this one flag exists, no OUS_Revisions wiring needed
+// for content that already lives in wp_posts.
+// 0.4.30 — a course can opt into a "Site Menu" checkbox (new metabox,
+// bhc_show_in_menu/_bhc_menu_label) that keeps a real "Courses" submenu
+// in every site Navigation menu in sync automatically (OUS_MenuSync,
+// own-ur-shit core) — no manual menu-builder editing needed.
+// 0.4.31 — a course now gets a real, working public page automatically
+// on first publish (maybe_create_course_page(), same pattern bh-contest
+// uses): a course's own permalink renders a broken generic single-post
+// stub with no lesson list or enroll flow. Cross-linked via
+// _bhc_page_id/_bhc_course_ref, with a "Create page" fallback link and
+// a backlink box on the page's own edit screen. Site-menu auto-sync
+// now checks _bhc_page_id first before its shortcode-search fallback.
+// 0.4.32 — a configurable max direct-upload size for lesson videos
+// (new "Video Settings" submenu, default 0 = no limit). Over it, the
+// video block's existing URL (oEmbed) source is the steered answer,
+// not a hard block — enforced client-side (inline warning, no
+// confirm()/alert()) and authoritatively server-side
+// (BHC_ContentBridge's save hook, a transient admin notice, never
+// blocking the save itself).
+define('BHC_VER',  '0.4.32');
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js):
 // (1) "Mark complete" step-completion now has real retry-with-backoff
@@ -676,7 +702,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -712,6 +738,8 @@ add_action('plugins_loaded', function () {
     }
     add_action('init', ['BHC_CrmIntegration', 'init']);
     add_action('init', ['BHC_ProgressAdmin', 'init']);
+    add_action('init', ['BHC_VideoSettings', 'init']);
+    add_action('admin_notices', ['BHC_VideoSettings', 'maybe_show_notice']);
     add_action('init', ['BHC_Nudges', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);
     if (class_exists('BH_Content')) add_action('init', ['BHC_ContentBridge', 'init']);
@@ -727,8 +755,14 @@ add_action('plugins_loaded', function () {
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
+    add_action('add_meta_boxes_page', ['BHC_Admin', 'add_page_backlink_meta_box']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_course']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_catalog_details']);
+    add_action('save_post_bh_course', ['BHC_Admin', 'save_site_menu_settings']);
+    add_action('admin_post_bhc_create_page', ['BHC_Admin', 'create_course_page_action']);
+    add_action('wp_trash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
+    add_action('untrash_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
+    add_action('before_delete_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('save_post_bh_lesson', ['BHC_Admin', 'save_lesson']);
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
     add_filter('manage_bh_course_posts_columns', ['BHC_Admin', 'course_columns']);

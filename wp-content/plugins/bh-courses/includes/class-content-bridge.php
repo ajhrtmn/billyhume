@@ -106,6 +106,7 @@ class BHC_ContentBridge {
         if (!class_exists('BHC_Steps')) return;
         $tree = self::get_tree($post_id);
         BHC_Steps::save($post_id, self::tree_to_steps($tree));
+        if (class_exists('BHC_VideoSettings')) BHC_VideoSettings::check_tree($post_id, $tree);
     }
 
     // Purely cosmetic (the inserter groups unregistered categories under

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.6.3
+ * Version:     3.7.5
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -2125,7 +2125,193 @@ if (!defined('ABSPATH')) exit;
 // the same for bh-courses' own genuinely-stale zip (real staleness
 // from this same session's earlier LMS work, not staged), confirming
 // this closes a real, live gap, not just a hypothetical one.
-define('OUS_VER', '3.6.3');
+// 3.6.7 — four real, live-verified bugs from the same Design Suite QA
+// pass:
+//   1. Font-family leak: the 4 "fake wp-admin" wizard/kanban previews
+//      (Media & CDN Setup, New Contest, PRO Registration, Project
+//      Tracker) inherited `:host{font-family:var(--bh-font-body)}` same
+//      as every real brand surface, so picking an exotic Typography
+//      font restyled these wp-admin-style previews too — a real
+//      wp-admin screen never does that. Fixed with an explicit system-
+//      font-stack override on each preview's wrap div.
+//   2. Brand logo upload, end-to-end: `brand_logo_id` existed in the
+//      data model with zero UI to set it. Added a real wp.media()
+//      upload control to the Brand section (class-style-gallery.php).
+//   3. Real bug caught mid-build: the upload button's click listener
+//      never attached at all — its setup-time guard checked for
+//      `window.wp.media`, but this script prints inline BEFORE
+//      wp_footer (where wp.media's own scripts load), so the guard
+//      always failed and silently no-op'd forever. Fixed by checking
+//      wp.media lazily inside the click handler instead of at setup.
+//   4. Real bug, AJ's own report ("logo doesn't appear to update in the
+//      style viewer"): refreshAllFrames() only ever updated the
+//      wordmark TEXT, never swapped in a logo image, and was never
+//      even called on initial page load — a previously-saved logo
+//      never appeared until some unrelated edit happened to trigger a
+//      refresh. Fixed both: logo-aware swap logic, and an initial call.
+// RUNTIME-VERIFIED: uploaded a real attachment through the real
+// wp.media() frame, confirmed it opens (previously didn't), confirmed
+// the preview + hidden field update, saved, reloaded, confirmed the
+// Player surface's header now shows the logo image instead of
+// "YourBrand" text.
+//
+// Also this pass, bh-contest 1.x (see that plugin's own changelog):
+// the custom "Where do you usually watch?" dropdown's open menu is
+// `position:absolute` inside a `overflow-y:auto` modal — clips on any
+// engine when the field sits close to the modal's scrolled edge, worse
+// on a short viewport. Fixed by switching the menu to `position:fixed`,
+// computed from the trigger's real screen coordinates on open, so it
+// can't be clipped by an ancestor's scroll container. RUNTIME-VERIFIED
+// at a 375px mobile viewport — menu previously would have been clipped
+// at the modal's bottom edge, now renders in full.
+// 3.6.8 — BH_Commerce::upsert_product() gained trial_length/trial_period
+// args (WC Subscriptions' own free-trial fields), the real prerequisite
+// bh-monetization-woo's new per-tier free-trial field needed — see
+// bh-monetization-woo's own changelog for the consumer.
+// 3.7.0 — two new shared services, ROADMAP-search-and-revisions.md's
+// scoped first slices. Minor bump: real new capability, not a bug fix.
+//   1. OUS_Revisions (new) — in-admin version history for admin-built
+//      content that doesn't already get it free from wp_posts. Stores
+//      a FULL object-state snapshot per save (not a diff — a genuinely
+//      different tool from OUS_Audit's own diff-only, pruned log),
+//      auto-versioned per (object_type, object_id), plus a shared
+//      "Version History" admin UI fragment (render_history_panel())
+//      any consumer drops in rather than building its own restore UI.
+//      No consumer wired yet in this pass — see bh-crm's own changelog
+//      for the first real one.
+//   2. OUS_Search (new) — unified site search dispatch layer
+//      ([ous_search] shortcode + `ous/v1/search` REST route). WordPress
+//      core's own ?s= search only ever covered bh_course/bh_lesson (the
+//      one CPT registered public); everything else (contests, tracks,
+//      tiers, CRM, registry) was closed off by design or isn't a post
+//      type at all. `ous_search_providers` is a zero-central-
+//      registration filter, same shape as bhy_style_surfaces/
+//      bhi_portal_panels — one real provider wired at v1 (bh-courses,
+//      cheapest to prove the mechanism), remaining providers a
+//      sequenced follow-up per the roadmap doc.
+// 3.7.1 — two real bugs caught live while wiring OUS_Revisions'
+// consumers:
+//   1. class-revisions.php's render_history_panel() originally rendered
+//      a real <form> per row — but every consumer renders this INSIDE
+//      a metabox, which is itself already inside wp-admin's single,
+//      page-wide <form id="post">, and a browser doesn't support nested
+//      forms; it silently merges the inner form's fields into the outer
+//      one. That meant clicking the page's own real "Update"/"Publish"
+//      button submitted the WRONG `action` value and WordPress's
+//      post.php fell back to redirecting to the plain post list instead
+//      of actually saving — a real tier/contest save silently broke
+//      the moment the Version History panel existed on the same screen.
+//      Fixed with a plain GET link + nonce (the same pattern this
+//      ecosystem's own "Move to Trash" link already uses), and the
+//      panel's own layout changed from a fixed table to a real CSS
+//      masonry (`columns`) so it degrades correctly in both the wide
+//      "normal" metabox context and WordPress's narrow "side" column.
+//   2. OUS_AdminLayout::BREAKPOINT was hard-set to 1200px as an
+//      all-or-nothing gate, not a graceful degradation point — the
+//      masonry treatment it enables is already fluid on its own, so the
+//      only real effect of that constant was leaving a ~350px-wide dead
+//      zone (roughly 850-1200px) where the OLD cramped stock WordPress
+//      two-column layout came back with zero warning, the exact
+//      "sidebar overflowing, main column empty" problem this whole
+//      class exists to fix. Lowered to WordPress core's own admin-menu
+//      collapse breakpoint (782px) — genuinely mobile/tablet territory
+//      keeps the plain stock layout; everything wider now gets the
+//      masonry treatment.
+// 3.7.2 — last real OUS_Revisions consumer named in
+// ROADMAP-search-and-revisions.md Section 2's sequencing: BHY_Style
+// (Design Suite's global design tokens). A single, site-wide config —
+// object_id is a constant 1 rather than a real post/entity ID, since
+// there's only ever one of these on the whole site. Every save
+// snapshots the full token set; a "Version History" panel sits right
+// in the Design Suite page with a working Restore link.
+// Portal layouts (this section's other named candidate) deliberately
+// NOT wired — checked first and confirmed there's no actual
+// admin-editable "layout" config yet (panels are hardcoded via the
+// bhi_portal_panels filter, not something an admin can reorder/save
+// today), so there is nothing real yet to snapshot. Building a
+// consumer for a config that doesn't exist would be exactly the
+// "building for a hypothetical" this ecosystem's own conventions
+// avoid — flagged as still open, not silently skipped.
+// 3.7.3 — OUS_SetupWizard (new): a concrete first-run flow (welcome →
+// activate the ecosystem → brand basics → done), reusing existing
+// install/activate mechanics (OUS_Installer/OUS_ActivationManager/
+// OUS_Registry) rather than rebuilding them. Steps are computed from
+// real current state, not a stored progress flag. Self-hiding banner
+// on the main dashboard links to it; also reachable via its own
+// submenu item.
+// 3.7.4 — OUS_PortalLayout (new): admin-editable portal panel
+// order/visibility (priority number + hide checkbox per panel),
+// applied by BHI_Portal::get_panels() on top of whatever
+// bhi_portal_panels filter contributes. Wired into OUS_Revisions as
+// its own consumer (object_type 'portal_layout'), with a Version
+// History + Restore panel on the same page.
+// 3.7.5 — OUS_MenuSync (new): lets a plugin maintain its own submenu
+// group inside every site Navigation menu automatically, by writing
+// core/navigation-submenu + core/navigation-link blocks straight into
+// the wp_navigation post(s) — Etch-compatible by construction per
+// ETCH-COMPATIBILITY-NOTES.md. First two consumers: bh-contest and
+// bh-courses each gained a "Site Menu" box (checkbox + optional label
+// override) that resyncs on save/trash/untrash/delete.
+define('OUS_VER', '3.7.5');
+
+// 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and
+// remnants of stuff" report:
+// (1) Real leftover test data found and deleted directly from
+//     wp_bhcore_element_placements (id 3, a stray "bh/note" placement
+//     with literal text "rety78" styled in the accent color) — it was
+//     rendering live inside the bh_crm_profile surface's Design Suite
+//     preview since that surface renders REAL placements, not a
+//     mockup, and context 0 is the preview-only default context no
+//     real user profile ever uses.
+// (2) Two real dead links fixed (class-dashboard.php, class-portal.php):
+//     both pointed at admin.php?page=bh-element-builder, a page
+//     deleted in an earlier cleanup pass and never replaced. The
+//     dashboard one now correctly points at Debug Tools' own real,
+//     functioning Element Builder section (a genuine add/remove/
+//     reorder list, just scoped to dashboard/main); the portal one
+//     honestly states no admin UI exists for that surface/slot,
+//     since Debug Tools' section doesn't cover it.
+// (3) Inspector UX fix, AJ's own follow-up ask: the "Live token
+//     preview" panel never had any real connection to whichever
+//     surface was selected in the canvas (correctly so — these are
+//     genuine GLOBAL tokens, one theme applied everywhere, never
+//     per-surface theming) but the UI never SAID that, reading as if
+//     something was broken/disconnected. Renamed to "Shape & scale
+//     reference" with an explicit "not tied to the surface above"
+//     caption, and added a real "Previewing: X" label
+//     (class-style-gallery.php's render_script()) that stays in sync
+//     with the actual canvas selection live.
+
+
+// 3.6.5 — new OUS_StyleSurface (includes/class-style-surface.php):
+// registers the Media & CDN Setup wizard into the Design Suite
+// gallery — own-ur-shit had ZERO bhy_style_surfaces of its own before
+// this, so its own "it just works" wizard was invisible to the token
+// editor. Real contrast bug caught live and fixed in the same pass:
+// preview_doc()'s own `:host{color:var(--bh-text)}` (correct for
+// every OTHER surface, which uses the dark brand theme) left this
+// wizard's genuinely light wp-admin-style preview with light-on-light
+// text, since --bh-text is a light color on the default dark theme —
+// fixed by setting this preview's own explicit text color rather than
+// inheriting the brand theme's.
+
+
+// 3.6.4 — real "wonky character" bug in the Design Suite gallery,
+// caught live: em-dashes/curly-quotes in a surface's preview HTML
+// (e.g. bh-crm's own live-slot instructional text) rendered as
+// garbled characters ("â€" instead of "—"). Root cause: class-
+// style-gallery.php's own JS decoded each surface's base64-encoded
+// preview document with plain atob(), which returns a raw binary
+// string (one JS character per BYTE, not a properly UTF-8-decoded
+// string) — any multi-byte character came through as 2-3 separate
+// mis-rendered characters the moment DOMParser parsed that raw byte
+// string as text. The PHP side (base64_encode()) was never the
+// problem; fixed the decode side with a real UTF-8-safe path
+// (Uint8Array + TextDecoder('utf-8')) instead. Confirmed via direct
+// DOM inspection before the fix that the underlying source PHP files
+// and DB were completely clean UTF-8 — this was purely a client-side
+// decode bug, not a data-corruption one. Verified live across every
+// registered surface after the fix (CRM/Contest/Courses all clean).
 
 // 3.6.3 — real production fatal, caught live on the billyhume.wasmer.app
 // deploy: "Uncaught Error: Class ActionScheduler not found" in
@@ -2661,13 +2847,14 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'admin-layout', 'content', 'commerce', 'portal', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHI_Activator', 'activate']);
 register_activation_hook(__FILE__, ['OUS_Roles', 'activate']);
 register_activation_hook(__FILE__, ['OUS_Audit', 'activate']);
+register_activation_hook(__FILE__, ['OUS_Revisions', 'activate']);
 register_deactivation_hook(__FILE__, function () {
     // Only the cron schedule this plugin itself created — never touches
     // any other plugin's scheduled events, and the job queue TABLE (and
@@ -2684,6 +2871,7 @@ add_action('init',          ['BHI_Reports', 'init']);
 add_action('init',          ['OUS_MediaWizard', 'init']);
 add_action('init',          ['BH_SEO', 'init']);
 add_action('init',          ['OUS_Metrics', 'init']);
+add_action('init',          ['OUS_StyleSurface', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
 
@@ -2715,6 +2903,10 @@ OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
+add_action('init',          ['OUS_Revisions', 'init']);
+add_action('init',          ['OUS_Search', 'init']);
+add_action('init',          ['OUS_SetupWizard', 'init']);
+add_action('init',          ['OUS_PortalLayout', 'init']);
 add_action('init',          ['OUS_AdminLayout', 'init']);
 add_action('init',          ['OUS_DebugLog', 'init']);
 add_action('init',          ['OUS_QM_Integration', 'init']);

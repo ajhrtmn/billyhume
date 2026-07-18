@@ -26,7 +26,7 @@ class BHC_PostTypes {
             ],
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => 'courses',
             'rewrite' => ['slug' => 'courses'],
-            'menu_icon' => 'dashicons-welcome-learn-more', 'supports' => ['title', 'editor', 'thumbnail'],
+            'menu_icon' => 'dashicons-welcome-learn-more', 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',
         ]);
 
@@ -78,7 +78,16 @@ class BHC_PostTypes {
             // Front-end rendering is untouched — BHC_Render still reads
             // the legacy _bhc_steps postmeta array exclusively, kept in
             // sync by BHC_ContentBridge's save_post_bh_lesson hook.
-            'supports' => ['title', 'editor'], 'show_in_rest' => true, 'capability_type' => 'post',
+            //
+            // 'revisions' added, ROADMAP-search-and-revisions.md's own
+            // framing (AJ: "versioning is most important for anything
+            // that is a post, like contests and lessons") — a lesson's
+            // steps genuinely ARE post_content now, so WordPress core's
+            // own native revision/restore UI already works correctly
+            // for free the moment this flag exists; no OUS_Revisions
+            // wiring needed for content that already lives in
+            // wp_posts. Zero new code beyond this one supports entry.
+            'supports' => ['title', 'editor', 'revisions'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }
 
