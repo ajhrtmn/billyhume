@@ -320,6 +320,10 @@ class BHY_Style {
         if (isset($overrides['color_accent']) || isset($overrides['color_surface'])) {
             $vars['--bh-accent-muted-bg'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 18%, ' . self::safe_color($merged['color_surface']) . ')';
         }
+        if (isset($overrides['color_accent'])) {
+            $vars['--bh-accent-hover'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 85%, black)';
+            $vars['--bh-accent-pressed'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 70%, black)';
+        }
 
         return [
             'vars'  => $vars,
@@ -357,6 +361,18 @@ class BHY_Style {
         // stays reserved for its original one-off job (lightening an
         // already-accent-colored element on hover).
         $decls .= '--bh-accent-muted-bg:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 18%, ' . self::safe_color($s['color_surface']) . ');';
+
+        // Same derivation logic, different job: a button using
+        // --bh-accent as its own background with light/white text on
+        // top needs its :hover state to get DARKER (more contrast), not
+        // lighter — --bh-accent-soft lightens, which is exactly backwards
+        // for that combination (confirmed live: a real bug this session,
+        // white text over a lightened accent-soft hover). Buttons that
+        // pair --bh-accent with DARK text don't need this — lightening
+        // already improves their contrast on hover, so they're unaffected
+        // by leaving them on --bh-accent-soft.
+        $decls .= '--bh-accent-hover:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 85%, black);';
+        $decls .= '--bh-accent-pressed:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 70%, black);';
 
         $decls .= '--bh-font-display:' . self::css_safe_string(self::font_family($s, 'display')) . ', sans-serif;';
         $decls .= '--bh-font-body:' . self::css_safe_string(self::font_family($s, 'body')) . ', sans-serif;';

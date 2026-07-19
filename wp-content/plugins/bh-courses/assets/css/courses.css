@@ -239,7 +239,12 @@ video.bhc-step-video {
     border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
     display: inline-block;
 }
-.bhc-btn:hover { background: var(--bh-accent-soft); }
+/* --bh-accent-hover DARKENS (not --bh-accent-soft, which lightens) —
+   this button's text is white/light (--bh-accent-contrast), so
+   lightening the background on hover was a real bug (confirmed by this
+   session's ecosystem contrast audit): it made an already-marginal
+   white-on-accent contrast even worse instead of better. */
+.bhc-btn:hover { background: var(--bh-accent-hover, var(--bh-accent-soft)); }
 .bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
 .bhc-btn-secondary { background: transparent; border: 1px solid var(--bh-border); color: var(--bh-text); }
 .bhc-btn-secondary:hover { background: var(--bh-border); }
