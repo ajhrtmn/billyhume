@@ -87,7 +87,16 @@
         supports: { html: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-image' });
+            // paddingTop: Gutenberg docks its floating block toolbar
+            // INSIDE a block's own top edge, overlapping its first
+            // control, whenever there's no room to float it above (the
+            // case whenever this is the first/only block in a lesson —
+            // the common case for a course just getting started). Real
+            // authoring friction caught this session on bhc/video's
+            // Source picker; this small buffer keeps every block's own
+            // first control clear of that zone instead of relying on
+            // there happening to be another block above it.
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-image', style: { paddingTop: '32px' } });
             var thumbs = (attrs.attachment_ids || []).map(function (id) {
                 return el('span', { key: id, className: 'bhc-studio-image-thumb' }, '#' + id);
             });
@@ -136,7 +145,11 @@
         supports: { html: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-video' });
+            // See bhc/image's blockProps comment — same toolbar-collision
+            // buffer, still needed here even after moving Source to the
+            // Inspector: the "Select video" button / URL field is now
+            // the first remaining canvas control.
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-video', style: { paddingTop: '32px' } });
             // Source picker lives in the Inspector sidebar, not inline in
             // canvas — caught live (real authoring friction, confirmed
             // only reachable via the wp.data API during testing, not the
@@ -237,7 +250,8 @@
         supports: { html: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource' });
+            // See bhc/image's blockProps comment — same toolbar-collision buffer.
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource', style: { paddingTop: '32px' } });
             return el('div', blockProps,
                 el(wp.blockEditor.MediaUploadCheck, {},
                     el(wp.blockEditor.MediaUpload, {
@@ -321,7 +335,8 @@
         supports: { html: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question' });
+            // See bhc/image's blockProps comment — same toolbar-collision buffer.
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question', style: { paddingTop: '32px' } });
             var choices = attrs.choices && attrs.choices.length ? attrs.choices : ['', ''];
 
             function setChoice(i, v) {

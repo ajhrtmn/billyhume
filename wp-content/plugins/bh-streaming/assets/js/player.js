@@ -83,6 +83,15 @@
         return h;
     }
 
+    // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
+    // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
+    // unconditionally) replaces every alert() this player used to block
+    // on for a plain "log in to do that" notice. Same typeof guard every
+    // other call site in this ecosystem uses.
+    function notify(msg, isError) {
+        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
+    }
+
     /* ---------- filtering (search + genre, applied to the "All Tracks" view) ---------- */
 
     function filteredTracks() {
@@ -597,7 +606,7 @@
     /* ---------- likes ---------- */
 
     likeBtn.addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to like tracks.'); return; }
+        if (!loggedIn) { notify('Log in to like tracks.', true); return; }
         var t = queue[queueIndex];
         if (!t) return;
         fetch(rest + 'likes/' + t.id, { method: 'POST', headers: authHeaders() })
@@ -613,7 +622,7 @@
     /* ---------- playlists ---------- */
 
     document.getElementById('bhs-add-playlist').addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to use playlists.'); return; }
+        if (!loggedIn) { notify('Log in to use playlists.', true); return; }
         renderPlaylistPicker();
         playlistPicker.style.display = '';
     });
@@ -1133,7 +1142,7 @@
     /* ---------- local file import ---------- */
 
     document.getElementById('bhs-import-open').addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to import your own music.'); return; }
+        if (!loggedIn) { notify('Log in to import your own music.', true); return; }
         importModal.style.display = 'flex';
     });
     document.getElementById('bhs-import-close').addEventListener('click', function () { importModal.style.display = 'none'; });
@@ -1394,7 +1403,7 @@
         if (jamParticipantsPanel) { jamParticipantsPanel.remove(); jamParticipantsPanel = null; }
         if (jamPendingPanel) { jamPendingPanel.remove(); jamPendingPanel = null; }
         if (jamApprovalPoll) { clearInterval(jamApprovalPoll); jamApprovalPoll = null; }
-        if (notice) alert(notice);
+        if (notice) notify(notice, true);
     }
 
     function jamRenderBanner() {
@@ -1467,8 +1476,21 @@
             });
         });
         jamParticipantsPanel.querySelectorAll('button[data-kick-uid]').forEach(function (btn) {
+            // Arm/disarm instead of confirm() — same banned-dialog reason
+            // as everywhere else in this ecosystem. First click arms it
+            // (relabeled for 3s); a second click while armed actually
+            // kicks the listener.
             btn.addEventListener('click', function () {
-                if (!confirm('Remove this listener from the Jam?')) return;
+                if (!btn.classList.contains('is-armed')) {
+                    btn.classList.add('is-armed');
+                    btn.textContent = 'confirm remove?';
+                    btn._armTimer = setTimeout(function () {
+                        btn.classList.remove('is-armed');
+                        btn.textContent = 'remove';
+                    }, 3000);
+                    return;
+                }
+                clearTimeout(btn._armTimer);
                 fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/kick', {
                     method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ user_id: parseInt(btn.dataset.kickUid, 10) }),
