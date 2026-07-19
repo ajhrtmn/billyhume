@@ -40,7 +40,7 @@
 /* ---- library grid + cards ---- */
 .bhs-main { display: flex; gap: 20px; padding: 20px; align-items: flex-start; }
 .bhs-library { flex: 1; min-width: 0; }
-.bhs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+.bhs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
 .bhs-card { background: var(--bh-surface); border: none; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; color: var(--bh-text); font-family: inherit; position: relative; }
 .bhs-card:hover { background: var(--bh-surface-2); }
 .bhs-card-art { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; margin-bottom: 8px; background: var(--bh-surface-2); }

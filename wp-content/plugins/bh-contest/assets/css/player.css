@@ -564,7 +564,7 @@
     border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); font-family: var(--bh-font-body); font-size: 14px;
 }
 .bh-archive-controls input { flex: 1; min-width: 200px; }
-.bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
+.bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
 .bh-archive-card { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius); padding: calc(16px * var(--bh-space-scale)); }
 .bh-archive-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); }
 .bh-archive-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: 2px; }

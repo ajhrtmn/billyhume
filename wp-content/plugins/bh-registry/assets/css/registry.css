@@ -4,7 +4,7 @@
 .bhr-search { flex: 1; min-width: 200px; }
 .bhr-btn { padding: 10px 16px; border-radius: 6px; border: none; background: var(--bh-accent, #C1503A); color: #fff; cursor: pointer; font-weight: 600; }
 .bhr-btn:hover { opacity: 0.9; }
-.bhr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.bhr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
 .bhr-card { background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 16px; }
 .bhr-card-avatar { width: 64px; height: 64px; border-radius: 50%; background-color: var(--bh-accent-soft, #E0A184); background-size: cover; background-position: center; margin-bottom: 10px; }
 .bhr-card-name { font-weight: 700; margin-bottom: 6px; }

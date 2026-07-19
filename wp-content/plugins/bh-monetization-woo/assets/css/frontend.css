@@ -1,4 +1,4 @@
-.bhm-tier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin: 16px 0; }
+.bhm-tier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 16px 0; }
 .bhm-tier-card { background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 20px; color: var(--bh-text, #EDDFCB); }
 .bhm-tier-card h3 { margin-top: 0; }
 .bhm-tier-active { border-color: var(--bh-accent, #C1503A); }
