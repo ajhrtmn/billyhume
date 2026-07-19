@@ -898,7 +898,12 @@
         audio.addEventListener('loadedmetadata', function onLoaded() {
             audio.removeEventListener('loadedmetadata', onLoaded);
             audio.currentTime = position;
-            if (wasPlaying) audio.play().catch(function () {});
+            // If this fails, playback that WAS running just silently
+            // stops with no explanation — the play/pause icon already
+            // correctly reflects the real (paused) state via the
+            // audio element's own 'pause' event, but nothing told the
+            // user THEY didn't click pause, the browser did.
+            if (wasPlaying) audio.play().catch(function () { notify('Playback stopped — press play to resume.', true); });
         });
         renderQualityFor(queue[queueIndex]);
         // A quality switch is effectively a new URL for the same logical
@@ -1248,7 +1253,7 @@
                 fileInput.value = '';
                 if (currentView === 'all') renderView();
             })
-            .catch(function () { errorBox.textContent = 'Could not reach the server right now.'; });
+            .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });
 
     /* ---------- tabs + filters ---------- */
@@ -1459,7 +1464,13 @@
     function jamVoteSkip() {
         if (!jam.active || !jam.code || jam.controlMode !== 'vote_skip') return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/vote-skip', { method: 'POST', headers: authHeaders() })
-            .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {});
+            .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {
+                // Previously fully silent — a listener tapping "Vote to
+                // skip" during a real connection blip had no way to tell
+                // their vote didn't register vs. the button just being
+                // unresponsive.
+                notify('Could not reach the server — check your connection and try again.', true);
+            });
     }
 
     function jamLeave() {

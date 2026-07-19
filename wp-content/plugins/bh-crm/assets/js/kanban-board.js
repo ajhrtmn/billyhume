@@ -121,8 +121,14 @@
             state.placements = (grouped && grouped.board) ? grouped.board : [];
             render();
         }).catch(function (err) {
+            // Previously surfaced the raw exception message straight to
+            // the user (e.g. a fetch/parse error string) — inconsistent
+            // with the friendly copy this ecosystem uses everywhere
+            // else. Real detail still goes to the console for whoever's
+            // actually debugging it.
+            console.error('bh-crm kanban board load failed:', err);
             root.innerHTML = '';
-            var p = el('p', 'description', 'Failed to load board: ' + err.message);
+            var p = el('p', 'description', 'Could not load the board — please try again.');
             root.appendChild(p);
         });
     }

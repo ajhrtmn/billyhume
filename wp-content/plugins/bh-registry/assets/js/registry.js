@@ -123,7 +123,7 @@
             link.hidden = false;
             notify(res.ok ? 'Reported — thanks, this will be reviewed.' : ((res.d && res.d.message) || 'Could not submit the report.'), !res.ok);
           })
-          .catch(function () { notify('Could not reach the site right now.', true); })
+          .catch(function () { notify('Could not reach the server — check your connection and try again.', true); })
           .finally(function () { btn.disabled = false; btn.textContent = 'Send report'; });
       });
     });
@@ -178,7 +178,7 @@
         }
         showVerifyStep(res.data);
       })
-      .catch(function () { errorBox.textContent = 'Could not reach the registry right now.'; });
+      .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
   });
 
   function showVerifyStep(data) {
@@ -202,7 +202,7 @@
           resultBox.textContent = res.message;
           if (res.verified) load();
         })
-        .catch(function () { resultBox.textContent = 'Could not reach the registry right now.'; });
+        .catch(function () { resultBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });
   }
 
