@@ -20,7 +20,7 @@
 .bhs-account { display: flex; justify-content: flex-end; padding-bottom: 8px; font-size: 13px; }
 .bhs-link-btn { background: none; border: none; color: var(--bh-text-dim); text-decoration: underline; cursor: pointer; font-size: 13px; margin-left: 8px; }
 .bhs-auth-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.bhs-auth-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 300px; max-width: 90vw; position: relative; }
+.bhs-auth-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 300px; max-width: 90vw; position: relative; max-height: 90vh; overflow-y: auto; }
 .bhs-modal-close { position: absolute; top: 10px; right: 14px; background: none; border: none; color: var(--bh-text-dim); font-size: 20px; cursor: pointer; }
 .bhs-auth-tabs { display: flex; gap: 12px; margin-bottom: 16px; }
 .bhs-auth-tab { background: none; border: none; color: var(--bh-text-dim); font-weight: 600; padding: 4px 0; cursor: pointer; border-bottom: 2px solid transparent; }
@@ -107,7 +107,7 @@
 
 /* ---- playlist picker modal ---- */
 .bhs-playlist-picker { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.bhs-playlist-picker-inner { background: var(--bh-surface); border-radius: 8px; padding: 20px; width: 300px; max-width: 90vw; }
+.bhs-playlist-picker-inner { background: var(--bh-surface); border-radius: 8px; padding: 20px; width: 300px; max-width: 90vw; max-height: 90vh; overflow-y: auto; }
 .bhs-playlist-picker-inner h3 { margin-top: 0; }
 .bhs-btn { background: var(--bh-accent); color: #000; border: none; border-radius: 6px; padding: 8px 14px; font-weight: 600; cursor: pointer; font-size: 13px; }
 .bhs-playlist-option { display: block; width: 100%; margin-bottom: 6px; background: var(--bh-surface-2); color: var(--bh-text); text-align: left; }
@@ -138,7 +138,7 @@
 
 /* ---- import modal (same shape as the auth modal) ---- */
 .bhs-import-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.bhs-import-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; }
+.bhs-import-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; max-height: 90vh; overflow-y: auto; }
 .bhs-import-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
 .bhs-modal-note { font-size: 12px; color: var(--bh-text-dim); }
 
@@ -166,7 +166,7 @@
 
 /* ---- Jam ---- */
 .bhs-jam-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
-.bhs-jam-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; }
+.bhs-jam-modal-inner { background: var(--bh-surface); border-radius: 8px; padding: 24px; width: 360px; max-width: 90vw; position: relative; max-height: 90vh; overflow-y: auto; }
 .bhs-jam-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin: 8px 0; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
 .bhs-jam-mode-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bh-text-dim); margin: 10px 0; }
 .bhs-jam-banner {

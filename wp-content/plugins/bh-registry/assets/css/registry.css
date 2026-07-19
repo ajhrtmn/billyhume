@@ -37,3 +37,15 @@
 }
 .bhr-form-error { color: #b3261e; font-size: 13px; margin-top: 8px; }
 .bhr-submit-modal-inner code { display: block; background: var(--bh-surface-2, #2C120E); padding: 8px; border-radius: 4px; word-break: break-all; margin-bottom: 10px; }
+
+/* This file had zero mobile breakpoints at all — every other front-end
+   stylesheet in this ecosystem has at least one. The grid/flex-wrap
+   already in use elsewhere means nothing was actually broken, but
+   padding/control sizing wasn't tailored to a narrow phone at all. */
+@media (max-width: 480px) {
+    .bhr-app { padding: 16px 12px; }
+    .bhr-search-row { gap: 6px; margin-bottom: 16px; }
+    .bhr-search, .bhr-protocol-filter { flex: 1 1 100%; min-width: 0; }
+    .bhr-btn { flex: 1 1 100%; }
+    .bhr-submit-modal-inner { padding: 16px; }
+}
