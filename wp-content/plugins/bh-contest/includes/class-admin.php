@@ -1302,7 +1302,7 @@ class BH_Admin {
             echo '<option value="hybrid"' . selected($format, 'hybrid', false) . '>Hybrid — both run, shown as two separate leaderboards (Judges\' Pick / People\'s Choice)</option>';
             echo '</select></label></p>';
 
-            echo '<p class="description">Rubric criteria, one per line — "Originality" (defaults to a max of 10) or "Originality:20" for a custom max. Only used when Format is Judges or Hybrid.</p>';
+            echo '<p class="description">Rubric criteria, one per line — "Originality" (defaults to a max of 10) or "Originality:20" for a custom max. Only used when Format is Judges or Hybrid. Each criterion is normalized to a 0–100 scale and averaged, so a 5-criterion and a 3-criterion rubric land on the same footing — a submission\'s final score is the average across every judge who has actually submitted (not just drafted) a score for it.</p>';
             echo '<textarea name="bh_rubric" rows="4" style="width:100%;font-family:inherit;">' . esc_textarea($rubric_text) . '</textarea>';
 
             echo '<p class="description">Judges, one WordPress username per line. Each must already have an account on this site — judges score from the front-end <code>[bh_judge_panel]</code> shortcode, not wp-admin.</p>';
