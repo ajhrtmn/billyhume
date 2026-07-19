@@ -1365,8 +1365,21 @@ class BH_Admin {
                         .then(function (r) { return r.json(); })
                         .then(function (res) {
                             var out = document.getElementById('bh_advance_round_result');
-                            if (res.success) { out.textContent = 'Advanced — reload to see the new round.'; location.reload(); }
+                            if (res.success) {
+                                // Was set on the same tick as location.reload() —
+                                // the message never had a chance to actually be
+                                // seen before the page navigated away.
+                                out.textContent = 'Advanced — reloading…';
+                                setTimeout(function () { location.reload(); }, 900);
+                            }
                             else { out.textContent = (res.data && res.data.message) || 'Could not advance.'; btn.disabled = false; }
+                        })
+                        .catch(function () {
+                            // Previously had no .catch() — a dropped connection
+                            // left the button disabled forever with no sign
+                            // anything went wrong.
+                            document.getElementById('bh_advance_round_result').textContent = 'Could not reach the server — check your connection and try again.';
+                            btn.disabled = false;
                         });
                 });
             })();
