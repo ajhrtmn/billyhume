@@ -618,7 +618,8 @@
                 likeBtn.classList.toggle('liked', data.liked);
                 likeBtn.innerHTML = data.liked ? '&#9829;' : '&#9825;';
                 if (currentView === 'liked') renderView();
-            });
+            })
+            .catch(function () { notify('Could not save that — check your connection and try again.', true); });
     });
 
     /* ---------- playlists ---------- */
@@ -1586,7 +1587,8 @@
                 fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/kick', {
                     method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ user_id: parseInt(btn.dataset.kickUid, 10) }),
-                }).catch(function () {});
+                }).then(function (r) { return r.json(); }).then(jamApplyState)
+                    .catch(function () { notify('Could not remove that listener — check your connection and try again.', true); });
             });
         });
     }

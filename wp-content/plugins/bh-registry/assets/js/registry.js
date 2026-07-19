@@ -165,6 +165,12 @@
       protocol: document.getElementById('bhr-f-protocol').value,
       url: document.getElementById('bhr-f-url').value,
     };
+    // Was never disabled/relabeled while in flight — unlike bhr-verify-now
+    // just below it, nothing stopped a slow-connection double-click or
+    // told the user their click had even registered.
+    var originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting…';
     fetch(BHRData.rest + 'submissions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -174,11 +180,17 @@
       .then(function (res) {
         if (!res.ok) {
           errorBox.textContent = (res.data && res.data.message) || 'Something went wrong.';
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalLabel;
           return;
         }
         showVerifyStep(res.data);
       })
-      .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
+      .catch(function () {
+        errorBox.textContent = 'Could not reach the server — check your connection and try again.';
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+      });
   });
 
   function showVerifyStep(data) {

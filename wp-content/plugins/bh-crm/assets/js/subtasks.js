@@ -52,7 +52,11 @@
                     // that state (plus every ancestor card's own
                     // recursive progress bar) needs a real re-render,
                     // not just a client-side guess at what changed.
-                    window.location.reload();
+                    // A brief toast first — the reload used to fire
+                    // instantly with zero confirmation the drag actually
+                    // saved, unlike the catch() branch below it.
+                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Saved.', 'success'); }
+                    setTimeout(function () { window.location.reload(); }, 600);
                 })
                 .catch(function () {
                     // Retry-audit pass, AJ's own standing ask: this
