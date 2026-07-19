@@ -276,6 +276,11 @@
             }).catch(function (err) {
                 console.error('BH_Studio: save failed', err);
                 setSaving(false);
+                // Previously this was console-only — the button just
+                // reverted to "Save" with nothing telling the actual
+                // user their edits weren't persisted.
+                var msg = (err && err.message) || 'Could not save — check your connection and try again.';
+                if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); } else { alert(msg); }
             });
         }
 

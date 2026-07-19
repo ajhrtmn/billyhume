@@ -46,7 +46,7 @@
                             var msg = r.body.message || 'Saved.';
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
                             else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
-                            setTimeout(function () { window.location.reload(); }, 900);
+                            setTimeout(function () { window.location.reload(); }, 1400);
                         } else {
                             var errMsg = (r.body && r.body.message) || 'Save failed.';
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
@@ -94,7 +94,7 @@
                             var msg = r.body.message || 'Uploaded — pending review.';
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
                             else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
-                            setTimeout(function () { window.location.reload(); }, 1200);
+                            setTimeout(function () { window.location.reload(); }, 1600);
                         } else {
                             var errMsg = (r.body && r.body.message) || 'Upload failed.';
                             if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
