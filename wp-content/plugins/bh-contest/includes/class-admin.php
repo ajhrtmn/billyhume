@@ -95,6 +95,19 @@ class BH_Admin {
     public static function restrict_dashboard_access() {
         if (!apply_filters('bh_restrict_admin_access', true)) return;
         if (wp_doing_ajax() || current_user_can('manage_options')) return;
+        // 'admin_init' fires for admin-post.php too, not just an actual
+        // wp-admin dashboard screen load — this blanket redirect was
+        // silently killing every admin-post.php action meant for a
+        // regular (non-admin) or logged-out user, before the request
+        // ever reached its real handler. Confirmed live: BHI_Auth's email-
+        // verification link (admin-post.php?action=bhi_verify_email) was
+        // bounced to the homepage on every click for any non-admin
+        // account, with the verify_email_action() callback never even
+        // entering — an artist could click their verification email
+        // forever and never actually get verified. Only the dashboard
+        // SCREEN needs to be off-limits; admin-post.php's own action
+        // dispatch already gates each handler on whatever auth it needs.
+        if (isset($_SERVER['SCRIPT_NAME']) && basename($_SERVER['SCRIPT_NAME']) === 'admin-post.php') return;
         wp_safe_redirect(home_url('/'));
         exit;
     }
