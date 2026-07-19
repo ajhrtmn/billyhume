@@ -713,6 +713,21 @@
         });
     });
 
+    // Password show/hide — a baseline expectation this auth form never
+    // had; flips the field's own type rather than a second duplicate
+    // input, so nothing about validation/submission needs to change.
+    var passToggle = document.querySelector('.bhs-pass-toggle');
+    if (passToggle) {
+        passToggle.addEventListener('click', function () {
+            var input = document.getElementById('bhs-auth-password');
+            var showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            passToggle.setAttribute('aria-pressed', String(!showing));
+            passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
+        });
+    }
+
     [document.getElementById('bhs-auth-username'), document.getElementById('bhs-auth-password'), emailField].forEach(function (el) {
         if (el) el.addEventListener('input', function () { el.classList.remove('bhs-field-invalid'); });
     });

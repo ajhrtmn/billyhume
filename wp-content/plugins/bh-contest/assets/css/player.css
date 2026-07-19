@@ -400,6 +400,15 @@
 .bh-modal-content input::placeholder, .bh-modal-content textarea::placeholder {
     color: var(--bh-text-dim); opacity: 1;
 }
+/* Password show/hide — matches the modal's own flex/gap column so the
+   wrapper behaves exactly like a bare input would. */
+.bh-pass-wrap { position: relative; }
+.bh-pass-wrap .bh-pass { width: 100%; padding-right: calc(40px * var(--bh-space-scale)); }
+.bh-pass-toggle {
+    position: absolute; right: calc(8px * var(--bh-space-scale)); top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; color: var(--bh-text-dim);
+}
+.bh-pass-toggle:hover { color: var(--bh-text); }
 
 /* Custom select — a native <select>'s open dropdown panel is drawn by
    the OS, not the page, so it can't be themed and always looks out of
@@ -518,7 +527,7 @@
 /* ---------------- Accessibility ---------------- */
 .bh-btn:focus-visible, .bh-vote-btn:focus-visible, .bh-play-pause:focus-visible,
 .bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible,
-.bh-copy-link-btn:focus-visible {
+.bh-copy-link-btn:focus-visible, .bh-pass-toggle:focus-visible {
     outline: 2px solid var(--bh-accent-soft); outline-offset: 2px;
 }
 

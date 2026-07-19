@@ -28,6 +28,13 @@
 .bhs-auth-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
 .bhs-auth-error { color: #ff6b6b; font-size: 12px; margin-bottom: 8px; min-height: 14px; }
 .bhs-auth-modal-inner input.bhs-field-invalid { border-color: #ff6b6b; }
+.bhs-pass-wrap { position: relative; }
+.bhs-pass-wrap input { width: 100%; padding-right: 40px; }
+.bhs-pass-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; color: var(--bh-text-dim);
+}
+.bhs-pass-toggle:hover { color: var(--bh-text); }
 
 /* ---- top bar: tabs + filters ---- */
 .bhs-topbar { padding: 16px 20px 0; border-bottom: 1px solid var(--bh-border); }

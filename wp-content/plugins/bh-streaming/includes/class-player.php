@@ -160,7 +160,10 @@ class BHS_Player {
                     <div id="bhs-auth-error" class="bhs-auth-error"></div>
                     <input type="text" id="bhs-auth-username" placeholder="Username">
                     <input type="email" id="bhs-auth-email" placeholder="Email" style="display:none;">
-                    <input type="password" id="bhs-auth-password" placeholder="Password">
+                    <div class="bhs-pass-wrap">
+                        <input type="password" id="bhs-auth-password" placeholder="Password">
+                        <button type="button" class="bhs-pass-toggle" aria-label="Show password" aria-pressed="false">&#128065;</button>
+                    </div>
                     <button type="button" class="bhs-btn" id="bhs-auth-submit">Log In</button>
                 </div>
             </div>

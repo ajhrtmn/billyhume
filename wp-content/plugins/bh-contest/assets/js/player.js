@@ -203,7 +203,10 @@ class BHPlayer {
                     <span class="bh-close" data-close="auth">&times;</span>
                     <h2 class="bh-auth-title">Log In</h2>
                     <input type="text" class="bh-user" placeholder="Username" autocomplete="username">
-                    <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
+                    <div class="bh-pass-wrap">
+                        <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
+                        <button type="button" class="bh-pass-toggle" aria-label="Show password" aria-pressed="false">&#128065;</button>
+                    </div>
                     <input type="email" class="bh-email" placeholder="Email (sign up only)" style="display:none;" autocomplete="email">
                     <div class="bh-reg-extra" style="display:none;">
                         <small>Optional — helps us credit you if you ever submit a track. Skip anything you'd rather not share.</small>
@@ -394,6 +397,22 @@ class BHPlayer {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
+
+        // Password show/hide — a baseline expectation this auth form
+        // never had; flips the field's own type rather than duplicating
+        // it as a second text input, so nothing else about validation/
+        // submission needs to change.
+        const passToggle = this.q('.bh-pass-toggle');
+        if (passToggle) {
+            passToggle.onclick = () => {
+                const input = this.q('.bh-pass');
+                const showing = input.type === 'text';
+                input.type = showing ? 'password' : 'text';
+                passToggle.setAttribute('aria-pressed', String(!showing));
+                passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+                passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
+            };
+        }
 
         // Copy-to-clipboard: the one genuinely missing utility this
         // ecosystem's micro-interaction survey found — a fan is
