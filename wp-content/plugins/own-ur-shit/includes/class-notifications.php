@@ -300,10 +300,27 @@ class OUS_Notifications {
             document.addEventListener("click", function (e) {
                 var markAll = e.target.closest(".bhcore-mark-all-read");
                 if (markAll) {
+                    var originalLabel = markAll.textContent;
+                    markAll.disabled = true;
+                    markAll.textContent = "Marking…";
                     fetch(BHCoreAjax.ajaxUrl, {
                         method: "POST",
                         body: new URLSearchParams({ action: "bhcore_mark_all_notifications_read", nonce: markAll.dataset.nonce })
-                    }).then(function () { document.querySelectorAll(".bhcore-notification.bhcore-unread").forEach(function (el) { el.classList.remove("bhcore-unread"); }); });
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        markAll.disabled = false;
+                        markAll.textContent = originalLabel;
+                        if (!res || !res.success) {
+                            if (typeof BHCoreToast !== "undefined") { BHCoreToast.show("Could not mark notifications read — try again.", "error"); }
+                            else { alert("Could not mark notifications read — try again."); }
+                            return;
+                        }
+                        document.querySelectorAll(".bhcore-notification.bhcore-unread").forEach(function (el) { el.classList.remove("bhcore-unread"); });
+                    }).catch(function () {
+                        markAll.disabled = false;
+                        markAll.textContent = originalLabel;
+                        if (typeof BHCoreToast !== "undefined") { BHCoreToast.show("Could not reach the server — check your connection and try again.", "error"); }
+                        else { alert("Could not reach the server — check your connection and try again."); }
+                    });
                 }
             });
         ');

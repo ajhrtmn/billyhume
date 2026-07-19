@@ -225,32 +225,63 @@ class BHI_TwoFactor {
 
             var startBtn = document.getElementById('bhcore-2fa-start');
             if (startBtn) startBtn.addEventListener('click', function () {
+                var originalLabel = startBtn.textContent;
+                startBtn.disabled = true;
+                startBtn.textContent = 'Starting…';
                 fetch(ajaxUrl, { method: 'POST', body: new URLSearchParams({ action: 'bhcore_2fa_start_enroll', nonce: nonce }) })
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = originalLabel;
                         if (!res.success) { alert(res.data && res.data.message || 'Could not start setup.'); return; }
                         document.getElementById('bhcore-2fa-setup').style.display = '';
                         document.getElementById('bhcore-2fa-qr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(res.data.otpauth_uri);
                         document.getElementById('bhcore-2fa-secret-text').textContent = res.data.secret;
+                    })
+                    .catch(function () {
+                        startBtn.disabled = false;
+                        startBtn.textContent = originalLabel;
+                        alert('Could not reach the server — check your connection and try again.');
                     });
             });
 
             var confirmBtn = document.getElementById('bhcore-2fa-confirm');
             if (confirmBtn) confirmBtn.addEventListener('click', function () {
                 var code = document.getElementById('bhcore-2fa-confirm-code').value;
+                var originalLabel = confirmBtn.textContent;
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Confirming…';
                 fetch(ajaxUrl, { method: 'POST', body: new URLSearchParams({ action: 'bhcore_2fa_confirm_enroll', nonce: nonce, code: code }) })
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
-                        if (!res.success) { document.getElementById('bhcore-2fa-error').textContent = (res.data && res.data.message) || 'Invalid code.'; return; }
+                        if (!res.success) {
+                            confirmBtn.disabled = false;
+                            confirmBtn.textContent = originalLabel;
+                            document.getElementById('bhcore-2fa-error').textContent = (res.data && res.data.message) || 'Invalid code.';
+                            return;
+                        }
                         window.location.reload();
+                    })
+                    .catch(function () {
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = originalLabel;
+                        document.getElementById('bhcore-2fa-error').textContent = 'Could not reach the server — check your connection and try again.';
                     });
             });
 
             var disableBtn = document.getElementById('bhcore-2fa-disable');
             if (disableBtn) disableBtn.addEventListener('click', function () {
                 if (!confirm('Disable two-factor authentication on your account?')) return;
+                var originalLabel = disableBtn.textContent;
+                disableBtn.disabled = true;
+                disableBtn.textContent = 'Disabling…';
                 fetch(ajaxUrl, { method: 'POST', body: new URLSearchParams({ action: 'bhcore_2fa_disable', nonce: nonce }) })
-                    .then(function () { window.location.reload(); });
+                    .then(function () { window.location.reload(); })
+                    .catch(function () {
+                        disableBtn.disabled = false;
+                        disableBtn.textContent = originalLabel;
+                        alert('Could not reach the server — check your connection and try again. Two-factor is likely still enabled.');
+                    });
             });
         })();
         </script>

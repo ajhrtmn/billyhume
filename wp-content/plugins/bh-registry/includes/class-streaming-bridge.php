@@ -45,27 +45,55 @@ class BHR_StreamingBridge {
             var feedField = document.querySelector('input[name="bhs_feed_url"]');
             var timer;
 
+            function esc(s) {
+                var div = document.createElement('div');
+                div.textContent = s || '';
+                return div.innerHTML;
+            }
+
             input.addEventListener('input', function () {
                 clearTimeout(timer);
                 var q = input.value;
                 if (!q) { results.innerHTML = ''; return; }
+                results.textContent = 'Searching…';
                 timer = setTimeout(function () {
                     fetch(restBase + 'artists?search=' + encodeURIComponent(q) + '&protocol=feed')
                         .then(function (r) { return r.json(); })
                         .then(function (data) {
+                            // display_name comes from public registry
+                            // submissions — must be escaped, not
+                            // interpolated raw into innerHTML.
                             results.innerHTML = (data.artists || []).map(function (a) {
-                                return '<div style="padding:4px 0;"><a href="#" data-id="' + a.id + '">' + a.display_name + '</a></div>';
+                                return '<div style="padding:4px 0;"><a href="#" data-id="' + a.id + '">' + esc(a.display_name) + '</a></div>';
                             }).join('') || '<em>No matches.</em>';
                             results.querySelectorAll('a').forEach(function (link) {
                                 link.addEventListener('click', function (e) {
                                     e.preventDefault();
+                                    var originalText = link.textContent;
+                                    link.textContent = 'Loading…';
                                     fetch(restBase + 'artists/' + link.dataset.id + '/feed-url')
                                         .then(function (r) { return r.json(); })
                                         .then(function (fd) {
-                                            if (feedField && fd.feed_url) feedField.value = fd.feed_url;
+                                            link.textContent = originalText;
+                                            if (feedField && fd.feed_url) {
+                                                feedField.value = fd.feed_url;
+                                                feedField.style.transition = 'background-color .3s';
+                                                feedField.style.backgroundColor = '#d4f7d4';
+                                                setTimeout(function () { feedField.style.backgroundColor = ''; }, 900);
+                                                results.innerHTML = '<em>Feed URL filled in from ' + esc(originalText) + '.</em>';
+                                            } else {
+                                                results.innerHTML = '<em>That artist has no feed URL on file.</em>';
+                                            }
+                                        })
+                                        .catch(function () {
+                                            link.textContent = originalText;
+                                            results.innerHTML = '<em>Could not reach the registry — check your connection and try again.</em>';
                                         });
                                 });
                             });
+                        })
+                        .catch(function () {
+                            results.innerHTML = '<em>Could not reach the registry — check your connection and try again.</em>';
                         });
                 }, 300);
             });
