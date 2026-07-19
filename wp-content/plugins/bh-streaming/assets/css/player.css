@@ -27,6 +27,7 @@
 .bhs-auth-tab.active { color: var(--bh-text); border-bottom-color: var(--bh-accent); }
 .bhs-auth-modal-inner input { width: 100%; box-sizing: border-box; padding: 9px 10px; margin-bottom: 8px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg); color: var(--bh-text); }
 .bhs-auth-error { color: #ff6b6b; font-size: 12px; margin-bottom: 8px; min-height: 14px; }
+.bhs-auth-modal-inner input.bhs-field-invalid { border-color: #ff6b6b; }
 
 /* ---- top bar: tabs + filters ---- */
 .bhs-topbar { padding: 16px 20px 0; border-bottom: 1px solid var(--bh-border); }

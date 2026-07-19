@@ -78,8 +78,9 @@
     padding: 8px 10px; font-size: 13px; color: var(--bh-text); min-width: 140px;
 }
 .bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
-.bhc-btn { display: inline-block; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: var(--bh-accent); color: var(--bh-on-accent, #fff); }
-.bhc-btn-secondary { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); }
+/* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
+   lesson-step pass) — this catalog-pass version was fully shadowed by
+   that later, identical-specificity rule and was dead weight. */
 
 /* ---- catalog: pagination ---- */
 .bhc-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding-top: 8px; }

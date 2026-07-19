@@ -642,6 +642,10 @@
     function addCurrentToPlaylist(playlistId) {
         var t = queue[queueIndex];
         if (!t) return;
+        // Disable every row so a double-tap can't fire two adds while the
+        // first request is still in flight — previously nothing in the
+        // picker indicated a request was even happening.
+        playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
         fetch(rest + 'playlists/' + playlistId + '/tracks', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ track_id: t.id }),
@@ -649,20 +653,33 @@
             var idx = myPlaylists.findIndex(function (p) { return p.id === playlistId; });
             if (idx !== -1) myPlaylists[idx] = data.playlist;
             playlistPicker.style.display = 'none';
+        }).catch(function () {
+            playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+            notify('Could not add to playlist — check your connection and try again.', true);
         });
     }
 
     document.getElementById('bhs-new-playlist-create').addEventListener('click', function () {
         var nameEl = document.getElementById('bhs-new-playlist-name');
+        var createBtn = document.getElementById('bhs-new-playlist-create');
         var name = nameEl.value.trim();
         if (!name) return;
+        createBtn.disabled = true;
+        var originalLabel = createBtn.textContent;
+        createBtn.textContent = 'Creating…';
         fetch(rest + 'playlists', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ title: name }),
         }).then(function (r) { return r.json(); }).then(function (data) {
             myPlaylists.push(data.playlist);
             nameEl.value = '';
+            createBtn.disabled = false;
+            createBtn.textContent = originalLabel;
             addCurrentToPlaylist(data.playlist.id);
+        }).catch(function () {
+            createBtn.disabled = false;
+            createBtn.textContent = originalLabel;
+            notify('Could not create the playlist — check your connection and try again.', true);
         });
     });
 
@@ -696,23 +713,65 @@
         });
     });
 
+    [document.getElementById('bhs-auth-username'), document.getElementById('bhs-auth-password'), emailField].forEach(function (el) {
+        if (el) el.addEventListener('input', function () { el.classList.remove('bhs-field-invalid'); });
+    });
+
     authSubmitBtn.addEventListener('click', function () {
-        var username = document.getElementById('bhs-auth-username').value.trim();
-        var password = document.getElementById('bhs-auth-password').value;
+        var usernameEl = document.getElementById('bhs-auth-username');
+        var passwordEl = document.getElementById('bhs-auth-password');
+        var username = usernameEl.value.trim();
+        var password = passwordEl.value;
+        // Basic empty-field check before ever hitting the network — the
+        // only feedback this form gave before was a generic server error
+        // AFTER a full round trip, even for something as simple as a
+        // blank field. Marks the specific empty field, not just a shared
+        // line of text under the whole form.
+        usernameEl.classList.toggle('bhs-field-invalid', !username);
+        passwordEl.classList.toggle('bhs-field-invalid', !password);
+        if (!username || !password) {
+            authError.textContent = !username && !password ? 'Enter a username and password.' : (!username ? 'Enter a username.' : 'Enter a password.');
+            return;
+        }
+        if (authMode === 'register' && !emailField.value.trim()) {
+            emailField.classList.add('bhs-field-invalid');
+            authError.textContent = 'Enter an email address.';
+            return;
+        }
         var body = { username: username, password: password };
         if (authMode === 'register') body.email = emailField.value.trim();
+
+        // Pending state — this used to give zero feedback between click
+        // and response, letting a slow connection invite a double-click
+        // (and a real duplicate register/login POST).
+        authSubmitBtn.disabled = true;
+        var originalLabel = authSubmitBtn.textContent;
+        authSubmitBtn.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
+        authError.textContent = '';
 
         fetch(identityRest + authMode, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         })
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
             .then(function (res) {
-                if (!res.ok) { authError.textContent = res.data.message || 'Something went wrong.'; return; }
+                if (!res.ok) {
+                    authSubmitBtn.disabled = false;
+                    authSubmitBtn.textContent = originalLabel;
+                    authError.textContent = res.data.message || 'Something went wrong.';
+                    return;
+                }
                 loggedIn = true;
                 authModal.style.display = 'none';
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = originalLabel;
                 authError.textContent = '';
                 refreshAccountUI();
                 reloadUserData();
+            })
+            .catch(function () {
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = originalLabel;
+                authError.textContent = 'Could not reach the server — check your connection and try again.';
             });
     });
 

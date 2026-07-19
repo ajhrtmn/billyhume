@@ -517,7 +517,8 @@
 
 /* ---------------- Accessibility ---------------- */
 .bh-btn:focus-visible, .bh-vote-btn:focus-visible, .bh-play-pause:focus-visible,
-.bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible {
+.bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible,
+.bh-copy-link-btn:focus-visible {
     outline: 2px solid var(--bh-accent-soft); outline-offset: 2px;
 }
 
