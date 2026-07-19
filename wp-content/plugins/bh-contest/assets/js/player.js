@@ -622,7 +622,10 @@ class BHPlayer {
             // "fetch a fresh nonce" call would itself be sent with the now-
             // stale old nonce and get rejected. A reload sidesteps that
             // race entirely: the server bakes in a correct nonce fresh.
-            setTimeout(() => window.location.reload(), 300);
+            // 1400ms (was 300) — long enough to actually read the toast
+            // before the reload wipes it out; toast() itself stays visible
+            // for 3400ms so this still cuts the reload in ahead of that.
+            setTimeout(() => window.location.reload(), 1400);
             return;
         }
         this.toast(body.message || 'Authentication failed.', true);
@@ -637,7 +640,8 @@ class BHPlayer {
         this.toast('Logged out.');
         // Same reasoning as auth(): the session cookie just changed, so a
         // reload is the only reliable way to pick up a matching nonce.
-        setTimeout(() => window.location.reload(), 300);
+        // 1400ms (was 300) so the toast is actually readable first.
+        setTimeout(() => window.location.reload(), 1400);
     }
 
     /* ---------- submission ---------- */

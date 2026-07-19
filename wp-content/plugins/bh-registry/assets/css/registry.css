@@ -36,6 +36,7 @@
   border: 1px solid var(--bh-border, #3D1B14); background: var(--bh-surface-2, #2C120E); color: inherit;
 }
 .bhr-form-error { color: #b3261e; font-size: 13px; margin-top: 8px; }
+.bhr-form-success { color: var(--bh-accent, #1DB954); font-size: 13px; margin-top: 8px; font-weight: 600; }
 .bhr-submit-modal-inner code { display: block; background: var(--bh-surface-2, #2C120E); padding: 8px; border-radius: 4px; word-break: break-all; margin-bottom: 10px; }
 
 /* This file had zero mobile breakpoints at all — every other front-end
