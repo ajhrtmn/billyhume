@@ -653,6 +653,11 @@
             var idx = myPlaylists.findIndex(function (p) { return p.id === playlistId; });
             if (idx !== -1) myPlaylists[idx] = data.playlist;
             playlistPicker.style.display = 'none';
+            // Was silent on success (only the failure path below ever
+            // called notify()) — the picker just closed with zero
+            // positive signal the add actually went through.
+            var addedName = (data.playlist && data.playlist.name) || 'playlist';
+            notify('Added to "' + addedName + '".');
         }).catch(function () {
             playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
             notify('Could not add to playlist — check your connection and try again.', true);
