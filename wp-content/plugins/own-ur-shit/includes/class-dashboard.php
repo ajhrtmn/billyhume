@@ -32,7 +32,13 @@ class OUS_Dashboard {
     }
 
     public static function add_menu() {
-        add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], 'dashicons-admin-multisite', 3);
+        // Custom icon (OUS_MenuIcons::hub()) instead of the generic
+        // dashicons-admin-multisite — the shared rounded-square badge
+        // frame every OUS-owned top-level menu now carries (see
+        // class-menu-icons.php) is the actual ecosystem-membership
+        // signal; this is the one glyph in that family that represents
+        // the ecosystem hub itself rather than one feature area.
+        add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
         // WordPress auto-creates a first submenu item duplicating the
         // top-level menu's own label unless explicitly overridden —
         // this replaces that duplicate with a clearer "Dashboard" label

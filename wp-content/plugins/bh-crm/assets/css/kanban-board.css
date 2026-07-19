@@ -6,6 +6,18 @@
  */
 .bhcrm-kanban-board {
     margin-top: 10px;
+    min-height: 40px;
+}
+/* kanban-board.js sets/removes this attribute around the initial
+   placements/rollups fetch, but nothing ever styled it — the board just
+   sat blank during that fetch with zero indication anything was
+   loading. */
+.bhcrm-kanban-board[data-loading="1"] {
+    position: relative; min-height: 120px;
+}
+.bhcrm-kanban-board[data-loading="1"]::after {
+    content: 'Loading board…';
+    position: absolute; top: 20px; left: 0; color: #646970; font-size: 13px;
 }
 
 /* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
@@ -184,13 +196,17 @@
 
 .bhcrm-kanban-card-drag-handle {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 2px;
+    right: 2px;
     color: #a7aaad;
     cursor: grab;
     font-size: 12px;
     line-height: 1;
-    padding: 2px 4px;
+    /* A control whose entire job is precise dragging deserves more than
+       a ~16px hit box even on desktop — the mobile breakpoint below
+       already bumps this further for touch, this just raises the
+       mouse-driven baseline closer to a comfortable click target too. */
+    padding: 8px 10px;
     user-select: none;
 }
 

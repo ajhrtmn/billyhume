@@ -28,8 +28,18 @@ class BHM_Admin {
             // Install button to have anything to extract.
             'bundled_zip' => 'bh-monetization-woo.zip',
             'dashboard_link' => 'admin.php?page=bhm-settings',
+            // 'parent' => 'woocommerce' — this used to default to
+            // 'own-ur-shit' (every admin_menus entry's implicit
+            // default, see the core's class-menu-merge.php), splitting
+            // this plugin's admin presence across two different
+            // top-level menus: "Monetization Settings" under the
+            // cross-cutting ecosystem hub, but its own Tiers CPT
+            // (class-tiers.php's own 'show_in_menu' => 'woocommerce')
+            // right there under WooCommerce instead. Joining Tiers
+            // under the same parent it already lives next to is the
+            // one consistent home for a WooCommerce-backed plugin.
             'admin_menus' => [
-                ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => [self::class, 'render']],
+                ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => [self::class, 'render'], 'parent' => 'woocommerce'],
             ],
         ];
         // The actual WooCommerce entry — same wporg_slug pattern the

@@ -922,7 +922,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1019,6 +1019,16 @@ add_action('init',          ['OUS_CodebaseDocs', 'init']);
 BH_Event::init();
 BH_Identity::init();
 OUS_Toast::init();
+// QA fix, simulation pass: BHI_Auth::init() was never called anywhere —
+// register_routes() (the REST endpoints) gets wired separately via
+// rest_api_init below, so login/register/session worked, but init()
+// itself (admin_post_bhi_verify_email + the wp_footer verification-toast
+// handler) was completely orphaned. Confirmed via a real HTTP hit on
+// admin-post.php?action=bhi_verify_email with a fresh, valid token: the
+// user meta never updated and the redirect carried no bhi_verified param
+// at all — the exact same silent-dead-hook failure mode as the three
+// classes just above.
+BHI_Auth::init();
 // QA fix, 3.4.87: the 3.4.85 changelog claimed OUS_Gutenberg_Block::
 // init() was fixed alongside the four classes just above — the fix
 // itself (class-gutenberg-block.php's init() calling register_block()

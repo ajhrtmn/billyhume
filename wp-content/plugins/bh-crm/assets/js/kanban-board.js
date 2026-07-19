@@ -61,6 +61,15 @@
         }).then(function (res) {
             if (!res.ok) {
                 return res.json().catch(function () { return {}; }).then(function (err) {
+                    // A 401/403 previously surfaced whatever generic
+                    // REST error text WordPress happened to send (or
+                    // none at all, falling back to "HTTP 403") — reads
+                    // like the SAVE failed, not that the admin's own
+                    // session/nonce went stale (e.g. this tab sat open
+                    // past a login timeout).
+                    if ((res.status === 401 || res.status === 403) && !(err && err.message)) {
+                        throw new Error('Your session has expired — refresh the page and log in again.');
+                    }
                     throw new Error((err && err.message) || ('HTTP ' + res.status));
                 });
             }
@@ -112,8 +121,14 @@
             state.placements = (grouped && grouped.board) ? grouped.board : [];
             render();
         }).catch(function (err) {
+            // Previously surfaced the raw exception message straight to
+            // the user (e.g. a fetch/parse error string) — inconsistent
+            // with the friendly copy this ecosystem uses everywhere
+            // else. Real detail still goes to the console for whoever's
+            // actually debugging it.
+            console.error('bh-crm kanban board load failed:', err);
             root.innerHTML = '';
-            var p = el('p', 'description', 'Failed to load board: ' + err.message);
+            var p = el('p', 'description', 'Could not load the board — please try again.');
             root.appendChild(p);
         });
     }

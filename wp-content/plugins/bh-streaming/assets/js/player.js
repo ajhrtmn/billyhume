@@ -83,6 +83,15 @@
         return h;
     }
 
+    // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
+    // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
+    // unconditionally) replaces every alert() this player used to block
+    // on for a plain "log in to do that" notice. Same typeof guard every
+    // other call site in this ecosystem uses.
+    function notify(msg, isError) {
+        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
+    }
+
     /* ---------- filtering (search + genre, applied to the "All Tracks" view) ---------- */
 
     function filteredTracks() {
@@ -149,7 +158,7 @@
                         + '<div class="bhs-card-artist">' + esc(r.artist) + '</div>'
                         + '</button>';
                 }).join('') + '</div>'
-                : '<p class="bhs-empty">No releases yet.</p>';
+                : ((window.BHSData && BHSData.emptyStateReleases) || '<p class="bhs-empty">No releases yet.</p>');
             library.querySelectorAll('.bhs-release-card').forEach(function (card) {
                 card.addEventListener('click', function () { openRelease(parseInt(card.dataset.release, 10)); });
             });
@@ -157,7 +166,9 @@
             var liked = allTracks.filter(function (t) { return likedIds.indexOf(t.id) !== -1; });
             library.innerHTML = liked.length
                 ? '<div class="bhs-grid">' + liked.map(trackCardHtml).join('') + '</div>'
-                : '<p class="bhs-empty">' + (loggedIn ? 'Nothing liked yet.' : 'Log in to like tracks.') + '</p>';
+                : (loggedIn
+                    ? ((window.BHSData && BHSData.emptyStateLiked) || '<p class="bhs-empty">Nothing liked yet.</p>')
+                    : '<p class="bhs-empty">Log in to like tracks.</p>');
             bindCardClicks(liked);
         } else if (currentView === 'playlists') {
             renderPlaylistsView();
@@ -597,7 +608,7 @@
     /* ---------- likes ---------- */
 
     likeBtn.addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to like tracks.'); return; }
+        if (!loggedIn) { notify('Log in to like tracks.', true); return; }
         var t = queue[queueIndex];
         if (!t) return;
         fetch(rest + 'likes/' + t.id, { method: 'POST', headers: authHeaders() })
@@ -613,7 +624,7 @@
     /* ---------- playlists ---------- */
 
     document.getElementById('bhs-add-playlist').addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to use playlists.'); return; }
+        if (!loggedIn) { notify('Log in to use playlists.', true); return; }
         renderPlaylistPicker();
         playlistPicker.style.display = '';
     });
@@ -631,6 +642,10 @@
     function addCurrentToPlaylist(playlistId) {
         var t = queue[queueIndex];
         if (!t) return;
+        // Disable every row so a double-tap can't fire two adds while the
+        // first request is still in flight — previously nothing in the
+        // picker indicated a request was even happening.
+        playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
         fetch(rest + 'playlists/' + playlistId + '/tracks', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ track_id: t.id }),
@@ -638,20 +653,33 @@
             var idx = myPlaylists.findIndex(function (p) { return p.id === playlistId; });
             if (idx !== -1) myPlaylists[idx] = data.playlist;
             playlistPicker.style.display = 'none';
+        }).catch(function () {
+            playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+            notify('Could not add to playlist — check your connection and try again.', true);
         });
     }
 
     document.getElementById('bhs-new-playlist-create').addEventListener('click', function () {
         var nameEl = document.getElementById('bhs-new-playlist-name');
+        var createBtn = document.getElementById('bhs-new-playlist-create');
         var name = nameEl.value.trim();
         if (!name) return;
+        createBtn.disabled = true;
+        var originalLabel = createBtn.textContent;
+        createBtn.textContent = 'Creating…';
         fetch(rest + 'playlists', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ title: name }),
         }).then(function (r) { return r.json(); }).then(function (data) {
             myPlaylists.push(data.playlist);
             nameEl.value = '';
+            createBtn.disabled = false;
+            createBtn.textContent = originalLabel;
             addCurrentToPlaylist(data.playlist.id);
+        }).catch(function () {
+            createBtn.disabled = false;
+            createBtn.textContent = originalLabel;
+            notify('Could not create the playlist — check your connection and try again.', true);
         });
     });
 
@@ -685,23 +713,80 @@
         });
     });
 
+    // Password show/hide — a baseline expectation this auth form never
+    // had; flips the field's own type rather than a second duplicate
+    // input, so nothing about validation/submission needs to change.
+    var passToggle = document.querySelector('.bhs-pass-toggle');
+    if (passToggle) {
+        passToggle.addEventListener('click', function () {
+            var input = document.getElementById('bhs-auth-password');
+            var showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            passToggle.setAttribute('aria-pressed', String(!showing));
+            passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
+        });
+    }
+
+    [document.getElementById('bhs-auth-username'), document.getElementById('bhs-auth-password'), emailField].forEach(function (el) {
+        if (el) el.addEventListener('input', function () { el.classList.remove('bhs-field-invalid'); });
+    });
+
     authSubmitBtn.addEventListener('click', function () {
-        var username = document.getElementById('bhs-auth-username').value.trim();
-        var password = document.getElementById('bhs-auth-password').value;
+        var usernameEl = document.getElementById('bhs-auth-username');
+        var passwordEl = document.getElementById('bhs-auth-password');
+        var username = usernameEl.value.trim();
+        var password = passwordEl.value;
+        // Basic empty-field check before ever hitting the network — the
+        // only feedback this form gave before was a generic server error
+        // AFTER a full round trip, even for something as simple as a
+        // blank field. Marks the specific empty field, not just a shared
+        // line of text under the whole form.
+        usernameEl.classList.toggle('bhs-field-invalid', !username);
+        passwordEl.classList.toggle('bhs-field-invalid', !password);
+        if (!username || !password) {
+            authError.textContent = !username && !password ? 'Enter a username and password.' : (!username ? 'Enter a username.' : 'Enter a password.');
+            return;
+        }
+        if (authMode === 'register' && !emailField.value.trim()) {
+            emailField.classList.add('bhs-field-invalid');
+            authError.textContent = 'Enter an email address.';
+            return;
+        }
         var body = { username: username, password: password };
         if (authMode === 'register') body.email = emailField.value.trim();
+
+        // Pending state — this used to give zero feedback between click
+        // and response, letting a slow connection invite a double-click
+        // (and a real duplicate register/login POST).
+        authSubmitBtn.disabled = true;
+        var originalLabel = authSubmitBtn.textContent;
+        authSubmitBtn.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
+        authError.textContent = '';
 
         fetch(identityRest + authMode, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         })
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
             .then(function (res) {
-                if (!res.ok) { authError.textContent = res.data.message || 'Something went wrong.'; return; }
+                if (!res.ok) {
+                    authSubmitBtn.disabled = false;
+                    authSubmitBtn.textContent = originalLabel;
+                    authError.textContent = res.data.message || 'Something went wrong.';
+                    return;
+                }
                 loggedIn = true;
                 authModal.style.display = 'none';
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = originalLabel;
                 authError.textContent = '';
                 refreshAccountUI();
                 reloadUserData();
+            })
+            .catch(function () {
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = originalLabel;
+                authError.textContent = 'Could not reach the server — check your connection and try again.';
             });
     });
 
@@ -813,7 +898,12 @@
         audio.addEventListener('loadedmetadata', function onLoaded() {
             audio.removeEventListener('loadedmetadata', onLoaded);
             audio.currentTime = position;
-            if (wasPlaying) audio.play().catch(function () {});
+            // If this fails, playback that WAS running just silently
+            // stops with no explanation — the play/pause icon already
+            // correctly reflects the real (paused) state via the
+            // audio element's own 'pause' event, but nothing told the
+            // user THEY didn't click pause, the browser did.
+            if (wasPlaying) audio.play().catch(function () { notify('Playback stopped — press play to resume.', true); });
         });
         renderQualityFor(queue[queueIndex]);
         // A quality switch is effectively a new URL for the same logical
@@ -1133,7 +1223,7 @@
     /* ---------- local file import ---------- */
 
     document.getElementById('bhs-import-open').addEventListener('click', function () {
-        if (!loggedIn) { alert('Log in to import your own music.'); return; }
+        if (!loggedIn) { notify('Log in to import your own music.', true); return; }
         importModal.style.display = 'flex';
     });
     document.getElementById('bhs-import-close').addEventListener('click', function () { importModal.style.display = 'none'; });
@@ -1163,7 +1253,7 @@
                 fileInput.value = '';
                 if (currentView === 'all') renderView();
             })
-            .catch(function () { errorBox.textContent = 'Could not reach the server right now.'; });
+            .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });
 
     /* ---------- tabs + filters ---------- */
@@ -1374,7 +1464,13 @@
     function jamVoteSkip() {
         if (!jam.active || !jam.code || jam.controlMode !== 'vote_skip') return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/vote-skip', { method: 'POST', headers: authHeaders() })
-            .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {});
+            .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {
+                // Previously fully silent — a listener tapping "Vote to
+                // skip" during a real connection blip had no way to tell
+                // their vote didn't register vs. the button just being
+                // unresponsive.
+                notify('Could not reach the server — check your connection and try again.', true);
+            });
     }
 
     function jamLeave() {
@@ -1394,7 +1490,7 @@
         if (jamParticipantsPanel) { jamParticipantsPanel.remove(); jamParticipantsPanel = null; }
         if (jamPendingPanel) { jamPendingPanel.remove(); jamPendingPanel = null; }
         if (jamApprovalPoll) { clearInterval(jamApprovalPoll); jamApprovalPoll = null; }
-        if (notice) alert(notice);
+        if (notice) notify(notice, true);
     }
 
     function jamRenderBanner() {
@@ -1467,8 +1563,21 @@
             });
         });
         jamParticipantsPanel.querySelectorAll('button[data-kick-uid]').forEach(function (btn) {
+            // Arm/disarm instead of confirm() — same banned-dialog reason
+            // as everywhere else in this ecosystem. First click arms it
+            // (relabeled for 3s); a second click while armed actually
+            // kicks the listener.
             btn.addEventListener('click', function () {
-                if (!confirm('Remove this listener from the Jam?')) return;
+                if (!btn.classList.contains('is-armed')) {
+                    btn.classList.add('is-armed');
+                    btn.textContent = 'confirm remove?';
+                    btn._armTimer = setTimeout(function () {
+                        btn.classList.remove('is-armed');
+                        btn.textContent = 'remove';
+                    }, 3000);
+                    return;
+                }
+                clearTimeout(btn._armTimer);
                 fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/kick', {
                     method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ user_id: parseInt(btn.dataset.kickUid, 10) }),

@@ -21,12 +21,16 @@ class BHC_PostTypes {
     public static function register() {
         register_post_type('bh_course', [
             'labels' => [
-                'name' => 'Courses', 'menu_name' => 'OUS · Courses', 'singular_name' => 'Course',
+                // "OUS ·" text prefix dropped — the shared icon
+                // (OUS_MenuIcons::courses(), same rounded-square badge
+                // frame every OUS-owned top-level menu now carries) is
+                // what signals ecosystem membership now.
+                'name' => 'Courses', 'menu_name' => 'Courses', 'singular_name' => 'Course',
                 'add_new_item' => 'Add New Course', 'edit_item' => 'Edit Course', 'all_items' => 'All Courses',
             ],
             'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => 'courses',
             'rewrite' => ['slug' => 'courses'],
-            'menu_icon' => 'dashicons-welcome-learn-more', 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
+            'menu_icon' => OUS_MenuIcons::courses(), 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',
             // show_in_rest is the actual WordPress gate for the block
             // editor (use_block_editor_for_post_type() checks this AND

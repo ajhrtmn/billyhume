@@ -79,7 +79,12 @@ class BHI_Reports {
                genuinely exists on the page. Default bottom stays 16px;
                JS adds the real, measured bar height via inline style
                only when the element is actually present. */
-            .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 99998; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+            /* Was 99998 — above every modal in the ecosystem (bh-contest
+               10000, bh-registry 9999, bh-streaming 200/100/90), so this
+               floated on top of any open modal instead of sitting behind
+               its backdrop. 50 sits below all real modal z-indices while
+               staying above ordinary page content. */
+            .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 50; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
             .bhi-tech-report-toggle {
                 background: var(--bhy-surface, #fff); color: var(--bhy-ink-dim, #646970);
                 border: 1px solid var(--bhy-border, #dcdcde); border-radius: 999px;

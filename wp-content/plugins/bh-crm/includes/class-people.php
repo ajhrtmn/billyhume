@@ -117,7 +117,7 @@ class BHCRM_People {
     public static function render() {
         $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
         $project_id = isset($_GET['project_id']) ? (int) $_GET['project_id'] : 0;
-        BHY_UI::shell_open('Studio &rsaquo; People');
+        BHY_UI::shell_open('People');
         if (isset($_GET['bhcrm_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhcrm_msg']))) . '</p></div>';
 
         // 1.2.0 — project tracker board dispatch. Rides on THIS existing

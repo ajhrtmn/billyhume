@@ -130,6 +130,17 @@ class BHPlayer {
         let res, body = {};
         try { res = await fetch(url, o); body = await res.json().catch(() => ({})); }
         catch (e) { return { ok: false, body: {} }; }
+        // A 401/403 previously fell through to whatever generic action-
+        // specific fallback the caller had ("Could not record your
+        // vote."), which reads like the ACTION failed rather than the
+        // real cause. Only overridden when the server didn't already
+        // send its own specific message — a deliberately-permission-
+        // denied case (e.g. a not-yet-open contest) still shows ITS
+        // real reason, not a blanket "log in again" that would be wrong
+        // there.
+        if (!res.ok && (res.status === 401 || res.status === 403) && !body.message) {
+            body.message = 'Your session has expired — please log in again.';
+        }
         return { ok: res.ok, body };
     }
 
@@ -203,7 +214,10 @@ class BHPlayer {
                     <span class="bh-close" data-close="auth">&times;</span>
                     <h2 class="bh-auth-title">Log In</h2>
                     <input type="text" class="bh-user" placeholder="Username" autocomplete="username">
-                    <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
+                    <div class="bh-pass-wrap">
+                        <input type="password" class="bh-pass" placeholder="Password" autocomplete="current-password">
+                        <button type="button" class="bh-pass-toggle" aria-label="Show password" aria-pressed="false">&#128065;</button>
+                    </div>
                     <input type="email" class="bh-email" placeholder="Email (sign up only)" style="display:none;" autocomplete="email">
                     <div class="bh-reg-extra" style="display:none;">
                         <small>Optional — helps us credit you if you ever submit a track. Skip anything you'd rather not share.</small>
@@ -394,6 +408,22 @@ class BHPlayer {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
+
+        // Password show/hide — a baseline expectation this auth form
+        // never had; flips the field's own type rather than duplicating
+        // it as a second text input, so nothing else about validation/
+        // submission needs to change.
+        const passToggle = this.q('.bh-pass-toggle');
+        if (passToggle) {
+            passToggle.onclick = () => {
+                const input = this.q('.bh-pass');
+                const showing = input.type === 'text';
+                input.type = showing ? 'password' : 'text';
+                passToggle.setAttribute('aria-pressed', String(!showing));
+                passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+                passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
+            };
+        }
 
         // Copy-to-clipboard: the one genuinely missing utility this
         // ecosystem's micro-interaction survey found — a fan is
@@ -1014,26 +1044,12 @@ class BHPlayer {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.bh-player-root').forEach(root => new BHPlayer(root));
 
-    // The email verification link redirects back here with this flag.
-    // Doesn't need a BHPlayer instance — toast() just appends a plain
-    // element to <body>, so a standalone version works the same way,
-    // best-effort on whatever page the redirect happened to land on
-    // (only actually visible if that page also has player.css loaded,
-    // i.e. has the contest shortcode — see is_email_verified()'s own
-    // notes on this in class-auth.php for the reasoning).
-    const params = new URLSearchParams(location.search);
-    if (params.has('bh_verified')) {
-        const ok = params.get('bh_verified') === '1';
-        const msg = ok ? 'Email confirmed — you can vote and submit now!' : 'That verification link is invalid or expired.';
-        let t = document.getElementById('bh-toast');
-        if (!t) { t = document.createElement('div'); t.id = 'bh-toast'; t.className = 'bh-toast'; document.body.appendChild(t); }
-        t.textContent = msg;
-        t.classList.toggle('error', !ok);
-        t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3400);
-
-        params.delete('bh_verified');
-        const clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
-        history.replaceState({}, '', clean);
-    }
+    // Email-verification confirmation used to be handled here, but this
+    // checked for `bh_verified` while class-auth.php's actual redirect
+    // sends `bhi_verified` — a key-name mismatch that meant this never
+    // fired, ever, for any real user. Replaced with a single sitewide
+    // handler in own-ur-shit's class-auth.php (BHCoreToast, works on
+    // any page, not just ones with this contest player loaded) instead
+    // of fixing the mismatch here and keeping two mechanisms for the
+    // same moment.
 });

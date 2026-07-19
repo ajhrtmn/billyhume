@@ -154,10 +154,24 @@ class BH_Content {
 
         if ($context_type === 'post') {
             $blocks = self::tree_to_gutenberg_blocks($clean);
-            wp_update_post([
+            // wp_insert_post() (which wp_update_post() calls internally)
+            // unconditionally wp_unslash()es every string field, on the
+            // assumption a caller is passing raw $_POST data (WP's own
+            // magic-quotes-era convention). serialize_blocks() escapes
+            // any '<', '>', etc. inside a block attribute as literal
+            // JSON unicode sequences ('<'), so that unslash strips
+            // the backslash and leaves visible garbage ('u003c') in
+            // place of every '<' the moment a text step contains any
+            // HTML tag. wp_slash() here counters that exactly the way
+            // WP core's own REST posts controller already does before
+            // its own wp_insert_post() call — confirmed via a direct
+            // round-trip test: without this, a lesson's first two
+            // paragraphs of body text came back as literal
+            // "u003cpu003eGain staging..." on the student-facing page.
+            wp_update_post(wp_slash([
                 'ID' => (int) $context_id,
                 'post_content' => serialize_blocks($blocks),
-            ]);
+            ]));
             return $clean;
         }
 

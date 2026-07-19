@@ -90,6 +90,19 @@ class BHS_Player {
                 'reason' => 'filtered',
                 'title' => 'No tracks match',
             ]) : '',
+            // Same reasoning as emptyStateZero/emptyStateFiltered above —
+            // the Releases and Liked tabs had their own bare "No X yet"
+            // strings that this pass missed the first time.
+            'emptyStateReleases' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'No releases yet',
+                'description' => 'Group your tracks into an album or EP to see it here.',
+            ]) : '',
+            'emptyStateLiked' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'Nothing liked yet',
+                'description' => 'Tap the heart on a track to save it here.',
+            ]) : '',
         ]);
     }
 
@@ -147,7 +160,10 @@ class BHS_Player {
                     <div id="bhs-auth-error" class="bhs-auth-error"></div>
                     <input type="text" id="bhs-auth-username" placeholder="Username">
                     <input type="email" id="bhs-auth-email" placeholder="Email" style="display:none;">
-                    <input type="password" id="bhs-auth-password" placeholder="Password">
+                    <div class="bhs-pass-wrap">
+                        <input type="password" id="bhs-auth-password" placeholder="Password">
+                        <button type="button" class="bhs-pass-toggle" aria-label="Show password" aria-pressed="false">&#128065;</button>
+                    </div>
                     <button type="button" class="bhs-btn" id="bhs-auth-submit">Log In</button>
                 </div>
             </div>

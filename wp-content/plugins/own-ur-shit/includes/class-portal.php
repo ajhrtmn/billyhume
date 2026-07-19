@@ -91,6 +91,20 @@ class BHI_Portal {
         add_filter('query_vars', [self::class, 'add_query_var']);
         add_action('template_redirect', [self::class, 'maybe_render']);
 
+        // AJ's ask: the portal landed a visitor on a bare "upload an
+        // avatar" form (Profile, the lowest-priority-number real panel
+        // before this) with zero sense of where they actually stood
+        // across courses/contests/membership — every one of those was a
+        // click away and invisible until you went looking. Priority 1
+        // (lower than Profile's own 10) makes this the landing tab
+        // instead. Registered from core, not any one plugin, since it
+        // reads across all of them — each section is independently
+        // class_exists()-guarded so this degrades cleanly on an install
+        // that doesn't have bh-courses/bh-contest/bh-monetization-woo
+        // active at all, same posture every cross-plugin integration
+        // point in this ecosystem already takes.
+        add_filter('bhi_portal_panels', [self::class, 'register_overview_panel'], 1);
+
         // wp-admin exclusion rollout — redirect non-elevated roles off
         // /wp-admin entirely (not just hiding the admin bar, which is
         // cosmetic and leaves the dashboard reachable by direct URL),
@@ -524,6 +538,130 @@ class BHI_Portal {
 
     /* ---------- rendering ---------- */
 
+    public static function register_overview_panel($panels) {
+        $panels[] = [
+            'id' => 'overview',
+            'label' => 'Overview',
+            'icon' => 'dashicons-dashboard',
+            'render' => [self::class, 'render_overview_panel'],
+            'priority' => 1,
+        ];
+        return $panels;
+    }
+
+    /**
+     * A real "here's where you stand" home tab instead of the Profile
+     * upload form being the first thing anyone sees. Each block below is
+     * independently optional — a fresh account with no course/contest/
+     * membership activity yet still gets a real page (a welcome +
+     * catalog links), not a wall of empty sections.
+     */
+    public static function render_overview_panel() {
+        $user_id = get_current_user_id();
+        $user = wp_get_current_user();
+
+        echo '<h1>Welcome back, ' . esc_html($user->display_name ?: $user->user_login) . '</h1>';
+
+        $shown_anything = false;
+
+        // ---- membership snapshot ----
+        if (class_exists('BHM_Tiers')) {
+            global $wpdb;
+            $t = $wpdb->prefix . 'bhm_entitlements';
+            $now = current_time('mysql');
+            $active = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > %s) ORDER BY object_id ASC LIMIT 1",
+                $user_id, $now
+            ), ARRAY_A);
+            if ($active) {
+                $shown_anything = true;
+                $tier = BHM_Tiers::get($active[0]['object_id']);
+                $label = $tier ? $tier['name'] : ('Tier #' . $active[0]['object_id']);
+                echo '<div class="bhi-portal-section bhi-overview-membership">';
+                echo '<h2>Membership</h2>';
+                echo '<p><span class="bhi-overview-tier-badge">' . esc_html($label) . '</span>';
+                if ($active[0]['expires_at']) echo ' <span class="bhi-overview-dim">renews ' . esc_html(mysql2date('M j, Y', $active[0]['expires_at'])) . '</span>';
+                echo '</p>';
+                echo '</div>';
+            }
+        }
+
+        // ---- continue learning: the most recently touched enrolled,
+        // not-yet-completed course, so this is genuinely "pick up where
+        // you left off" rather than an arbitrary enrolled-course list
+        // (that full list already lives on the Courses tab itself). ----
+        if (class_exists('BHC_Progress')) {
+            global $wpdb;
+            $course_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT e.course_id FROM {$wpdb->prefix}bhc_enrollments e
+                 LEFT JOIN {$wpdb->prefix}bhc_completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
+                 WHERE e.user_id = %d AND c.course_id IS NULL
+                 ORDER BY e.enrolled_at DESC LIMIT 1",
+                $user_id
+            ));
+            if ($course_id && get_post_status($course_id) === 'publish') {
+                $shown_anything = true;
+                $percent = BHC_Progress::course_percent($user_id, $course_id);
+                echo '<div class="bhi-portal-section bhi-overview-course">';
+                echo '<h2>Continue learning</h2>';
+                echo '<div class="bhi-portal-course-card">';
+                echo '<h3>' . esc_html(get_the_title($course_id)) . '</h3>';
+                echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
+                echo '<p>' . (int) $percent . '% complete</p>';
+                echo '<p><a class="button" href="' . esc_url(get_permalink($course_id)) . '">Continue &rarr;</a></p>';
+                echo '</div></div>';
+            }
+        }
+
+        // ---- most recent contest activity ----
+        if (post_type_exists('bh_submission')) {
+            $recent = get_posts([
+                'post_type' => 'bh_submission', 'author' => $user_id, 'post_status' => 'any',
+                'posts_per_page' => 1, 'orderby' => 'date', 'order' => 'DESC',
+            ]);
+            if ($recent) {
+                $shown_anything = true;
+                $sub = $recent[0];
+                $contest_id = (int) get_post_meta($sub->ID, '_bh_contest_id', true);
+                $votes = 0;
+                if (class_exists('BH_Helpers')) {
+                    global $wpdb;
+                    $votes = (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM ' . BH_Helpers::table() . ' WHERE submission_id = %d', $sub->ID));
+                }
+                echo '<div class="bhi-portal-section bhi-overview-contest">';
+                echo '<h2>Latest contest activity</h2>';
+                echo '<p>"' . esc_html($sub->post_title) . '"';
+                if ($contest_id) echo ' in <strong>' . esc_html(get_the_title($contest_id)) . '</strong>';
+                echo ' — ' . esc_html(ucfirst($sub->post_status)) . ', ' . (int) $votes . ' vote' . ($votes === 1 ? '' : 's') . '</p>';
+                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/submissions/')) . '">View submissions &rarr;</a></p>';
+                echo '</div>';
+            }
+        }
+
+        // ---- unread notifications ----
+        if (class_exists('OUS_Notifications')) {
+            $unread = OUS_Notifications::unread_count($user_id);
+            if ($unread > 0) {
+                $shown_anything = true;
+                echo '<div class="bhi-portal-section bhi-overview-notifications">';
+                echo '<h2>Notifications</h2>';
+                echo '<p>' . (int) $unread . ' unread notification' . ($unread === 1 ? '' : 's') . '.</p>';
+                echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/notifications/')) . '">View &rarr;</a></p>';
+                echo '</div>';
+            }
+        }
+
+        if (!$shown_anything) {
+            echo '<div class="bhi-portal-section">';
+            echo '<p>Nothing to show yet — once you enroll in a course, submit to a contest, or pick up a supporter tier, it\'ll show up here.</p>';
+            echo '<p>';
+            if (post_type_exists('bh_course')) echo '<a class="button" href="' . esc_url(home_url('/courses/')) . '">Browse courses</a> ';
+            if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">See contests</a>';
+            echo '</p>';
+            echo '</div>';
+        }
+    }
+
     public static function maybe_render() {
         if (!get_query_var(self::QUERY_VAR)) return;
 
@@ -607,7 +745,12 @@ class BHI_Portal {
   .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); }
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
   .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }
-  .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); }
+  .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); transition:width 0.5s cubic-bezier(0.22,1,0.36,1); }
+  /* Overview tab — the tier badge is the one "you belong to something"
+     signal on this whole page, so it gets real chip styling instead of
+     inline plain text sitting next to a date. */
+  .bhi-overview-tier-badge { display:inline-block; padding:3px 12px; border-radius:999px; background:var(--bh-accent-muted-bg, var(--bh-accent-soft, #eef4ff)); color:var(--bh-accent, #2271b1); font-weight:600; font-size:13px; }
+  .bhi-overview-dim { color:var(--bh-text-dim, #6b7280); font-size:13px; }
 
   /* Mobile: the fixed sidebar becomes a horizontal, scrollable tab strip
      above the content instead — same navigation, no hidden/hamburger

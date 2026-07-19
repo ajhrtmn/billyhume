@@ -121,4 +121,53 @@
     };
 
     window.BHCoreToast = BHCoreToast;
+
+    /**
+     * Body scroll-lock while any ecosystem modal is open. Every real modal
+     * across bh-contest/bh-streaming/bh-registry is shown/hidden by toggling
+     * `style.display` on its own root element (never removed from the DOM),
+     * at many different call sites — there's no single shared open()/close()
+     * function to hook. Rather than edit every call site in three plugins,
+     * this watches the known modal-root selectors with one MutationObserver
+     * and locks/unlocks <html> scrolling whenever any of them becomes
+     * visible/hidden. The modal's own inner container keeps its
+     * `overflow-y: auto`, so this only stops the page BEHIND it from
+     * scrolling — the modal itself still scrolls normally.
+     */
+    var MODAL_SELECTOR = '.bh-modal, .bhs-auth-modal, .bhs-import-modal, .bhs-jam-modal, .bhs-playlist-picker, .bhr-submit-modal';
+    var LOCK_CLASS = 'bhcore-scroll-locked';
+
+    function isVisible(el) {
+        if (el.hasAttribute('hidden')) return false;
+        var display = el.style.display || window.getComputedStyle(el).display;
+        return display !== 'none';
+    }
+
+    function anyModalOpen() {
+        var els = document.querySelectorAll(MODAL_SELECTOR);
+        for (var i = 0; i < els.length; i++) {
+            if (isVisible(els[i])) return true;
+        }
+        return false;
+    }
+
+    function syncScrollLock() {
+        document.documentElement.classList.toggle(LOCK_CLASS, anyModalOpen());
+    }
+
+    function initScrollLock() {
+        syncScrollLock();
+        var observer = new MutationObserver(syncScrollLock);
+        observer.observe(document.body || document.documentElement, {
+            attributes: true,
+            attributeFilter: ['style', 'hidden'],
+            subtree: true
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initScrollLock);
+    } else {
+        initScrollLock();
+    }
 })(window, document);

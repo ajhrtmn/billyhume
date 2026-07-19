@@ -16,6 +16,32 @@ class BHI_Auth {
     public static function init() {
         add_action('admin_post_nopriv_bhi_verify_email', [self::class, 'verify_email_action']);
         add_action('admin_post_bhi_verify_email', [self::class, 'verify_email_action']);
+        add_action('wp_footer', [self::class, 'maybe_print_verify_notice']);
+    }
+
+    // verify_email_action() redirects with ?bhi_verified=1/0, but nothing
+    // ever read that query param — a real user clicking their
+    // verification link landed on a page with zero acknowledgment
+    // anything happened, silently, every single time. BHCoreToast is
+    // already loaded globally (class-toast.php), so this just needs to
+    // notice the param and clean the URL up afterward via
+    // history.replaceState so a page refresh doesn't re-show it.
+    public static function maybe_print_verify_notice() {
+        if (!isset($_GET['bhi_verified'])) return;
+        $ok = $_GET['bhi_verified'] === '1';
+        $msg = $ok
+            ? 'Email confirmed — you can vote and submit now!'
+            : 'That verification link is invalid or expired.';
+        ?>
+        <script>
+        (function () {
+            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(<?php echo wp_json_encode($msg); ?>, <?php echo wp_json_encode($ok ? 'success' : 'error'); ?>); }
+            var url = new URL(window.location.href);
+            url.searchParams.delete('bhi_verified');
+            window.history.replaceState({}, '', url);
+        })();
+        </script>
+        <?php
     }
 
     public static function register_routes() {
@@ -180,7 +206,14 @@ class BHI_Auth {
             delete_user_meta($uid, '_bhi_email_verify_token');
         }
 
-        $redirect_to = wp_get_referer() ?: home_url('/');
+        // wp_get_referer() is almost always empty here in real use — a
+        // verification link is clicked straight from an email client,
+        // which never sends a Referer header, so this fell through to
+        // the bare homepage nearly every time regardless of where the
+        // student/fan/artist actually started. The account portal is a
+        // far more useful landing spot than the homepage even before
+        // the toast below existed.
+        $redirect_to = wp_get_referer() ?: home_url('/account/');
         wp_safe_redirect(add_query_arg('bhi_verified', $valid ? '1' : '0', $redirect_to));
         exit;
     }

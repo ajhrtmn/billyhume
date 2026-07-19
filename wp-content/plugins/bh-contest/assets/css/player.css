@@ -390,7 +390,13 @@
 .bh-modal-content input:focus, .bh-modal-content textarea:focus, .bh-modal-content select:focus {
     outline: none; border-color: var(--bh-accent);
 }
-.bh-modal-content textarea { resize: vertical; }
+/* flex-shrink:0 — a <textarea> has an implicit overflow:auto, which
+   (per the flexbox spec) disables the automatic content-based minimum
+   size a flex-column item normally gets, letting it get compressed
+   toward zero when the modal's stack of fields runs tight on space.
+   Caught live: the notes field rendered at ~18px tall (less than one
+   line) despite rows="3", clipping its own placeholder text. */
+.bh-modal-content textarea { resize: vertical; flex-shrink: 0; min-height: calc(60px * var(--bh-space-scale)); }
 .bh-modal-content small { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: -6px; }
 /* Placeholders default to a browser-chosen gray that has no relationship
    to the theme — can read too bright, too dim, or just visibly "off"
@@ -400,6 +406,15 @@
 .bh-modal-content input::placeholder, .bh-modal-content textarea::placeholder {
     color: var(--bh-text-dim); opacity: 1;
 }
+/* Password show/hide — matches the modal's own flex/gap column so the
+   wrapper behaves exactly like a bare input would. */
+.bh-pass-wrap { position: relative; }
+.bh-pass-wrap .bh-pass { width: 100%; padding-right: calc(40px * var(--bh-space-scale)); }
+.bh-pass-toggle {
+    position: absolute; right: calc(8px * var(--bh-space-scale)); top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; color: var(--bh-text-dim);
+}
+.bh-pass-toggle:hover { color: var(--bh-text); }
 
 /* Custom select — a native <select>'s open dropdown panel is drawn by
    the OS, not the page, so it can't be themed and always looks out of
@@ -409,7 +424,19 @@
    this file keeps working untouched — only how it's PRESENTED changes.
    See BHPlayer.enhanceSelect(). */
 .bh-select-wrap { position: relative; }
-.bh-select-native { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+/* AJ's own report: this dropdown looked "oddly styled" in Safari — the
+   real, visible control is always .bh-select-trigger below; this native
+   <select> only exists as an invisible functional layer and should never
+   paint anything of its own. Hardened defensively (appearance/background/
+   z-index) against the possibility that opacity:0 alone doesn't fully
+   suppress a browser's own native chrome (e.g. an OS-level accent-color
+   highlight) in every engine/version — couldn't reproduce directly to
+   confirm the exact mechanism, so this closes the most plausible gap
+   without touching the working .bh-select-trigger styling at all. */
+.bh-select-native {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none; background: transparent; border: none;
+}
 .bh-select-trigger {
     display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--bh-space-scale));
     width: 100%; padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
@@ -517,7 +544,8 @@
 
 /* ---------------- Accessibility ---------------- */
 .bh-btn:focus-visible, .bh-vote-btn:focus-visible, .bh-play-pause:focus-visible,
-.bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible {
+.bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible,
+.bh-copy-link-btn:focus-visible, .bh-pass-toggle:focus-visible {
     outline: 2px solid var(--bh-accent-soft); outline-offset: 2px;
 }
 
@@ -564,7 +592,7 @@
     border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); font-family: var(--bh-font-body); font-size: 14px;
 }
 .bh-archive-controls input { flex: 1; min-width: 200px; }
-.bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
+.bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
 .bh-archive-card { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius); padding: calc(16px * var(--bh-space-scale)); }
 .bh-archive-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); }
 .bh-archive-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: 2px; }

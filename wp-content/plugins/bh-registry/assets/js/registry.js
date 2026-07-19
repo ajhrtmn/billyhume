@@ -20,7 +20,23 @@
 
   function renderArtists(artists) {
     if (!artists.length) {
-      grid.innerHTML = '<p class="bhr-empty">No artists found.</p>';
+      var isFiltered = !!(searchInput.value || protocolFilter.value);
+      if (isFiltered) {
+        grid.innerHTML = '<p class="bhr-empty">No artists match your search. <a href="#" class="bhr-clear-filters">Clear filters</a></p>';
+        var clearLink = grid.querySelector('.bhr-clear-filters');
+        if (clearLink) clearLink.addEventListener('click', function (e) {
+          e.preventDefault();
+          searchInput.value = '';
+          protocolFilter.value = '';
+          load();
+        });
+      } else {
+        // Real day-one state for a brand-new registry, not just a
+        // theoretical edge case — the shared BHY_Style empty-state
+        // component (same one bh-courses' catalog uses), rendered once
+        // server-side and handed over via BHRData.emptyHtml.
+        grid.innerHTML = (window.BHRData && BHRData.emptyHtml) || '<p class="bhr-empty">No artists yet.</p>';
+      }
       return;
     }
     grid.innerHTML = artists.map(function (a) {
@@ -107,7 +123,7 @@
             link.hidden = false;
             notify(res.ok ? 'Reported — thanks, this will be reviewed.' : ((res.d && res.d.message) || 'Could not submit the report.'), !res.ok);
           })
-          .catch(function () { notify('Could not reach the site right now.', true); })
+          .catch(function () { notify('Could not reach the server — check your connection and try again.', true); })
           .finally(function () { btn.disabled = false; btn.textContent = 'Send report'; });
       });
     });
@@ -162,7 +178,7 @@
         }
         showVerifyStep(res.data);
       })
-      .catch(function () { errorBox.textContent = 'Could not reach the registry right now.'; });
+      .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
   });
 
   function showVerifyStep(data) {
@@ -186,7 +202,7 @@
           resultBox.textContent = res.message;
           if (res.verified) load();
         })
-        .catch(function () { resultBox.textContent = 'Could not reach the registry right now.'; });
+        .catch(function () { resultBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });
   }
 

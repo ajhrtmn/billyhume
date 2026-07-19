@@ -86,10 +86,22 @@ class OUS_PortalLayout {
         echo '<div class="wrap"><h1>Portal Layout</h1>';
         echo '<p class="description">Controls the order and visibility of panels in the <a href="' . esc_url(home_url('/account/')) . '">account portal</a> nav. Lower number = appears first. Panels a plugin no longer registers just disappear here on their own.</p>';
 
+        // Real, confirmed gap: handle_save() has redirected here with
+        // ?updated=1 since this screen shipped, but render() never once
+        // read it — saving a reorder produced zero visible confirmation
+        // beyond the table itself (silently) reflecting the new order,
+        // easy to miss if a save didn't actually change anything visible
+        // (e.g. re-saving the same order, or a typo'd priority that
+        // didn't shift anything).
+        if (isset($_GET['updated'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>Portal layout saved.</p></div>';
+        }
+
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="bhi_save_portal_layout">';
         wp_nonce_field('bhi_save_portal_layout', 'bhi_portal_layout_nonce');
 
+        echo '<p class="description">Tip: leave gaps between numbers (10, 20, 30 rather than 1, 2, 3) so you can slot a panel in between two others later without renumbering everything.</p>';
         echo '<table class="widefat striped" style="max-width:600px;"><thead><tr><th>Panel</th><th style="width:100px;">Priority</th><th style="width:80px;">Hide</th></tr></thead><tbody>';
         foreach ($panels as $p) {
             $id = $p['id'];
@@ -97,7 +109,7 @@ class OUS_PortalLayout {
             $hidden = !empty($layout['hidden'][$id]);
             echo '<tr>';
             echo '<td>' . esc_html($p['label']) . ' <code>' . esc_html($id) . '</code></td>';
-            echo '<td><input type="number" name="priority[' . esc_attr($id) . ']" value="' . esc_attr($priority) . '" style="width:70px;"></td>';
+            echo '<td><input type="number" name="priority[' . esc_attr($id) . ']" value="' . esc_attr($priority) . '" placeholder="e.g. 10, 20, 30" style="width:70px;"></td>';
             echo '<td><input type="checkbox" name="hidden[' . esc_attr($id) . ']" value="1"' . checked($hidden, true, false) . '></td>';
             echo '</tr>';
         }
