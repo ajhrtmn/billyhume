@@ -417,9 +417,19 @@
         input.placeholder = '+ Add card…';
         wrap.appendChild(input);
 
+        var adding = false;
+
         function addCard() {
+            // Guarded against a fast double-Enter or Enter-then-click —
+            // state.placements is mutated synchronously (optimistic UI,
+            // before saveSlot() confirms), so without this a second
+            // addCard() firing mid-save could push a near-duplicate card.
+            if (adding) return;
             var title = input.value.trim();
             if (!title) return;
+            adding = true;
+            input.disabled = true;
+            btn.disabled = true;
             state.placements.push({
                 id: 0,
                 element_type: 'bh/sticky-card',
@@ -432,7 +442,11 @@
                 } },
             });
             input.value = '';
-            saveSlot().catch(reportSaveError);
+            saveSlot().catch(reportSaveError).finally(function () {
+                adding = false;
+                input.disabled = false;
+                btn.disabled = false;
+            });
         }
 
         input.addEventListener('keydown', function (e) { if (e.key === 'Enter') addCard(); });

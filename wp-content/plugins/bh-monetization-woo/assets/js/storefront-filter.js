@@ -48,7 +48,12 @@
                 grid.removeAttribute('aria-busy');
             })
             .catch(function () {
+                // Previously left the stale grid up with no sign to the
+                // shopper that their filter selection failed to apply.
                 grid.removeAttribute('aria-busy');
+                var msg = 'Could not update results — check your connection and try again.';
+                if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
+                else { grid.insertAdjacentHTML('afterbegin', '<p class="bhm-filter-error" style="color:#b32d2e;">' + msg + '</p>'); }
             });
     }
 

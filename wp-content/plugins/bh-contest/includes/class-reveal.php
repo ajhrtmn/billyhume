@@ -343,7 +343,23 @@ class BH_Reveal {
                 fetch(rest + 'reveal/state?contest=' + cid).then(function (r) { return r.json(); }).then(render);
             }
 
+            var revealBtns = [
+                document.getElementById('bh-reveal-next'),
+                document.getElementById('bh-reveal-prev'),
+                document.getElementById('bh-reveal-reset'),
+            ];
+            var busy = false;
+
             function send(action) {
+                // Guarded against overlapping requests — a fast double-click
+                // on "Next" during a live reveal used to be able to fire two
+                // advance calls at once and skip a step in front of an
+                // audience. Also previously had no .catch() at all: a
+                // dropped connection just did nothing, with no sign to the
+                // presenter that the click failed.
+                if (busy) return;
+                busy = true;
+                revealBtns.forEach(function (b) { if (b) b.disabled = true; });
                 fetch(rest + 'reveal/advance', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': nonce },
@@ -353,6 +369,13 @@ class BH_Reveal {
                     .then(function (data) {
                         if (data.code === 'voting_open') { alert(data.message); return; }
                         render(data);
+                    })
+                    .catch(function () {
+                        alert('Could not reach the server — check your connection and try again.');
+                    })
+                    .finally(function () {
+                        busy = false;
+                        revealBtns.forEach(function (b) { if (b) b.disabled = false; });
                     });
             }
 
