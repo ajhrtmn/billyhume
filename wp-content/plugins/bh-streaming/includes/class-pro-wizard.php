@@ -71,7 +71,12 @@ class BHS_PROWizard {
     }
 
     public static function add_menu() {
-        add_submenu_page('own-ur-shit', 'PRO Registration', 'PRO Registration', 'manage_options', 'bhs-pro-wizard', [self::class, 'render']);
+        // Was parented under 'own-ur-shit' — same reasoning as ISRC
+        // Registrant's own move (class-isrc.php): a rights-registration
+        // tool specific to this plugin's own tracks belongs with the
+        // rest of Streaming's own admin surface, not the cross-cutting
+        // ecosystem hub.
+        add_submenu_page(BHS_PostTypes::MENU_PARENT, 'PRO Registration', 'PRO Registration', 'manage_options', 'bhs-pro-wizard', [self::class, 'render']);
     }
 
     public static function render() {
