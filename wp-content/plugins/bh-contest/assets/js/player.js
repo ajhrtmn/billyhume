@@ -1044,26 +1044,12 @@ class BHPlayer {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.bh-player-root').forEach(root => new BHPlayer(root));
 
-    // The email verification link redirects back here with this flag.
-    // Doesn't need a BHPlayer instance — toast() just appends a plain
-    // element to <body>, so a standalone version works the same way,
-    // best-effort on whatever page the redirect happened to land on
-    // (only actually visible if that page also has player.css loaded,
-    // i.e. has the contest shortcode — see is_email_verified()'s own
-    // notes on this in class-auth.php for the reasoning).
-    const params = new URLSearchParams(location.search);
-    if (params.has('bh_verified')) {
-        const ok = params.get('bh_verified') === '1';
-        const msg = ok ? 'Email confirmed — you can vote and submit now!' : 'That verification link is invalid or expired.';
-        let t = document.getElementById('bh-toast');
-        if (!t) { t = document.createElement('div'); t.id = 'bh-toast'; t.className = 'bh-toast'; document.body.appendChild(t); }
-        t.textContent = msg;
-        t.classList.toggle('error', !ok);
-        t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3400);
-
-        params.delete('bh_verified');
-        const clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
-        history.replaceState({}, '', clean);
-    }
+    // Email-verification confirmation used to be handled here, but this
+    // checked for `bh_verified` while class-auth.php's actual redirect
+    // sends `bhi_verified` — a key-name mismatch that meant this never
+    // fired, ever, for any real user. Replaced with a single sitewide
+    // handler in own-ur-shit's class-auth.php (BHCoreToast, works on
+    // any page, not just ones with this contest player loaded) instead
+    // of fixing the mismatch here and keeping two mechanisms for the
+    // same moment.
 });

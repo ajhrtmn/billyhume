@@ -390,7 +390,13 @@
 .bh-modal-content input:focus, .bh-modal-content textarea:focus, .bh-modal-content select:focus {
     outline: none; border-color: var(--bh-accent);
 }
-.bh-modal-content textarea { resize: vertical; }
+/* flex-shrink:0 — a <textarea> has an implicit overflow:auto, which
+   (per the flexbox spec) disables the automatic content-based minimum
+   size a flex-column item normally gets, letting it get compressed
+   toward zero when the modal's stack of fields runs tight on space.
+   Caught live: the notes field rendered at ~18px tall (less than one
+   line) despite rows="3", clipping its own placeholder text. */
+.bh-modal-content textarea { resize: vertical; flex-shrink: 0; min-height: calc(60px * var(--bh-space-scale)); }
 .bh-modal-content small { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: -6px; }
 /* Placeholders default to a browser-chosen gray that has no relationship
    to the theme — can read too bright, too dim, or just visibly "off"
@@ -418,7 +424,19 @@
    this file keeps working untouched — only how it's PRESENTED changes.
    See BHPlayer.enhanceSelect(). */
 .bh-select-wrap { position: relative; }
-.bh-select-native { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+/* AJ's own report: this dropdown looked "oddly styled" in Safari — the
+   real, visible control is always .bh-select-trigger below; this native
+   <select> only exists as an invisible functional layer and should never
+   paint anything of its own. Hardened defensively (appearance/background/
+   z-index) against the possibility that opacity:0 alone doesn't fully
+   suppress a browser's own native chrome (e.g. an OS-level accent-color
+   highlight) in every engine/version — couldn't reproduce directly to
+   confirm the exact mechanism, so this closes the most plausible gap
+   without touching the working .bh-select-trigger styling at all. */
+.bh-select-native {
+    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none; background: transparent; border: none;
+}
 .bh-select-trigger {
     display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--bh-space-scale));
     width: 100%; padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
