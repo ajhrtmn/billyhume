@@ -169,13 +169,26 @@
 .bhc-sidebar-lesson-list li.bhc-lesson-current {
     background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left: 3px solid var(--bh-accent); border-radius: 4px; font-weight: 600;
     padding-left: 3px;
+    animation: bhc-step-in 0.35s ease both;
 }
 .bhc-sidebar-lesson-list li.bhc-lesson-current a { color: var(--bh-text); }
+/* The stepper (below) already got a "just landed here" entrance and a
+   completion pop; the sidebar's own current-lesson row and checkmarks
+   had none of that motion, reading flat/static next to it. Reusing the
+   same two keyframes here instead of inventing new ones keeps the
+   whole lesson-taking surface feeling like one system. */
+.bhc-lesson-list .bhc-check { display: inline-block; animation: bhc-marker-pop 0.3s ease both; }
+.bhc-module-lesson-list { animation: bhc-step-in 0.25s ease both; }
 
 @media (max-width: 780px) {
     .bhc-lesson-layout { flex-direction: column; }
     .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
     .bhc-sidebar-lesson-list { max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-sidebar-lesson-list li.bhc-lesson-current,
+    .bhc-lesson-list .bhc-check,
+    .bhc-module-lesson-list { animation: none; }
 }
 
 /* ---- lesson step walker ---- */
