@@ -42,6 +42,16 @@
     display:flex; flex-direction:column; gap:8px; text-decoration:none; color:inherit;
     border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 8px); overflow:hidden;
     background:var(--bh-surface, #fff); transition:box-shadow .15s ease, border-color .15s ease;
+    /* --bhm-grid-cols is a deliberate author-chosen column count (a
+       shortcode attribute), not a bug to auto-fit away like the other
+       grids this session — but with fewer real products than columns,
+       each track still gets its full 1fr share, stretching a card far
+       wider than its own content. max-width + justify-self:center keeps
+       the chosen column count intact while stopping individual cards
+       from stretching into oversized, awkward proportions. */
+    max-width: 320px;
+    justify-self: center;
+    width: 100%;
 }
 .bhm-product-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); border-color:var(--bh-accent, #2271b1); }
 .bhm-product-card-image img { width:100%; height:auto; display:block; aspect-ratio:1/1; object-fit:cover; }
