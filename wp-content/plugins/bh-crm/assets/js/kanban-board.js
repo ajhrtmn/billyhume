@@ -81,6 +81,7 @@
         // (BHCRM_Projects::rest_rollups()) instead of a per-card round
         // trip.
         rollups: {},
+        flashId: null, // set by saveSlot(), consumed once by renderCard() — see saveSlot()'s own docblock
     };
 
     function el(tag, className, text) {
@@ -117,8 +118,19 @@
         });
     }
 
-    /** Full-slot upsert — mirrors element-builder.js's "Save slot" exactly: send every current placement in the desired order, 'position' is reconstructed server-side from array order. */
-    function saveSlot() {
+    // BHCoreToast (own-ur-shit core, loaded on every admin screen — see
+    // class-toast.php's enqueue_assets(), hooked to admin_enqueue_scripts
+    // unconditionally) replaces every alert() that used to run this
+    // board's error path silently-broken-into-a-blocking-dialog. Same
+    // typeof guard every other call site in this ecosystem uses in case
+    // toast.js somehow isn't loaded.
+    function reportSaveError(err, action) {
+        var msg = 'Failed to ' + (action || 'save') + ': ' + err.message;
+        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); } else { alert(msg); }
+    }
+
+    /** Full-slot upsert — mirrors element-builder.js's "Save slot" exactly: send every current placement in the desired order, 'position' is reconstructed server-side from array order. $flashId, when given, is the ONE card render() should visually flash as "just saved" — render() wipes and rebuilds every card element on every call, so a reference to the pre-save DOM node would be stale; tracking the id instead lets renderCard() re-attach the flash to whichever fresh element ends up representing that same card. */
+    function saveSlot(flashId) {
         var body = {
             slot: 'board',
             placements: state.placements.map(function (p) {
@@ -133,6 +145,7 @@
         };
         return api(placementsPath(), { method: 'POST', body: body }).then(function (res) {
             state.placements = res.placements || state.placements;
+            state.flashId = flashId || null;
             render();
         });
     }
@@ -245,7 +258,7 @@
                     preventOnFilter: false,
                     onEnd: function () {
                         reorderFromDom();
-                        saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+                        saveSlot().catch(reportSaveError);
                     },
                 }));
             });
@@ -264,6 +277,11 @@
         // clicking into the title/notes/checkbox/buttons never fights
         // with drag detection.
         card.setAttribute('data-placement-id', String(p.id));
+        if (state.flashId === p.id) {
+            state.flashId = null;
+            card.classList.add('is-saved');
+            setTimeout(function () { card.classList.remove('is-saved'); }, 900);
+        }
         card.appendChild(el('div', 'bhcrm-kanban-card-drag-handle', '⋮⋮'));
 
         var titleRow = el('div', 'bhcrm-kanban-card-title-row');
@@ -272,7 +290,7 @@
         doneBox.checked = done;
         doneBox.addEventListener('change', function () {
             setAttrLiteral(p, 'done', doneBox.checked);
-            saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+            saveSlot(p.id).catch(reportSaveError);
         });
         titleRow.appendChild(doneBox);
 
@@ -282,7 +300,7 @@
         titleInput.value = title;
         titleInput.addEventListener('change', function () {
             setAttrLiteral(p, 'title', titleInput.value);
-            saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+            saveSlot(p.id).catch(reportSaveError);
         });
         titleRow.appendChild(titleInput);
         card.appendChild(titleRow);
@@ -315,7 +333,7 @@
         notesArea.placeholder = 'Notes…';
         notesArea.addEventListener('change', function () {
             setAttrLiteral(p, 'notes', notesArea.value);
-            saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+            saveSlot(p.id).catch(reportSaveError);
         });
         card.appendChild(notesArea);
 
@@ -337,14 +355,40 @@
         subtaskLink.textContent = 'View sub-tasks';
         actions.appendChild(subtaskLink);
 
-        var delBtn = el('button', 'button button-small', 'Delete');
+        // Arm/disarm instead of a native confirm() — banned elsewhere in
+        // this ecosystem for the same reason (blocking dialog, worse UX,
+        // a known hazard for automated QA tooling). First click arms it
+        // (relabeled, distinct color, 3s window); a second click while
+        // armed actually deletes. Any other interaction on the card
+        // (typing, checking done, dragging) disarms it via blur/dragstart
+        // below so a stray second click days later can't misfire.
+        var delBtn = el('button', 'button button-small bhcrm-delete-btn', 'Delete');
+        var armed = false, armTimer = null;
+        function disarm() {
+            armed = false;
+            clearTimeout(armTimer);
+            delBtn.classList.remove('is-armed');
+            delBtn.textContent = 'Delete';
+        }
         delBtn.addEventListener('click', function () {
-            if (!confirm('Delete "' + title + '"? This also removes its sub-tasks.')) return;
+            if (!armed) {
+                armed = true;
+                delBtn.classList.add('is-armed');
+                delBtn.textContent = 'Really delete?';
+                armTimer = setTimeout(disarm, 3000);
+                return;
+            }
+            disarm();
+            delBtn.disabled = true;
             api('placements/' + p.id, { method: 'DELETE' }).then(function () {
                 state.placements = state.placements.filter(function (x) { return x.id !== p.id; });
                 render();
-            }).catch(function (err) { alert('Failed to delete: ' + err.message); });
+            }).catch(function (err) {
+                delBtn.disabled = false;
+                reportSaveError(err, 'delete');
+            });
         });
+        card.addEventListener('pointerdown', function (e) { if (e.target !== delBtn) disarm(); }, true);
         actions.appendChild(delBtn);
         card.appendChild(actions);
 
@@ -373,7 +417,7 @@
                 } },
             });
             input.value = '';
-            saveSlot().catch(function (err) { alert('Failed to save: ' + err.message); });
+            saveSlot().catch(reportSaveError);
         }
 
         input.addEventListener('keydown', function (e) { if (e.key === 'Enter') addCard(); });

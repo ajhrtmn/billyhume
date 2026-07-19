@@ -143,6 +143,10 @@ class BHC_Render_Course {
             // Enrollment/continue CTA now lives in render_course_header()
             // above (shown for every locked/unlocked state consistently)
             // — not duplicated here anymore.
+            if ($uid) {
+                $percent = BHC_Progress::course_percent($uid, $course_id);
+                echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+            }
             echo '<ol class="bhc-lesson-list">';
             foreach ($lesson_ids as $i => $lesson_id) {
                 if (get_post_status($lesson_id) !== 'publish') continue;
@@ -163,6 +167,45 @@ class BHC_Render_Course {
             echo '</ol>';
         }
         echo '</div>';
+        return ob_get_clean();
+    }
+
+    // Shared between the course page's own lesson list (unlocked branch
+    // above) and BHC_Render_Lesson's per-lesson view — a student inside a
+    // lesson previously had no way to see the rest of the course or jump
+    // between lessons without going back to the course page first.
+    // $current_lesson_id highlights the lesson currently open; null on
+    // the course page itself (nothing is "current" there).
+    public static function render_lesson_sidebar($course_id, $uid, $current_lesson_id = null) {
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return '';
+        $percent = $uid ? BHC_Progress::course_percent($uid, $course_id) : 0;
+
+        ob_start();
+        echo '<nav class="bhc-course-sidebar" aria-label="Course lessons">';
+        echo '<a class="bhc-sidebar-course-link" href="' . esc_url(get_permalink($course_id)) . '">' . esc_html(get_the_title($course_id)) . '</a>';
+        if ($uid) {
+            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+        }
+        echo '<ol class="bhc-lesson-list bhc-sidebar-lesson-list">';
+        foreach ($lesson_ids as $lesson_id) {
+            if (get_post_status($lesson_id) !== 'publish') continue;
+            $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
+            $step_count = BHC_Steps::count($lesson_id);
+            $done_count = $uid ? count(BHC_Progress::completed_steps($uid, $lesson_id)) : 0;
+            $complete = $step_count > 0 && $done_count >= $step_count;
+            $is_current = $current_lesson_id && (int) $lesson_id === (int) $current_lesson_id;
+            $classes = ($complete ? 'bhc-lesson-done' : '') . (!$open ? ' bhc-lesson-locked' : '') . ($is_current ? ' bhc-lesson-current' : '');
+            echo '<li class="' . trim($classes) . '">';
+            if ($open) {
+                echo '<a href="' . esc_url(get_permalink($lesson_id)) . '"' . ($is_current ? ' aria-current="page"' : '') . '>' . esc_html(get_the_title($lesson_id)) . '</a>';
+            } else {
+                echo '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;</span>';
+            }
+            if ($complete) echo ' <span class="bhc-check">&#10003;</span>';
+            echo '</li>';
+        }
+        echo '</ol></nav>';
         return ob_get_clean();
     }
 

@@ -23,6 +23,23 @@
     --bh-text-dim: #B99584;
     --bh-accent: #C1503A;
     --bh-accent-soft: #E0A184;
+    /* Derived, not hand-picked — a genuine gap this token system had:
+       --bh-accent-soft is a separate admin-configurable field (Settings
+       & Style's color_accent_soft) with no enforced relationship to
+       --bh-accent at all, so nothing stopped it from landing light-on-
+       light against --bh-text on a dark theme (confirmed: ~1.4:1
+       contrast in two real components before this existed). This is a
+       small, fixed proportion of --bh-accent mixed into --bh-surface —
+       always dark (surface dominates the mix), always legible with
+       --bh-text on top, and it recomputes automatically for ANY chosen
+       accent/surface pair instead of needing a second hand-picked color
+       that could accidentally fail contrast again. Use this — never
+       --bh-accent-soft — anywhere an accent-tinted color sits BEHIND
+       body text; --bh-accent-soft stays reserved for its original job
+       (a lighter one-off, e.g. hovering an already-accent-colored
+       element).
+    */
+    --bh-accent-muted-bg: color-mix(in srgb, var(--bh-accent) 18%, var(--bh-surface));
     --bh-bar-height: 84px;
     --bh-radius: 12px;
     --bh-radius-sm: 8px;
@@ -336,7 +353,31 @@
 .bh-share-card-link:hover { border-color: var(--bh-accent); color: var(--bh-accent); }
 .bh-share-card-thumb { width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: calc(var(--bh-radius) - 2px); background: var(--bh-surface-2); }
 .bh-share-hint { font-size: calc(12px * var(--bh-font-scale)); color: var(--bh-text-dim); }
+/* The "what happens next" beat — set apart from the plain share-hint
+   text below it so a fan's eye actually lands on it, not just the
+   generic "you're in" heading. --bh-surface-2 + --bh-accent is this
+   ecosystem's existing dark-surface/accent-text pairing (used
+   throughout this file) — --bh-accent-soft is a LIGHT tint meant for
+   hover states, not a text background, so pairing it with accent text
+   was a real contrast failure (~1.5:1), caught and fixed before this
+   shipped. */
+.bh-share-next {
+    background: var(--bh-surface-2); color: var(--bh-accent); font-weight: 600;
+    border-left: 3px solid var(--bh-accent);
+    font-size: calc(13px * var(--bh-font-scale)); padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
+    border-radius: var(--bh-radius);
+}
+.bh-share-next:empty { display: none; }
 .bh-share-contest-link { color: var(--bh-accent); word-break: break-all; }
+.bh-share-link-row { display: flex; align-items: center; gap: calc(8px * var(--bh-space-scale)); }
+.bh-share-link-row .bh-share-contest-link { flex: 1; min-width: 0; }
+.bh-copy-link-btn {
+    flex-shrink: 0; font-size: calc(11px * var(--bh-font-scale)); padding: calc(4px * var(--bh-space-scale)) calc(10px * var(--bh-space-scale));
+    border-radius: var(--bh-radius-sm, var(--bh-radius)); border: 1px solid var(--bh-border); background: var(--bh-surface-2); color: var(--bh-text);
+    cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease;
+}
+.bh-copy-link-btn:hover { border-color: var(--bh-accent); }
+.bh-copy-link-btn.is-copied { background: var(--bh-accent); border-color: var(--bh-accent); color: #fff; }
 .bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
 .bh-close { position: absolute; top: 16px; right: 20px; font-size: calc(22px * var(--bh-font-scale)); cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
 .bh-close:hover { color: var(--bh-text); }

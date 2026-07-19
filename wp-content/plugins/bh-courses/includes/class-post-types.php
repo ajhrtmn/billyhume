@@ -28,6 +28,14 @@ class BHC_PostTypes {
             'rewrite' => ['slug' => 'courses'],
             'menu_icon' => 'dashicons-welcome-learn-more', 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',
+            // show_in_rest is the actual WordPress gate for the block
+            // editor (use_block_editor_for_post_type() checks this AND
+            // 'editor' support, which was already declared above) —
+            // bh_lesson already opts in the same way; this brings course
+            // editing onto the same block-editor screen instead of the
+            // classic metabox chrome, so building a course doesn't feel
+            // like a different app from building its own lessons.
+            'show_in_rest' => true,
         ]);
 
         // Category/topic — real WordPress taxonomies, same "don't

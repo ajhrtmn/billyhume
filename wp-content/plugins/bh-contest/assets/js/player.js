@@ -274,6 +274,7 @@ class BHPlayer {
                 <div class="bh-modal bh-share-modal"><div class="bh-modal-content">
                     <span class="bh-close" data-close="share">&times;</span>
                     <h2>You're in! &#127881;</h2>
+                    <p class="bh-share-next"></p>
                     <p>Grab a shareable image to spread the word.</p>
                     <div class="bh-share-cards">
                         <a class="bh-share-card-link" data-share="entered" href="#" target="_blank" rel="noopener">
@@ -285,7 +286,11 @@ class BHPlayer {
                             <span>Get "Vote for me" image</span>
                         </a>
                     </div>
-                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post: <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a></p>
+                    <p class="bh-share-hint">Pair the "Vote for me" image with this link when you post:</p>
+                    <div class="bh-share-link-row">
+                        <a class="bh-share-contest-link" href="#" target="_blank" rel="noopener"></a>
+                        <button type="button" class="bh-copy-link-btn" data-copy-target=".bh-share-contest-link" title="Copy link">Copy</button>
+                    </div>
                 </div></div>
 
                 <div class="bh-modal bh-results-modal"><div class="bh-modal-content">
@@ -389,6 +394,33 @@ class BHPlayer {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
+
+        // Copy-to-clipboard: the one genuinely missing utility this
+        // ecosystem's micro-interaction survey found — a fan is
+        // explicitly told to "pair this link" but previously had to
+        // select/copy it by hand. navigator.clipboard requires a secure
+        // context (https or localhost); falls back to leaving the plain
+        // link selectable (which already worked) if unavailable.
+        const copyBtn = this.q('.bh-copy-link-btn');
+        if (copyBtn) {
+            copyBtn.onclick = () => {
+                const target = this.q(copyBtn.dataset.copyTarget);
+                const text = target ? (target.href || target.textContent) : '';
+                if (!text || !navigator.clipboard) return;
+                navigator.clipboard.writeText(text).then(() => {
+                    const original = copyBtn.textContent;
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.classList.add('is-copied');
+                    setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove('is-copied'); }, 1500);
+                }).catch(() => {
+                    // Permission denied or unsupported — the link text
+                    // itself is still a plain selectable/copyable <a>,
+                    // same fallback that already existed before this
+                    // button was added, so there's nothing broken here,
+                    // just nothing extra to confirm.
+                });
+            };
+        }
 
         // Event delegation: one listener covers every (re-rendered) track row.
         this.q('.bh-tracklist').addEventListener('click', e => {
@@ -655,6 +687,23 @@ class BHPlayer {
     // throw trying to read a field that isn't there yet.
     showShareModal(body) {
         if (!body.entered_card_url || !body.vote_card_url) return;
+        // The one concrete "what happens next" a fan sees between
+        // submitting and however far off the reveal party is — there's no
+        // stored reveal date (that's admin-triggered live), so the
+        // voting/contest end date is the best real anchor available.
+        // Falls back to a plain reassurance if the contest has no set end.
+        const nextEl = this.q('.bh-share-next');
+        if (nextEl) {
+            if (body.vote_end) {
+                const d = new Date(body.vote_end.replace(' ', 'T'));
+                const label = isNaN(d) ? null : d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+                nextEl.textContent = label
+                    ? `Voting closes ${label} — winners are announced live at the Reveal Party.`
+                    : 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+            } else {
+                nextEl.textContent = 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
+            }
+        }
         this.q('[data-share="entered"]').href = body.entered_card_url;
         this.q('[data-share-img="entered"]').src = body.entered_card_url;
         this.q('[data-share="vote"]').href = body.vote_card_url;

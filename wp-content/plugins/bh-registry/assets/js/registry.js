@@ -32,6 +32,13 @@
         '<div class="bhr-card-name">' + escapeHtml(a.display_name) + '</div>' +
         '<div class="bhr-card-links">' + badges + '</div>' +
         '<button type="button" class="bhr-report-link" data-artist-id="' + a.id + '">Report this artist entry</button>' +
+        '<div class="bhr-report-form" hidden>' +
+          '<textarea class="bhr-report-reason" rows="2" placeholder="What\'s wrong with this entry? (optional)"></textarea>' +
+          '<div class="bhr-report-form-actions">' +
+            '<button type="button" class="bhr-report-cancel">Cancel</button>' +
+            '<button type="button" class="bhr-report-submit">Send report</button>' +
+          '</div>' +
+        '</div>' +
         '</div>';
     }).join('');
 
@@ -53,19 +60,55 @@
   // this plugin building its own — a human reviews it from the
   // Own Ur Shit → Reports admin page, same as any other plugin's
   // report button.
+  // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
+  // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
+  // unconditionally) — same typeof guard every other call site in this
+  // ecosystem uses.
+  function notify(msg, isError) {
+    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
+  }
+
   function bindReportButtons() {
     if (!window.BHIData || !BHIData.rest) return; // core plugin's report queue isn't available — nothing to wire up
     grid.querySelectorAll('.bhr-report-link').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (!BHIData.loggedIn) { alert('Log in to report an entry.'); return; }
-        var reason = prompt('What\'s wrong with this entry? (optional, but helps review)') || '';
+        if (!BHIData.loggedIn) { notify('Log in to report an entry.', true); return; }
+        // Inline reveal instead of prompt() — a native dialog was banned
+        // elsewhere in this ecosystem for the same reasons (blocking,
+        // worse UX, a known automated-QA hazard); this is the one place
+        // it had survived.
+        var form = btn.nextElementSibling;
+        form.hidden = false;
+        btn.hidden = true;
+        form.querySelector('.bhr-report-reason').focus();
+      });
+    });
+    grid.querySelectorAll('.bhr-report-cancel').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var form = btn.closest('.bhr-report-form');
+        form.hidden = true;
+        form.previousElementSibling.hidden = false;
+      });
+    });
+    grid.querySelectorAll('.bhr-report-submit').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var form = btn.closest('.bhr-report-form');
+        var link = form.previousElementSibling;
+        var reason = form.querySelector('.bhr-report-reason').value.trim();
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
         fetch(BHIData.rest + 'reports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': BHIData.nonce },
-          body: JSON.stringify({ target_type: 'registry_artist', target_id: parseInt(btn.dataset.artistId, 10), category: 'ownership', reason: reason }),
+          body: JSON.stringify({ target_type: 'registry_artist', target_id: parseInt(link.dataset.artistId, 10), category: 'ownership', reason: reason }),
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-          .then(function (res) { alert(res.ok ? 'Reported — thanks, this will be reviewed.' : ((res.d && res.d.message) || 'Could not submit the report.')); })
-          .catch(function () { alert('Could not reach the site right now.'); });
+          .then(function (res) {
+            form.hidden = true;
+            link.hidden = false;
+            notify(res.ok ? 'Reported — thanks, this will be reviewed.' : ((res.d && res.d.message) || 'Could not submit the report.'), !res.ok);
+          })
+          .catch(function () { notify('Could not reach the site right now.', true); })
+          .finally(function () { btn.disabled = false; btn.textContent = 'Send report'; });
       });
     });
   }

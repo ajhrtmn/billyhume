@@ -463,7 +463,14 @@ class BH_API {
             'vote_card_url' => BH_ShareCards::vote_card_url($pid),
             'contest_page_url' => BH_ShareCards::contest_page_url($cid),
         ] : [];
-        return self::ok(['submission_id' => $pid] + $share);
+        // Rides along so the post-submit share modal can say something
+        // concrete about what happens next ("Voting closes X") instead of
+        // leaving a fan with nothing between "submitted" and whenever the
+        // reveal party happens — there's no separate stored reveal date
+        // (that's admin-triggered live), so the voting/contest end date is
+        // the one real "next thing" this API already tracks.
+        $vote_end = get_post_meta($cid, '_bh_end', true);
+        return self::ok(['submission_id' => $pid, 'vote_end' => $vote_end ?: null] + $share);
     }
 
     // Shared by submit() (audio attached in the same request) and
