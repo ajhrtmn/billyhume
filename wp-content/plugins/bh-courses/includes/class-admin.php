@@ -483,6 +483,19 @@ class BHC_Admin {
         }
         echo '</div>';
 
+        // Module/section grouping — purely a display label, walked at
+        // render time (BHC_Render_Course) to bucket consecutive lessons
+        // sharing the same title into a collapsible section. Blank = the
+        // lesson renders standalone exactly as before this field existed,
+        // so no existing course changes until an author opts in. Free
+        // text, not a taxonomy/CPT, to keep authoring as simple as "type
+        // the section name" — grouping is inferred from lesson order
+        // (already author-controlled via drag-drop) plus this label,
+        // never a second ordering system to keep in sync.
+        $module_title = get_post_meta($post->ID, '_bhc_module_title', true);
+        echo '<p><label>Module / section (optional): <input type="text" name="bhc_module_title" value="' . esc_attr($module_title) . '" placeholder="e.g. Module 1: Foundations" style="width:100%;max-width:320px;"></label></p>';
+        echo '<p class="description">Lessons in a row sharing the same module name are grouped under one collapsible heading in the course sidebar. Leave blank to keep this lesson ungrouped.</p>';
+
         // Drip scheduling — see class-gate.php's docblock: exactly one
         // of these two, never both, matching "self-paced" vs. "scheduled
         // cohort" as genuinely different shapes rather than one combined
@@ -601,6 +614,13 @@ class BHC_Admin {
                     if ($old_course_id) self::remove_lesson_from_order($old_course_id, $post_id);
                     if ($new_course_id) self::add_lesson_to_order($new_course_id, $post_id);
                 }
+            }
+
+            $module_title = sanitize_text_field($_POST['bhc_module_title'] ?? '');
+            if ($module_title !== '') {
+                update_post_meta($post_id, '_bhc_module_title', $module_title);
+            } else {
+                delete_post_meta($post_id, '_bhc_module_title');
             }
 
             $after_days = sanitize_text_field($_POST['bhc_available_after_days'] ?? '');

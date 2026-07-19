@@ -65,6 +65,27 @@
 .bhc-drip-notice { font-size: 12px; }
 .bhc-drip-locked { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
 
+/* ---- module/section grouping — a group with a blank title renders as
+   a bare <li> (untouched pre-module-feature markup); a titled group
+   wraps its lessons in a native <details>, no JS needed for the
+   collapse/expand itself. Nested .bhc-lesson-list reuses every li rule
+   above so a grouped lesson looks identical to an ungrouped one. */
+.bhc-lesson-list li.bhc-module-group { display: block; padding: 0; border-bottom: none; }
+.bhc-module-group details { border-bottom: 1px solid var(--bh-border); }
+.bhc-module-title {
+    display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+    padding: 10px 14px; font-family: var(--bh-font-heading); font-size: 13px; font-weight: 600;
+    color: var(--bh-text-dim); user-select: none;
+}
+.bhc-module-title::-webkit-details-marker { display: none; }
+.bhc-module-title::before { content: '▸'; font-size: 10px; transition: transform .15s ease; }
+.bhc-module-group details[open] > .bhc-module-title::before { transform: rotate(90deg); }
+.bhc-module-title:hover { color: var(--bh-accent); }
+.bhc-module-lesson-list li:last-child { border-bottom: none; }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-module-title::before { transition: none; }
+}
+
 /* ---- catalog: card badges/meta (Part 2 catalog rebuild) ---- */
 .bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; }
 .bhc-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.02em; }
