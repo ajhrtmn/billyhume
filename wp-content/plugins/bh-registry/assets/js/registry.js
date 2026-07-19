@@ -195,12 +195,26 @@
 
     document.getElementById('bhr-verify-now').addEventListener('click', function () {
       var resultBox = document.getElementById('bhr-verify-result');
+      resultBox.className = 'bhr-form-error';
       resultBox.textContent = 'Checking…';
       fetch(BHRData.rest + 'submissions/' + data.link_id + '/verify', { method: 'POST' })
         .then(function (r) { return r.json(); })
         .then(function (res) {
-          resultBox.textContent = res.message;
-          if (res.verified) load();
+          if (res.verified) {
+            // Was left open indefinitely on success — the real listing
+            // had already appeared in the grid behind this modal (load()
+            // refreshes it), but the modal itself just sat there with a
+            // small inline message, covering the very thing it just
+            // confirmed. Now closes itself after a beat so the "you're
+            // listed!" moment is the grid, not a lingering dialog.
+            resultBox.className = 'bhr-form-success';
+            resultBox.textContent = "You're listed! " + (res.message || '');
+            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show("You're listed in the registry!", 'success'); }
+            load();
+            setTimeout(function () { submitModal.style.display = 'none'; }, 1400);
+          } else {
+            resultBox.textContent = res.message;
+          }
         })
         .catch(function () { resultBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });

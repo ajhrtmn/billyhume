@@ -36,19 +36,29 @@
                         btn.disabled = false;
                         btn.textContent = originalLabel;
                         if (r.ok) {
-                            statusEl.textContent = r.body.message || 'Saved.';
-                            statusEl.style.color = 'green';
+                            // Was a plain-text status line next to the button —
+                            // every sibling flow in this ecosystem (voting,
+                            // judging, registry) confirms through BHCoreToast;
+                            // this was the one holdout still feeling flatter
+                            // than the rest of the site. Falls back to the
+                            // original inline text if the shared toast script
+                            // hasn't loaded for any reason.
+                            var msg = r.body.message || 'Saved.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
+                            else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
                             setTimeout(function () { window.location.reload(); }, 900);
                         } else {
-                            statusEl.textContent = (r.body && r.body.message) || 'Save failed.';
-                            statusEl.style.color = '#b32d2e';
+                            var errMsg = (r.body && r.body.message) || 'Save failed.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
+                            else { statusEl.textContent = errMsg; statusEl.style.color = '#b32d2e'; }
                         }
                     })
                     .catch(function () {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        statusEl.textContent = 'Save failed — check your connection and try again.';
-                        statusEl.style.color = '#b32d2e';
+                        var msg = 'Save failed — check your connection and try again.';
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
+                        else { statusEl.textContent = msg; statusEl.style.color = '#b32d2e'; }
                     });
             });
         });
@@ -81,19 +91,22 @@
                         btn.disabled = false;
                         btn.textContent = originalLabel;
                         if (r.ok) {
-                            statusEl.textContent = r.body.message || 'Uploaded — pending review.';
-                            statusEl.style.color = 'green';
+                            var msg = r.body.message || 'Uploaded — pending review.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'success'); }
+                            else { statusEl.textContent = msg; statusEl.style.color = 'green'; }
                             setTimeout(function () { window.location.reload(); }, 1200);
                         } else {
-                            statusEl.textContent = (r.body && r.body.message) || 'Upload failed.';
-                            statusEl.style.color = '#b32d2e';
+                            var errMsg = (r.body && r.body.message) || 'Upload failed.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(errMsg, 'error'); }
+                            else { statusEl.textContent = errMsg; statusEl.style.color = '#b32d2e'; }
                         }
                     })
                     .catch(function () {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        statusEl.textContent = 'Upload failed — check your connection and try again.';
-                        statusEl.style.color = '#b32d2e';
+                        var msg = 'Upload failed — check your connection and try again.';
+                        if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(msg, 'error'); }
+                        else { statusEl.textContent = msg; statusEl.style.color = '#b32d2e'; }
                     });
             });
         });
