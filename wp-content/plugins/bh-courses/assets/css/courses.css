@@ -285,6 +285,12 @@ video.bhc-step-video {
    makes the selected choice readable at a glance instead of requiring
    a close look to spot the faint fill difference. */
 .bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
+/* JS-added fallback for browsers without :has() support (older Firefox
+   in particular) — courses.js toggles this on change so a selection
+   still visibly highlights even without the CSS relational selector.
+   Kept identical to the rule above; :has() just paints it instantly
+   without waiting on the change event to fire. */
+.bhc-quiz-choice.bhc-selected { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
 .bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
