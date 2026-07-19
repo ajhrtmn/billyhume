@@ -75,7 +75,9 @@
 .bhs-np-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhs-np-artist { color: var(--bh-text-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhs-np-controls { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
-.bhs-np-controls button { background: none; border: none; color: var(--bh-text); font-size: 16px; cursor: pointer; padding: 6px; }
+/* padding raised from 6px to reach a ~36px tap target (was ~28px) without
+   changing the icon's own visual size. */
+.bhs-np-controls button { background: none; border: none; color: var(--bh-text); font-size: 16px; cursor: pointer; padding: 10px; }
 .bhs-like-btn.liked { color: var(--bh-accent); }
 .bhs-np-volume { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; color: var(--bh-text-dim); font-size: 13px; }
 .bhs-np-volume input { width: 70px; }
