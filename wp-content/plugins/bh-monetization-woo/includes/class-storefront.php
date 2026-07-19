@@ -393,8 +393,17 @@ class BHM_Storefront {
         return ob_get_clean();
     }
 
-    public static function render_product_cards($products) {
-        if (!$products) return '<p class="description">No products found.</p>';
+    public static function render_product_cards($products, $is_filtered = false) {
+        if (!$products) {
+            return class_exists('BHY_Style') ? BHY_Style::empty_state_html($is_filtered ? [
+                'reason' => 'filtered',
+                'title' => 'No products match your filters',
+            ] : [
+                'reason' => 'zero',
+                'title' => 'No products yet',
+                'description' => 'Products you publish in WooCommerce will show up here.',
+            ]) : '<p class="description">No products found' . ($is_filtered ? ' matching your filters.' : '.') . '</p>';
+        }
         $out = '';
         foreach ($products as $product) {
             $out .= '<a class="bhm-product-card" href="' . esc_url($product->get_permalink()) . '">';
@@ -462,6 +471,7 @@ class BHM_Storefront {
         if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
             return new \WP_Error('bhm_storefront_no_woocommerce', 'WooCommerce is unavailable.', ['status' => 500]);
         }
+        $is_filtered = $req->get_param('min_price') !== null || $req->get_param('max_price') !== null || (bool) $req->get_param('in_stock');
         $products = self::query_products([
             'collection' => sanitize_title($req->get_param('collection') ?: ''),
             'category' => sanitize_title($req->get_param('category') ?: ''),
@@ -470,7 +480,7 @@ class BHM_Storefront {
             'in_stock' => (bool) $req->get_param('in_stock'),
             'limit' => min(48, max(1, (int) ($req->get_param('limit') ?: 24))),
         ]);
-        return new \WP_REST_Response(['html' => self::render_product_cards($products), 'count' => count($products)], 200);
+        return new \WP_REST_Response(['html' => self::render_product_cards($products, $is_filtered), 'count' => count($products)], 200);
     }
 
     /* ---------------- assets ---------------- */

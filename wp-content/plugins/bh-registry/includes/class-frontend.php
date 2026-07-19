@@ -83,6 +83,16 @@ class BHR_Frontend {
         wp_enqueue_script('bhr-registry', BHR_URL . 'assets/js/registry.js', [], BHR_VER, true);
         wp_localize_script('bhr-registry', 'BHRData', [
             'rest' => esc_url_raw(rest_url('bhr/v1/')),
+            // Rendered once server-side (the shared BHY_Style component,
+            // same one bh-courses' catalog already uses) rather than a
+            // bare '<p>No artists found.</p>' — a brand-new registry
+            // with zero real entries yet is exactly the day-one state a
+            // fresh site actually hits, not an edge case.
+            'emptyHtml' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'No artists yet',
+                'description' => 'Be the first to add your feed to the registry.',
+            ]) : '<p class="bhr-empty">No artists found.</p>',
         ]);
         // Reporting is handled by own-ur-shit's shared queue (see
         // BHI_Reports), not something this plugin builds its own

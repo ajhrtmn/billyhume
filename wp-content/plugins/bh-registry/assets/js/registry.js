@@ -20,7 +20,23 @@
 
   function renderArtists(artists) {
     if (!artists.length) {
-      grid.innerHTML = '<p class="bhr-empty">No artists found.</p>';
+      var isFiltered = !!(searchInput.value || protocolFilter.value);
+      if (isFiltered) {
+        grid.innerHTML = '<p class="bhr-empty">No artists match your search. <a href="#" class="bhr-clear-filters">Clear filters</a></p>';
+        var clearLink = grid.querySelector('.bhr-clear-filters');
+        if (clearLink) clearLink.addEventListener('click', function (e) {
+          e.preventDefault();
+          searchInput.value = '';
+          protocolFilter.value = '';
+          load();
+        });
+      } else {
+        // Real day-one state for a brand-new registry, not just a
+        // theoretical edge case — the shared BHY_Style empty-state
+        // component (same one bh-courses' catalog uses), rendered once
+        // server-side and handed over via BHRData.emptyHtml.
+        grid.innerHTML = (window.BHRData && BHRData.emptyHtml) || '<p class="bhr-empty">No artists yet.</p>';
+      }
       return;
     }
     grid.innerHTML = artists.map(function (a) {

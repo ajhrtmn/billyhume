@@ -158,7 +158,7 @@
                         + '<div class="bhs-card-artist">' + esc(r.artist) + '</div>'
                         + '</button>';
                 }).join('') + '</div>'
-                : '<p class="bhs-empty">No releases yet.</p>';
+                : ((window.BHSData && BHSData.emptyStateReleases) || '<p class="bhs-empty">No releases yet.</p>');
             library.querySelectorAll('.bhs-release-card').forEach(function (card) {
                 card.addEventListener('click', function () { openRelease(parseInt(card.dataset.release, 10)); });
             });
@@ -166,7 +166,9 @@
             var liked = allTracks.filter(function (t) { return likedIds.indexOf(t.id) !== -1; });
             library.innerHTML = liked.length
                 ? '<div class="bhs-grid">' + liked.map(trackCardHtml).join('') + '</div>'
-                : '<p class="bhs-empty">' + (loggedIn ? 'Nothing liked yet.' : 'Log in to like tracks.') + '</p>';
+                : (loggedIn
+                    ? ((window.BHSData && BHSData.emptyStateLiked) || '<p class="bhs-empty">Nothing liked yet.</p>')
+                    : '<p class="bhs-empty">Log in to like tracks.</p>');
             bindCardClicks(liked);
         } else if (currentView === 'playlists') {
             renderPlaylistsView();
