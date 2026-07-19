@@ -147,24 +147,7 @@ class BHC_Render_Course {
                 $percent = BHC_Progress::course_percent($uid, $course_id);
                 echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
             }
-            echo '<ol class="bhc-lesson-list">';
-            foreach ($lesson_ids as $i => $lesson_id) {
-                if (get_post_status($lesson_id) !== 'publish') continue;
-                $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
-                $step_count = BHC_Steps::count($lesson_id);
-                $done_count = $uid ? count(BHC_Progress::completed_steps($uid, $lesson_id)) : 0;
-                $complete = $step_count > 0 && $done_count >= $step_count;
-                echo '<li class="' . ($complete ? 'bhc-lesson-done' : '') . ($open ? '' : ' bhc-lesson-locked') . '">';
-                if ($open) {
-                    echo '<a href="' . esc_url(get_permalink($lesson_id)) . '">' . esc_html(get_the_title($lesson_id)) . '</a>';
-                } else {
-                    echo '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274; ' . BHC_Gate::drip_notice($uid, $lesson_id) . '</span>';
-                }
-                if ($open && $uid && $step_count) echo ' <span class="bhc-lesson-progress">(' . (int) $done_count . '/' . (int) $step_count . ')</span>';
-                if ($complete) echo ' <span class="bhc-check">&#10003;</span>';
-                echo '</li>';
-            }
-            echo '</ol>';
+            echo self::render_grouped_lesson_list($course_id, $uid, null, false);
         }
         echo '</div>';
         return ob_get_clean();
@@ -187,26 +170,73 @@ class BHC_Render_Course {
         if ($uid) {
             echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
         }
-        echo '<ol class="bhc-lesson-list bhc-sidebar-lesson-list">';
-        foreach ($lesson_ids as $lesson_id) {
-            if (get_post_status($lesson_id) !== 'publish') continue;
-            $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
-            $step_count = BHC_Steps::count($lesson_id);
-            $done_count = $uid ? count(BHC_Progress::completed_steps($uid, $lesson_id)) : 0;
-            $complete = $step_count > 0 && $done_count >= $step_count;
-            $is_current = $current_lesson_id && (int) $lesson_id === (int) $current_lesson_id;
-            $classes = ($complete ? 'bhc-lesson-done' : '') . (!$open ? ' bhc-lesson-locked' : '') . ($is_current ? ' bhc-lesson-current' : '');
-            echo '<li class="' . trim($classes) . '">';
-            if ($open) {
-                echo '<a href="' . esc_url(get_permalink($lesson_id)) . '"' . ($is_current ? ' aria-current="page"' : '') . '>' . esc_html(get_the_title($lesson_id)) . '</a>';
-            } else {
-                echo '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;</span>';
-            }
-            if ($complete) echo ' <span class="bhc-check">&#10003;</span>';
-            echo '</li>';
-        }
-        echo '</ol></nav>';
+        echo self::render_grouped_lesson_list($course_id, $uid, $current_lesson_id, true);
+        echo '</nav>';
         return ob_get_clean();
+    }
+
+    // One lesson <li>'s markup, shared by both list modes below — the
+    // sidebar and course-page lists previously duplicated this near-
+    // identically, which is exactly how the sidebar's aria-current/
+    // current-lesson highlighting had drifted from the course page's
+    // drip-notice/step-progress display instead of just being the two
+    // real differences they are.
+    private static function render_lesson_li($lesson_id, $uid, $current_lesson_id, $is_sidebar) {
+        $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
+        $step_count = BHC_Steps::count($lesson_id);
+        $done_count = $uid ? count(BHC_Progress::completed_steps($uid, $lesson_id)) : 0;
+        $complete = $step_count > 0 && $done_count >= $step_count;
+        $is_current = $is_sidebar && $current_lesson_id && (int) $lesson_id === (int) $current_lesson_id;
+        $classes = trim(($complete ? 'bhc-lesson-done' : '') . (!$open ? ' bhc-lesson-locked' : '') . ($is_current ? ' bhc-lesson-current' : ''));
+
+        $html = '<li class="' . $classes . '">';
+        if ($open) {
+            $html .= '<a href="' . esc_url(get_permalink($lesson_id)) . '"' . ($is_current ? ' aria-current="page"' : '') . '>' . esc_html(get_the_title($lesson_id)) . '</a>';
+        } else {
+            $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;'
+                . ($is_sidebar ? '' : ' ' . BHC_Gate::drip_notice($uid, $lesson_id)) . '</span>';
+        }
+        if (!$is_sidebar && $open && $uid && $step_count) {
+            $html .= ' <span class="bhc-lesson-progress">(' . (int) $done_count . '/' . (int) $step_count . ')</span>';
+        }
+        if ($complete) $html .= ' <span class="bhc-check">&#10003;</span>';
+        $html .= '</li>';
+        return ['html' => $html, 'complete' => $complete, 'is_current' => $is_current];
+    }
+
+    // Groups from BHC_PostTypes::grouped_lesson_order() render as
+    // collapsible <details> sections when a group has a module title;
+    // a blank-titled group's lesson renders as a bare <li>, exactly the
+    // pre-module-feature markup, so an ungrouped course looks unchanged.
+    // A section starts open unless every lesson inside it is already
+    // complete (and doesn't contain the current lesson) — finished
+    // modules collapse out of the way, current/upcoming ones stay
+    // visible, matching how the stepper already treats past vs. current
+    // steps.
+    private static function render_grouped_lesson_list($course_id, $uid, $current_lesson_id, $is_sidebar) {
+        $list_class = $is_sidebar ? 'bhc-lesson-list bhc-sidebar-lesson-list' : 'bhc-lesson-list';
+        $out = '<ol class="' . $list_class . '">';
+        foreach (BHC_PostTypes::grouped_lesson_order($course_id) as $group) {
+            $items = '';
+            $group_complete = true;
+            $group_has_current = false;
+            foreach ($group['lesson_ids'] as $lesson_id) {
+                if (get_post_status($lesson_id) !== 'publish') continue;
+                $li = self::render_lesson_li($lesson_id, $uid, $current_lesson_id, $is_sidebar);
+                $items .= $li['html'];
+                if (!$li['complete']) $group_complete = false;
+                if ($li['is_current']) $group_has_current = true;
+            }
+            if ($items === '') continue;
+            if ($group['title'] === '') {
+                $out .= $items;
+            } else {
+                $open_attr = (!$group_complete || $group_has_current) ? ' open' : '';
+                $out .= '<li class="bhc-module-group"><details' . $open_attr . '><summary class="bhc-module-title">' . esc_html($group['title']) . '</summary><ol class="bhc-lesson-list bhc-module-lesson-list">' . $items . '</ol></details></li>';
+            }
+        }
+        $out .= '</ol>';
+        return $out;
     }
 
     // Shared between the catalog card (BHC_Render_Catalog) and this

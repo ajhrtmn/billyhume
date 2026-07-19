@@ -114,6 +114,30 @@ class BHC_PostTypes {
         return (int) get_post_meta($lesson_id, '_bhc_course_id', true);
     }
 
+    public static function module_title($lesson_id) {
+        return (string) get_post_meta($lesson_id, '_bhc_module_title', true);
+    }
+
+    // Groups a course's ordered lesson IDs into display sections: each
+    // entry is ['title' => string, 'lesson_ids' => int[]]. A run of
+    // consecutive lessons sharing the same non-blank module title
+    // becomes one group; a blank title is its own single-lesson group
+    // with title '' (rendered ungrouped/standalone). Order itself still
+    // comes from _bhc_lesson_order — this never re-sorts, only buckets.
+    public static function grouped_lesson_order($course_id) {
+        $groups = [];
+        foreach (self::lesson_order($course_id) as $lesson_id) {
+            $title = self::module_title($lesson_id);
+            $last = end($groups);
+            if ($title !== '' && $last && $last['title'] === $title) {
+                $groups[count($groups) - 1]['lesson_ids'][] = $lesson_id;
+            } else {
+                $groups[] = ['title' => $title, 'lesson_ids' => [$lesson_id]];
+            }
+        }
+        return $groups;
+    }
+
     // Position (0-based) of $lesson_id within its own course's order,
     // or null if it isn't (yet) listed — a lesson can exist as a draft
     // before an author adds it to the course's order.
