@@ -1,0 +1,56 @@
+/*
+  [bh_judge_panel] — layout only. Every color/font/spacing token comes
+  from player.css's :root custom properties (this file is enqueued as a
+  dependent of bh-player, never loaded alone) — the judging surface is a
+  sibling of the contest player, not a separately-invented look.
+*/
+
+.bh-judge-panel { max-width: 720px; margin: 0 auto; }
+
+.bh-judge-title {
+    font-family: var(--bh-font-display);
+    font-size: calc(24px * var(--bh-font-scale));
+    margin-bottom: calc(20px * var(--bh-space-scale));
+}
+
+.bh-judge-category {
+    font-family: var(--bh-font-display);
+    font-size: calc(14px * var(--bh-font-scale));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bh-text-dim);
+    margin: calc(24px * var(--bh-space-scale)) 0 calc(12px * var(--bh-space-scale));
+}
+.bh-judge-category:first-of-type { margin-top: 0; }
+
+.bh-judge-entry {
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius);
+    padding: calc(18px * var(--bh-space-scale));
+    margin-bottom: calc(14px * var(--bh-space-scale));
+}
+.bh-judge-entry-submitted { border-color: var(--bh-accent); }
+
+.bh-judge-entry-title {
+    font-family: var(--bh-font-display);
+    font-size: calc(17px * var(--bh-font-scale));
+    margin-bottom: calc(10px * var(--bh-space-scale));
+}
+.bh-judge-artist { color: var(--bh-text-dim); font-family: var(--bh-font-body); font-size: calc(13px * var(--bh-font-scale)); font-weight: 400; }
+
+.bh-judge-audio { width: 100%; margin-bottom: calc(16px * var(--bh-space-scale)); display: block; }
+.bh-judge-no-audio { color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); margin-bottom: calc(16px * var(--bh-space-scale)); font-style: italic; }
+
+.bh-judge-criterion {
+    display: block;
+    font-size: calc(13px * var(--bh-font-scale));
+    color: var(--bh-text-dim);
+    margin-bottom: calc(14px * var(--bh-space-scale));
+}
+.bh-judge-criterion-value { color: var(--bh-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bh-judge-slider { display: block; margin-top: calc(8px * var(--bh-space-scale)); }
+
+.bh-judge-actions { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); margin-top: calc(4px * var(--bh-space-scale)); flex-wrap: wrap; }
+.bh-judge-status { font-size: calc(13px * var(--bh-font-scale)); color: var(--bh-text-dim); }
+.bh-judge-status-submitted { color: var(--bh-accent-soft); font-weight: 600; }

@@ -39,18 +39,18 @@ class BHS_PostTypes {
 
         register_post_type('bhs_track', [
             'labels' => [
-                // menu_name carries the "OUS ·" prefix so this top-level
-                // menu reads as part of the Own Ur Shit ecosystem even
-                // though it has to stay its own top-level item (see the
-                // core's class-registry.php docblock on why CPT
-                // list-tables aren't relocated) — the rest of the labels
-                // stay plain since they show up in body text ("Add New
-                // Track," "All Tracks"), where a prefix would read oddly.
-                'name' => 'Tracks', 'menu_name' => 'OUS · Streaming', 'singular_name' => 'Track', 'add_new_item' => 'Add New Track',
+                // "OUS ·" text prefix dropped — the shared icon
+                // (OUS_MenuIcons::streaming(), same rounded-square badge
+                // frame every OUS-owned top-level menu now carries) is
+                // what signals ecosystem membership now — the rest of
+                // the labels stay plain since they show up in body text
+                // ("Add New Track," "All Tracks"), where a prefix would
+                // read oddly regardless.
+                'name' => 'Tracks', 'menu_name' => 'Streaming', 'singular_name' => 'Track', 'add_new_item' => 'Add New Track',
                 'edit_item' => 'Edit Track', 'all_items' => 'All Tracks',
             ],
             'public' => false, 'show_ui' => $visible, 'show_in_menu' => $visible,
-            'menu_icon' => 'dashicons-format-audio', 'supports' => ['title'], 'capability_type' => 'post',
+            'menu_icon' => OUS_MenuIcons::streaming(), 'supports' => ['title'], 'capability_type' => 'post',
         ]);
 
         register_post_type('bhs_release', [

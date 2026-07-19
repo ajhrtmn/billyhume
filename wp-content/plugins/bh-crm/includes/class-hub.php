@@ -58,7 +58,15 @@ class BHCRM_Hub {
         // UNCHANGED — every existing admin.php?page=bh-crm&... deep
         // link, bookmark, and cross-plugin reference keeps working;
         // only the label a person actually sees in the sidebar changed.
-        $hook = add_menu_page('Studio', 'Studio', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render'], 'dashicons-groups', 5);
+        // Was "Studio" — a real naming collision with BH_Studio, the
+        // separate internal Element Builder content tool (also
+        // "Studio" in code, though it has no top-level menu of its
+        // own). This hub is actually People + Project Tracker, so
+        // "People" is what it is, and frees "Studio" to mean only the
+        // Element Builder going forward. Custom icon (OUS_MenuIcons::
+        // people()) replaces the generic dashicons-groups as part of
+        // the same shared-icon-family pass across every OUS-owned menu.
+        $hook = add_menu_page('People', 'People', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render'], OUS_MenuIcons::people(), 5);
         self::log_result('bh-crm-hub (top-level)', $hook);
 
         $hook2 = add_submenu_page('bh-crm-hub', 'People', 'People', self::CAP, 'bh-crm-hub', ['BHCRM_People', 'render']);

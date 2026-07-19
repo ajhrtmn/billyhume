@@ -34,6 +34,55 @@ class BHC_Render {
         add_shortcode('bh_course', [self::class, 'render_course']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_filter('template_include', [self::class, 'maybe_use_archive_template']);
+        add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
+        add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
+    }
+
+    /**
+     * Real, live-confirmed bug: the theme's single.html prints a
+     * "Written by {author} in {category}" byline via a core/group of
+     * core/post-author-name + core/post-terms blocks. On a bh_lesson/
+     * bh_course single page this reads as "Written by in" with both
+     * dynamic pieces blank — these post types have no author byline
+     * concept (a course's real instructor is BHC_PostTypes::instructor(),
+     * already shown in the course header) and are never assigned a
+     * 'category' term at all, so the theme's generic byline group has
+     * nothing to fill in on every single one of these pages. Keying off
+     * the literal "Written by" text (rather than the block name, which
+     * is just a generic core/group used all over the theme) is the same
+     * "match the specific broken output, not the whole block type"
+     * posture suppress_generic_post_navigation() already takes above.
+     */
+    public static function suppress_broken_byline($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'core/group') return $block_content;
+        if (!is_singular(['bh_lesson', 'bh_course'])) return $block_content;
+        if (strpos($block_content, 'Written by') === false) return $block_content;
+        return '';
+    }
+
+    /**
+     * Real, live-confirmed bug: the theme's single.html applies to every
+     * post type via a generic "post-navigation" pattern (core/post-
+     * navigation-link, prev/next). WordPress's get_adjacent_post() only
+     * scopes by post type, never by course — so on a bh_lesson page this
+     * silently walks through EVERY lesson on the site in date order,
+     * with zero regard for which course it belongs to. Confirmed by
+     * clicking it: it took a student from a "Mixing Basics" lesson
+     * straight into an unrelated "Songwriting Fundamentals" lesson,
+     * bypassing enrollment/access checks for that course entirely.
+     *
+     * BHC_Render_Lesson::render_lesson_steps() already renders its own,
+     * correctly course-scoped "Lesson X of Y" + "Next Lesson" navigation
+     * (built from BHC_PostTypes::lesson_order($course_id), not a global
+     * date-ordered query) — so the generic block is pure redundant risk
+     * here, never a feature being removed. Suppressed by block name
+     * rather than patching the theme, since another theme/pattern could
+     * reintroduce the same generic block later.
+     */
+    public static function suppress_generic_post_navigation($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'core/post-navigation-link') return $block_content;
+        if (is_singular(['bh_lesson', 'bh_course'])) return '';
+        return $block_content;
     }
 
     // A real, themeable /courses/ archive ('has_archive' => 'courses',

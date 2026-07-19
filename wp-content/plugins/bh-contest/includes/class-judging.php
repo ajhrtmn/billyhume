@@ -284,6 +284,10 @@ class BH_Judging {
             $subs = array_values(array_filter($subs, fn($s) => BH_Rounds::is_eligible($s->ID, $cid)));
         }
 
+        // Reuses the main player's design-token stylesheet plus a small
+        // panel-only stylesheet for entry-card/slider layout.
+        wp_enqueue_style('bh-player', BH_URL . 'assets/css/player.css', [], BH_VER);
+        wp_enqueue_style('bh-judging', BH_URL . 'assets/css/judging.css', ['bh-player'], BH_VER);
         wp_enqueue_script('bh-judging', BH_URL . 'assets/js/bh-judging.js', [], BH_VER, true);
         wp_localize_script('bh-judging', 'BHJudgeData', [
             'restUrl' => esc_url_raw(rest_url('bh/v1/judge/score')),
@@ -292,28 +296,36 @@ class BH_Judging {
         ]);
 
         ob_start();
-        echo '<div class="bh-judge-panel">';
-        echo '<h2>Judging: ' . esc_html(get_the_title($cid)) . ($round > 0 ? ' — Round ' . ((int) $round + 1) : '') . '</h2>';
+        // bh-container: opts into player.css's whole design-token system
+        // (dark theme, --bh-* custom properties, .bh-btn family) — the
+        // panel is a sibling surface of the contest player, not a
+        // separately-invented look.
+        echo '<div class="bh-judge-panel bh-container">';
+        echo '<h2 class="bh-judge-title">Judging: ' . esc_html(get_the_title($cid)) . ($round > 0 ? ' — Round ' . ((int) $round + 1) : '') . '</h2>';
         foreach ($cats as $cat) {
             echo '<h3 class="bh-judge-category">' . esc_html($cat['name']) . '</h3>';
             foreach ($subs as $sub) {
                 $existing = self::judge_status($uid, $cid, $sub->ID, $cat['slug'], $round);
                 $submitted = $existing['status'] === 'submitted';
                 echo '<div class="bh-judge-entry' . ($submitted ? ' bh-judge-entry-submitted' : '') . '" data-submission-id="' . (int) $sub->ID . '" data-category="' . esc_attr($cat['slug']) . '">';
-                echo '<h4>' . esc_html($sub->post_title) . ' <span class="bh-judge-artist">' . esc_html(BH_Helpers::artist_for($sub)) . '</span></h4>';
+                echo '<h4 class="bh-judge-entry-title">' . esc_html($sub->post_title) . ' <span class="bh-judge-artist">' . esc_html(BH_Helpers::artist_for($sub)) . '</span></h4>';
                 $audio_id = get_post_meta($sub->ID, '_bh_audio_id', true);
                 $audio_url = $audio_id ? wp_get_attachment_url($audio_id) : '';
-                if ($audio_url) echo '<audio controls preload="none" src="' . esc_url($audio_url) . '"></audio>';
+                if ($audio_url) {
+                    echo '<audio class="bh-judge-audio" controls preload="none" style="color-scheme: dark;" src="' . esc_url($audio_url) . '"></audio>';
+                } else {
+                    echo '<p class="bh-judge-no-audio">No audio file attached to this entry yet.</p>';
+                }
 
                 foreach ($rubric as $c) {
                     $val = $existing['scores'][$c['slug']] ?? 0;
                     echo '<label class="bh-judge-criterion">' . esc_html($c['name']) . ' <span class="bh-judge-criterion-value">' . (int) $val . '</span>/' . (int) $c['max']
-                       . '<input type="range" min="0" max="' . (int) $c['max'] . '" value="' . (int) $val . '" data-criterion="' . esc_attr($c['slug']) . '"></label>';
+                       . '<input type="range" class="bh-scrubber bh-judge-slider" min="0" max="' . (int) $c['max'] . '" value="' . (int) $val . '" data-criterion="' . esc_attr($c['slug']) . '"></label>';
                 }
                 echo '<div class="bh-judge-actions">';
-                echo '<button type="button" class="bh-btn bh-btn-secondary bh-judge-save-draft">Save draft</button> ';
-                echo '<button type="button" class="bh-btn bh-judge-submit">' . ($submitted ? 'Update submission' : 'Submit score') . '</button>';
-                echo ' <span class="bh-judge-status">' . ($submitted ? 'Submitted' : 'Draft') . '</span>';
+                echo '<button type="button" class="bh-btn bh-btn-outline bh-judge-save-draft">Save draft</button> ';
+                echo '<button type="button" class="bh-btn bh-btn-primary bh-judge-submit">' . ($submitted ? 'Update submission' : 'Submit score') . '</button>';
+                echo ' <span class="bh-judge-status' . ($submitted ? ' bh-judge-status-submitted' : '') . '">' . ($submitted ? 'Submitted' : 'Draft') . '</span>';
                 echo '</div>';
                 echo '</div>';
             }

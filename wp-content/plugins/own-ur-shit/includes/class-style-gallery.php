@@ -67,6 +67,7 @@ class BHY_Gallery {
     public static function init() {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhy_save_settings', [self::class, 'save']);
+        add_action('admin_post_bhy_restore_style_revision', [self::class, 'handle_restore_revision']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
     }
 
@@ -160,7 +161,40 @@ class BHY_Gallery {
         }
 
         update_option(BHY_Style::OPTION, $data);
+
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $data);
+        }
+
         wp_safe_redirect(add_query_arg(['page' => 'bh-style', 'saved' => '1'], admin_url('admin.php')));
+        exit;
+    }
+
+    // OUS_Revisions::render_history_panel()'s Restore link points here.
+    // Writes the stored snapshot straight back to the option — same
+    // direct-restore reasoning bh_contest's own restore handler uses
+    // (the snapshot IS already the target shape, no need to re-simulate
+    // a fake $_POST through save() itself).
+    public static function handle_restore_revision() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhy_restore_style')) {
+            wp_die('Invalid request.');
+        }
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bhy_style', 1, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+
+        update_option(BHY_Style::OPTION, $snapshot['data']);
+
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $snapshot['data'], 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(add_query_arg(['page' => 'bh-style'], admin_url('admin.php')));
         exit;
     }
 
@@ -273,12 +307,49 @@ class BHY_Gallery {
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
-        echo '<h3>Live token preview</h3>';
+        // Real usability fix, AJ's own ask: this panel used to say
+        // "Live token preview" with zero connection to whichever
+        // surface is actually selected in the canvas — reading as if
+        // IT were the live view, when the real live view is the canvas
+        // itself, right there on screen. Renamed to be honest about
+        // what this specific widget is (a fixed reference strip for
+        // the shape/scale tokens — radius, bar height, font/space
+        // scale — that many individual surfaces never happen to
+        // exercise visibly, e.g. Player never shows --bh-radius
+        // without opening a modal) and added a real "Previewing: X"
+        // label that updates live from the canvas selection
+        // (render_script()'s surface-switch handler), so the
+        // connection between "what I'm looking at" and "what these
+        // controls affect" is stated outright instead of implied.
+        echo '<p class="description" style="margin:0 0 4px;">Editing global styles — applies everywhere. Previewing: <strong id="bhy-current-surface-label">&hellip;</strong></p>';
+        echo '<h3>Shape &amp; scale reference <span class="description" style="text-transform:none;font-weight:400;">(always the same, not tied to the surface above)</span></h3>';
         self::render_token_preview($s);
 
         echo '<div class="bhy-token-group" data-token-group="brand">';
         echo '<h3>Brand</h3>';
-        echo '<div class="bhel-field-row"><label>Wordmark</label><p><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part"></p></div>';
+        echo '<div class="bhel-field-row"><label>Wordmark</label><p style="display:flex;gap:8px;margin:6px 0 0;"><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part" style="flex:1;"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part" style="flex:1;"></p></div>';
+
+        // Real gap, caught live: BHY_Style::logo_url()/'brand_logo_id'
+        // have been part of the data model and the real save() handler
+        // (above in this file) since before this pass — brand.js/the
+        // player's own header already render a logo when one is set
+        // (BHY_Style::get_brand_payload(), 'logoUrl') — but the
+        // inspector never actually had an upload control for it, so
+        // there was no way to ever set brand_logo_id from this screen
+        // at all. wp.media() is already enqueued on this exact page
+        // (enqueue_media(), above in this class) so this needed no new
+        // asset, just the missing control — same upload-button/preview
+        // shape bh-streaming's own artwork picker uses
+        // (class-admin.php's pick() helper).
+        $logo_id = (int) ($s['brand_logo_id'] ?? 0);
+        $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
+        echo '<div class="bhel-field-row" style="margin-top:14px;">';
+        echo '<label>Logo <span class="description">(optional — shown instead of the wordmark text above wherever a surface renders one)</span></label>';
+        echo '<div style="display:flex;align-items:center;gap:12px;margin-top:6px;">';
+        echo '<div id="bhy-logo-preview" style="width:64px;height:64px;border:1px solid var(--bhy-border,#dcdcde);border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">' . ($logo_url ? '<img src="' . esc_url($logo_url) . '" style="width:100%;height:100%;object-fit:contain;">' : '<span class="description" style="font-size:11px;">None</span>') . '</div>';
+        echo '<input type="hidden" id="brand_logo_id" name="brand_logo_id" value="' . esc_attr($logo_id) . '">';
+        echo '<span><button type="button" class="button" id="bhy-logo-upload">' . ($logo_id ? 'Change logo' : 'Upload logo') . '</button> <button type="button" class="button-link" id="bhy-logo-clear" style="' . ($logo_id ? '' : 'display:none;') . 'color:#b32d2e;margin-left:6px;">Remove</button></span>';
+        echo '</div></div>';
         echo '</div>';
 
         echo '<div class="bhy-token-group" data-token-group="colors">';
@@ -354,6 +425,23 @@ class BHY_Gallery {
         }
 
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+
+        // OUS_Revisions consumer, ROADMAP-search-and-revisions.md
+        // Section 2's last named candidate. A single, site-wide config
+        // (BHY_Style::OPTION is one option, not a per-post object) —
+        // object_id is a constant 1 rather than a real post/entity ID,
+        // since there's only ever one of these on the whole site.
+        // render_history_panel() itself is just links, not a <form>
+        // (fixed earlier this same pass), so it's safe to nest inside
+        // this page's own big <form id="bhy-form"> without repeating
+        // the nested-form bug that broke BHM_Tiers/bh_contest saves.
+        if (class_exists('OUS_Revisions')) {
+            echo '<div class="bhy-token-group" data-token-group="revisions">';
+            echo '<h3>Version History</h3>';
+            OUS_Revisions::render_history_panel('bhy_style', 1, 'bhy_restore_style_revision', 'bhy_restore_style');
+            echo '</div>';
+        }
+
         echo '</form></div>';
     }
 
@@ -366,6 +454,19 @@ class BHY_Gallery {
         (function () {
             var frames = document.querySelectorAll('.bhy-story-frame');
             var buttons = document.querySelectorAll('.bhy-story-btn');
+            var currentLabel = document.getElementById('bhy-current-surface-label');
+
+            // Real usability fix, AJ's own ask: the inspector's controls
+            // are genuine GLOBAL tokens (one theme, applied everywhere —
+            // this was never per-surface theming, see this file's own
+            // top docblock), so there's nothing surface-specific for
+            // them to show when you switch surfaces. What WAS missing
+            // is any visible link between "the surface I just clicked"
+            // and "the controls I'm about to touch" — this just keeps
+            // that one label in sync with the real canvas selection.
+            function setCurrentLabel(btn) {
+                if (currentLabel && btn) currentLabel.textContent = btn.textContent;
+            }
 
             buttons.forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -374,8 +475,55 @@ class BHY_Gallery {
                     btn.classList.add('active');
                     var match = document.querySelector('.bhy-story-frame[data-surface="' + btn.dataset.surface + '"]');
                     if (match) match.classList.add('active');
+                    setCurrentLabel(btn);
                 });
             });
+            setCurrentLabel(document.querySelector('.bhy-story-btn.active') || buttons[0]);
+
+            // Logo upload — wp.media() is already enqueued on this page
+            // (BHY_Gallery::enqueue_media()), reused here rather than a
+            // new asset. Same upload-button/preview/clear shape
+            // bh-streaming's own artwork picker uses.
+            (function () {
+                var uploadBtn = document.getElementById('bhy-logo-upload');
+                var clearBtn = document.getElementById('bhy-logo-clear');
+                var hidden = document.getElementById('brand_logo_id');
+                var preview = document.getElementById('bhy-logo-preview');
+                if (!uploadBtn) return;
+                // Real bug, caught live: this script prints inline as part
+                // of the page's own content, before wp_footer runs — and
+                // wp.media()'s own scripts (enqueued via wp_enqueue_media())
+                // load in the footer, so `window.wp.media` doesn't exist
+                // yet at THIS script's execution time even though it's
+                // fully available by the time a user actually clicks.
+                // Bailing here at setup time (the original bug) meant the
+                // click listener never got attached at all, so the button
+                // silently did nothing forever. Checking wp.media lazily,
+                // inside the handler, is the real fix.
+                var frame = null;
+                uploadBtn.addEventListener('click', function () {
+                    if (!window.wp || !window.wp.media) return;
+                    if (frame) { frame.open(); return; }
+                    frame = wp.media({ title: 'Choose a logo', button: { text: 'Use this' }, multiple: false, library: { type: 'image' } });
+                    frame.on('select', function () {
+                        var att = frame.state().get('selection').first().toJSON();
+                        hidden.value = att.id;
+                        var thumbUrl = (att.sizes && att.sizes.medium) ? att.sizes.medium.url : att.url;
+                        preview.innerHTML = '<img src="' + thumbUrl + '" style="width:100%;height:100%;object-fit:contain;">';
+                        uploadBtn.textContent = 'Change logo';
+                        clearBtn.style.display = '';
+                        if (window.refreshAllFrames) window.refreshAllFrames();
+                    });
+                    frame.open();
+                });
+                clearBtn.addEventListener('click', function () {
+                    hidden.value = '';
+                    preview.innerHTML = '<span class="description" style="font-size:11px;">None</span>';
+                    uploadBtn.textContent = 'Upload logo';
+                    clearBtn.style.display = 'none';
+                    if (window.refreshAllFrames) window.refreshAllFrames();
+                });
+            })();
 
             // Each .bhy-story-frame div's real content lives under its
             // own attachShadow({mode:'open'}) root, parsed once here from
@@ -391,7 +539,22 @@ class BHY_Gallery {
                 var raw = frame.dataset.doc;
                 if (!raw) return;
                 var html;
-                try { html = atob(raw); } catch (e) { return; }
+                // Real "wonky character" bug, caught live: atob() decodes
+                // base64 into a binary string where every JS character is
+                // ONE BYTE, not a proper UTF-8-decoded string. Any
+                // multi-byte character in a surface's preview text (an
+                // em-dash, a curly quote) came through as 2-3 separate
+                // mis-rendered characters once DOMParser parsed that raw
+                // byte string as if it were already-decoded text. PHP's
+                // base64_encode() (see self::preview_doc()'s own caller)
+                // was never the problem — it correctly encodes whatever
+                // UTF-8 bytes it's given; the decode side just wasn't
+                // undoing that correctly. TextDecoder('utf-8') is the
+                // real fix, not a format change on the PHP side.
+                try {
+                    var bytes = Uint8Array.from(atob(raw), function (c) { return c.charCodeAt(0); });
+                    html = new TextDecoder('utf-8').decode(bytes);
+                } catch (e) { return; }
                 var parsed = new DOMParser().parseFromString(html, 'text/html');
                 var root = frame.attachShadow({ mode: 'open' });
                 Array.prototype.slice.call(parsed.head.children).forEach(function (node) { root.appendChild(node); });
@@ -413,6 +576,18 @@ class BHY_Gallery {
                 var css = buildCssText();
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
+                // Real gap, AJ's own report ("logo doesn't appear to update
+                // in the style viewer"): this only ever wrote the wordmark
+                // TEXT into #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
+                // never appeared here at all, even though the real front-end
+                // (bh-contest/assets/js/player.js's own brand.logoUrl check)
+                // correctly swaps to an <img> when one's set. Mirrors that
+                // same logoUrl-present check here, reusing whatever src the
+                // logo preview box already resolved to (same attachment,
+                // no extra request needed).
+                var logoIdEl = document.getElementById('brand_logo_id');
+                var logoImgEl = document.querySelector('#bhy-logo-preview img');
+                var logoUrl = (logoIdEl && logoIdEl.value && logoImgEl) ? logoImgEl.src : '';
                 frames.forEach(function (f) {
                     var doc = f.shadowRoot;
                     if (!doc) return;
@@ -422,8 +597,20 @@ class BHY_Gallery {
                     // with these specific ids (e.g. bh-contest's player
                     // header) get it updated live too. Surfaces without
                     // these ids simply no-op here.
-                    if (brand1) { var b1 = doc.getElementById('bh-brand-1'); if (b1) b1.textContent = brand1.value.trim() || brand1.placeholder; }
-                    if (brand2) { var b2 = doc.getElementById('bh-brand-2'); if (b2) b2.textContent = brand2.value.trim() || brand2.placeholder; }
+                    var brandEl = doc.getElementById('bh-brand');
+                    if (!brandEl) return;
+                    if (logoUrl) {
+                        brandEl.innerHTML = '<img class="bh-brand-logo" src="' + logoUrl + '" alt="" style="max-height:32px;max-width:140px;object-fit:contain;">';
+                        return;
+                    }
+                    // No logo set — make sure the text spans exist (they
+                    // won't if a logo was previously shown this session)
+                    // before writing the wordmark text into them.
+                    if (!doc.getElementById('bh-brand-1')) {
+                        brandEl.innerHTML = '<span id="bh-brand-1"></span><span id="bh-brand-2"></span>';
+                    }
+                    var b1 = doc.getElementById('bh-brand-1'); if (b1 && brand1) b1.textContent = brand1.value.trim() || brand1.placeholder;
+                    var b2 = doc.getElementById('bh-brand-2'); if (b2 && brand2) b2.textContent = brand2.value.trim() || brand2.placeholder;
                 });
                 // The always-visible token preview strip lives in the main
                 // document (not a preview frame), so it gets the same
@@ -543,6 +730,13 @@ class BHY_Gallery {
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 });
             });
+
+            // Real gap, AJ's own report ("logo doesn't appear to update in
+            // the style viewer"): refreshAllFrames() was only ever called
+            // in response to an edit — ANY logo already saved from a
+            // previous visit never got drawn into a freshly loaded page's
+            // frames at all, since nothing had "changed" yet to trigger it.
+            refreshAllFrames();
         })();
         </script>
         <?php

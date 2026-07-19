@@ -14,6 +14,43 @@
         }
     });
 
+    // Shared by two real trigger points: a fresh page load that lands
+    // directly on the completion screen (server-rendered — see
+    // class-render-lesson.php's bhc-completion block, e.g. revisiting
+    // the course after finishing it elsewhere), AND the live, same-
+    // session moment below where advance() reveals .bhc-lesson-next
+    // right after the last step of the last lesson is marked complete —
+    // by far the more common real path, and the one a first version of
+    // this only fired for on page load, missing the actual live moment
+    // entirely. window-scoped (not a module) to stay reachable from
+    // both listeners without restructuring this whole IIFE.
+    window.bhcFireConfetti = function (completion) {
+        if (!completion || completion.dataset.bhcConfettiFired) return;
+        completion.dataset.bhcConfettiFired = '1';
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var colors = ['var(--bh-accent)', 'var(--bh-accent-soft)', 'var(--bh-text)'];
+        for (var i = 0; i < 18; i++) {
+            var piece = document.createElement('span');
+            piece.className = 'bhc-confetti-piece';
+            var angle = Math.random() * Math.PI * 2;
+            var distance = 70 + Math.random() * 90;
+            piece.style.setProperty('--bhc-confetti-x', (Math.cos(angle) * distance).toFixed(0) + 'px');
+            piece.style.setProperty('--bhc-confetti-y', (Math.sin(angle) * distance + 40).toFixed(0) + 'px');
+            piece.style.setProperty('--bhc-confetti-r', (Math.random() * 360).toFixed(0) + 'deg');
+            piece.style.background = colors[i % colors.length];
+            piece.style.animationDelay = (Math.random() * 0.15).toFixed(2) + 's';
+            completion.appendChild(piece);
+        }
+        setTimeout(function () {
+            completion.querySelectorAll('.bhc-confetti-piece').forEach(function (p) { p.remove(); });
+        }, 1500);
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var completion = document.querySelector('.bhc-completion');
+        if (completion && completion.offsetParent !== null) window.bhcFireConfetti(completion);
+    });
+
     document.addEventListener('DOMContentLoaded', function () {
         var lesson = document.querySelector('.bhc-lesson');
         if (!lesson) return;
@@ -23,7 +60,16 @@
 
         function showStep(index) {
             lesson.querySelectorAll('.bhc-step').forEach(function (el) {
-                el.style.display = (parseInt(el.dataset.stepIndex, 10) === index) ? '' : 'none';
+                var isTarget = parseInt(el.dataset.stepIndex, 10) === index;
+                el.style.display = isTarget ? '' : 'none';
+                el.classList.remove('bhc-step-entering');
+                if (isTarget) {
+                    // Force a reflow so re-adding the class retriggers the
+                    // CSS animation even when this same step was shown
+                    // before (e.g. navigating back and forward again).
+                    void el.offsetWidth;
+                    el.classList.add('bhc-step-entering');
+                }
             });
             var counter = lesson.querySelector('.bhc-step-current');
             if (counter) counter.textContent = index + 1;
@@ -41,7 +87,15 @@
         // the .bhc-step-done class it mirrors.
         function markStepDone(index) {
             var dot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + index + '"]');
-            if (dot) dot.classList.add('bhc-stepper-done');
+            if (dot) {
+                dot.classList.add('bhc-stepper-done');
+                // A brief pulse on the dot itself — the one small "that
+                // counted" moment for finishing a step, not just a silent
+                // class swap. Removed after the animation so it can
+                // replay if this step is ever completed again.
+                dot.classList.add('bhc-stepper-pulse');
+                setTimeout(function () { dot.classList.remove('bhc-stepper-pulse'); }, 500);
+            }
             var nextDot = lesson.querySelector('.bhc-stepper-dot[data-target-index="' + (index + 1) + '"]');
             if (nextDot) nextDot.disabled = false;
         }
@@ -58,7 +112,14 @@
                 // way forward except manually finding the course page).
                 lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson.querySelector('.bhc-lesson-next');
-                if (nextBlock) nextBlock.style.display = '';
+                if (nextBlock) {
+                    nextBlock.style.display = '';
+                    nextBlock.classList.remove('bhc-step-entering');
+                    void nextBlock.offsetWidth;
+                    nextBlock.classList.add('bhc-step-entering');
+                    var completion = nextBlock.querySelector('.bhc-completion');
+                    if (completion && window.bhcFireConfetti) window.bhcFireConfetti(completion);
+                }
             }
         }
 
@@ -146,6 +207,21 @@
                 fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
+                        // check_ajax_referer()'s default failure mode is
+                        // wp_die(-1) — a bare "-1", not the {success:false,
+                        // data:{...}} shape every real handler response
+                        // has. That collapsed into the same generic
+                        // "Something went wrong." as any other failure,
+                        // when the real, actionable cause is a stale
+                        // session/nonce (e.g. this tab sat open past a
+                        // login timeout).
+                        if (res === -1 || res === '-1') {
+                            e.target.disabled = false;
+                            e.target.textContent = originalLabel;
+                            var expiredMsg = 'Your session has expired — refresh the page and log in again.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(expiredMsg, 'error'); } else { alert(expiredMsg); }
+                            return;
+                        }
                         if (!res.success) {
                             e.target.disabled = false;
                             e.target.textContent = originalLabel;

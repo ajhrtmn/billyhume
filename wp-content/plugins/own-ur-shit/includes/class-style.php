@@ -312,6 +312,18 @@ class BHY_Style {
         foreach ($var_names as $field => $css_var) {
             if (isset($overrides[$field])) $vars[$css_var] = self::safe_color($merged[$field]);
         }
+        // If this entity overrides either color that --bh-accent-muted-bg
+        // derives from, recompute it here too — otherwise a scoped accent/
+        // surface override would leave the SITE-WIDE muted-bg (computed
+        // from the un-overridden colors) applied underneath it, drifting
+        // out of sync with whichever accent this entity actually uses.
+        if (isset($overrides['color_accent']) || isset($overrides['color_surface'])) {
+            $vars['--bh-accent-muted-bg'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 18%, ' . self::safe_color($merged['color_surface']) . ')';
+        }
+        if (isset($overrides['color_accent'])) {
+            $vars['--bh-accent-hover'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 85%, black)';
+            $vars['--bh-accent-pressed'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 70%, black)';
+        }
 
         return [
             'vars'  => $vars,
@@ -333,6 +345,34 @@ class BHY_Style {
         for ($i = 1; $i <= 8; $i++) $vars['--bh-cat-' . $i] = $s['cat_color_' . $i];
         $decls = '';
         foreach ($vars as $name => $val) $decls .= $name . ':' . self::safe_color($val) . ';';
+
+        // Derived, not a hand-picked field like color_accent_soft above —
+        // that field has zero enforced relationship to color_accent, so
+        // an admin picking colors independently can (and did, confirmed
+        // live in bh-courses/bh-contest before this existed) land on a
+        // near-illegible ~1.4:1 contrast pairing with --bh-text. This is
+        // a small, fixed proportion of the CHOSEN accent mixed into the
+        // CHOSEN surface — always dominated by surface (so always dark
+        // enough for light text on top), and it recomputes automatically
+        // for whatever accent/surface pair Settings & Style ends up with,
+        // rather than needing a second correctly-contrasting color to be
+        // hand-picked every time. Any consuming stylesheet should reach
+        // for this — never --bh-accent-soft — behind body text; soft
+        // stays reserved for its original one-off job (lightening an
+        // already-accent-colored element on hover).
+        $decls .= '--bh-accent-muted-bg:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 18%, ' . self::safe_color($s['color_surface']) . ');';
+
+        // Same derivation logic, different job: a button using
+        // --bh-accent as its own background with light/white text on
+        // top needs its :hover state to get DARKER (more contrast), not
+        // lighter — --bh-accent-soft lightens, which is exactly backwards
+        // for that combination (confirmed live: a real bug this session,
+        // white text over a lightened accent-soft hover). Buttons that
+        // pair --bh-accent with DARK text don't need this — lightening
+        // already improves their contrast on hover, so they're unaffected
+        // by leaving them on --bh-accent-soft.
+        $decls .= '--bh-accent-hover:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 85%, black);';
+        $decls .= '--bh-accent-pressed:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 70%, black);';
 
         $decls .= '--bh-font-display:' . self::css_safe_string(self::font_family($s, 'display')) . ', sans-serif;';
         $decls .= '--bh-font-body:' . self::css_safe_string(self::font_family($s, 'body')) . ', sans-serif;';

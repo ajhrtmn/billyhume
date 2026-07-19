@@ -32,7 +32,13 @@ class OUS_Dashboard {
     }
 
     public static function add_menu() {
-        add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], 'dashicons-admin-multisite', 3);
+        // Custom icon (OUS_MenuIcons::hub()) instead of the generic
+        // dashicons-admin-multisite — the shared rounded-square badge
+        // frame every OUS-owned top-level menu now carries (see
+        // class-menu-icons.php) is the actual ecosystem-membership
+        // signal; this is the one glyph in that family that represents
+        // the ecosystem hub itself rather than one feature area.
+        add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
         // WordPress auto-creates a first submenu item duplicating the
         // top-level menu's own label unless explicitly overridden —
         // this replaces that duplicate with a clearer "Dashboard" label
@@ -62,12 +68,32 @@ class OUS_Dashboard {
         ]);
     }
 
+    private static function ecosystem_fully_active_for_banner() {
+        foreach (array_keys(OUS_Registry::all()) as $key) {
+            if (OUS_Registry::status($key) !== 'active') return false;
+        }
+        return true;
+    }
+
     /* ---------- rendering ---------- */
 
     public static function render() {
         echo '<div class="wrap ous-dashboard">';
         echo '<h1>Own Ur Shit</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
+
+        // First-run nudge, AJ's own ask ("a fresh ecosystem install
+        // guided setup wizard would be a high value addition") — a
+        // brand-new install lands on this same page (own-ur-shit's own
+        // activation redirect) with nothing active yet; this is the
+        // one moment worth pointing at the guided flow before the wall
+        // of individual plugin cards below. Self-hides once the
+        // ecosystem is fully active — a returning admin who already
+        // finished setup doesn't need to see this every time, though
+        // Guided Setup itself stays reachable from the submenu either way.
+        if (class_exists('OUS_SetupWizard') && !self::ecosystem_fully_active_for_banner()) {
+            echo '<div class="bhy-alert bhy-alert-info"><p><strong>New here?</strong> The <a href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard')) . '">Guided Setup</a> walks you through activating everything and setting your brand basics, in order.</p></div>';
+        }
 
         if (isset($_GET['ous_activated'])) {
             echo '<div class="notice notice-success is-dismissible"><p>Activated.</p></div>';
@@ -176,7 +202,16 @@ class OUS_Dashboard {
         if ($html === '') return; // nothing placed yet — render nothing, not an empty heading
 
         echo '<h2 style="margin-top:32px;">Dashboard elements</h2>';
-        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=bh-element-builder')) . '">Design Suite &rarr; Element Builder</a>.</p>';
+        // Real dead-link bug, caught and fixed: pointed at
+        // admin.php?page=bh-element-builder, a page deleted in an
+        // earlier cleanup pass (class-style-gallery.php's own docblock)
+        // and never replaced. There IS a real management UI for this
+        // specific surface/slot, just relocated — Debug Tools' own
+        // "Element Builder" section (class-element.php's
+        // render_debug_section()) is a real add/remove/reorder list,
+        // just scoped to exactly this one surface/slot (dashboard/main,
+        // context 0) rather than a general visual builder.
+        echo '<p class="description">Placed via <a href="' . esc_url(admin_url('admin.php?page=ous-debug#ous-section-bh-element')) . '">Debug Tools &rarr; Element Builder</a>.</p>';
         echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
     }
 

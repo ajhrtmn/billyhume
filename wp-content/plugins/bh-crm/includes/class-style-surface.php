@@ -61,7 +61,62 @@ class BHCRM_StyleSurface {
             'label'  => 'CRM profile page (live)',
             'render' => [self::class, 'profile_preview'],
         ];
+        // Design Suite gallery gap: the kanban Project Tracker
+        // (class-projects.php/kanban-board.js) has real, shipped UI
+        // that was never registered here at all — the gallery only
+        // ever showed the profile page. This is a hand-authored
+        // mockup (like bh-contest/bh-courses/etc.'s own surfaces), not
+        // a live BH_Element render — the kanban board is its own
+        // separate system with its own DB table, entirely built
+        // client-side from JSON, not something render_slot() reaches.
+        $surfaces['bh-crm-kanban'] = [
+            'group'  => 'CRM',
+            'label'  => 'Project Tracker (kanban)',
+            'render' => [self::class, 'kanban_preview'],
+        ];
         return $surfaces;
+    }
+
+    public static function kanban_preview() {
+        ob_start();
+        ?>
+<div style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:8px;">
+<div class="bhcrm-kanban-board" style="display:flex;gap:12px;padding:12px;overflow-x:auto;">
+    <div class="bhcrm-kanban-column" data-column="To Do" style="min-width:220px;">
+        <div class="bhcrm-kanban-column-header">To Do<span class="bhcrm-kanban-column-count"> (2)</span></div>
+        <div class="bhcrm-kanban-column-cards">
+            <div class="bhcrm-kanban-card">
+                <div class="bhcrm-kanban-card-drag-handle">&#8942;&#8942;</div>
+                <div class="bhcrm-kanban-card-title-row">Finalize tour dates</div>
+            </div>
+            <div class="bhcrm-kanban-card">
+                <div class="bhcrm-kanban-card-drag-handle">&#8942;&#8942;</div>
+                <div class="bhcrm-kanban-card-title-row">Book studio time</div>
+            </div>
+        </div>
+    </div>
+    <div class="bhcrm-kanban-column" data-column="In Progress" style="min-width:220px;">
+        <div class="bhcrm-kanban-column-header">In Progress<span class="bhcrm-kanban-column-count"> (1)</span></div>
+        <div class="bhcrm-kanban-column-cards">
+            <div class="bhcrm-kanban-card">
+                <div class="bhcrm-kanban-card-drag-handle">&#8942;&#8942;</div>
+                <div class="bhcrm-kanban-card-title-row">Mix single #3</div>
+            </div>
+        </div>
+    </div>
+    <div class="bhcrm-kanban-column" data-column="Done" style="min-width:220px;">
+        <div class="bhcrm-kanban-column-header">Done<span class="bhcrm-kanban-column-count"> (1)</span></div>
+        <div class="bhcrm-kanban-column-cards">
+            <div class="bhcrm-kanban-card is-done">
+                <div class="bhcrm-kanban-card-drag-handle">&#8942;&#8942;</div>
+                <div class="bhcrm-kanban-card-title-row">Release cover art</div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+        <?php
+        return ['css_url' => BHCRM_URL . 'assets/css/kanban-board.css', 'html' => ob_get_clean()];
     }
 
     private static function css_url() {

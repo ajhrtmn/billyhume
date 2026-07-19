@@ -13,6 +13,64 @@ class BHR_Frontend {
     public static function init() {
         add_shortcode('bh_registry', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
+        // Same auto-detect pattern bh-monetization-woo already uses for
+        // its own tier/gift-redeem pages — needed so a search result can
+        // link somewhere real (see search_artists() below).
+        add_action('save_post_page', [self::class, 'maybe_remember_registry_page']);
+        // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
+        // sequencing. Public-safe: reuses the SAME 'active'-only gate
+        // (verified links only) BHR_API::list_artists() already
+        // enforces for its own public REST search — pending/rejected
+        // artists are never visible here regardless of query, matching
+        // this ecosystem's "search shouldn't take people where they
+        // aren't allowed to go" standard.
+        add_filter('ous_search_providers', [self::class, 'register_search_provider']);
+    }
+
+    public static function maybe_remember_registry_page($post_id) {
+        $post = get_post($post_id);
+        if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bh_registry')) {
+            update_option('bhr_registry_page_id', $post_id);
+        }
+    }
+
+    public static function register_search_provider($providers) {
+        $providers['artists'] = [self::class, 'search_artists'];
+        return $providers;
+    }
+
+    public static function search_artists($query, $limit) {
+        global $wpdb;
+        $page_id = (int) get_option('bhr_registry_page_id', 0);
+        if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
+
+        $artists_t = $wpdb->prefix . 'bhr_artists';
+        $like = '%' . $wpdb->esc_like($query) . '%';
+        // Same 'active'-only gate as the real public REST search — an
+        // artist still pending/rejected is never surfaced here either.
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT display_name, bio FROM $artists_t WHERE status = 'active' AND display_name LIKE %s ORDER BY display_name ASC LIMIT %d",
+            $like, max(1, (int) $limit)
+        ), ARRAY_A);
+
+        $url = get_permalink($page_id);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'type' => 'Artist',
+                'title' => $r['display_name'],
+                // No per-artist canonical URL exists yet (the directory
+                // is one client-rendered page, not individual permalinks
+                // — same limitation ROADMAP-discoverability.md already
+                // found for this exact plugin) — links to the real
+                // directory page rather than a dead/nonexistent one; a
+                // fan lands on the browse page and can find them there.
+                'excerpt' => wp_trim_words($r['bio'], 20),
+                'url' => $url,
+                'icon' => 'dashicons-admin-users',
+            ];
+        }
+        return $out;
     }
 
     public static function maybe_enqueue() {
@@ -25,6 +83,16 @@ class BHR_Frontend {
         wp_enqueue_script('bhr-registry', BHR_URL . 'assets/js/registry.js', [], BHR_VER, true);
         wp_localize_script('bhr-registry', 'BHRData', [
             'rest' => esc_url_raw(rest_url('bhr/v1/')),
+            // Rendered once server-side (the shared BHY_Style component,
+            // same one bh-courses' catalog already uses) rather than a
+            // bare '<p>No artists found.</p>' — a brand-new registry
+            // with zero real entries yet is exactly the day-one state a
+            // fresh site actually hits, not an edge case.
+            'emptyHtml' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'No artists yet',
+                'description' => 'Be the first to add your feed to the registry.',
+            ]) : '<p class="bhr-empty">No artists found.</p>',
         ]);
         // Reporting is handled by own-ur-shit's shared queue (see
         // BHI_Reports), not something this plugin builds its own

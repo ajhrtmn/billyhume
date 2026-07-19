@@ -2,550 +2,263 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.2
+ * Version:     3.7.11
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
-// 3.6.4 — bh_contest/bh_submission were both missing
-// 'edit_item'/'add_new_item' labels, so every real edit screen showed
-// WordPress core's generic "Edit Post"/"Add Post" fallback instead of
-// "Edit Contest"/"Review Submission" — caught live while working on
-// own-ur-shit 3.5.1's wide-admin-layout fix. Added full label sets to
-// both post type registrations (class-post-types.php).
+// 3.6.4 — Added missing 'edit_item'/'add_new_item' labels to
+// bh_contest/bh_submission post type registrations (class-post-types.php).
+// 3.6.3 — Fixed "Manage my submission" link never rendering: BH_Auth::render()
+// built it into $before, then unconditionally overwrote $before with
+// BH_Element::render_slot()'s output, discarding it. Now prepended instead.
+// 3.6.2 — Rejecting a submission now also logs to OUS_Audit (admin
+// accountability record, separate from the contestant-facing BH_Event).
+// 3.6.1 — Submission-received and rejection-notification emails now log a
+// warning if wp_mail() returns false instead of failing silently.
+// 3.6.0 — Submission audio file replacement: admin or contestant can swap a
+// submission's audio file while the submission window is open. New file goes
+// to _bh_pending_audio_id (never overwrites _bh_audio_id directly) so the
+// live file stays playable/votable until an admin approves the swap via
+// BH_Admin::render_approval_box(). New 'rejected' post_status with reason-code
+// dropdown + freeform note, included in a rejection email; re-uploading after
+// rejection flips status back to 'pending'. New "Manage my submission" link
+// on the player (BH_Auth::render()) for logged-in contestants. Old
+// attachments are deleted on swap-approval. Discord only announces a file
+// swap if the submission was already published, to avoid a premature public
+// announcement for a still-pending submission.
+// Fixed two bugs found during verification: (1) the reject button lived
+// inside a metabox nested in WP's own post-edit <form> — a nested <form> is
+// invalid HTML, so submits silently resolved to the outer form. Rebuilt as
+// plain fields + fetch() POST with no form ancestor. (2)
+// register_post_status('rejected', ['exclude_from_search' => true]) broke
+// `post_status => 'any'` everywhere (WP only respects exclude_from_search for
+// custom statuses during 'any' expansion), making rejected submissions vanish
+// from the portal. Fixed by setting exclude_from_search => false (safe since
+// the post type itself is already non-public).
 
-// 3.6.3 — real bug, caught live while capturing screenshots of the
-// "Manage my submission" link (3.6.0's own changelog): the link was
-// silently NEVER rendering on any real page. BH_Auth::render() built
-// it into $before, then two lines later unconditionally OVERWROTE
-// $before with BH_Element::render_slot()'s own output, discarding it
-// every time — confirmed live, the link never once appeared despite
-// its condition (logged in, has a real submission) being met. Fixed
-// by capturing the link separately and prepending it to whatever
-// render_slot() returns instead of being clobbered by it. Verified
-// live: the link now renders correctly above the player for a
-// logged-in contestant with a real entry.
+// 3.5.3 — submit() emits BH_Event 'bh/submission_created'; email send points
+// emit 'bhcore/email_sent' — feeds the CRM's unified per-person activity
+// timeline (bh-crm 1.9.0).
 
-// 3.6.2 — accountability audit log wiring (own-ur-shit 3.5.0's own
-// changelog has the full story). Rejecting a submission now logs to
-// OUS_Audit alongside the existing BH_Event emit — the event feeds
-// the contestant's own activity feed, this is the separate admin-
-// accountability record of the same moderation action.
+// 3.2.2 — Three more additive 'bh_contest_player' slots (tracklist_extra,
+// now_playing_extra, results_modal_intro), same pattern as header_extra
+// (3.2.1). Per-slot render+attach logic factored into shared
+// attach_extra_zone()/injectExtraZone() helpers instead of duplicating.
+// Note: .bh-now-playing-bar is position:fixed, so a sibling placed after it
+// in the DOM doesn't visually land "below" it the way normal flow suggests —
+// see player.css's comment on .bh-now-playing-extra.
 
-// 3.6.1 — debug-log wiring pass (own-ur-shit 3.4.91's own changelog
-// has the full story). The submission-received confirmation email and
-// the new rejection-notification email both now log a warning if
-// wp_mail() returns false, instead of failing silently.
+// 3.2.1 — New 'header_extra' zone on the 'bh_contest_player' surface
+// (class-element-surface.php), inside the header bar next to the existing
+// buttons. player.css's ':empty { display: none; }' rule means a contest with
+// no header_extra content renders identically to before this pass.
 
-// 3.6.0 — the "wrong file uploaded" fix, AJ's own ask, fully scoped
-// this session: admin AND the contestant themselves can replace a
-// submission's audio file, any time the contest's submission window
-// is still open (BH_Helpers::is_submission_open() — same gate a fresh
-// submission itself respects).
-//
-// New: BH_API::replace_audio() (bh/v1/submissions/replace-audio, REST,
-// self-service or admin) writes the new file to _bh_pending_audio_id —
-// NEVER directly over _bh_audio_id — so the currently-live file keeps
-// playing/being voted on unchanged until an admin reviews and approves
-// the swap. Swapping more than once before review deletes the
-// previous pending attachment; only the newest ever needs review.
-// Admin review UI: BH_Admin::render_approval_box() (full rebuild of
-// the old 100%-read-only meta box) now shows both the live file and a
-// pending replacement side by side with Approve/Discard actions.
-//
-// New: a real 'rejected' post_status (class-post-types.php) with a
-// prefab reason-code dropdown (BH_Admin::REJECTION_REASONS) plus a
-// freeform note, both included in a real rejection email to the
-// contestant — closing the gap where a rejected submission previously
-// just sat at 'pending' forever with zero notification either way.
-// Uploading a new file after a rejection automatically flips it back
-// to 'pending', putting it in front of an admin again.
-//
-// New: a "Manage my submission" link on the contest player itself
-// (BH_Auth::render()) for any logged-in contestant who's already
-// entered — a real way to REACH the portal's replace-file flow from
-// the page they'd actually be on when they notice the mistake, per
-// AJ's own ask.
-//
-// Old attachments are deleted on swap-approval (AJ's own call), not
-// kept around. Discord announces a file swap the same way it
-// announces a first approval (AJ's own call: "you choose"), but ONLY
-// when the submission was already actually published — a still-
-// pending submission's file swap doesn't get a premature public
-// announcement (a real bug caught live during this session's own
-// verification: the first cut of this fired Discord even for a
-// submission that had never been approved at all).
-//
-// Two more real bugs caught live during verification, both fixed:
-//  1. The reject button lived inside a metabox, which renders INSIDE
-//     WordPress's own outer post-edit <form> — a second, nested <form>
-//     is invalid HTML, so a submit click silently resolved to the
-//     OUTER form (a plain post Update) and never reached admin-post.php
-//     at all. Rebuilt as plain fields + a button with no form ancestor,
-//     submitting via a small inline fetch() POST instead.
-//  2. register_post_status('rejected', ['exclude_from_search' => true,
-//     ...]) silently broke `post_status => 'any'` everywhere else in
-//     this plugin (6 call sites, including has_submitted()'s own
-//     duplicate-submission check and the portal's submissions list) —
-//     WordPress only respects exclude_from_search for CUSTOM statuses
-//     during 'any' expansion, so a rejected submission was vanishing
-//     from the contestant's own portal view entirely. Fixed by setting
-//     exclude_from_search => false (safe: the post type itself is
-//     already 'public' => false, so this can never surface in a real
-//     front-end search regardless).
-// Verified live end-to-end: rejected a real submission (reason + note
-// stored, status changed), uploaded a replacement from the portal
-// (status correctly flipped pending -> back to pending-with-swap,
-// visible again after the exclude_from_search fix), approved the swap
-// from wp-admin (old file deleted, new file promoted, no premature
-// Discord post since the submission was never published).
+// 3.2.0 — bh-contest's first BH_Element surface: new 'bh_contest_player'
+// surface with 'before_player'/'after_player' slots, rendered server-side in
+// class-auth.php's [bh_contest_player] shortcode as siblings of the player's
+// JS-owned mount div — not inside it, since player.js rebuilds that div's
+// entire innerHTML on load and would wipe anything placed inside it.
+// Deliberately not converted: the player's interactive skeleton
+// (header/tabs/tracklist/now-playing/modals) — every method in player.js
+// depends on that exact markup via this.q('.bh-results-btn')-style lookups.
 
-// 3.5.3 — class-api.php's submit() now emits BH_Event
-// 'bh/submission_created' after a successful submission, and both
-// email send points (submission-received confirmation here, plus
-// every notification-system email via own-ur-shit) now emit
-// 'bhcore/email_sent' — feeding the CRM's unified per-person activity
-// timeline (bh-crm 1.9.0). No change to submission/email behavior
-// itself.
+// 3.1.3 — Fixed Live Console's contest-picker dropdown throwing a
+// permissions error on selection: the page is a submenu of
+// edit.php?post_type=bh_contest, but the dropdown's <form method="get"> only
+// carried page=bh-console — a bare GET form replaces the whole query string,
+// dropping post_type. Fixed by adding a hidden post_type field.
 
-// 3.2.2 — 2026-07-12 — task #80 follow-up (also fixes a stale version
-// mismatch found while making this change: the header above said 3.2.1
-// but the BH_VER constant below was still 3.2.0 — both now agree).
-//
-// Three more additive 'bh_contest_player' slots, same non-load-bearing
-// boundary header_extra (3.2.1) already proved out: tracklist_extra
-// (above the tracklist), now_playing_extra (after the now-playing bar),
-// results_modal_intro (inside the results modal, above the results
-// list). None of the three empty divs renderSkeleton() now creates for
-// them are read from or required by any this.q(...)-style lookup
-// elsewhere in player.js — auth, voting, and playback wiring is
-// untouched. class-auth.php's per-slot render+attach logic was factored
-// into one shared attach_extra_zone() helper (header_extra included)
-// rather than duplicated a fourth time; player.js's injectHeaderExtra()
-// was generalized the same way into injectExtraZone(datasetKey,
-// selector), called once per zone.
-//
-// Flagged honestly, not silently assumed fine: .bh-now-playing-bar is
-// position:fixed, so a sibling placed after it in the DOM doesn't
-// visually land "below" it the way normal flow would suggest — see
-// player.css's own comment on .bh-now-playing-extra. No live browser
-// this session to iterate on the actual visual placement; worth a real
-// click-through before treating that specific zone as done.
-//
-// The player's actual interactive shell — header buttons, tabs,
-// tracklist, now-playing controls, auth/submit/results modals — is
-// still NOT converted to BH_Element placements, on purpose. That's the
-// genuinely risky remainder of task #80 (every method in this file
-// depends on exact selectors like this.q('.bh-results-btn')) and still
-// needs real browser QA, not another blind pass.
-
-// 3.2.1 — 2026-07-12 — task #80's real, safe slice: a genuinely new
-// 'header_extra' zone on the 'bh_contest_player' surface (class-element-
-// surface.php), landing INSIDE the header bar itself for the first time
-// — next to the brand/Results/Submit/Login/Logout buttons, not replacing
-// any of them. player.js's renderSkeleton() still builds the entire
-// required skeleton exactly as before (every this.q('.bh-results-btn')-
-// style lookup elsewhere in that file is completely untouched); the only
-// change is one new '.bh-header-extra' div that starts empty and is
-// filled, once, by a new injectHeaderExtra() reading class-auth.php's
-// base64-encoded real render_slot() output off a data attribute.
-// player.css's ':empty { display: none; }' rule means a contest with no
-// header_extra content renders byte-identical to before this pass.
-//
-// Deliberately still NOT touched: the header's own required buttons,
-// the tabs/tracklist/now-playing bar, and the auth/submit/results
-// modals — those stay exactly as risky to convert as WALKTHROUGH-
-// GUIDE.md already flags, unchanged by this pass. This is a real,
-// additive step forward, not a reversal of that caution.
-
-// 3.2.0 — 2026-07-12 — bh-contest's first real BH_Element surface (AJ
-// named this plugin the litmus test for real content/component/widget
-// authoring — see class-element-surface.php's own docblock for the full
-// scope reasoning). New 'bh_contest_player' surface, two slots
-// ('before_player'/'after_player'), rendered server-side in class-
-// auth.php's [bh_contest_player] shortcode as real siblings of the
-// player's own JS-owned mount div — NOT inside it, since player.js
-// rebuilds that div's entire innerHTML on load and would silently wipe
-// anything placed inside it.
-//
-// Deliberately NOT converted this pass: the player's actual interactive
-// skeleton (header/tabs/tracklist/now-playing bar/auth+submit modals,
-// assets/js/player.js's renderSkeleton()) — every other method in that
-// file depends on that exact markup via this.q('.bh-results-btn')-style
-// lookups for auth-state, voting, and playback. Turning that into
-// BH_Element placements safely means guaranteeing every placement always
-// emits those exact required classes, which is real, live-breaking risk
-// to take on with no browser available this session to verify against.
-// Flagged in WALKTHROUGH-GUIDE.md as real follow-up work, not silently
-// deferred.
-
-// 3.1.3 — real bug fix: Live Console's contest-picker dropdown threw
-// "Sorry, you are not allowed to access this page." on selection. Root
-// cause: the page is registered as a submenu of edit.php?post_type=bh_contest,
-// but the dropdown's <form method="get"> only carried page=bh-console —
-// a bare GET form replaces the whole query string with just its own
-// fields, so post_type was silently dropped and WordPress couldn't
-// resolve the submenu. Fixed in class-console.php by adding a hidden
-// post_type=bh_contest field to the form. NOT yet verified against the
-// live site — user reported the symptom, fix follows from reading the
-// exact form-submission mechanics; please confirm the dropdown now works.
-
-// 3.1.1 — logging depth pass: BH_Discord::send() previously returned
-// false identically for "no webhook configured" (routine, most contests
-// don't have one) and "webhook configured but fails URL validation" (a
-// real misconfiguration silently killing every notification for that
-// contest). The second case now logs a throttled warning via
-// OUS_DebugLog. Standing caveat: reasoning/brace-balance-checked only,
-// not run against a real WordPress+MySQL install.
-//
-// 3.1.2 — continuation logging pass: vote add/remove DB writes
-// (class-api.php's vote()) were previously unchecked and the response
-// always claimed success regardless — now logged as 'error' on a real
-// failure. Submission wp_insert_post()/media_handle_sideload() failures
-// now log the actual WP_Error message instead of discarding it.
-// email_winners() now tracks and logs which specific winners' emails
-// failed to send in a bulk announce, instead of the whole batch's
-// success/failure being invisible.
-// 3.1.4 — bundled zip regenerated to match installed version, no code change
-// 3.1.5 — vote()'s toggle-add and toggle-remove paths (class-api.php)
-// now additionally emit a BH_Event 'bh/vote' event (own-ur-shit's new
-// event-tracking layer, class-event.php) after each write commits —
-// fire-and-forget, never inside the vote-limit transaction itself, so
-// the synchronous votes_left response this endpoint returns is
-// unaffected. See EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
-// Standing caveat: reasoning/brace-balance-checked only, not run
-// against a real WordPress+MySQL install.
-//
+// 3.1.1 — BH_Discord::send() previously returned false identically for "no
+// webhook configured" and "webhook configured but fails URL validation" (a
+// real misconfiguration). The second case now logs a throttled warning.
+// 3.1.2 — vote()'s DB writes are now checked and logged on failure instead of
+// always claiming success. Submission upload failures now log the actual
+// WP_Error. email_winners() now tracks per-recipient send failures.
+// 3.1.4 — bundled zip regenerated to match installed version, no code change.
+// 3.1.5 — vote()'s toggle paths now emit a BH_Event 'bh/vote' after each
+// write commits (fire-and-forget, outside the vote-limit transaction).
 // 3.1.6 — class-debug.php's register() now sets 'group' =>
-// OUS_Debug::GROUP_SEED_RESET on this plugin's Debug Tools section, part
-// of own-ur-shit's Debug Tools reorganization pass. No functional change
-// to this plugin itself. Standing caveat: reasoning/brace-balance-
-// checked only, not run against a real WordPress+MySQL install.
-define('BH_VER',        '3.7.2');
+// OUS_Debug::GROUP_SEED_RESET, part of the Debug Tools reorganization.
 
-// 3.7.2 — retry-audit pass, AJ's own standing ask (assets/js/bh-judging.js):
-// judge score save had NO .catch() at all — a dropped connection
-// silently failed with zero feedback, and a judge could reasonably
-// believe a submitted score went through when it never left the
-// browser. Added retry-with-backoff (verified BH_Judging::save_score()
-// is a real ON DUPLICATE KEY UPDATE upsert keyed on judge+submission+
-// category before adding this — a retry here can't create a
-// duplicate row) and, if retries are exhausted, an explicit "your
-// score was NOT saved" message rather than silence.
+// 3.7.4 — Fixed enhanceSelect()'s open menu (player.js) getting clipped in
+// Safari: it was `position: absolute` inside `.bh-modal-content`
+// (overflow-y:auto), so it got clipped by the same overflow that lets the
+// form scroll. Switched to `position:fixed`, computed from the trigger's
+// screen coordinates (player.css z-index bumped past .bh-modal's 10000).
+// 3.7.5 — Added an "edit-details" REST route + inline edit form in the
+// portal panel so a contestant can fix a typo'd song/artist title without
+// emailing an admin, gated the same way as the file-replace form.
+// 3.7.6 — First OUS_Revisions consumer for postmeta-only config: a contest's
+// configuration lives entirely in postmeta, so WP's native post-revisions
+// would capture nothing meaningful. save_contest_meta() now snapshots every
+// _bh_*/_bhy_style_json key on save; new "Version History" metabox with
+// Restore buttons.
+// 3.7.7 — Published contests are searchable via [ous_search]/ous/v1/search —
+// only published contests, never bh_submission (holds contact info/audio).
+// 3.7.8 — A contest can opt into a "Site Menu" checkbox that keeps a
+// "Contests" submenu in sync via OUS_MenuSync.
+// 3.7.9 — A contest can opt into "Allow submitting without audio yet": a fan
+// reserves an entry with title/artist/contact alone, then uploads later via
+// the portal, reusing the replace-audio endpoint for the first-time attach.
+// 3.7.10 — Fixed hybrid-format Results modal dropping the Judges' Pick
+// leaderboard (player.js never read the judge_results REST key). Also fixed
+// a judges-only contest mislabeling its rubric percentage as "N votes".
+// 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
+// of rendering unstyled, and fixes button classes that referenced a
+// nonexistent bh-btn-secondary class.
+define('BH_VER',        '3.7.11');
 
-// 3.7.1 — new BH_ContestWizard (includes/class-contest-wizard.php): a
-// guided "New Contest" flow, the "it just works" design principle
-// applied to the single most confusing screen in this ecosystem (the
-// real edit screen spans 7 metaboxes, 30+ interdependent fields —
-// confirmed by direct code read, not guessed). Covers name/submission
-// window/voting window/categories/judging format only; rounds,
-// Discord, contact-field customization, and branding stay on the real
-// edit screen with sensible defaults. Reuses the real save path —
-// populates $_POST with that screen's own field names and lets
-// wp_insert_post() fire the real save_post_bh_contest hook — rather
+// 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
+// Design Suite style surface (class-style-surfaces.php), previously invisible
+// to the token editor. Fixed the same contrast bug as own-ur-shit 3.6.5: this
+// preview's light wp-admin-style page inherited the dark brand theme's light
+// :host text color, rendering unreadable light-on-light text.
+
+// 3.7.2 — Judge score save (assets/js/bh-judging.js) had no .catch() at all —
+// a dropped connection failed silently with no feedback. Added
+// retry-with-backoff (safe: BH_Judging::save_score() is an ON DUPLICATE KEY
+// UPDATE upsert, so a retry can't create a duplicate row) and an explicit
+// "not saved" message if retries are exhausted.
+
+// 3.7.1 — New BH_ContestWizard (includes/class-contest-wizard.php): a guided
+// "New Contest" flow covering name/submission window/voting window/
+// categories/judging format only (rounds, Discord, contact-field
+// customization, and branding stay on the full edit screen with sensible
+// defaults). Populates $_POST with the real edit screen's field names and
+// lets wp_insert_post() fire the normal save_post_bh_contest hook, rather
 // than duplicating BH_Admin::save_contest_meta()'s validation logic.
-// Real bug caught and fixed during live verification: the save
-// handler checks isset($_POST['bh_results_published']), not
-// truthiness, so the wizard's first draft (setting it to '') still
-// saved results as published — fixed by unset() instead.
 
-// 3.7.0 — ROADMAP-discoverability.md Section 3's own per-content-type
-// schema.org plan: BH_Auth::render() now calls BH_SEO::set_page_data()
-// with a real Event JSON-LD block (name, description, startDate/
-// endDate from _bh_start/_bh_end, organizer) for any resolved contest
-// — 'eventAttendanceMode' deliberately set to OnlineEventAttendanceMode
-// and 'location' deliberately omitted, since a music-contest vote has
-// no physical venue to report. class_exists()-guarded. Verified live
-// on a real published contest: correct Event block, correct dates,
-// single canonical tag.
+// 3.7.0 — BH_Auth::render() now calls BH_SEO::set_page_data() with an Event
+// JSON-LD block (name, description, start/end dates, organizer) for any
+// resolved contest. 'eventAttendanceMode' is OnlineEventAttendanceMode and
+// 'location' is omitted since a vote has no physical venue. class_exists()-
+// guarded.
 
-// 3.6.9 — real cross-browser gap, caught by a grounded browser-quirk
-// audit of every first-party .css/.js file in the ecosystem: .bh-modal
-// used unprefixed `backdrop-filter: blur(2px)` with no
-// `-webkit-backdrop-filter` fallback, so older Safari silently drops
-// the blur (flat overlay, no glass effect) instead of degrading
-// gracefully. Added the prefixed declaration alongside the standard
-// one.
+// 3.6.9 — .bh-modal used unprefixed `backdrop-filter: blur(2px)` with no
+// `-webkit-backdrop-filter` fallback, so older Safari silently dropped the
+// blur. Added the prefixed declaration alongside the standard one.
 
-// 3.6.8 — First real contributor to own-ur-shit's new shared Metrics
-// dashboard (OUS_Metrics, class-metrics.php): two widgets in
-// includes/class-crm-integration.php (Submissions, Votes cast), same
-// "tandem infrastructure" pass as bh-courses' own version of this
-// registration. Reads bh/submission_created and bh/vote events already
-// flowing — see class-api.php's own emit() call sites. class_exists()-
-// guarded; does nothing if own-ur-shit's metrics class isn't present.
+// 3.6.8 — Registered two widgets (Submissions, Votes cast) with own-ur-shit's
+// shared Metrics dashboard (OUS_Metrics), reading the bh/submission_created
+// and bh/vote events already emitted by class-api.php. class_exists()-guarded.
 
-// 3.6.7 — Contract-drift fix in player.js, flagged by an audit run
-// right after the quiz-shuffle bug this same session (the same failure
-// mode: a field list that SHOULD be single-sourced, independently
-// duplicated across multiple call sites, currently in sync by luck
-// rather than by construction). own-ur-shit's BHI_Profiles::TEXT_COLS
-// is already correctly single-sourced on the PHP side; this was the
-// JS-side counterpart — appendProfileFields()'s field/DOM-class map,
-// prefillSubmitProfile()'s separately-typed copy of the identical map,
-// and applyContactFields()/contactFields.show's own hardcoded field-
-// name array were three independent literals. Collapsed into one
-// PROFILE_FIELDS/CONTACT_FIELD_KEYS pair at module scope; all three
-// consumers now read off it. Verified live: submit modal renders every
-// field correctly, prefill still works, zero console errors.
-// 3.6.6 — Production-hardening pass, from a fresh audit ahead of real
-// users: two real data-integrity/UX bugs, closed.
-// (1) Trapped vote slot: class-api.php's vote() gated its TOGGLE-OFF
-// path behind the same "submission still belongs to this contest and
-// is still published" check the toggle-ON path needs. An admin
-// rejecting an already-published, already-voted-on submission (the
-// Reject UI is available at any pre-rejected status, confirmed live)
-// permanently trapped every affected voter's vote — they could never
-// free that slot again, and the track vanishes from the public /tracks
-// list the same moment, so there was no UI path to even notice why.
-// Fixed two ways: the API now only enforces that gate on new votes
-// (an existing vote can always be freed regardless of the submission's
-// current status), and handle_reject_submission() (class-admin.php)
-// now deletes that submission's vote rows at the moment of rejection,
-// auto-refunding every affected voter rather than relying on each of
-// them separately hitting a now-fixed toggle-off request.
-// (2) New before_delete_post cleanup (cleanup_deleted_contest()) —
-// this plugin had ZERO cleanup anywhere for a permanently-deleted
-// contest; every submission and vote row referencing it became a
-// silent, undiscoverable orphan. Submissions are trashed (not hard-
-// deleted) to preserve a real recovery window.
-// Also: wp_die() calls across admin-post handlers and share-card/
-// certificate endpoints now pass back_link => true instead of dead-
-// ending with no way back except the browser Back button.
-// Verified live: submission edit screen and reject flow render with no
-// fatal errors after these changes.
+// 3.6.7 — player.js had the submit-modal's profile field list independently
+// duplicated across three call sites (appendProfileFields(),
+// prefillSubmitProfile(), applyContactFields()/contactFields.show), in sync
+// by luck rather than by construction — the JS-side counterpart to
+// BHI_Profiles::TEXT_COLS being single-sourced on the PHP side. Collapsed
+// into one PROFILE_FIELDS/CONTACT_FIELD_KEYS pair at module scope.
 
-// 3.6.5 — "Anything fun for social sharing?" — AJ's own ask this
-// session. New class-share-cards.php: "Now Entered"/"Vote Now" share
-// cards (?bh_share_entered={id} / ?bh_share_vote={id}, public/no-login
-// — a submission's own audio/notes/contact info stays locked down as
-// before, this card renders only a title/artist/contest name), via the
-// new shared BH_ShareCard engine (own-ur-shit 3.5.2). No per-submission
-// public page exists to deep-link to (bh_submission is 'public' =>
-// false, no single template) — the "vote" card instead pairs with the
-// contest's own auto-created page URL (_bh_page_id), returned alongside
-// the card URLs on the submit API's success response and surfaced by a
-// new share modal in player.js, shown right after a successful upload.
-// New per-contest "Brand"/"Poster" card-style radio (a new, separate
-// meta box from the existing style-override one — this picks a card
-// TEMPLATE, not a color override) saved to _bh_share_card_style.
-// Verified live against real seeded submission data (not just a
-// synthetic test): both card endpoints render the correct artist/song/
-// contest name pulled from actual postmeta.
+// 3.6.6 — Production-hardening pass: two data-integrity/UX bugs fixed.
+// (1) Trapped vote slot: vote()'s toggle-OFF path was gated behind the same
+// "submission still published" check the toggle-ON path needs, so rejecting
+// an already-published, already-voted-on submission permanently trapped
+// every affected voter's vote with no way to free it. Fixed by only
+// enforcing that gate on new votes, and by having
+// handle_reject_submission() delete the submission's vote rows at rejection
+// time to auto-refund voters.
+// (2) New before_delete_post cleanup (cleanup_deleted_contest()) — deleting
+// a contest previously left every submission/vote row referencing it as a
+// silent orphan. Submissions are trashed (not hard-deleted) for a recovery
+// window.
+// Also: wp_die() calls across admin-post handlers now pass back_link => true.
 
+// 3.6.5 — New class-share-cards.php: "Now Entered"/"Vote Now" public/no-login
+// share cards (?bh_share_entered={id} / ?bh_share_vote={id}) rendering only
+// title/artist/contest name (submission audio/notes/contact stay locked
+// down), via the shared BH_ShareCard engine (own-ur-shit 3.5.2). Since
+// bh_submission has no public single template to deep-link to, the "vote"
+// card instead pairs with the contest's own page URL (_bh_page_id). New
+// per-contest card-style radio (_bh_share_card_style) picks a card template,
+// separate from the existing color-override meta box.
 
-// 3.5.2 — QA fix, part of the same ecosystem-wide ordering-tiebreaker
-// sweep as bh-crm 1.4.0/own-ur-shit 3.4.86/bh-monetization-woo 0.4.12.
-// The votes CSV export (class-admin.php) had no id tiebreaker on its
-// ORDER BY created_at ASC — real voting windows routinely land many
-// votes in the same second, so the exported audit-trail order was
-// non-deterministic intra-second. Fixed with `, id ASC`.
+// 3.5.2 — Votes CSV export (class-admin.php) had no id tiebreaker on
+// ORDER BY created_at ASC; many votes routinely land in the same second, so
+// export order was non-deterministic intra-second. Fixed with `, id ASC`.
 
-// 3.5.1 — QA fix, caught live via WP_DEBUG_LOG: BH_Blocks::init() (new
-// in 3.5.0) was called directly from this file's plugins_loaded
-// closure rather than hooked onto 'init' — safe against the earlier
-// nested-hook bug class (it doesn't re-register a second 'init'
-// callback), but wp_register_script() inside it still ran too early
-// for WordPress's own timing rules, logging a real "called incorrectly"
-// notice. Fixed by hooking add_action('init', ['BH_Blocks', 'init'])
-// normally at the top level instead — the same correct pattern
-// BHM_Blocks (bh-monetization-woo) already used. Confirmed the notice
-// is gone and all three blocks still register correctly.
+// 3.5.1 — BH_Blocks::init() (new in 3.5.0) was called directly from
+// plugins_loaded rather than hooked onto 'init', so wp_register_script()
+// inside it ran before WordPress's own timing rules allow, logging a "called
+// incorrectly" notice. Fixed by hooking add_action('init', ...) normally,
+// matching BHM_Blocks' (bh-monetization-woo) pattern.
 
-// 3.5.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: WYSIWYG
-// shortcode-to-block conversion continues into bh-contest, following
-// bh-monetization-woo's three easy conversions (0.4.9-0.4.11). Three
-// new blocks via wp.serverSideRender (class-blocks.php, assets/js/
-// bh-contest-blocks.js): 'bh/contest-player' ([bh_contest_player], a
-// contest-picker Inspector control), 'bh/results-reveal'
-// ([bh_results_reveal], same picker), 'bh/archive' ([bh_archive], no
-// attributes — always every past contest). All three old shortcodes
-// stay registered and untouched.
-// A real, worth-noting distinction from the monetization blocks: this
-// plugin's shortcodes only ever render a static mount div — the actual
-// interactive behavior (voting, playback, the reveal sequence, the
-// archive grid) is entirely player.js/reveal.js/archive.js hydrating
-// that div on a REAL front-end page load, not something ServerSideRender
-// previews inside the editor canvas. What IS fixed: the original AJ
-// complaint (a shortcode rendering as raw bracket text with zero visual
-// feedback) — the canvas now shows the real, correctly-styled container.
-// Real regression caught and fixed BEFORE it shipped, not after: this
-// plugin's own front-end asset-enqueue gate (the wp_enqueue_scripts
-// callback near the bottom of this file) only ever checked
-// has_shortcode() against post_content — a page authored with the new
-// block instead has none of that literal bracket text, so without a
-// fix a block-authored page would have rendered the mount div via
-// render_callback but NEVER actually enqueued player.js/reveal.js/
-// archive.js, leaving a permanently inert container. Fixed by adding
+// 3.5.0 — Three new blocks via wp.serverSideRender (class-blocks.php,
+// assets/js/bh-contest-blocks.js): 'bh/contest-player', 'bh/results-reveal',
+// 'bh/archive'. All three old shortcodes stay registered. These blocks only
+// ever render a static mount div — the actual interactive behavior (voting,
+// playback, reveal, archive grid) is player.js/reveal.js/archive.js
+// hydrating that div on a real front-end page load, not something
+// ServerSideRender previews in the editor canvas.
+// Fixed a related regression before it shipped: the front-end asset-enqueue
+// gate only checked has_shortcode() against post_content, so a
+// block-authored page (no literal bracket text) would render the mount div
+// but never enqueue player.js/reveal.js/archive.js. Fixed by adding
 // has_block() alongside each has_shortcode() check.
-// Scoping boundary, disclosed rather than silently left: class-debug.
-// php's player_page_url() (a Debug Tools convenience link, "find the
-// page where this contest's player lives") still only scans
-// post_content for the literal [bh_contest_player] shortcode string —
-// a contest embedded only via the new block won't be found by that
-// specific helper and it'll fall back to the site home instead. Purely
-// a debug-convenience-link degradation, not a functional break; not
-// fixed this pass (would mean parsing block attributes out of
-// post_content, real but small extra scope).
-// RUNTIME-VERIFIED end to end on this actual install: confirmed all
-// three blocks registered, confirmed via the real REST block-renderer
-// endpoint that an explicit contest slug correctly resolves to
-// data-contest="<real id>" on both bh/contest-player and bh/results-
-// reveal, confirmed has_block() correctly detects a block-authored
-// page, and — the real proof — built an actual page with the
-// bh/contest-player block, loaded it in a live browser, and watched
-// the FULL interactive player (header, Submit a Song, Log Out, the
-// track list, the now-playing bar) load and hydrate correctly with
-// zero console errors, confirming player.js/player.css both actually
-// enqueued via the has_block() fix. Test contest/page cleaned up
-// afterward.
+// Known gap: class-debug.php's player_page_url() (a Debug Tools convenience
+// link) still only scans post_content for the literal shortcode string, so
+// a block-only contest falls back to the site home — a debug-convenience
+// degradation, not a functional break.
 
-// 3.4.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: multi-
-// round/elimination format, "the single largest architectural item in
-// this whole doc," built last per that doc's own sequencing note (needs
-// judge scoring's data shape to build against, since a round can cut by
-// public vote OR judge score depending on the contest's own format).
-// A contest gets an optional `_bh_rounds` config (name + submission
-// window + voting window + cut count, per round, 1-4 rounds via the new
-// admin metabox) — round 2+'s submission window is left blank in the
-// normal case (its "entrants" are the survivors of round 1, not new
-// submissions), but can be set if a contest genuinely wants fresh
-// entries each round. A contest that never touches this (every contest
-// that predates this feature) behaves byte-for-byte as it always has —
-// every round-aware method (new BH_Rounds, class-rounds.php) falls back
-// to the pre-existing single-window logic when `_bh_rounds` is empty.
+// 3.4.0 — Multi-round/elimination format. A contest gets an optional
+// `_bh_rounds` config (name + submission window + voting window + cut count,
+// 1-4 rounds); a contest that never sets this behaves exactly as before
+// (BH_Rounds falls back to single-window logic when `_bh_rounds` is empty).
 // bh_votes and bh_judge_scores both gained a `round` column
-// (class-activator.php, DB_VERSION 1.6 → 1.7) — each round's votes/
-// scores are independent rows, never combined, so a round-2 re-vote on
-// a survivor doesn't inherit its round-1 tally. A submission's own
-// `_bh_round_reached` post meta (0 by default) tracks how far it has
-// survived; vote()/judge/score both now reject a submission that didn't
-// make the current round's cut. New admin action ("Close round N &
-// advance to round N+1", class-admin.php's ajax_advance_round() →
-// BH_Rounds::advance_round()) tallies the active round (by public vote
-// or judge score, per the contest's own format), keeps the configured
-// cut count, and opens the next round for survivors only — one-way,
-// nonce'd, capability-gated. class-reveal.php's build_sequence() now
-// reveals the ACTIVE round's own tally for a multi-round contest
-// (skipping the cross-round "Overall" reveal, which wouldn't mean
-// anything coherent once different rounds' votes are genuinely
-// independent) — every other reveal mechanic (medal tiers, hybrid's
-// two-leaderboard pass) is unchanged and composes with rounds directly.
-// Real bug caught and fixed mid-implementation, not just reasoned
-// through: dbDelta() itself was found (via a live migration run, not
-// static reading) to attempt adding a same-NAMED-but-different-COLUMNS
-// unique key as a bare ADD rather than leaving an existing same-named
-// index alone or safely replacing it — it fails with "Duplicate key
-// name" and poisons $wpdb->last_error BEFORE this migration's own
-// (correct) DROP+ADD index-rebuild code ever got a chance to run
-// afterward. Fixed by moving that rebuild to run BEFORE dbDelta(), on
-// both bh_votes and bh_judge_scores, so dbDelta() never sees a
-// conflicting index in the first place. Scoping boundary, disclosed
-// rather than silently left: no dynamic add/remove UI for rounds beyond
-// a plain "1-4" count select (right-sized rather than building a full
-// JS repeater for what's expected to be a rare, admin-only setup
-// action), and — same as bh-contest 3.3.0's own disclosed boundary —
-// player.js's front-end results widget doesn't yet render round-scoped
-// results, only the Reveal Party and the raw REST responses do today.
-// RUNTIME-VERIFIED end to end on this actual install, including the
-// dbDelta bug fix itself (ran the live migration, confirmed both
-// tables' unique keys land on the correct 5-column definition, and
-// confirmed the migration is idempotent on a second run with zero
-// errors): built a real 2-round contest, confirmed round-0 votes tally
-// independently of round-1 votes for the same entry, confirmed
-// advance_round() correctly keeps the top cut_count and marks the rest
-// eliminated without deleting anything, confirmed a real vote() REST
-// call against an eliminated entry is rejected while the same call
-// against a survivor succeeds and is tagged with the correct round,
-// confirmed the "close final round" admin action correctly refuses to
-// advance past the last configured round, and confirmed
-// BH_Reveal::build_sequence()/render_step() correctly reveal only the
-// active round's isolated tally with zero PHP warnings/errors
-// throughout (WP_DEBUG_LOG on). Test contests/submissions/votes cleaned
-// up afterward.
+// (class-activator.php, DB_VERSION 1.6 → 1.7) — each round's votes/scores
+// are independent rows, so a round-2 re-vote doesn't inherit round-1's
+// tally. `_bh_round_reached` post meta tracks how far a submission has
+// survived; vote()/judge scoring reject submissions that didn't make the
+// current round's cut. New admin action ("Close round N", class-admin.php's
+// ajax_advance_round() → BH_Rounds::advance_round()) tallies the active
+// round and opens the next round for survivors only. class-reveal.php's
+// build_sequence() reveals only the active round's tally for a multi-round
+// contest (a cross-round "Overall" reveal wouldn't be coherent once rounds'
+// votes are independent).
+// Fixed during implementation: dbDelta() attempts adding a
+// same-named-but-different-columns unique key as a bare ADD rather than
+// replacing the existing one, failing with "Duplicate key name" before this
+// migration's own DROP+ADD index-rebuild code could run. Fixed by moving
+// that rebuild to run before dbDelta() on both tables.
+// Known gap: no dynamic add/remove UI for rounds beyond a plain "1-4" count
+// select; player.js's front-end results widget doesn't render round-scoped
+// results yet (only Reveal Party and the raw REST response do).
 
-// 3.3.1 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2c: the in-
-// house IP+cookie anti-fraud signal, no third-party CAPTCHA vendor (a
-// direct decision from that doc). bh_votes gained ip_address/voter_fp
-// columns (class-activator.php, DB_VERSION 1.5 → 1.6) captured by
-// class-api.php's vote() handler — voter_fp is a long-lived first-party
-// httponly cookie identifying a BROWSER independent of which account is
-// logged into it. New BH_Helpers::suspicious_ip_clusters(): flags
-// several DIFFERENT ACCOUNTS voting from the same IP within a short
-// window (a shared IP alone — a household, campus, VPN exit node — is
-// normal and NOT itself the signal), and separately notes when every
-// account in a cluster also shares the identical browser fingerprint,
-// the strongest evidence this table can offer. Same manual-review-only
-// posture as the existing timestamp-clustering check
-// (suspicious_voters()) — this never blocks a vote or auto-flags an
-// account, it only surfaces a cluster on the Results console
-// (class-console.php) for a human to look at. Privacy note (flagged per
-// the roadmap doc's own compliance callout): ip_address is real
-// personal data under most privacy regimes — if this site publishes a
-// privacy policy, it should mention IP retention for anti-fraud review;
-// see class-activator.php's own comment on the column for the full
-// note. RUNTIME-VERIFIED end to end on this actual install: ran the DB
-// migration live (1.5 → 1.6, confirmed both new columns), cast a real
-// vote through the actual vote() REST handler and confirmed the stored
-// row has a real IP and a freshly-generated fingerprint, seeded 3
-// distinct accounts voting from one IP with the same fingerprint plus a
-// 4th vote from an unrelated IP and confirmed suspicious_ip_clusters()
-// correctly flags only the real 3-account cluster with same_fingerprint
-// = true, and confirmed zero PHP warnings/errors with WP_DEBUG_LOG on
-// throughout. Test contest/submission/votes cleaned up afterward.
+// 3.3.1 — In-house IP+cookie anti-fraud signal, no third-party CAPTCHA
+// vendor. bh_votes gained ip_address/voter_fp columns (class-activator.php,
+// DB_VERSION 1.5 → 1.6); voter_fp is a long-lived first-party httponly
+// cookie identifying a browser independent of which account is logged in.
+// New BH_Helpers::suspicious_ip_clusters(): flags several different
+// accounts voting from the same IP within a short window (a shared IP alone
+// is normal, not itself the signal), and separately notes when every
+// account in a cluster also shares the same fingerprint. Manual-review-only,
+// same posture as the existing suspicious_voters() check — never blocks a
+// vote or auto-flags an account, only surfaces a cluster on the Results
+// console. Privacy note: ip_address is personal data under most privacy
+// regimes — a site publishing a privacy policy should mention IP retention
+// for anti-fraud review.
 
-// 3.3.0 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: judge/
-// rubric scoring mode, the "give me all of it, and make it a real
-// choice" contest-format work. A contest now gets a real Format setting
-// (public/judges/hybrid — public unchanged, the default for every
-// existing contest), an admin-defined rubric (criteria + max score,
-// same free-text-per-line authoring pattern as voting categories), and
-// a per-contest judge list (a plain list of WP user IDs, not a new
-// capability/role — most judges here are guest volunteers with no
-// wp-admin access). New bh_judge_scores table (class-activator.php,
-// DB_VERSION 1.4 → 1.5) — deliberately its own table, not overloaded
-// onto bh_votes, since a judge score is multi-criterion with an
-// editable draft-then-submit state a public vote's shape has no room
-// for. New BH_Judging (class-judging.php): a front-end [bh_judge_panel]
-// shortcode (gated on the contest's own judge list, not wp-admin) where
-// a judge scores every entry per rubric criterion via a slider, saves a
-// draft or submits — only submitted scores ever count. judge_results()
-// normalizes each judge's per-criterion scores to 0-100 and averages
-// across judges, returned in the exact same ranked shape (rank/id/
-// title/artist/'votes') category_results()/overall_results() already
-// use, so BH_Reveal's existing medal_slice()/tier logic needed zero
-// changes to consume it. class-reveal.php's build_sequence() now
-// branches on format: 'judges' swaps the tally source, 'hybrid' runs
-// BOTH as two clearly-labeled leaderboards (Judges' Pick / People's
-// Choice) — two separate leaderboards, not a blended score, a direct
-// decision from the roadmap doc. The public /bh/v1/results REST
-// endpoint got the same branching (a 'judge_results' key only appears
-// for judges/hybrid contests, so nothing already reading 'results'
-// breaks). Scoping boundary, disclosed rather than silently left: the
-// Discord results-announcement (class-discord.php) still reads the
-// public vote tally only — a pure-judges contest's Discord announcement
-// will show an empty tally until that integration is updated
-// separately; the player.js front-end results widget likewise doesn't
-// yet render a judges/hybrid leaderboard, only the Reveal Party and the
-// raw REST response do today.
-// RUNTIME-VERIFIED end to end on this actual install: ran the DB
-// migration live (1.4 → 1.5, confirmed the table exists), created a
-// real hybrid-format contest with a 2-criterion rubric and a real judge
-// user, confirmed a draft score does NOT count toward judge_results()
-// but an identical submitted one does, confirmed the normalized-score
-// ranking math is correct (a 2-criterion 8/10+15/20 entry correctly
-// ranks above a 5/10+10/20 entry at 77.5 vs 50), confirmed
-// build_sequence() emits the right two-pass "People's Choice" then
-// "Judges' Pick" sequence for a hybrid contest with both a real vote
-// and a real judge score present, confirmed the REST /results endpoint
-// returns both 'results' and 'judge_results' for hybrid, confirmed the
-// judge-scoring REST endpoint correctly rejects a non-judge and a
-// submission from a different contest, and rendered both the real
-// [bh_judge_panel] shortcode and the real [bh_results_reveal] display
-// shortcode with WP_DEBUG_LOG on — zero PHP warnings/errors from any of
-// this pass's code. Test contest/submissions/scores/votes cleaned up
-// afterward.
+// 3.3.0 — Judge/rubric scoring mode. A contest gets a Format setting
+// (public/judges/hybrid — public is the existing default), an admin-defined
+// rubric (criteria + max score), and a per-contest judge list (plain WP user
+// IDs, not a new capability/role, since most judges are guest volunteers
+// with no wp-admin access). New bh_judge_scores table (class-activator.php,
+// DB_VERSION 1.4 → 1.5), deliberately separate from bh_votes since a judge
+// score is multi-criterion with an editable draft-then-submit state a public
+// vote's shape has no room for. New BH_Judging (class-judging.php): a
+// front-end [bh_judge_panel] shortcode gated on the contest's judge list.
+// judge_results() normalizes each judge's per-criterion scores to 0-100 and
+// averages across judges, returned in the same ranked shape
+// category_results()/overall_results() already use, so BH_Reveal's existing
+// medal/tier logic needed no changes. class-reveal.php's build_sequence()
+// branches on format: 'judges' swaps the tally source, 'hybrid' runs both as
+// two separate labeled leaderboards (not a blended score). The public
+// /bh/v1/results REST endpoint got the same branching (a 'judge_results' key
+// only appears for judges/hybrid contests).
+// Known gap: the Discord results-announcement still reads the public vote
+// tally only — a pure-judges contest's announcement will show an empty
+// tally until that integration is updated separately.
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
 define('BH_VOTE_BASE',  1);                 // votes every user gets
@@ -558,25 +271,16 @@ foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'contest
     require_once BH_PATH . "includes/class-$f.php";
 }
 
-// Safe to register unconditionally — activation only creates this
-// plugin's own table/default pages, neither of which touches the
-// identity/style classes this plugin depends on for its actual
-// features, so there's nothing here that can fatal-error even if the
-// dependency below turns out to be missing.
+// Safe to register unconditionally — activation only touches this plugin's
+// own table/default pages, not the identity/style classes it depends on.
 register_activation_hook(__FILE__, ['BH_Activator', 'activate']);
 
 /**
- * Everything else is gated behind plugins_loaded rather than checked
- * directly here at file-parse time. That distinction matters: WordPress
+ * Gated behind plugins_loaded rather than checked directly here: WordPress
  * loads active plugins' files in alphabetical folder order, so a direct
- * class_exists() check at the top of this file could run BEFORE the
- * dependency's own file has even been read yet on a given request,
- * regardless of whether that dependency is genuinely active — a real,
- * previously-shipped bug, not a hypothetical one. plugins_loaded is a
- * hard WordPress guarantee: it only ever fires after EVERY active
- * plugin's main file has already been fully loaded, so by the time this
- * callback runs, the check is reliable no matter which letter either
- * plugin's folder happens to start with.
+ * class_exists() check at file-parse time could run before the dependency's
+ * file has been read yet. plugins_loaded always fires after every active
+ * plugin's main file has loaded, regardless of folder name order.
  */
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
@@ -586,11 +290,8 @@ add_action('plugins_loaded', function () {
         return;
     }
 
-    // One-time migration of existing profile data into the (now merged)
-    // core plugin's identity table. The two schemas are identical (this
-    // plugin's table was the original source that table was extracted
-    // from), so this is a single direct copy rather than field-by-field
-    // remapping — INSERT IGNORE means it's safe to run more than once.
+    // One-time migration of profile data into the core plugin's identity
+    // table (schemas are identical; INSERT IGNORE makes this safe to re-run).
     if (get_option('bh_identity_migration_done') !== '1') {
         global $wpdb;
         $old = $wpdb->prefix . 'bh_participant_profiles';
@@ -609,10 +310,8 @@ add_action('plugins_loaded', function () {
             );
             if (!$wpdb->last_error) update_option('bh_identity_migration_done', '1');
         }
-        // Neither branch taken (old exists, new doesn't yet) means the
-        // core plugin's own table isn't ready yet — leave the flag unset
-        // so this retries on a later request instead of silently giving
-        // up on a migration that should have happened.
+        // If old exists but new doesn't yet, leave the flag unset so this
+        // retries on a later request instead of giving up silently.
     }
 
     BH_Activator::maybe_upgrade();
@@ -620,10 +319,7 @@ add_action('plugins_loaded', function () {
 
     add_action('admin_init',    ['BH_Activator', 'maybe_create_default_pages']);
     add_action('init',          ['BH_PostTypes', 'register']);
-    // BH_Event registration (own-ur-shit's event-tracking layer) — see
-    // class-api.php's vote handler for the actual emit() call, fired
-    // additively after the vote's own transaction commits. Per
-    // EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.
+    // Registers the 'bh/vote' event type; class-api.php's vote handler emits it.
     add_action('init', function () {
         if (class_exists('BH_Event')) {
             BH_Event::register_event_type('bh/vote', ['contest_id' => 'int', 'category' => 'string', 'submission_id' => 'int', 'action' => 'string']);
@@ -640,53 +336,31 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Console', 'init']);
     add_action('init',          ['BH_Reveal', 'init']);
     add_action('init',          ['BH_Judging', 'init']);
-    // QA fix, caught live via WP_DEBUG_LOG: calling BH_Blocks::init()
-    // directly here (at plugins_loaded time) ran wp_register_script()
-    // before WordPress's own 'init'/'wp_enqueue_scripts' timing,
-    // triggering a real "called incorrectly" notice — BH_Blocks::init()
-    // itself doesn't nest a second add_action('init', ...) the way the
-    // ORIGINAL bug class did (see class-blocks.php — register_block()
-    // is called directly from init(), not re-hooked), so this is safe
-    // to hook normally at the top level, same pattern BHM_Blocks
-    // (bh-monetization-woo) already uses correctly.
     add_action('init',          ['BH_Blocks', 'init']);
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
     add_action('init',          ['BH_ShareCards', 'init']);
 
-    // Registers this plugin's seeding/reset actions into the shared
-    // Debug Tools page (see OUS_Debug in the core plugin) — the
-    // production-safety check (OUS_Debug::is_locked()) is centralized
-    // there now, checked once for every registered plugin's actions.
+    // Registers this plugin's seeding/reset actions into the shared Debug
+    // Tools page; production-safety checks are centralized in OUS_Debug.
     add_action('init', ['BH_Debug', 'init']);
     add_action('init', ['BH_PortalPanel', 'init']);
 
-    // Load assets only on pages that actually use the player, and hand
-    // the front end everything it needs up front (REST base, a fresh
-    // nonce, auth state) so there is no extra round trip before first
-    // paint.
+    // Load assets only on pages that actually use the player.
     add_action('wp_enqueue_scripts', function () {
         if (!is_singular()) return;
         global $post;
         if (!$post) return;
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 5a: has_shortcode()
-        // only ever detects the literal [bh_contest_player]-style bracket
-        // text — a page authored with the new bh/contest-player (etc.)
-        // BLOCK instead has none of that in post_content, so without the
-        // has_block() checks alongside these, a block-authored page would
-        // render the block's own static container HTML (via its
-        // render_callback) but never actually enqueue player.js/reveal.js/
-        // archive.js — the mount div would sit there permanently inert,
-        // a real, silent regression this fix closes before it ships.
+        // has_block() checks are needed alongside has_shortcode(): a
+        // block-authored page has none of the literal bracket text, so
+        // without this the mount div would render but never get its JS.
         $has_player   = has_shortcode($post->post_content, 'bh_contest_player') || has_block('bh/contest-player', $post);
         $has_reveal   = has_shortcode($post->post_content, 'bh_results_reveal') || has_block('bh/results-reveal', $post);
         $has_archive  = has_shortcode($post->post_content, 'bh_archive') || has_block('bh/archive', $post);
         if (!$has_player && !$has_reveal && !$has_archive) return;
 
-        // Shared by all three front-end shortcodes — same fonts, same
-        // stylesheet, same theme variables (including any per-contest
-        // override), so a Results Reveal or Archive page always matches
-        // whatever look the main player has, automatically.
+        // Shared across all three shortcodes so Reveal/Archive pages match
+        // the player's look automatically, including per-contest overrides.
         $font_url = BHY_Style::google_fonts_url();
         if ($font_url) wp_enqueue_style('bh-fonts', $font_url, [], null);
         wp_enqueue_style('bh-player', BH_URL . 'assets/css/player.css', $font_url ? ['bh-fonts'] : [], BH_VER);

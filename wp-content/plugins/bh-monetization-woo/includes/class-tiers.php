@@ -54,6 +54,7 @@ class BHM_Tiers {
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_admin_assets']);
         add_action('before_delete_post', [self::class, 'log_deletion']);
+        add_action('admin_post_bhm_restore_tier_revision', [self::class, 'handle_restore']);
     }
 
     /** Accountability log, AJ's own ask: "who changed what tier" — deletion is the other half of that. */
@@ -152,6 +153,20 @@ class BHM_Tiers {
         }
         echo '</p>';
 
+        // Free trial — ROADMAP-platform-evolution.md Section 4's one
+        // remaining open item besides gifting/promo codes (promo codes
+        // already work today via WooCommerce's own native checkout
+        // coupon field, no code needed there). Days rather than a
+        // period+length pair: "N days" is what an artist actually reaches
+        // for, and any week/month/year trial is exactly representable as
+        // a day count.
+        $trial_days = (int) get_post_meta($post->ID, '_bhm_trial_days', true);
+        echo '<p><label><strong>Free trial (days, optional)</strong> <span class="description">— 0 = no trial</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="' . esc_attr($trial_days) . '" style="width:100px;"></label>';
+        if (!$has_subs) {
+            echo '<br><span class="description">Requires WooCommerce Subscriptions to actually delay the first charge — without it this stores the value but the one-time fallback purchase still charges immediately.</span>';
+        }
+        echo '</p>';
+
         echo '<p><label><strong>Benefits</strong> <span class="description">(free text — shown to fans on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
 
         // Structured benefits list — one bullet per line, rendered as a
@@ -187,6 +202,11 @@ class BHM_Tiers {
             $edit_url = class_exists('BH_Commerce') ? BH_Commerce::get_edit_url($wc_product_id) : get_edit_post_link($wc_product_id);
             echo '<p><a href="' . esc_url($edit_url) . '" target="_blank">View the underlying WooCommerce product &rarr;</a></p>';
         }
+
+        if (class_exists('OUS_Revisions')) {
+            echo '<h3 style="margin-top:24px;">Version History</h3>';
+            OUS_Revisions::render_history_panel('bhm_tier', $post->ID, 'bhm_restore_tier_revision', 'bhm_restore_tier_' . $post->ID);
+        }
     }
 
     public static function save($post_id) {
@@ -207,6 +227,9 @@ class BHM_Tiers {
 
         $annual_price_cents = isset($_POST['bhm_annual_price']) ? (int) round(((float) $_POST['bhm_annual_price']) * 100) : 0;
         update_post_meta($post_id, '_bhm_annual_price_cents', $annual_price_cents);
+
+        $trial_days = isset($_POST['bhm_trial_days']) ? max(0, (int) $_POST['bhm_trial_days']) : 0;
+        update_post_meta($post_id, '_bhm_trial_days', $trial_days);
 
         if (isset($_POST['bhm_benefits'])) update_post_meta($post_id, '_bhm_benefits', sanitize_textarea_field($_POST['bhm_benefits']));
 
@@ -230,7 +253,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
 
         if (class_exists('WooCommerce')) {
-            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents);
+            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
         }
 
         if (class_exists('OUS_Audit')) {
@@ -238,6 +261,60 @@ class BHM_Tiers {
                 'price_cents' => $price_cents, 'annual_price_cents' => $annual_price_cents,
             ], ['name' => get_the_title($post_id)]);
         }
+
+        // ROADMAP-search-and-revisions.md's first real OUS_Revisions
+        // consumer — a tier's full field set is a clean fit: it's a
+        // genuinely overwrite-on-save single object (unlike bh-crm's
+        // own notes, which are already append-only history and don't
+        // need a SECOND history mechanism layered on top). Full current
+        // state, not a diff (that's what OUS_Audit already does) — this
+        // is the "restore an earlier configuration" tool.
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhm_tier', $post_id, self::get($post_id));
+        }
+    }
+
+    // OUS_Revisions::render_history_panel()'s Restore button posts here.
+    // Re-applies a stored snapshot's fields exactly the way a normal
+    // save would (including re-syncing the WooCommerce product), rather
+    // than writing raw postmeta directly — so a restored tier is
+    // indistinguishable from one an admin just re-saved by hand.
+    public static function handle_restore() {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post_id = (int) ($_GET['object_id'] ?? 0);
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhm_restore_tier_' . $post_id)) {
+            wp_die('Invalid request.');
+        }
+        if (!$post_id || get_post_type($post_id) !== self::CPT) wp_die('Not a tier.');
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bhm_tier', $post_id, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+        $data = $snapshot['data'];
+
+        update_post_meta($post_id, '_bhm_price_cents', (int) ($data['price_cents'] ?? 0));
+        update_post_meta($post_id, '_bhm_annual_price_cents', (int) ($data['annual_price_cents'] ?? 0));
+        update_post_meta($post_id, '_bhm_trial_days', (int) ($data['trial_days'] ?? 0));
+        update_post_meta($post_id, '_bhm_benefits', (string) ($data['benefits'] ?? ''));
+        update_post_meta($post_id, '_bhm_benefits_list', (array) ($data['benefits_list'] ?? []));
+        update_post_meta($post_id, '_bhm_cover_image_id', (int) ($data['cover_image_id'] ?? 0));
+        update_post_meta($post_id, '_bhm_benefit_keys', (array) ($data['benefit_keys'] ?? []));
+
+        if (class_exists('WooCommerce')) {
+            BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), (int) ($data['price_cents'] ?? 0), (int) ($data['annual_price_cents'] ?? 0), (int) ($data['trial_days'] ?? 0));
+        }
+
+        // The restore ITSELF is also a real save — future-you can undo
+        // an accidental restore the same way, not a dead end.
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhm_tier', $post_id, self::get($post_id), 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(get_edit_post_link($post_id, ''));
+        exit;
     }
 
     /* ---------- read helpers used by BHM_Gate and the fan-facing tier picker ---------- */
@@ -249,6 +326,7 @@ class BHM_Tiers {
             'id' => $post->ID, 'name' => $post->post_title,
             'price_cents' => (int) get_post_meta($post->ID, '_bhm_price_cents', true),
             'annual_price_cents' => (int) get_post_meta($post->ID, '_bhm_annual_price_cents', true),
+            'trial_days' => (int) get_post_meta($post->ID, '_bhm_trial_days', true),
             'benefits' => (string) get_post_meta($post->ID, '_bhm_benefits', true),
             'benefits_list' => (array) get_post_meta($post->ID, '_bhm_benefits_list', true),
             'cover_image_id' => (int) get_post_meta($post->ID, '_bhm_cover_image_id', true),

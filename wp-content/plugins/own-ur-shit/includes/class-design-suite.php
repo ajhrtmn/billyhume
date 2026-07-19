@@ -97,7 +97,7 @@ class BH_Design_Suite {
     const CAP = 'bhcore_design_site';
 
     public static function add_menu() {
-        $hook = add_menu_page('Design Suite', 'Design Suite', self::CAP, 'bh-design', ['BHY_Gallery', 'render'], 'dashicons-layout', 4);
+        $hook = add_menu_page('Design Suite', 'Design Suite', self::CAP, 'bh-design', ['BHY_Gallery', 'render'], OUS_MenuIcons::design_suite(), 4);
         self::log_result('bh-design (top-level)', $hook);
 
         // Relabels the auto-created duplicate first submenu item, same

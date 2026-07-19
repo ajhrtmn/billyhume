@@ -6,6 +6,18 @@
  */
 .bhcrm-kanban-board {
     margin-top: 10px;
+    min-height: 40px;
+}
+/* kanban-board.js sets/removes this attribute around the initial
+   placements/rollups fetch, but nothing ever styled it — the board just
+   sat blank during that fetch with zero indication anything was
+   loading. */
+.bhcrm-kanban-board[data-loading="1"] {
+    position: relative; min-height: 120px;
+}
+.bhcrm-kanban-board[data-loading="1"]::after {
+    content: 'Loading board…';
+    position: absolute; top: 20px; left: 0; color: #646970; font-size: 13px;
 }
 
 /* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
@@ -40,7 +52,7 @@
     height: 100%;
     background: #2271b1;
     border-radius: 999px;
-    transition: width 0.2s ease;
+    transition: width 0.2s ease, background-color 0.2s ease;
 }
 
 .bhcrm-progress-bar-fill.is-complete {
@@ -147,6 +159,15 @@
     padding: 8px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     position: relative;
+    transition: box-shadow 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+}
+
+/* Signals "this is interactive/draggable" before a user finds the small
+   handle icon in the corner — previously nothing on the card itself
+   hinted that beyond the tiny ⋮⋮ glyph. */
+.bhcrm-kanban-card:hover {
+    border-color: #8c8f94;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* SortableJS's own classes, not ones this file toggles by hand — .is-drag-ghost is the `ghostClass` option in kanban-board.js (the placeholder left in the origin spot while dragging); .sortable-chosen/.sortable-drag are SortableJS's own built-in class names, styled here for visibility during a drag. */
@@ -158,15 +179,34 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* Closes the loop on every silent auto-save this board makes (done
+   checkbox, title, notes) — previously a field just re-rendered with no
+   acknowledgment at all that the edit actually persisted. kanban-board.js
+   toggles this for ~900ms via state.flashId (see saveSlot()'s docblock). */
+@keyframes bhcrm-card-saved-flash {
+    0% { box-shadow: 0 0 0 2px #00a32a; }
+    100% { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
+}
+.bhcrm-kanban-card.is-saved {
+    animation: bhcrm-card-saved-flash 0.9s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhcrm-kanban-card.is-saved { animation: none; }
+}
+
 .bhcrm-kanban-card-drag-handle {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    top: 2px;
+    right: 2px;
     color: #a7aaad;
     cursor: grab;
     font-size: 12px;
     line-height: 1;
-    padding: 2px 4px;
+    /* A control whose entire job is precise dragging deserves more than
+       a ~16px hit box even on desktop — the mobile breakpoint below
+       already bumps this further for touch, this just raises the
+       mouse-driven baseline closer to a comfortable click target too. */
+    padding: 8px 10px;
     user-select: none;
 }
 
@@ -220,6 +260,13 @@
     display: flex;
     gap: 6px;
     margin-top: 6px;
+}
+
+/* Arm/disarm delete (kanban-board.js) instead of a native confirm() —
+   the armed state needs to read as clearly "one more click deletes this"
+   without a dialog. */
+.bhcrm-delete-btn.is-armed {
+    background: #d63638; border-color: #d63638; color: #fff;
 }
 
 .bhcrm-kanban-add-card {

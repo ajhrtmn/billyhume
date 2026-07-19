@@ -50,6 +50,12 @@ class BHM_Frontend {
         // most of the time. The admin screen still lets an artist
         // override it explicitly if they'd rather.
         add_action('save_post_page', [self::class, 'maybe_remember_tiers_page']);
+        // Same auto-detect for the gift-claim page — BHM_Gifts::redeem_page_url()
+        // needs a real page to point a claim link at, and requiring a
+        // manual setting before gifting can be tested at all would be a
+        // needless "it just works" violation for something this cheap to
+        // auto-detect.
+        add_action('save_post_page', [self::class, 'maybe_remember_gift_redeem_page']);
         // Logged-in-only — no _nopriv variant, since an anonymous
         // visitor has no subscription of their own to pause/resume.
         add_action('admin_post_bhm_manage_subscription', [self::class, 'handle_manage_subscription']);
@@ -59,6 +65,13 @@ class BHM_Frontend {
         $post = get_post($post_id);
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_tiers')) {
             update_option('bhm_tiers_page_id', $post_id);
+        }
+    }
+
+    public static function maybe_remember_gift_redeem_page($post_id) {
+        $post = get_post($post_id);
+        if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_redeem_gift')) {
+            update_option('bhm_gift_redeem_page_id', $post_id);
         }
     }
 
@@ -92,6 +105,12 @@ class BHM_Frontend {
             if (!empty($t['annual_price_cents'])) {
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr</div>';
             }
+            // Real conversion-facing surface for the trial value stored
+            // via BHM_Tiers — a trial nobody can see before checking out
+            // isn't a conversion lever, it's just hidden product config.
+            if (!empty($t['trial_days']) && class_exists('BH_Commerce') && BH_Commerce::has_subscriptions()) {
+                echo '<div class="bhm-tier-trial">' . (int) $t['trial_days'] . '-day free trial</div>';
+            }
             if ($t['benefits']) echo '<p class="bhm-tier-benefits">' . esc_html($t['benefits']) . '</p>';
             // Structured benefits list — a real <ul>, separate from the
             // free-text paragraph above (see BHM_Tiers::render_metabox()
@@ -111,6 +130,27 @@ class BHM_Frontend {
                 if (!empty($t['wc_product_id_annual'])) {
                     echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">Join annually</a>';
                 }
+                // Gifting — "buy this tier on someone else's behalf"
+                // (ROADMAP-platform-evolution.md Section 4). A plain GET
+                // form straight to the ordinary add-to-cart URL (same
+                // cart flow every other purchase uses) rather than a
+                // separate checkout path — BHM_Gifts::capture_gift_email()
+                // is the only thing that treats this purchase
+                // differently, and only once the recipient email is
+                // actually present.
+                echo '<details class="bhm-tier-gift"><summary>Gift this</summary>';
+                // A GET form submission discards whatever query string is
+                // already on its own `action` attribute — the base cart
+                // URL is the right target here, not add_to_cart_url()
+                // (which appends ?add-to-cart=N that would just get
+                // silently dropped), with add-to-cart supplied as an
+                // ordinary hidden field instead.
+                echo '<form method="get" action="' . esc_url(wc_get_cart_url()) . '">';
+                echo '<input type="hidden" name="add-to-cart" value="' . (int) $t['wc_product_id'] . '">';
+                echo '<input type="hidden" name="bhm_gift" value="1">';
+                echo '<input type="email" name="bhm_gift_email" placeholder="Recipient\'s email" required>';
+                echo '<button type="submit" class="bhm-btn bhm-btn-secondary">Send gift</button>';
+                echo '</form></details>';
             }
             echo '</div>';
         }

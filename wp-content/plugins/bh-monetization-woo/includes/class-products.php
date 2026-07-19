@@ -92,7 +92,7 @@ class BHM_Products {
     // since the artist may just be toggling the field back and forth
     // while drafting; a stale-but-hidden annual product is harmless —
     // catalog_visibility is already 'hidden', same as the monthly one).
-    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0) {
+    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0, $trial_days = 0) {
         if (!class_exists('WooCommerce')) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
         $existing_annual_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id_annual', true);
@@ -106,6 +106,16 @@ class BHM_Products {
                 'subscription' => true, // BH_Commerce itself degrades to a plain Simple product if WooCommerce Subscriptions isn't active
                 'subscription_period' => 'month',
                 'subscription_period_interval' => 1,
+                // Free trial, ROADMAP-platform-evolution.md Section 4's
+                // remaining open item — a real conversion lever Patreon
+                // itself offers per-tier. Days is the unit this plugin's
+                // own admin field uses; WC Subscriptions' trial_period
+                // unit is fixed to 'day' here rather than exposed as a
+                // second dropdown, since "N days" is the one artists
+                // actually reach for and a week/month/year trial is
+                // exactly representable as a day count anyway.
+                'trial_length' => (int) $trial_days,
+                'trial_period' => 'day',
             ]);
             if ($product_id) {
                 update_post_meta($tier_post_id, '_bhm_wc_product_id', $product_id);
@@ -121,6 +131,8 @@ class BHM_Products {
                     'subscription' => true,
                     'subscription_period' => 'year',
                     'subscription_period_interval' => 1,
+                    'trial_length' => (int) $trial_days,
+                    'trial_period' => 'day',
                 ]);
                 if ($annual_id) {
                     update_post_meta($tier_post_id, '_bhm_wc_product_id_annual', $annual_id);
@@ -469,6 +481,19 @@ class BHM_Products {
 
                 $tier_id = (int) get_post_meta($product_id, '_bhm_tier_id', true);
                 if ($tier_id) {
+                    // Gifting: a line item carrying a recipient email
+                    // (BHM_Gifts::capture_gift_email(), set at add-to-cart
+                    // time) never grants the BUYER anything — it creates a
+                    // redemption code and emails the recipient instead.
+                    // The buyer's payment still fully processes as an
+                    // ordinary tier purchase; only the entitlement side
+                    // is redirected.
+                    $gift_email = !empty($item['gift_email']) ? $item['gift_email'] : '';
+                    if ($gift_email && class_exists('BHM_Gifts')) {
+                        BHM_Gifts::create_redemption($tier_id, $user_id, $order_id, $gift_email);
+                        continue;
+                    }
+
                     $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
                     self::grant_entitlement($user_id, $has_subs ? 'subscription' : 'streaming_tier', 'account', $tier_id, $order_id, null,
                         $has_subs ? null : gmdate('Y-m-d H:i:s', strtotime('+30 days')));
@@ -510,7 +535,7 @@ class BHM_Products {
         if (!$order) return null;
         $items = [];
         foreach ($order->get_items() as $item) {
-            $items[] = ['product_id' => $item->get_product_id(), 'quantity' => $item->get_quantity()];
+            $items[] = ['product_id' => $item->get_product_id(), 'quantity' => $item->get_quantity(), 'gift_email' => (string) $item->get_meta('_bhm_gift_email')];
         }
         return ['id' => $order->get_id(), 'customer_id' => $order->get_customer_id(), 'items' => $items];
     }
@@ -640,6 +665,24 @@ class BHM_Products {
         foreach ($revoked as $row) {
             do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], $reason);
         }
+    }
+
+    // Public entry point for BHM_Gifts::handle_redeem() — a gift claim
+    // has no order/subscription of its OWN to dedupe grant_entitlement()
+    // against on the redeeming side (the order already belongs to the
+    // buyer, not the recipient), so this always grants a fresh
+    // streaming_tier entitlement rather than routing through the private
+    // grant_entitlement()'s order/subscription-keyed idempotency check —
+    // BHM_Gifts' own `status = 'redeemed'` guard is what prevents a
+    // double-claim, not this.
+    public static function grant_gift_entitlement($user_id, $tier_id, $order_id) {
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $wpdb->insert($t, [
+            'user_id' => $user_id, 'type' => 'streaming_tier', 'scope' => 'account', 'object_id' => $tier_id,
+            'wc_order_id' => $order_id, 'expires_at' => gmdate('Y-m-d H:i:s', strtotime('+30 days')),
+        ]);
+        do_action('bhm_entitlement_granted', $user_id, 'streaming_tier', 'account', $tier_id);
     }
 
     private static function grant_entitlement($user_id, $type, $scope, $object_id, $order_id, $subscription_id, $expires_at) {

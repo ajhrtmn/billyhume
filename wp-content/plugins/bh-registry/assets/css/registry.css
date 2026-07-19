@@ -4,7 +4,7 @@
 .bhr-search { flex: 1; min-width: 200px; }
 .bhr-btn { padding: 10px 16px; border-radius: 6px; border: none; background: var(--bh-accent, #C1503A); color: #fff; cursor: pointer; font-weight: 600; }
 .bhr-btn:hover { opacity: 0.9; }
-.bhr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.bhr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
 .bhr-card { background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 16px; }
 .bhr-card-avatar { width: 64px; height: 64px; border-radius: 50%; background-color: var(--bh-accent-soft, #E0A184); background-size: cover; background-position: center; margin-bottom: 10px; }
 .bhr-card-name { font-weight: 700; margin-bottom: 6px; }
@@ -12,6 +12,20 @@
 .bhr-badge-verified { background: rgba(29,185,84,0.15); color: #1DB954; }
 .bhr-empty { color: var(--bh-text-dim, #B99584); grid-column: 1 / -1; }
 .bhr-report-link { display: block; margin-top: 8px; background: none; border: none; padding: 0; font-size: 11px; color: var(--bh-text-dim, #B99584); text-decoration: underline; cursor: pointer; }
+
+/* Inline reveal replacing a native prompt() — see registry.js's
+   bindReportButtons(). */
+.bhr-report-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.bhr-report-form[hidden] { display: none; }
+.bhr-report-reason {
+    width: 100%; box-sizing: border-box; resize: vertical; font-size: 12px;
+    padding: 6px 8px; border-radius: 6px; border: 1px solid var(--bh-border, #3D1B14);
+    background: var(--bh-bg, #150705); color: inherit;
+}
+.bhr-report-form-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.bhr-report-form-actions button { font-size: 11px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--bh-border, #3D1B14); background: none; color: inherit; cursor: pointer; }
+.bhr-report-submit { background: var(--bh-accent, #C1503A); border-color: var(--bh-accent, #C1503A); color: #fff; }
+.bhr-report-submit:disabled { opacity: 0.6; cursor: default; }
 
 .bhr-submit-modal { position: fixed; inset: 0; background: var(--bh-overlay, #0D0504D1); display: flex; align-items: center; justify-content: center; z-index: 9999; }
 .bhr-submit-modal-inner { background: var(--bh-surface, #220C0A); border-radius: 10px; padding: 24px; max-width: 460px; width: 100%; position: relative; max-height: 90vh; overflow-y: auto; }
@@ -23,3 +37,15 @@
 }
 .bhr-form-error { color: #b3261e; font-size: 13px; margin-top: 8px; }
 .bhr-submit-modal-inner code { display: block; background: var(--bh-surface-2, #2C120E); padding: 8px; border-radius: 4px; word-break: break-all; margin-bottom: 10px; }
+
+/* This file had zero mobile breakpoints at all — every other front-end
+   stylesheet in this ecosystem has at least one. The grid/flex-wrap
+   already in use elsewhere means nothing was actually broken, but
+   padding/control sizing wasn't tailored to a narrow phone at all. */
+@media (max-width: 480px) {
+    .bhr-app { padding: 16px 12px; }
+    .bhr-search-row { gap: 6px; margin-bottom: 16px; }
+    .bhr-search, .bhr-protocol-filter { flex: 1 1 100%; min-width: 0; }
+    .bhr-btn { flex: 1 1 100%; }
+    .bhr-submit-modal-inner { padding: 16px; }
+}

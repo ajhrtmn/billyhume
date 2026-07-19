@@ -29,7 +29,13 @@ class BHS_ISRC {
     }
 
     public static function add_menu() {
-        add_submenu_page('own-ur-shit', 'ISRC Registrant', 'ISRC Registrant', 'manage_options', 'bhs-isrc-registrant', [self::class, 'render_registrant_page']);
+        // Was parented under 'own-ur-shit' — a music-metadata/rights-
+        // registration tool specific to this plugin's own tracks has no
+        // business sitting in the cross-cutting ecosystem hub next to
+        // Reports/Security/Metrics; it belongs with the rest of
+        // Streaming's own admin surface, same as PRO Registration
+        // (class-pro-wizard.php) right alongside it.
+        add_submenu_page(BHS_PostTypes::MENU_PARENT, 'ISRC Registrant', 'ISRC Registrant', 'manage_options', 'bhs-isrc-registrant', [self::class, 'render_registrant_page']);
     }
 
     public static function render_registrant_page() {

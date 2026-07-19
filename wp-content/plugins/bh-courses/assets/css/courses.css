@@ -24,7 +24,12 @@
 .bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
 
 /* ---- catalog ---- */
-.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+/* auto-fit, not auto-fill — with few courses (a new site, or a narrow
+   filtered result) auto-fill still reserves empty track width for
+   columns with no card in them, leaving a single lonely card floating
+   in a mostly-blank row. auto-fit collapses those empty tracks so real
+   cards expand to actually fill the row instead. */
+.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
 .bhc-course-card {
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
@@ -37,8 +42,15 @@
 .bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); }
 
 .bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
-.bhc-progress-fill { height: 100%; background: var(--bh-accent); }
+/* Width changes (a step/lesson completing) used to jump instantly —
+   the bar is the one piece of UI visible on every single page of the
+   course-taking flow, so a smooth fill reads as real, felt progress
+   instead of a static number that occasionally changes. */
+.bhc-progress-fill { height: 100%; background: var(--bh-accent); transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 .bhc-progress-label { font-size: 12px; color: var(--bh-text-dim); }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-progress-fill { transition: none; }
+}
 
 /* ---- course lesson list ---- */
 .bhc-lesson-list li {
@@ -73,8 +85,9 @@
     padding: 8px 10px; font-size: 13px; color: var(--bh-text); min-width: 140px;
 }
 .bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
-.bhc-btn { display: inline-block; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: var(--bh-accent); color: var(--bh-on-accent, #fff); }
-.bhc-btn-secondary { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); }
+/* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
+   lesson-step pass) — this catalog-pass version was fully shadowed by
+   that later, identical-specificity rule and was dead weight. */
 
 /* ---- catalog: pagination ---- */
 .bhc-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding-top: 8px; }
@@ -108,6 +121,42 @@
 .bhc-lesson-breadcrumb a:hover { color: var(--bh-accent); }
 .bhc-lesson-position { white-space: nowrap; }
 
+/* ---- course-page overall progress bar (unlocked, enrolled view) ---- */
+.bhc-progress-bar-large { height: 8px; margin-bottom: 4px; }
+
+/* ---- persistent lesson-nav sidebar, shown on the lesson page next to
+   the step content so a student can jump to any other lesson or see
+   overall course progress without leaving the lesson ---- */
+.bhc-lesson-layout { display: flex; gap: 28px; align-items: flex-start; }
+.bhc-lesson-main { flex: 1 1 auto; min-width: 0; }
+.bhc-course-sidebar {
+    flex: 0 0 240px; position: sticky; top: 20px;
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
+    padding: 16px;
+}
+.bhc-sidebar-course-link {
+    display: block; font-family: var(--bh-font-heading); font-weight: 600; font-size: 14px;
+    color: var(--bh-text); margin-bottom: 10px;
+}
+.bhc-sidebar-course-link:hover { color: var(--bh-accent); }
+.bhc-sidebar-lesson-list { margin-top: 10px; max-height: 60vh; overflow-y: auto; }
+.bhc-sidebar-lesson-list li { padding: 8px 6px; font-size: 13px; }
+/* --bh-accent-soft is a LIGHT hover-state tint in this dark theme, not
+   a text-safe background — pairing it with --bh-text (near-white) gave
+   ~1.4:1 contrast, nearly illegible. --bh-accent-muted-bg is the
+   derived-from-accent-and-surface token built for exactly this case. */
+.bhc-sidebar-lesson-list li.bhc-lesson-current {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left: 3px solid var(--bh-accent); border-radius: 4px; font-weight: 600;
+    padding-left: 3px;
+}
+.bhc-sidebar-lesson-list li.bhc-lesson-current a { color: var(--bh-text); }
+
+@media (max-width: 780px) {
+    .bhc-lesson-layout { flex-direction: column; }
+    .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
+    .bhc-sidebar-lesson-list { max-height: none; }
+}
+
 /* ---- lesson step walker ---- */
 .bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
 
@@ -130,9 +179,19 @@
 .bhc-stepper-video::before { content: 'V'; }
 .bhc-stepper-quiz::before { content: 'Q'; }
 .bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
-.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-soft); border-color: var(--bh-accent); color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
+
+/* ---- step transitions: a small, consistent "this just arrived" moment
+   instead of an instant jump-cut between step/next-lesson blocks ---- */
+.bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering { animation: bhc-step-in 0.35s ease; }
+@keyframes bhc-step-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes bhc-pulse { 0% { box-shadow: 0 0 0 0 var(--bh-accent-soft); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering, .bhc-stepper-dot.bhc-stepper-pulse { animation: none; }
+}
 
 /* Per-type accent so the step cards themselves aren't visually
    interchangeable — a thin left border echoing the stepper dot's type,
@@ -150,7 +209,41 @@
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
 .bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
-.bhc-step-video { width: 100%; max-height: 480px; border-radius: 6px; margin-bottom: 8px; background: #000; }
+/* max-width/max-height + width/height:auto (not width:100%) is
+   deliberate — it lets the video scale down to fit either constraint
+   while preserving its OWN intrinsic aspect ratio, same pattern a
+   responsive image uses to avoid distortion. width:100% here would
+   force the box to full column width regardless of the video's real
+   ratio, which for anything other than roughly 16:9 either stretches/
+   squashes the picture (no object-fit, no explicit height, so the
+   browser can't do anything else) or leaves the native <video>
+   controls bar spanning a width that doesn't match the visible
+   picture underneath it — both is what "wonky controls" looked like. */
+/* Scoped to the tag (video.bhc-step-video), NOT the bare class — the
+   outer step wrapper div ALSO carries the literal class "bhc-step-video"
+   (from the bhc-step-{type} naming convention, same collision already
+   flagged in this file's own comment above for .bhc-step-text). An
+   unscoped rule here made the WHOLE STEP WRAPPER shrink to the video's
+   own intrinsic width (via the width:auto/margin:auto below), visibly
+   offsetting every other control in that step — not just the video. */
+video.bhc-step-video {
+    /* max-width/max-height + width/height:auto (not width:100%) is
+       deliberate — it lets the video scale down to fit either
+       constraint while preserving its OWN intrinsic aspect ratio, same
+       pattern a responsive image uses to avoid distortion. width:100%
+       here would force the box to full column width regardless of the
+       video's real ratio, which for anything other than roughly 16:9
+       either stretches/squashes the picture (no object-fit, no explicit
+       height, so the browser can't do anything else) or leaves the
+       native controls bar spanning a width that doesn't match the
+       visible picture underneath it. */
+    display: block; max-width: 100%; max-height: 480px; width: auto; height: auto; margin: 0 auto 8px; border-radius: 6px;
+    /* --bh-surface-2 (a dark shade already derived from the same accent
+       family everywhere else in this design system) replaces a flat
+       #000 — pure black reads as an unstyled fallback, not an
+       intentional frame. */
+    background: var(--bh-surface-2); border: 1px solid var(--bh-border);
+}
 .bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
 .bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
 
@@ -159,16 +252,41 @@
     border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
     display: inline-block;
 }
-.bhc-btn:hover { background: var(--bh-accent-soft); }
+/* --bh-accent-hover DARKENS (not --bh-accent-soft, which lightens) —
+   this button's text is white/light (--bh-accent-contrast), so
+   lightening the background on hover was a real bug (confirmed by this
+   session's ecosystem contrast audit): it made an already-marginal
+   white-on-accent contrast even worse instead of better. */
+.bhc-btn:hover { background: var(--bh-accent-hover, var(--bh-accent-soft)); }
 .bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
 .bhc-btn-secondary { background: transparent; border: 1px solid var(--bh-border); color: var(--bh-text); }
 .bhc-btn-secondary:hover { background: var(--bh-border); }
 
 .bhc-quiz-question { border: none; margin-bottom: 16px; }
 .bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
-.bhc-quiz-choice { display: block; padding: 6px 0; cursor: pointer; }
+.bhc-quiz-choice {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.bhc-quiz-choice:hover { background: var(--bh-border); }
+/* The native radio's own default rendering is browser-chrome gray at a
+   tiny fixed size — easy to miss entirely against a plain background,
+   and the hover/selected states below were relying on a subtle
+   background tint alone as the only "did my click register" signal.
+   accent-color ties the actual radio dot to the site's own accent so
+   picking a choice reads as a deliberate action, not a guess. */
+.bhc-quiz-choice input[type="radio"] { accent-color: var(--bh-accent); width: 16px; height: 16px; flex-shrink: 0; }
+/* :has(input:checked) is the only signal a plain radio+label gives us —
+   there's no JS-added "selected" class, so the checked state itself has
+   to drive the persistent highlight. --bh-accent-muted-bg (not
+   --bh-accent-soft, a light hover tint with no contrast guarantee
+   against body text) keeps this legible regardless of the site's
+   chosen accent color. A real border (not just the background tint)
+   makes the selected choice readable at a glance instead of requiring
+   a close look to spot the faint fill difference. */
+.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
-.bhc-quiz-result.bhc-pass { background: var(--bh-accent-soft); }
+.bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
 .bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-continue { display: inline-block; }
@@ -184,16 +302,63 @@
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     padding: 6px 10px; border-radius: 6px; margin-top: 4px;
 }
-.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-soft); font-weight: 600; }
+.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); font-weight: 600; }
 .bhc-quiz-choice-review.bhc-choice-incorrect { background: var(--bh-border); text-decoration: line-through; opacity: 0.85; }
 .bhc-choice-marker { font-size: 12px; color: var(--bh-text-dim); white-space: nowrap; }
 .bhc-quiz-choice-review.bhc-correct .bhc-choice-marker { color: var(--bh-accent); }
+/* The right/wrong verdict is the one piece of feedback a student
+   actually came here for after submitting — it used to just appear
+   with the rest of the breakdown at once. A small pop-in gives that
+   specific piece of information its own beat instead of blending into
+   the whole block rendering simultaneously. */
+.bhc-quiz-choice-review .bhc-choice-marker { display: inline-block; animation: bhc-marker-pop 0.3s ease 0.1s both; }
+@keyframes bhc-marker-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-quiz-choice-review .bhc-choice-marker { animation: none; }
+}
 
 /* ---- continue / next-lesson navigation ---- */
 .bhc-course-cta { margin-bottom: 16px; }
 .bhc-lesson-next { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; text-align: center; }
 .bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .bhc-step-back { margin-right: 8px; }
+
+/* ---- course-completion moment: the one real payoff in the whole
+   course-taking flow, so it gets a visually distinct treatment (a
+   gradient ring derived from the same --bh-accent used everywhere else,
+   not a new color) instead of sitting flush with the plain surface
+   around it ---- */
+.bhc-completion {
+    text-align: center; padding: 4px; position: relative; overflow: visible;
+    background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
+    border-radius: 14px;
+}
+.bhc-completion > * { background: var(--bh-surface); position: relative; z-index: 1; }
+
+/* One-shot confetti burst (courses.js fires this on page load only when
+   .bhc-completion is actually present — a student passing THIS specific
+   milestone, not a generic page-load animation). Plain divs, not an
+   external library: a dozen small squares in accent-derived tones,
+   thrown outward from center and fading as they fall. Absolutely
+   positioned relative to .bhc-completion itself so it reads as coming
+   from the card, not floating randomly on the page. */
+.bhc-confetti-piece {
+    position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; z-index: 0;
+    background: var(--bh-accent); border-radius: 2px; pointer-events: none;
+    animation: bhc-confetti-fly 1.1s cubic-bezier(0.12, 0.68, 0.32, 1) forwards;
+    opacity: 0;
+}
+@keyframes bhc-confetti-fly {
+    0% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--bhc-confetti-x, 0px)), calc(-50% + var(--bhc-confetti-y, 60px))) rotate(var(--bhc-confetti-r, 180deg)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-confetti-piece { display: none; }
+}
+.bhc-completion-eyebrow { font-size: 13px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; padding: 20px 20px 0; border-radius: 12px 12px 0 0; margin: 0; }
+.bhc-completion-title { font-family: var(--bh-font-heading); font-size: 22px; padding: 4px 20px 16px; margin: 0; }
+.bhc-completion-card { display: block; width: 100%; height: auto; }
+.bhc-completion-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px 20px; border-radius: 0 0 12px 12px; }
 
 /* ---- mobile: the lesson/quiz-taking UI specifically ----
    A real gap the LMS audit caught: this whole file had zero @media

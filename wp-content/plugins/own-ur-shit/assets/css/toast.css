@@ -11,6 +11,13 @@
  * values, so the look never depends on load order or which screen this
  * happens to render on.
  */
+/* Body scroll-lock while any ecosystem modal is open — see toast.js's
+   MutationObserver-based syncScrollLock(). Locking on <html> (not <body>)
+   avoids fighting any plugin that sets its own body margin/padding. */
+html.bhcore-scroll-locked {
+    overflow: hidden;
+}
+
 .bhcore-toast-region {
     position: fixed;
     top: 16px;

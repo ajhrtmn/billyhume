@@ -79,6 +79,23 @@ class BHC_Render_Lesson {
             echo '</div>';
         }
 
+        // alignwide is the theme's own opt-in mechanism (theme.json's
+        // wideSize, 1340px in Twenty Twenty-Five) for a block that wants
+        // more than the default constrained content width (645px) — this
+        // layout is a direct child of .entry-content.is-layout-constrained,
+        // so it qualifies for the same core-generated CSS rule real
+        // Gutenberg blocks use, without this plugin needing to fight the
+        // theme's own width constraint with a bespoke override.
+        echo '<div class="bhc-lesson-layout alignwide">';
+        // Persistent lesson list + overall progress, so a student can jump
+        // to any earlier lesson or see how much of the course is left
+        // without leaving this page — previously the only course-level
+        // context here was the one-line breadcrumb above.
+        if ($course_id && class_exists('BHC_Render_Course')) {
+            echo BHC_Render_Course::render_lesson_sidebar($course_id, $uid, $lesson_id);
+        }
+        echo '<div class="bhc-lesson-main">';
+
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
         echo '<div class="bhc-step-progress">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 
@@ -132,20 +149,37 @@ class BHC_Render_Lesson {
         if ($next_lesson_id) {
             echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">Next Lesson &rarr;</a>';
         } elseif ($course_id) {
-            echo '<p class="bhc-course-complete">&#127881; You\'ve completed this course!</p>';
-            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($course_id)) . '">Back to course</a>';
-            // "Anything fun for social sharing?" — a generated card
-            // image (class-share-cards.php, BH_ShareCard), not just a
-            // plain text link. Direct image URL rather than a "share
-            // intent" with an auto-attached image — X/Discord/iMessage
-            // all unfurl a bare image URL into a real inline image when
-            // pasted, which is the actual "share this" moment most
-            // platforms support without needing OAuth media-upload
-            // plumbing this plugin has no reason to build.
+            // The one real "payoff" moment in the whole course-taking
+            // flow — previously a plain text line + emoji, no visual
+            // weight at all relative to however many steps/hours got a
+            // student here. The share card (BHC_ShareCards, generated via
+            // the shared BH_ShareCard engine) already existed but was
+            // buried as a small "get shareable image" link that opened
+            // the PNG in a new tab; showing it inline as the actual
+            // centerpiece is what makes this feel earned instead of a
+            // footnote.
+            echo '<div class="bhc-completion">';
+            echo '<p class="bhc-completion-eyebrow">&#127881; Course complete</p>';
+            echo '<h2 class="bhc-completion-title">' . esc_html(get_the_title($course_id)) . '</h2>';
+            $card_url = null;
             if ($uid && class_exists('BHC_ShareCards')) {
                 $card_url = BHC_ShareCards::card_url($uid, $course_id);
-                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($card_url) . '" target="_blank" rel="noopener">&#128241; Get shareable image</a>';
+                // Same direct-image-URL posture as the share link below
+                // (not a "share intent") — shown here purely as the
+                // visual centerpiece; the link further down is still
+                // what a student actually shares/downloads.
+                echo '<img class="bhc-completion-card" src="' . esc_url($card_url) . '" alt="" width="1200" height="630" loading="lazy">';
             }
+            echo '<div class="bhc-completion-actions">';
+            echo '<a class="bhc-btn" href="' . esc_url(get_permalink($course_id)) . '">Back to course</a>';
+            if ($uid && class_exists('BHC_Certificates') && BHC_Certificates::course_offers_certificate($course_id) && BHC_Progress::is_course_completed($uid, $course_id)) {
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate</a>';
+            }
+            if ($card_url) {
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url($card_url) . '" target="_blank" rel="noopener">&#128241; Share this</a>';
+            }
+            echo '</div>';
+            echo '</div>';
         }
         echo '</div>';
 
@@ -164,8 +198,34 @@ class BHC_Render_Lesson {
             echo BH_Element::render_slot('bh_courses_lesson', (int) $lesson_id, 'root', ['user_id' => $uid]);
         }
 
-        echo '</div>';
+        echo '</div>'; // .bhc-lesson
+        echo '</div>'; // .bhc-lesson-main
+        echo '</div>'; // .bhc-lesson-layout
         return ob_get_clean();
+    }
+
+    // Caught live testing this exact field: pasting a normal YouTube
+    // "watch" link (youtube.com/watch?v=ID, youtu.be/ID, or a Shorts
+    // link) or a plain vimeo.com/ID link — the single most likely thing
+    // an author actually pastes, since that's just the URL from their
+    // browser's address bar — matched NEITHER the old iframe/embed/
+    // player substring check NOR a real direct-file URL, so it silently
+    // rendered a broken, unplayable <video> tag pointed at an HTML page.
+    // Recognized platforms convert to their real embeddable URL first;
+    // anything else still falls through to the old substring heuristic,
+    // then to "treat as a direct file" as the final fallback.
+    private static function to_embed_url($url) {
+        if (preg_match('#youtu\.be/([A-Za-z0-9_-]+)#i', $url, $m)
+            || preg_match('#youtube\.com/(?:watch\?v=|shorts/|embed/)([A-Za-z0-9_-]+)#i', $url, $m)) {
+            return 'https://www.youtube.com/embed/' . $m[1];
+        }
+        if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
+            return 'https://player.vimeo.com/video/' . $m[1];
+        }
+        if (preg_match('#(iframe|embed|player)#i', $url)) {
+            return $url;
+        }
+        return null;
     }
 
     private static function render_step($lesson_id, $index, $step, $is_done) {
@@ -219,8 +279,9 @@ class BHC_Render_Lesson {
                 // direct video URL — good enough for v1 without needing
                 // provider-specific integration code.
                 $url = $step['video_url'];
-                if (preg_match('#(iframe|embed|player)#i', $url)) {
-                    echo '<iframe class="bhc-step-video-embed" src="' . esc_url($url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+                $embed_url = self::to_embed_url($url);
+                if ($embed_url) {
+                    echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                 } else {
                     echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
                     $trackable = true;

@@ -65,8 +65,27 @@ class BHM_Debug {
         echo '<h4>WooCommerce order simulation</h4>';
         if (class_exists('WooCommerce')) {
             echo OUS_Debug::button('bh-monetization-woo', 'simulate_tier_order', 'Create + complete a real WC order for the top test tier (drives the actual on_order_completed() path, not a shortcut around it)');
+            if (class_exists('BHM_Gifts')) {
+                echo OUS_Debug::button('bh-monetization-woo', 'simulate_gift_order', 'Create + complete a real WC gift order for the top test tier (drives BHM_Gifts::create_redemption(), not a shortcut around it)', '<input type="email" name="gift_email" placeholder="Recipient email" style="width:200px;">');
+            }
         } else {
             echo '<p class="description">Install WooCommerce to test the real order-completion path — until then, the buttons above exercise entitlement/wallet logic directly, which covers most of what actually matters for gating.</p>';
+        }
+
+        if (class_exists('BHM_Gifts')) {
+            global $wpdb;
+            $t = $wpdb->prefix . BHM_Gifts::TABLE;
+            $recent = $wpdb->get_results("SELECT * FROM $t ORDER BY id DESC LIMIT 5", ARRAY_A);
+            if ($recent) {
+                echo '<h4>Recent gift redemptions</h4>';
+                echo '<p class="description">wp_mail() may not actually deliver on a local install — claim links here so gifting can still be tested end-to-end.</p>';
+                echo '<table class="widefat" style="max-width:700px;"><thead><tr><th>Recipient</th><th>Status</th><th>Claim link</th></tr></thead><tbody>';
+                foreach ($recent as $row) {
+                    $claim_url = add_query_arg('gift_code', $row['code'], BHM_Gifts::redeem_page_url());
+                    echo '<tr><td>' . esc_html($row['recipient_email']) . '</td><td>' . esc_html($row['status']) . '</td><td><a href="' . esc_url($claim_url) . '">' . esc_html($claim_url) . '</a></td></tr>';
+                }
+                echo '</tbody></table>';
+            }
         }
 
         if (class_exists('BHM_Storefront')) {
@@ -185,6 +204,26 @@ class BHM_Debug {
                 $order->calculate_totals();
                 $order->update_status('completed'); // fires woocommerce_order_status_completed for real — this is the actual production code path, not a shortcut
                 return 'Created and completed a real WooCommerce order (#' . $order->get_id() . ') for "' . $top['name'] . '" — check that the entitlement now shows up.';
+
+            case 'simulate_gift_order':
+                if (!class_exists('WooCommerce')) return 'WooCommerce isn\'t active.';
+                $gift_email = sanitize_email((string) ($post['gift_email'] ?? ''));
+                if (!is_email($gift_email)) return 'Enter a valid recipient email first.';
+                $tiers = BHM_Tiers::all();
+                if (!$tiers) return 'No tiers exist yet — click "Create 2 test tiers" first.';
+                $top = end($tiers);
+                if (!$top['wc_product_id']) return 'That tier has no WooCommerce product yet — save it once from the Supporter Tiers screen.';
+
+                $order = wc_create_order(['customer_id' => $uid]);
+                $item_id = $order->add_product(wc_get_product($top['wc_product_id']), 1);
+                // Same meta key BHM_Gifts::persist_gift_email_to_order_item()
+                // writes during a REAL checkout — set directly here since
+                // this simulation skips the cart entirely.
+                $item = $order->get_item($item_id);
+                if ($item) { $item->add_meta_data('_bhm_gift_email', $gift_email, true); $item->save(); }
+                $order->calculate_totals();
+                $order->update_status('completed');
+                return 'Created and completed a real gift WooCommerce order (#' . $order->get_id() . ') for "' . $top['name'] . '" — check Debug Tools > BH Monetization for the redemption code, or check ' . esc_html($gift_email) . '\'s inbox (wp_mail(), so a local/dev install may not actually deliver it).';
         }
         return '';
     }
