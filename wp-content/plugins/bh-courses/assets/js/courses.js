@@ -168,6 +168,21 @@
                 fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
+                        // check_ajax_referer()'s default failure mode is
+                        // wp_die(-1) — a bare "-1", not the {success:false,
+                        // data:{...}} shape every real handler response
+                        // has. That collapsed into the same generic
+                        // "Something went wrong." as any other failure,
+                        // when the real, actionable cause is a stale
+                        // session/nonce (e.g. this tab sat open past a
+                        // login timeout).
+                        if (res === -1 || res === '-1') {
+                            e.target.disabled = false;
+                            e.target.textContent = originalLabel;
+                            var expiredMsg = 'Your session has expired — refresh the page and log in again.';
+                            if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(expiredMsg, 'error'); } else { alert(expiredMsg); }
+                            return;
+                        }
                         if (!res.success) {
                             e.target.disabled = false;
                             e.target.textContent = originalLabel;

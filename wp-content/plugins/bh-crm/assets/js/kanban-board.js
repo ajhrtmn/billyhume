@@ -61,6 +61,15 @@
         }).then(function (res) {
             if (!res.ok) {
                 return res.json().catch(function () { return {}; }).then(function (err) {
+                    // A 401/403 previously surfaced whatever generic
+                    // REST error text WordPress happened to send (or
+                    // none at all, falling back to "HTTP 403") — reads
+                    // like the SAVE failed, not that the admin's own
+                    // session/nonce went stale (e.g. this tab sat open
+                    // past a login timeout).
+                    if ((res.status === 401 || res.status === 403) && !(err && err.message)) {
+                        throw new Error('Your session has expired — refresh the page and log in again.');
+                    }
                     throw new Error((err && err.message) || ('HTTP ' + res.status));
                 });
             }

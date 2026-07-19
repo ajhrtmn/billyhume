@@ -130,6 +130,17 @@ class BHPlayer {
         let res, body = {};
         try { res = await fetch(url, o); body = await res.json().catch(() => ({})); }
         catch (e) { return { ok: false, body: {} }; }
+        // A 401/403 previously fell through to whatever generic action-
+        // specific fallback the caller had ("Could not record your
+        // vote."), which reads like the ACTION failed rather than the
+        // real cause. Only overridden when the server didn't already
+        // send its own specific message — a deliberately-permission-
+        // denied case (e.g. a not-yet-open contest) still shows ITS
+        // real reason, not a blanket "log in again" that would be wrong
+        // there.
+        if (!res.ok && (res.status === 401 || res.status === 403) && !body.message) {
+            body.message = 'Your session has expired — please log in again.';
+        }
         return { ok: res.ok, body };
     }
 
