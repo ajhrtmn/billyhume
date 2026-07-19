@@ -1211,8 +1211,16 @@ class BH_Element {
                 if ($url === '') continue;
                 $method = in_array(strtoupper((string) ($action['method'] ?? 'GET')), ['GET', 'POST'], true) ? strtoupper((string) $action['method']) : 'GET';
                 $then = sanitize_key($action['then'] ?? 'none');
-                $then_js = $then === 'reload' ? 'function(){window.location.reload();}' : 'function(){}';
-                $handler = 'fetch(' . wp_json_encode($url) . ',{method:' . wp_json_encode($method) . '}).then(' . $then_js . ').catch(function(){})';
+                // Was a bare no-op function on both success (when $then
+                // isn't 'reload') and failure — every fetch-kind action any
+                // admin builds via the Element Builder silently did nothing
+                // visible either way. Now surfaces a toast on both paths
+                // when BHCoreToast is loaded (it's enqueued on every
+                // front-end page — see OUS_Toast's own enqueue_assets()).
+                $then_js = $then === 'reload'
+                    ? 'function(){window.location.reload();}'
+                    : 'function(){if(typeof BHCoreToast!==\'undefined\'){BHCoreToast.show(\'Done.\',\'success\');}}';
+                $handler = 'fetch(' . wp_json_encode($url) . ',{method:' . wp_json_encode($method) . '}).then(' . $then_js . ').catch(function(){if(typeof BHCoreToast!==\'undefined\'){BHCoreToast.show(\'Something went wrong — check your connection and try again.\',\'error\');}})';
             } elseif ($kind === 'navigate') {
                 $url = esc_url_raw((string) ($action['url'] ?? ''));
                 if ($url === '') continue;
