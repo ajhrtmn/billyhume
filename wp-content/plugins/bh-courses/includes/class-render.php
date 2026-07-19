@@ -35,6 +35,29 @@ class BHC_Render {
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_filter('template_include', [self::class, 'maybe_use_archive_template']);
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
+        add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
+    }
+
+    /**
+     * Real, live-confirmed bug: the theme's single.html prints a
+     * "Written by {author} in {category}" byline via a core/group of
+     * core/post-author-name + core/post-terms blocks. On a bh_lesson/
+     * bh_course single page this reads as "Written by in" with both
+     * dynamic pieces blank — these post types have no author byline
+     * concept (a course's real instructor is BHC_PostTypes::instructor(),
+     * already shown in the course header) and are never assigned a
+     * 'category' term at all, so the theme's generic byline group has
+     * nothing to fill in on every single one of these pages. Keying off
+     * the literal "Written by" text (rather than the block name, which
+     * is just a generic core/group used all over the theme) is the same
+     * "match the specific broken output, not the whole block type"
+     * posture suppress_generic_post_navigation() already takes above.
+     */
+    public static function suppress_broken_byline($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'core/group') return $block_content;
+        if (!is_singular(['bh_lesson', 'bh_course'])) return $block_content;
+        if (strpos($block_content, 'Written by') === false) return $block_content;
+        return '';
     }
 
     /**

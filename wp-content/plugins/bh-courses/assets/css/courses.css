@@ -257,15 +257,27 @@ video.bhc-step-video {
 
 .bhc-quiz-question { border: none; margin-bottom: 16px; }
 .bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
-.bhc-quiz-choice { display: block; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: background-color 0.15s ease; }
+.bhc-quiz-choice {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; transition: background-color 0.15s ease, border-color 0.15s ease;
+}
 .bhc-quiz-choice:hover { background: var(--bh-border); }
+/* The native radio's own default rendering is browser-chrome gray at a
+   tiny fixed size — easy to miss entirely against a plain background,
+   and the hover/selected states below were relying on a subtle
+   background tint alone as the only "did my click register" signal.
+   accent-color ties the actual radio dot to the site's own accent so
+   picking a choice reads as a deliberate action, not a guess. */
+.bhc-quiz-choice input[type="radio"] { accent-color: var(--bh-accent); width: 16px; height: 16px; flex-shrink: 0; }
 /* :has(input:checked) is the only signal a plain radio+label gives us —
    there's no JS-added "selected" class, so the checked state itself has
    to drive the persistent highlight. --bh-accent-muted-bg (not
    --bh-accent-soft, a light hover tint with no contrast guarantee
    against body text) keeps this legible regardless of the site's
-   chosen accent color. */
-.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); font-weight: 600; }
+   chosen accent color. A real border (not just the background tint)
+   makes the selected choice readable at a glance instead of requiring
+   a close look to spot the faint fill difference. */
+.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
 .bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
