@@ -9,23 +9,27 @@ class BH_PostTypes {
 
     public static function register() {
         register_post_type('bh_contest', [
-            // menu_name carries the "OUS ·" prefix so this top-level menu
-            // reads as part of the Own Ur Shit ecosystem even though it
-            // has to stay its own top-level item (see class-registry.php's
-            // docblock on why CPT list-tables aren't relocated) — name/
-            // singular_name/all_items stay plain since those show up in
-            // body text ("Add New Contest," "All Contests"), where a
-            // prefix would read oddly.
+            // menu_name used to carry an "OUS ·" text prefix so this
+            // top-level menu read as part of the Own Ur Shit ecosystem
+            // even though it has to stay its own top-level item (see
+            // class-registry.php's docblock on why CPT list-tables
+            // aren't relocated). That job now belongs to the shared
+            // icon (OUS_MenuIcons::contests() — same rounded-square
+            // badge frame every OUS-owned top-level menu carries), so
+            // the label goes back to being plain "Contests" — name/
+            // singular_name/all_items already stayed plain since those
+            // show up in body text ("Add New Contest," "All Contests"),
+            // where a prefix would have read oddly anyway.
             // QA fix, caught live: 'edit_item'/'add_new_item' were
             // never set, so every real edit screen showed the generic
             // WP core fallback "Edit Post"/"Add Post" instead of
             // "Edit Contest"/"Add Contest" — confirmed live via
             // screenshot.
-            'labels'       => ['name' => 'Contests', 'menu_name' => 'OUS · Contest', 'singular_name' => 'Contest', 'all_items' => 'Contests', 'edit_item' => 'Edit Contest', 'add_new_item' => 'Add New Contest', 'new_item' => 'New Contest', 'view_item' => 'View Contest'],
+            'labels'       => ['name' => 'Contests', 'menu_name' => 'Contests', 'singular_name' => 'Contest', 'all_items' => 'Contests', 'edit_item' => 'Edit Contest', 'add_new_item' => 'Add New Contest', 'new_item' => 'New Contest', 'view_item' => 'View Contest'],
             'public'       => false,
             'show_ui'      => true,
             'show_in_menu' => true, // this CPT IS the top-level anchor
-            'menu_icon'    => 'dashicons-awards',
+            'menu_icon'    => OUS_MenuIcons::contests(),
             // No 'editor' — a contest has no free-text body content of
             // its own; everything that actually matters (dates, contact
             // fields, categories, shortcode, branding) already lives in
