@@ -24,7 +24,12 @@
 .bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
 
 /* ---- catalog ---- */
-.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+/* auto-fit, not auto-fill — with few courses (a new site, or a narrow
+   filtered result) auto-fill still reserves empty track width for
+   columns with no card in them, leaving a single lonely card floating
+   in a mostly-blank row. auto-fit collapses those empty tracks so real
+   cards expand to actually fill the row instead. */
+.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
 .bhc-course-card {
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
