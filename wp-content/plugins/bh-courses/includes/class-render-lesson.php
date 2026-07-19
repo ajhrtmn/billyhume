@@ -204,6 +204,30 @@ class BHC_Render_Lesson {
         return ob_get_clean();
     }
 
+    // Caught live testing this exact field: pasting a normal YouTube
+    // "watch" link (youtube.com/watch?v=ID, youtu.be/ID, or a Shorts
+    // link) or a plain vimeo.com/ID link — the single most likely thing
+    // an author actually pastes, since that's just the URL from their
+    // browser's address bar — matched NEITHER the old iframe/embed/
+    // player substring check NOR a real direct-file URL, so it silently
+    // rendered a broken, unplayable <video> tag pointed at an HTML page.
+    // Recognized platforms convert to their real embeddable URL first;
+    // anything else still falls through to the old substring heuristic,
+    // then to "treat as a direct file" as the final fallback.
+    private static function to_embed_url($url) {
+        if (preg_match('#youtu\.be/([A-Za-z0-9_-]+)#i', $url, $m)
+            || preg_match('#youtube\.com/(?:watch\?v=|shorts/|embed/)([A-Za-z0-9_-]+)#i', $url, $m)) {
+            return 'https://www.youtube.com/embed/' . $m[1];
+        }
+        if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
+            return 'https://player.vimeo.com/video/' . $m[1];
+        }
+        if (preg_match('#(iframe|embed|player)#i', $url)) {
+            return $url;
+        }
+        return null;
+    }
+
     private static function render_step($lesson_id, $index, $step, $is_done) {
         ob_start();
         if ($step['type'] === 'text') {
@@ -255,8 +279,9 @@ class BHC_Render_Lesson {
                 // direct video URL — good enough for v1 without needing
                 // provider-specific integration code.
                 $url = $step['video_url'];
-                if (preg_match('#(iframe|embed|player)#i', $url)) {
-                    echo '<iframe class="bhc-step-video-embed" src="' . esc_url($url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+                $embed_url = self::to_embed_url($url);
+                if ($embed_url) {
+                    echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                 } else {
                     echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
                     $trackable = true;
