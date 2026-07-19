@@ -42,8 +42,15 @@
 .bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); }
 
 .bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
-.bhc-progress-fill { height: 100%; background: var(--bh-accent); }
+/* Width changes (a step/lesson completing) used to jump instantly —
+   the bar is the one piece of UI visible on every single page of the
+   course-taking flow, so a smooth fill reads as real, felt progress
+   instead of a static number that occasionally changes. */
+.bhc-progress-fill { height: 100%; background: var(--bh-accent); transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 .bhc-progress-label { font-size: 12px; color: var(--bh-text-dim); }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-progress-fill { transition: none; }
+}
 
 /* ---- course lesson list ---- */
 .bhc-lesson-list li {
@@ -299,6 +306,16 @@ video.bhc-step-video {
 .bhc-quiz-choice-review.bhc-choice-incorrect { background: var(--bh-border); text-decoration: line-through; opacity: 0.85; }
 .bhc-choice-marker { font-size: 12px; color: var(--bh-text-dim); white-space: nowrap; }
 .bhc-quiz-choice-review.bhc-correct .bhc-choice-marker { color: var(--bh-accent); }
+/* The right/wrong verdict is the one piece of feedback a student
+   actually came here for after submitting — it used to just appear
+   with the rest of the breakdown at once. A small pop-in gives that
+   specific piece of information its own beat instead of blending into
+   the whole block rendering simultaneously. */
+.bhc-quiz-choice-review .bhc-choice-marker { display: inline-block; animation: bhc-marker-pop 0.3s ease 0.1s both; }
+@keyframes bhc-marker-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-quiz-choice-review .bhc-choice-marker { animation: none; }
+}
 
 /* ---- continue / next-lesson navigation ---- */
 .bhc-course-cta { margin-bottom: 16px; }
@@ -312,11 +329,32 @@ video.bhc-step-video {
    not a new color) instead of sitting flush with the plain surface
    around it ---- */
 .bhc-completion {
-    text-align: center; padding: 4px;
+    text-align: center; padding: 4px; position: relative; overflow: visible;
     background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
     border-radius: 14px;
 }
-.bhc-completion > * { background: var(--bh-surface); }
+.bhc-completion > * { background: var(--bh-surface); position: relative; z-index: 1; }
+
+/* One-shot confetti burst (courses.js fires this on page load only when
+   .bhc-completion is actually present — a student passing THIS specific
+   milestone, not a generic page-load animation). Plain divs, not an
+   external library: a dozen small squares in accent-derived tones,
+   thrown outward from center and fading as they fall. Absolutely
+   positioned relative to .bhc-completion itself so it reads as coming
+   from the card, not floating randomly on the page. */
+.bhc-confetti-piece {
+    position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; z-index: 0;
+    background: var(--bh-accent); border-radius: 2px; pointer-events: none;
+    animation: bhc-confetti-fly 1.1s cubic-bezier(0.12, 0.68, 0.32, 1) forwards;
+    opacity: 0;
+}
+@keyframes bhc-confetti-fly {
+    0% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--bhc-confetti-x, 0px)), calc(-50% + var(--bhc-confetti-y, 60px))) rotate(var(--bhc-confetti-r, 180deg)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-confetti-piece { display: none; }
+}
 .bhc-completion-eyebrow { font-size: 13px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; padding: 20px 20px 0; border-radius: 12px 12px 0 0; margin: 0; }
 .bhc-completion-title { font-family: var(--bh-font-heading); font-size: 22px; padding: 4px 20px 16px; margin: 0; }
 .bhc-completion-card { display: block; width: 100%; height: auto; }
