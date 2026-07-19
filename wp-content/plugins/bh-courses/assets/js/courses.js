@@ -304,6 +304,22 @@
             return d.innerHTML;
         }
 
+        // Selected-answer highlight was CSS-only (:has(input:checked)),
+        // which only reached universal browser support in late 2022/2023
+        // (older Firefox in particular) — on anything without :has()
+        // support, clicking a quiz choice showed zero visible feedback.
+        // This JS-added class is a belt-and-suspenders fallback; the
+        // :has() CSS rule stays as the primary/instant-paint path.
+        lesson.addEventListener('change', function (e) {
+            if (!e.target.matches('.bhc-quiz-choice input[type=radio]')) return;
+            var fieldset = e.target.closest('.bhc-quiz-question');
+            if (!fieldset) return;
+            fieldset.querySelectorAll('.bhc-quiz-choice').forEach(function (label) {
+                label.classList.remove('bhc-selected');
+            });
+            e.target.closest('.bhc-quiz-choice').classList.add('bhc-selected');
+        });
+
         lesson.addEventListener('submit', function (e) {
             if (!e.target.classList.contains('bhc-quiz-form')) return;
             e.preventDefault();
