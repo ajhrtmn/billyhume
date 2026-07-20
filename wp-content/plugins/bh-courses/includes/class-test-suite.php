@@ -118,6 +118,124 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_catalog_tests());
         }
 
+        /* ---------- gate/drip/progress-matrix interaction ----------
+         * The plugin's own audit flagged this as the highest-blast-
+         * radius, least-tested surface: BHC_Gate::lesson_is_open()'s
+         * two drip shapes (relative delay vs. fixed date), the "no
+         * enrollment yet = fails open" rule, and the batched
+         * course_progress_matrix()/completed_user_ids()/
+         * enrolled_user_ids() queries added for the Student Progress
+         * admin page's N+1 fix — none of it had any test coverage
+         * before this. Runs against a real, tagged fixture course +
+         * two fixture lessons + a real enrollment row, cleaned up
+         * afterward. */
+        if (class_exists('BHC_Gate') && class_exists('BHC_Progress') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_gate_drip_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_gate_drip_tests() {
+        $rows = [];
+        global $wpdb;
+
+        $course_id = wp_insert_post([
+            'post_type' => 'bh_course', 'post_status' => 'publish',
+            'post_title' => 'Gate/Drip Test Fixture Course', 'meta_input' => ['bhcore_is_test' => 'bhc_gate_drip_suite'],
+        ], true);
+        if (is_wp_error($course_id)) {
+            return [['name' => 'Gate/drip test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bh_course post — skipping gate/drip tests.']];
+        }
+
+        $undripped_lesson = wp_insert_post([
+            'post_type' => 'bh_lesson', 'post_status' => 'publish',
+            'post_title' => 'Undripped Fixture Lesson', 'meta_input' => ['bhcore_is_test' => 'bhc_gate_drip_suite', '_bhc_course_id' => $course_id],
+        ], true);
+        $delay_lesson = wp_insert_post([
+            'post_type' => 'bh_lesson', 'post_status' => 'publish',
+            'post_title' => 'Delay Fixture Lesson', 'meta_input' => [
+                'bhcore_is_test' => 'bhc_gate_drip_suite', '_bhc_course_id' => $course_id, '_bhc_available_after_days' => 7,
+            ],
+        ], true);
+        $date_lesson = wp_insert_post([
+            'post_type' => 'bh_lesson', 'post_status' => 'publish',
+            'post_title' => 'Date Fixture Lesson', 'meta_input' => [
+                'bhcore_is_test' => 'bhc_gate_drip_suite', '_bhc_course_id' => $course_id,
+                '_bhc_available_on_date' => gmdate('Y-m-d', strtotime('+3 days')),
+            ],
+        ], true);
+
+        if (is_wp_error($undripped_lesson) || is_wp_error($delay_lesson) || is_wp_error($date_lesson)) {
+            wp_delete_post($course_id, true);
+            return [['name' => 'Gate/drip test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bh_lesson posts — skipping gate/drip tests.']];
+        }
+
+        update_post_meta($course_id, '_bhc_lesson_order', [$undripped_lesson, $delay_lesson, $date_lesson]);
+
+        $uid = OUS_Debug::get_or_create_test_user('bhc_gate_drip_suite', false);
+
+        // No enrollment recorded yet — a relative-delay lesson must fail
+        // OPEN (not locked), per lesson_is_open()'s own documented
+        // reasoning: nothing to count the delay from yet, so it must
+        // not permanently lock someone the system never enrolled.
+        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+
+        $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $undripped_lesson), 'A lesson with no drip rule at all is always open');
+        $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $delay_lesson), 'A relative-delay lesson is open for a not-yet-enrolled user (fails open, does not permanently lock)');
+
+        // Now enroll them "today" — a 7-day delay lesson must be closed.
+        $wpdb->insert($enroll_table, ['user_id' => $uid, 'course_id' => $course_id, 'enrolled_at' => current_time('mysql', true)]);
+        $rows[] = OUS_TestRunner::assert_false(BHC_Gate::lesson_is_open($uid, $delay_lesson), 'A 7-day-delay lesson is locked immediately after enrollment');
+
+        // Backdate the enrollment past the delay window — same row,
+        // same UNIQUE KEY (user_id, course_id), so this is an UPDATE.
+        $wpdb->update($enroll_table, ['enrolled_at' => gmdate('Y-m-d H:i:s', time() - 8 * DAY_IN_SECONDS)], ['user_id' => $uid, 'course_id' => $course_id]);
+        $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $delay_lesson), 'A 7-day-delay lesson opens once 8 days have passed since enrollment');
+
+        // Fixed-date lesson: 3 days in the future must be closed; moving
+        // the date to yesterday must open it.
+        $rows[] = OUS_TestRunner::assert_false(BHC_Gate::lesson_is_open($uid, $date_lesson), 'A fixed-date lesson set 3 days in the future is closed');
+        update_post_meta($date_lesson, '_bhc_available_on_date', gmdate('Y-m-d', strtotime('-1 day')));
+        $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $date_lesson), 'A fixed-date lesson set to yesterday is open');
+
+        // enrolled_user_ids() — the helper added for BHC_DripNudges/the
+        // Student Progress N+1 fix — must include this fixture user and
+        // must NOT include an arbitrary user who was never enrolled.
+        $enrolled_ids = BHC_Progress::enrolled_user_ids($course_id);
+        $rows[] = OUS_TestRunner::assert_true(in_array((int) $uid, $enrolled_ids, true), 'enrolled_user_ids() includes a user with a real enrollment row');
+        $rows[] = OUS_TestRunner::assert_false(in_array(999999999, $enrolled_ids, true), 'enrolled_user_ids() does not include an arbitrary non-enrolled user ID');
+
+        // course_progress_matrix() — mark one step complete on the
+        // undripped lesson (a quiz-shaped write, since that's the only
+        // way this table records a score) and confirm the matrix's
+        // three views (completed/last_activity/quiz_scores) all agree
+        // with what was just written, matching what the per-user
+        // methods (completed_steps()/course_percent()) would report.
+        BHC_Progress::mark_step_complete($uid, $undripped_lesson, 0, 80, 1);
+        $matrix = BHC_Progress::course_progress_matrix($course_id);
+        $rows[] = OUS_TestRunner::assert_true(in_array((int) $uid, $matrix['user_ids'], true), 'course_progress_matrix() includes a user with a real progress row');
+        $rows[] = OUS_TestRunner::assert_same([0], $matrix['completed'][$uid][$undripped_lesson] ?? null, 'course_progress_matrix() records the completed step index for the right user/lesson');
+        $rows[] = OUS_TestRunner::assert_same([80.0], $matrix['quiz_scores'][$undripped_lesson][0] ?? null, 'course_progress_matrix() records the quiz score for the right lesson/step');
+        $rows[] = OUS_TestRunner::assert_true(!empty($matrix['last_activity'][$uid]), 'course_progress_matrix() records a last-activity timestamp for the user');
+
+        // completed_user_ids() — course not actually completed yet, so
+        // this user must NOT show up as completed.
+        $completed_ids = BHC_Progress::completed_user_ids($course_id, [$uid]);
+        $rows[] = OUS_TestRunner::assert_false(isset($completed_ids[$uid]), 'completed_user_ids() does not mark a user complete who has not finished the course');
+
+        // Cleanup — real posts/rows, not just meta tags, since these
+        // are published posts that would otherwise appear in the real
+        // catalog/course list.
+        $progress_table = $wpdb->prefix . 'bhc_progress';
+        $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $undripped_lesson]);
+        $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        wp_delete_post($undripped_lesson, true);
+        wp_delete_post($delay_lesson, true);
+        wp_delete_post($date_lesson, true);
+        wp_delete_post($course_id, true);
+
         return $rows;
     }
 

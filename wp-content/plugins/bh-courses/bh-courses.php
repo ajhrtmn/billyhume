@@ -33,8 +33,9 @@ if (!defined('ABSPATH')) exit;
 // (mark_step_complete()/stored_answers() round-trip, latest- attempt-only retry
 // semantics, the NULL-vs-0 sanitization behavior) and the course catalog's
 // search/sort (real fixture posts, cleaned up after each run) — both previously
-// untested. Standing caveat: written and brace-balance-checked, not yet executed
-// against the live install.
+// untested. Verified 2026-07-19: all 36 assertions across this suite (the two
+// pure-logic tests/ files plus these DB-backed ones) pass against a real
+// install — the earlier "not yet executed" caveat is resolved.
 
 // 0.4.1 — first OUS_DebugLog call anywhere in this plugin:
 // BHC_Progress::mark_step_complete()'s DB write is now checked — a failed write
