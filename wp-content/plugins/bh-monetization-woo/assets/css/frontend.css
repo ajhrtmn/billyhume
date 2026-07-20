@@ -2,6 +2,7 @@
 .bhm-tier-card { background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 20px; color: var(--bh-text, #EDDFCB); }
 .bhm-tier-card h3 { margin-top: 0; }
 .bhm-tier-active { border-color: var(--bh-accent, #C1503A); }
+.bhm-billing-badge { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--bh-text-dim, #B99584); margin-bottom: 4px; }
 .bhm-tier-price { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .bhm-tier-price-annual { font-size: 13px; color: var(--bh-text-dim, #B99584); margin-bottom: 8px; }
 .bhm-tier-cover { width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px; display: block; }
@@ -12,12 +13,47 @@
 .bhm-btn-secondary { background: transparent; border: 1px solid var(--bh-accent, #C1503A); color: var(--bh-accent, #C1503A); }
 .bhm-badge { display: inline-block; margin-top: 8px; font-size: 12px; padding: 3px 10px; border-radius: 100px; background: rgba(29,185,84,0.15); color: #1DB954; }
 
+/* Gift disclosure — was a bare native <summary> (a small caret + plain
+   text, easy to miss next to the real Join/Switch buttons above it).
+   Styled to read as an actual secondary button; list-style/marker
+   removed since .bhm-btn already gives it its own visual weight. */
+.bhm-tier-gift { margin-top: 8px; }
+.bhm-tier-gift summary { display: inline-block; cursor: pointer; list-style: none; }
+.bhm-tier-gift summary::-webkit-details-marker { display: none; }
+.bhm-tier-gift[open] summary { margin-bottom: 8px; }
+.bhm-tier-gift form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bhm-tier-gift input[type="email"] { padding: 8px; border-radius: 6px; border: 1px solid var(--bh-border, #3D1B14); background: var(--bh-surface-2, #2C120E); color: var(--bh-text, #EDDFCB); flex: 1 1 180px; }
+
 .bhm-paywall { background: var(--bh-surface-2, #2C120E); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 20px; color: var(--bh-text, #EDDFCB); }
 .bhm-paywall-title { margin-top: 0; }
 .bhm-paywall-benefits { color: var(--bh-text-dim, #B99584); font-size: 13px; }
 
-.bhm-tip-jar { display: flex; gap: 8px; align-items: center; }
+.bhm-tip-jar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .bhm-tip-jar input[type="number"] { width: 80px; padding: 8px; border-radius: 6px; border: 1px solid var(--bh-border, #3D1B14); background: var(--bh-surface-2, #2C120E); color: var(--bh-text, #EDDFCB); }
+.bhm-buy-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Suggested-amount chips — tip jar / PWYW purchase forms. flex-basis:
+   100% puts them on their own row above the manual amount input,
+   rather than crowding into the same flex row as the label/button. */
+.bhm-amount-chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.bhm-amount-chip {
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--bh-border, #3D1B14);
+    background: var(--bh-surface-2, #2C120E); color: var(--bh-text, #EDDFCB); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.bhm-amount-chip:hover { transform: translateY(-1px); border-color: var(--bh-accent, #C1503A); }
+.bhm-amount-chip.is-active { background: var(--bh-accent, #C1503A); border-color: var(--bh-accent, #C1503A); color: #000; }
 
 .bhm-wallet-balance { font-size: 18px; font-weight: 700; }
 .bhm-wallet-topups { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+/* Thank-you banner (woocommerce_thankyou) — the one real "payoff"
+   moment of becoming a supporter, previously just WooCommerce's own
+   generic order-received text with zero acknowledgment of what was
+   actually just unlocked. */
+.bhm-thankyou-banner {
+    background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-accent, #C1503A); border-radius: 8px;
+    padding: 24px; margin: 20px 0; color: var(--bh-text, #EDDFCB);
+}
+.bhm-thankyou-banner h2 { margin-top: 0; }
+.bhm-thankyou-banner ul { padding-left: 18px; }

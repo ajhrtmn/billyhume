@@ -756,6 +756,12 @@ class BHI_Portal {
   .bhi-portal-nav a.is-active { background:var(--bh-accent-soft, #eef4ff); border-left-color:var(--bh-accent, #2271b1); font-weight:600; }
   .bhi-portal-main { flex:1; min-width:0; padding:32px 40px; max-width:820px; }
   .bhi-portal-brand { padding:0 20px 20px; font-family:var(--bh-font-display, inherit); font-weight:700; font-size:16px; }
+  .bhi-portal-wallet-chip {
+    display:flex; align-items:center; gap:6px; margin:0 20px 16px; padding:8px 12px; border-radius:999px;
+    background:var(--bh-accent-muted-bg, var(--bh-accent-soft, #eef4ff)); color:var(--bh-accent, #2271b1);
+    font-weight:600; font-size:13px; text-decoration:none; width:fit-content;
+  }
+  .bhi-portal-wallet-chip .dashicons { font-size:16px; width:16px; height:16px; }
   /* Shared by every panel — one place so bh-monetization-woo/bh-courses/
      bh-contest's own portal-panel classes don't each hand-roll table/card
      styling that then drifts from each other. */
@@ -870,6 +876,20 @@ class BHI_Portal {
 <div class="bhi-portal-shell">
   <nav class="bhi-portal-nav">
     <div class="bhi-portal-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
+    <?php if (class_exists('BHM_Wallet')):
+        // Real gap this closes: wallet balance was only ever visible via
+        // the [bhm_wallet] shortcode (wherever an admin happened to drop
+        // it) or by drilling into the Membership & Wallet panel — a fan
+        // could easily lose track of their own balance anywhere else in
+        // the portal. One persistent line in the nav, always in view
+        // regardless of which panel is open, links straight to the full
+        // panel for topping up/reviewing the ledger.
+        $wallet_balance = BHM_Wallet::balance_cents(get_current_user_id());
+    ?>
+      <a class="bhi-portal-wallet-chip" href="<?php echo esc_url(home_url('/' . self::REWRITE_SLUG . '/membership/')); ?>">
+        <span class="dashicons dashicons-money-alt"></span> $<?php echo esc_html(number_format($wallet_balance / 100, 2)); ?>
+      </a>
+    <?php endif; ?>
     <?php foreach ($panels as $panel): ?>
       <a href="<?php echo esc_url(home_url('/' . self::REWRITE_SLUG . '/' . $panel['id'] . '/')); ?>"
          class="<?php echo $panel['id'] === $active ? 'is-active' : ''; ?>">

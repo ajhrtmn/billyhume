@@ -59,6 +59,57 @@ class BHM_Frontend {
         // Logged-in-only — no _nopriv variant, since an anonymous
         // visitor has no subscription of their own to pause/resume.
         add_action('admin_post_bhm_manage_subscription', [self::class, 'handle_manage_subscription']);
+
+        // Real gap this closes: the only post-purchase confirmation a
+        // new supporter ever saw was WooCommerce's own generic "Thank
+        // you, your order has been received" page — no acknowledgment of
+        // WHAT they just became (which tier, what it unlocks), the one
+        // moment in the whole flow that should feel like the payoff of
+        // supporting an artist, not an anonymous transaction receipt.
+        // Purely additive (prepended before WooCommerce's own thank-you
+        // markup, via priority 5) — never replaces or re-skins
+        // WooCommerce's own order details.
+        add_action('woocommerce_thankyou', [self::class, 'render_tier_thankyou_banner'], 5);
+    }
+
+    // Looks at every line item on the just-placed order for a product
+    // carrying _bhm_tier_id (the reverse-lookup meta BHM_Products'
+    // sync_tier_wc_product() writes — see that file) and, if found,
+    // shows a real "You're now supporting at X" banner instead of
+    // nothing. A tip/wallet-topup/PWYW-purchase order simply has no such
+    // line item, so this silently renders nothing for those — it's
+    // deliberately tier-specific, not a generic order-confirmation
+    // re-skin.
+    public static function render_tier_thankyou_banner($order_id) {
+        if (!$order_id || !function_exists('wc_get_order')) return;
+        $order = wc_get_order($order_id);
+        if (!$order) return;
+
+        foreach ($order->get_items() as $item) {
+            $product_id = $item->get_product_id();
+            $tier_id = (int) get_post_meta($product_id, '_bhm_tier_id', true);
+            if (!$tier_id) continue;
+            $tier = BHM_Tiers::get($tier_id);
+            if (!$tier) continue;
+
+            echo '<div class="bhm-thankyou-banner">';
+            echo '<h2>&#127881; You\'re now supporting at ' . esc_html($tier['name']) . '!</h2>';
+            if ($tier['benefits'] || !empty($tier['benefits_list'])) {
+                echo '<p>Here\'s what that unlocks:</p>';
+                if (!empty($tier['benefits_list'])) {
+                    echo '<ul>';
+                    foreach ($tier['benefits_list'] as $benefit) echo '<li>' . esc_html($benefit) . '</li>';
+                    echo '</ul>';
+                } elseif ($tier['benefits']) {
+                    echo '<p>' . esc_html($tier['benefits']) . '</p>';
+                }
+            }
+            if (class_exists('BHI_Portal')) {
+                echo '<p><a class="bhm-btn" href="' . esc_url(home_url('/' . BHI_Portal::REWRITE_SLUG . '/membership/')) . '">Manage your membership &rarr;</a></p>';
+            }
+            echo '</div>';
+            return; // one order realistically carries at most one tier line item — first match is enough
+        }
     }
 
     public static function maybe_remember_tiers_page($post_id) {
@@ -76,11 +127,20 @@ class BHM_Frontend {
     }
 
     public static function maybe_enqueue() {
-        if (!is_singular()) return;
-        global $post;
-        if (!$post || (!has_shortcode($post->post_content, 'bhm_tiers') && !has_shortcode($post->post_content, 'bhm_wallet') && !has_shortcode($post->post_content, 'bhm_tip_jar') && !has_shortcode($post->post_content, 'bhm_buy'))) return;
+        // The WooCommerce order-received (thank-you) page never carries
+        // any bhm_* shortcode of its own — render_tier_thankyou_banner()
+        // still needs .bhm-thankyou-banner styling there, so this asset
+        // load is widened to that endpoint specifically rather than only
+        // pages that literally embed one of this plugin's shortcodes.
+        $is_thankyou = function_exists('is_order_received_page') && is_order_received_page();
+        if (!$is_thankyou) {
+            if (!is_singular()) return;
+            global $post;
+            if (!$post || (!has_shortcode($post->post_content, 'bhm_tiers') && !has_shortcode($post->post_content, 'bhm_wallet') && !has_shortcode($post->post_content, 'bhm_tip_jar') && !has_shortcode($post->post_content, 'bhm_buy'))) return;
+        }
         wp_enqueue_style('bhm-frontend', BHM_URL . 'assets/css/frontend.css', [], BHM_VER);
         if (class_exists('BHY_Style')) wp_add_inline_style('bhm-frontend', BHY_Style::inline_css());
+        wp_enqueue_script('bhm-frontend', BHM_URL . 'assets/js/frontend.js', [], BHM_VER, true);
     }
 
     /* ---------- tier picker ---------- */
@@ -91,6 +151,17 @@ class BHM_Frontend {
         if (!$tiers) return '<p>No supporter tiers are set up yet.</p>';
 
         $user_id = get_current_user_id();
+        // Pre-pass, not computed inside the render loop below — a fan
+        // already on some tier needs a different call-to-action on every
+        // OTHER card ("Switch to this tier" instead of "Join monthly"),
+        // which means knowing whether they have any active tier at all
+        // before we know which specific card we're rendering.
+        $user_has_any_tier = false;
+        if ($user_id) {
+            foreach ($tiers as $t) {
+                if (BHM_Gate::user_has_tier_access($user_id, $t['id'])) { $user_has_any_tier = true; break; }
+            }
+        }
         ob_start();
         echo '<div class="bhm-tier-grid">';
         foreach ($tiers as $t) {
@@ -101,6 +172,15 @@ class BHM_Frontend {
                 if ($img_url) echo '<img class="bhm-tier-cover" src="' . esc_url($img_url) . '" alt="">';
             }
             echo '<h3>' . esc_html($t['name']) . '</h3>';
+            // Real gap this closes: without WooCommerce Subscriptions
+            // active, a tier silently degrades to "one-time purchase =
+            // 30 days access" (BHM_Gate's own documented fallback) — but
+            // the tier CARD itself looked identical either way, so a fan
+            // had no way to know whether "Join monthly" meant a real
+            // recurring subscription or a single 30-day purchase they'd
+            // need to remember to repeat manually.
+            $has_subscriptions = class_exists('BH_Commerce') && BH_Commerce::has_subscriptions();
+            echo '<span class="bhm-billing-badge">' . ($has_subscriptions ? 'Recurring — billed monthly' : 'One-time — 30 days access') . '</span>';
             echo '<div class="bhm-tier-price">$' . esc_html(number_format($t['price_cents'] / 100, 2)) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
                 echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr</div>';
@@ -126,19 +206,32 @@ class BHM_Frontend {
                 echo '<span class="bhm-badge">Your current tier</span>';
                 echo self::render_subscription_controls($user_id, $t['id']);
             } elseif ($t['wc_product_id']) {
-                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">Join monthly</a>';
+                // Real gap this closes: a fan already supporting at
+                // another tier saw the exact same "Join monthly" label
+                // on every other card, with no acknowledgment they
+                // already have an active tier or any sense of what
+                // clicking through would actually do to their existing
+                // subscription. The actual reconciliation still happens
+                // server-side (BHM_Gate::handle_tier_downgrade() /
+                // WooCommerce Subscriptions' own switcher when present)
+                // — this is just honest, tier-aware labeling of the
+                // exact same add-to-cart link, not a new checkout path.
+                $join_label = $user_has_any_tier ? 'Switch to this tier' : 'Join monthly';
+                $annual_label = $user_has_any_tier ? 'Switch (annual)' : 'Join annually';
+                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($t['wc_product_id'])) . '">' . esc_html($join_label) . '</a>';
                 if (!empty($t['wc_product_id_annual'])) {
-                    echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">Join annually</a>';
+                    echo ' <a class="bhm-btn bhm-btn-secondary" href="' . esc_url(self::add_to_cart_url($t['wc_product_id_annual'])) . '">' . esc_html($annual_label) . '</a>';
                 }
+
                 // Gifting — "buy this tier on someone else's behalf"
-                // (ROADMAP-platform-evolution.md Section 4). A plain GET
-                // form straight to the ordinary add-to-cart URL (same
-                // cart flow every other purchase uses) rather than a
-                // separate checkout path — BHM_Gifts::capture_gift_email()
-                // is the only thing that treats this purchase
-                // differently, and only once the recipient email is
-                // actually present.
-                echo '<details class="bhm-tier-gift"><summary>Gift this</summary>';
+                // (ROADMAP-platform-evolution.md Section 4). Was a bare
+                // <details><summary>Gift this</summary> — a native
+                // disclosure triangle with no visual weight next to the
+                // real buttons above it, easy to miss entirely. Still a
+                // <details> (progressive disclosure, zero JS required to
+                // reveal the form), just styled to read as a real
+                // secondary action instead of an easy-to-miss caret.
+                echo '<details class="bhm-tier-gift"><summary class="bhm-btn bhm-btn-secondary">&#127873; Gift this tier</summary>';
                 // A GET form submission discards whatever query string is
                 // already on its own `action` attribute — the base cart
                 // URL is the right target here, not add_to_cart_url()
@@ -265,7 +358,20 @@ class BHM_Frontend {
         ?>
         <form class="bhm-tip-jar" method="get" action="<?php echo esc_url(wc_get_cart_url()); ?>">
             <input type="hidden" name="add-to-cart" value="<?php echo esc_attr($product_id); ?>">
-            <label>Send a tip: $<input type="number" step="1" min="<?php echo esc_attr(self::TIP_MIN_CENTS / 100); ?>" max="<?php echo esc_attr(self::TIP_MAX_CENTS / 100); ?>" name="bhm_tip_amount" value="5"></label>
+            <!-- Suggested-amount chips — a bare number input defaulting to
+                 $5 was the only anchor a fan had for "what's a normal tip
+                 here"; real, tappable amounts (matching the same
+                 min/PURCHASE-adjacent scale the PWYW form below now also
+                 uses) turn this into a one-tap action instead of a blank
+                 field to fill in. The manual input stays for anyone who
+                 wants a different amount — chips just set it, they don't
+                 replace it. -->
+            <div class="bhm-amount-chips" role="group" aria-label="Suggested tip amounts">
+                <?php foreach ([5, 10, 25, 50] as $amt): ?>
+                    <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr($amt); ?>">$<?php echo esc_html($amt); ?></button>
+                <?php endforeach; ?>
+            </div>
+            <label>Send a tip: $<input type="number" step="1" min="<?php echo esc_attr(self::TIP_MIN_CENTS / 100); ?>" max="<?php echo esc_attr(self::TIP_MAX_CENTS / 100); ?>" name="bhm_tip_amount" value="5" class="bhm-amount-input"></label>
             <button type="submit" class="bhm-btn">Send Tip</button>
         </form>
         <?php
@@ -360,11 +466,25 @@ class BHM_Frontend {
 
         ob_start();
         if ($pwyw) {
+            // Suggested amounts scaled off the floor price rather than a
+            // fixed set (1x/1.5x/2x/3x) — same "give a tap-able anchor
+            // instead of a blank field" reasoning as the tip jar above,
+            // but the tip jar's fixed $5/$10/$25/$50 wouldn't make sense
+            // against an arbitrary floor price that could be $1 or $40.
+            $floor_dollars = $price_cents / 100;
+            $suggested = array_unique(array_map(function ($mult) use ($floor_dollars) {
+                return (int) round($floor_dollars * $mult);
+            }, [1, 1.5, 2, 3]));
             ?>
             <form class="bhm-buy-form" method="get" action="<?php echo esc_url(wc_get_cart_url()); ?>">
                 <input type="hidden" name="add-to-cart" value="<?php echo esc_attr($product_id); ?>">
+                <div class="bhm-amount-chips" role="group" aria-label="Suggested purchase amounts">
+                    <?php foreach ($suggested as $amt): ?>
+                        <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr($amt); ?>">$<?php echo esc_html($amt); ?></button>
+                    <?php endforeach; ?>
+                </div>
                 <label>Name your price (min $<?php echo esc_html(number_format($price_cents / 100, 2)); ?>): $
-                    <input type="number" step="1" min="<?php echo esc_attr($price_cents / 100); ?>" max="<?php echo esc_attr(self::PURCHASE_MAX_CENTS / 100); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr($price_cents / 100); ?>">
+                    <input type="number" step="1" min="<?php echo esc_attr($price_cents / 100); ?>" max="<?php echo esc_attr(self::PURCHASE_MAX_CENTS / 100); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr($price_cents / 100); ?>" class="bhm-amount-input">
                 </label>
                 <button type="submit" class="bhm-btn">Buy</button>
             </form>
