@@ -267,7 +267,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -329,7 +329,7 @@ add_action('plugins_loaded', function () {
     add_action('rest_api_init', ['BH_API', 'register_routes']);
     add_action('init',          ['BH_Admin', 'init']);
     add_action('init',          ['BH_ContestWizard', 'init']);
-    add_action('before_delete_post', ['BH_Admin', 'cleanup_deleted_contest']);
+    add_action('before_delete_post', ['BH_AdminMenus', 'cleanup_deleted_contest']);
     add_action('init',          ['BH_CRMIntegration', 'init']);
     add_action('init',          ['BH_StyleSurfaces', 'init']);
     add_action('init',          ['BH_ElementSurface', 'init']);

@@ -206,7 +206,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
