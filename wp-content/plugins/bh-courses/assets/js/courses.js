@@ -69,6 +69,15 @@
                     // before (e.g. navigating back and forward again).
                     void el.offsetWidth;
                     el.classList.add('bhc-step-entering');
+                    // Move focus onto the newly-visible step (tabindex="-1"
+                    // in class-render-lesson.php makes this focusable
+                    // without joining the tab order) — previously focus
+                    // stayed on whatever control was clicked to get here,
+                    // which for a stepper-dot or Back click is OUTSIDE this
+                    // div and could even be a now-hidden element, leaving a
+                    // keyboard/screen-reader user with no orientation cue
+                    // that the content under them just changed.
+                    el.focus({ preventScroll: true });
                 }
             });
             var counter = lesson.querySelector('.bhc-step-current');
@@ -117,6 +126,12 @@
                     nextBlock.classList.remove('bhc-step-entering');
                     void nextBlock.offsetWidth;
                     nextBlock.classList.add('bhc-step-entering');
+                    // Same reasoning as showStep()'s own focus move — this
+                    // block replaces the whole step area, so focus needs
+                    // to land somewhere inside it (tabindex="-1" in
+                    // class-render-lesson.php) rather than staying on the
+                    // now-hidden final step's submit/mark-complete button.
+                    nextBlock.focus({ preventScroll: true });
                     var completion = nextBlock.querySelector('.bhc-completion');
                     if (completion && window.bhcFireConfetti) window.bhcFireConfetti(completion);
                 }
@@ -338,7 +353,13 @@
             // (never on success, since a successful submit already
             // shows results/locks the form below).
             var quizSubmitBtn = e.target.querySelector('button[type="submit"]');
-            if (quizSubmitBtn) quizSubmitBtn.disabled = true;
+            var quizSubmitLabel = quizSubmitBtn ? quizSubmitBtn.textContent : '';
+            // A label change, not just disabled=true — a disabled state
+            // alone isn't reliably announced by every screen reader, so
+            // this was a silent "did my click even register?" moment for
+            // AT users on a slow connection, same category of gap fixed
+            // elsewhere in this ecosystem's other submit buttons.
+            if (quizSubmitBtn) { quizSubmitBtn.disabled = true; quizSubmitBtn.textContent = 'Submitting…'; }
 
             var body = new URLSearchParams({ action: 'bhc_submit_quiz', nonce: BHCData.nonce, lesson_id: lessonId, step_index: index });
             var formData = new FormData(e.target);
@@ -351,7 +372,7 @@
                 .then(function (res) {
                     var resultBox = e.target.querySelector('.bhc-quiz-result');
                     if (!res.success) {
-                        if (quizSubmitBtn) quizSubmitBtn.disabled = false;
+                        if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                         // Attempts-exhausted (403) comes back as an error with
                         // attempts_used/max_attempts rather than a generic
                         // failure — show it inline and lock the form instead
@@ -432,7 +453,7 @@
                     // back) could cost a student an attempt for nothing.
                     // Re-enabling the button lets them submit again
                     // deliberately, once, rather than the code guessing.
-                    if (quizSubmitBtn) quizSubmitBtn.disabled = false;
+                    if (quizSubmitBtn) { quizSubmitBtn.disabled = false; quizSubmitBtn.textContent = quizSubmitLabel; }
                     var resultBox = e.target.querySelector('.bhc-quiz-result');
                     if (resultBox) {
                         resultBox.style.display = '';

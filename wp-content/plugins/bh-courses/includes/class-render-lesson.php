@@ -97,7 +97,12 @@ class BHC_Render_Lesson {
         echo '<div class="bhc-lesson-main">';
 
         echo '<div class="bhc-lesson" data-lesson-id="' . (int) $lesson_id . '" data-step-count="' . count($steps) . '" data-start-index="' . (int) $start_index . '">';
-        echo '<div class="bhc-step-progress">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
+        // aria-live so a screen-reader user is told "Step 2 of 5" the
+        // moment courses.js's showStep() updates the counter text below
+        // — previously this only ever changed silently, the only signal
+        // a step actually advanced was the (also silent-to-AT) visual
+        // swap of which .bhc-step div was hidden/shown.
+        echo '<div class="bhc-step-progress" role="status" aria-live="polite">Step <span class="bhc-step-current">' . ($start_index + 1) . '</span> of ' . count($steps) . '</div>';
 
         // Visual stepper: every step type-tagged and shown at a glance
         // (previously "Step X of Y" was plain text with zero sense of
@@ -127,7 +132,14 @@ class BHC_Render_Lesson {
         foreach ($steps as $i => $step) {
             $is_done = in_array($i, $completed, true);
             $visible = $i === $start_index ? '' : ' style="display:none;"';
-            echo '<div class="bhc-step bhc-step-' . esc_attr($step['type']) . ($is_done ? ' bhc-step-done' : '') . '" data-step-index="' . (int) $i . '"' . $visible . '>';
+            // tabindex="-1": not in the normal tab order (a visible step
+            // is already reachable through its own controls), but
+            // courses.js's showStep() can still move focus onto it
+            // programmatically when a step change happens via a control
+            // OUTSIDE this div (e.g. a stepper dot) — without this, focus
+            // stayed on the now-hidden previous step's last-clicked
+            // element, orienting nobody using a keyboard or screen reader.
+            echo '<div class="bhc-step bhc-step-' . esc_attr($step['type']) . ($is_done ? ' bhc-step-done' : '') . '" data-step-index="' . (int) $i . '" tabindex="-1"' . $visible . '>';
             echo self::render_step($lesson_id, $i, $step, $is_done);
             // Revisiting an earlier (already-rendered, already-completed)
             // step is just showing a different one of these divs — no
@@ -142,7 +154,7 @@ class BHC_Render_Lesson {
         // unconditionally (not just when start_index is already at the
         // last step) so a student who completes the lesson mid-session
         // sees it appear without a page reload.
-        echo '<div class="bhc-lesson-next" style="display:none;">';
+        echo '<div class="bhc-lesson-next" tabindex="-1" style="display:none;">';
         if (count($steps) > 0) {
             echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
         }
@@ -359,7 +371,12 @@ class BHC_Render_Lesson {
                 if (!$already_passed) {
                     echo '<button type="submit" class="bhc-btn bhc-submit-quiz"' . ($exhausted ? ' disabled' : '') . '>Submit answers</button>';
                 }
-                echo '<div class="bhc-quiz-result" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? 'No attempts remaining.' : '') . '</div>';
+                // role="status"/aria-live so the pass/fail score is
+                // actually announced to a screen reader the moment
+                // courses.js fills it in on submit — previously a sighted
+                // student saw the result appear; a screen-reader user
+                // heard nothing unless they went looking for it.
+                echo '<div class="bhc-quiz-result" role="status" aria-live="polite" style="display:' . ($exhausted && !$already_passed ? '' : 'none') . '">' . ($exhausted && !$already_passed ? 'No attempts remaining.' : '') . '</div>';
                 echo '</form>';
             }
         } elseif ($step['type'] === 'resource') {
