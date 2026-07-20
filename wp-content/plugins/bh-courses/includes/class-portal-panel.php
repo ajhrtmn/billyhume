@@ -44,7 +44,11 @@ class BHC_PortalPanel {
 
         $course_ids = self::enrolled_course_ids($user_id);
         if (!$course_ids) {
-            echo '<p>You\'re not enrolled in any courses yet.</p>';
+            echo '<div class="bhi-portal-empty">'
+               . '<span class="dashicons dashicons-welcome-learn-more"></span>'
+               . '<p>You\'re not enrolled in any courses yet.</p>'
+               . '<a class="button" href="' . esc_url(home_url('/courses/')) . '">Browse courses &rarr;</a>'
+               . '</div>';
             return;
         }
 
