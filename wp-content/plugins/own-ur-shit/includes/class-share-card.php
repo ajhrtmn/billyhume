@@ -219,14 +219,11 @@ class BH_ShareCard {
             imagettftext($im, 28, 0, $x, $y, $white, $body_font, $subtitle);
         }
 
-        // White, not $dark — the bottom-RIGHT corner is where the
+        // White, not $dark — the bottom-right corner is where the
         // diagonal band's polygon does NOT reach (it sweeps from
         // bottom-left up to the top-right band only), so this sits on
-        // the plain dark background, not the accent band. An earlier
-        // pass drew this in the near-black $dark color, which was
-        // invisible against that same near-black background — caught
-        // by actually rendering and looking at the PNG, not just
-        // reading the coordinates.
+        // the plain dark background, not the accent band; $dark here
+        // would be invisible against that near-black background.
         $mark = 'OWN UR SHIT';
         $box = imagettfbbox(20, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];

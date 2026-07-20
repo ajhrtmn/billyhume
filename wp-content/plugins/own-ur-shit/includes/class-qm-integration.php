@@ -2,17 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Real Query Monitor integration — AJ's own ask, straight after this
- * session's audit pass: "good use of Query Monitor where needed" as part
- * of shoring up core debug tooling before diving into the bh-contest
- * conversion. Until now Query Monitor was just an install-check card on
- * the Dashboard (class-dashboard.php) — QM itself had zero awareness of
- * anything this ecosystem logs. This registers a real QM_Collector that
- * surfaces THIS request's own OUS_DebugLog entries (class-debug-log.php's
- * new request_buffer(), in-memory only, zero extra DB queries) directly
+ * Query Monitor integration. Registers a real QM_Collector that surfaces
+ * THIS request's own OUS_DebugLog entries (class-debug-log.php's
+ * request_buffer(), in-memory only, zero extra DB queries) directly
  * inside Query Monitor's own admin-toolbar panel — so triaging a bug
- * while actively building something doesn't mean bouncing between QM's
- * panel and Debug Tools' Console & Logs screen as two separate tools.
+ * doesn't mean bouncing between QM's panel and Debug Tools' Console &
+ * Logs screen as two separate tools.
  *
  * Entirely optional/degrading: every hook here only fires if Query
  * Monitor's own base classes exist (checked at the point QM itself loads
@@ -35,16 +30,12 @@ class OUS_QM_Integration {
     }
 
     public static function register_output(array $output, $collector = null) {
-        // QM's own 'qm/outputter/html' filter signature varies across
-        // versions (some pass the collector map only, some pass it
-        // pre-keyed) — deliberately not assuming which, and instead
-        // pulling our own collector back out of QM's own registry via
-        // its public accessor, the same way QM's bundled outputters do
-        // internally. If QM's collector registry doesn't have 'ous' for
-        // any reason (e.g. this filter fired before ours registered it —
-        // shouldn't happen given the priority order below, but this is a
-        // real degrade, not a fatal), skip silently rather than fatal on
-        // a null collector.
+        // QM's 'qm/outputter/html' filter signature varies across
+        // versions (some pass the collector map only, some pre-keyed) —
+        // pull our collector back out of QM's own registry via its
+        // public accessor instead of assuming. If it's missing (e.g.
+        // this filter fired before ours registered), skip silently
+        // rather than fatal on a null collector.
         if (!class_exists('QM_Collectors') || !class_exists('OUS_QM_Output')) return $output;
         $collector = QM_Collectors::get('ous');
         if (!$collector) return $output;
@@ -54,12 +45,10 @@ class OUS_QM_Integration {
 }
 
 /**
- * The collector itself does almost nothing — OUS_DebugLog::log() already
- * did the real work of capturing every error/warning/info this request
- * (PHP fatals, doing_it_wrong, deprecated, uncaught exceptions, anything
- * any plugin explicitly logged) into its own in-memory request_buffer().
- * process() just copies that buffer into QM's own ->data shape once,
- * at the point QM asks every collector to finalize.
+ * The collector does almost nothing — OUS_DebugLog::log() already
+ * captures every error/warning/info this request into its own
+ * in-memory request_buffer(). process() just copies that buffer into
+ * QM's ->data shape once, when QM asks each collector to finalize.
  */
 if (class_exists('QM_Collector')) {
     class OUS_QM_Collector extends QM_Collector {
@@ -77,13 +66,13 @@ if (class_exists('QM_Collector')) {
 
 /**
  * Minimal HTML panel — one row per log() call this request, level/
- * source/message/file:line, same fields Debug Tools' own Console & Logs
+ * source/message/file:line, same fields Debug Tools' Console & Logs
  * table already shows (see class-debug-log.php's render_table()) so
  * there's no second, differently-shaped view of the same data to learn.
- * Deliberately does NOT duplicate that table's filtering/pagination/
+ * Deliberately doesn't duplicate that table's filtering/pagination/
  * trace-expansion UI — this panel is for "what just happened on THIS
- * request, at a glance," the full table is still the right place for
- * real triage across many requests.
+ * request, at a glance," the full table is still for real triage
+ * across many requests.
  */
 if (class_exists('QM_Output_Html')) {
     class OUS_QM_Output extends QM_Output_Html {

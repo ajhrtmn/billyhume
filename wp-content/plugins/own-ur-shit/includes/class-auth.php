@@ -19,13 +19,13 @@ class BHI_Auth {
         add_action('wp_footer', [self::class, 'maybe_print_verify_notice']);
     }
 
-    // verify_email_action() redirects with ?bhi_verified=1/0, but nothing
-    // ever read that query param — a real user clicking their
-    // verification link landed on a page with zero acknowledgment
-    // anything happened, silently, every single time. BHCoreToast is
-    // already loaded globally (class-toast.php), so this just needs to
-    // notice the param and clean the URL up afterward via
-    // history.replaceState so a page refresh doesn't re-show it.
+    // verify_email_action() redirects with ?bhi_verified=1/0, but
+    // nothing reads that query param otherwise — a user clicking their
+    // verification link would land with zero acknowledgment anything
+    // happened. BHCoreToast is already loaded globally
+    // (class-toast.php), so this just needs to notice the param and
+    // clean the URL up afterward via history.replaceState so a page
+    // refresh doesn't re-show it.
     public static function maybe_print_verify_notice() {
         if (!isset($_GET['bhi_verified'])) return;
         $ok = $_GET['bhi_verified'] === '1';
@@ -72,15 +72,14 @@ class BHI_Auth {
         $username = (string) $req->get_param('username');
         $fail_key = 'bhi_login_fail_' . md5(strtolower($username) . '|' . self::ip());
 
-        // Was set_transient()/get_transient() — a real, confirmed live
-        // bug this session found the same failure mode causing elsewhere
-        // (OUS_TestRunner's results silently not appearing): on an
-        // install where the persistent object cache is unreliable, a
-        // transient write can report success while never being readable
-        // on a later request. For a security throttle specifically, that
-        // isn't just a UX gap — it means the lockout can silently fail
-        // open, since a login-fail count that never persists never
-        // trips the threshold. See OUS_ReliableStore's own docblock.
+        // Uses OUS_ReliableStore rather than set_transient()/
+        // get_transient() directly: on an install where the persistent
+        // object cache is unreliable, a transient write can report
+        // success while never being readable on a later request. For a
+        // security throttle specifically, that means the lockout can
+        // silently fail open, since a login-fail count that never
+        // persists never trips the threshold. See OUS_ReliableStore's
+        // own docblock.
         if ((int) OUS_ReliableStore::get($fail_key, 0) >= self::LOGIN_MAX_FAILS) {
             return new WP_Error('locked_out', 'Too many failed attempts. Please try again in 15 minutes.', ['status' => 429]);
         }
@@ -132,11 +131,12 @@ class BHI_Auth {
 
         $id = wp_create_user($username, $password, $email);
         if (is_wp_error($id)) {
-            // Previously discarded entirely — every account-creation
-            // failure (a real DB/hosting issue, a race the
+            // Logged rather than discarded — an account-creation
+            // failure (a DB/hosting issue, a race the
             // username_exists()/email_exists() pre-checks above didn't
-            // catch, anything) produced the identical generic client
-            // message with zero trace of the actual cause anywhere.
+            // catch, etc.) would otherwise produce the identical
+            // generic client message with zero trace of the actual
+            // cause anywhere.
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('error', 'wp_create_user() failed during registration.', [
                     'username' => $username, 'email' => $email, 'wp_error' => $id->get_error_message(),
@@ -206,13 +206,10 @@ class BHI_Auth {
             delete_user_meta($uid, '_bhi_email_verify_token');
         }
 
-        // wp_get_referer() is almost always empty here in real use — a
-        // verification link is clicked straight from an email client,
-        // which never sends a Referer header, so this fell through to
-        // the bare homepage nearly every time regardless of where the
-        // student/fan/artist actually started. The account portal is a
-        // far more useful landing spot than the homepage even before
-        // the toast below existed.
+        // wp_get_referer() is almost always empty here — a verification
+        // link is clicked straight from an email client, which never
+        // sends a Referer header. The account portal is a more useful
+        // fallback landing spot than the bare homepage.
         $redirect_to = wp_get_referer() ?: home_url('/account/');
         wp_safe_redirect(add_query_arg('bhi_verified', $valid ? '1' : '0', $redirect_to));
         exit;

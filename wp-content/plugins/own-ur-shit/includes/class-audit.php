@@ -7,10 +7,9 @@ if (!defined('ABSPATH')) exit;
  * distinction matters: BH_Event answers "what did this person do"
  * (their own votes, plays, notes) — this answers "who changed WHAT, to
  * WHAT, on a thing that isn't necessarily their own" (a tier's price, a
- * segment someone else built, another user's role). AJ's own ask:
- * "who changed what tier, who deleted what segment" — that's a
- * before/after diff question the activity timeline was never shaped to
- * answer (it stores one event payload, not a structured old/new diff).
+ * segment someone else built, another user's role) — a before/after
+ * diff question the activity timeline was never shaped to answer (it
+ * stores one event payload, not a structured old/new diff).
  *
  * Storage: {$wpdb->prefix}bhcore_audit_log (actor_user_id, action,
  * object_type, object_id, diff JSON, meta JSON, created_at). Synchronous
@@ -19,16 +18,14 @@ if (!defined('ABSPATH')) exit;
  * crashes, and audit volume is always far lower than raw activity
  * events, so the extra synchronous insert per admin action is cheap.
  *
- * Scope, per AJ's own "do everything important, and anything those
- * important things touch": tier create/update/delete, segment delete,
- * project delete, project link/unlink, submission reject, WordPress
- * role changes (set_user_role — covers granting/revoking the new
- * Studio Manager role from the Users screen for free, no bespoke UI
- * needed), and CRM sensitive-capability-relevant actions. Not
- * exhaustive of every possible admin click in this ecosystem — a
- * deliberately curated "important things" list per AJ's own framing,
- * extensible via log()/log_diff() from anywhere else that turns out to
- * matter.
+ * Scope is deliberately curated to "important things and anything they
+ * touch": tier create/update/delete, segment delete, project delete,
+ * project link/unlink, submission reject, WordPress role changes
+ * (set_user_role — covers granting/revoking the new Studio Manager
+ * role from the Users screen for free, no bespoke UI needed), and CRM
+ * sensitive-capability-relevant actions. Not exhaustive of every
+ * possible admin click in this ecosystem — extensible via
+ * log()/log_diff() from anywhere else that turns out to matter.
  *
  * DENIED/FAILED ACTIONS: require_cap() is a drop-in replacement for the
  * `if (!current_user_can($cap)) wp_die(...)` pattern used all over this
@@ -36,21 +33,18 @@ if (!defined('ABSPATH')) exit;
  * (a normal permission mismatch is not inherently a security event, and
  * logging every one would be pure noise) — it tracks a rolling per-user
  * denial count and only writes a real audit entry once that count
- * crosses a concerning threshold in a short window, per AJ's own "log
- * denies and fails if they exceed a concerning amount."
+ * crosses a concerning threshold in a short window.
  *
- * PRUNING: "keep it unless or until it becomes too much extra bloat" —
- * maybe_prune() is a cheap row-count check run opportunistically on
- * write (throttled to once per request via a static flag, and further
- * throttled via a transient so it isn't a real query on every single
- * write) that deletes the oldest rows once the table crosses
- * MAX_ROWS, keeping the newest KEEP_ROWS. Time-based alone was
- * rejected — an admin-only tool used rarely could go a year with only
- * a handful of entries (nothing to prune) or, on an active multi-
- * manager site, accumulate thousands in a month (bloat well before a
- * fixed calendar cutoff) — row-count is the more honest bound for
- * "debugging bloat," which is what AJ's own framing named as the
- * actual concern.
+ * PRUNING: maybe_prune() is a cheap row-count check run
+ * opportunistically on write (throttled to once per request via a
+ * static flag, and further throttled via a transient so it isn't a
+ * real query on every single write) that deletes the oldest rows once
+ * the table crosses MAX_ROWS, keeping the newest KEEP_ROWS. Time-based
+ * alone was rejected — an admin-only tool used rarely could go a year
+ * with only a handful of entries (nothing to prune) or, on an active
+ * multi-manager site, accumulate thousands in a month (bloat well
+ * before a fixed calendar cutoff) — row-count is the more honest
+ * bound for debugging bloat.
  */
 class OUS_Audit {
     const MAX_ROWS = 20000;

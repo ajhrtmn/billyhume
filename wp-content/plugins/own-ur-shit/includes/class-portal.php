@@ -1,28 +1,23 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
-// class-debug.php's own docblock). This section is read-only (lists
-// registered portal panels + a link to the live portal), so it groups
-// with API/Codebase Docs under "Reference & Docs" rather than the
-// default bucket. No other change.
+// register_debug_section() sets 'group' => OUS_Debug::GROUP_REFERENCE.
+// This section is read-only (lists registered portal panels + a link to
+// the live portal), so it groups with API/Codebase Docs under
+// "Reference & Docs" rather than the default bucket.
 
 /**
- * BHI_Portal — the custom user-facing account shell (ROADMAP-platform-evolution.md
- * Section 6). A genuinely separate, branded front-end account area, not
- * a reskinned wp-admin and not a pile of independent per-plugin
- * shortcodes on separate pages. Renders at a rewrite-owned `/account/`
- * URL, built entirely from panels contributed via the `bhi_portal_panels`
- * filter — the same zero-central-registration shape `ous_registered_plugins`/
- * `ous_debug_tools`/`bhy_style_surfaces` already use successfully.
+ * BHI_Portal — the custom user-facing account shell. A genuinely
+ * separate, branded front-end account area, not a reskinned wp-admin
+ * and not a pile of independent per-plugin shortcodes on separate
+ * pages. Renders at a rewrite-owned `/account/` URL, built entirely
+ * from panels contributed via the `bhi_portal_panels` filter — the
+ * same zero-central-registration shape `ous_registered_plugins`/
+ * `ous_debug_tools`/`bhy_style_surfaces` already use.
  *
- * This handoff ships the SHELL, the filter contract, the wp-admin
- * exclusion rollout, and ONE real migrated panel (profile/identity —
- * see BHI_PublicProfile::render_portal_panel()) — matching how this
- * ecosystem always ships a new extension point: one real, working
- * example plus a documented contract, not every possible consumer at
- * once (see own-ur-shit's own OUS_Notifications/OUS_Jobs history).
+ * Ships the shell, the filter contract, the wp-admin exclusion
+ * rollout, and one real migrated panel (profile/identity — see
+ * BHI_PublicProfile::render_portal_panel()).
  *
  * Each panel entry (registered via the filter):
  *   [
@@ -44,102 +39,57 @@ class BHI_Portal {
     const REWRITE_SLUG = 'account';
 
     public static function init() {
-        // THE REAL BUG, finally found: own-ur-shit.php hooks
-        // BHI_Portal::init() itself onto 'init' (default priority 10).
-        // The line that used to be here — add_action('init', [self::class,
-        // 'add_rewrite']) — was registering a NEW 'init' callback from
-        // INSIDE a callback that is itself currently running as part of
-        // 'init' priority 10. PHP's foreach over WP_Hook's callback array
-        // for a given priority is a snapshot taken when that priority's
-        // iteration begins; a handler appended to that same priority
-        // AFTER iteration has already started is not picked up until the
-        // NEXT time the hook fires — which, for 'init' on a normal page
-        // load, never happens again in that request. So add_rewrite()
-        // was being scheduled to run, successfully, on a request that
-        // would never come — which is exactly why even the always-
-        // throttled breadcrumb at the top of add_rewrite() never once
-        // appeared in Console & Logs: the method itself was never
-        // actually being called, not failing partway through. This is a
-        // well-known WordPress hook-timing footgun (self-hooking the
-        // currently-executing action at the same or an already-passed
-        // priority), not a caching issue like this class's other fixes.
-        // Fix: call it directly. We're already executing inside 'init'
-        // right now (that's how we got here), so there's no need to
-        // re-hook it at all — a plain call runs it immediately, in the
-        // same request, every time.
-        // Deferred to priority 20, not called immediately — running it at
-        // the default priority-10 pass (like the first fix did) meant it
-        // could execute BEFORE other plugins' own 'init'-priority-10
-        // rewrite_rule registrations had happened, so a flush triggered
-        // this early could capture an incomplete rule set and, worse,
-        // this method's own wp_cache_flush() wipes the ENTIRE object
-        // cache mid-request — including cached reads other code later in
-        // the SAME request (like OUS_Debug::is_locked()'s host checks)
-        // depends on, which is the most likely cause of the API Docs
-        // page intermittently breaking right after the first Portal fix
-        // shipped. Priority 20 is still well within the SAME 'init' pass
-        // (WP_Hook::do_action() walks priority buckets in order within
-        // one call — a bucket that hasn't been reached yet when a
-        // callback is added to it during an earlier bucket's iteration
-        // DOES still run this same request, unlike same-priority
-        // self-hooking, which is the actual bug the first fix solved).
-        // This gives every other plugin's own default-priority rewrite
-        // registration a chance to complete first, and pushes the
-        // heaviest, most cache-disruptive part of this method as late as
-        // reasonably possible in the request.
+        // add_rewrite() runs directly here rather than being re-hooked onto
+        // 'init' from inside init() — self-hooking the currently-executing
+        // action at an already-passed priority means WP_Hook's snapshot
+        // iteration never picks it up again this request (a well-known
+        // WordPress hook-timing footgun). We're already executing inside
+        // 'init', so a plain call runs it immediately.
+        //
+        // Deferred to priority 20 rather than called at the top: this lets
+        // other plugins' own default-priority (10) rewrite_rule
+        // registrations complete first, and pushes this method's
+        // wp_cache_flush() — which wipes the entire object cache
+        // mid-request, including reads other same-request code (e.g.
+        // OUS_Debug::is_locked()) depends on — as late as reasonably
+        // possible. Priority 20 still runs within the same 'init' pass,
+        // since WP_Hook::do_action() walks not-yet-reached priority
+        // buckets in order within one call.
         add_action('init', [self::class, 'add_rewrite'], 20);
         add_filter('query_vars', [self::class, 'add_query_var']);
         add_action('template_redirect', [self::class, 'maybe_render']);
 
-        // AJ's ask: the portal landed a visitor on a bare "upload an
-        // avatar" form (Profile, the lowest-priority-number real panel
-        // before this) with zero sense of where they actually stood
-        // across courses/contests/membership — every one of those was a
-        // click away and invisible until you went looking. Priority 1
-        // (lower than Profile's own 10) makes this the landing tab
-        // instead. Registered from core, not any one plugin, since it
-        // reads across all of them — each section is independently
-        // class_exists()-guarded so this degrades cleanly on an install
-        // that doesn't have bh-courses/bh-contest/bh-monetization-woo
-        // active at all, same posture every cross-plugin integration
-        // point in this ecosystem already takes.
+        // Without an overview tab, the portal landed a visitor on a bare
+        // "upload an avatar" form (Profile) with zero sense of where they
+        // stood across courses/contests/membership. Priority 1 (lower than
+        // Profile's own 10) makes this the landing tab instead. Registered
+        // from core since it reads across all plugins — each section is
+        // independently class_exists()-guarded so this degrades cleanly
+        // when bh-courses/bh-contest/bh-monetization-woo aren't active.
         add_filter('bhi_portal_panels', [self::class, 'register_overview_panel'], 1);
 
         // wp-admin exclusion rollout — redirect non-elevated roles off
         // /wp-admin entirely (not just hiding the admin bar, which is
         // cosmetic and leaves the dashboard reachable by direct URL),
-        // and disable the admin bar for the same roles. One place, one
-        // filter for role exemptions, per the roadmap's own direction
-        // ("in the core, not per-plugin").
+        // and disable the admin bar for the same roles.
         add_action('admin_init', [self::class, 'maybe_redirect_from_wp_admin']);
         add_filter('show_admin_bar', [self::class, 'maybe_hide_admin_bar']);
 
-        // Closes the one real remaining hop this rollout left open: WP
-        // core's default post-login redirect target is admin_url() —
-        // technically still caught by maybe_redirect_from_wp_admin()
-        // above the moment that page loads (every real wp-admin screen,
-        // including admin-post.php, runs through wp-admin/admin.php,
-        // which is what actually fires 'admin_init' — admin-ajax.php is
-        // the one wp-admin entry point that does NOT, which is correct
-        // and intentional: it returns JSON/fragments, not an HTML
-        // screen, and a blanket block there would break legitimate
-        // customer-facing AJAX, e.g. WooCommerce cart, contest voting —
-        // but that's still an extra bounce through a page the person
-        // was never going to be allowed to see. Sending them straight to
-        // the portal on login is a straight correctness/UX improvement,
-        // not a new security boundary — the boundary was already closed
-        // by maybe_redirect_from_wp_admin().
+        // WP core's default post-login redirect target is admin_url(),
+        // which is still caught by maybe_redirect_from_wp_admin() the
+        // moment that page loads, but that's still an extra bounce
+        // through a page the person was never going to see. Sending them
+        // straight to the portal on login is a UX improvement, not a new
+        // security boundary — the boundary is already closed above.
         add_filter('login_redirect', [self::class, 'maybe_redirect_login'], 20, 3);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
 
-        // ELEMENT-BUILDER-DESIGN-PLAN.md §5.4 — the 'portal_panel'
-        // bh_element_surfaces contributor stays registered (Design Suite's
-        // Element Builder can still compose content against it), but per
-        // AJ's explicit "don't need Custom panel in portal" call, it's no
-        // longer surfaced as its own portal nav tab — register_elements_
-        // panel()/render_elements_panel() are kept (harmless, unused) in
-        // case a real per-user or named panel use case shows up later,
-        // rather than deleting working code for a naming/UX call.
+        // The 'portal_panel' bh_element_surfaces contributor stays
+        // registered (Element Builder can still compose content against
+        // it), but it's no longer surfaced as its own portal nav tab —
+        // register_elements_panel()/render_elements_panel() are kept
+        // (harmless, unused) in case a real per-user or named panel use
+        // case shows up later.
         // add_filter('bhi_portal_panels', [self::class, 'register_elements_panel']);
     }
 
@@ -175,18 +125,16 @@ class BHI_Portal {
     }
 
     /**
-     * The "one new panel type" §5.4 asks for: an element-composed panel
-     * registered through the EXISTING bhi_portal_panels contract, exactly
-     * like every other panel (profile, etc.) — nothing about the Portal's
-     * own panel machinery changes. render_elements_panel() below is the
-     * panel's 'render' callback; it does nothing but call
-     * BH_Element::render_slot() for the 'portal_panel' surface's 'body'
-     * slot, context 0 (the one site-wide panel this phase ships).
+     * An element-composed panel registered through the existing
+     * bhi_portal_panels contract, exactly like every other panel —
+     * nothing about the Portal's own panel machinery changes.
+     * render_elements_panel() below is the panel's 'render' callback; it
+     * does nothing but call BH_Element::render_slot() for the
+     * 'portal_panel' surface's 'body' slot, context 0 (the one site-wide
+     * panel this phase ships).
      *
      * class_exists('BH_Element') guarded so this panel simply doesn't
-     * register at all if the element-builder classes are ever absent —
-     * same "harmless to keep, never a hard dependency" posture
-     * BHCRM_People::register_element_surface()'s own docblock describes.
+     * register at all if the element-builder classes are ever absent.
      */
     public static function register_elements_panel($panels) {
         if (!class_exists('BH_Element')) return $panels;
@@ -209,23 +157,20 @@ class BHI_Portal {
         $ctx = ['user_id' => get_current_user_id()];
         $html = BH_Element::render_slot('portal_panel', 0, 'body', $ctx);
         if ($html === '') {
-            // Real dead-link bug, caught and fixed: this used to point
-            // at admin.php?page=bh-element-builder — a real page in an
-            // earlier arc of this project, since deleted (see
-            // class-style-gallery.php's own docblock on why) and never
-            // replaced with an equivalent admin UI. No such page exists
-            // to link to anymore; stating that honestly rather than
-            // leaving a broken link in a real, live empty-state message.
+            // No admin UI for composing placements exists in this version
+            // (the earlier admin.php?page=bh-element-builder page was
+            // deleted — see class-style-gallery.php — and never replaced),
+            // so state that honestly rather than link to a page that
+            // doesn't exist.
             echo '<p>Nothing has been placed here yet (surface "portal_panel", slot "body") — no admin UI for composing placements exists in this version.</p>';
             return;
         }
         echo $html; // phpcs:ignore -- BH_Element::render_slot()'s own output is already escaped/kses'd per-element at the render_placement() boundary, same trust posture render_slot()'s other call sites (dashboard, CRM) already use.
     }
 
-    // Same self-diagnosing instinct the API Docs 404 fix started this
-    // pass with — "why isn't my panel showing on the portal" now has a
-    // one-click answer instead of requiring a re-read of every
-    // contributing plugin's own bootstrap file.
+    // "Why isn't my panel showing on the portal" gets a one-click answer
+    // here instead of requiring a re-read of every contributing plugin's
+    // own bootstrap file.
     public static function register_debug_section($tools) {
         $tools['bhi-portal'] = ['label' => 'Portal', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
@@ -248,21 +193,18 @@ class BHI_Portal {
         echo '<p>Excluded roles: <code>' . esc_html(implode(', ', self::excluded_roles())) . '</code></p>';
 
         // Registered panels above only prove the PHP ran — a "/account/
-        // 404s despite everything else working" report needs a DIFFERENT
+        // 404s despite everything else working" report needs a different
         // question answered: did the rewrite rule actually make it into
-        // WordPress's own persisted rewrite table, or is this a web-
-        // server-level proxy issue (nginx/Apache never even handing the
-        // request to WordPress, in which case this PHP never runs at
-        // all for that URL and nothing on this page could show it
-        // either way)? This reads the SAME option WordPress itself
-        // consults on every front-end request, so a "not found here"
-        // result is a real, actionable signal, not a guess.
+        // WordPress's persisted rewrite table, or is this a web-server-
+        // level proxy issue (request never reaching WordPress's PHP at
+        // all, in which case nothing on this page could show it either
+        // way)? This reads the same option WordPress itself consults on
+        // every front-end request, so a "not found here" result is a
+        // real, actionable signal.
         echo '<h4>Rewrite rule</h4>';
-        // Reads straight from the DB (same bypass add_rewrite() itself
-        // uses) rather than get_option(), which is exactly the layer
-        // that was proven to lie on this class's own real bug report —
-        // this panel needs to answer "what's ACTUALLY in the database,"
-        // not "what does the (possibly stale) object cache claim."
+        // Reads straight from the DB rather than get_option(), so this
+        // answers "what's actually in the database" rather than "what
+        // does a possibly-stale object cache claim."
         $found = self::rewrite_rule_persisted();
         if ($found) {
             echo '<p>&#9989; Found in the persisted rewrite table — WordPress itself knows this URL. '
@@ -285,42 +227,33 @@ class BHI_Portal {
         return home_url('/' . self::REWRITE_SLUG . '/');
     }
 
-    // Historical version-gate constant — no longer used to DECIDE whether
-    // to flush (see add_rewrite() below, which now verifies persistence
-    // directly instead of trusting a "done" flag), kept only because
-    // bumping it is still the right signal to a human reading git history
-    // that the rule shape itself changed. The v1 -> v2 bump on a real
-    // install proved a one-shot version-gated flush isn't good enough:
-    // it can mark itself "done" via update_option() while a persistent
-    // object cache (Redis/Memcached) keeps serving the OLD rewrite_rules
+    // Historical version-gate constant — no longer used to decide whether
+    // to flush (add_rewrite() below now verifies persistence directly
+    // instead of trusting a "done" flag), kept because bumping it is
+    // still the right signal to a human reading git history that the rule
+    // shape changed. A one-shot version-gated flush isn't good enough: it
+    // can mark itself "done" via update_option() while a persistent
+    // object cache (Redis/Memcached) keeps serving the old rewrite_rules
     // value on every subsequent request, forever, because nothing ever
-    // re-checks. See verify_rewrite_persisted() for the actual fix.
+    // re-checks.
     const REWRITE_VERSION = '2';
 
     // Rate-limit guard for the DB-bypassing verification below — cheap on
     // its own, but a real flush_rewrite_rules() touches .htaccess/DB on
     // every hit, so if something is fundamentally broken (a cache that
     // refuses to ever let go of a stale value) this stops it from being
-    // re-attempted on literally every single request. 60s is short enough
-    // that a real fix (activating an object cache, disabling a broken
-    // one) is visible almost immediately, long enough that init-hook
+    // re-attempted on every single request. 60s is short enough that a
+    // real fix is visible almost immediately, long enough that init-hook
     // traffic doesn't turn into a flush storm.
     const VERIFY_THROTTLE_SECONDS = 60;
 
     public static function add_rewrite() {
-        // Diagnostic breadcrumb — a real, reported symptom (rewrite rule
-        // confirmed missing on every reload, but ZERO Portal log entries
-        // at all, not even the throttled "still broken" warning that
-        // should fire at least once across many reloads/minutes) points
-        // at this whole method possibly never being ENTERED, not a bug
-        // in its internal logic. This one unconditional (but still
-        // throttled, so it can't flood) line at the very top settles
-        // that definitively on the next page load: if this never
-        // appears in Console & Logs either, the problem is upstream of
-        // this class entirely (the 'init' hook never firing for
-        // BHI_Portal::init(), or a fatal earlier in the same request) —
-        // if it DOES appear but nothing below it does, the problem is
-        // isolated to rewrite_rule_persisted()/not_recently_attempted().
+        // Unconditional (but throttled) breadcrumb: if this never appears
+        // in Console & Logs, the problem is upstream of this class
+        // entirely (the 'init' hook never firing, or a fatal earlier in
+        // the request); if it appears but nothing below it does, the
+        // problem is isolated to rewrite_rule_persisted()/
+        // not_recently_attempted().
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log_throttled('info', 'portal_add_rewrite_entered', 120,
                 'BHI_Portal::add_rewrite() was entered this request.', [], 'Portal'

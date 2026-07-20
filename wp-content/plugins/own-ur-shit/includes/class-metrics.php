@@ -2,48 +2,38 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The real creator dashboard VISION.md's own near-term roadmap has
- * named since before this pass ("Metrics — a real creator dashboard,
- * not just per-plugin stats pages... a bhcore_metrics_widgets filter,
- * one shared dashboard page, each plugin contributing its own KPI
- * card"). Built now, for real — AJ's own explicit ask, treating
- * metrics as foundational infrastructure to grow IN TANDEM with
- * bh-courses/bh-contest/bh-crm, not a bolt-on after the fact.
+ * A real creator dashboard rather than per-plugin stats pages: a
+ * bhcore_metrics_widgets filter, one shared dashboard page, each
+ * plugin contributing its own KPI card. Foundational infrastructure
+ * meant to grow in tandem with bh-courses/bh-contest/bh-crm, not a
+ * bolt-on.
  *
- * Reads `bhcore_events` (BH_Event's own table — see class-event.php),
- * the self-hosted event-tracking envelope every real GA/Meta-Pixel/
- * Segment replacement in this ecosystem already emits into. This
- * class adds nothing new to WRITE that table — it's purely a read/
- * aggregate layer, so it can't introduce a new place tracking data
- * could silently diverge from what BH_Event already records.
+ * Reads `bhcore_events` (BH_Event's table — see class-event.php), the
+ * self-hosted event-tracking envelope every GA/Meta-Pixel/Segment
+ * replacement in this ecosystem emits into. This class adds nothing
+ * new to WRITE that table — it's purely a read/aggregate layer, so it
+ * can't introduce a new place tracking data could diverge from what
+ * BH_Event already records.
  *
- * Security posture, stated explicitly per AJ's own "as secure as
- * possible" instruction: gated to `manage_options` only, same as
- * every other cross-cutting admin surface in this ecosystem — this is
- * the SITE OWNER's own aggregate view of their own audience's
- * activity, never a per-visitor identity lookup exposed here. Widgets
- * are expected to render COUNTS/TRENDS, not raw per-user event rows —
- * a widget that needs to show an individual person's activity belongs
- * on that person's own CRM detail page (bh-crm), not this aggregate
- * dashboard.
+ * Security posture: gated to `manage_options` only, same as every
+ * other cross-cutting admin surface in this ecosystem — this is the
+ * site owner's own aggregate view of their audience's activity, never
+ * a per-visitor identity lookup. Widgets are expected to render
+ * COUNTS/TRENDS, not raw per-user event rows — a widget needing an
+ * individual person's activity belongs on that person's CRM detail
+ * page (bh-crm), not this aggregate dashboard.
  *
- * What this dashboard is FOR, per AJ's own framing while it was being
- * wired up: not vanity numbers, and not competitive pressure against
- * other artists — "they just want to fit into their community their
- * way, and understand how people are interacting with their content."
- * That's why event_trend_monthly() exists alongside the daily
- * event_trend() ("not short term trends, long term patterns") — a
- * single day spiking or dipping isn't the story; whether a community
- * is actually growing over months is. Two ideas AJ raised live but are
- * deliberately NOT built here yet, flagged for their own future design
- * pass rather than bolted on blind: (1) benchmarking a creator's own
- * numbers against "the global market" — genuinely useful, but only
- * buildable without recreating a surveillance/leaderboard dynamic if
- * it's opt-in and anonymized, same hard constraint already called out
- * for federated cross-instance metrics; (2) richer "how is my audience
- * actually engaging" views beyond simple counts (e.g. return-visitor
- * patterns, content-type affinity) — a real Phase 2 for this
- * dashboard, not a same-day addition.
+ * Purpose: not vanity numbers or competitive pressure against other
+ * artists, but understanding how an artist's own community engages
+ * with their content. That's why event_trend_monthly() exists
+ * alongside the daily event_trend() — a single day spiking or dipping
+ * isn't the story; whether a community is actually growing over
+ * months is. Two related ideas deliberately NOT built here yet: (1)
+ * benchmarking a creator's numbers against the global market — only
+ * buildable without a surveillance/leaderboard dynamic if opt-in and
+ * anonymized, same constraint as federated cross-instance metrics;
+ * (2) richer engagement views beyond simple counts (return-visitor
+ * patterns, content-type affinity) — a Phase 2, not a same-day add.
  */
 class OUS_Metrics {
     public static function init() {
@@ -98,13 +88,11 @@ class OUS_Metrics {
 
     /**
      * Month-bucketed counts for the last $months months — the long-
-     * pattern counterpart to event_trend()'s daily view. AJ's own
-     * distinction, stated live while this dashboard was being wired up
-     * across bh-courses/bh-contest/bh-crm: "Not short term trends, long
-     * term patterns" — a 30-day daily sparkline answers "is this week
-     * unusual," not "is this actually growing." Always 0-filled, same
-     * gap-free contract as event_trend(). Returns ['Y-m' => count, ...]
-     * in chronological order.
+     * pattern counterpart to event_trend()'s daily view. A 30-day daily
+     * sparkline answers "is this week unusual," not "is this actually
+     * growing." Always 0-filled, same gap-free contract as
+     * event_trend(). Returns ['Y-m' => count, ...] in chronological
+     * order.
      */
     public static function event_trend_monthly($type, $months = 12) {
         global $wpdb;

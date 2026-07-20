@@ -41,15 +41,12 @@ class BH_SEO {
      */
     public static function set_page_data(array $data) {
         self::$page_data = apply_filters('bh_seo_page_data', $data);
-        // Real bug, caught live: WordPress core renders its own
-        // rel=canonical (pointing at the literal page permalink) via
-        // WP_Head's default rel_canonical() hook — with this class ALSO
-        // rendering one (deliberately pointing at the semantic content
-        // URL instead, e.g. a shortcode's own ?bh_user=1 rather than
-        // whatever page happens to embed it), a page ended up with TWO
-        // conflicting canonical tags. Whichever content this class is
-        // given authority over should win outright, not just add a
-        // second, contradictory opinion.
+        // WordPress core renders its own rel=canonical (pointing at the
+        // literal page permalink) via WP_Head's rel_canonical() hook.
+        // This class renders one too, deliberately pointing at the
+        // semantic content URL instead (e.g. a shortcode's ?bh_user=1
+        // rather than whatever page embeds it) — remove core's so a
+        // page doesn't end up with two conflicting canonical tags.
         remove_action('wp_head', 'rel_canonical');
     }
 

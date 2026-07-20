@@ -7,12 +7,10 @@ if (!defined('ABSPATH')) exit;
  * bhm_tier, bh_course) still use WordPress's default two-column
  * post-edit chrome — one narrow stacked column of meta boxes plus a
  * fixed ~280px sidebar — on screens with far more horizontal room than
- * that layout ever uses. AJ's own framing, after looking at the
- * contest edit screen specifically: "many admin pages suffer from the
- * same issues." Confirmed live: the sidebar's own "Contest Rules &
- * Results" box was visibly overflowing its column with real content
- * (submission window fields, contact-info checkboxes, a Discord
- * webhook field), while the main column sat mostly empty to its right.
+ * that layout ever uses. The sidebar's own "Contest Rules & Results"
+ * box was visibly overflowing its column with real content (submission
+ * window fields, contact-info checkboxes, a Discord webhook field),
+ * while the main column sat mostly empty to its right.
  *
  * This does NOT move any meta box between 'normal'/'side' registration
  * context (that's a DOM-container change, not a CSS one, and would
@@ -33,22 +31,21 @@ if (!defined('ABSPATH')) exit;
  * this ecosystem.
  */
 class OUS_AdminLayout {
-    // Real bug, caught live: 1200px was an all-or-nothing gate, not a
-    // graceful degradation point — the masonry treatment below
-    // (`columns: 360px 3`) is ALREADY fluid on its own (the browser
-    // computes min(3, floor(available_width / 360)) columns, naturally
-    // collapsing to 2 then 1 as the viewport narrows, no media query
-    // needed for that part). The only thing gated on this constant is
-    // whether the nicer card treatment applies AT ALL — so anywhere
-    // between roughly 850px (WordPress's own admin sidebar collapse
-    // point) and 1200px got the OLD cramped stock two-column layout
-    // back with zero warning, the exact "sidebar overflowing, main
-    // column empty" problem this whole class exists to fix. Lowered to
-    // WordPress core's own well-known admin-menu collapse breakpoint
-    // (782px, where wp-admin's sidebar itself already goes icon-only) —
-    // below that is genuinely mobile/tablet territory where WP's own
-    // plain stacked default is the right call; everything wider now
-    // gets the masonry treatment, closing the awkward gap.
+    // 1200px was an all-or-nothing gate, not a graceful degradation
+    // point — the masonry treatment below (`columns: 360px 3`) is
+    // already fluid on its own (the browser computes
+    // min(3, floor(available_width / 360)) columns, collapsing to 2
+    // then 1 as the viewport narrows, no media query needed for that
+    // part). The only thing gated on this constant is whether the
+    // nicer card treatment applies at all — so anywhere between
+    // roughly 850px (WordPress's own admin sidebar collapse point) and
+    // 1200px got the old cramped stock two-column layout back, the
+    // exact "sidebar overflowing, main column empty" problem this
+    // class exists to fix. Lowered to WordPress core's own admin-menu
+    // collapse breakpoint (782px, where wp-admin's sidebar itself
+    // already goes icon-only) — below that is genuinely mobile/tablet
+    // territory where WP's own plain stacked default is the right
+    // call; everything wider now gets the masonry treatment.
     const BREAKPOINT = 782; // px — below this, WordPress's own default layout is left untouched
 
     public static function init() {
@@ -69,15 +66,11 @@ class OUS_AdminLayout {
         $bp = self::BREAKPOINT;
         echo '<style id="ous-admin-wide-layout">
         @media (min-width: ' . (int) $bp . 'px) {
-            /* AJ\'s own call after seeing the first cut of this fix:
-               "the sidebar is awful and should be the main content,
-               but better laid out and streamlined... I\'d be fine with
-               no sidebar, just a bunch of well laid out widgets." No
-               more distinct sidebar column at all — every meta box
+            /* No distinct sidebar column at all — every meta box
                (Publish included) becomes one card in a single uniform
                grid, regardless of whether WordPress itself considers
                it \'normal\', \'side\', or \'advanced\' priority.
-               \'side\'/\'normal\'/\'advanced\' still control DEFAULT
+               \'side\'/\'normal\'/\'advanced\' still control default
                ordering (grid auto-flow follows DOM order) and which
                drag-reorder GROUP a box belongs to (WordPress\'s own
                postboxes.js keeps those three sortable groups
@@ -93,13 +86,11 @@ class OUS_AdminLayout {
                visual position, keeps working), they just stop
                generating their own box, letting every .postbox several
                levels deep become a direct grid item on #post-body
-               itself. Confirmed live this handles BOTH DOM shapes a
-               CPT can have — a normal post-editor screen AND a
-               title-only one (bh_contest/bh_submission), which
-               previously needed two different CSS strategies because
-               of a real WordPress core template difference between
-               the two (see this file\'s git history for the full story
-               if that distinction ever matters again). */
+               itself. Handles both DOM shapes a CPT can have — a
+               normal post-editor screen and a title-only one
+               (bh_contest/bh_submission), which previously needed two
+               different CSS strategies due to a WordPress core
+               template difference between the two. */
             #poststuff #post-body,
             #poststuff #post-body-content,
             #poststuff #postbox-container-1,
@@ -110,39 +101,35 @@ class OUS_AdminLayout {
                 display: contents;
             }
 
-            /* AJ\'s own follow-up: "no so much white space cuz of the
-               grid... it just looks wrong." Fair — CSS Grid lays boxes
-               out in strict ROWS, so a short card next to a tall one
-               (Publish next to the much longer Contest Rules &
-               Results) leaves a large dead gap under the short one;
-               grid-auto-flow:dense only backfills LATER gaps, it can\'t
-               fix a gap directly beside a tall neighbor in the same
-               row. Real fix: CSS multi-column layout (not CSS Grid) —
-               genuine top-to-bottom masonry-style packing, no build
-               step or JS measurement pass needed. The one real
-               tradeoff: reading order becomes top-to-bottom-then-next-
-               column (newspaper-style) rather than grid\'s left-to-
-               right-then-wrap — acceptable here since these are
-               independent cards, not a sequence that has to be read
-               in a specific order. */
+            /* CSS Grid lays boxes out in strict rows, so a short card
+               next to a tall one (Publish next to the much longer
+               Contest Rules & Results) leaves a dead gap under the
+               short one; grid-auto-flow:dense only backfills later
+               gaps, it can\'t fix a gap directly beside a tall
+               neighbor in the same row. CSS multi-column layout (not
+               CSS Grid) gives genuine top-to-bottom masonry-style
+               packing instead, no build step or JS measurement pass
+               needed. Tradeoff: reading order becomes top-to-bottom-
+               then-next-column (newspaper-style) rather than grid\'s
+               left-to-right-then-wrap — acceptable since these are
+               independent cards, not a sequence read in a specific
+               order. */
             #poststuff {
                 columns: 360px 3;
                 column-gap: 16px;
             }
 
-            /* AJ\'s own follow-up after seeing the layout-only fix
-               live: "it looks awful in the screenshots" — fair; the
-               above only rearranged stock WordPress metaboxes, still
-               flat white boxes with a harsh 1px border and a cramped
-               header. This ecosystem already has a real design system
-               for exactly this — own-ur-shit\'s --bhy-* tokens
-               (class-ui.php) — and it\'s already loaded on every one of
-               these screens (print_design_system_css() fires on any
-               screen id containing "bh"/"ous", which every post type
-               in this ecosystem does), just never applied to WordPress
-               core\'s own .postbox chrome before now. Reusing the exact
-               tokens .bhy-card itself uses elsewhere, rather than
-               inventing a second visual language. */
+            /* The layout-only fix above just rearranged stock
+               WordPress metaboxes, still flat white boxes with a
+               harsh 1px border and a cramped header. This ecosystem
+               already has a design system for exactly this —
+               own-ur-shit\'s --bhy-* tokens (class-ui.php) — already
+               loaded on every one of these screens
+               (print_design_system_css() fires on any screen id
+               containing "bh"/"ous"), just never applied to WordPress
+               core\'s own .postbox chrome before now. Reuses the same
+               tokens .bhy-card uses elsewhere rather than inventing a
+               second visual language. */
             #poststuff .postbox {
                 /* break-inside:avoid is the multi-column equivalent of
                    grid\'s own "don\'t split a card across two rows" —

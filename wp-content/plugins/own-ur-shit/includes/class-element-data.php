@@ -4,10 +4,9 @@ if (!defined('ABSPATH')) exit;
 /**
  * BH_Element_Data — the data-binding resolver for BH_Element
  * (ELEMENT-BUILDER-DESIGN-PLAN.md Section 3.2 / Section 1 judgment call
- * 1.2). This is the piece the user explicitly asked to get the most
- * care: "quality databinding" — validated registrations, graceful
- * (never fatal) degrade on a missing/invalid/erroring source, and
- * fail-safe fallback to whatever static literal the caller supplied.
+ * 1.2). Validated registrations, graceful (never fatal) degrade on a
+ * missing/invalid/erroring source, and fail-safe fallback to whatever
+ * static literal the caller supplied.
  *
  * Registration mirrors BH_Event::register_event_type() /
  * BH_Content::register_block_type() — zero central authority, any

@@ -34,11 +34,10 @@ if (!defined('ABSPATH') ) exit;
  * is `permission_callback => __return_true` (fully public, unauthenticated),
  * so anything registered here is exposed to anonymous visitors:
  * - **bh-crm**: real, private person records (contact info, notes,
- *   tags) about real people. AJ's own standing rule, stated directly:
- *   "err on the side of safety and privacy — search shouldn't take
- *   people where they aren't allowed to go." A future admin-only CRM
- *   search (inside wp-admin, capability-gated) would be a legitimate,
- *   SEPARATE feature — it must never share this public dispatch layer.
+ *   tags) about real people — search shouldn't take people where they
+ *   aren't allowed to go. A future admin-only CRM search (inside
+ *   wp-admin, capability-gated) would be a legitimate, SEPARATE feature
+ *   — it must never share this public dispatch layer.
  * - **bh-streaming**: no privacy issue, just no real destination yet —
  *   tracks/releases have no canonical per-item URL at all (confirmed in
  *   ROADMAP-discoverability.md), only ever reachable through the
