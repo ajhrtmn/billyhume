@@ -382,7 +382,7 @@ class OUS_DebugLog {
     }
 
     public static function ajax_log_js_error() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'ous_log_js_error')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['_wpnonce'] ?? '', 'ous_log_js_error')) {
             wp_send_json_error('', 403);
         }
         $level = sanitize_key($_POST['level'] ?? 'error');

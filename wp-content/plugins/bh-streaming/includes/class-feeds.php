@@ -147,7 +147,7 @@ class BHS_Feeds {
     }
 
     public static function handle_manual_sync() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhs_sync_feed')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhs_sync_feed')) {
             wp_die('Not allowed.');
         }
         $feed_id = (int) ($_GET['feed_id'] ?? 0);

@@ -134,7 +134,7 @@ class BHS_PROWizard {
     }
 
     public static function handle_save() {
-        if (!current_user_can('manage_options') || !isset($_POST['bhs_pro_wizard_nonce']) || !wp_verify_nonce($_POST['bhs_pro_wizard_nonce'], 'bhs_pro_wizard_save')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['bhs_pro_wizard_nonce'] ?? '', 'bhs_pro_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
 

@@ -17,7 +17,7 @@ class BH_AdminReports {
     // entirely, this is the "pull everything" escape hatch rather than
     // having no way to get the underlying data out at all.
     public static function export_csv() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_export')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_export')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid  = (int) ($_GET['contest_id'] ?? 0);
@@ -98,7 +98,7 @@ class BH_AdminReports {
     // live. Tracks a sent timestamp so accidentally clicking again shows
     // a confirmation rather than silently re-notifying everyone.
     public static function send_winner_notifications() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);

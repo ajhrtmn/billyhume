@@ -63,43 +63,20 @@ class BHM_Tiers {
         // individually just to see which one was priced above another,
         // with no way to catch a misconfigured (e.g. accidentally
         // cheaper) "premium" tier at a glance.
-        add_filter('manage_' . self::CPT . '_posts_columns', [self::class, 'add_price_column']);
-        add_action('manage_' . self::CPT . '_posts_custom_column', [self::class, 'render_price_column'], 10, 2);
-        add_filter('manage_edit-' . self::CPT . '_sortable_columns', [self::class, 'make_price_column_sortable']);
-        add_action('pre_get_posts', [self::class, 'sort_by_price']);
-    }
-
-    public static function add_price_column($columns) {
-        // Inserted right after Title, before Date — price is the single
-        // most decision-relevant fact about a tier row, worth seeing
-        // before scrolling to the far-right Date column.
-        $new = [];
-        foreach ($columns as $key => $label) {
-            $new[$key] = $label;
-            if ($key === 'title') $new['bhm_price'] = 'Price';
-        }
-        return $new;
-    }
-
-    public static function render_price_column($column, $post_id) {
-        if ($column !== 'bhm_price') return;
-        $price = (int) get_post_meta($post_id, '_bhm_price_cents', true);
-        $annual = (int) get_post_meta($post_id, '_bhm_annual_price_cents', true);
-        if (!$price) { echo '&#8212;'; return; }
-        echo '$' . esc_html(number_format($price / 100, 2)) . '/mo';
-        if ($annual) echo '<br><span class="description">$' . esc_html(number_format($annual / 100, 2)) . '/yr</span>';
-    }
-
-    public static function make_price_column_sortable($columns) {
-        $columns['bhm_price'] = 'bhm_price';
-        return $columns;
-    }
-
-    public static function sort_by_price($query) {
-        if (!is_admin() || !$query->is_main_query() || $query->get('post_type') !== self::CPT) return;
-        if ($query->get('orderby') !== 'bhm_price') return;
-        $query->set('meta_key', '_bhm_price_cents');
-        $query->set('orderby', 'meta_value_num');
+        // DRY/SOLID audit Phase 4: was 4 hand-rolled hooks
+        // (add_price_column/render_price_column/make_price_column_sortable/
+        // sort_by_price, ~30 lines) — now the shared OUS_ListTable helper
+        // every CPT-owning plugin in this ecosystem migrated to. Same
+        // exact column position (right after Title — price is the single
+        // most decision-relevant fact about a tier row), same sort
+        // behavior.
+        OUS_ListTable::register(self::CPT, ['bhm_price' => 'Price'], function ($column, $post_id) {
+            $price = (int) get_post_meta($post_id, '_bhm_price_cents', true);
+            $annual = (int) get_post_meta($post_id, '_bhm_annual_price_cents', true);
+            if (!$price) { echo '&#8212;'; return; }
+            echo '$' . esc_html(number_format($price / 100, 2)) . '/mo';
+            if ($annual) echo '<br><span class="description">$' . esc_html(number_format($annual / 100, 2)) . '/yr</span>';
+        }, ['bhm_price' => '_bhm_price_cents']);
     }
 
     /** Accountability log, AJ's own ask: "who changed what tier" — deletion is the other half of that. */

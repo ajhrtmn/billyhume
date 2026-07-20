@@ -120,7 +120,7 @@ class BHR_Admin {
     /* ---------- actions ---------- */
 
     public static function handle_action() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhr_admin_action')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhr_admin_action')) {
             wp_die('Not allowed.');
         }
 

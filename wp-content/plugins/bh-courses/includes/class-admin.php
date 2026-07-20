@@ -419,7 +419,7 @@ class BHC_Admin {
     }
 
     public static function create_course_page_action() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_create_page')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhc_create_page')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $course_id = (int) ($_GET['course_id'] ?? 0);
@@ -789,15 +789,6 @@ class BHC_Admin {
 
     /* ---------------- list table ---------------- */
 
-    public static function course_columns($cols) {
-        $new = [];
-        foreach ($cols as $k => $v) {
-            $new[$k] = $v;
-            if ($k === 'title') { $new['bhc_lessons'] = 'Lessons'; $new['bhc_gate'] = 'Access'; }
-        }
-        return $new;
-    }
-
     public static function course_column_content($col, $post_id) {
         if ($col === 'bhc_lessons') echo count(BHC_PostTypes::lesson_order($post_id));
         if ($col === 'bhc_gate') {
@@ -881,15 +872,6 @@ class BHC_Admin {
 
         wp_safe_redirect(get_edit_post_link($course_id, 'raw'));
         exit;
-    }
-
-    public static function lesson_columns($cols) {
-        $new = [];
-        foreach ($cols as $k => $v) {
-            $new[$k] = $v;
-            if ($k === 'title') $new['bhc_course'] = 'Course';
-        }
-        return $new;
     }
 
     // Surfaces the orphan/desync risk directly in the list table

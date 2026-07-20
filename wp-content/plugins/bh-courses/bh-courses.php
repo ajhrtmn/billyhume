@@ -199,15 +199,17 @@ add_action('plugins_loaded', function () {
     add_action('before_delete_post', ['BHC_Admin', 'maybe_resync_menu_for_post']);
     add_action('save_post_bh_lesson', ['BHC_Admin', 'save_lesson']);
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
-    add_filter('manage_bh_course_posts_columns', ['BHC_Admin', 'course_columns']);
-    add_action('manage_bh_course_posts_custom_column', ['BHC_Admin', 'course_column_content'], 10, 2);
-    add_filter('manage_bh_lesson_posts_columns', ['BHC_Admin', 'lesson_columns']);
+    // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
+    // helper (own-ur-shit/includes/class-list-table.php) — same column
+    // set/position/render logic as the previous hand-rolled columns()/
+    // custom_column() pairs.
+    OUS_ListTable::register('bh_course', ['bhc_lessons' => 'Lessons', 'bhc_gate' => 'Access'], ['BHC_Admin', 'course_column_content']);
+    OUS_ListTable::register('bh_lesson', ['bhc_course' => 'Course'], ['BHC_Admin', 'lesson_column_content']);
     add_filter('post_row_actions', ['BHC_Admin', 'lesson_row_actions'], 10, 2);
     add_filter('post_row_actions', ['BHC_Admin', 'course_row_actions'], 10, 2);
     add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
     add_action('admin_post_bhc_unassign_lesson', ['BHC_Admin', 'handle_unassign_lesson']);
     add_action('admin_post_bhc_duplicate_course', ['BHC_Admin', 'handle_duplicate_course']);
-    add_action('manage_bh_lesson_posts_custom_column', ['BHC_Admin', 'lesson_column_content'], 10, 2);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_lesson']);
 

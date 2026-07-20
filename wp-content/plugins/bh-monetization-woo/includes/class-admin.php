@@ -135,7 +135,7 @@ class BHM_Admin {
     }
 
     public static function save_settings() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_POST['bhm_settings_nonce'] ?? '', 'bhm_save_settings')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['bhm_settings_nonce'] ?? '', 'bhm_save_settings')) {
             wp_die('Not allowed.');
         }
         $prices = $_POST['bhm_topup_price'] ?? [];
