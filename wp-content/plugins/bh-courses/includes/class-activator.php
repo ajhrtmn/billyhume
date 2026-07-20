@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * marks itself done if the migration actually succeeded.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.3'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below.
+    const DB_VERSION = '1.4'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all).
 
     public static function activate() {
         BHC_PostTypes::register();
@@ -121,6 +121,46 @@ class BHC_Activator {
             UNIQUE KEY user_course (user_id, course_id)
         ) $charset;";
         dbDelta($sql3);
+
+        // Reviews — a real table, not a CPT: a review is small, fixed-
+        // shape structured data (one rating + one body per user per
+        // course), the exact same "queryable-across-users, not per-user
+        // postmeta" reasoning bhc_progress/bhc_enrollments/bhc_completions
+        // above already established, not a second content type needing
+        // its own admin list-table/editor chrome for what's really one
+        // row. One review per user per course (UNIQUE KEY) — resubmitting
+        // an edited review UPDATEs the same row rather than creating a
+        // second one, and resets status back to 'pending' (see
+        // class-reviews.php) so an edited review is re-moderated, not
+        // grandfathered in on its original approval.
+        //
+        // status: real moderation gate (AJ's own ask) — a review is
+        // never publicly visible until an admin approves it, same
+        // "held for review" posture WordPress core comments already use
+        // by default, not a bespoke concept. completed_at_review is a
+        // SNAPSHOT (not computed live from bhc_completions at render
+        // time) of whether the reviewer had actually finished the course
+        // AT THE MOMENT they wrote the review — deliberately captured
+        // once, not recalculated later, so a review honestly reflects
+        // "I'd completed it when I said this," and doesn't retroactively
+        // gain or lose that badge if their completion record is ever
+        // reset/edited after the fact.
+        $reviews = $wpdb->prefix . 'bhc_reviews';
+        $sql4 = "CREATE TABLE $reviews (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            course_id bigint(20) unsigned NOT NULL,
+            rating tinyint(1) unsigned NOT NULL,
+            body text DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            completed_at_review tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_course (user_id, course_id),
+            KEY course_status (course_id, status)
+        ) $charset;";
+        dbDelta($sql4);
 
         return true;
     }
