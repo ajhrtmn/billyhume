@@ -124,6 +124,18 @@ class BHS_Jam {
         ));
     }
 
+    // DRY fix (was inlined identically at two call sites — the session
+    // payload's own 'skip_votes_needed' field, and vote_skip()'s actual
+    // gate check): a single source of truth for the majority threshold,
+    // never a real DB divide-by-zero even with 0 participants (max(1, ...)
+    // means an empty/just-created session always needs at least 1 vote,
+    // not 0 — 0 would let literally nothing ever pass a ">= 0" check
+    // trivially true from the very first vote_skip() call, or worse, an
+    // "already skipped" state with zero real votes on record).
+    private static function skip_votes_needed($session_id) {
+        return max(1, (int) ceil(self::participant_count($session_id) * self::SKIP_VOTE_RATIO));
+    }
+
     private static function participants_list($session_id) {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
@@ -168,7 +180,7 @@ class BHS_Jam {
             'position' => (float) $state['position'],
             'position_updated_at' => (int) $state['position_updated_at'],
             'skip_votes_count' => count($state['skip_votes'] ?? []),
-            'skip_votes_needed' => max(1, (int) ceil(self::participant_count($session['id']) * self::SKIP_VOTE_RATIO)),
+            'skip_votes_needed' => self::skip_votes_needed($session['id']),
             'i_voted_skip' => in_array($uid, $state['skip_votes'] ?? [], true),
             'participants' => self::participants_list($session['id']),
             'max_participants' => (int) $state['max_participants'],
@@ -236,9 +248,23 @@ class BHS_Jam {
 
         $session_id = $wpdb->insert_id;
         $user = get_userdata($uid);
-        $wpdb->insert(self::ptable(), [
+        // Error-handling audit gap: this insert's return value was
+        // previously never checked — a failure here (a DB hiccup on the
+        // exact same request that just successfully inserted the
+        // session row above) would silently leave the host un-registered
+        // as their own Jam's participant, breaking is_participant()/
+        // participant_count() for the one person who should always be
+        // in this room. Logged, not thrown — the session itself was
+        // already created and returning it is still the right response;
+        // a missing host participant row is a real bug worth knowing
+        // about, not a reason to fail the whole create() request.
+        if (!$wpdb->insert(self::ptable(), [
             'session_id' => $session_id, 'user_id' => $uid, 'display_name' => $user ? $user->display_name : '',
-        ]);
+        ]) && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error', 'Jam create(): host participant insert failed.', [
+                'session_id' => $session_id, 'user_id' => $uid, 'db_error' => $wpdb->last_error,
+            ], 'BH Streaming Jam');
+        }
 
         $session = self::get_session_row($code);
         return rest_ensure_response(self::respond($session, self::decode_state($session), $uid));
@@ -407,7 +433,7 @@ class BHS_Jam {
         if (!in_array($uid, $votes, true)) $votes[] = $uid;
         $state['skip_votes'] = $votes;
 
-        $needed = max(1, (int) ceil(self::participant_count($session['id']) * self::SKIP_VOTE_RATIO));
+        $needed = self::skip_votes_needed($session['id']);
         if (count($votes) >= $needed) {
             // The one real, event-driven "people didn't want this track"
             // signal available anywhere in the ecosystem — recorded here,

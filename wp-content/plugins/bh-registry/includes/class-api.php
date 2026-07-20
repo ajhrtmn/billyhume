@@ -201,23 +201,43 @@ class BHR_API {
             $artist_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $artists_t WHERE contact_email = %s", $email));
         }
         if (!$artist_id) {
-            $wpdb->insert($artists_t, [
+            // Error-handling audit gap: this insert's return value was
+            // previously never checked — on failure, $wpdb->insert_id is
+            // stale (0 or a leftover value from a prior query), and this
+            // endpoint would still return a 201 "success" with a bogus
+            // artist_id, rather than the real 500 this actually is.
+            if (!$wpdb->insert($artists_t, [
                 'display_name'  => $display_name,
                 'bio'           => $bio,
                 'contact_email' => $email,
                 'status'        => 'pending',
-            ]);
+            ])) {
+                if (class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('error', 'create_submission(): artist insert failed.', ['db_error' => $wpdb->last_error], 'BH Registry');
+                }
+                return new WP_Error('db_error', 'Could not create your artist profile — try again in a moment.', ['status' => 500]);
+            }
             $artist_id = $wpdb->insert_id;
         }
 
         $token = BHR_Verification::generate_token();
-        $wpdb->insert($links_t, [
+        // Same gap, same fix — a failed link insert previously still
+        // returned 201 with $link_id = 0 (an insert_id stale from the
+        // artist insert above, or 0 on a fresh connection), handing the
+        // submitter a "success" response pointing at a link that was
+        // never actually created.
+        if (!$wpdb->insert($links_t, [
             'artist_id'           => $artist_id,
             'protocol'            => $protocol,
             'url'                 => $url,
             'verification_token'  => $token,
             'verification_status' => 'pending',
-        ]);
+        ])) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'create_submission(): link insert failed.', ['artist_id' => $artist_id, 'db_error' => $wpdb->last_error], 'BH Registry');
+            }
+            return new WP_Error('db_error', 'Could not save your link — try again in a moment.', ['status' => 500]);
+        }
         $link_id = $wpdb->insert_id;
 
         $host = wp_parse_url($url, PHP_URL_HOST);

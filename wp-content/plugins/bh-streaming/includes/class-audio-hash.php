@@ -36,7 +36,20 @@ class BHS_AudioHash {
         if (!$path || !file_exists($path)) return;
 
         $hash = sha1_file($path);
-        if (!$hash) return;
+        if (!$hash) {
+            // Error-handling audit gap: this silent early return meant a
+            // corrupt/unreadable audio file simply never got duplicate-
+            // checked, with zero record anywhere of why — an admin
+            // investigating a suspicious re-upload that DIDN'T get
+            // flagged had no way to tell "genuinely a new file" apart
+            // from "the hash check itself silently failed."
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'Audio duplicate-check skipped: sha1_file() failed on an existing, readable path.', [
+                    'post_id' => $post_id, 'attachment_id' => $attachment_id, 'path' => $path,
+                ], 'BH Streaming');
+            }
+            return;
+        }
         update_post_meta($post_id, '_bhs_audio_hash', $hash);
 
         global $wpdb;
