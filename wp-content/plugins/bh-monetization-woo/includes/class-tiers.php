@@ -55,6 +55,51 @@ class BHM_Tiers {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_admin_assets']);
         add_action('before_delete_post', [self::class, 'log_deletion']);
         add_action('admin_post_bhm_restore_tier_revision', [self::class, 'handle_restore']);
+
+        // Real gap an ecosystem audit flagged: price_cents is the ONLY
+        // hierarchy signal ids_at_or_above() has to work with (there's
+        // no separate rank/level field), but it was completely invisible
+        // on the tier list screen — an admin had to open every tier
+        // individually just to see which one was priced above another,
+        // with no way to catch a misconfigured (e.g. accidentally
+        // cheaper) "premium" tier at a glance.
+        add_filter('manage_' . self::CPT . '_posts_columns', [self::class, 'add_price_column']);
+        add_action('manage_' . self::CPT . '_posts_custom_column', [self::class, 'render_price_column'], 10, 2);
+        add_filter('manage_edit-' . self::CPT . '_sortable_columns', [self::class, 'make_price_column_sortable']);
+        add_action('pre_get_posts', [self::class, 'sort_by_price']);
+    }
+
+    public static function add_price_column($columns) {
+        // Inserted right after Title, before Date — price is the single
+        // most decision-relevant fact about a tier row, worth seeing
+        // before scrolling to the far-right Date column.
+        $new = [];
+        foreach ($columns as $key => $label) {
+            $new[$key] = $label;
+            if ($key === 'title') $new['bhm_price'] = 'Price';
+        }
+        return $new;
+    }
+
+    public static function render_price_column($column, $post_id) {
+        if ($column !== 'bhm_price') return;
+        $price = (int) get_post_meta($post_id, '_bhm_price_cents', true);
+        $annual = (int) get_post_meta($post_id, '_bhm_annual_price_cents', true);
+        if (!$price) { echo '&#8212;'; return; }
+        echo '$' . esc_html(number_format($price / 100, 2)) . '/mo';
+        if ($annual) echo '<br><span class="description">$' . esc_html(number_format($annual / 100, 2)) . '/yr</span>';
+    }
+
+    public static function make_price_column_sortable($columns) {
+        $columns['bhm_price'] = 'bhm_price';
+        return $columns;
+    }
+
+    public static function sort_by_price($query) {
+        if (!is_admin() || !$query->is_main_query() || $query->get('post_type') !== self::CPT) return;
+        if ($query->get('orderby') !== 'bhm_price') return;
+        $query->set('meta_key', '_bhm_price_cents');
+        $query->set('orderby', 'meta_value_num');
     }
 
     /** Accountability log, AJ's own ask: "who changed what tier" — deletion is the other half of that. */
@@ -167,8 +212,20 @@ class BHM_Tiers {
         }
         echo '</p>';
 
-        echo '<p><label><strong>Benefits</strong> <span class="description">(free text — shown to fans on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
-
+        // Real gap an ecosystem audit flagged: three similarly-named
+        // fields ("Benefits" / "Benefits list" / "Grants access to")
+        // sat as three consecutive, visually identical <p> blocks — an
+        // admin skimming labels rather than reading the small help text
+        // under each could easily believe filling in the free-text
+        // fields is what actually grants access. It isn't:
+        // BHM_Gate::user_has_benefit() only ever reads the checkboxes
+        // below. Two real headed sections now make the distinction
+        // structural, not just a sentence of italic text to notice.
+        $granted = (array) get_post_meta($post->ID, '_bhm_benefit_keys', true);
+        echo '<div style="background:#f6f7f7;border:1px solid #dcdcde;border-radius:6px;padding:14px 16px;margin:16px 0 12px;">';
+        echo '<h4 style="margin:0 0 4px;">What fans see</h4>';
+        echo '<p class="description" style="margin:0 0 10px;">Marketing copy only — describes the tier, but grants nothing by itself.</p>';
+        echo '<p><label><strong>Benefits</strong> <span class="description">(free text — shown on the tier picker and on paywall notices)</span><br><textarea name="bhm_benefits" rows="3" style="width:100%;">' . esc_textarea($benefits) . '</textarea></label></p>';
         // Structured benefits list — one bullet per line, rendered as a
         // real <ul> on the tier picker instead of free-flowing paragraph
         // text (Patreon's own tier cards show an explicit bulleted list).
@@ -178,15 +235,22 @@ class BHM_Tiers {
         // roadmap's own suggested "natural BH_Content block-list" upgrade
         // path stays open later (each line becomes a child block) without
         // this format needing to change shape.
-        echo '<p><label><strong>Benefits list</strong> <span class="description">(one item per line — rendered as a bulleted list; separate from the free-text field above)</span><br><textarea name="bhm_benefits_list" rows="4" style="width:100%;" placeholder="Early access to new releases&#10;Monthly Q&amp;A&#10;Discord role">' . esc_textarea(implode("\n", $benefits_list)) . '</textarea></label></p>';
+        echo '<p style="margin-bottom:0;"><label><strong>Benefits list</strong> <span class="description">(one item per line — rendered as a bulleted list; separate from the free-text field above)</span><br><textarea name="bhm_benefits_list" rows="4" style="width:100%;" placeholder="Early access to new releases&#10;Monthly Q&amp;A&#10;Discord role">' . esc_textarea(implode("\n", $benefits_list)) . '</textarea></label></p>';
+        echo '</div>';
 
-        $granted = (array) get_post_meta($post->ID, '_bhm_benefit_keys', true);
-        echo '<p><strong>Grants access to</strong> <span class="description">(machine-checked — this is what BHM_Gate::user_has_benefit() actually evaluates; the free-text field above is just what fans see)</span></p>';
-        echo '<p>';
+        echo '<div style="background:#fcf9e8;border:1px solid #dba617;border-radius:6px;padding:14px 16px;margin-bottom:12px;">';
+        echo '<h4 style="margin:0 0 4px;">What actually gets enforced</h4>';
+        echo '<p class="description" style="margin:0 0 10px;">Machine-checked — this is what <code>BHM_Gate::user_has_benefit()</code> evaluates at gate time. If nothing here is checked, this tier charges money but unlocks nothing anywhere else in the ecosystem, regardless of what the fields above say.</p>';
         foreach (self::benefit_registry() as $key => $label) {
             echo '<label style="display:inline-block;margin:0 16px 4px 0;"><input type="checkbox" name="bhm_benefit_keys[]" value="' . esc_attr($key) . '"' . (in_array($key, $granted, true) ? ' checked' : '') . '> ' . esc_html($label) . '</label>';
         }
-        echo '</p>';
+        // Live warning, not just the paragraph above — a checkbox state
+        // an admin might still miss on a long page gets a real, visible
+        // notice the moment every box is unchecked (tier-admin.js wires
+        // this to update on every checkbox change, not just on load).
+        $price_is_paid = $price > 0;
+        echo '<p id="bhm-no-benefits-warning" style="display:' . ($price_is_paid && !$granted ? 'block' : 'none') . ';color:#b32d2e;font-weight:600;margin:10px 0 0;">&#9888; This tier charges money but has no benefit checked above — fans who pay for it will get nothing enforced anywhere.</p>';
+        echo '</div>';
 
         if ($has_subs) {
             echo '<p class="description">Real recurring billing via WooCommerce Subscriptions.</p>';

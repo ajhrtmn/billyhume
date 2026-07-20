@@ -3,6 +3,7 @@
 .bhm-tier-card h3 { margin-top: 0; }
 .bhm-tier-active { border-color: var(--bh-accent, #C1503A); }
 .bhm-billing-badge { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--bh-text-dim, #B99584); margin-bottom: 4px; }
+.bhm-tier-savings { color: #1DB954; font-weight: 700; }
 .bhm-tier-price { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .bhm-tier-price-annual { font-size: 13px; color: var(--bh-text-dim, #B99584); margin-bottom: 8px; }
 .bhm-tier-cover { width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px; display: block; }

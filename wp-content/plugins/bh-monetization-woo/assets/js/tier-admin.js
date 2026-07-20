@@ -33,4 +33,19 @@ jQuery(function ($) {
         $remove.hide();
         $choose.text('Choose image');
     });
+
+    // Live "no benefit checked" warning — class-tiers.php's own
+    // render_metabox() already computes this once on page load; this
+    // just keeps it in sync as an admin actually checks/unchecks boxes,
+    // rather than only being accurate until the first click.
+    var $priceInput = $('input[name="bhm_price"]');
+    var $warning = $('#bhm-no-benefits-warning');
+    function refreshBenefitWarning() {
+        if (!$warning.length) return;
+        var hasPrice = parseFloat($priceInput.val()) > 0;
+        var hasBenefit = $('input[name="bhm_benefit_keys[]"]:checked').length > 0;
+        $warning.toggle(hasPrice && !hasBenefit);
+    }
+    $(document).on('change', 'input[name="bhm_benefit_keys[]"]', refreshBenefitWarning);
+    $priceInput.on('input', refreshBenefitWarning);
 });
