@@ -275,7 +275,7 @@ class OUS_Dashboard {
 
     public static function handle_install() {
         $key = sanitize_key($_GET['plugin'] ?? '');
-        if (!current_user_can('install_plugins') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_install_' . $key)) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('install_plugins', $_GET['_wpnonce'] ?? '', 'ous_install_' . $key)) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
             exit;
         }
@@ -333,7 +333,7 @@ class OUS_Dashboard {
 
     public static function handle_activate_file() {
         $file = sanitize_text_field(wp_unslash($_GET['file'] ?? ''));
-        if (!current_user_can('activate_plugins') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_file_' . $file)) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('activate_plugins', $_GET['_wpnonce'] ?? '', 'ous_activate_file_' . $file)) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
             exit;
         }

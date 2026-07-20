@@ -9,34 +9,25 @@ if (!defined('ABSPATH')) exit;
  */
 class BH_AdminListTables {
     public static function init() {
-        // Contest list table: status pill, copyable shortcode, quick stats.
-        add_filter('manage_bh_contest_posts_columns', [self::class, 'contest_columns']);
-        add_action('manage_bh_contest_posts_custom_column', [self::class, 'contest_column_content'], 10, 2);
+        // Contest list table: status pill, copyable shortcode, quick
+        // stats. DRY/SOLID audit Phase 4: migrated to the shared
+        // OUS_ListTable helper (own-ur-shit/includes/class-list-table.php)
+        // — same column set/position/render logic as before.
+        OUS_ListTable::register('bh_contest', [
+            'bh_status' => 'Status', 'bh_shortcode' => 'Shortcode', 'bh_page' => 'Page', 'bh_stats' => 'Submissions / Votes',
+        ], [self::class, 'contest_column_content']);
 
         // Submissions list: which contest each one belongs to, plus a filter
         // dropdown — the flat approval queue is unreadable once more than
         // one contest has submissions in it.
-        add_filter('manage_bh_submission_posts_columns', [self::class, 'submission_columns']);
-        add_action('manage_bh_submission_posts_custom_column', [self::class, 'submission_column_content'], 10, 2);
+        OUS_ListTable::register('bh_submission', [
+            'bh_contest' => 'Contest', 'bh_notes' => 'Notes',
+        ], [self::class, 'submission_column_content']);
         add_action('restrict_manage_posts', [self::class, 'submission_contest_filter']);
         add_action('pre_get_posts', [self::class, 'apply_submission_contest_filter']);
     }
 
     /* ================= Contest list table ================= */
-
-    public static function contest_columns($cols) {
-        $new = [];
-        foreach ($cols as $k => $v) {
-            $new[$k] = $v;
-            if ($k === 'title') {
-                $new['bh_status']    = 'Status';
-                $new['bh_shortcode'] = 'Shortcode';
-                $new['bh_page']      = 'Page';
-                $new['bh_stats']     = 'Submissions / Votes';
-            }
-        }
-        return $new;
-    }
 
     public static function contest_column_content($col, $post_id) {
         if ($col === 'bh_status') {
@@ -88,18 +79,6 @@ class BH_AdminListTables {
     }
 
     /* ================= Submissions list table ================= */
-
-    public static function submission_columns($cols) {
-        $new = [];
-        foreach ($cols as $k => $v) {
-            $new[$k] = $v;
-            if ($k === 'title') {
-                $new['bh_contest'] = 'Contest';
-                $new['bh_notes']   = 'Notes';
-            }
-        }
-        return $new;
-    }
 
     public static function submission_column_content($col, $post_id) {
         if ($col === 'bh_contest') {

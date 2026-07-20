@@ -223,7 +223,7 @@ class OUS_MediaWizard {
     }
 
     public static function handle_save() {
-        if (!current_user_can('manage_options') || !isset($_POST['ous_media_wizard_nonce']) || !wp_verify_nonce($_POST['ous_media_wizard_nonce'], 'ous_media_wizard_save')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_nonce'] ?? '', 'ous_media_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
 

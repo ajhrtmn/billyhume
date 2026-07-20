@@ -133,7 +133,7 @@ class OUS_Debug {
     }
 
     public static function handle_toggle_dev_mode() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_debug_toggle_dev_mode')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'ous_debug_toggle_dev_mode')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
         update_user_meta(get_current_user_id(), self::DEV_MODE_META, self::is_dev_mode() ? 0 : 1);
@@ -620,7 +620,7 @@ class OUS_Debug {
 
     public static function handle() {
         $plugin_key = sanitize_key($_POST['ous_plugin'] ?? '');
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'ous_debug_' . $plugin_key)) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['_wpnonce'] ?? '', 'ous_debug_' . $plugin_key)) {
             wp_die('Not allowed.');
         }
 

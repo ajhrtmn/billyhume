@@ -99,7 +99,7 @@ class BH_AdminMenus {
     // Sets a contest's start or end to "right now", instantly flipping its
     // status — for "Start now"/"End now" links in the contest list.
     public static function quick_schedule() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid   = (int) ($_GET['contest_id'] ?? 0);
@@ -146,7 +146,7 @@ class BH_AdminMenus {
     }
 
     public static function create_page_action() {
-        if (!current_user_can('manage_options') || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_create_page')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_create_page')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
         $cid = (int) ($_GET['contest_id'] ?? 0);

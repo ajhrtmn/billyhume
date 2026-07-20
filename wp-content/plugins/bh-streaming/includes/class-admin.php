@@ -17,8 +17,13 @@ class BHS_Admin {
         add_action('save_post_bhs_release', [self::class, 'save_release']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
 
-        add_filter('manage_bhs_track_posts_columns', [self::class, 'columns']);
-        add_action('manage_bhs_track_posts_custom_column', [self::class, 'column_content'], 10, 2);
+        // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
+        // helper (own-ur-shit/includes/class-list-table.php) — same
+        // column set/position/render logic, just no longer hand-rolling
+        // the columns/custom_column hook wiring itself.
+        OUS_ListTable::register('bhs_track', [
+            'bhs_artist' => 'Artist', 'bhs_audio' => 'Audio', 'bhs_plays' => 'Plays', 'bhs_flags' => 'Flags',
+        ], [self::class, 'column_content']);
         add_action('wp_ajax_bhs_issue_isrc', [self::class, 'ajax_issue_isrc']);
     }
 
@@ -392,15 +397,6 @@ class BHS_Admin {
     }
 
     /* ---------- list table ---------- */
-
-    public static function columns($cols) {
-        $new = [];
-        foreach ($cols as $k => $v) {
-            $new[$k] = $v;
-            if ($k === 'title') { $new['bhs_artist'] = 'Artist'; $new['bhs_audio'] = 'Audio'; $new['bhs_plays'] = 'Plays'; $new['bhs_flags'] = 'Flags'; }
-        }
-        return $new;
-    }
 
     public static function column_content($col, $post_id) {
         if ($col === 'bhs_artist') echo esc_html(get_post_meta($post_id, '_bhs_artist', true));
