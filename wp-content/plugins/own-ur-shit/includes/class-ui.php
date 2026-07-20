@@ -133,7 +133,9 @@ class BHY_UI {
                together these give a 32px swatch + hex text input + color
                picker enough room to not clip a 7-character hex value. */
             .bhy-layout { display: grid; grid-template-columns: 200px 1fr 380px; gap: 20px; margin-top: 16px; align-items: start; }
-            .bhy-sidebar { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-3, 12px); }
+            .bhy-sidebar { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-3, 12px); animation: bhy-fade-in 300ms ease; }
+            @keyframes bhy-fade-in { from { opacity: 0; } to { opacity: 1; } }
+            @media (prefers-reduced-motion: reduce) { .bhy-sidebar { animation: none; } }
             .bhy-sidebar-group { font-size: var(--bhy-text-xs, 11px); text-transform: uppercase; letter-spacing: .04em; color: var(--bhy-ink-dim, #787c82); margin: var(--bhy-space-3, 12px) 0 4px; }
             .bhy-sidebar-group:first-child { margin-top: 0; }
             .bhy-story-btn {
@@ -176,7 +178,26 @@ class BHY_UI {
                    iframe used to give for free. */
                 contain: layout;
             }
-            .bhy-story-frame.active { display: block; }
+            /* Surface switches used to be an instant, unannounced snap
+               (display:none -> block with zero transition) — everything
+               else on this page now has some motion, this was the one
+               remaining silent state change. animation (not transition)
+               so it plays every time the class is freshly added, not
+               just on a property change. */
+            .bhy-story-frame.active { display: block; animation: bhy-frame-in 250ms ease; }
+            @keyframes bhy-frame-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+            /* A whole theme preset just repainted every color/font/scale
+               token at once — this gives that "instant delight" moment a
+               real, brief acknowledgment instead of everything just
+               silently repainting with no event marking it happened. */
+            .bhy-canvas.bhy-canvas-flash { animation: bhy-canvas-flash 600ms ease; }
+            @keyframes bhy-canvas-flash {
+                0% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 0 0 3px var(--bhy-accent, #2271b1); }
+                100% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 0 0 0 transparent; }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .bhy-story-frame.active, .bhy-canvas.bhy-canvas-flash { animation: none; }
+            }
             .bhy-empty { color: #888; padding: 40px; text-align: center; font-size: var(--bhy-text-base, 13px); }
             .bhy-controls {
                 background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
@@ -235,6 +256,26 @@ class BHY_UI {
                 font-size: calc(12px * var(--bh-font-scale, 1)); padding: calc(6px * var(--bh-space-scale, 1)) calc(10px * var(--bh-space-scale, 1));
             }
             .bhy-token-text strong { font-family: var(--bh-font-display, inherit); margin-right: 4px; }
+
+            /* Theme preset picker — real color swatches instead of a
+               plain <select><option> list, so a presets whole selling
+               point ("apply this instantly") is visible before picking
+               one, not hidden behind the most boring possible control. */
+            .bhy-theme-swatch-groups { margin-top: 6px; }
+            .bhy-theme-swatch-group-label { font-size: var(--bhy-text-xs, 11px); text-transform: uppercase; letter-spacing: .04em; color: var(--bhy-ink-dim, #787c82); margin: 10px 0 4px; }
+            .bhy-theme-swatch-group-label:first-child { margin-top: 0; }
+            .bhy-theme-swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
+            .bhy-theme-swatch {
+                display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; padding: 6px;
+                border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); background: none; cursor: pointer;
+                transition: transform var(--bhy-transition, 150ms ease), border-color var(--bhy-transition, 150ms ease), box-shadow var(--bhy-transition, 150ms ease);
+            }
+            .bhy-theme-swatch:hover { transform: translateY(-2px); border-color: var(--bhy-accent, #2271b1); box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+            .bhy-theme-swatch:focus-visible { outline: none; box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); }
+            .bhy-theme-swatch.active { border-color: var(--bhy-accent, #2271b1); box-shadow: 0 0 0 2px var(--bhy-focus-ring, rgba(34,113,177,.25)); }
+            .bhy-theme-swatch-preview { display: flex; align-items: center; justify-content: center; gap: 2px; width: 48px; height: 32px; border-radius: 4px; overflow: hidden; padding: 4px; box-sizing: border-box; }
+            .bhy-theme-swatch-preview span { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+            .bhy-theme-swatch-name { font-size: 9px; text-align: center; line-height: 1.2; color: var(--bhy-ink-dim, #646970); max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
             .bhy-swatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--bhy-space-2, 8px); }
             .bhy-font-field { margin-bottom: var(--bhy-space-3, 10px); }
