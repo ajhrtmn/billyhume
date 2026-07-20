@@ -704,11 +704,80 @@ class BHM_Products {
     public static function grant_gift_entitlement($user_id, $tier_id, $order_id) {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
+        // Same tier-exclusivity enforcement grant_entitlement() applies —
+        // this bypasses that method entirely (see docblock above), so it
+        // needs its own call or a gift redemption could stack a second
+        // active tier on top of whatever the recipient already has.
+        self::replace_active_tier_entitlements($user_id, $tier_id);
         $wpdb->insert($t, [
             'user_id' => $user_id, 'type' => 'streaming_tier', 'scope' => 'account', 'object_id' => $tier_id,
             'wc_order_id' => $order_id, 'expires_at' => gmdate('Y-m-d H:i:s', strtotime('+30 days')),
         ]);
         do_action('bhm_entitlement_granted', $user_id, 'streaming_tier', 'account', $tier_id);
+    }
+
+    // Deletes every OTHER active account-scope subscription/streaming_tier
+    // entitlement this user currently holds, so grant_entitlement()'s
+    // insert below is always the ONE active tier, never a second one
+    // stacked alongside it. Returns true only when a DIFFERENT tier was
+    // actually replaced (used by grant_entitlement() to skip its own
+    // generic "Access granted" notice in favor of this method's more
+    // specific switch/upgrade/downgrade one).
+    //
+    // A same-tier existing row (early renewal, a duplicate webhook for
+    // a case the order/subscription-keyed idempotency check above
+    // didn't happen to catch) is cleared silently — no downgrade-credit
+    // math, no "you switched" messaging, since it isn't a tier change.
+    private static function replace_active_tier_entitlements($user_id, $new_tier_id) {
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $now = current_time('mysql', true);
+        $existing_rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND scope = 'account' AND (expires_at IS NULL OR expires_at > %s)",
+            $user_id, $now
+        ), ARRAY_A);
+        if (!$existing_rows) return false;
+
+        $replaced_different_tier = false;
+        foreach ($existing_rows as $row) {
+            $old_tier_id = (int) $row['object_id'];
+            $wpdb->delete($t, ['id' => (int) $row['id']]);
+
+            if ($old_tier_id === (int) $new_tier_id) {
+                do_action('bhm_entitlement_revoked', $user_id, $row['type'], $row['scope'], $old_tier_id, 'tier_renewed');
+                continue;
+            }
+
+            do_action('bhm_entitlement_revoked', $user_id, $row['type'], $row['scope'], $old_tier_id, 'tier_replaced');
+            $replaced_different_tier = true;
+
+            $old_tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($old_tier_id) : null;
+            $new_tier = class_exists('BHM_Tiers') ? BHM_Tiers::get($new_tier_id) : null;
+            $is_downgrade = $old_tier && $new_tier && $new_tier['price_cents'] < $old_tier['price_cents'];
+
+            // Wallet-credits unused days on the OLD tier — previously
+            // dead code (defined, never called from anywhere real) until
+            // this fix wired the one call site that actually needed it.
+            // Steps aside on its own when WooCommerce Subscriptions'
+            // real switcher is active (see its own docblock).
+            if ($is_downgrade && class_exists('BHM_Gate') && $row['expires_at']) {
+                BHM_Gate::handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $row['expires_at']);
+            }
+
+            if ($old_tier && $new_tier && class_exists('OUS_Notifications')) {
+                OUS_Notifications::notify(
+                    $user_id,
+                    'tier_switched',
+                    $is_downgrade ? 'Your supporter tier changed' : 'You\'re now a ' . $new_tier['name'] . ' supporter!',
+                    $is_downgrade
+                        ? 'You switched from ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '.' . (class_exists('BHM_Wallet') ? ' Any unused time on your old tier was credited to your wallet.' : '')
+                        : 'You upgraded from ' . $old_tier['name'] . ' to ' . $new_tier['name'] . '. Welcome to the next level!',
+                    '',
+                    'BH Monetization'
+                );
+            }
+        }
+        return $replaced_different_tier;
     }
 
     private static function grant_entitlement($user_id, $type, $scope, $object_id, $order_id, $subscription_id, $expires_at) {
@@ -739,6 +808,24 @@ class BHM_Products {
         }
         if ($existing) return;
 
+        // Real correctness gap an ecosystem audit caught: nothing
+        // enforced "one active tier at a time" — a fan could end up
+        // with several simultaneous active subscription/streaming_tier
+        // rows (two tiers in one cart, or bought at different times),
+        // each independently satisfying BHM_Gate's "at or above" check
+        // with no single canonical "current tier." Account-scope tier
+        // grants are exclusive: granting a new one always replaces
+        // whatever active tier entitlement already existed, the same
+        // way a real subscription upgrade/downgrade works everywhere
+        // else. Scoped to subscription/streaming_tier + scope='account'
+        // only — a one-time track/release purchase legitimately stacks
+        // (owning five tracks is normal; being subscribed to five tiers
+        // at once isn't).
+        $replaced_different_tier = false;
+        if ($scope === 'account' && in_array($type, ['subscription', 'streaming_tier'], true)) {
+            $replaced_different_tier = self::replace_active_tier_entitlements($user_id, $object_id);
+        }
+
         $wpdb->insert($t, [
             'user_id' => $user_id, 'type' => $type, 'scope' => $scope, 'object_id' => $object_id,
             'wc_order_id' => $order_id, 'wc_subscription_id' => $subscription_id, 'expires_at' => $expires_at,
@@ -768,8 +855,12 @@ class BHM_Products {
         // for free without duplicating the notify() call per caller.
         // Sitting AFTER the `if ($existing) return;` guard above means
         // this only ever fires once per real grant, never on a webhook
-        // retry re-confirming something already granted.
-        if (class_exists('OUS_Notifications')) {
+        // retry re-confirming something already granted. Skipped when
+        // replace_active_tier_entitlements() already sent its own more
+        // specific "you switched tiers" notification above — a generic
+        // "Access granted" right after that would just be a confusing,
+        // redundant second notice about the exact same event.
+        if (!$replaced_different_tier && class_exists('OUS_Notifications')) {
             OUS_Notifications::notify(
                 $user_id,
                 'entitlement_granted',
