@@ -180,6 +180,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Certificates', 'init']);
     add_action('init', ['BHC_ShareCards', 'init']);
     add_action('init', ['BHC_Reviews', 'init']);
+    add_action('init', ['BHC_Gate', 'init']);
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());

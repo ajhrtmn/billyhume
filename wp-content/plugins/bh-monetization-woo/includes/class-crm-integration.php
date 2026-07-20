@@ -16,6 +16,51 @@ class BHM_CRMIntegration {
     public static function init() {
         add_filter('bh_crm_active_user_ids', [self::class, 'active_user_ids']);
         add_filter('bh_crm_activity_summary', [self::class, 'activity_summary'], 10, 2);
+        add_action('admin_post_bhm_revoke_entitlement', [self::class, 'handle_revoke_entitlement']);
+    }
+
+    /**
+     * Real support-case gap this closes: the only ways an entitlement
+     * ever got revoked were a real WooCommerce refund/cancellation
+     * (class-products.php's on_order_reversed()/revoke_subscription_
+     * entitlements()) or a Debug Tools action that only ever touches
+     * the CURRENTLY LOGGED-IN admin's own account (class-debug.php) —
+     * a comped-access-given-in-error, or a chargeback/dispute handled
+     * entirely outside WooCommerce (bank-side, not a WC refund), had no
+     * admin-facing fix anywhere. Fires the exact same
+     * bhm_entitlement_revoked action every automated revocation path
+     * already fires, so any current or future listener (Discord-role
+     * sync, bh-courses' own course-access notice, etc.) sees this as
+     * identical to a real refund — not a second, divergent code path.
+     */
+    public static function handle_revoke_entitlement() {
+        if (!current_user_can('bhcore_view_crm_sensitive') || !check_admin_referer('bhm_revoke_entitlement')) {
+            wp_die('Not allowed.', '', ['back_link' => true]);
+        }
+        global $wpdb;
+        $entitlement_id = (int) ($_GET['entitlement_id'] ?? 0);
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $row = $entitlement_id ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $entitlement_id), ARRAY_A) : null;
+
+        if ($row) {
+            $wpdb->delete($t, ['id' => $entitlement_id]);
+            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], 'manual_admin_revoke');
+
+            if (class_exists('OUS_Notifications')) {
+                OUS_Notifications::notify(
+                    (int) $row['user_id'],
+                    'access_revoked',
+                    'Your access was updated',
+                    'An administrator removed access previously granted to your account.',
+                    '',
+                    'BH Monetization'
+                );
+            }
+            if (class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
+        }
+
+        wp_safe_redirect(wp_get_referer() ?: admin_url());
+        exit;
     }
 
     public static function active_user_ids($ids) {
@@ -103,12 +148,49 @@ class BHM_CRMIntegration {
             echo '<p style="color:#b32d2e;font-weight:600;">⚠ An unusually fast burst of paid plays was detected recently — could be normal heavy use, or a compromised account/payment method being tested. Worth a look.</p>';
         }
         if (!$entitlements) return;
-        echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Type</th><th>What</th><th>Granted</th><th>Expires</th></tr></thead><tbody>';
+        echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Type</th><th>What</th><th>Granted</th><th>Expires</th><th></th></tr></thead><tbody>';
         foreach ($entitlements as $e) {
             $label = $e->scope === 'account' ? (BHM_Tiers::get($e->object_id)['name'] ?? 'Tier #' . $e->object_id) : ($e->scope . ' #' . $e->object_id);
-            echo '<tr><td>' . esc_html($e->type) . '</td><td>' . esc_html($label) . '</td><td>' . esc_html($e->created_at) . '</td><td>' . esc_html($e->expires_at ?: 'Never') . '</td></tr>';
+            $revoke_url = wp_nonce_url(admin_url('admin-post.php?action=bhm_revoke_entitlement&entitlement_id=' . (int) $e->id), 'bhm_revoke_entitlement');
+            echo '<tr><td>' . esc_html($e->type) . '</td><td>' . esc_html($label) . '</td><td>' . esc_html($e->created_at) . '</td><td>' . esc_html($e->expires_at ?: 'Never') . '</td>';
+            // Arm/disarm instead of confirm() — same banned-native-dialog
+            // reason as every other irreversible-ish action in this
+            // ecosystem (bh-streaming's jam-kick button, this same
+            // reasoning). First click relabels/arms for 3s; a second
+            // click while armed actually revokes.
+            echo '<td><button type="button" class="button button-small bhm-revoke-btn" data-url="' . esc_url($revoke_url) . '" style="color:#b32d2e;">Revoke</button></td>';
+            echo '</tr>';
         }
         echo '</tbody></table></div>';
+        self::maybe_print_revoke_script();
+    }
+
+    private static function maybe_print_revoke_script() {
+        static $printed = false;
+        if ($printed) return;
+        $printed = true;
+        ?>
+        <script>
+        (function () {
+            document.querySelectorAll('.bhm-revoke-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (!btn.classList.contains('is-armed')) {
+                        btn.classList.add('is-armed');
+                        btn.dataset.originalLabel = btn.textContent;
+                        btn.textContent = 'Confirm revoke?';
+                        btn._armTimer = setTimeout(function () {
+                            btn.classList.remove('is-armed');
+                            btn.textContent = btn.dataset.originalLabel;
+                        }, 3000);
+                        return;
+                    }
+                    clearTimeout(btn._armTimer);
+                    window.location.href = btn.dataset.url;
+                });
+            });
+        })();
+        </script>
+        <?php
     }
 }
 
