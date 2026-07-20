@@ -85,7 +85,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -164,6 +164,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_StyleSurface', 'init']);
     add_action('init',          ['BHS_CRMIntegration', 'init']);
     add_action('init',          ['BHS_Stats', 'init']);
+    if (class_exists('OUS_TestRunner')) add_action('init', ['BHS_TestSuite', 'init']);
     add_action('rest_api_init', ['BHS_API', 'register_routes']);
     add_action('rest_api_init', ['BHS_API', 'add_cors_headers']);
     add_action('rest_api_init', ['BHS_PWA', 'register_routes']);

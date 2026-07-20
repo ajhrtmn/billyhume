@@ -227,7 +227,7 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // bh_crm_activity_summary, reading bhcore_events directly, bounded/
 // prepared); class-notes.php and class-tags.php each emit a
 // 'bhcrm/note_saved' / 'bhcrm/tags_saved' event at the tail of handle_save().
-foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'debug', 'hub', 'style-surface'] as $f) {
+foreach (['people', 'notes', 'tags', 'segments', 'export', 'event-activity', 'links', 'projects', 'subtasks', 'debug', 'hub', 'style-surface', 'test-suite'] as $f) {
     require_once BHCRM_PATH . "includes/class-$f.php";
 }
 
@@ -277,6 +277,7 @@ add_action('plugins_loaded', function () {
     BHCRM_Tags::init();
     BHCRM_Segments::init();
     BHCRM_Debug::init();
+    if (class_exists('OUS_TestRunner')) BHCRM_TestSuite::init();
 
     // Gated on BH_Event actually being present — no-op otherwise.
     add_action('init', function () {

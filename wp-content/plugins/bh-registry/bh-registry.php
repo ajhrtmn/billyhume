@@ -35,7 +35,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['links', 'activator', 'verification', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge'] as $f) {
+foreach (['links', 'activator', 'verification', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 
@@ -75,6 +75,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHR_Debug', 'init']);
     add_action('init',          ['BHR_Admin', 'init']);
     add_action('init',          ['BHR_StreamingBridge', 'init']);
+    if (class_exists('OUS_TestRunner')) add_action('init', ['BHR_TestSuite', 'init']);
     add_action('rest_api_init', ['BHR_API', 'register_routes']);
     add_action('rest_api_init', ['BHR_API', 'add_cors_headers']);
 
