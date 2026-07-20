@@ -665,6 +665,32 @@ class BHM_Products {
         foreach ($revoked as $row) {
             do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], $reason);
         }
+
+        // Real gap, caught during a refund/revocation audit: on_order_reversed()
+        // above notifies the customer when a refund/cancellation takes
+        // access away, but this path (subscription paused or ended —
+        // arguably the MORE common way access actually lapses, since it
+        // needs no manual refund at all) never did. A fan whose card
+        // just failed or who quietly cancelled got no signal their
+        // access was gone until they next hit a paywall. Reason-aware
+        // copy ('paused' can resume automatically per on_subscription_active(),
+        // 'ended' cannot) rather than one generic message for both.
+        if ($revoked && class_exists('OUS_Notifications')) {
+            $user_id = (int) $revoked[0]['user_id'];
+            if ($user_id) {
+                $is_paused = $reason === 'subscription_paused';
+                OUS_Notifications::notify(
+                    $user_id,
+                    'subscription_' . ($is_paused ? 'paused' : 'ended'),
+                    $is_paused ? 'Your subscription is paused' : 'Your subscription has ended',
+                    $is_paused
+                        ? 'Your supporter access is on hold while your subscription is paused. Resume it any time to pick back up right where you left off.'
+                        : 'Your supporter subscription has ended, and the access it granted has been removed.',
+                    '',
+                    'BH Monetization'
+                );
+            }
+        }
     }
 
     // Public entry point for BHM_Gifts::handle_redeem() — a gift claim

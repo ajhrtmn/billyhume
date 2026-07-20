@@ -16,6 +16,53 @@ if (!defined('ABSPATH')) exit;
  * bh-streaming already demonstrates.
  */
 class BHC_Gate {
+    public static function init() {
+        // Real gap an ecosystem-wide refund/revocation audit flagged:
+        // bh-courses had zero awareness of bhm_entitlement_revoked — a
+        // student who lost the tier gating a course they were mid-way
+        // through got no signal at all beyond hitting the paywall again
+        // next time they clicked into a lesson. Best-effort, not exact —
+        // this doesn't re-derive BHM_Gate's own live access check, it
+        // just tells a student their access to specific named courses
+        // MAY have just changed, so they have a reason to look rather
+        // than silently getting locked out mid-course with no context.
+        add_action('bhm_entitlement_revoked', [self::class, 'maybe_notify_course_access_change'], 10, 5);
+    }
+
+    // scope 'account' is the only shape course gating ever checks
+    // (user_can_access_course() -&gt; BHM_Gate::user_has_tier_access(),
+    // itself account-wide, never per-track/release) — a revoked
+    // per-object entitlement (a track/release purchase) has nothing to
+    // do with course access and is skipped here.
+    public static function maybe_notify_course_access_change($user_id, $type, $scope, $object_id, $reason) {
+        if (!$user_id || $scope !== 'account' || !class_exists('BHM_Tiers') || !class_exists('OUS_Notifications')) return;
+
+        $courses = get_posts(['post_type' => 'bh_course', 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids']);
+        $affected_titles = [];
+        foreach ($courses as $course_id) {
+            $required_tier = self::required_tier($course_id);
+            $required_benefit = self::required_benefit($course_id);
+            $affected = false;
+            if ($required_benefit) {
+                $affected = in_array((int) $object_id, BHM_Tiers::ids_granting_benefit($required_benefit), true);
+            } elseif ($required_tier) {
+                $affected = in_array((int) $object_id, BHM_Tiers::ids_at_or_above($required_tier), true);
+            }
+            if ($affected) $affected_titles[] = get_the_title($course_id);
+            if (count($affected_titles) >= 3) break; // enough to name in a notification; a longer list just says "and more" below
+        }
+        if (!$affected_titles) return;
+
+        OUS_Notifications::notify(
+            $user_id,
+            'course_access_changed',
+            'Your course access may have changed',
+            'Your supporter tier changed, which affects access to: ' . implode(', ', $affected_titles) . '.',
+            home_url('/courses/'),
+            'BH Courses'
+        );
+    }
+
     public static function required_tier($course_id) {
         return (int) get_post_meta($course_id, '_bhm_required_tier', true);
     }
