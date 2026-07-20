@@ -57,13 +57,16 @@ class BHM_TestSuite {
             'Negative days remaining (already expired) credits nothing, never a negative wallet debit'
         );
 
-        /* ---------- benefit_registry() shape ---------- */
+        /* ---------- benefit_registry() exact contents ---------- */
 
         $registry = BHM_Tiers::benefit_registry();
-        $rows[] = OUS_TestRunner::assert_true(is_array($registry) && count($registry) > 0, 'benefit_registry() returns at least the default benefit keys');
-        $rows[] = OUS_TestRunner::assert_true(array_key_exists('courses', $registry), '"courses" is a registered default benefit key (bh-courses\' own gating depends on this exact key existing)');
+        $rows[] = OUS_TestRunner::assert_same(
+            ['streaming' => 'Streaming library access', 'downloads' => 'Downloadable audio', 'courses' => 'Course/LMS access', 'merch_discount' => 'Storefront discount'],
+            $registry,
+            'benefit_registry() returns exactly the default benefit key => label pairs (not just "non-empty" — a silently dropped or renamed key would break bh-courses\' own gating, which depends on the exact "courses" key)'
+        );
 
-        /* ---------- user_has_tier_access()/user_has_benefit() fail safely with no user ---------- */
+        /* ---------- user_has_tier_access()/user_has_benefit() degenerate (unlocked) inputs ---------- */
 
         $rows[] = OUS_TestRunner::assert_true(
             BHM_Gate::user_has_tier_access(0, 0),
@@ -73,6 +76,69 @@ class BHM_TestSuite {
             BHM_Gate::user_has_benefit(0, ''),
             'An empty required_benefit (unlocked content) always passes, even with no user'
         );
+
+        /* ---------- user_has_tier_access()/user_has_benefit() real gating, seeded ----------
+         * The two assertions above only prove the degenerate "nothing
+         * required" short-circuit works — they'd still pass even if the
+         * real entitlement lookup below were completely broken. This
+         * seeds a real fixture tier (with a real benefit key and a real
+         * price), a real test user, and a real bhm_entitlements row, then
+         * exercises actual grant/no-grant/expired/wrong-tier cases against
+         * the real DB-backed logic in BHM_Gate.
+         */
+        if (class_exists('OUS_Debug') && method_exists('OUS_Debug', 'get_or_create_test_user')) {
+            global $wpdb;
+            $entitlements_table = $wpdb->prefix . 'bhm_entitlements';
+
+            $tier_id = wp_insert_post([
+                'post_type' => 'bhm_tier', 'post_status' => 'publish',
+                'post_title' => 'BHM Test Suite Fixture Tier',
+            ], true);
+
+            if (!is_wp_error($tier_id)) {
+                update_post_meta($tier_id, '_bhm_price_cents', 500);
+                update_post_meta($tier_id, '_bhm_benefit_keys', ['courses']);
+
+                $test_user_id = (int) OUS_Debug::get_or_create_test_user('bhm-test-suite', false);
+
+                // No entitlement row yet — access must correctly be denied.
+                $rows[] = OUS_TestRunner::assert_false(
+                    BHM_Gate::user_has_tier_access($test_user_id, $tier_id),
+                    'A real user with zero entitlement rows is correctly denied access to a real paid tier'
+                );
+                $rows[] = OUS_TestRunner::assert_false(
+                    BHM_Gate::user_has_benefit($test_user_id, 'courses'),
+                    'A real user with zero entitlement rows is correctly denied a real benefit'
+                );
+
+                $wpdb->insert($entitlements_table, [
+                    'user_id' => $test_user_id, 'type' => 'subscription', 'scope' => 'account',
+                    'object_id' => $tier_id, 'expires_at' => null, 'created_at' => current_time('mysql'),
+                ]);
+
+                $rows[] = OUS_TestRunner::assert_true(
+                    BHM_Gate::user_has_tier_access($test_user_id, $tier_id),
+                    'A real active (non-expiring) entitlement row correctly grants access to its own tier'
+                );
+                $rows[] = OUS_TestRunner::assert_true(
+                    BHM_Gate::user_has_benefit($test_user_id, 'courses'),
+                    'A real active entitlement to a tier granting "courses" correctly grants that benefit'
+                );
+                $rows[] = OUS_TestRunner::assert_false(
+                    BHM_Gate::user_has_benefit($test_user_id, 'merch_discount'),
+                    'The same entitlement does NOT grant a benefit the fixture tier was never given'
+                );
+
+                $wpdb->update($entitlements_table, ['expires_at' => gmdate('Y-m-d H:i:s', time() - DAY_IN_SECONDS)], ['user_id' => $test_user_id, 'object_id' => $tier_id]);
+                $rows[] = OUS_TestRunner::assert_false(
+                    BHM_Gate::user_has_tier_access($test_user_id, $tier_id),
+                    'An entitlement row that already expired correctly no longer grants access'
+                );
+
+                $wpdb->delete($entitlements_table, ['user_id' => $test_user_id, 'object_id' => $tier_id]);
+                wp_delete_post($tier_id, true);
+            }
+        }
 
         /* ---------- BHM_Wallet debit/credit + ledger consistency ----------
          * No coverage existed for this before — added after this session's

@@ -199,7 +199,11 @@ class OUS_SetupWizard {
         echo '<li><a href="' . esc_url(home_url('/account/')) . '" target="_blank">Your account portal</a> — what a fan/supporter sees.</li>';
         echo '<li><a href="' . esc_url(admin_url('admin.php?page=bh-design')) . '">Design Suite</a> — full color/typography/scale control.</li>';
         if (class_exists('BHM_Tiers') && post_type_exists('bhm_tier')) {
-            $gateways = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : [];
+            // Same BH_Commerce::get_available_payment_gateways() wrapper
+            // bh-monetization-woo's own "Get Paid" card now uses — this
+            // file had independently duplicated the exact same unwrapped
+            // WC_Payment_Gateways call.
+            $gateways = class_exists('BH_Commerce') ? BH_Commerce::get_available_payment_gateways() : [];
             echo '<li><a href="' . esc_url(admin_url('edit.php?post_type=bhm_tier')) . '">Supporter Tiers</a>'
                . ($gateways ? ' — payments are configured and ready.' : ' — <strong>no payment method is active yet</strong>, set one up in <a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout')) . '">WooCommerce → Payments</a> before selling anything.')
                . '</li>';
