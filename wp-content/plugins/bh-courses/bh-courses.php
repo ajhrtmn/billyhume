@@ -132,7 +132,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -171,6 +171,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_VideoSettings', 'init']);
     add_action('admin_notices', ['BHC_VideoSettings', 'maybe_show_notice']);
     add_action('init', ['BHC_Nudges', 'init']);
+    add_action('init', ['BHC_DripNudges', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHC_TestSuite', 'init']);
     if (class_exists('BH_Content')) add_action('init', ['BHC_ContentBridge', 'init']);
     add_action('init', ['BHC_PortalPanel', 'init']);
