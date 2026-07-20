@@ -284,10 +284,19 @@ class BHM_Frontend {
     // has nothing to pause; there's no recurring billing to interrupt,
     // just an expiry date already running.
     private static function render_subscription_controls($user_id, $tier_id) {
-        if (!class_exists('WC_Subscriptions')) return '';
+        // Routed through BH_Commerce (AJ's own standing architecture
+        // rule: nothing outside the core should be hard-wired to an
+        // external dependency in a way that can't be mocked/replaced) —
+        // was a bare class_exists('WC_Subscriptions') + wcs_get_subscription()
+        // pair, meaning this whole feature was completely untestable
+        // without the real paid extension installed. A mock commerce
+        // provider can now make this reachable for local testing by
+        // hooking bh_commerce_has_subscriptions/bh_commerce_get_subscription,
+        // with zero change to real production behavior.
+        if (!class_exists('BH_Commerce') || !BH_Commerce::has_subscriptions()) return '';
         $sub_id = self::active_subscription_id($user_id, $tier_id);
         if (!$sub_id) return '';
-        $subscription = wcs_get_subscription($sub_id);
+        $subscription = BH_Commerce::get_subscription($sub_id);
         if (!$subscription) return '';
 
         $status = $subscription->get_status();
@@ -334,11 +343,11 @@ class BHM_Frontend {
         if (!$user_id || !$sub_id || !wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhm_manage_subscription_' . $sub_id)) {
             wp_die('Invalid request.', 400);
         }
-        if (!class_exists('WC_Subscriptions') || !function_exists('wcs_get_subscription')) {
+        if (!class_exists('BH_Commerce') || !BH_Commerce::has_subscriptions()) {
             wp_die('Subscriptions aren\'t available.', 400);
         }
 
-        $subscription = wcs_get_subscription($sub_id);
+        $subscription = BH_Commerce::get_subscription($sub_id);
         // get_user_id() is the subscription's OWN customer — the real
         // ownership check. Never trust that the sub_id/user_id pairing
         // implied by the form alone is honest.

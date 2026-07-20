@@ -41,8 +41,16 @@ class BH_Commerce {
         return class_exists('WooCommerce');
     }
 
+    // Filterable, not a bare class_exists() — AJ's own standing
+    // architecture rule: no consuming plugin should be hard-wired to
+    // anything but this core, in a way that can't be mocked or swapped.
+    // A test/mock commerce provider (or a future non-WooCommerce
+    // backend) overrides this filter to report "yes, subscriptions are
+    // available" without the real paid WooCommerce Subscriptions
+    // extension ever being installed — real production behavior is
+    // completely unaffected unless something explicitly hooks this.
     public static function has_subscriptions() {
-        return class_exists('WC_Subscriptions') && class_exists('WC_Product_Subscription');
+        return (bool) apply_filters('bh_commerce_has_subscriptions', class_exists('WC_Subscriptions') && class_exists('WC_Product_Subscription'));
     }
 
     /**
@@ -172,8 +180,24 @@ class BH_Commerce {
     // to check class_exists('WC_Subscriptions_Switcher') directly —
     // second migration pass, same "wrap the feature-detection behind
     // this interface too, not just product CRUD" treatment.
+    // Same filterable-not-hard-wired treatment as has_subscriptions()
+    // above.
     public static function has_subscription_switching() {
-        return class_exists('WC_Subscriptions_Switcher');
+        return (bool) apply_filters('bh_commerce_has_subscription_switching', class_exists('WC_Subscriptions_Switcher'));
+    }
+
+    // Real WC_Subscription lookup, filterable the same way get_order()
+    // conceptually could be (that one has no external-dependency problem
+    // — a WC_Order always comes from WooCommerce core itself — but a
+    // WC_Subscription only exists at all when the paid WC Subscriptions
+    // extension is installed). A test/mock provider hooks this filter to
+    // hand back a fake object instead of a real one; normalize_subscription()
+    // below already accepts anything duck-typed correctly (method_exists()
+    // checks, never instanceof WC_Subscription), so a fake object flows
+    // through the exact same real code every consumer already uses.
+    public static function get_subscription($subscription_id) {
+        $subscription = function_exists('wcs_get_subscription') ? wcs_get_subscription((int) $subscription_id) : null;
+        return apply_filters('bh_commerce_get_subscription', $subscription, (int) $subscription_id);
     }
 
     /**

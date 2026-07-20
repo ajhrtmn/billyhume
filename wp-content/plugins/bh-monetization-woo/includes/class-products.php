@@ -716,6 +716,51 @@ class BHM_Products {
         do_action('bhm_entitlement_granted', $user_id, 'streaming_tier', 'account', $tier_id);
     }
 
+    // Public, single shared "revoke one specific entitlement row by ID"
+    // path — factored out so BHM_CRMIntegration's manual admin revoke
+    // button and BHM_Debug's own "simulate a refund" test action both
+    // fire the exact same real event/notification, instead of two
+    // independently-written copies of "delete a row and maybe notify"
+    // drifting apart. Returns the deleted row (as an array) on success,
+    // or null if no such entitlement existed.
+    public static function revoke_entitlement_by_id($entitlement_id, $reason = 'manual_revoke') {
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", (int) $entitlement_id), ARRAY_A);
+        if (!$row) return null;
+
+        $wpdb->delete($t, ['id' => (int) $entitlement_id]);
+        do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], $reason);
+
+        if (class_exists('OUS_Notifications')) {
+            OUS_Notifications::notify(
+                (int) $row['user_id'],
+                'access_revoked',
+                'Your access was updated',
+                'An administrator removed access previously granted to your account.',
+                '',
+                'BH Monetization'
+            );
+        }
+        return $row;
+    }
+
+    // Debug Tools' own test-grant buttons previously wrote directly to
+    // $wpdb, bypassing grant_entitlement() entirely — meaning they never
+    // exercised the real tier-exclusivity replacement logic, the
+    // bhm_entitlement_granted event, or the grant notification, giving
+    // false confidence that "testing" a grant here proved anything about
+    // the real purchase path. These three thin public wrappers route
+    // Debug Tools through the exact same private grant_entitlement()
+    // every real order/subscription webhook uses.
+    public static function debug_grant_tier($user_id, $tier_id, $days = 30) {
+        self::grant_entitlement($user_id, 'streaming_tier', 'account', (int) $tier_id, null, null, gmdate('Y-m-d H:i:s', strtotime('+' . (int) $days . ' days')));
+    }
+
+    public static function debug_grant_purchase($user_id, $object_id, $scope = 'track') {
+        self::grant_entitlement($user_id, 'purchase', $scope, (int) $object_id, null, null, null);
+    }
+
     // Deletes every OTHER active account-scope subscription/streaming_tier
     // entitlement this user currently holds, so grant_entitlement()'s
     // insert below is always the ONE active tier, never a second one
