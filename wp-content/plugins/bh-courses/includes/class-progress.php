@@ -380,6 +380,19 @@ class BHC_Progress {
         ));
     }
 
+    // Every user actually enrolled in a course — distinct from
+    // students_for_course() above, which only returns users with a
+    // bhc_progress ROW (i.e. who've already touched a step). A student
+    // waiting on a drip-locked lesson may be enrolled with zero progress
+    // rows yet, so class-drip-nudges.php needs this list, not that one.
+    public static function enrolled_user_ids($course_id) {
+        global $wpdb;
+        return array_map('intval', $wpdb->get_col($wpdb->prepare(
+            "SELECT user_id FROM {$wpdb->prefix}bhc_enrollments WHERE course_id = %d",
+            $course_id
+        )));
+    }
+
     // The catalog's "popular" sort signal (QUIZ-AND-CATALOG-DESIGN-PLAN.md
     // Part 2.3) — a real, deduped, non-gameable enrollment count read
     // straight off bhc_enrollments' own UNIQUE KEY (user_id, course_id),
