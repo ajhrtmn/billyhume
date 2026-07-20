@@ -229,7 +229,10 @@ class BHY_Gallery {
     private static function render_sidebar($grouped) {
         echo '<div class="bhy-sidebar">';
         if (!$grouped) {
-            echo '<p class="description">No surfaces registered yet — a plugin registers one via the <code>bhy_style_surfaces</code> filter.</p>';
+            echo BHY_Style::empty_state_html([
+                'title' => 'No surfaces registered yet',
+                'description' => 'A plugin registers one via the bhy_style_surfaces filter — once it does, it shows up here to preview and theme.',
+            ]);
         }
         $first = true;
         foreach ($grouped as $group_label => $items) {
@@ -255,7 +258,10 @@ class BHY_Gallery {
             echo '<div class="bhy-story-frame' . ($first ? ' active' : '') . '" data-surface="' . esc_attr($key) . '" data-doc="' . esc_attr(base64_encode(self::preview_doc($payload, $s))) . '"></div>';
             $first = false;
         }
-        if (!$surfaces) echo '<div class="bhy-empty">Nothing to preview yet.</div>';
+        if (!$surfaces) echo BHY_Style::empty_state_html([
+            'title' => 'Nothing to preview yet',
+            'description' => 'Once a plugin registers a surface, its live preview renders right here.',
+        ]);
         echo '</div>';
     }
 
@@ -353,16 +359,33 @@ class BHY_Gallery {
         echo '</div>';
 
         echo '<div class="bhy-token-group" data-token-group="colors">';
-        echo '<div class="bhel-field-row"><label for="bhy-theme-select">Quick theme</label>';
-        echo '<select id="bhy-theme-select"><option value="">Choose a theme…</option>';
+        // Real gap this closes: a preset's whole selling point is "apply
+        // this instantly," but a plain <select><option> can't show what
+        // any of them actually LOOK like before picking one — the single
+        // highest-leverage "instant delight" moment on this page was
+        // hidden behind the most boring possible control. Each swatch
+        // renders 4 real dots straight from the preset's own color
+        // values (bg/surface/accent/text), so this is never a second,
+        // drifting copy of the palette — it's the same data
+        // render_script()'s click handler below reads via data-set.
+        echo '<div class="bhel-field-row"><label>Quick theme</label>';
+        echo '<div class="bhy-theme-swatch-groups">';
         foreach (BHY_Style::THEME_GROUPS as $group_label => $themes) {
-            echo '<optgroup label="' . esc_attr($group_label) . '">';
+            echo '<div class="bhy-theme-swatch-group-label">' . esc_html($group_label) . '</div>';
+            echo '<div class="bhy-theme-swatch-row">';
             foreach ($themes as $name => $colors) {
-                echo '<option value="' . esc_attr($name) . '" data-set=\'' . esc_attr(wp_json_encode($colors)) . '\'>' . esc_html($name) . '</option>';
+                echo '<button type="button" class="bhy-theme-swatch" data-set=\'' . esc_attr(wp_json_encode($colors)) . '\' title="' . esc_attr($name) . '">';
+                echo '<span class="bhy-theme-swatch-preview" style="background:' . esc_attr($colors['color_bg']) . ';">';
+                echo '<span style="background:' . esc_attr($colors['color_surface']) . ';"></span>';
+                echo '<span style="background:' . esc_attr($colors['color_accent']) . ';"></span>';
+                echo '<span style="background:' . esc_attr($colors['color_text']) . ';"></span>';
+                echo '</span>';
+                echo '<span class="bhy-theme-swatch-name">' . esc_html($name) . '</span>';
+                echo '</button>';
             }
-            echo '</optgroup>';
+            echo '</div>';
         }
-        echo '</select></div>';
+        echo '</div></div>';
 
         // Core colors — always visible, not tucked behind a disclosure.
         echo '<h3>Colors</h3><div class="bhy-swatch-grid">';
@@ -718,16 +741,30 @@ class BHY_Gallery {
                 input.addEventListener('input', refreshAllFrames);
             });
 
-            var themeSelect = document.getElementById('bhy-theme-select');
-            if (themeSelect) themeSelect.addEventListener('change', function () {
-                var opt = themeSelect.options[themeSelect.selectedIndex];
-                if (!opt || !opt.dataset.set) return;
-                var data = JSON.parse(opt.dataset.set);
-                Object.keys(data).forEach(function (key) {
-                    var input = document.getElementById(key);
-                    if (!input) return;
-                    input.value = data[key];
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
+            var themeSwatches = document.querySelectorAll('.bhy-theme-swatch');
+            themeSwatches.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (!btn.dataset.set) return;
+                    themeSwatches.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    var data = JSON.parse(btn.dataset.set);
+                    Object.keys(data).forEach(function (key) {
+                        var input = document.getElementById(key);
+                        if (!input) return;
+                        input.value = data[key];
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                    // A whole theme just changed everything at once — the
+                    // canvas gets a brief highlight flash so that "instant
+                    // delight" moment actually registers as an event,
+                    // instead of every swatch/frame just silently
+                    // repainting with no visual acknowledgment at all.
+                    var canvas = document.querySelector('.bhy-canvas');
+                    if (canvas) {
+                        canvas.classList.remove('bhy-canvas-flash');
+                        void canvas.offsetWidth;
+                        canvas.classList.add('bhy-canvas-flash');
+                    }
                 });
             });
 
