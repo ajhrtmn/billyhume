@@ -144,7 +144,7 @@ class BHM_Tiers {
             // is asking them to — must still be able to find this
             // screen at all, not have it silently vanish into a parent
             // menu slug that doesn't exist yet).
-            'public' => false, 'show_ui' => true, 'show_in_menu' => class_exists('WooCommerce') ? 'woocommerce' : true,
+            'public' => false, 'show_ui' => true, 'show_in_menu' => (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) ? 'woocommerce' : true,
             'menu_icon' => 'dashicons-star-filled', 'supports' => ['title'], 'capability_type' => 'post',
         ]);
     }
@@ -161,9 +161,14 @@ class BHM_Tiers {
         $benefits_list = (array) get_post_meta($post->ID, '_bhm_benefits_list', true);
         $cover_image_id = (int) get_post_meta($post->ID, '_bhm_cover_image_id', true);
         $wc_product_id = (int) get_post_meta($post->ID, '_bhm_wc_product_id', true);
-        $has_subs = class_exists('WC_Subscriptions');
+        // Routed through BH_Commerce, same fix applied to class-admin.php
+        // and class-frontend.php this same audit pass — these two calls
+        // were missed when the rest of this plugin migrated onto the
+        // abstraction.
+        $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
+        $has_wc = class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce');
 
-        if (!class_exists('WooCommerce')) {
+        if (!$has_wc) {
             echo '<p class="description">WooCommerce isn\'t active yet — this tier will start selling automatically once it is. See <strong>Own Ur Shit → Monetization Settings</strong> to install it.</p>';
         }
 
@@ -316,7 +321,7 @@ class BHM_Tiers {
         $clean_keys = array_values(array_intersect($known_keys, array_map('sanitize_key', $submitted)));
         update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
 
-        if (class_exists('WooCommerce')) {
+        if (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
         }
 
@@ -364,7 +369,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_cover_image_id', (int) ($data['cover_image_id'] ?? 0));
         update_post_meta($post_id, '_bhm_benefit_keys', (array) ($data['benefit_keys'] ?? []));
 
-        if (class_exists('WooCommerce')) {
+        if (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), (int) ($data['price_cents'] ?? 0), (int) ($data['annual_price_cents'] ?? 0), (int) ($data['trial_days'] ?? 0));
         }
 
