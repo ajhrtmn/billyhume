@@ -14,6 +14,59 @@
         }
     });
 
+    // Course-page review form — lives OUTSIDE the .bhc-lesson-gated
+    // block below (that whole block early-returns if .bhc-lesson isn't
+    // on the page, which it never is on the course page itself, only
+    // on a single lesson's own page) so this actually runs where the
+    // review form is rendered.
+    document.addEventListener('DOMContentLoaded', function () {
+        var form = document.querySelector('.bhc-review-form');
+        if (!form) return;
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var resultBox = form.querySelector('.bhc-review-form-result');
+            var submitBtn = form.querySelector('button[type="submit"]');
+            var rating = form.querySelector('input[name="rating"]:checked');
+            if (!rating) {
+                resultBox.textContent = 'Choose a star rating first.';
+                return;
+            }
+
+            var originalLabel = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting…';
+            resultBox.textContent = '';
+
+            var body = new URLSearchParams({
+                action: 'bhc_submit_review',
+                nonce: BHCData.nonce,
+                course_id: form.dataset.courseId,
+                rating: rating.value,
+                body: form.querySelector('.bhc-review-textarea').value,
+            });
+
+            fetch(BHCData.ajaxUrl, { method: 'POST', body: body })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalLabel;
+                    if (!res.success) {
+                        resultBox.textContent = (res.data && res.data.message) || 'Could not submit your review.';
+                        return;
+                    }
+                    resultBox.textContent = res.data.message || 'Thanks for your review!';
+                    submitBtn.textContent = 'Update review';
+                    if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show(res.data.message || 'Review submitted.', 'success'); }
+                })
+                .catch(function () {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalLabel;
+                    resultBox.textContent = 'Could not reach the server — check your connection and try again.';
+                });
+        });
+    });
+
     // Shared by two real trigger points: a fresh page load that lands
     // directly on the completion screen (server-rendered — see
     // class-render-lesson.php's bhc-completion block, e.g. revisiting

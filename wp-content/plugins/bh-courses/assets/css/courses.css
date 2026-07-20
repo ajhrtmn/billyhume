@@ -97,6 +97,8 @@
 .bhc-card-lesson-count { color: var(--bh-text-dim); }
 .bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); }
 .bhc-card-instructor img { border-radius: 50%; }
+.bhc-card-rating { color: var(--bh-accent); font-weight: 600; }
+.bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
 .bhc-continue-btn { margin-top: auto; }
 
 /* ---- catalog: filter/sort/search bar ---- */
@@ -130,6 +132,46 @@
 .bhc-syllabus-preview h4 { font-family: var(--bh-font-heading); font-size: 15px; margin-bottom: 8px; }
 .bhc-lesson-list-preview li { color: var(--bh-text-dim); }
 .bhc-attempts-note { font-size: 13px; color: var(--bh-text-dim); margin: 8px 0; }
+
+/* ---- ratings/reviews ---- */
+.bhc-course-rating, .bhc-stars { color: var(--bh-accent); }
+.bhc-rating-number { font-weight: 700; color: var(--bh-text); }
+.bhc-rating-count { color: var(--bh-text-dim); }
+.bhc-reviews-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--bh-border); }
+.bhc-reviews-section h2 { font-family: var(--bh-font-heading); font-size: 18px; margin-bottom: 14px; }
+.bhc-review-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
+.bhc-review { padding: 14px 16px; border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm, 8px); background: var(--bh-surface); }
+.bhc-review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.bhc-review-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.bhc-review-badge-completed { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); }
+.bhc-review-badge-enrolled { background: var(--bh-surface-2); color: var(--bh-text-dim); }
+.bhc-review-body { font-size: 14px; color: var(--bh-text); line-height: 1.5; margin: 4px 0; }
+.bhc-review-date { font-size: 12px; color: var(--bh-text-dim); margin: 0; }
+.bhc-review-form-wrap { max-width: 480px; }
+.bhc-review-status-note { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
+.bhc-review-status-rejected { color: #b32d2e; }
+.bhc-review-form fieldset { border: none; padding: 0; margin: 0; }
+.bhc-review-form legend { font-family: var(--bh-font-heading); font-size: 14px; font-weight: 600; margin-bottom: 8px; padding: 0; }
+/* Star picker: real radios (native form semantics/keyboard support),
+   visually reordered right-to-left with flex row-reverse so hovering/
+   checking a star also visually fills every star before it — a
+   right-to-left DOM order is the only way that works with a pure-CSS
+   :checked ~ sibling selector, no JS needed for the fill effect. */
+.bhc-review-star-picker { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; margin-bottom: 10px; }
+.bhc-review-star-choice { cursor: pointer; font-size: 22px; color: var(--bh-border); }
+.bhc-review-star-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bhc-review-star-choice:hover, .bhc-review-star-choice:hover ~ .bhc-review-star-choice,
+.bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked),
+.bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked) ~ .bhc-review-star-choice {
+    color: var(--bh-accent);
+}
+.bhc-review-star-choice input:focus-visible + span { outline: 2px solid var(--bh-accent); outline-offset: 2px; }
+.bhc-review-textarea {
+    width: 100%; box-sizing: border-box; resize: vertical; font-size: 14px; font-family: inherit;
+    padding: 10px 12px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg, var(--bh-surface)); color: var(--bh-text);
+    margin-bottom: 10px;
+}
+.bhc-review-form-result { font-size: 13px; color: var(--bh-text-dim); margin-top: 8px; }
 
 /* ---- persistent course breadcrumb (always visible, not gated on
    lesson completion — see .bhc-lesson-next below for the completion-
