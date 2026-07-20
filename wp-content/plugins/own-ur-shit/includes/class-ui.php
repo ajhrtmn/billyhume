@@ -26,6 +26,22 @@ class BHY_UI {
             .bhy-swatch-controls { display: flex; gap: 5px; align-items: center; }
             .bhy-swatch-controls input[type=text] { width: 100%; font-size: 12px; padding: 3px 6px; }
             .bhy-swatch-controls input[type=color] { width: 24px; height: 24px; padding: 0; border: 1px solid #dcdcde; cursor: pointer; }
+            .bhy-hsl-toggle {
+                background: none; border: none; padding: 0 0 0 6px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+                letter-spacing: .03em; color: var(--bhy-ink-dim, #787c82); cursor: pointer;
+            }
+            .bhy-hsl-toggle:hover, .bhy-hsl-toggle[aria-expanded="true"] { color: var(--bhy-accent, #2271b1); }
+            /* :not([hidden]) rather than a bare .bhy-hsl-controls rule —
+               a plain class selector ties in specificity with the
+               browsers own [hidden]{display:none} UA rule and wins
+               (author stylesheet beats UA default at equal specificity),
+               which defeated the toggle button entirely: every panel
+               rendered permanently expanded regardless of the hidden
+               attribute JS was correctly setting. */
+            .bhy-hsl-controls:not([hidden]) { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+            .bhy-hsl-controls label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; color: var(--bhy-ink-dim, #646970); }
+            .bhy-hsl-controls input[type=range] { flex: 1; }
+            .bhy-hsl-val { font-variant-numeric: tabular-nums; width: 32px; text-align: right; color: var(--bhy-ink, #1d2327); }
         ';
     }
 
@@ -35,12 +51,26 @@ class BHY_UI {
         <div class="bhy-swatch-card">
             <div class="bhy-swatch" id="bhy-swatch-<?php echo esc_attr($id); ?>" style="background:<?php echo esc_attr($display ?: '#f6f7f7'); ?>"></div>
             <div class="bhy-swatch-body">
-                <label for="<?php echo esc_attr($id); ?>"><?php echo esc_html($label); ?></label>
+                <label for="<?php echo esc_attr($id); ?>"><?php echo esc_html($label); ?>
+                    <button type="button" class="bhy-hsl-toggle" data-key="<?php echo esc_attr($id); ?>" aria-expanded="false" aria-controls="bhy-hsl-<?php echo esc_attr($id); ?>">HSL</button>
+                </label>
                 <div class="bhy-swatch-controls">
                     <input type="text" id="<?php echo esc_attr($id); ?>" name="<?php echo esc_attr($name); ?>"
                            value="<?php echo esc_attr($value); ?>" placeholder="<?php echo esc_attr($placeholder); ?>" data-key="<?php echo esc_attr($id); ?>">
                     <input type="color" id="bhy-picker-<?php echo esc_attr($id); ?>"
                            value="<?php echo esc_attr(strlen($display) === 7 && $display[0] === '#' ? $display : '#000000'); ?>" tabindex="-1">
+                </div>
+                <!-- Collapsed by default — 17 swatches (6 core + 3
+                     advanced + 8 category) all showing three sliders at
+                     once would be an overwhelming wall of controls; this
+                     keeps the hex+eyedropper as the fast default path and
+                     HSL as an opt-in for whoever actually wants to nudge
+                     hue/saturation/lightness directly instead of hunting
+                     for a hex value. -->
+                <div class="bhy-hsl-controls" id="bhy-hsl-<?php echo esc_attr($id); ?>" hidden>
+                    <label>H <input type="range" min="0" max="360" step="1" class="bhy-hsl-h" data-key="<?php echo esc_attr($id); ?>"> <span class="bhy-hsl-val bhy-hsl-h-val"></span></label>
+                    <label>S <input type="range" min="0" max="100" step="1" class="bhy-hsl-s" data-key="<?php echo esc_attr($id); ?>"> <span class="bhy-hsl-val bhy-hsl-s-val"></span></label>
+                    <label>L <input type="range" min="0" max="100" step="1" class="bhy-hsl-l" data-key="<?php echo esc_attr($id); ?>"> <span class="bhy-hsl-val bhy-hsl-l-val"></span></label>
                 </div>
             </div>
         </div>
@@ -71,6 +101,81 @@ class BHY_UI {
                 }
                 input.addEventListener('input', sync);
                 if (picker) picker.addEventListener('input', function () { input.value = picker.value; sync(); });
+            });
+
+            // HSL sliders — an opt-in per swatch (behind the 'HSL' toggle
+            // button, see swatch_field()) rather than always-visible,
+            // since 17 swatches on this page all showing 3 sliders at
+            // once would swamp the panel. The hex text field stays the
+            // single source of truth: opening the panel reads FROM hex,
+            // dragging a slider writes TO hex (dispatching a real 'input'
+            // event so the existing swatch-preview/live-canvas sync above
+            // fires exactly like a manual hex edit would).
+            function hexToHsl(hex) {
+                var m = /^#?([a-f\\d]{2})([a-f\\d]{2})([a-f\\d]{2})\$/i.exec(hex);
+                if (!m) return null;
+                var r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255;
+                var max = Math.max(r, g, b), min = Math.min(r, g, b);
+                var h, s, l = (max + min) / 2;
+                if (max === min) { h = s = 0; }
+                else {
+                    var d = max - min;
+                    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+                    else if (max === g) h = (b - r) / d + 2;
+                    else h = (r - g) / d + 4;
+                    h *= 60;
+                }
+                return { h: Math.round(h), s: Math.round(s * 100), l: Math.round(l * 100) };
+            }
+            function hslToHex(h, s, l) {
+                s /= 100; l /= 100;
+                var c = (1 - Math.abs(2 * l - 1)) * s;
+                var x = c * (1 - Math.abs((h / 60) % 2 - 1));
+                var m = l - c / 2;
+                var r = 0, g = 0, b = 0;
+                if (h < 60) { r = c; g = x; b = 0; }
+                else if (h < 120) { r = x; g = c; b = 0; }
+                else if (h < 180) { r = 0; g = c; b = x; }
+                else if (h < 240) { r = 0; g = x; b = c; }
+                else if (h < 300) { r = x; g = 0; b = c; }
+                else { r = c; g = 0; b = x; }
+                function toHex(v) { var h2 = Math.round((v + m) * 255).toString(16); return h2.length === 1 ? '0' + h2 : h2; }
+                return '#' + toHex(r) + toHex(g) + toHex(b);
+            }
+
+            document.querySelectorAll('.bhy-hsl-toggle').forEach(function (btn) {
+                var key = btn.dataset.key;
+                var panel = document.getElementById('bhy-hsl-' + key);
+                var input = document.getElementById(key);
+                if (!panel || !input) return;
+                var hSlider = panel.querySelector('.bhy-hsl-h'), sSlider = panel.querySelector('.bhy-hsl-s'), lSlider = panel.querySelector('.bhy-hsl-l');
+                var hVal = panel.querySelector('.bhy-hsl-h-val'), sVal = panel.querySelector('.bhy-hsl-s-val'), lVal = panel.querySelector('.bhy-hsl-l-val');
+
+                function renderLabels() {
+                    hVal.textContent = hSlider.value + '\\u00b0'; sVal.textContent = sSlider.value + '%'; lVal.textContent = lSlider.value + '%';
+                }
+                function initFromHex() {
+                    var hsl = hexToHsl(input.value.trim() || input.placeholder);
+                    if (!hsl) return;
+                    hSlider.value = hsl.h; sSlider.value = hsl.s; lSlider.value = hsl.l;
+                    renderLabels();
+                }
+
+                btn.addEventListener('click', function () {
+                    var expanded = btn.getAttribute('aria-expanded') === 'true';
+                    btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                    panel.hidden = expanded;
+                    if (!expanded) initFromHex();
+                });
+
+                [hSlider, sSlider, lSlider].forEach(function (slider) {
+                    slider.addEventListener('input', function () {
+                        renderLabels();
+                        input.value = hslToHex(parseFloat(hSlider.value), parseFloat(sSlider.value), parseFloat(lSlider.value));
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                });
             });
         })();
         ";
