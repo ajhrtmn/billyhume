@@ -37,6 +37,12 @@ class BHC_Render_Course {
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
         if ($instructor) echo '<span class="bhc-course-instructor">' . get_avatar($instructor->ID, 24) . ' Taught by ' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span>';
+        if (class_exists('BHC_Reviews')) {
+            $rating = BHC_Reviews::average_rating($course_id);
+            if ($rating['count'] > 0) {
+                echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html($rating['average']) . '</span> <span class="bhc-rating-count">(' . (int) $rating['count'] . ' review' . ($rating['count'] === 1 ? '' : 's') . ')</span></span>';
+            }
+        }
         echo '</div>';
 
         if (!empty($categories) && !is_wp_error($categories)) {
@@ -149,6 +155,79 @@ class BHC_Render_Course {
             }
             echo self::render_grouped_lesson_list($course_id, $uid, null, false);
         }
+        if (!$locked && class_exists('BHC_Reviews')) echo self::render_reviews_section($course_id, $uid);
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    // Whole-star glyphs, rounded to the nearest star — simple on
+    // purpose (matches the admin moderation table's own str_repeat
+    // approach) rather than half-star rendering, which would need a
+    // second glyph/SVG this codebase doesn't otherwise use anywhere.
+    private static function render_stars($rating) {
+        $full = (int) round($rating);
+        $full = max(0, min(5, $full));
+        return '<span class="bhc-stars" aria-hidden="true">' . str_repeat('&#9733;', $full) . str_repeat('&#9734;', 5 - $full) . '</span>';
+    }
+
+    // Reviews list (approved only — a pending/rejected review is only
+    // ever visible to the student who wrote it, via the form state
+    // below) + the submission/edit form. Eligibility is ENROLLMENT, not
+    // completion (AJ's own scoping) — locked-out visitors never see
+    // this section at all (the caller already gates on !$locked).
+    private static function render_reviews_section($course_id, $uid) {
+        ob_start();
+        echo '<div class="bhc-reviews-section">';
+        echo '<h2>Reviews</h2>';
+
+        $reviews = BHC_Reviews::reviews_for_course($course_id, 'approved');
+        if (!$reviews) {
+            echo '<p class="description">No reviews yet.</p>';
+        } else {
+            echo '<div class="bhc-review-list">';
+            foreach ($reviews as $review) {
+                $reviewer = get_userdata((int) $review['user_id']);
+                $name = $reviewer ? ($reviewer->display_name ?: $reviewer->user_login) : 'A student';
+                echo '<div class="bhc-review">';
+                echo '<div class="bhc-review-head">' . self::render_stars((int) $review['rating']) . ' <strong>' . esc_html($name) . '</strong>';
+                echo $review['completed_at_review']
+                    ? ' <span class="bhc-review-badge bhc-review-badge-completed">Completed the course</span>'
+                    : ' <span class="bhc-review-badge bhc-review-badge-enrolled">Enrolled</span>';
+                echo '</div>';
+                if ($review['body']) echo '<p class="bhc-review-body">' . esc_html($review['body']) . '</p>';
+                echo '<p class="bhc-review-date">' . esc_html(date_i18n(get_option('date_format'), strtotime($review['created_at']))) . '</p>';
+                echo '</div>';
+            }
+            echo '</div>';
+        }
+
+        if ($uid && BHC_Progress::enrolled_at($uid, $course_id)) {
+            $mine = BHC_Reviews::user_review($uid, $course_id);
+            echo '<div class="bhc-review-form-wrap">';
+            if ($mine) {
+                if ($mine['status'] === 'pending') {
+                    echo '<p class="bhc-review-status-note">Your review is awaiting approval.</p>';
+                } elseif ($mine['status'] === 'rejected') {
+                    echo '<p class="bhc-review-status-note bhc-review-status-rejected">Your review wasn\'t approved. You can edit and resubmit it below.</p>';
+                } else {
+                    echo '<p class="bhc-review-status-note">Your review is live below — thanks for sharing it! You can still edit it any time.</p>';
+                }
+            }
+            echo '<form class="bhc-review-form" data-course-id="' . (int) $course_id . '">';
+            echo '<fieldset><legend>' . ($mine ? 'Edit your review' : 'Leave a review') . '</legend>';
+            echo '<div class="bhc-review-star-picker" role="radiogroup" aria-label="Rating">';
+            for ($i = 5; $i >= 1; $i--) {
+                $checked = $mine && (int) $mine['rating'] === $i;
+                echo '<label class="bhc-review-star-choice"><input type="radio" name="rating" value="' . $i . '"' . ($checked ? ' checked' : '') . ' required> <span aria-hidden="true">&#9733;</span><span class="screen-reader-text">' . $i . ' star' . ($i === 1 ? '' : 's') . '</span></label>';
+            }
+            echo '</div>';
+            echo '<textarea class="bhc-review-textarea" placeholder="What did you think? (optional)" rows="3">' . esc_textarea($mine['body'] ?? '') . '</textarea>';
+            echo '<button type="submit" class="bhc-btn">' . ($mine ? 'Update review' : 'Submit review') . '</button>';
+            echo '<div class="bhc-review-form-result" role="status" aria-live="polite"></div>';
+            echo '</fieldset></form>';
+            echo '</div>';
+        }
+
         echo '</div>';
         return ob_get_clean();
     }

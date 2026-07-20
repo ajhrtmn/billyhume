@@ -32,7 +32,7 @@ class BHC_Render_Catalog {
         $category = isset($_GET['bhc_category']) ? sanitize_title(wp_unslash($_GET['bhc_category'])) : '';
         $topic = isset($_GET['bhc_topic']) ? sanitize_title(wp_unslash($_GET['bhc_topic'])) : '';
         $sort = isset($_GET['bhc_sort']) ? sanitize_key($_GET['bhc_sort']) : 'newest';
-        if (!in_array($sort, ['newest', 'alpha', 'popular'], true)) $sort = 'newest';
+        if (!in_array($sort, ['newest', 'alpha', 'popular', 'top_rated'], true)) $sort = 'newest';
         $page = max(1, (int) ($_GET['bhc_paged'] ?? 1));
 
         $base_args = ['post_type' => 'bh_course', 'post_status' => 'publish'];
@@ -42,17 +42,21 @@ class BHC_Render_Catalog {
         if ($topic) $tax_query[] = ['taxonomy' => 'bhc_course_topic', 'field' => 'slug', 'terms' => $topic];
         if ($tax_query) $base_args['tax_query'] = $tax_query;
 
-        if ($sort === 'popular') {
-            // WP_Query has no native orderby for a signal that lives in
-            // bhc_enrollments, not postmeta (QUIZ-AND-CATALOG-DESIGN-PLAN.md
-            // Part 2.5's option (b), chosen for a catalog this size):
-            // resolve every course ID matching search+filters first
-            // (ids-only, cheap), sort THOSE by enrollment count
-            // (courses with zero enrollments still included, just sorted
-            // last), then re-query that exact ordered ID list with
-            // pagination via post__in + orderby=post__in.
+        if ($sort === 'popular' || $sort === 'top_rated') {
+            // Same "resolve IDs, sort in PHP, re-query with post__in" shape
+            // as the popular-sort branch below — a rating average lives in
+            // bhc_reviews, not postmeta, so WP_Query has no native orderby
+            // for it either. Courses with zero approved reviews sort last
+            // (average 0), never excluded — a course simply not yet
+            // reviewed shouldn't vanish from a "highest rated" browse.
             $all_ids = get_posts(array_merge($base_args, ['fields' => 'ids', 'posts_per_page' => -1]));
-            $counts = BHC_Progress::enrollment_counts();
+            if ($sort === 'popular') {
+                $counts = BHC_Progress::enrollment_counts();
+            } else {
+                $ratings = class_exists('BHC_Reviews') ? BHC_Reviews::average_ratings() : [];
+                $counts = [];
+                foreach ($ratings as $cid => $r) $counts[$cid] = $r['average'];
+            }
             usort($all_ids, function ($a, $b) use ($counts) {
                 $ca = $counts[$a] ?? 0; $cb = $counts[$b] ?? 0;
                 if ($ca === $cb) return $a <=> $b; // stable tiebreak
@@ -120,6 +124,12 @@ class BHC_Render_Catalog {
         echo '<div class="bhc-card-meta">';
         if ($difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course->ID)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span class="bhc-card-lesson-count">' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
+        if (class_exists('BHC_Reviews')) {
+            $rating = BHC_Reviews::average_rating($course->ID);
+            if ($rating['count'] > 0) {
+                echo '<span class="bhc-card-rating">&#9733; ' . esc_html($rating['average']) . ' <span class="bhc-card-rating-count">(' . (int) $rating['count'] . ')</span></span>';
+            }
+        }
         echo '</div>';
 
         if ($instructor) echo '<div class="bhc-card-instructor">' . get_avatar($instructor->ID, 20) . ' <span>' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div>';
@@ -169,7 +179,7 @@ class BHC_Render_Catalog {
         }
 
         echo '<select name="bhc_sort" class="bhc-filter-select">';
-        foreach (['newest' => 'Newest', 'alpha' => 'A–Z', 'popular' => 'Most popular'] as $key => $label) {
+        foreach (['newest' => 'Newest', 'alpha' => 'A–Z', 'popular' => 'Most popular', 'top_rated' => 'Highest rated'] as $key => $label) {
             echo '<option value="' . esc_attr($key) . '"' . selected($sort, $key, false) . '>' . esc_html($label) . '</option>';
         }
         echo '</select>';

@@ -133,6 +133,94 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_gate_drip_tests());
         }
 
+        /* ---------- reviews (BHC_Reviews) ----------
+         * New this pass — course reviews/ratings, previously explicitly
+         * deferred with no data model at all. Runs against a real,
+         * tagged fixture course + a real enrollment row, cleaned up
+         * afterward. */
+        if (class_exists('BHC_Reviews') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_review_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_review_tests() {
+        $rows = [];
+        global $wpdb;
+
+        $course_id = wp_insert_post([
+            'post_type' => 'bh_course', 'post_status' => 'publish',
+            'post_title' => 'Reviews Test Fixture Course', 'meta_input' => ['bhcore_is_test' => 'bhc_reviews_suite'],
+        ], true);
+        if (is_wp_error($course_id)) {
+            return [['name' => 'Reviews test fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bh_course post — skipping review tests.']];
+        }
+
+        $uid = OUS_Debug::get_or_create_test_user('bhc_reviews_suite', false);
+        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        $reviews_table = $wpdb->prefix . 'bhc_reviews';
+        $wpdb->delete($reviews_table, ['user_id' => $uid, 'course_id' => $course_id]);
+
+        // Not enrolled yet — eligibility is enrollment, not completion,
+        // but SOME real access is still required (not a free-for-all).
+        $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Great course!');
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($result), 'submit_review() rejects a user with no enrollment at all');
+
+        // Enroll (not completing the course) and submit — should
+        // succeed, land as 'pending', and record completed_at_review=0
+        // since this user has not finished the course.
+        $wpdb->insert($enroll_table, ['user_id' => $uid, 'course_id' => $course_id, 'enrolled_at' => current_time('mysql', true)]);
+        $result = BHC_Reviews::submit_review($uid, $course_id, 5, 'Great course, still working through it.');
+        $rows[] = OUS_TestRunner::assert_true($result === true, 'submit_review() succeeds for an enrolled (not yet completed) user');
+
+        $mine = BHC_Reviews::user_review($uid, $course_id);
+        $rows[] = OUS_TestRunner::assert_same('pending', $mine['status'] ?? null, 'A freshly submitted review starts as pending, never auto-approved');
+        $rows[] = OUS_TestRunner::assert_same(0, (int) ($mine['completed_at_review'] ?? -1), 'completed_at_review is 0 for an enrolled-but-not-completed reviewer');
+
+        // Rating out-of-range clamps rather than rejecting outright.
+        BHC_Reviews::submit_review($uid, $course_id, 99, 'Rating way too high.');
+        $clamped = BHC_Reviews::user_review($uid, $course_id);
+        $rows[] = OUS_TestRunner::assert_same(5, (int) ($clamped['rating'] ?? 0), 'An out-of-range rating clamps to 5, not rejected or stored raw');
+
+        // A review isn't publicly visible (average/reviews_for_course)
+        // until approved — the moderation gate is real, not cosmetic.
+        $avg_before = BHC_Reviews::average_rating($course_id);
+        $rows[] = OUS_TestRunner::assert_same(0, $avg_before['count'], 'A pending review does not count toward the public average rating');
+        $visible = BHC_Reviews::reviews_for_course($course_id, 'approved');
+        $rows[] = OUS_TestRunner::assert_same(0, count($visible), 'A pending review does not appear in the public (approved-only) review list');
+
+        // Approve it (simulating the admin moderation action) — now it
+        // should count, and completed_at_review should NOT retroactively
+        // change even if the user completes the course afterward
+        // (it's a snapshot at submission time, not a live recompute).
+        $wpdb->update($reviews_table, ['status' => 'approved'], ['user_id' => $uid, 'course_id' => $course_id]);
+        $avg_after = BHC_Reviews::average_rating($course_id);
+        $rows[] = OUS_TestRunner::assert_same(1, $avg_after['count'], 'An approved review counts toward the public average rating');
+        $rows[] = OUS_TestRunner::assert_same(5.0, $avg_after['average'], 'average_rating() reflects the single approved review\'s rating');
+
+        // Editing/resubmitting an already-approved review resets it back
+        // to pending (re-moderation), and UPDATEs the same row rather
+        // than creating a second one (UNIQUE KEY user_course).
+        BHC_Reviews::submit_review($uid, $course_id, 3, 'Revised opinion after finishing.');
+        $after_edit = BHC_Reviews::user_review($uid, $course_id);
+        $rows[] = OUS_TestRunner::assert_same('pending', $after_edit['status'] ?? null, 'Editing an approved review resets its status back to pending, not grandfathered in');
+        $row_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $reviews_table WHERE user_id = %d AND course_id = %d", $uid, $course_id));
+        $rows[] = OUS_TestRunner::assert_same(1, $row_count, 'Editing a review UPDATEs the existing row rather than inserting a second one');
+
+        // average_ratings() — the bulk sibling used by the catalog's
+        // "Highest rated" sort — must agree with the single-course
+        // average_rating() once the edited review above is re-approved.
+        $wpdb->update($reviews_table, ['status' => 'approved'], ['user_id' => $uid, 'course_id' => $course_id]);
+        $bulk = BHC_Reviews::average_ratings();
+        $rows[] = OUS_TestRunner::assert_true(isset($bulk[$course_id]) && (float) $bulk[$course_id]['average'] === 3.0, 'average_ratings() bulk helper agrees with average_rating() for the same course');
+
+        // Cleanup.
+        $wpdb->delete($reviews_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        wp_delete_post($course_id, true);
+
         return $rows;
     }
 

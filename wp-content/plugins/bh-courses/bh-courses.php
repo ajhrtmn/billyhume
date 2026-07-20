@@ -133,7 +133,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -179,6 +179,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Comments', 'init']);
     add_action('init', ['BHC_Certificates', 'init']);
     add_action('init', ['BHC_ShareCards', 'init']);
+    add_action('init', ['BHC_Reviews', 'init']);
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
@@ -212,6 +213,7 @@ add_action('plugins_loaded', function () {
     add_action('wp_ajax_bhc_submit_quiz', ['BHC_Progress', 'ajax_submit_quiz']);
     add_action('wp_ajax_bhc_mark_complete', ['BHC_Progress', 'ajax_mark_complete']);
     add_action('wp_ajax_bhc_update_watch_progress', ['BHC_Progress', 'ajax_update_watch_progress']);
+    add_action('wp_ajax_bhc_submit_review', ['BHC_Reviews', 'ajax_submit_review']);
 });
 
 // Self-registration into the Own Ur Shit dashboard — zero changes
