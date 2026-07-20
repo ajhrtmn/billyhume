@@ -238,6 +238,70 @@ class BHY_Style {
                 'cat_color_5' => '#CFB8CF', 'cat_color_6' => '#755C75', 'cat_color_7' => '#DECCDE', 'cat_color_8' => '#634D63',
             ],
         ],
+        // Every theme above but "The Door — Day" is a dark palette — this
+        // group fills the light-background side of the library the same
+        // "The Door — Day" already proved out, so a site that wants a
+        // bright/airy look isn't stuck picking from one single option.
+        'Pastel & Soft' => [
+            'Cotton Candy' => [
+                'color_bg' => '#FDF2F8', 'color_surface' => '#FCE7F3', 'color_surface_2' => '#FBCFE8',
+                'color_border' => '#F5B8DC', 'color_text' => '#4A1942', 'color_text_dim' => '#9D5A8F',
+                'color_accent' => '#EC4899', 'color_accent_soft' => '#F9A8D4', 'color_overlay' => '#4A1942B3',
+                'cat_color_1' => '#EC4899', 'cat_color_2' => '#A78BFA', 'cat_color_3' => '#34D399', 'cat_color_4' => '#FBBF24',
+                'cat_color_5' => '#60A5FA', 'cat_color_6' => '#FB7185', 'cat_color_7' => '#2DD4BF', 'cat_color_8' => '#F472B6',
+            ],
+            'Sage Garden' => [
+                'color_bg' => '#F3F7F2', 'color_surface' => '#E8F0E5', 'color_surface_2' => '#DCE9D7',
+                'color_border' => '#C3D9BB', 'color_text' => '#23331D', 'color_text_dim' => '#5C7550',
+                'color_accent' => '#6B9B4F', 'color_accent_soft' => '#A3C98D', 'color_overlay' => '#23331DB3',
+                'cat_color_1' => '#6B9B4F', 'cat_color_2' => '#D9A441', 'cat_color_3' => '#B8785A', 'cat_color_4' => '#4C8DFF',
+                'cat_color_5' => '#E8546B', 'cat_color_6' => '#38BDF8', 'cat_color_7' => '#9B4DCA', 'cat_color_8' => '#C1503A',
+            ],
+            'Powder Blue' => [
+                'color_bg' => '#F0F6FA', 'color_surface' => '#E1EDF5', 'color_surface_2' => '#D0E3F0',
+                'color_border' => '#B3D0E6', 'color_text' => '#14293A', 'color_text_dim' => '#4E6E85',
+                'color_accent' => '#3B82C4', 'color_accent_soft' => '#8FC0E8', 'color_overlay' => '#14293AB3',
+                'cat_color_1' => '#3B82C4', 'cat_color_2' => '#F5A623', 'cat_color_3' => '#06D6A0', 'cat_color_4' => '#EF476F',
+                'cat_color_5' => '#7B61FF', 'cat_color_6' => '#FFD23F', 'cat_color_7' => '#118AB2', 'cat_color_8' => '#FF6B4A',
+            ],
+            'Peach Fuzz' => [
+                'color_bg' => '#FDF4EC', 'color_surface' => '#FCE9D6', 'color_surface_2' => '#F9DBBC',
+                'color_border' => '#F0C79A', 'color_text' => '#3D2410', 'color_text_dim' => '#8C6A45',
+                'color_accent' => '#F2884B', 'color_accent_soft' => '#F7B685', 'color_overlay' => '#3D2410B3',
+                'cat_color_1' => '#F2884B', 'cat_color_2' => '#4DB6AC', 'cat_color_3' => '#9B4DCA', 'cat_color_4' => '#4C8DFF',
+                'cat_color_5' => '#E8546B', 'cat_color_6' => '#9CCC65', 'cat_color_7' => '#FFD54F', 'cat_color_8' => '#FF8A65',
+            ],
+        ],
+        'Nature & Organic' => [
+            'Autumn Forest' => [
+                'color_bg' => '#0A0F08', 'color_surface' => '#131C0F', 'color_surface_2' => '#1B2814',
+                'color_border' => '#2E4222', 'color_text' => '#EFF5E8', 'color_text_dim' => '#9BB98A',
+                'color_accent' => '#D9772E', 'color_accent_soft' => '#F0AD70', 'color_overlay' => '#05070399',
+                'cat_color_1' => '#D9772E', 'cat_color_2' => '#6B9B4F', 'cat_color_3' => '#C9A227', 'cat_color_4' => '#4C8DFF',
+                'cat_color_5' => '#B8425A', 'cat_color_6' => '#7A9E6F', 'cat_color_7' => '#E0B94D', 'cat_color_8' => '#8C5E3C',
+            ],
+            'Desert Bloom' => [
+                'color_bg' => '#120D08', 'color_surface' => '#1E150D', 'color_surface_2' => '#2A1E12',
+                'color_border' => '#402D1C', 'color_text' => '#F7ECD9', 'color_text_dim' => '#C2A47E',
+                'color_accent' => '#E0A458', 'color_accent_soft' => '#F0C98C', 'color_overlay' => '#0A0705D1',
+                'cat_color_1' => '#E0A458', 'cat_color_2' => '#7A9E6F', 'cat_color_3' => '#C9663B', 'cat_color_4' => '#4DA8CA',
+                'cat_color_5' => '#CA4D8F', 'cat_color_6' => '#B5891F', 'cat_color_7' => '#6F8C7A', 'cat_color_8' => '#A85E4C',
+            ],
+            'Ocean Reef' => [
+                'color_bg' => '#05100E', 'color_surface' => '#0C1E1A', 'color_surface_2' => '#142A24',
+                'color_border' => '#21493D', 'color_text' => '#E4F7F1', 'color_text_dim' => '#7FC4B0',
+                'color_accent' => '#2ABF9E', 'color_accent_soft' => '#7FE0C7', 'color_overlay' => '#03080699',
+                'cat_color_1' => '#2ABF9E', 'cat_color_2' => '#4C8DFF', 'cat_color_3' => '#F5A623', 'cat_color_4' => '#E8546B',
+                'cat_color_5' => '#9B4DCA', 'cat_color_6' => '#FFD23F', 'cat_color_7' => '#38BDF8', 'cat_color_8' => '#FF6B4A',
+            ],
+            'Lavender Fields' => [
+                'color_bg' => '#0D0A14', 'color_surface' => '#171123', 'color_surface_2' => '#211932',
+                'color_border' => '#362853', 'color_text' => '#F1E9FA', 'color_text_dim' => '#B39BD9',
+                'color_accent' => '#8B5FBF', 'color_accent_soft' => '#BB9AE0', 'color_overlay' => '#06040AD1',
+                'cat_color_1' => '#8B5FBF', 'cat_color_2' => '#4C8DFF', 'cat_color_3' => '#2AB7CA', 'cat_color_4' => '#E8546B',
+                'cat_color_5' => '#D9A441', 'cat_color_6' => '#6B9B4F', 'cat_color_7' => '#FF6B9D', 'cat_color_8' => '#C77DFF',
+            ],
+        ],
     ];
 
     // Fields a single entity (a contest, a track, whatever the
