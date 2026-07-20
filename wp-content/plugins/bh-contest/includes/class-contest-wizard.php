@@ -115,7 +115,7 @@ class BH_ContestWizard {
     }
 
     public static function handle_save() {
-        if (!current_user_can('edit_posts') || !isset($_POST['bh_contest_wizard_nonce']) || !wp_verify_nonce($_POST['bh_contest_wizard_nonce'], 'bh_contest_wizard_save')) {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('edit_posts', $_POST['bh_contest_wizard_nonce'] ?? '', 'bh_contest_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
 
