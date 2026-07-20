@@ -41,6 +41,7 @@ require_once dirname(__DIR__) . '/includes/class-two-factor.php';
  */
 function bhi_2fa_call_private($method, ...$args) {
     $ref = new ReflectionMethod('BHI_TwoFactor', $method);
-    $ref->setAccessible(true);
+    // No setAccessible(true) call — a no-op (and deprecated) on PHP 8.1+,
+    // where ReflectionMethod can invoke a private method directly.
     return $ref->invokeArgs(null, $args);
 }

@@ -19,6 +19,14 @@ wp-config.php
 # htaccess
 /.htaccess
 
+# Dev-only Composer tooling (PHPUnit for wp-content/plugins/*/tests/) — not
+# committed, same as node_modules. Never deployed to the live site (see
+# run-all-tests.sh's own docblock) — the live site only ever runs
+# OUS_TestRunner via Debug Tools.
+/vendor/
+/composer.lock
+wp-content/plugins/*/tests/.phpunit.result.cache
+
 # macOS Finder metadata — never something a WordPress install needs
 # tracked, in any directory
 .DS_Store
