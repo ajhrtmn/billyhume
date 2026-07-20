@@ -57,9 +57,8 @@ if (!defined('ABSPATH')) exit;
  * are a natural next registrant via the exact same
  * register_block_type()/JS registerBlockType() pair, from bh-courses'
  * own bootstrap, once its lesson-step editor is ready to swap onto this
- * canvas — not done in this pass, deliberately, matching this
- * ecosystem's "one real working example, not every consumer at once"
- * convention.
+ * canvas — not done here, deliberately, matching this ecosystem's "one
+ * real working example, not every consumer at once" convention.
  */
 class BH_Studio {
     // Every block type this canvas ships with by default — each one
@@ -230,7 +229,6 @@ class BH_Studio {
     // unregistered outright, because the modal iframe still needs a real,
     // capability-checked admin.php?page=bh-studio target to load — fully
     // unhooking add_menu() would 403 the iframe along with the menu item.
-    // Slug/callback/capability are otherwise unchanged from before this pass.
     public static function add_menu() {
         $hook = add_submenu_page(null, 'Content Studio', 'Content Studio', 'bhcore_design_site', 'bh-studio', [self::class, 'render']);
         // Only the failure case is worth a log row — previously this

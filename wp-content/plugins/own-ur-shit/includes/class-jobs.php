@@ -111,8 +111,8 @@ class OUS_Jobs {
                 // callback registered at the DEFAULT priority (10) — by
                 // the time this code runs, WordPress has already passed
                 // priority 1 for this hook firing, so that newly-added
-                // priority-1 callback never runs this pass, the class
-                // never gets defined, and add_action('init', ...) below
+                // priority-1 callback never runs, the class never gets
+                // defined, and add_action('init', ...) below
                 // fatals with "Class ActionScheduler not found." Fix: call
                 // initialize_latest_version() directly and synchronously
                 // instead of trusting the hook timing — the exact same

@@ -469,8 +469,8 @@ class BHY_Gallery {
             var buttons = document.querySelectorAll('.bhy-story-btn');
             var currentLabel = document.getElementById('bhy-current-surface-label');
 
-            // Real usability fix, AJ's own ask: the inspector's controls
-            // are genuine GLOBAL tokens (one theme, applied everywhere —
+            // Real usability fix: the inspector's controls are genuine
+            // GLOBAL tokens (one theme, applied everywhere —
             // this was never per-surface theming, see this file's own
             // top docblock), so there's nothing surface-specific for
             // them to show when you switch surfaces. What WAS missing
@@ -503,8 +503,8 @@ class BHY_Gallery {
                 var hidden = document.getElementById('brand_logo_id');
                 var preview = document.getElementById('bhy-logo-preview');
                 if (!uploadBtn) return;
-                // Real bug, caught live: this script prints inline as part
-                // of the page's own content, before wp_footer runs — and
+                // Real bug: this script prints inline as part of the
+                // page's own content, before wp_footer runs — and
                 // wp.media()'s own scripts (enqueued via wp_enqueue_media())
                 // load in the footer, so `window.wp.media` doesn't exist
                 // yet at THIS script's execution time even though it's
@@ -552,8 +552,8 @@ class BHY_Gallery {
                 var raw = frame.dataset.doc;
                 if (!raw) return;
                 var html;
-                // Real "wonky character" bug, caught live: atob() decodes
-                // base64 into a binary string where every JS character is
+                // Real "wonky character" bug: atob() decodes base64 into
+                // a binary string where every JS character is
                 // ONE BYTE, not a proper UTF-8-decoded string. Any
                 // multi-byte character in a surface's preview text (an
                 // em-dash, a curly quote) came through as 2-3 separate
@@ -589,9 +589,8 @@ class BHY_Gallery {
                 var css = buildCssText();
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
-                // Real gap, AJ's own report ("logo doesn't appear to update
-                // in the style viewer"): this only ever wrote the wordmark
-                // TEXT into #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
+                // Real gap: this only ever wrote the wordmark TEXT into
+                // #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
                 // never appeared here at all, even though the real front-end
                 // (bh-contest/assets/js/player.js's own brand.logoUrl check)
                 // correctly swaps to an <img> when one's set. Mirrors that
@@ -758,9 +757,8 @@ class BHY_Gallery {
                 });
             });
 
-            // Real gap, AJ's own report ("logo doesn't appear to update in
-            // the style viewer"): refreshAllFrames() was only ever called
-            // in response to an edit — ANY logo already saved from a
+            // Real gap: refreshAllFrames() was only ever called in
+            // response to an edit — ANY logo already saved from a
             // previous visit never got drawn into a freshly loaded page's
             // frames at all, since nothing had "changed" yet to trigger it.
             refreshAllFrames();

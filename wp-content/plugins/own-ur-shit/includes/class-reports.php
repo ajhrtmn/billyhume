@@ -120,9 +120,8 @@ class BHI_Reports {
         </div>
         <script>
         (function () {
-            // Recent-action trail — AJ's own ask: "recent user actions
-            // taken or other things like that" as extra report context.
-            // A capped (last 12), sessionStorage-backed log of clicked
+            // Recent-action trail — extra report context. A capped
+            // (last 12), sessionStorage-backed log of clicked
             // interactive elements' visible labels — never keystrokes,
             // never field VALUES/PII, just "what did they click and
             // roughly when" — so whoever triages a report can see the
@@ -235,9 +234,7 @@ class BHI_Reports {
                 // over a generic "email us" link is that whoever
                 // triages it in the admin queue sees exactly what page,
                 // browser, feature area, and recent click path led here
-                // without a back-and-forth. Extended per AJ's own ask
-                // ("recent user actions... other valuable context") on
-                // top of the page/browser info already captured.
+                // without a back-and-forth.
                 var trail;
                 try { trail = JSON.parse(sessionStorage.getItem(TRAIL_KEY) || '[]'); } catch (e) { trail = []; }
                 var trailLines = trail.map(function (entry) {
@@ -249,9 +246,9 @@ class BHI_Reports {
                     + '\nBrowser: ' + navigator.userAgent
                     + '\nRecent actions this session:\n' + trailLines
                     + '\n\n' + reason;
-                // Elegant retry, AJ's own ask — the first real one
-                // anywhere in this ecosystem's JS (checked: nothing else
-                // has actual retry/backoff logic today). Retries ONLY on
+                // Elegant retry — the first real one anywhere in this
+                // ecosystem's JS (checked: nothing else has actual
+                // retry/backoff logic today). Retries ONLY on
                 // network failure (fetch() itself rejecting — offline, a
                 // dropped connection, a timeout) or a 5xx server error —
                 // never on a 4xx (bad nonce, rate-limited, validation

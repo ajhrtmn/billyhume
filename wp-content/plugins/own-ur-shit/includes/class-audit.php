@@ -124,7 +124,7 @@ class OUS_Audit {
     }
 
     /**
-     * Granular before/after diff — AJ's own ask. $before/$after are
+     * Granular before/after diff. $before/$after are
      * flat assoc arrays (field => value); only fields that actually
      * changed are stored, as [field => [old, new]], so a no-op save
      * (nothing actually different) still creates a record but with an

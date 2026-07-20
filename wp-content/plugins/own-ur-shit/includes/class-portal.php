@@ -659,7 +659,7 @@ class BHI_Portal {
 <?php wp_head(); ?>
 <?php if ($has_style): BHY_Style::inline_css(); endif; ?>
 <style>
-  /* QA fix, caught live: every rule below previously referenced
+  /* QA fix: every rule below previously referenced
      --bhy-color-* custom properties (--bhy-color-bg, --bhy-color-
      surface, --bhy-color-border, --bhy-color-text, --bhy-color-
      accent-bg, --bhy-color-accent, --bhy-font-body) — none of which

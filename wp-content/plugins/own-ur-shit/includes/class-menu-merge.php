@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) exit;
 // add_submenu_page(null, ...) pattern, already used by class-studio.php
 // for 'bh-studio') instead of always falling back to a visible parent.
 // No behavior change for existing registrants, since none set 'parent'
-// to null before this pass.
+// to null.
 
 /**
  * Relocates each ecosystem plugin's genuinely custom admin pages (never

@@ -12,12 +12,12 @@ if (!defined('ABSPATH')) exit;
  * choose to use) and touches nothing about how WordPress posts are
  * normally authored, versus the second option, which would mean
  * replacing Gutenberg's own authoring flow — a far larger, riskier
- * change with real existing-content-migration implications this pass
- * does not attempt.
+ * change with real existing-content-migration implications not
+ * attempted here.
  *
  * What this ships: ONE new block, 'own-ur-shit/element-prefab'. An
- * author picks an existing BH_Element_Prefab (built earlier this
- * session, already supports full-subtree snapshot/restore) from a
+ * author picks an existing BH_Element_Prefab (already supports
+ * full-subtree snapshot/restore) from a
  * dropdown; the block's render_callback calls the new BH_Element_
  * Prefab::render_definition() (read-only, zero database writes — see
  * that method's own docblock) to render that prefab's tree live,
