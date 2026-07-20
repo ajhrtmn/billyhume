@@ -37,27 +37,12 @@ class BHM_CRMIntegration {
         if (!current_user_can('bhcore_view_crm_sensitive') || !check_admin_referer('bhm_revoke_entitlement')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
-        global $wpdb;
+        // Shared with BHM_Debug's own "simulate a refund" test action —
+        // one real revoke-by-id path, not two independently-written
+        // copies of "delete a row and maybe notify."
         $entitlement_id = (int) ($_GET['entitlement_id'] ?? 0);
-        $t = $wpdb->prefix . 'bhm_entitlements';
-        $row = $entitlement_id ? $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $entitlement_id), ARRAY_A) : null;
-
-        if ($row) {
-            $wpdb->delete($t, ['id' => $entitlement_id]);
-            do_action('bhm_entitlement_revoked', (int) $row['user_id'], $row['type'], $row['scope'], (int) $row['object_id'], 'manual_admin_revoke');
-
-            if (class_exists('OUS_Notifications')) {
-                OUS_Notifications::notify(
-                    (int) $row['user_id'],
-                    'access_revoked',
-                    'Your access was updated',
-                    'An administrator removed access previously granted to your account.',
-                    '',
-                    'BH Monetization'
-                );
-            }
-            if (class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
-        }
+        $row = $entitlement_id ? BHM_Products::revoke_entitlement_by_id($entitlement_id, 'manual_admin_revoke') : null;
+        if ($row && class_exists('OUS_Toast')) OUS_Toast::queue('Access revoked — the fan has been notified.', 'success');
 
         wp_safe_redirect(wp_get_referer() ?: admin_url());
         exit;

@@ -206,7 +206,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -237,6 +237,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Blocks', 'init']);
     add_action('init',          ['BHM_StyleSurface', 'init']);
     add_action('init',          ['BHM_Debug', 'init']);
+    add_action('init',          ['BHM_MockCommerce', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);
     // BHM_PortalPanel is a class_exists()-guarded consumer of BHI_Portal's
     // filter, not a hard dependency — harmless if core is absent/too old.
