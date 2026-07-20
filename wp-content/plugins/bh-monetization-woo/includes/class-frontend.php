@@ -183,7 +183,23 @@ class BHM_Frontend {
             echo '<span class="bhm-billing-badge">' . ($has_subscriptions ? 'Recurring — billed monthly' : 'One-time — 30 days access') . '</span>';
             echo '<div class="bhm-tier-price">$' . esc_html(number_format($t['price_cents'] / 100, 2)) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
-                echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr</div>';
+                // Real gap this closes: the annual price was a raw lump
+                // sum ("or $96.00/yr") with no monthly-equivalent
+                // breakdown or savings math — a fan had to do that
+                // division/comparison themselves to know whether annual
+                // was actually a discount, or by how much. Savings only
+                // shown when it's genuinely a discount (annual < 12x
+                // monthly) — never a misleading "0% savings" or negative
+                // number if an admin priced annual equal to or above the
+                // monthly-times-12 cost.
+                $annual_monthly_equivalent = $t['annual_price_cents'] / 12;
+                $full_year_at_monthly_rate = $t['price_cents'] * 12;
+                $savings_percent = $full_year_at_monthly_rate > 0
+                    ? round((1 - ($t['annual_price_cents'] / $full_year_at_monthly_rate)) * 100)
+                    : 0;
+                echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr ($' . esc_html(number_format($annual_monthly_equivalent / 100, 2)) . '/mo equivalent)';
+                if ($savings_percent > 0) echo ' <span class="bhm-tier-savings">— save ' . (int) $savings_percent . '%</span>';
+                echo '</div>';
             }
             // Real conversion-facing surface for the trial value stored
             // via BHM_Tiers — a trial nobody can see before checking out
