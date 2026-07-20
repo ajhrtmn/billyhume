@@ -254,6 +254,69 @@ class BHC_Progress {
         ));
     }
 
+    // Batched replacement for what class-progress-admin.php's Student
+    // Progress page previously did with completed_steps()/course_percent()
+    // called once per (student, lesson) pair — on a 20-lesson course with
+    // 200 active students that was up to ~4,000 individual queries per
+    // page load. One query here, everything else below is plain PHP
+    // aggregation over rows already in memory. Every consumer OTHER than
+    // that admin page (course/lesson rendering, gating) still calls the
+    // single-user methods above — those are already O(1) per page view
+    // and don't need batching.
+    public static function course_progress_matrix($course_id) {
+        global $wpdb;
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return ['user_ids' => [], 'completed' => [], 'last_activity' => [], 'quiz_scores' => []];
+
+        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT user_id, lesson_id, step_index, passed, score, completed_at FROM " . self::table() . " WHERE lesson_id IN ($placeholders)",
+            $lesson_ids
+        ), ARRAY_A);
+
+        $user_ids = [];
+        $completed = [];      // [user_id][lesson_id] => [step_index, ...]
+        $last_activity = [];  // [user_id] => latest completed_at string
+        $quiz_scores = [];    // [lesson_id][step_index] => [score, ...]
+
+        foreach ($rows as $row) {
+            $uid = (int) $row['user_id'];
+            $lid = (int) $row['lesson_id'];
+            $idx = (int) $row['step_index'];
+            $user_ids[$uid] = true;
+
+            // Same completion rule as is_step_complete()/completed_steps():
+            // passed IS NULL means "non-quiz, complete on write".
+            if ($row['passed'] === null || (int) $row['passed'] === 1) {
+                $completed[$uid][$lid][] = $idx;
+            }
+            if ($row['completed_at'] && (!isset($last_activity[$uid]) || strtotime($row['completed_at']) > strtotime($last_activity[$uid]))) {
+                $last_activity[$uid] = $row['completed_at'];
+            }
+            if ($row['score'] !== null) {
+                $quiz_scores[$lid][$idx][] = (float) $row['score'];
+            }
+        }
+
+        $user_ids = array_map('intval', array_keys($user_ids));
+        sort($user_ids); // matches students_for_course()'s own ORDER BY user_id
+
+        return ['user_ids' => $user_ids, 'completed' => $completed, 'last_activity' => $last_activity, 'quiz_scores' => $quiz_scores];
+    }
+
+    // Batched sibling of is_course_completed() — one query for every
+    // student on the page instead of one COUNT(*) per student.
+    public static function completed_user_ids($course_id, array $user_ids) {
+        if (!$user_ids) return [];
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($user_ids), '%d'));
+        $rows = $wpdb->get_col($wpdb->prepare(
+            "SELECT user_id FROM {$wpdb->prefix}bhc_completions WHERE course_id = %d AND user_id IN ($placeholders)",
+            array_merge([$course_id], $user_ids)
+        ));
+        return array_flip(array_map('intval', $rows));
+    }
+
     // The lesson-level sibling of class-render.php's own step-level
     // "first not-yet-completed" logic (render_lesson_steps()'s
     // $start_index calc) — same idea, one level up, for the course-page
