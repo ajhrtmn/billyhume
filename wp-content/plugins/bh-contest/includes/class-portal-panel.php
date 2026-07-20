@@ -59,11 +59,18 @@ class BH_PortalPanel {
         ]);
 
         if (!$submissions) {
-            echo '<p>You haven\'t submitted anything to a contest yet.</p>';
+            echo '<div class="bhi-portal-empty">'
+               . '<span class="dashicons dashicons-microphone"></span>'
+               . '<p>You haven\'t submitted anything to a contest yet.</p>';
+            if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">See open contests &rarr;</a>';
+            echo '</div>';
             return;
         }
 
-        echo '<table class="bhi-portal-table"><thead><tr><th>Submission</th><th>Contest</th><th>Status</th><th>Votes</th><th></th></tr></thead><tbody>';
+        // Card grid, matching bh-courses' portal panel — was a plain
+        // <table>, the one panel besides Membership & Wallet that hadn't
+        // gotten the same visual treatment as My Courses.
+        echo '<div class="bhi-portal-course-list bhi-portal-submission-list">';
         foreach ($submissions as $sub) {
             $contest_id = (int) get_post_meta($sub->ID, '_bh_contest_id', true);
             $contest = $contest_id ? get_post($contest_id) : null;
@@ -76,36 +83,30 @@ class BH_PortalPanel {
             // audio yet" setting) — not a generic WP draft, so it gets
             // its own label rather than the raw ucfirst('draft').
             $needs_audio = $sub->post_status === 'draft' && !get_post_meta($sub->ID, '_bh_audio_id', true);
+            $status_class = 'bhi-submission-status-' . sanitize_html_class($sub->post_status);
             $status_label = ucfirst($sub->post_status);
-            if ($needs_audio) $status_label = '<span style="color:#dba617;font-weight:600;">Needs audio file</span>';
-            if ($sub->post_status === 'rejected') $status_label = '<span style="color:#b32d2e;font-weight:600;">Rejected</span>';
-            if ($pending_id) $status_label .= ' <span style="color:#dba617;">(replacement pending review)</span>';
+            if ($needs_audio) { $status_label = 'Needs audio file'; $status_class = 'bhi-submission-status-warn'; }
+            if ($sub->post_status === 'rejected') { $status_label = 'Rejected'; $status_class = 'bhi-submission-status-bad'; }
 
-            echo '<tr>';
-            echo '<td>' . esc_html($sub->post_title ?: '(untitled)') . '</td>';
-            echo '<td>' . esc_html($contest ? $contest->post_title : '(unknown contest)') . '</td>';
-            echo '<td>' . $status_label . '</td>';
-            echo '<td>' . (int) $votes . '</td>';
-            echo '<td>';
+            echo '<div class="bhi-portal-course-card bhi-submission-card">';
+            echo '<div class="bhi-submission-card-head"><h3>' . esc_html($sub->post_title ?: '(untitled)') . '</h3>';
+            echo '<span class="bhi-submission-status ' . esc_attr($status_class) . '">' . esc_html($status_label) . '</span></div>';
+            echo '<p class="bhi-overview-dim">' . esc_html($contest ? $contest->post_title : '(unknown contest)') . '</p>';
+            echo '<p class="bhi-submission-votes">' . (int) $votes . ' vote' . ($votes === 1 ? '' : 's');
+            if ($pending_id) echo ' <span class="bhi-overview-dim">(replacement pending review)</span>';
+            echo '</p>';
+
             if ($sub->post_status === 'publish') {
-                echo '<a class="button" href="' . esc_url(get_permalink($sub->ID)) . '">View</a> ';
+                echo '<p><a class="button" href="' . esc_url(get_permalink($sub->ID)) . '">View</a></p>';
             }
-            echo '</td>';
-            echo '</tr>';
 
             if ($sub->post_status === 'rejected') {
                 $reason_code = get_post_meta($sub->ID, '_bh_rejection_reason_code', true);
                 $reason_note = get_post_meta($sub->ID, '_bh_rejection_note', true);
                 $reason_label = class_exists('BH_Admin') && isset(BH_Admin::REJECTION_REASONS[$reason_code]) ? BH_Admin::REJECTION_REASONS[$reason_code] : 'No reason recorded';
-                // QA fix, caught live: a hardcoded light-admin pink
-                // (#fbeaea) was nearly unreadable against this portal's
-                // dark theme. Uses --bh-* brand tokens instead, same as
-                // the rest of the portal shell (own-ur-shit's
-                // class-portal.php).
-                echo '<tr><td colspan="5" style="background:var(--bh-surface-2, #fbeaea);color:var(--bh-text, inherit);">'
-                   . '<strong>Why:</strong> ' . esc_html($reason_label)
+                echo '<div class="bhi-submission-reason"><strong>Why:</strong> ' . esc_html($reason_label)
                    . ($reason_note ? ' — <em>' . esc_html($reason_note) . '</em>' : '')
-                   . '</td></tr>';
+                   . '</div>';
             }
 
             // Self-service "wrong file uploaded" fix — available any
@@ -117,33 +118,28 @@ class BH_PortalPanel {
             // replace_audio()).
             if ($window_open) {
                 $artist_name = (string) get_post_meta($sub->ID, '_bh_artist_name', true);
-                // Real gap this closes: previously the only self-service
-                // fix available was replacing the audio FILE — a typo'd
-                // song/artist title had no fix short of emailing an
-                // admin. Same window-open gating as the file-replace
-                // form below, same reasoning (still editable while the
-                // contest is accepting submissions).
-                echo '<tr><td colspan="5">';
-                echo '<form class="bh-edit-details-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">';
-                echo '<label style="font-size:13px;">Song title: <input type="text" class="bh-edit-title" value="' . esc_attr($sub->post_title) . '" required></label>';
-                echo '<label style="font-size:13px;">Artist name: <input type="text" class="bh-edit-artist" value="' . esc_attr($artist_name) . '"></label>';
+                echo '<div class="bhi-submission-forms">';
+                echo '<form class="bh-edit-details-form" data-submission-id="' . (int) $sub->ID . '">';
+                echo '<label>Song title: <input type="text" class="bh-edit-title" value="' . esc_attr($sub->post_title) . '" required></label>';
+                echo '<label>Artist name: <input type="text" class="bh-edit-artist" value="' . esc_attr($artist_name) . '"></label>';
                 echo '<button type="submit" class="button">Save details</button>';
                 echo '<span class="bh-edit-status description"></span>';
                 echo '</form>';
 
-                echo '<form class="bh-replace-audio-form" data-submission-id="' . (int) $sub->ID . '" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">';
+                echo '<form class="bh-replace-audio-form" data-submission-id="' . (int) $sub->ID . '">';
                 if ($needs_audio) {
                     $label = 'Finish your entry — upload your audio file:';
                 } else {
                     $label = $pending_id ? 'Upload a different replacement:' : 'Wrong file? Upload a replacement:';
                 }
-                echo '<label style="font-size:13px;">' . esc_html($label) . ' <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" required></label>';
+                echo '<label>' . esc_html($label) . ' <input type="file" accept=".mp3,.m4a,audio/mpeg,audio/mp4" required></label>';
                 echo '<button type="submit" class="button' . ($needs_audio ? ' button-primary' : '') . '">' . ($needs_audio ? 'Complete submission' : 'Upload replacement') . '</button>';
                 echo '<span class="bh-replace-status description"></span>';
                 echo '</form>';
-                echo '</td></tr>';
+                echo '</div>';
             }
+            echo '</div>';
         }
-        echo '</tbody></table>';
+        echo '</div>';
     }
 }

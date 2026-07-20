@@ -564,6 +564,37 @@ class BHI_Portal {
 
         $shown_anything = false;
 
+        // ---- stats rollup: a real cross-plugin count, not just one
+        // snapshot card per plugin — "3 courses in progress" etc. gives
+        // an at-a-glance sense of a member's whole footprint before
+        // drilling into any one panel's own full list. ----
+        $stats = [];
+        if (class_exists('BHC_Progress')) {
+            global $wpdb;
+            $in_progress = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}bhc_enrollments e
+                 LEFT JOIN {$wpdb->prefix}bhc_completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
+                 WHERE e.user_id = %d AND c.course_id IS NULL",
+                $user_id
+            ));
+            if ($in_progress > 0) $stats[] = [(string) $in_progress, $in_progress === 1 ? 'course in progress' : 'courses in progress'];
+        }
+        if (post_type_exists('bh_submission')) {
+            $sub_count = count(get_posts(['post_type' => 'bh_submission', 'author' => $user_id, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids']));
+            if ($sub_count > 0) $stats[] = [(string) $sub_count, $sub_count === 1 ? 'contest entry' : 'contest entries'];
+        }
+        if (class_exists('OUS_Notifications')) {
+            $unread_stat = OUS_Notifications::unread_count($user_id);
+            if ($unread_stat > 0) $stats[] = [(string) $unread_stat, 'unread notification' . ($unread_stat === 1 ? '' : 's')];
+        }
+        if ($stats) {
+            echo '<div class="bhi-overview-stats">';
+            foreach ($stats as $s) {
+                echo '<div class="bhi-overview-stat"><span class="bhi-overview-stat-num">' . esc_html($s[0]) . '</span><span class="bhi-overview-stat-label">' . esc_html($s[1]) . '</span></div>';
+            }
+            echo '</div>';
+        }
+
         // ---- membership snapshot ----
         if (class_exists('BHM_Tiers')) {
             global $wpdb;
@@ -652,12 +683,11 @@ class BHI_Portal {
         }
 
         if (!$shown_anything) {
-            echo '<div class="bhi-portal-section">';
+            echo '<div class="bhi-portal-empty bhi-portal-empty-hero">';
+            echo '<span class="dashicons dashicons-star-filled"></span>';
             echo '<p>Nothing to show yet — once you enroll in a course, submit to a contest, or pick up a supporter tier, it\'ll show up here.</p>';
-            echo '<p>';
             if (post_type_exists('bh_course')) echo '<a class="button" href="' . esc_url(home_url('/courses/')) . '">Browse courses</a> ';
             if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">See contests</a>';
-            echo '</p>';
             echo '</div>';
         }
     }
@@ -751,6 +781,76 @@ class BHI_Portal {
      inline plain text sitting next to a date. */
   .bhi-overview-tier-badge { display:inline-block; padding:3px 12px; border-radius:999px; background:var(--bh-accent-muted-bg, var(--bh-accent-soft, #eef4ff)); color:var(--bh-accent, #2271b1); font-weight:600; font-size:13px; }
   .bhi-overview-dim { color:var(--bh-text-dim, #6b7280); font-size:13px; }
+
+  /* Stats rollup — a real cross-plugin count row above the per-plugin
+     snapshot cards, so the Overview tab reads as "here's your whole
+     world at a glance" instead of one shallow card per plugin with
+     nothing tying them together. */
+  .bhi-overview-stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+  .bhi-overview-stat {
+    display:flex; flex-direction:column; gap:2px; padding:14px 18px; min-width:120px;
+    background:var(--bh-surface, #fff); border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 10px);
+  }
+  .bhi-overview-stat-num { font-family:var(--bh-font-display, inherit); font-size:26px; font-weight:700; color:var(--bh-accent, #2271b1); line-height:1.1; }
+  .bhi-overview-stat-label { font-size:12px; color:var(--bh-text-dim, #6b7280); }
+
+  /* Empty states — every panel previously fell back to a single bare
+     <p>, no different from a loading error or a real one-line notice.
+     This gives "nothing here yet" its own quiet, centered treatment
+     with room for an icon and a clear next action, consistent across
+     every panel. */
+  .bhi-portal-empty { text-align:center; padding:36px 20px; color:var(--bh-text-dim, #6b7280); }
+  .bhi-portal-empty .dashicons { font-size:32px; width:32px; height:32px; opacity:0.5; margin-bottom:8px; }
+  .bhi-portal-empty p { margin:0 0 14px; }
+  .bhi-portal-empty-hero { padding:48px 20px; }
+
+  /* Contest Submissions card grid — was a plain <table>, the only
+     other panel (besides Membership & Wallet) not sharing My Courses'
+     card language. */
+  .bhi-submission-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .bhi-submission-status { font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px; white-space:nowrap; background:var(--bh-surface-2, #f0f0f1); color:var(--bh-text-dim, #6b7280); text-transform:capitalize; }
+  .bhi-submission-status-warn { background:#fcf0d5; color:#8a6200; }
+  .bhi-submission-status-bad { background:#fbeaea; color:#b32d2e; }
+  .bhi-submission-votes { font-weight:600; }
+  .bhi-submission-reason { margin-top:8px; padding:10px 12px; border-radius:var(--bh-radius-sm, 6px); background:var(--bh-surface-2, #fbeaea); font-size:13px; }
+  .bhi-submission-forms { margin-top:12px; padding-top:12px; border-top:1px solid var(--bh-border, #e2e2e2); display:flex; flex-direction:column; gap:8px; }
+  .bhi-submission-forms form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+
+  /* Membership & Wallet — tier chips (matching the Overview badge)
+     instead of a plain <ul>, and a real hero number for the wallet
+     balance instead of inline plain text. */
+  .bhi-tier-chip-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+  .bhi-tier-chip { display:flex; flex-direction:column; gap:4px; }
+  .bhi-wallet-balance { display:flex; align-items:baseline; gap:8px; }
+  .bhi-wallet-balance-amount { font-family:var(--bh-font-display, inherit); font-size:28px; font-weight:700; }
+  .bhi-ledger-credit { color:#2e7d32; font-weight:600; }
+  .bhi-ledger-debit { color:var(--bh-text-dim, #6b7280); }
+
+  /* Panel-entry motion — panel switches are full page loads (server-
+     routed, not client-side tabs), so this fade/rise plays fresh on
+     every navigation instead of once per session; it's the one place
+     this whole page previously had zero transition beyond the
+     progress-bar fill. Cards stagger in behind the heading rather than
+     everything appearing at the exact same instant. */
+  .bhi-portal-main > h1 { animation: bhi-portal-in 0.35s ease both; }
+  .bhi-portal-main > .bhi-overview-stats,
+  .bhi-portal-main > .bhi-portal-section,
+  .bhi-portal-course-list > * {
+    animation: bhi-portal-in 0.4s ease both;
+  }
+  .bhi-portal-main > .bhi-portal-section:nth-child(2),
+  .bhi-portal-course-list > *:nth-child(2) { animation-delay: 0.05s; }
+  .bhi-portal-main > .bhi-portal-section:nth-child(3),
+  .bhi-portal-course-list > *:nth-child(3) { animation-delay: 0.1s; }
+  .bhi-portal-main > .bhi-portal-section:nth-child(4),
+  .bhi-portal-course-list > *:nth-child(4) { animation-delay: 0.15s; }
+  @keyframes bhi-portal-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .bhi-portal-main > h1,
+    .bhi-portal-main > .bhi-overview-stats,
+    .bhi-portal-main > .bhi-portal-section,
+    .bhi-portal-course-list > * { animation:none; }
+  }
 
   /* Mobile: the fixed sidebar becomes a horizontal, scrollable tab strip
      above the content instead — same navigation, no hidden/hamburger
