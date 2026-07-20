@@ -58,8 +58,13 @@ class BHM_Admin {
     }
 
     public static function render() {
-        $has_wc = class_exists('WooCommerce');
-        $has_subs = class_exists('WC_Subscriptions');
+        // Routed through BH_Commerce (this ecosystem's abstraction seam
+        // over WooCommerce, per AJ's own standing "nothing hard-wired to
+        // an external, unmockable dependency" rule) rather than a bare
+        // class_exists() — an audit found this file had been missed in
+        // the pass that fixed the rest of this plugin's own call sites.
+        $has_wc = class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce');
+        $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
         echo '<div class="wrap"><h1>Monetization Settings</h1>';
 
         if (!$has_wc) {
@@ -114,7 +119,7 @@ class BHM_Admin {
      * posture as OUS_MediaWizard pointing at Advanced Media Offloader.
      */
     private static function render_get_paid_card() {
-        $enabled = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : [];
+        $enabled = class_exists('BH_Commerce') ? BH_Commerce::get_available_payment_gateways() : (class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : []);
         $payments_url = admin_url('admin.php?page=wc-settings&tab=checkout');
 
         echo '<div class="bhy-alert" style="border-left:3px solid ' . ($enabled ? '#1DB954' : '#d63638') . ';background:#f6f7f7;padding:14px 16px;margin:16px 0;max-width:760px;">';

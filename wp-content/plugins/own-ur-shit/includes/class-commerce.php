@@ -41,6 +41,19 @@ class BH_Commerce {
         return class_exists('WooCommerce');
     }
 
+    // Real gap an ecosystem-wide DRY audit caught: two call sites
+    // (own-ur-shit's own class-setup-wizard.php and bh-monetization-woo's
+    // class-admin.php "Get Paid" card) independently duplicated the exact
+    // same unwrapped `class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::
+    // instance()->get_available_payment_gateways() : []` pattern — one
+    // shared wrapper here means one override point (filterable, same
+    // mockable-not-hard-wired posture as has_subscriptions() above) and
+    // one place to update if this ever needs to change.
+    public static function get_available_payment_gateways() {
+        $gateways = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : [];
+        return apply_filters('bh_commerce_available_payment_gateways', $gateways);
+    }
+
     // Filterable, not a bare class_exists() — AJ's own standing
     // architecture rule: no consuming plugin should be hard-wired to
     // anything but this core, in a way that can't be mocked or swapped.
