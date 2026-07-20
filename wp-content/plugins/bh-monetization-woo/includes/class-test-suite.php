@@ -192,7 +192,7 @@ class BHM_TestSuite {
             return [['name' => 'Tier-exclusivity fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bhm_tier posts — skipping.']];
         }
 
-        $grant = new ReflectionMethod('BHM_Products', 'grant_entitlement');
+        $grant = new ReflectionMethod('BHM_Entitlements', 'grant_entitlement');
         $grant->setAccessible(true);
 
         // Grant the cheap tier first — a plain, uncontested grant.
