@@ -267,7 +267,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks'] as $f) {
+foreach (['activator', 'post-types', 'helpers', 'auth', 'api', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -345,6 +345,7 @@ add_action('plugins_loaded', function () {
     // Tools page; production-safety checks are centralized in OUS_Debug.
     add_action('init', ['BH_Debug', 'init']);
     add_action('init', ['BH_PortalPanel', 'init']);
+    if (class_exists('OUS_TestRunner')) add_action('init', ['BH_TestSuite', 'init']);
 
     // Load assets only on pages that actually use the player.
     add_action('wp_enqueue_scripts', function () {
