@@ -89,6 +89,68 @@ class BHM_TestSuite {
             $rows[] = ['name' => 'BHM_Wallet tests skipped', 'pass' => false, 'message' => 'OUS_Debug (for get_or_create_test_user) not loaded.'];
         }
 
+        /* ---------- tier-exclusivity (BHM_Products::grant_entitlement()) ----------
+         * No coverage existed for this before — a refund/monetization
+         * audit found nothing enforced "one active tier at a time,"
+         * letting a user stack multiple simultaneous active
+         * subscription/streaming_tier entitlements. grant_entitlement()
+         * is private (called only from real order/subscription webhook
+         * handlers), so this reaches it via reflection rather than
+         * duplicating its logic in a mock — same "exercise the real
+         * thing" posture run_wallet_tests() above already takes. Runs
+         * against two real, tagged fixture bhm_tier posts + a real
+         * fake user's entitlement rows, cleaned up afterward. */
+        if (class_exists('BHM_Products') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_tier_exclusivity_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_tier_exclusivity_tests() {
+        $rows = [];
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        $uid = OUS_Debug::get_or_create_test_user('bhm_tier_exclusivity_suite', false);
+        $wpdb->delete($t, ['user_id' => $uid]);
+
+        $cheap_tier = wp_insert_post([
+            'post_type' => 'bhm_tier', 'post_status' => 'publish', 'post_title' => 'Exclusivity Test Fan',
+            'meta_input' => ['bhcore_is_test' => 'bhm_tier_exclusivity_suite', '_bhm_price_cents' => 300],
+        ], true);
+        $pricey_tier = wp_insert_post([
+            'post_type' => 'bhm_tier', 'post_status' => 'publish', 'post_title' => 'Exclusivity Test Supporter',
+            'meta_input' => ['bhcore_is_test' => 'bhm_tier_exclusivity_suite', '_bhm_price_cents' => 1200],
+        ], true);
+        if (is_wp_error($cheap_tier) || is_wp_error($pricey_tier)) {
+            return [['name' => 'Tier-exclusivity fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bhm_tier posts — skipping.']];
+        }
+
+        $grant = new ReflectionMethod('BHM_Products', 'grant_entitlement');
+        $grant->setAccessible(true);
+
+        // Grant the cheap tier first — a plain, uncontested grant.
+        $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $count_after_first = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(1, $count_after_first, 'Granting a first tier leaves exactly one active entitlement row');
+
+        // Grant a DIFFERENT (pricier) tier — must replace, not stack.
+        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000002, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $rows_after_switch = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(1, count($rows_after_switch), 'Granting a DIFFERENT tier replaces the old one — never two simultaneous active tiers');
+        $rows[] = OUS_TestRunner::assert_same((string) $pricey_tier, (string) ($rows_after_switch[0]->object_id ?? null), 'After switching tiers, the ONE remaining row is the newly-granted tier, not the old one');
+
+        // Re-granting the SAME tier (e.g. an early renewal) should still
+        // leave exactly one row — not stack a second row for itself.
+        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000003, null, gmdate('Y-m-d H:i:s', strtotime('+60 days')));
+        $count_after_renewal = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
+        $rows[] = OUS_TestRunner::assert_same(1, $count_after_renewal, 'Re-granting the SAME tier (early renewal) still leaves exactly one row, not a second stacked one');
+
+        // Cleanup.
+        $wpdb->delete($t, ['user_id' => $uid]);
+        wp_delete_post($cheap_tier, true);
+        wp_delete_post($pricey_tier, true);
+
         return $rows;
     }
 
