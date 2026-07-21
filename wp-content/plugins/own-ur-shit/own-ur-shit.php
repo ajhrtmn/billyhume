@@ -2,10 +2,20 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.7.7
+ * Version:     3.7.8
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.8 — ecosystem depth-pass Tier 1c: OUS_UserBar
+// (class-user-bar.php), the front-end user bar VISION.md names
+// directly — a bottom-docked bar, styled with this site's own --bh-*
+// brand tokens (deliberately NOT a copy of wp-admin's dark toolbar,
+// AJ's own explicit call), always visible to a logged-in front-end
+// user regardless of which plugin they're using. Notification bell +
+// a `bhi_user_bar_links` filter any plugin can contribute a live
+// micro-state quick-link to (own-ur-shit's own Account/Log out links
+// ship as the first registrant).
 
 // 3.7.7 — ecosystem depth-pass Tier 1b: per-notification-type email
 // preferences (class-notifications.php). Layers on top of the existing
@@ -588,7 +598,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.7.7');
+define('OUS_VER', '3.7.8');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -942,7 +952,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -998,6 +1008,7 @@ OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_RoleAssignment', 'init']);
+add_action('init',          ['OUS_UserBar', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
 add_action('init',          ['OUS_Revisions', 'init']);
 add_action('init',          ['OUS_Search', 'init']);

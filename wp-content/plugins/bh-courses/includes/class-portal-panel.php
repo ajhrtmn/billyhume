@@ -12,6 +12,36 @@ if (!defined('ABSPATH')) exit;
 class BHC_PortalPanel {
     public static function init() {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
+        add_filter('bhi_user_bar_links', [self::class, 'register_user_bar_link']);
+    }
+
+    // Ecosystem depth-pass Tier 1c — the front-end user bar's own
+    // "obvious or gone" rule: only contribute a quick-link when there's
+    // an ACTUAL course in progress to continue, never a placeholder
+    // "browse courses" link for someone with nothing enrolled (that's
+    // what the My Courses portal panel's own empty state already
+    // covers). Picks the most recently enrolled course that isn't
+    // already complete — the one a student most plausibly wants to
+    // pick back up right now.
+    public static function register_user_bar_link($links) {
+        $user_id = get_current_user_id();
+        if (!$user_id || !class_exists('BHC_Progress')) return $links;
+
+        foreach (self::enrolled_course_ids($user_id) as $course_id) {
+            $course = get_post($course_id);
+            if (!$course || $course->post_status !== 'publish') continue;
+            if (BHC_Progress::is_course_completed($user_id, $course_id)) continue;
+
+            $percent = BHC_Progress::course_percent($user_id, $course_id);
+            $next_lesson = BHC_Progress::first_incomplete_lesson($user_id, $course_id);
+            $links[] = [
+                'label' => 'Continue: ' . $course->post_title,
+                'url' => $next_lesson ? get_permalink($next_lesson) : get_permalink($course_id),
+                'meta' => $percent . '%',
+            ];
+            break; // one link, the single most relevant course — not a whole list
+        }
+        return $links;
     }
 
     public static function register_panel($panels) {
