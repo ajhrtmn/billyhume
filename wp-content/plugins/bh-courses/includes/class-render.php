@@ -37,6 +37,7 @@ class BHC_Render {
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_duplicate_course_title'], 10, 2);
+        add_filter('render_block', [self::class, 'suppress_duplicate_course_cover'], 10, 2);
     }
 
     /**
@@ -53,6 +54,19 @@ class BHC_Render {
      */
     public static function suppress_duplicate_course_title($block_content, $block) {
         if (($block['blockName'] ?? '') !== 'core/post-title') return $block_content;
+        if (!is_singular('bh_course')) return $block_content;
+        return '';
+    }
+
+    /**
+     * Same duplicate-content class of bug as the title above, caught live
+     * once the hero treatment (0.4.33) started rendering the course's own
+     * cover image inline via render_course_header() — the theme's generic
+     * core/post-featured-image block in single.html was already printing
+     * that same attachment, plain and undecorated, directly above it.
+     */
+    public static function suppress_duplicate_course_cover($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'core/post-featured-image') return $block_content;
         if (!is_singular('bh_course')) return $block_content;
         return '';
     }

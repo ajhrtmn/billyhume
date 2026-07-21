@@ -27,16 +27,39 @@ class BHC_Render_Course {
         $categories = get_the_terms($course_id, 'bhc_course_category');
         $topics = get_the_terms($course_id, 'bhc_course_topic');
 
+        $has_cover = has_post_thumbnail($course_id);
+
         ob_start();
         echo '<div class="bhc-course-header">';
-        if (has_post_thumbnail($course_id)) echo '<div class="bhc-course-cover">' . get_the_post_thumbnail($course_id, 'large') . '</div>';
-        echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
+        // A hero treatment only earns its keep when there's a real cover
+        // image to justify it (obvious-or-gone) — the title/badges move
+        // into an overlay on the image itself instead of stacking as
+        // plain text above it. No cover set falls back to the original
+        // plain stacked layout unchanged.
+        if ($has_cover) {
+            echo '<div class="bhc-course-hero">';
+            echo get_the_post_thumbnail($course_id, 'large');
+            echo '<div class="bhc-course-hero-scrim"><div class="bhc-course-hero-content">';
+            echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
+            if ($difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
+            echo '</div></div>';
+            echo '</div>';
+        } else {
+            echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
+        }
+
+        // Instructor presence pulled forward into its own row (a real
+        // "who's teaching you this" moment) instead of one more compact
+        // badge buried in the meta line — only when there's an actual
+        // instructor to show (obvious-or-gone).
+        if ($instructor) {
+            echo '<div class="bhc-course-instructor-row">' . get_avatar($instructor->ID, 48) . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div></div>';
+        }
 
         echo '<div class="bhc-course-meta">';
-        if ($difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
+        if (!$has_cover && $difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
-        if ($instructor) echo '<span class="bhc-course-instructor">' . get_avatar($instructor->ID, 24) . ' Taught by ' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span>';
         if (class_exists('BHC_Reviews')) {
             $rating = BHC_Reviews::average_rating($course_id);
             if ($rating['count'] > 0) {
