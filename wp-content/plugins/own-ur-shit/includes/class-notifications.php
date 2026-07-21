@@ -30,6 +30,8 @@ class OUS_Notifications {
         add_action('admin_bar_menu', [self::class, 'admin_bar'], 90);
         add_action('wp_ajax_bhcore_mark_notification_read', [self::class, 'ajax_mark_read']);
         add_action('wp_ajax_bhcore_mark_all_notifications_read', [self::class, 'ajax_mark_all_read']);
+        add_action('wp_ajax_bhcore_save_notification_pref', [self::class, 'ajax_save_pref']);
+        add_filter('bhcore_test_suites', [self::class, 'register_test_suite']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
 
@@ -90,12 +92,49 @@ class OUS_Notifications {
 
     // A user can opt out of EMAIL entirely (in-app notifications always
     // still happen — that's just this plugin's own inbox, not an
-    // external send) via a simple user meta checkbox on their profile.
-    // No per-TYPE granularity in v1 — deliberately simple; a future
-    // preferences UI can add that without changing this call site.
+    // external send) via a simple user meta checkbox on their profile —
+    // an absolute override, checked first. Layered on top: per-TYPE
+    // preferences (bhcore_notification_email_prefs, a serialized
+    // type => bool map, absent-or-missing-key means default-on) — see
+    // type_wants_email() below. Existing call sites needed zero changes;
+    // this filter's own signature already carried $type before this,
+    // it just wasn't consulted per-type until now.
     public static function user_wants_email($user_id, $type) {
         $opt_out = get_user_meta($user_id, 'bhcore_notifications_email_optout', true);
-        return apply_filters('bhcore_notification_should_email', !$opt_out, $user_id, $type);
+        $wants = $opt_out ? false : self::type_wants_email($user_id, $type);
+        return apply_filters('bhcore_notification_should_email', $wants, $user_id, $type);
+    }
+
+    // Absent key (a type the user has never seen a preference toggle
+    // for, or a brand-new type a plugin just started sending) means
+    // "on" — a user who has never touched the preferences UI keeps
+    // getting exactly the emails they always did, same as before this
+    // existed.
+    public static function type_wants_email($user_id, $type) {
+        $prefs = get_user_meta($user_id, 'bhcore_notification_email_prefs', true);
+        if (!is_array($prefs) || !array_key_exists($type, $prefs)) return true;
+        return (bool) $prefs[$type];
+    }
+
+    // Progressive disclosure, not a settings grid dumped on everyone:
+    // only the notification TYPES this specific user has actually ever
+    // received — a type they've never seen has no business appearing as
+    // a togglable preference (obvious-or-gone). A plugin can optionally
+    // register a human label via the `bhcore_notification_type_labels`
+    // filter (type => label); an unregistered type falls back to a
+    // humanized version of its own raw string rather than requiring
+    // every emitter to register just to be readable here.
+    public static function distinct_types_for_user($user_id) {
+        global $wpdb;
+        return $wpdb->get_col($wpdb->prepare(
+            "SELECT DISTINCT type FROM " . self::table() . " WHERE user_id = %d ORDER BY type ASC", $user_id
+        ));
+    }
+
+    public static function type_label($type) {
+        $labels = apply_filters('bhcore_notification_type_labels', []);
+        if (isset($labels[$type])) return $labels[$type];
+        return ucfirst(str_replace(['_', '-'], ' ', $type));
     }
 
     // The same queued job can fire more than once (e.g. a manual test
@@ -228,6 +267,35 @@ class OUS_Notifications {
         echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup, same output the [bh_notifications] shortcode itself echoes on the front end
     }
 
+    // A plain <details> disclosure, closed by default — the whole point
+    // is that a user who's never wanted finer control than the existing
+    // single opt-out never sees a settings grid at all (VISION.md's own
+    // "it just works" section: a wall of options is a wall for the
+    // person who doesn't already know what every one of them means).
+    // Nothing renders here at all if this user has never received any
+    // notification yet — obvious-or-gone, never an empty preferences
+    // panel for a brand-new account with nothing to configure.
+    private static function render_email_prefs($user_id) {
+        $types = self::distinct_types_for_user($user_id);
+        if (!$types) return '';
+
+        ob_start(); ?>
+        <details class="bhcore-notif-prefs">
+            <summary>Manage what you get emailed about</summary>
+            <div class="bhcore-notif-prefs-body" data-nonce="<?php echo esc_attr(wp_create_nonce('bhcore_notifications')); ?>">
+                <?php foreach ($types as $type): ?>
+                    <label class="bhcore-notif-pref-row">
+                        <input type="checkbox" class="bhcore-notif-pref-toggle" data-type="<?php echo esc_attr($type); ?>" <?php checked(self::type_wants_email($user_id, $type)); ?>>
+                        <?php echo esc_html(self::type_label($type)); ?>
+                    </label>
+                <?php endforeach; ?>
+                <p class="bhcore-notif-prefs-status" aria-live="polite"></p>
+            </div>
+        </details>
+        <?php
+        return ob_get_clean();
+    }
+
     public static function render_shortcode() {
         if (!is_user_logged_in()) return '<p class="bhcore-notif-empty">Log in to see your notifications.</p>';
         $user_id = get_current_user_id();
@@ -237,6 +305,7 @@ class OUS_Notifications {
         ob_start();
         echo '<div class="bhcore-notifications-list">';
         echo '<button type="button" class="bhcore-btn bhcore-mark-all-read" data-nonce="' . esc_attr(wp_create_nonce('bhcore_notifications')) . '">Mark all read</button>';
+        echo self::render_email_prefs($user_id);
         foreach ($items as $n) {
             echo '<div class="bhcore-notification' . ($n['read_at'] ? '' : ' bhcore-unread') . '" data-id="' . (int) $n['id'] . '">';
             echo '<div class="bhcore-notif-source">' . esc_html($n['source']) . '</div>';
@@ -282,6 +351,11 @@ class OUS_Notifications {
             .bhcore-notif-body { font-size: 13px; color: var(--bh-text-dim, #50575e); }
             .bhcore-notif-time { font-size: 11px; color: var(--bh-text-dim, #8c8f94); margin-top: 4px; }
             .bhcore-btn.bhcore-mark-all-read { margin-bottom: 10px; }
+            .bhcore-notif-prefs { margin-bottom: 14px; }
+            .bhcore-notif-prefs summary { cursor: pointer; font-size: 13px; color: var(--bh-text-dim, #646970); }
+            .bhcore-notif-prefs-body { padding: 10px 0 4px 4px; display: flex; flex-direction: column; gap: 6px; }
+            .bhcore-notif-pref-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+            .bhcore-notif-prefs-status { font-size: 12px; color: var(--bh-text-dim, #646970); margin: 4px 0 0; min-height: 1em; }
         ');
 
         wp_register_script('bhcore-notifications', false, [], OUS_VER, true);
@@ -316,6 +390,28 @@ class OUS_Notifications {
                     });
                 }
             });
+            document.addEventListener("change", function (e) {
+                var toggle = e.target.closest(".bhcore-notif-pref-toggle");
+                if (!toggle) return;
+                var body = toggle.closest(".bhcore-notif-prefs-body");
+                var status = body ? body.querySelector(".bhcore-notif-prefs-status") : null;
+                if (status) status.textContent = "Saving…";
+                fetch(BHCoreAjax.ajaxUrl, {
+                    method: "POST",
+                    body: new URLSearchParams({
+                        action: "bhcore_save_notification_pref",
+                        nonce: body ? body.dataset.nonce : "",
+                        type: toggle.dataset.type,
+                        wants: toggle.checked ? "1" : "",
+                    }),
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (!status) return;
+                    status.textContent = (res && res.success) ? "Saved." : "Could not save — try again.";
+                    setTimeout(function () { status.textContent = ""; }, 2000);
+                }).catch(function () {
+                    if (status) status.textContent = "Could not reach the server — try again.";
+                });
+            });
         ');
     }
 
@@ -333,5 +429,65 @@ class OUS_Notifications {
         if (!$user_id) wp_send_json_error([], 401);
         self::mark_all_read($user_id);
         wp_send_json_success();
+    }
+
+    // Only ever writes the ONE type being toggled — reads the user's
+    // existing prefs map first rather than replacing it wholesale, so
+    // toggling one type in a fresh page load can't accidentally clobber
+    // a preference set from a different browser tab/session.
+    public static function ajax_save_pref() {
+        check_ajax_referer('bhcore_notifications', 'nonce');
+        $user_id = get_current_user_id();
+        if (!$user_id) wp_send_json_error([], 401);
+
+        $type = sanitize_key($_POST['type'] ?? '');
+        if (!$type) wp_send_json_error(['message' => 'Missing notification type.'], 400);
+        $wants = !empty($_POST['wants']);
+
+        $prefs = get_user_meta($user_id, 'bhcore_notification_email_prefs', true);
+        if (!is_array($prefs)) $prefs = [];
+        $prefs[$type] = $wants;
+        update_user_meta($user_id, 'bhcore_notification_email_prefs', $prefs);
+
+        wp_send_json_success();
+    }
+
+    public static function register_test_suite($suites) {
+        $suites['own-ur-shit-notifications'] = ['label' => 'Own Ur Shit (Notifications)', 'callback' => [self::class, 'run_tests']];
+        return $suites;
+    }
+
+    // The one piece of real branching logic in this pass worth pinning
+    // down: default-on for an absent/never-toggled type, per-type
+    // toggle respected once set, and the full opt-out overriding
+    // everything regardless of any per-type preference. Runs against a
+    // real, tagged fixture user, cleaned up afterward.
+    public static function run_tests() {
+        if (!class_exists('OUS_TestRunner') || !class_exists('OUS_Debug')) return [];
+        $rows = [];
+
+        $uid = OUS_Debug::get_or_create_test_user('ous_notifications_suite', false);
+        delete_user_meta($uid, 'bhcore_notification_email_prefs');
+        delete_user_meta($uid, 'bhcore_notifications_email_optout');
+
+        $rows[] = OUS_TestRunner::assert_true(self::type_wants_email($uid, 'course_completed'), 'type_wants_email(): a type never toggled defaults to on');
+
+        update_user_meta($uid, 'bhcore_notification_email_prefs', ['course_completed' => false]);
+        $rows[] = OUS_TestRunner::assert_false(self::type_wants_email($uid, 'course_completed'), 'type_wants_email(): an explicitly-off type is respected');
+        $rows[] = OUS_TestRunner::assert_true(self::type_wants_email($uid, 'order_refunded'), 'type_wants_email(): a DIFFERENT type not present in the prefs map still defaults to on');
+
+        $rows[] = OUS_TestRunner::assert_false(self::user_wants_email($uid, 'course_completed'), 'user_wants_email(): the per-type off preference is honored when not globally opted out');
+        $rows[] = OUS_TestRunner::assert_true(self::user_wants_email($uid, 'order_refunded'), 'user_wants_email(): a type set to on (by default) still emails when not globally opted out');
+
+        update_user_meta($uid, 'bhcore_notifications_email_optout', '1');
+        $rows[] = OUS_TestRunner::assert_false(self::user_wants_email($uid, 'order_refunded'), 'user_wants_email(): the global opt-out overrides an otherwise-on per-type preference');
+
+        $rows[] = OUS_TestRunner::assert_same('Course completed', self::type_label('course_completed'), 'type_label(): an unregistered type humanizes its own raw string');
+
+        // Cleanup.
+        delete_user_meta($uid, 'bhcore_notification_email_prefs');
+        delete_user_meta($uid, 'bhcore_notifications_email_optout');
+
+        return $rows;
     }
 }
