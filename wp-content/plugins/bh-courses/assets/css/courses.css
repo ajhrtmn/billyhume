@@ -269,6 +269,9 @@
 .bhc-stepper-quiz::before { content: 'Q'; }
 .bhc-stepper-resource::before { content: 'R'; }
 .bhc-stepper-callout::before { content: '!'; }
+.bhc-stepper-checklist::before { content: '\2713'; }
+.bhc-stepper-chord-chart::before { content: 'C'; }
+.bhc-stepper-audio-compare::before { content: 'A/B'; font-size: 8px; }
 .bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
 .bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
@@ -299,6 +302,9 @@
 .bhc-step.bhc-step-quiz { border-left-color: var(--bh-accent); }
 .bhc-step.bhc-step-resource { border-left-color: var(--bh-accent); }
 .bhc-step.bhc-step-callout { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-checklist { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-chord-chart { border-left-color: var(--bh-text-dim); }
+.bhc-step.bhc-step-audio-compare { border-left-color: var(--bh-accent); }
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
 .bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
@@ -354,6 +360,32 @@ video.bhc-step-video {
 .bhc-callout-tip { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left-color: var(--bh-accent); }
 .bhc-callout-note { background: var(--bh-surface-2); border-left-color: var(--bh-text-dim); color: var(--bh-text-dim); }
 .bhc-callout-warning { background: rgba(179, 45, 46, 0.1); border-left-color: #b32d2e; }
+
+/* Depth-of-magic Phase 2c — checklist/chord-chart/audio-compare, scoped
+   directly from AJ's own answer on what's actually missing for THIS
+   content (music production/songwriting courses). */
+.bhc-checklist-title { font-weight: 600; margin-bottom: 8px; }
+.bhc-checklist-items { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.bhc-checklist-items li label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.bhc-checklist-check { width: 16px; height: 16px; accent-color: var(--bh-accent); }
+/* A checked item reading as visually "done" (not just a ticked box) is
+   the whole point of a self-check list — courses.js toggles this class
+   on change (client-side only, nothing persisted, see the render
+   comment on why). */
+.bhc-checklist-items li.bhc-checklist-item-checked label { color: var(--bh-text-dim); text-decoration: line-through; }
+
+.bhc-chord-chart-title { font-weight: 600; margin-bottom: 8px; }
+.bhc-chord-chart-content {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.6; white-space: pre; overflow-x: auto;
+    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 6px;
+    padding: 12px 16px; margin-bottom: 12px;
+}
+
+.bhc-audio-compare-clip { margin-bottom: 12px; }
+.bhc-audio-compare-clip:last-of-type { margin-bottom: 8px; }
+.bhc-audio-compare-label { font-size: 13px; font-weight: 600; color: var(--bh-text-dim); margin-bottom: 4px; }
+.bhc-audio-compare-clip audio { width: 100%; }
 
 .bhc-btn {
     background: var(--bh-accent); color: var(--bh-accent-contrast, #fff); border: none;
