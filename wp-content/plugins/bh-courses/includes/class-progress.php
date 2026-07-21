@@ -369,9 +369,14 @@ class BHC_Progress {
     // Called once access is confirmed (class-render.php, on viewing the
     // course or a lesson in it) — cheap no-op on every repeat visit
     // thanks to INSERT IGNORE, so callers don't need their own "have I
-    // already enrolled this person" check.
+    // already enrolled this person" check. Returns true only on the
+    // real, first-ever enrollment for this user/course — callers use
+    // this (rather than a separate static flag, which could leak state
+    // across an unrelated call earlier in the same request) to show a
+    // one-time orientation moment instead of dropping straight into
+    // lesson content.
     public static function enroll_if_needed($user_id, $course_id) {
-        if (!$user_id || !$course_id) return;
+        if (!$user_id || !$course_id) return false;
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "INSERT IGNORE INTO {$wpdb->prefix}bhc_enrollments (user_id, course_id) VALUES (%d, %d)",
@@ -395,7 +400,9 @@ class BHC_Progress {
             // access. Only fires on the actual INSERT (rows_affected===1),
             // never on the cheap repeat-visit no-op above.
             do_action('bhc_enrolled', $user_id, $course_id);
+            return true;
         }
+        return false;
     }
 
     public static function enrolled_at($user_id, $course_id) {

@@ -462,6 +462,18 @@ video.bhc-step-video {
 .bhc-completion-share-preview { display: block; width: 100%; height: auto; }
 .bhc-completion-next-steps { font-size: 13px; padding: 0 20px 18px; }
 
+/* ---- enrollment orientation: the queue's real starting line, shown
+   once. A quieter surface than the completion moment's gradient ring —
+   this is a setup beat, not a payoff, so it stays visually calmer
+   (plain surface, accent left-border) rather than competing with the
+   completion screen's own visual weight. ---- */
+.bhc-orientation { background: var(--bh-surface); border-left: 3px solid var(--bh-accent); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+.bhc-orientation-eyebrow { font-size: 12px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.bhc-orientation-title { font-family: var(--bh-font-heading); font-size: 20px; margin: 2px 0 10px; }
+.bhc-orientation-description { font-size: 14px; color: var(--bh-text-dim); margin-bottom: 12px; }
+.bhc-orientation-syllabus { margin-bottom: 14px; }
+.bhc-orientation-start { display: inline-block; }
+
 /* ---- mobile: the lesson/quiz-taking UI specifically ----
    A real gap the LMS audit caught: this whole file had zero @media
    breakpoints, unlike the catalog page. The stepper happened to wrap
