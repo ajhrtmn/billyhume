@@ -56,7 +56,21 @@ class BHC_Steps {
     // instead of every step reading as an undifferentiated text block.
     // Non-blocking, same Mark-complete-and-continue pattern as every
     // other non-quiz step type.
-    const VALID_TYPES = ['text', 'image', 'video', 'quiz', 'resource', 'callout'];
+    //
+    // 'checklist', 'chord-chart', 'audio-compare' — depth-of-magic Phase
+    // 2c, scoped directly from AJ's own answer on what's actually
+    // missing for THIS content (music production/songwriting courses),
+    // not a generic "add more block types" guess. All three non-
+    // blocking, same Mark-complete-and-continue pattern as every other
+    // non-quiz step. Hyphenated (not underscored) legacy type strings —
+    // BHC_ContentBridge's tree_to_steps()/steps_to_tree() derive a
+    // step's legacy type generically from its block name via
+    // substr($type, 4) (e.g. 'bhc/chord-chart' -> 'chord-chart'), and
+    // WordPress's own block-name parser only matches hyphens, not
+    // underscores, in the part after the slash — an underscored legacy
+    // type would need a hyphenated block name anyway, so the two would
+    // never actually match through that generic conversion.
+    const VALID_TYPES = ['text', 'image', 'video', 'quiz', 'resource', 'callout', 'checklist', 'chord-chart', 'audio-compare'];
 
     // The only three variants this ships with — a fixed, small set
     // (same "don't expand the palette, derive states from one base"
@@ -168,6 +182,37 @@ class BHC_Steps {
                 if (trim(wp_strip_all_tags($content)) === '') continue; // an empty callout has nothing to say — don't store a dead step
                 $variant = in_array($step['variant'] ?? '', self::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
                 $clean[] = ['type' => 'callout', 'content' => $content, 'variant' => $variant];
+            } elseif ($type === 'checklist') {
+                $items = array_map('sanitize_text_field', (array) ($step['items'] ?? []));
+                $items = array_values(array_filter($items, fn($i) => $i !== ''));
+                if (!$items) continue; // an empty checklist has nothing to check — don't store a dead step
+                $clean[] = ['type' => 'checklist', 'title' => sanitize_text_field($step['title'] ?? ''), 'items' => $items];
+            } elseif ($type === 'chord-chart') {
+                // sanitize_textarea_field() (not wp_kses_post()) — a
+                // chord chart's alignment IS the content (chords
+                // positioned over lyric lines via monospace spacing),
+                // so this preserves real newlines/spacing while still
+                // stripping tags, and is rendered back out via esc_html()
+                // inside a <pre> rather than as trusted HTML.
+                $content = sanitize_textarea_field($step['content'] ?? '');
+                if (trim($content) === '') continue; // an empty chart has nothing to show — don't store a dead step
+                $clean[] = ['type' => 'chord-chart', 'title' => sanitize_text_field($step['title'] ?? ''), 'content' => $content];
+            } elseif ($type === 'audio-compare') {
+                // A comparison needs BOTH clips to mean anything — one
+                // missing side isn't "half a comparison," it's not a
+                // comparison at all, so this drops the whole step rather
+                // than rendering a single lonely player.
+                $id_a = (int) ($step['attachment_id_a'] ?? 0);
+                $id_b = (int) ($step['attachment_id_b'] ?? 0);
+                if (!$id_a || !$id_b) continue;
+                $clean[] = [
+                    'type' => 'audio-compare',
+                    'attachment_id_a' => $id_a,
+                    'attachment_id_b' => $id_b,
+                    'label_a' => sanitize_text_field($step['label_a'] ?? '') ?: 'A',
+                    'label_b' => sanitize_text_field($step['label_b'] ?? '') ?: 'B',
+                    'caption' => sanitize_text_field($step['caption'] ?? ''),
+                ];
             }
         }
         update_post_meta($lesson_id, '_bhc_steps', $clean);

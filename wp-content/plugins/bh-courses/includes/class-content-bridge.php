@@ -236,6 +236,56 @@ class BHC_ContentBridge {
             if ($attrs['description']) $out .= '<p class="bhc-caption">' . esc_html($attrs['description']) . '</p>';
             return $out . '</div>';
         });
+
+        // Depth-of-magic Phase 2c — scoped directly from AJ's own answer
+        // on what's actually missing for THIS content, not a generic
+        // "add more block types" guess. Non-blocking, same posture as
+        // resource/callout above.
+        BH_Content::register_block_type('bhc/checklist', [
+            'title' => ['type' => 'string', 'default' => ''],
+            'items' => ['type' => 'array', 'default' => []],
+        ], function ($attrs) {
+            $out = '<div class="bhc-step bhc-step-checklist">';
+            if ($attrs['title']) $out .= '<p class="bhc-checklist-title">' . esc_html($attrs['title']) . '</p>';
+            $out .= '<ul class="bhc-checklist-items">';
+            foreach ((array) $attrs['items'] as $i => $item) {
+                $out .= '<li><label><input type="checkbox" class="bhc-checklist-check" data-item-index="' . (int) $i . '"> ' . esc_html($item) . '</label></li>';
+            }
+            $out .= '</ul></div>';
+            return $out;
+        });
+
+        // Plain text, not HTML — a chord chart's alignment IS the
+        // content (chords positioned over lyric lines via monospace
+        // spacing), so this renders via esc_html() inside a <pre> to
+        // preserve real whitespace, never as trusted rich content.
+        BH_Content::register_block_type('bhc/chord-chart', [
+            'title' => ['type' => 'string', 'default' => ''],
+            'content' => ['type' => 'string', 'default' => ''],
+        ], function ($attrs) {
+            $out = '<div class="bhc-step bhc-step-chord-chart">';
+            if ($attrs['title']) $out .= '<p class="bhc-chord-chart-title">' . esc_html($attrs['title']) . '</p>';
+            $out .= '<pre class="bhc-chord-chart-content">' . esc_html($attrs['content']) . '</pre></div>';
+            return $out;
+        });
+
+        BH_Content::register_block_type('bhc/audio-compare', [
+            'attachment_id_a' => ['type' => 'int', 'default' => 0],
+            'attachment_id_b' => ['type' => 'int', 'default' => 0],
+            'label_a' => ['type' => 'string', 'default' => 'A'],
+            'label_b' => ['type' => 'string', 'default' => 'B'],
+            'caption' => ['type' => 'string', 'default' => ''],
+        ], function ($attrs) {
+            if (!$attrs['attachment_id_a'] || !$attrs['attachment_id_b']) return '';
+            $url_a = wp_get_attachment_url((int) $attrs['attachment_id_a']);
+            $url_b = wp_get_attachment_url((int) $attrs['attachment_id_b']);
+            if (!$url_a || !$url_b) return '<p class="bhc-step bhc-step-audio-compare">One or both audio files not found.</p>';
+            $out = '<div class="bhc-step bhc-step-audio-compare">';
+            $out .= '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($attrs['label_a']) . '</p>' . wp_audio_shortcode(['src' => $url_a]) . '</div>';
+            $out .= '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($attrs['label_b']) . '</p>' . wp_audio_shortcode(['src' => $url_b]) . '</div>';
+            if ($attrs['caption']) $out .= '<p class="bhc-caption">' . esc_html($attrs['caption']) . '</p>';
+            return $out . '</div>';
+        });
     }
 
     /**

@@ -2,11 +2,18 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.35
+ * Version:     0.4.36
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.36 — LMS depth-of-magic Phase 2c: three new step types (checklist,
+// chord/tab chart, audio A/B compare), scoped directly from AJ's own
+// answer on what's actually missing for THIS content (music production/
+// songwriting courses), not a generic "add more block types" guess. All
+// three non-blocking, same Mark-complete-and-continue pattern as every
+// other non-quiz step.
 
 // 0.4.35 — LMS depth-of-magic Phase 3: cross-course mastery. A new
 // bhc_achievements table (BHC_Activator 1.5) and BHC_Achievements class

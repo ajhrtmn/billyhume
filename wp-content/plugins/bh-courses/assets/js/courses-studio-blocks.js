@@ -319,6 +319,123 @@
         save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/resource callback
     });
 
+    // Depth-of-magic Phase 2c — checklist/chord-chart/audio-compare,
+    // scoped directly from AJ's own answer on what's actually missing
+    // for THIS content (music production/songwriting courses), not a
+    // generic "add more block types" guess. All three are dynamic
+    // (save() returns null, same as bhc/resource above) — the server
+    // renderer is BHC_ContentBridge's own callback for each; the editor
+    // canvas shows the real edit() UI directly rather than a live
+    // preview of rendered output, same posture every other dynamic
+    // block here already takes.
+    wp.blocks.registerBlockType('bhc/checklist', {
+        apiVersion: 3,
+        title: __('Lesson: Checklist'),
+        icon: 'yes-alt',
+        category: 'lms',
+        attributes: {
+            title: { type: 'string', default: '' },
+            items: { type: 'array', default: [] },
+        },
+        supports: { html: false },
+        edit: function (props) {
+            var attrs = props.attributes, setAttrs = props.setAttributes;
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-checklist', style: { paddingTop: '32px' } });
+            var items = attrs.items || [];
+            var rows = items.map(function (item, i) {
+                return el('div', { key: i, className: 'bhc-studio-checklist-row' },
+                    el(wp.components.TextControl, {
+                        value: item,
+                        placeholder: __('Checklist item…'),
+                        onChange: function (v) {
+                            var next = items.slice();
+                            next[i] = v;
+                            setAttrs({ items: next });
+                        },
+                    }),
+                    el(wp.components.Button, {
+                        variant: 'tertiary', isDestructive: true,
+                        onClick: function () { setAttrs({ items: items.filter(function (_, idx) { return idx !== i; }) }); },
+                    }, __('Remove'))
+                );
+            });
+            return el('div', blockProps,
+                el(wp.components.TextControl, { label: __('Title (optional)'), value: attrs.title, placeholder: __('e.g. Before you export…'), onChange: function (v) { setAttrs({ title: v }); } }),
+                rows,
+                el(wp.components.Button, { variant: 'secondary', onClick: function () { setAttrs({ items: items.concat(['']) }); } }, __('+ Add item'))
+            );
+        },
+        save: function () { return null; },
+    });
+
+    wp.blocks.registerBlockType('bhc/chord-chart', {
+        apiVersion: 3,
+        title: __('Lesson: Chord/Tab Chart'),
+        icon: 'editor-code',
+        category: 'lms',
+        attributes: {
+            title: { type: 'string', default: '' },
+            content: { type: 'string', default: '' },
+        },
+        supports: { html: false },
+        edit: function (props) {
+            var attrs = props.attributes, setAttrs = props.setAttributes;
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-chord-chart', style: { paddingTop: '32px' } });
+            return el('div', blockProps,
+                el(wp.components.TextControl, { label: __('Title (optional)'), value: attrs.title, placeholder: __('e.g. Verse'), onChange: function (v) { setAttrs({ title: v }); } }),
+                el(wp.components.TextareaControl, {
+                    label: __('Chord/tab chart'),
+                    help: __('Plain monospace text — alignment is preserved exactly as typed.'),
+                    value: attrs.content,
+                    rows: 8,
+                    onChange: function (v) { setAttrs({ content: v }); },
+                })
+            );
+        },
+        save: function () { return null; },
+    });
+
+    wp.blocks.registerBlockType('bhc/audio-compare', {
+        apiVersion: 3,
+        title: __('Lesson: Audio A/B Compare'),
+        icon: 'controls-volumeon',
+        category: 'lms',
+        attributes: {
+            attachment_id_a: { type: 'number', default: 0 },
+            attachment_id_b: { type: 'number', default: 0 },
+            label_a: { type: 'string', default: 'A' },
+            label_b: { type: 'string', default: 'B' },
+            caption: { type: 'string', default: '' },
+        },
+        supports: { html: false },
+        edit: function (props) {
+            var attrs = props.attributes, setAttrs = props.setAttributes;
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-audio-compare', style: { paddingTop: '32px' } });
+            function clipPicker(idKey, labelKey, defaultLabel) {
+                return el('div', { className: 'bhc-studio-audio-compare-clip' },
+                    el(wp.components.TextControl, { label: __('Label'), value: attrs[labelKey], placeholder: defaultLabel, onChange: function (v) { setAttrs((function (o) { o[labelKey] = v; return o; })({})); } }),
+                    el(wp.blockEditor.MediaUploadCheck, {},
+                        el(wp.blockEditor.MediaUpload, {
+                            allowedTypes: ['audio'],
+                            value: attrs[idKey],
+                            onSelect: function (media) { setAttrs((function (o) { o[idKey] = media.id; return o; })({})); },
+                            render: function (obj) {
+                                return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs[idKey] ? __('Change audio') : __('Select audio'));
+                            },
+                        })
+                    ),
+                    attrs[idKey] ? el('p', { className: 'bhc-studio-audio-compare-selected' }, __('Audio selected (#') + attrs[idKey] + ')') : null
+                );
+            }
+            return el('div', blockProps,
+                clipPicker('attachment_id_a', 'label_a', 'A'),
+                clipPicker('attachment_id_b', 'label_b', 'B'),
+                el(wp.components.TextControl, { label: __('Caption (optional)'), value: attrs.caption, onChange: function (v) { setAttrs({ caption: v }); } })
+            );
+        },
+        save: function () { return null; },
+    });
+
     wp.blocks.registerBlockType('bhc/quiz', {
         apiVersion: 3,
         title: __('Lesson: Quiz'),

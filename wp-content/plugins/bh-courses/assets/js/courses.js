@@ -404,6 +404,17 @@
             e.target.closest('.bhc-quiz-choice').classList.add('bhc-selected');
         });
 
+        // Checklist step — client-side only, nothing persisted (see
+        // class-render-lesson.php's own comment on why: it's a self-check
+        // for the student's own benefit, never required to advance). Just
+        // a visual "done" state on the item itself.
+        lesson.addEventListener('change', function (e) {
+            if (!e.target.matches('.bhc-checklist-check')) return;
+            var li = e.target.closest('li');
+            if (!li) return;
+            li.classList.toggle('bhc-checklist-item-checked', e.target.checked);
+        });
+
         lesson.addEventListener('submit', function (e) {
             if (!e.target.classList.contains('bhc-quiz-form')) return;
             e.preventDefault();
