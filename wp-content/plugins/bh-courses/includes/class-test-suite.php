@@ -104,6 +104,7 @@ class BHC_TestSuite {
          * fake user + real bhc_progress rows, cleaned up afterward. */
         if (class_exists('BHC_Progress') && class_exists('OUS_Debug')) {
             $rows = array_merge($rows, self::run_progress_tests());
+            $rows = array_merge($rows, self::run_quiz_average_tests());
         }
 
         /* ---------- catalog search/sort (BHC_Render::render_catalog()) ----------
@@ -445,6 +446,67 @@ class BHC_TestSuite {
 
         // Cleanup.
         $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
+
+        return $rows;
+    }
+
+    // course_quiz_average() (the "Depth of Magic" certificate-distinction
+    // / mastery-signal feature) — fake lesson IDs same as
+    // run_progress_tests() above (bhc_progress has no FK to bh_lesson),
+    // but this method reads lesson IDs from a real course's own
+    // _bhc_lesson_order postmeta (BHC_PostTypes::lesson_order()), so a
+    // real fixture bh_course post is needed to point at them.
+    private static function run_quiz_average_tests() {
+        $rows = [];
+        global $wpdb;
+        $uid = OUS_Debug::get_or_create_test_user('bhc_quiz_average_suite', false);
+        $table = $wpdb->prefix . 'bhc_progress';
+        $lesson_a = 999999101;
+        $lesson_b = 999999102;
+
+        $course_id = wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'BHC Test Suite Fixture Course'], true);
+        if (is_wp_error($course_id)) {
+            return [['name' => 'BHC_TestSuite quiz-average fixture course insert failed', 'pass' => false, 'message' => '']];
+        }
+        update_post_meta($course_id, '_bhc_lesson_order', [$lesson_a, $lesson_b]);
+
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_a]);
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_b]);
+
+        $rows[] = OUS_TestRunner::assert_same(
+            null, BHC_Progress::course_quiz_average($uid, $course_id),
+            'course_quiz_average(): a student with zero quiz attempts in this course returns null, never a bare 0%'
+        );
+
+        // A quiz step (real score) and a plain step (score stays NULL —
+        // see mark_step_complete()'s own NULL-passthrough fix) in the
+        // same course: only the quiz step should count toward the average.
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 1, null, null, null);
+        $rows[] = OUS_TestRunner::assert_same(
+            80, BHC_Progress::course_quiz_average($uid, $course_id),
+            'course_quiz_average(): a single scored quiz step is the average on its own; the plain (NULL-score) step is correctly excluded'
+        );
+
+        BHC_Progress::mark_step_complete($uid, $lesson_b, 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        $rows[] = OUS_TestRunner::assert_same(
+            90, BHC_Progress::course_quiz_average($uid, $course_id),
+            'course_quiz_average(): averages across every quiz step in the course (80 + 100) / 2 = 90, catching an int-division or wrong-scope regression'
+        );
+
+        // A retry overwrites the same row (latest-attempt-only semantics,
+        // same rule run_progress_tests() above already covers) — the
+        // average must reflect the NEW score, not double-count the old one.
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 60, 0, wp_json_encode(['score' => 60, 'passed' => false, 'questions' => []]));
+        $rows[] = OUS_TestRunner::assert_same(
+            80, BHC_Progress::course_quiz_average($uid, $course_id),
+            'course_quiz_average(): a retry replaces the prior score for that step rather than being averaged as a second data point (60 + 100) / 2 = 80'
+        );
+
+        // Cleanup.
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_a]);
+        $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_b]);
+        wp_delete_post($course_id, true);
 
         return $rows;
     }
