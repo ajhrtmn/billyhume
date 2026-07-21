@@ -158,6 +158,17 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_achievement_tests());
         }
 
+        /* ---------- leaderboard (BHC_Leaderboard) ----------
+         * LMS depth-of-magic Phase 4 — the tie-handling competition-rank
+         * logic (1, 1, 3 — not 1, 1, 2) is the one piece of this feature
+         * worth real test coverage; the enrollment/quiz-average plumbing
+         * around it is already covered by run_quiz_average_tests() and
+         * run_gate_drip_tests(). Real, tagged fixture users + a real
+         * fixture course, cleaned up afterward. */
+        if (class_exists('BHC_Leaderboard') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_leaderboard_tests());
+        }
+
         return $rows;
     }
 
@@ -627,6 +638,80 @@ class BHC_TestSuite {
         foreach ($lesson_ids as $lid) $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $lid]);
         foreach ($course_ids as $cid) wp_delete_post($cid, true);
         $wpdb->delete($table, ['user_id' => $uid]);
+
+        return $rows;
+    }
+
+    private static function run_leaderboard_tests() {
+        $rows = [];
+        global $wpdb;
+        $progress_table = $wpdb->prefix . 'bhc_progress';
+        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $lesson_id = 999999301;
+
+        $course_id = wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'BHC Leaderboard Suite Fixture Course'], true);
+        if (is_wp_error($course_id)) {
+            return [['name' => 'BHC_TestSuite leaderboard fixture course insert failed', 'pass' => false, 'message' => '']];
+        }
+        update_post_meta($course_id, '_bhc_lesson_order', [$lesson_id]);
+
+        $uid_a = OUS_Debug::get_or_create_test_user('bhc_leaderboard_a', false);
+        $uid_b = OUS_Debug::get_or_create_test_user('bhc_leaderboard_b', false);
+        $uid_c = OUS_Debug::get_or_create_test_user('bhc_leaderboard_c', false);
+        foreach ([$uid_a, $uid_b, $uid_c] as $uid) $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
+
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Leaderboard::is_enabled($course_id),
+            'is_enabled(): off by default on a freshly-created course'
+        );
+        update_post_meta($course_id, '_bhc_leaderboard_enabled', 1);
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Leaderboard::is_enabled($course_id),
+            'is_enabled(): reads back the opt-in checkbox once set'
+        );
+
+        // A scores 100 (rank 1), B and C tie at 80 (both rank 2 — a real
+        // tie must NOT skip to rank 3 for the second one).
+        $wpdb->insert($enroll_table, ['user_id' => $uid_a, 'course_id' => $course_id]);
+        $wpdb->insert($enroll_table, ['user_id' => $uid_b, 'course_id' => $course_id]);
+        $wpdb->insert($enroll_table, ['user_id' => $uid_c, 'course_id' => $course_id]);
+        BHC_Progress::mark_step_complete($uid_a, $lesson_id, 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_b, $lesson_id, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_c, $lesson_id, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+
+        $scores = BHC_Leaderboard::top_scorers($course_id);
+        $rows[] = OUS_TestRunner::assert_same(3, count($scores), 'top_scorers(): all 3 enrolled students who attempted a quiz appear');
+        $rows[] = OUS_TestRunner::assert_same(1, $scores[0]['rank'] ?? null, 'top_scorers(): the 100% score is rank 1');
+        $ranks_by_user = [];
+        foreach ($scores as $s) $ranks_by_user[$s['user_id']] = $s['rank'];
+        $rows[] = OUS_TestRunner::assert_same(2, $ranks_by_user[$uid_b] ?? null, 'top_scorers(): a tied 80% score is rank 2, not 3');
+        $rows[] = OUS_TestRunner::assert_same(2, $ranks_by_user[$uid_c] ?? null, 'top_scorers(): both tied students share rank 2');
+
+        // A 4th, lower score after a 2-way tie must land on rank 4, not
+        // rank 3 — the tie above consumed both the "2" and "3" positions.
+        $uid_d = OUS_Debug::get_or_create_test_user('bhc_leaderboard_d', false);
+        $wpdb->delete($progress_table, ['user_id' => $uid_d, 'lesson_id' => $lesson_id]);
+        $wpdb->insert($enroll_table, ['user_id' => $uid_d, 'course_id' => $course_id]);
+        BHC_Progress::mark_step_complete($uid_d, $lesson_id, 0, 50, 0, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
+        $scores = BHC_Leaderboard::top_scorers($course_id);
+        $ranks_by_user = [];
+        foreach ($scores as $s) $ranks_by_user[$s['user_id']] = $s['rank'];
+        $rows[] = OUS_TestRunner::assert_same(4, $ranks_by_user[$uid_d] ?? null, 'top_scorers(): the next distinct score after a 2-way tie is rank 4, correctly accounting for both tied positions above it');
+
+        // A student who never attempted a quiz doesn't occupy a slot —
+        // enroll a 5th student, don't score them at all.
+        $uid_e = OUS_Debug::get_or_create_test_user('bhc_leaderboard_e', false);
+        $wpdb->delete($progress_table, ['user_id' => $uid_e, 'lesson_id' => $lesson_id]);
+        $wpdb->insert($enroll_table, ['user_id' => $uid_e, 'course_id' => $course_id]);
+        $scores = BHC_Leaderboard::top_scorers($course_id);
+        $rows[] = OUS_TestRunner::assert_same(4, count($scores), 'top_scorers(): an enrolled student with zero quiz attempts is excluded entirely, never a bare 0%');
+
+        // Cleanup.
+        foreach ([$uid_a, $uid_b, $uid_c, $uid_d, $uid_e] as $uid) {
+            $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
+            $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
+        }
+        wp_delete_post($course_id, true);
 
         return $rows;
     }

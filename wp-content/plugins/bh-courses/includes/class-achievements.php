@@ -26,6 +26,41 @@ class BHC_Achievements {
 
     public static function init() {
         add_action('bhc_course_completed', [self::class, 'on_course_completed'], 10, 2);
+
+        // Depth-of-magic Phase 4 — the same `bhi_profile_badges` filter
+        // own-ur-shit's public-profile view already renders through
+        // (confirmed contract: `['label' => string, 'url' => string|null]`,
+        // display-only, no persistence of its own — see
+        // BHI_Profiles::badges_for()'s own docblock). Harmless no-op if
+        // own-ur-shit's profile view never calls apply_filters() on it,
+        // same "optional cross-plugin touch" posture every other filter
+        // hook in this ecosystem takes.
+        add_filter('bhi_profile_badges', [self::class, 'register_profile_badges'], 10, 2);
+    }
+
+    // A course_distinction badge names the specific course (a student can
+    // earn it more than once — one per course cleared, unlike the two
+    // global achievements below, which the table's own 0-course-id
+    // sentinel + UNIQUE KEY guarantee only ever exist once), and links to
+    // that course's own page. first_quiz_aced/courses_mastered_3 are
+    // global (course_id 0) — generic label, no link.
+    public static function register_profile_badges($badges, $user_id) {
+        foreach (self::all_for_user($user_id) as $row) {
+            $key = $row['achievement_key'];
+            $meta = self::LABELS[$key] ?? null;
+            if (!$meta) continue;
+
+            if ($key === self::COURSE_DISTINCTION && (int) $row['course_id'] > 0) {
+                $course_title = get_the_title((int) $row['course_id']);
+                $badges[] = [
+                    'label' => $meta['label'] . ($course_title ? ': ' . $course_title : ''),
+                    'url' => get_permalink((int) $row['course_id']) ?: null,
+                ];
+            } else {
+                $badges[] = ['label' => $meta['label'], 'url' => null];
+            }
+        }
+        return $badges;
     }
 
     private static function table() {

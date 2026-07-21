@@ -2,11 +2,19 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.36
+ * Version:     0.4.37
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.37 — LMS depth-of-magic Phase 4 (final phase): ecosystem-wide
+// achievement surfacing. BHC_Achievements now feeds the real
+// bhi_profile_badges filter (own-ur-shit's public-profile page), and a
+// new opt-in BHC_Leaderboard shows a course's top quiz scorers —
+// rank/name/score rows with emoji medals for the top 3, mirroring
+// bh-contest's own reveal display without sharing code with it. Off by
+// default per course, same posture as Lesson Q&A/certificates.
 
 // 0.4.36 — LMS depth-of-magic Phase 2c: three new step types (checklist,
 // chord/tab chart, audio A/B compare), scoped directly from AJ's own
@@ -165,7 +173,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
