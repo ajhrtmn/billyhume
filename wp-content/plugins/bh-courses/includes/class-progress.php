@@ -479,6 +479,34 @@ class BHC_Progress {
         ));
     }
 
+    /** Null if not yet completed — same shape as enrolled_at(), for the completion screen's "time invested" stat. */
+    public static function course_completed_at($user_id, $course_id) {
+        global $wpdb;
+        return $wpdb->get_var($wpdb->prepare(
+            "SELECT completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
+            $user_id, $course_id
+        ));
+    }
+
+    // Count of distinct quiz steps actually PASSED in this course — the
+    // completion screen's "quizzes passed" stat. Same lesson-scoping
+    // query shape as course_quiz_average() above; deliberately a
+    // separate method rather than folding into that one, since a
+    // pass-count and a score-average answer two different questions
+    // (a student could pass every quiz at exactly the passing_score and
+    // still have a modest average, or vice versa on a generous curve).
+    public static function quizzes_passed_count($user_id, $course_id) {
+        if (!$user_id) return 0;
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return 0;
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d AND lesson_id IN ($placeholders) AND score IS NOT NULL AND passed = 1",
+            array_merge([$user_id], $lesson_ids)
+        ));
+    }
+
     /* ---------------- AJAX handlers (logged-in students) ---------------- */
 
     public static function ajax_mark_complete() {

@@ -61,15 +61,10 @@ class BHC_Render_Course {
             $percent = BHC_Progress::course_percent($uid, $course_id);
             $cta = self::render_continue_cta($uid, $course_id, $percent);
             if ($cta) echo '<div class="bhc-course-header-cta">' . $cta . '</div>';
-
-            // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4a — only
-            // shown once BOTH the course opts in AND this specific
-            // student has actually finished it; BHC_Certificates::
-            // maybe_serve_download() re-checks both server-side too, this
-            // is just the visibility gate on the link itself.
-            if (class_exists('BHC_Certificates') && BHC_Certificates::course_offers_certificate($course_id) && BHC_Progress::is_course_completed($uid, $course_id)) {
-                echo '<div class="bhc-course-header-cta"><a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate</a></div>';
-            }
+            // The flat "Download certificate" link that used to live here
+            // is now the dedicated completion screen (render_completion_screen()
+            // below, called from render_course()) — a real payoff moment
+            // instead of a bare afterthought link.
         }
         echo '</div>';
         return ob_get_clean();
@@ -145,6 +140,15 @@ class BHC_Render_Course {
                 echo '</ol></div>';
             }
         } else {
+            // The real payoff moment — a dedicated completion screen
+            // (stats, certificate, share card, next steps) once this
+            // student has actually finished, in place of the flat
+            // "Download certificate" link this section used to carry.
+            // Placed above the progress bar/lesson list rather than
+            // below: the completion moment is the headline once it's
+            // true, not a footnote after a now-100%-full progress bar.
+            if ($uid) echo self::render_completion_screen($uid, $course_id);
+
             // Enrollment/continue CTA now lives in render_course_header()
             // above (shown for every locked/unlocked state consistently)
             // — not duplicated here anymore.
@@ -184,7 +188,7 @@ class BHC_Render_Course {
     // (the caller already gates on !$locked).
     private static function render_reviews_section($course_id, $uid) {
         ob_start();
-        echo '<div class="bhc-reviews-section">';
+        echo '<div class="bhc-reviews-section" id="bhc-reviews">';
         echo '<h2>Reviews</h2>';
 
         $reviews = BHC_Reviews::reviews_for_course($course_id, 'approved');
@@ -349,5 +353,87 @@ class BHC_Render_Course {
             }
         }
         return '';
+    }
+
+    /**
+     * The biggest single payoff moment in this whole redesign — replaces
+     * what used to be a bare "Download certificate" link with a real
+     * dedicated completion state: stats pulled from data already tracked
+     * (no new storage), the certificate/share card promoted from
+     * afterthought links to the actual centerpiece, and a clear next
+     * step. Returns '' (renders nothing) unless this specific student
+     * has actually completed this specific course — never a
+     * congratulations screen shown speculatively.
+     *
+     * $assume_complete: for the one caller (class-render-lesson.php's
+     * final-step reveal) where the completion write is GUARANTEED to
+     * have just happened by construction — this markup is server-
+     * rendered at page LOAD (before the student has clicked anything),
+     * then revealed client-side only after the final step's own AJAX
+     * call succeeds. is_course_completed() at render time would still
+     * read false on a student's first-ever completion (the DB write
+     * hasn't happened yet at that point), so that one call site passes
+     * true to skip the check it would otherwise incorrectly fail.
+     */
+    public static function render_completion_screen($uid, $course_id, $assume_complete = false) {
+        if (!$uid || !class_exists('BHC_Progress')) return '';
+        if (!$assume_complete && !BHC_Progress::is_course_completed($uid, $course_id)) return '';
+
+        $lesson_count = BHC_PostTypes::lesson_count($course_id);
+        $quizzes_passed = BHC_Progress::quizzes_passed_count($uid, $course_id);
+        $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
+        $enrolled_at = BHC_Progress::enrolled_at($uid, $course_id);
+        $completed_at = BHC_Progress::course_completed_at($uid, $course_id);
+        $has_certificate = class_exists('BHC_Certificates') && BHC_Certificates::course_offers_certificate($course_id);
+        $has_share_card = class_exists('BHC_ShareCards');
+        $distinction_threshold = (int) apply_filters('bhc_certificate_distinction_threshold', 90);
+        $with_distinction = $quiz_average !== null && $quiz_average >= $distinction_threshold;
+
+        ob_start();
+        // '.bhc-completion' (not a new wrapper class) so this inherits
+        // the existing gradient-ring surface treatment AND the one-shot
+        // confetti burst courses.js already fires for any element found
+        // at that exact selector (querySelector('.bhc-completion')) —
+        // one visual language for this moment, not two.
+        echo '<div class="bhc-completion">';
+        echo '<div class="bhc-completion-badge" aria-hidden="true">&#127942;</div>';
+        echo '<h2 class="bhc-completion-title">Course complete' . ($with_distinction ? ' — with distinction' : '') . '!</h2>';
+        echo '<p class="bhc-completion-sub">You finished <strong>' . esc_html(get_the_title($course_id)) . '</strong>.</p>';
+
+        echo '<div class="bhc-completion-stats">';
+        echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $lesson_count . '</span><span class="bhc-completion-stat-label">lesson' . ($lesson_count === 1 ? '' : 's') . ' completed</span></div>';
+        if ($quizzes_passed > 0) {
+            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . (int) $quizzes_passed . '</span><span class="bhc-completion-stat-label">quiz' . ($quizzes_passed === 1 ? '' : 'zes') . ' passed</span></div>';
+        }
+        if ($enrolled_at && $completed_at) {
+            $days = max(1, (int) round((strtotime($completed_at) - strtotime($enrolled_at)) / DAY_IN_SECONDS));
+            echo '<div class="bhc-completion-stat"><span class="bhc-completion-stat-num">' . $days . '</span><span class="bhc-completion-stat-label">day' . ($days === 1 ? '' : 's') . ' start to finish</span></div>';
+        }
+        echo '</div>';
+
+        if ($has_certificate || $has_share_card) {
+            echo '<div class="bhc-completion-actions">';
+            if ($has_certificate) {
+                echo '<a class="bhc-btn bhc-btn-primary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate' . ($with_distinction ? ' (with distinction)' : '') . '</a>';
+            }
+            if ($has_share_card) {
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener">Get share image</a>';
+            }
+            echo '</div>';
+        }
+        // The actual generated share card, shown inline — the whole
+        // point of a share card is to be SEEN, not filed behind a link
+        // nobody clicks to preview first.
+        if ($has_share_card) {
+            echo '<img class="bhc-completion-share-preview" src="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" alt="' . esc_attr(get_the_title($course_id)) . ' completion share card" loading="lazy">';
+        }
+
+        echo '<div class="bhc-completion-next-steps">';
+        $archive_url = get_post_type_archive_link('bh_course');
+        if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">Browse more courses</a>';
+        if (class_exists('BHC_Reviews')) echo ' &middot; <a href="#bhc-reviews">Leave a review</a>';
+        echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
     }
 }

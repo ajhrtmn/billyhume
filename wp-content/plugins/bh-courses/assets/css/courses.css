@@ -449,6 +449,19 @@ video.bhc-step-video {
 .bhc-completion-card { display: block; width: 100%; height: auto; }
 .bhc-completion-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px 20px; border-radius: 0 0 12px 12px; }
 
+/* render_completion_screen()'s own additions (course page + lesson-page
+   final-step reveal both use this): stats row, badge, share-card preview,
+   next-steps line. Same '.bhc-completion > *' background/z-index rule
+   above already applies to every one of these as direct children. */
+.bhc-completion-badge { font-size: 40px; line-height: 1; padding: 24px 20px 0; border-radius: 12px 12px 0 0; }
+.bhc-completion-sub { font-size: 14px; color: var(--bh-text-dim); padding: 0 20px 4px; margin: 0; }
+.bhc-completion-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; padding: 8px 20px 4px; }
+.bhc-completion-stat { display: flex; flex-direction: column; align-items: center; }
+.bhc-completion-stat-num { font-family: var(--bh-font-heading); font-size: 24px; font-weight: 700; color: var(--bh-accent); }
+.bhc-completion-stat-label { font-size: 11px; color: var(--bh-text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.bhc-completion-share-preview { display: block; width: 100%; height: auto; }
+.bhc-completion-next-steps { font-size: 13px; padding: 0 20px 18px; }
+
 /* ---- mobile: the lesson/quiz-taking UI specifically ----
    A real gap the LMS audit caught: this whole file had zero @media
    breakpoints, unlike the catalog page. The stepper happened to wrap
