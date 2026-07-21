@@ -152,6 +152,19 @@
 .bhc-rating-count { color: var(--bh-text-dim); }
 .bhc-reviews-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--bh-border); }
 .bhc-reviews-section h2 { font-family: var(--bh-font-heading); font-size: 18px; margin-bottom: 14px; }
+
+/* Depth-of-magic Phase 4 — opt-in top-quiz-scorers leaderboard, same
+   rank/name/score row shape as bh-contest's own reveal display, emoji
+   medals for the top 3 rather than a new color token. */
+.bhc-leaderboard { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--bh-border); }
+.bhc-leaderboard-title { font-family: var(--bh-font-heading); font-size: 18px; margin-bottom: 14px; }
+.bhc-leaderboard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bhc-leaderboard-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--bh-radius-sm, 8px); }
+.bhc-leaderboard-row.bhc-leaderboard-medal { background: var(--bh-surface-2); }
+.bhc-leaderboard-rank { flex: 0 0 32px; font-weight: 700; color: var(--bh-text-dim); text-align: center; }
+.bhc-leaderboard-medal .bhc-leaderboard-rank { font-size: 18px; }
+.bhc-leaderboard-name { flex: 1; font-size: 14px; }
+.bhc-leaderboard-score { font-weight: 600; color: var(--bh-accent); }
 .bhc-review-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .bhc-review { padding: 14px 16px; border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm, 8px); background: var(--bh-surface); }
 .bhc-review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }

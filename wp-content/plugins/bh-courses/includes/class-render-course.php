@@ -201,6 +201,7 @@ class BHC_Render_Course {
             }
             echo self::render_grouped_lesson_list($course_id, $uid, null, false);
         }
+        if (!$locked && class_exists('BHC_Leaderboard')) echo BHC_Leaderboard::render($course_id);
         if (!$locked && class_exists('BHC_Reviews')) echo self::render_reviews_section($course_id, $uid);
         echo '</div>';
         return ob_get_clean();

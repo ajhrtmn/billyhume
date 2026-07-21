@@ -330,6 +330,16 @@ class BHC_Admin {
             echo '</select></label></p>';
         }
 
+        // Depth-of-magic Phase 4 — same off-by-default, per-course
+        // opt-in posture as Q&A/certificate above: a course creator
+        // explicitly decides their students' quiz scores are something
+        // to compare, rather than every course silently gaining a public
+        // ranking the moment this shipped.
+        $leaderboard_enabled = class_exists('BHC_Leaderboard') && BHC_Leaderboard::is_enabled($post->ID);
+        echo '<h4>Top quiz scorers</h4>';
+        echo '<p><label><input type="checkbox" name="bhc_leaderboard_enabled" value="1"' . checked($leaderboard_enabled, true, false) . '> <strong>Show a leaderboard of top quiz scorers on this course\'s page</strong></label></p>';
+        echo '<p class="description">Off by default. Ranks students by their quiz average in this course (same "Mastery: N%" figure shown on the course page and used for certificate distinction) — only students who\'ve attempted at least one quiz appear.</p>';
+
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
             $required_benefit = BHC_Gate::required_benefit($post->ID);
@@ -371,6 +381,7 @@ class BHC_Admin {
         update_post_meta($post_id, '_bhc_certificate_signature', isset($_POST['bhc_certificate_signature']) ? sanitize_text_field($_POST['bhc_certificate_signature']) : '');
         $posted_style = (string) ($_POST['bhc_share_card_style'] ?? '');
         update_post_meta($post_id, '_bhc_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
+        update_post_meta($post_id, '_bhc_leaderboard_enabled', !empty($_POST['bhc_leaderboard_enabled']) ? 1 : 0);
         // Only ever written if bh-monetization-woo is active enough to
         // have rendered the select above — a crafted POST on a site
         // without it does nothing harmful (BHM_Gate simply isn't
