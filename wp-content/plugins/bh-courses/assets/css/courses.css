@@ -34,7 +34,13 @@
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
 }
-.bhc-course-card img { width: 100%; border-radius: 6px; object-fit: cover; }
+/* Real bug: this was un-scoped and also matched the instructor avatar
+   nested inside .bhc-card-instructor further down the card, stretching
+   a 20x20 get_avatar() image to the full card width while its height
+   stayed fixed. Direct-child selector targets only the cover thumbnail
+   (get_the_post_thumbnail()'s own unwrapped <img>, echoed straight
+   into .bhc-course-card in class-render-catalog.php). */
+.bhc-course-card > img { width: 100%; border-radius: 6px; object-fit: cover; }
 .bhc-course-card h3 { font-family: var(--bh-font-heading); font-size: 17px; }
 .bhc-course-card h3 a:hover { color: var(--bh-accent); }
 .bhc-course-card.bhc-locked { opacity: 0.7; }
