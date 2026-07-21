@@ -2,11 +2,21 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.33
+ * Version:     0.4.34
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.34 — LMS depth-of-magic Phase 2b: a real hero treatment for a
+// course's own landing page. A cover image now earns a full-width banner
+// with the title overlaid on a gradient scrim (only when a cover is
+// actually set — obvious-or-gone, no hero styling forced on a plain
+// title); the instructor moved out of the flat meta line into its own
+// pulled-forward row with a larger avatar. Also fixes a real, caught-live
+// duplicate: the theme's own core/post-featured-image block was still
+// printing the same cover image, undecorated, directly above this new
+// hero.
 
 // 0.4.33 — LMS depth-of-magic Phase 2a: a new `bhc/callout` step type for
 // visual density within a lesson (a "here's the key idea" / "watch out for
