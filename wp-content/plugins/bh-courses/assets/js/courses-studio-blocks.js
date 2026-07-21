@@ -184,6 +184,8 @@
             // authoritative check re-derives file size fresh from the
             // real attachment on every save instead of trusting this).
             over_limit_mb: { type: 'number', default: 0 },
+            // ROADMAP-lms-v3.md Section 1 — [{ time, type, payload }].
+            annotations: { type: 'array', default: [] },
         },
         supports: { html: false },
         edit: function (props) {
@@ -202,6 +204,90 @@
             // Inspector panel is a completely separate region with no
             // toolbar overlap, the same place core blocks already put
             // this kind of block-level setting.
+            // First step toward a real visual placement tool (a full
+            // drag-based timeline is the natural next iteration once this
+            // is proven — flagged, not built here): a live preview of the
+            // actual selected video right in the block, so an author can
+            // scrub/play to the moment they want and grab that exact
+            // timestamp with one click instead of typing seconds blind.
+            var previewUrlState = wp.element.useState('');
+            var previewUrl = previewUrlState[0], setPreviewUrl = previewUrlState[1];
+            var previewRef = wp.element.useRef(null);
+            wp.element.useEffect(function () {
+                if (attrs.source !== 'upload' || !attrs.attachment_id) { setPreviewUrl(''); return; }
+                var cancelled = false;
+                wp.apiFetch({ path: '/wp/v2/media/' + attrs.attachment_id }).then(function (media) {
+                    if (!cancelled) setPreviewUrl((media && media.source_url) || '');
+                }).catch(function () { if (!cancelled) setPreviewUrl(''); });
+                return function () { cancelled = true; };
+            }, [attrs.source, attrs.attachment_id]);
+
+            var annotations = attrs.annotations || [];
+            function updateAnnotation(i, patch) {
+                var next = annotations.slice();
+                next[i] = Object.assign({}, next[i], patch);
+                setAttrs({ annotations: next });
+            }
+            function updatePayload(i, patch) {
+                updateAnnotation(i, { payload: Object.assign({}, annotations[i].payload, patch) });
+            }
+            // Pop-up-Video-style overlay moments — pauses playback at a
+            // timestamp, shows a note/hotspot/self-check question, resumes
+            // on dismiss. See class-steps.php's own comment on why this
+            // needed zero progress-model change (ROADMAP-lms-v3.md
+            // Section 1): an annotation only ever pauses/resumes THIS
+            // video step, never redirects anywhere.
+            var annotationRows = annotations.map(function (a, i) {
+                var typeFields;
+                if (a.type === 'question') {
+                    typeFields = el(wp.element.Fragment, {},
+                        el(wp.components.TextControl, { label: __('Question'), value: a.payload.question || '', onChange: function (v) { updatePayload(i, { question: v }); } }),
+                        el(wp.components.TextareaControl, {
+                            label: __('Choices (one per line)'),
+                            help: __('The first line is choice #0, etc. — matches the "Correct choice #" below.'),
+                            value: (a.payload.choices || []).join('\n'),
+                            onChange: function (v) { updatePayload(i, { choices: v.split('\n') }); },
+                        }),
+                        el(wp.components.TextControl, {
+                            type: 'number', label: __('Correct choice # (0-based)'),
+                            value: a.payload.correct_index || 0,
+                            onChange: function (v) { updatePayload(i, { correct_index: parseInt(v, 10) || 0 }); },
+                        })
+                    );
+                } else {
+                    typeFields = el(wp.components.TextControl, { label: __('Text'), value: a.payload.text || '', onChange: function (v) { updatePayload(i, { text: v }); } });
+                }
+                return el('div', { key: i, className: 'bhc-studio-annotation-row', style: { border: '1px solid #ddd', borderRadius: '4px', padding: '10px', marginBottom: '10px' } },
+                    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'flex-end' } },
+                        el(wp.components.TextControl, {
+                            type: 'number', label: __('Time (seconds)'), value: a.time || 0,
+                            onChange: function (v) { updateAnnotation(i, { time: parseInt(v, 10) || 0 }); },
+                        }),
+                        previewUrl ? el(wp.components.Button, {
+                            variant: 'secondary', style: { marginBottom: '8px' },
+                            onClick: function () {
+                                if (previewRef.current) updateAnnotation(i, { time: Math.floor(previewRef.current.currentTime) });
+                            },
+                        }, __('Use preview’s current time')) : null
+                    ),
+                    el(wp.components.SelectControl, {
+                        label: __('Type'), value: a.type,
+                        options: [
+                            { label: __('Note'), value: 'note' },
+                            { label: __('Hotspot'), value: 'hotspot' },
+                            { label: __('Question (self-check)'), value: 'question' },
+                            { label: __('Banner — non-blocking, TRL-style'), value: 'banner' },
+                        ],
+                        onChange: function (v) { updateAnnotation(i, { type: v, payload: v === 'question' ? { question: '', choices: [], correct_index: 0 } : { text: '' } }); },
+                    }),
+                    typeFields,
+                    el(wp.components.Button, {
+                        variant: 'tertiary', isDestructive: true,
+                        onClick: function () { setAttrs({ annotations: annotations.filter(function (_, idx) { return idx !== i; }) }); },
+                    }, __('Remove'))
+                );
+            });
+
             var sourcePicker = el(wp.blockEditor.InspectorControls, {},
                 el(wp.components.PanelBody, { title: __('Video settings') },
                     el(wp.components.SelectControl, {
@@ -210,6 +296,18 @@
                         options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }],
                         onChange: function (v) { setAttrs({ source: v }); },
                     })
+                ),
+                el(wp.components.PanelBody, { title: __('Video overlays (pop-up moments)'), initialOpen: false },
+                    el('p', { className: 'description' }, __('Note/Hotspot/Question pause the video at a timestamp and wait for a dismiss/answer click. Banner is different on purpose — a non-blocking caption that slides in and disappears on its own, playback never stops.')),
+                    previewUrl ? el('div', { style: { marginBottom: '12px' } },
+                        el('video', { ref: previewRef, src: previewUrl, controls: true, style: { width: '100%', borderRadius: '4px' } }),
+                        el('p', { className: 'description' }, __('Scrub/play to a moment, then use each row\'s "Use preview\'s current time" button below.'))
+                    ) : null,
+                    annotationRows,
+                    el(wp.components.Button, {
+                        variant: 'secondary',
+                        onClick: function () { setAttrs({ annotations: annotations.concat([{ time: 0, type: 'note', payload: { text: '' } }]) }); },
+                    }, __('+ Add overlay moment'))
                 )
             );
             return el(wp.element.Fragment, {},

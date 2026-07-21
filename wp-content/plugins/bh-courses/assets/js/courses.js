@@ -251,6 +251,125 @@
             });
         });
 
+        // ROADMAP-lms-v3.md Section 1 — interactive video overlays.
+        // Zero schema/progress-model change (see class-steps.php's own
+        // comment on this decision): an annotation pauses/resumes the
+        // SAME video step, never redirects anywhere, so this is purely
+        // a playback-UI behavior layered on top of the existing video
+        // step — no new AJAX endpoint, no new bhc_progress column.
+        // 'question' annotations are a self-check only (immediate
+        // client-side right/wrong reveal), never scored/persisted —
+        // scoring belongs to a real bhc/quiz STEP, not a moment inside
+        // a video step.
+        lesson.querySelectorAll('.bhc-step-video[data-annotations]').forEach(function (video) {
+            var annotations;
+            try {
+                annotations = JSON.parse(video.dataset.annotations);
+            } catch (e) {
+                return;
+            }
+            if (!Array.isArray(annotations) || !annotations.length) return;
+
+            var wrap = video.closest('.bhc-video-wrap');
+            if (!wrap) return;
+            var shown = {};
+            var overlay = null;
+
+            function escText(s) { // reuse the same escaping convention as the rest of this file's inline HTML building
+                var d = document.createElement('div');
+                d.textContent = s == null ? '' : String(s);
+                return d.innerHTML;
+            }
+
+            function dismiss() {
+                if (overlay) overlay.remove();
+                overlay = null;
+                video.play();
+            }
+
+            // TRL-style lower-third: slides in, auto-dismisses on its
+            // own after a few seconds, and — the whole point of this
+            // one, unlike note/hotspot/question — never pauses playback.
+            // Kept entirely separate from the `overlay` variable/dismiss()
+            // above so a banner showing doesn't block (or get blocked by)
+            // a pausing annotation elsewhere in the same video.
+            function showBanner(a, index) {
+                shown[index] = true;
+                var banner = document.createElement('div');
+                banner.className = 'bhc-video-banner';
+                banner.innerHTML = '<p class="bhc-video-banner-text">' + escText(a.payload.text) + '</p>';
+                wrap.appendChild(banner);
+                setTimeout(function () {
+                    banner.classList.add('bhc-video-banner-out');
+                    setTimeout(function () { banner.remove(); }, 400);
+                }, 4000);
+            }
+
+            function showAnnotation(a, index) {
+                if (a.type === 'banner') { showBanner(a, index); return; }
+                video.pause();
+                shown[index] = true;
+                overlay = document.createElement('div');
+                overlay.className = 'bhc-video-overlay bhc-video-overlay-' + a.type;
+
+                if (a.type === 'question') {
+                    var choicesHtml = (a.payload.choices || []).map(function (choice, i) {
+                        return '<button type="button" class="bhc-video-overlay-choice" data-choice-index="' + i + '">' + escText(choice) + '</button>';
+                    }).join('');
+                    overlay.innerHTML =
+                        '<div class="bhc-video-overlay-card">' +
+                        '<p class="bhc-video-overlay-question">' + escText(a.payload.question) + '</p>' +
+                        '<div class="bhc-video-overlay-choices">' + choicesHtml + '</div>' +
+                        '</div>';
+                    overlay.querySelectorAll('.bhc-video-overlay-choice').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var chosen = parseInt(btn.dataset.choiceIndex, 10);
+                            var correct = chosen === a.payload.correct_index;
+                            overlay.querySelectorAll('.bhc-video-overlay-choice').forEach(function (b, i) {
+                                b.disabled = true;
+                                if (i === a.payload.correct_index) b.classList.add('bhc-video-overlay-correct');
+                                else if (b === btn) b.classList.add('bhc-video-overlay-incorrect');
+                            });
+                            var continueBtn = document.createElement('button');
+                            continueBtn.type = 'button';
+                            continueBtn.className = 'bhc-btn bhc-video-overlay-continue';
+                            continueBtn.textContent = correct ? 'Correct — continue' : 'Continue';
+                            continueBtn.addEventListener('click', dismiss);
+                            overlay.querySelector('.bhc-video-overlay-card').appendChild(continueBtn);
+                        });
+                    });
+                } else {
+                    overlay.innerHTML =
+                        '<div class="bhc-video-overlay-card">' +
+                        '<p class="bhc-video-overlay-text">' + escText(a.payload.text) + '</p>' +
+                        '<button type="button" class="bhc-btn bhc-video-overlay-continue">Continue</button>' +
+                        '</div>';
+                    overlay.querySelector('.bhc-video-overlay-continue').addEventListener('click', dismiss);
+                }
+
+                wrap.appendChild(overlay);
+            }
+
+            video.addEventListener('timeupdate', function () {
+                if (overlay) return; // already paused on one; don't stack a second
+                for (var i = 0; i < annotations.length; i++) {
+                    if (shown[i]) continue;
+                    if (video.currentTime >= annotations[i].time) {
+                        showAnnotation(annotations[i], i);
+                        break;
+                    }
+                }
+            });
+            // A student rewinding past an already-shown annotation
+            // shouldn't be trapped by it again — same "resume, don't
+            // relitigate" posture a real interactive-video player takes.
+            video.addEventListener('seeked', function () {
+                for (var i = 0; i < annotations.length; i++) {
+                    if (video.currentTime < annotations[i].time) shown[i] = false;
+                }
+            });
+        });
+
         lesson.addEventListener('click', function (e) {
             if (e.target.classList.contains('bhc-step-back')) {
                 // Pure navigation — no server call, no completion state

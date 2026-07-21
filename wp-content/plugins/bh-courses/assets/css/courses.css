@@ -359,6 +359,44 @@ video.bhc-step-video {
 .bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
 .bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
 
+/* ROADMAP-lms-v3.md Section 1 — interactive video overlays. The wrap
+   only exists to give the overlay a positioned parent matching the
+   video's own centered box, not the full step-card width. */
+.bhc-video-wrap { position: relative; display: flex; justify-content: center; }
+.bhc-video-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.72); border-radius: 6px; padding: 16px;
+}
+.bhc-video-overlay-card { background: var(--bh-surface); border-radius: var(--bh-radius-sm, 8px); padding: 20px; max-width: 420px; width: 100%; text-align: center; }
+.bhc-video-overlay-question, .bhc-video-overlay-text { font-size: 15px; margin-bottom: 14px; }
+.bhc-video-overlay-choices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.bhc-video-overlay-choice {
+    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 6px;
+    padding: 10px 14px; font-size: 14px; text-align: left; cursor: pointer; color: var(--bh-text);
+}
+.bhc-video-overlay-choice:hover:not(:disabled) { border-color: var(--bh-accent); }
+.bhc-video-overlay-choice:disabled { cursor: default; }
+.bhc-video-overlay-choice.bhc-video-overlay-correct { border-color: var(--bh-accent); background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); font-weight: 600; }
+.bhc-video-overlay-choice.bhc-video-overlay-incorrect { border-color: #b32d2e; color: #b32d2e; }
+.bhc-video-overlay-continue { margin-top: 12px; }
+
+/* TRL-style lower-third — non-blocking, slides in from the bottom over
+   the still-playing video and dismisses itself; genuinely different
+   from the pausing overlay above (see courses.js's own comment on why
+   it's tracked separately, not a variant of .bhc-video-overlay). */
+.bhc-video-banner {
+    position: absolute; left: 12px; right: 12px; bottom: 12px;
+    background: rgba(0, 0, 0, 0.82); color: #fff; border-radius: 6px; padding: 10px 16px;
+    animation: bhc-banner-in 0.3s ease;
+}
+.bhc-video-banner-text { margin: 0; font-size: 14px; }
+.bhc-video-banner-out { animation: bhc-banner-out 0.4s ease forwards; }
+@keyframes bhc-banner-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes bhc-banner-out { to { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) {
+    .bhc-video-banner, .bhc-video-banner-out { animation: none; }
+}
+
 /* Depth-of-magic pass: a callout's three variants are each ONE base
    color at a fixed tint (background) plus that same color at full
    strength (left border/icon) — 'tip' derives from --bh-accent (this

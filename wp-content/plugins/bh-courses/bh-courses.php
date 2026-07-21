@@ -103,7 +103,24 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.32');
+define('BHC_VER',  '0.4.37');
+// QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
+// verification): this constant is what actually cache-busts every
+// enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
+// "Version:" header comment at the top of this file is a SEPARATE
+// string that WordPress reads for the plugin list/updates, not this.
+// The two drifted across this entire session's LMS depth-of-magic
+// pass: the header comment was bumped at every phase (0.4.33-0.4.37),
+// this constant was not, so every JS/CSS change since 0.4.32 was
+// silently served stale from any browser that had already cached the
+// old file — confirmed live (a shipped courses.js feature simply
+// didn't run, traced to the enqueued <script> tag still reading
+// ?ver=0.4.32). bh-contest's BH_VER/own-ur-shit's OUS_VER don't have
+// this problem only because they happened to stay in sync by
+// discipline, not because either is derived from the header
+// automatically — same manual-duplicate-constant convention, same
+// risk. Bump this constant in the SAME edit as the header from now on,
+// not as an afterthought.
 
 // 0.4.28 — retry-audit pass, AJ's own standing ask (assets/js/courses.js): (1)
 // "Mark complete" step-completion now has real retry-with-backoff (matching own-

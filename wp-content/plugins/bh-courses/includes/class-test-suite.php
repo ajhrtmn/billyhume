@@ -72,6 +72,33 @@ class BHC_TestSuite {
         $rows[] = OUS_TestRunner::assert_same([], BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => '']]), 'Video URL step with empty URL is dropped');
         $rows[] = OUS_TestRunner::assert_same([], BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => 'not a url']]), 'Video URL step with invalid URL is dropped');
 
+        /* ---------- video annotations (ROADMAP-lms-v3.md Section 1) ---------- */
+
+        $video_step = ['type' => 'video', 'source' => 'upload', 'attachment_id' => 5, 'annotations' => [
+            ['time' => 30, 'type' => 'note', 'payload' => ['text' => 'Watch the meter here']],
+            ['time' => 5, 'type' => 'question', 'payload' => ['question' => 'What is this?', 'choices' => ['A', 'B'], 'correct_index' => 1]],
+            ['time' => 10, 'type' => 'bogus_type', 'payload' => ['text' => 'dropped']],
+            ['time' => 15, 'type' => 'note', 'payload' => ['text' => '']],
+            ['time' => 20, 'type' => 'question', 'payload' => ['question' => 'No choices', 'choices' => [], 'correct_index' => 0]],
+        ]];
+        $result = BHC_Steps::save(1, [$video_step]);
+        $annotations = $result[0]['annotations'] ?? [];
+        $rows[] = OUS_TestRunner::assert_same(2, count($annotations), 'Video annotations: unknown type, empty text, and choiceless question are all dropped, leaving only the 2 valid ones');
+        $rows[] = OUS_TestRunner::assert_same([5, 30], array_column($annotations, 'time'), 'Video annotations: sorted by time ascending regardless of authoring order');
+        $rows[] = OUS_TestRunner::assert_same('question', $annotations[0]['type'] ?? null, 'Video annotations: the earlier (time=5) annotation is the question');
+
+        $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'upload', 'attachment_id' => 5, 'annotations' => [
+            ['time' => 1, 'type' => 'question', 'payload' => ['question' => 'Q', 'choices' => ['A', 'B'], 'correct_index' => 99]],
+        ]]]);
+        $rows[] = OUS_TestRunner::assert_same(1, $result[0]['annotations'][0]['payload']['correct_index'] ?? null, 'Video annotation question: out-of-range correct_index clamps to the last valid choice, same rule as a real quiz step');
+
+        $rows[] = OUS_TestRunner::assert_same([], BHC_Steps::save(1, [['type' => 'video', 'source' => 'upload', 'attachment_id' => 5]])[0]['annotations'] ?? [], 'Video step with no annotations key at all defaults to an empty array, not an error');
+
+        $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'upload', 'attachment_id' => 5, 'annotations' => [
+            ['time' => 8, 'type' => 'banner', 'payload' => ['text' => 'Fun fact!']],
+        ]]]);
+        $rows[] = OUS_TestRunner::assert_same('Fun fact!', $result[0]['annotations'][0]['payload']['text'] ?? null, 'Video annotation: banner type (TRL-style, non-blocking) sanitizes as plain text, same as note/hotspot');
+
         $result = BHC_Steps::save(1, [['type' => 'quiz', 'questions' => [['question' => 'Q', 'choices' => ['A', 'B', 'C'], 'correct_index' => 99]]]]);
         $rows[] = OUS_TestRunner::assert_same(2, $result[0]['questions'][0]['correct_index'] ?? null, 'Out-of-range correct_index clamps to last valid choice');
 

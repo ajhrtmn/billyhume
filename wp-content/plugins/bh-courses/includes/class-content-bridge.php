@@ -158,6 +158,16 @@ class BHC_ContentBridge {
             'video_url' => ['type' => 'url', 'default' => ''],
             'caption' => ['type' => 'string', 'default' => ''],
             'watch_threshold' => ['type' => 'int', 'default' => 0],
+            // ROADMAP-lms-v3.md Section 1 — timestamped overlay
+            // annotations (note/hotspot/question). This bridge's own
+            // renderer is only ever used for BH_Content's generic
+            // preview path, never the real student-facing lesson page
+            // (class-render-lesson.php reads _bhc_steps directly, per
+            // this file's own docblock) — the interactive pause/resume/
+            // overlay behavior lives there and in courses.js, not here.
+            // Just needs to round-trip through the schema so a lesson's
+            // annotations survive the tree<->legacy-steps conversion.
+            'annotations' => ['type' => 'array', 'default' => []],
         ], function ($attrs) {
             $out = '<div class="bhc-step bhc-step-video">';
             if ($attrs['source'] === 'url' && $attrs['video_url']) {
