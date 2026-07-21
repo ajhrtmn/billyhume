@@ -51,7 +51,18 @@ class BHC_Steps {
     // lesson progress any harder than a text/image step already
     // doesn't; it's "always available," same Mark-complete-and-continue
     // pattern as its siblings for consistency, not a new skip mechanic.
-    const VALID_TYPES = ['text', 'image', 'video', 'quiz', 'resource'];
+    // 'callout' — depth-of-magic pass, real visual density inside a
+    // lesson (a "here's the key idea" / "watch out for this" moment)
+    // instead of every step reading as an undifferentiated text block.
+    // Non-blocking, same Mark-complete-and-continue pattern as every
+    // other non-quiz step type.
+    const VALID_TYPES = ['text', 'image', 'video', 'quiz', 'resource', 'callout'];
+
+    // The only three variants this ships with — a fixed, small set
+    // (same "don't expand the palette, derive states from one base"
+    // posture the rest of this ecosystem's design system already
+    // follows) rather than a free-text style field.
+    const CALLOUT_VARIANTS = ['tip', 'note', 'warning'];
 
     public static function get($lesson_id) {
         $steps = get_post_meta($lesson_id, '_bhc_steps', true);
@@ -152,6 +163,11 @@ class BHC_Steps {
                     'label' => sanitize_text_field($step['label'] ?? ''),
                     'description' => sanitize_text_field($step['description'] ?? ''),
                 ];
+            } elseif ($type === 'callout') {
+                $content = wp_kses_post($step['content'] ?? '');
+                if (trim(wp_strip_all_tags($content)) === '') continue; // an empty callout has nothing to say — don't store a dead step
+                $variant = in_array($step['variant'] ?? '', self::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
+                $clean[] = ['type' => 'callout', 'content' => $content, 'variant' => $variant];
             }
         }
         update_post_meta($lesson_id, '_bhc_steps', $clean);
