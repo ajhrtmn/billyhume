@@ -3,8 +3,8 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * This plugin's contribution to BHI_Portal (own-ur-shit's `bhi_portal_panels`
- * filter — see class-portal.php over there) — "access... their LMS stuff"
- * from AJ's own ask. Lists every course the current user is actually
+ * filter — see class-portal.php over there) — access to a fan's own LMS
+ * enrollment. Lists every course the current user is actually
  * enrolled in (bhc_enrollments — see BHC_Progress::enroll_if_needed()),
  * not every published course, with a real completion percent per course
  * and a direct link back into the course itself to continue.

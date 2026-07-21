@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * established, and a review is small fixed-shape data with no need
  * for its own editor/list-table chrome.
  *
- * Two product decisions this was built to (AJ's own asks):
+ * Two product decisions this was built to:
  * - Eligibility is ENROLLMENT, not completion — anyone enrolled can
  *   review, but every review visibly says whether that student had
  *   actually finished the course at the time they wrote it (a
@@ -41,7 +41,7 @@ class BHC_Reviews {
     /* ---------------- submission ---------------- */
 
     // Rejects anyone not enrolled at all — enrollment (not completion)
-    // is the eligibility bar per AJ's own scoping. An edited resubmit
+    // is the eligibility bar. An edited resubmit
     // (same user+course, the UNIQUE KEY's ON DUPLICATE KEY branch)
     // always resets status back to 'pending' — an edited review is
     // re-moderated, never grandfathered in on its original approval.

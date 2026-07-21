@@ -34,11 +34,6 @@ if (!defined('ABSPATH')) exit;
 // taxonomy term with no post ID to give a real editor screen) — this
 // migration only concerns bh_lesson, which always had a real post ID
 // and never needed a bespoke canvas in the first place.
-//
-// NOT YET runtime-verified against a live install this pass — smoke-
-// test: create a lesson, add bhc/* blocks in the real editor, save,
-// confirm _bhc_steps postmeta reflects the new content and the
-// student-facing lesson view (BHC_Render) still renders correctly.
 
 /**
  * The concrete BH_Content consumer this handoff asked for (per
@@ -78,8 +73,8 @@ class BHC_ContentBridge {
 
         // A concrete, clickable way to hydrate a lesson's real
         // post_content from its current step data (the one-time
-        // migration this pass needs — see migrate_lesson()'s own
-        // docblock) — same "any plugin registers a seed/reset section"
+        // migration — see migrate_lesson()'s own docblock) — same
+        // "any plugin registers a seed/reset section"
         // shared Debug Tools pattern every other plugin already uses.
         if (class_exists('OUS_Debug')) {
             add_filter('ous_debug_tools', [self::class, 'register_debug_tool']);
@@ -234,7 +229,7 @@ class BHC_ContentBridge {
      * from its own post_content (self::CONTEXT === 'post'). Falls back
      * to deriving the tree from the legacy `_bhc_steps` array on the fly
      * for a lesson whose post_content is still empty — a lesson created
-     * before this pass, not yet opened in the real editor.
+     * before this migration, not yet opened in the real editor.
      */
     public static function get_tree($lesson_id) {
         $stored = BH_Content::get(self::CONTEXT, $lesson_id);
@@ -251,8 +246,8 @@ class BHC_ContentBridge {
      * sync_legacy_steps() too; the round trip is idempotent (the same
      * step data comes back out), which is exactly what confirms the two
      * representations agree. Used by the debug tool below for lessons
-     * that existed before this pass (their post_content is still
-     * empty); a lesson created after this pass never needs it — opening
+     * that existed before this migration (their post_content is still
+     * empty); a lesson created after never needs it — opening
      * it in the real editor and saving once is the same operation.
      */
     public static function migrate_lesson($lesson_id) {
@@ -345,7 +340,7 @@ class BHC_ContentBridge {
                     }
                     echo '<div class="notice notice-success"><p>Rebuilt ' . count($lessons) . ' lesson(s).</p></div>';
                 }
-                echo '<p>Populates every published lesson\'s real post_content from its current step data, so it opens correctly the first time in the real editor — needed only for a lesson that existed before this pass and hasn\'t been opened/saved in the editor yet. Safe to run any time; never touches the step data itself.</p>';
+                echo '<p>Populates every published lesson\'s real post_content from its current step data, so it opens correctly the first time in the real editor — needed only for a lesson that existed before this migration and hasn\'t been opened/saved in the editor yet. Safe to run any time; never touches the step data itself.</p>';
                 echo '<form method="post"><input type="hidden" name="bhc_content_bridge_action" value="1">';
                 wp_nonce_field('bhc_content_bridge', 'bhc_content_bridge_nonce');
                 submit_button('Populate all lesson content');
