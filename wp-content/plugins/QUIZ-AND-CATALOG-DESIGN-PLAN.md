@@ -1,5 +1,22 @@
 # Quiz answer storage & course-catalog information architecture
 
+> **STATUS UPDATE (2026-07-21, see `plugins/STATUS.md`): both parts of
+> this plan are done.** Part 1 (quiz answer storage) shipped as the
+> `bhc_progress.answers` JSON snapshot column described below. Part 2
+> (course-catalog information architecture) is fully built:
+> `_bhc_instructor_id`/`_bhc_difficulty`/`_bhc_duration_note` postmeta,
+> `bhc_course_category`/`bhc_course_topic` taxonomies, and a real
+> search/filter/sort/pagination catalog (`BHC_Render_Catalog`, namespaced
+> `bhc_s`/`bhc_category`/`bhc_topic`/`bhc_sort`/`bhc_paged` GET params —
+> an improvement over this doc's own suggestion of reusing WP's `s`/
+> `paged`) with newest/alphabetical/popular/top-rated sort. Popular sort
+> matches this doc's own §2.3/§2.5 recommendation exactly (a real
+> `BHC_Progress::enrollment_counts()` query feeding `post__in`, no
+> denormalized counter). §2.6's explicitly-deferred ratings/reviews
+> follow-up shipped too (`BHC_Reviews`). Read this doc in full for the
+> reasoning behind each decision — it's still the accurate record of
+> why, just no longer a description of unbuilt work.
+
 A design pass over two separable `bh-courses` gaps that both surfaced from the same recent front-end work: the quiz-review UX that can only ever say pass/fail (`class-render.php` lines 276-283 flag this in a comment as a deliberate deferred schema gap), and the course catalog that today renders as an unfiltered, unsortable `get_posts()` dump (`class-render.php::render_catalog()`, lines 34-56). Grounded in the code as it stands, cited by file/class/line, in the same call-site-first spirit as `LMS-AUTHORING-DESIGN-PLAN.md` and `EVENT-TRACKING-ARCHITECTURE-PLAN.md`. Read those two first — this doc reuses their conventions (latest-state vs. audit-trail retention reasoning; "don't build what already exists"; reuse the ecosystem's own design system rather than inventing one) rather than re-deriving them.
 
 The two problems have no hard dependency on each other and can proceed in parallel (Section 7 confirms this against the one place they might have collided — the catalog's "popular" sort — and shows they don't). They are documented together only because they are the same person's same "make the student-facing surfaces real" ask.
