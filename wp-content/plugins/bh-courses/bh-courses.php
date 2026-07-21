@@ -2,11 +2,17 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.37
+ * Version:     0.4.38
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.38 — ecosystem depth-pass Tier 1c: BHC_PortalPanel registers the
+// first real bhi_user_bar_links contributor (own-ur-shit's new
+// class-user-bar.php) — "Continue: <course title>" with a live percent
+// micro-state, only when there's an actual in-progress enrolled course
+// to continue, never a placeholder.
 
 // 0.4.37 — LMS depth-of-magic Phase 4 (final phase): ecosystem-wide
 // achievement surfacing. BHC_Achievements now feeds the real
@@ -103,7 +109,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.37');
+define('BHC_VER',  '0.4.38');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
