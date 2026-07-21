@@ -123,8 +123,8 @@ class BHS_Admin {
 
         echo '<p><label><strong>Artist</strong><br><input type="text" name="bhs_artist" value="' . esc_attr($artist) . '" style="width:100%;" placeholder="Artist name"' . ($is_external ? ' disabled' : '') . '></label></p>';
 
-        // AJ's own ask: real rights/registration metadata, not just a
-        // catalog record. ISRC specifically because schema.org's own
+        // Real rights/registration metadata, not just a catalog record.
+        // ISRC specifically because schema.org's own
         // MusicRecording type has a real 'isrcCode' property — this
         // becomes indexable structured data (see maybe_set_seo_data()
         // in class-player.php), not just an admin-only reference field.

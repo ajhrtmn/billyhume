@@ -92,7 +92,7 @@ class BHS_Player {
             ]) : '',
             // Same reasoning as emptyStateZero/emptyStateFiltered above —
             // the Releases and Liked tabs had their own bare "No X yet"
-            // strings that this pass missed the first time.
+            // strings.
             'emptyStateReleases' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'No releases yet',
