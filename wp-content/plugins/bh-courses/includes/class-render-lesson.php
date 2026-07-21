@@ -247,6 +247,13 @@ class BHC_Render_Lesson {
             // pay for a timeupdate listener courses.js would otherwise just
             // ignore the result of.
             $threshold_attr = $threshold > 0 ? ' data-watch-threshold="' . $threshold . '"' : '';
+            // ROADMAP-lms-v3.md Section 1 — same trackable-<video>-tag-
+            // only constraint as watch_threshold above (a cross-origin
+            // iframe embed can't be paused/resumed by our own JS), so
+            // this is only ever emitted alongside a real <video> tag,
+            // never the iframe branch below.
+            $annotations = (array) ($step['annotations'] ?? []);
+            $annotations_attr = $annotations ? ' data-annotations="' . esc_attr(wp_json_encode($annotations)) . '"' : '';
             if ($step['source'] === 'upload') {
                 // wp_get_attachment_url() is the one API surface an
                 // offload plugin (see Own Ur Shit's dashboard entry for
@@ -255,7 +262,11 @@ class BHC_Render_Lesson {
                 // file is on this server's disk or Cloudflare R2.
                 $url = wp_get_attachment_url($step['attachment_id']);
                 if ($url) {
-                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
+                    // The wrapper is only needed to give annotation
+                    // overlays (courses.js) a positioned parent to sit
+                    // over the video frame — harmless either way when
+                    // there are no annotations.
+                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . '></video></div>';
                     $trackable = true;
                 } else {
                     echo '<p class="bhc-empty">Video file not found.</p>';
@@ -275,7 +286,7 @@ class BHC_Render_Lesson {
                 if ($embed_url) {
                     echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                 } else {
-                    echo '<video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . '></video>';
+                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . '></video></div>';
                     $trackable = true;
                 }
             }

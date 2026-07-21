@@ -125,11 +125,11 @@ class BHC_Steps {
                     if (!$raw || !filter_var($raw, FILTER_VALIDATE_URL)) continue;
                     $url = esc_url_raw($raw);
                     if (!$url) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null)];
+                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? [])];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);
                     if (!$attachment_id) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null)];
+                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? [])];
                 }
             } elseif ($type === 'quiz') {
                 $questions = [];
@@ -233,6 +233,57 @@ class BHC_Steps {
     private static function sanitize_watch_threshold($value) {
         if ($value === null || $value === '') return 0;
         return max(0, min(100, (int) $value));
+    }
+
+    // ROADMAP-lms-v3.md Section 1 (interactive video overlays) — the
+    // "zero schema change" option that doc explicitly named as the
+    // lower-risk call: an annotation pauses/resumes the SAME video step
+    // it belongs to, never redirects to a different step/lesson, so the
+    // whole video (annotations included) stays step_index N with no
+    // change to BHC_Progress's step-position model. 'question'-type
+    // annotations are a self-check only (client-side right/wrong
+    // reveal, same non-persisted posture as a checklist item) — not
+    // wired into bhc_progress.score, since that column means "this
+    // step's own quiz," which a video step isn't.
+    // 'banner' — a non-blocking, TRL-style lower-third that slides in and
+    // auto-dismisses on its own WITHOUT pausing playback, distinct from
+    // note/hotspot/question (all three of which pause the video and wait
+    // for a dismiss click). Same text-only payload shape as note/hotspot
+    // (sanitize_annotations() below groups them together) — the
+    // difference is purely in how courses.js displays it, not the data.
+    const ANNOTATION_TYPES = ['note', 'hotspot', 'question', 'banner'];
+
+    private static function sanitize_annotations($annotations) {
+        $clean = [];
+        foreach ((array) $annotations as $a) {
+            $type = in_array($a['type'] ?? '', self::ANNOTATION_TYPES, true) ? $a['type'] : '';
+            if (!$type) continue;
+            $time = max(0, (int) ($a['time'] ?? -1));
+            if (($a['time'] ?? null) === null) continue; // no timestamp, nothing to anchor this to
+
+            if ($type === 'question') {
+                $choices = array_map('sanitize_text_field', (array) ($a['payload']['choices'] ?? []));
+                $choices = array_values(array_filter($choices, fn($c) => $c !== ''));
+                $question_text = sanitize_text_field($a['payload']['question'] ?? '');
+                if (!$choices || $question_text === '') continue; // an empty question has nothing to ask — don't store a dead annotation
+                $payload = [
+                    'question' => $question_text,
+                    'choices' => $choices,
+                    'correct_index' => max(0, min(count($choices) - 1, (int) ($a['payload']['correct_index'] ?? 0))),
+                ];
+            } else {
+                $text = sanitize_text_field($a['payload']['text'] ?? '');
+                if ($text === '') continue; // an empty note/hotspot has nothing to say
+                $payload = ['text' => $text];
+            }
+
+            $clean[] = ['time' => $time, 'type' => $type, 'payload' => $payload];
+        }
+        // Playback-order, not authoring-order — courses.js walks this
+        // list expecting ascending timestamps so it can find "the next
+        // unshown annotation" with a simple forward scan.
+        usort($clean, fn($a, $b) => $a['time'] <=> $b['time']);
+        return array_values($clean);
     }
 
     public static function get_step($lesson_id, $step_index) {
