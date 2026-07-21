@@ -2,10 +2,20 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.7.6
+ * Version:     3.7.7
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.7 — ecosystem depth-pass Tier 1b: per-notification-type email
+// preferences (class-notifications.php). Layers on top of the existing
+// single all-or-nothing opt-out — a per-type usermeta map, absent-key
+// means default-on, so nobody's existing email behavior changes until
+// they actually open the new "Manage what you get emailed about"
+// disclosure. Progressive disclosure by design: only shows the
+// notification TYPES a user has actually ever received, closed by
+// default, no settings grid dumped on anyone who's never asked for
+// finer control.
 
 // 3.7.6 — ecosystem depth-pass Tier 1a: OUS_RoleAssignment
 // (includes/class-role-assignment.php), the role-assignment admin UI
@@ -578,7 +588,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.7.6');
+define('OUS_VER', '3.7.7');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
