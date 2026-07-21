@@ -128,8 +128,7 @@ class BHC_Render_Course {
         // 2.7): wraps the existing lesson-list output below rather than
         // replacing it — full cover, description, instructor,
         // difficulty, duration, category/topic terms, enrollment CTA.
-        // Ratings/reviews deliberately deferred (design doc scoped them
-        // out of this pass — no data model for them exists yet).
+        // Ratings/reviews now live in BHC_Reviews (class-reviews.php).
         echo self::render_course_header($course_id, $uid, $locked);
         if ($locked) {
             echo BHC_Gate::render_paywall_notice($course_id);
@@ -173,8 +172,8 @@ class BHC_Render_Course {
     // Reviews list (approved only — a pending/rejected review is only
     // ever visible to the student who wrote it, via the form state
     // below) + the submission/edit form. Eligibility is ENROLLMENT, not
-    // completion (AJ's own scoping) — locked-out visitors never see
-    // this section at all (the caller already gates on !$locked).
+    // completion — locked-out visitors never see this section at all
+    // (the caller already gates on !$locked).
     private static function render_reviews_section($course_id, $uid) {
         ob_start();
         echo '<div class="bhc-reviews-section">';

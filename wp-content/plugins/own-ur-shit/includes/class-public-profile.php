@@ -14,9 +14,7 @@ if (!defined('ABSPATH')) exit;
  *                           person's public profile (404-style notice if
  *                           private/missing). With no query var, renders
  *                           the CURRENT user's own edit form instead —
- *                           one shortcode covers both roles, same as
- *                           bh-registry's single [bh_registry] shortcode
- *                           covering browse + self-serve submission.
+ *                           one shortcode covers both roles.
  * [bh_profile_link user_id="123"] — small helper other plugins'
  *                           templates can use to link to someone's page
  *                           without hand-building the URL scheme.
@@ -30,11 +28,9 @@ class BHI_PublicProfile {
         add_action('admin_post_bhi_delete_profile_data', [__CLASS__, 'handle_delete']);
         add_filter('bhi_report_target_label', [__CLASS__, 'report_target_label'], 10, 3);
 
-        // The portal's first real, working consumer (see class-portal.php) —
-        // the profile edit form moves INTO the portal as a panel; the
-        // PUBLIC profile page/shortcode above stays exactly as-is, since
-        // that's a different, intentionally-shareable surface, per the
-        // roadmap doc's own explicit distinction.
+        // Profile edit form also lives as a portal panel (class-portal.php);
+        // the PUBLIC profile page/shortcode above stays as-is, since it's a
+        // separate, intentionally-shareable surface.
         add_filter('bhi_portal_panels', [__CLASS__, 'register_portal_panel']);
     }
 
@@ -49,10 +45,9 @@ class BHI_PublicProfile {
         return $panels;
     }
 
-    // Thin public wrapper around the existing private render_edit_form() —
-    // same form, same handle_save()/handle_delete() admin-post handlers,
-    // just echoed into the portal shell's <main> instead of a standalone
-    // shortcode-rendered page.
+    // Thin wrapper around the private render_edit_form() — same form and
+    // handle_save()/handle_delete() handlers, just echoed into the portal
+    // shell's <main> instead of a standalone shortcode-rendered page.
     public static function render_portal_panel() {
         echo self::render_edit_form(get_current_user_id());
     }
@@ -65,22 +60,13 @@ class BHI_PublicProfile {
 
     public static function maybe_enqueue() {
         global $post;
-        // QA fix, caught live: the Profile portal panel (BHI_Portal's
-        // 'profile' panel, class-portal.php) calls render_portal_panel()
-        // -> render_edit_form() — the SAME edit form this gate exists to
-        // style — but the portal is a custom rewrite-driven virtual page
-        // with no real $post/post_content at all, so
-        // has_shortcode($post->post_content, 'bh_profile') can never be
-        // true there. This CSS never loaded on the portal's Profile tab,
-        // ever — confirmed live by inspecting the actual <link> tags on
-        // a real page load: zero portal-specific stylesheets present,
-        // the edit form rendering as completely unstyled raw HTML
-        // (default browser fieldsets/inputs, no card layout at all).
-        // get_query_var(BHI_Portal::QUERY_VAR) is true for every portal
-        // page load regardless of which panel is active, so this now
-        // also enqueues there — cheap and correct, since every portal
-        // panel benefits from this shared CSS being present, not just
-        // Profile specifically.
+        // The portal's Profile panel renders this same edit form via
+        // render_portal_panel(), but the portal is a custom rewrite-driven
+        // virtual page with no real $post/post_content, so
+        // has_shortcode($post->post_content, 'bh_profile') is never true
+        // there. get_query_var(BHI_Portal::QUERY_VAR) is true for every
+        // portal page load regardless of active panel, so enqueue there
+        // too — every panel benefits from this shared CSS, not just Profile.
         $on_portal = class_exists('BHI_Portal') && get_query_var(BHI_Portal::QUERY_VAR);
         if (!$on_portal && (!$post || !has_shortcode($post->post_content, 'bh_profile'))) return;
         wp_enqueue_style('bhi-public-profile', OUS_URL . 'assets/css/public-profile.css', [], OUS_VER);
@@ -140,10 +126,8 @@ class BHI_PublicProfile {
         $banner = $data['banner_id'] ? wp_get_attachment_image_url((int) $data['banner_id'], 'large') : '';
         if (!$avatar) $avatar = get_avatar_url($user_id, ['size' => 200]);
 
-        // BH_SEO Slice 1 reference consumer — ROADMAP-discoverability.md.
-        // This is exactly the "already has the real data in hand, just
-        // hand it off" case the class's own docblock describes: no
-        // separate lookup needed, everything below already resolved.
+        // Data is already resolved above, so this just hands it off to
+        // BH_SEO — no separate lookup needed.
         // Person, not MusicGroup — an individual account's profile, not
         // necessarily a band; a future artist-specific profile type
         // could reasonably use MusicGroup instead once that distinction
@@ -359,19 +343,14 @@ class BHI_PublicProfile {
     // only (a profile avatar/banner isn't a place to accept arbitrary
     // uploads) and attributed to the uploading user.
     //
-    // QA fix: media_handle_upload() performs no capability check of its
-    // own, and BHI_Auth::register() creates plain subscriber accounts,
-    // which don't have upload_files by default — so this call site was
-    // the one place in the ecosystem a low-privilege, self-registered
-    // user could write directly into the site's media library with no
-    // capability gate at all. The feature is explicitly meant to work
-    // for exactly that subscriber-level user (that's who has a public
-    // profile), so a hard current_user_can('upload_files') block would
-    // just break the feature. Instead, grant upload_files for the
-    // duration of this one call only (never persisted, never touches
-    // the user's real role/caps) — a real second checkpoint on top of
-    // the existing image-mimetype/size/author-attribution validation,
-    // rather than relying on "media_handle_upload happens not to check."
+    // media_handle_upload() performs no capability check of its own, and
+    // BHI_Auth::register() creates plain subscriber accounts, which don't
+    // have upload_files by default. The feature is meant to work for
+    // exactly that subscriber-level user, so a hard
+    // current_user_can('upload_files') block would just break it. Instead,
+    // grant upload_files for the duration of this one call only (never
+    // persisted, never touches the user's real role/caps) on top of the
+    // existing image-mimetype/size/author-attribution validation.
     private static function handle_image_upload($field, $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';

@@ -11,9 +11,8 @@ if (!defined('ABSPATH')) exit;
  * application, not something this class can do. Until that exists,
  * this only recognizes/generates a clearly-fake placeholder so a
  * track's rights metadata field can be exercised (UI, storage, schema
- * suppression) ahead of the real thing — AJ's own ask: build against
- * the shape now so swapping in a real issuer later is a small change,
- * not a rewrite.
+ * suppression) ahead of the real thing: built against the shape now
+ * so swapping in a real issuer later is a small change, not a rewrite.
  *
  * Country code "ZZ" is deliberate, not arbitrary: ISO 3166-1 formally
  * reserves ZZ (along with AA, QM-QZ, XA-XZ) as "user-assigned" — never

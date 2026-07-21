@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * The Test Runner (see own-ur-shit's class-test-runner.php) version of
- * this pass's new tier-depth logic — same convention bh-courses'
+ * the tier-depth logic — same convention bh-courses'
  * class-test-suite.php already established. Covers the PURE, no-database
  * parts (BHM_Gate::calculate_downgrade_credit_cents() and
  * BHM_Tiers::benefit_registry()'s shape) directly; the DB-backed parts

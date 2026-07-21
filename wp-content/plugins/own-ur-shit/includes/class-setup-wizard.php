@@ -38,9 +38,8 @@ class OUS_SetupWizard {
 
     public static function add_menu() {
         // A real submenu item (not just a dashboard link) so it's
-        // findable again later, not a one-time hidden page — AJ's own
-        // ask includes revisiting brand basics, not just a first-run
-        // gate that vanishes.
+        // findable again later — revisiting brand basics should work,
+        // not just a first-run gate that vanishes.
         add_submenu_page('own-ur-shit', 'Guided Setup', 'Guided Setup', 'manage_options', 'ous-setup-wizard', [self::class, 'render']);
     }
 

@@ -3,8 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * BHCRM_Debug — this plugin's own Debug Tools section, added 1.2.0
- * alongside the project tracker (class-projects.php). bh-crm had NO
- * Debug Tools section at all before this pass; the shape here is copied
+ * alongside the project tracker (class-projects.php). The shape here is copied
  * EXACTLY from bh-registry's BHR_Debug (bh-registry/includes/class-debug.php)
  * — same register()/render_section()/handle_action()/reset() contract,
  * same GROUP_SEED_RESET bucket, same seed-tag-in-the-name-so-Reset-

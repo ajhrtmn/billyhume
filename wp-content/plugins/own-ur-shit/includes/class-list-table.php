@@ -37,7 +37,7 @@ class OUS_ListTable {
      *                              ['meta_key' => ..., 'type' => 'numeric'|'meta_value'|...]
      *                              for a pre_get_posts-driven sort — same
      *                              shape bhm_tier's own price-sort already
-     *                              used before this pass.
+     *                              used.
      */
     public static function register($post_type, array $columns, callable $render, array $sortable = []) {
         add_filter("manage_{$post_type}_posts_columns", function ($cols) use ($columns) {

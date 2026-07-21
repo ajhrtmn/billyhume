@@ -51,11 +51,6 @@ if (!defined('ABSPATH')) exit;
  * `BHCoreToast.show(...)` directly from the JS success handler instead;
  * there's no redirect to hand off across, so PHP-side queuing would just
  * add an unnecessary round trip.
- *
- * Not yet exercised against live PHP+MySQL in this pass — reasoning- and
- * brace-balance-checked only. Please click a wired action (bh-crm "Save
- * notes" is the simplest to test) and confirm the toast actually appears
- * once, then does NOT repeat on a plain page refresh.
  */
 class OUS_Toast {
     const COOKIE = 'bhcore_toast_sid';

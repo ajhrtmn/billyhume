@@ -15,20 +15,20 @@ if (!defined('ABSPATH')) exit;
  * class-people.php) exactly, including its own already-learned lesson —
  * ONE 'root' slot, not several framework-chosen zones. CRM shipped three
  * slots (header/main/sidebar) in 1.1.2 and had to collapse them to one in
- * 1.3.3 once it was clear "how many zones does this page have" is itself
- * a decision that belongs to AJ, not to me. Starting lessons at one slot
- * from the start avoids repeating that exact mistake.
+ * 1.3.3 once it was clear "how many zones does this page have" is a
+ * product decision, not something to guess up front. Starting lessons at
+ * one slot from the start avoids repeating that exact mistake.
  *
  * Context is per-LESSON (surface_context_id = the bh_lesson post ID),
  * not per-course and not per-user — every student viewing the same
  * lesson sees the same authored content, matching how the rest of a
  * lesson's content (its steps) already works.
  *
- * Scope for this pass: registration + one render_slot() call appended
+ * Scope: registration + one render_slot() call appended
  * after the existing step-walker output in BHC_Render::render_lesson_steps()
  * (see that method's own comment at the call site) — an optional
  * "extras" area (a downloadable-resources list, a related-reading
- * callout, embedded promo, whatever AJ builds) rendered once per lesson,
+ * callout, embedded promo, etc.) rendered once per lesson,
  * AFTER a student clears every step. Deliberately NOT touching the step
  * walker's own step-by-step output (text/image/video/quiz) — that
  * content is authored through BH_Studio/BH_Content already

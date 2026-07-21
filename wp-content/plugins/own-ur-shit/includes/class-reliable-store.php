@@ -2,46 +2,35 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * A drop-in replacement for set_transient()/get_transient() for the
- * specific cases where silently losing the value is a real problem, not
- * just a cosmetic one — security throttles (login lockouts, registration
- * rate limits), and anything whose whole point is surviving a redirect
- * round-trip (a background job's last-run report, e.g. OUS_TestRunner's
- * results).
+ * A drop-in replacement for set_transient()/get_transient() for cases
+ * where silently losing the value is a real problem, not just cosmetic
+ * — security throttles (login lockouts, registration rate limits), and
+ * anything whose whole point is surviving a redirect round-trip (a
+ * background job's last-run report, e.g. OUS_TestRunner's results).
  *
  * WHY THIS EXISTS: WordPress transients are stored ENTIRELY inside a
  * persistent object cache (Redis/Memcached) when one is active — NOT in
  * the options table, which is only the fallback for sites with no
- * persistent cache. A real, live, reported bug this session: on this
- * specific install, transient writes reported success but were never
- * readable on the very next request (OUS_TestRunner's results silently
- * vanishing after "Run all tests" said it worked; the same root cause
- * independently produced BHI_Portal's rewrite-rule 404 and
- * OUS_Debug::is_locked() flipping per-request earlier the same session).
- * Whatever is actually wrong with THIS install's persistent object cache
- * (stuck, misconfigured, or simply unreliable), the fix at the
- * application layer is the same one used ad-hoc for the rewrite-rule
- * bugs: don't trust the object cache for anything that matters, read and
- * write the options table directly instead.
+ * persistent cache. On some installs a misconfigured/unreliable
+ * persistent object cache means transient writes report success but
+ * aren't readable on the very next request. Whatever's actually wrong
+ * with that cache, the fix at the application layer is: don't trust the
+ * object cache for anything that matters, read and write the options
+ * table directly instead.
  *
- * This is NOT a general transient replacement — it's deliberately a
- * separate, explicitly-opted-into API so a plain get_transient() call
- * elsewhere in the ecosystem (caching an expensive computation, where
- * "sometimes falls back to recomputing" is a fine failure mode) isn't
- * silently made slower by going through raw SQL for no reason. Use this
- * ONLY where get_transient() returning nothing when it should have
- * returned something is a real bug, not just a cache miss.
+ * This is NOT a general transient replacement — it's a separate,
+ * explicitly-opted-into API so a plain get_transient() call elsewhere
+ * (caching an expensive computation, where "sometimes falls back to
+ * recomputing" is fine) isn't silently made slower by going through raw
+ * SQL for no reason. Use this only where get_transient() returning
+ * nothing when it should have is a real bug, not just a cache miss.
  */
 class OUS_ReliableStore {
     private static function option_name($key) {
         return 'ous_rs_' . sanitize_key($key);
     }
 
-    // Raw JSON string + expiry, one option per key — mirrors the shape
-    // every ad-hoc "$wpdb INSERT ... ON DUPLICATE KEY UPDATE" fix this
-    // session already used individually for BHI_Portal's throttle guard
-    // and OUS_TestRunner's report storage, just consolidated into one
-    // place instead of being hand-copied a third and fourth time.
+    // Raw JSON string + expiry, one option per key.
     public static function set($key, $value, $ttl_seconds) {
         global $wpdb;
         $option = self::option_name($key);
@@ -55,10 +44,10 @@ class OUS_ReliableStore {
         wp_cache_delete('alloptions', 'options');
     }
 
-    // Direct DB read, bypassing get_option()'s own cache layer — the
-    // whole point of this class. Returns $default if missing, malformed,
-    // or expired (expiry is checked in PHP, not via a MySQL query on
-    // every read, so this stays a single simple SELECT).
+    // Direct DB read, bypassing get_option()'s cache layer — the whole
+    // point of this class. Returns $default if missing, malformed, or
+    // expired (expiry is checked in PHP, not via a MySQL query, so this
+    // stays a single simple SELECT).
     public static function get($key, $default = null) {
         global $wpdb;
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", self::option_name($key)));
@@ -77,15 +66,15 @@ class OUS_ReliableStore {
         wp_cache_delete('alloptions', 'options');
     }
 
-    // Convenience for the counter shape every current call site
-    // (login-fail count, registration throttle count) actually wants —
-    // read current int, add 1, write back with a fresh TTL, single
-    // round trip from the caller's perspective. NOT atomic (a real race
-    // between two simultaneous failed logins from the same IP could
-    // under-count by one) — acceptable here since these are abuse-
-    // slowing throttles, not billing-grade counters; see BHM_Wallet's
-    // debit()/apply_delta() for the actual atomic-UPDATE pattern this
-    // ecosystem uses where undercounting would be a real money problem.
+    // Convenience for the counter shape current call sites (login-fail
+    // count, registration throttle count) want — read current int, add
+    // 1, write back with a fresh TTL, single round trip from the
+    // caller's perspective. NOT atomic (a real race between two
+    // simultaneous failed logins from the same IP could under-count by
+    // one) — acceptable here since these are abuse-slowing throttles,
+    // not billing-grade counters; see BHM_Wallet's debit()/apply_delta()
+    // for the atomic-UPDATE pattern used where undercounting would be a
+    // real money problem.
     public static function increment($key, $ttl_seconds) {
         $value = (int) self::get($key, 0) + 1;
         self::set($key, $value, $ttl_seconds);

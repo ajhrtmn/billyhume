@@ -84,7 +84,7 @@ class BH_Auth {
         // siblings of the player, not something player.js knows about or
         // touches at all.
         $before = ''; $after = '';
-        // AJ's own ask: a real way for a logged-in contestant to reach
+        // A real way for a logged-in contestant to reach
         // their account portal (where they can now replace a wrong
         // file, see BH_PortalPanel) from the page they'd actually be
         // on when they realize the mistake — the contest player itself.
@@ -99,12 +99,10 @@ class BH_Auth {
             $submission_link = '<p style="margin:0 0 10px;font-size:13px;"><a href="' . esc_url($portal_url) . '">Manage my submission &rarr;</a></p>';
         }
         if ($cid && class_exists('BH_Element')) {
-            // QA fix, caught live: this used to unconditionally
-            // OVERWRITE $before with render_slot()'s own output,
-            // silently discarding the "Manage my submission" link
-            // assigned above every time — confirmed live, the link
-            // never once rendered on a real page despite the condition
-            // being met. Now appends instead.
+            // QA fix: this used to unconditionally OVERWRITE $before
+            // with render_slot()'s own output, silently discarding the
+            // "Manage my submission" link assigned above every time.
+            // Now appends instead.
             $before = $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
             $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
 

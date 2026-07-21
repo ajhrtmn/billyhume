@@ -9,7 +9,8 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    const DB_VERSION = '1.13'; // 1.2 added bhi_reports — see class-reports.php; 1.3 added bhcore_notifications + bhcore_jobs — see class-notifications.php / class-jobs.php; 1.4 added bhcore_debug_log — see class-debug-log.php; 1.5 added bhcore_content — see class-content.php; 1.6 added bhcore_debug_log's structured-trace columns (file/line/col/trace/url/user_id/request_method) — see class-debug-log.php v2; 1.7 added bhcore_debug_log.request_id — per-request correlation ID so scattered log entries from one failing request can be traced together, see class-debug-log.php's request_id()/has_request_id_column(); 1.8 added bhcore_events — see class-event.php (BH_Event), the event-tracking envelope table per EVENT-TRACKING-ARCHITECTURE-PLAN.md, first implemented this pass; 1.9 added bhcore_element_placements — see class-element.php (BH_Element), the placement storage table per ELEMENT-BUILDER-DESIGN-PLAN.md Section 2.1, Phase 1/2 of that doc's build order; 1.10 added bhcore_element_prefabs — see class-element-prefab.php (BH_Element_Prefab), the prefab (named reusable placement composition) storage table added per AJ's mid-build request on top of the element-builder design doc's remaining phases (§6) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 added bhcore_element_states — see class-element-state.php (BH_Element_State), named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 added bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above for the full shape; 1.13 added bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php), a real bug caught live: the same queued email job genuinely fired twice (Action Scheduler's own background processing plus a direct call both landed), sending a duplicate email with no guard against it — same class of bug already caught and fixed in bh-crm's note-reminder job the same session
+    // 1.2 bhi_reports (class-reports.php); 1.3 bhcore_notifications + bhcore_jobs (class-notifications.php / class-jobs.php); 1.4 bhcore_debug_log (class-debug-log.php); 1.5 bhcore_content (class-content.php); 1.6 bhcore_debug_log structured-trace columns (file/line/col/trace/url/user_id/request_method); 1.7 bhcore_debug_log.request_id — per-request correlation ID, see request_id()/has_request_id_column() in class-debug-log.php; 1.8 bhcore_events (class-event.php/BH_Event), per EVENT-TRACKING-ARCHITECTURE-PLAN.md; 1.9 bhcore_element_placements (class-element.php/BH_Element), per ELEMENT-BUILDER-DESIGN-PLAN.md §2.1; 1.10 bhcore_element_prefabs (class-element-prefab.php/BH_Element_Prefab) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 bhcore_element_states (class-element-state.php/BH_Element_State) — named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above; 1.13 bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php): guards against the same queued email job firing twice (Action Scheduler's background processing plus a direct call both landing) and sending a duplicate.
+    const DB_VERSION = '1.13';
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -218,9 +219,9 @@ class BHI_Activator {
         // constraint on (surface, context, slot, element_type) — the
         // same element type can legitimately appear more than once in
         // one slot (two stat-cards bound to different metrics), per the
-        // design doc's own note on this. NO COLUMN CHANGE THIS PASS —
-        // both columns below already existed in this table's original
-        // 1.9 definition; OUS_VER 3.4.34 just ACTIVATED parent_placement_id
+        // design doc's own note on this. Both columns below already
+        // existed in this table's original 1.9 definition; OUS_VER 3.4.34
+        // ACTIVATED parent_placement_id
         // (see class-element.php's save_placement()/render_slot()/
         // render_placement() and the REST save route) as the real
         // placement-tree seam it was reserved as (§1.1) — 0 still means
@@ -251,8 +252,8 @@ class BHI_Activator {
         // library_component_id (added to the CREATE TABLE above so
         // dbDelta() adds it as a new column on an existing install,
         // same "just add it to the same CREATE TABLE" pattern dbDelta()
-        // always uses here). 0 = an ordinary placement (every row ever
-        // written before this pass, unchanged behavior). Non-zero = a
+        // always uses here). 0 = an ordinary placement (unchanged
+        // behavior for every pre-existing row). Non-zero = a
         // LINKED INSTANCE of that bhcore_element_prefabs id — this one
         // row IS the entire subtree; its own 'config' column is
         // repurposed to hold ONLY leaf-value overrides (a map keyed by

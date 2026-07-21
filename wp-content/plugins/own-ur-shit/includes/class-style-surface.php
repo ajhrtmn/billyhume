@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  * already loads, so the preview's buttons/notices look exactly like
  * the real screen, not an approximation.
  *
- * Real contrast bug, caught live: class-style-gallery.php's own
+ * Real contrast bug: class-style-gallery.php's own
  * preview_doc() sets `:host{color:var(--bh-text)}` so every OTHER
  * surface (which uses the ecosystem's own dark brand theme) gets
  * readable text automatically — but this wizard fakes a real,
@@ -32,8 +32,8 @@ if (!defined('ABSPATH')) exit;
  * light-mode wp-admin page was never supposed to follow the brand
  * theme's dark-mode text color in the first place.
  *
- * Same reasoning applied to font-family, caught live via AJ's own
- * report: this preview inherited `:host{font-family:var(--bh-font-body)}`
+ * Same reasoning applied to font-family: this preview inherited
+ * `:host{font-family:var(--bh-font-body)}`
  * same as every real brand surface, so picking an exotic Display/Body
  * font in the Typography controls made this wp-admin-style preview
  * render in that font too — a real wp-admin screen never does that

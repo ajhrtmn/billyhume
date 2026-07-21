@@ -2,8 +2,8 @@
 if (!defined('ABSPATH') ) exit;
 
 /**
- * The "expansive CSS properties + databinding" surface AJ asked not to
- * lose when the custom page-builder's inspector got deleted this pass
+ * Preserves the "expansive CSS properties + databinding" surface from
+ * the custom page-builder's inspector after its deletion
  * (PAGE-BUILDER-DELETE-KEEP-AUDIT.md) — but NOT rebuilt as a bespoke
  * block or a bespoke inspector shell, which would have been the exact
  * same mistake at a smaller scale. Instead: a generic "Advanced Styles"
@@ -27,7 +27,7 @@ if (!defined('ABSPATH') ) exit;
  * genuinely just "give that existing, well-designed resolver a UI
  * surface on ordinary blocks too" — not a second implementation.
  *
- * Portability note (AJ's own standing rule): the STORED shape is plain —
+ * Portability note: the stored shape is plain —
  * `bhStyle` is a flat `{ "group.property": "value" }` object, the exact
  * same map shape `scoped_inline_style()` already accepts and
  * `BH_Element` placements already store in `config.style`. Nothing WP-

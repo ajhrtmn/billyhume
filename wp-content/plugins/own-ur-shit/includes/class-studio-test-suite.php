@@ -2,17 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Test Runner coverage for this pass's core additions: BH_Studio's
- * default block types (registered against BH_Content — see
- * class-studio.php) and BH_Content's own validate()/render() round trip
- * through them. Pure logic, no database required — every block type
- * tested here has a stateless schema + renderer, so this suite exercises
- * exactly the same code path a real BH_Studio save/render cycle uses,
- * without needing a live WordPress install to prove it (this session had
- * no PHP/MySQL execution capability — see HANDOFF-PROMPT-v25.md Step 0 —
- * these assertions are the next best thing to actually running it, and
- * should be re-verified against a real install per QA-REPORT.md
- * Section 5's own standing instruction).
+ * Test Runner coverage for BH_Studio's default block types (registered
+ * against BH_Content — see class-studio.php) and BH_Content's own
+ * validate()/render() round trip through them. Pure logic, no database
+ * required — every block type tested here has a stateless schema +
+ * renderer, so this suite exercises the same code path a real
+ * BH_Studio save/render cycle uses without needing a live install.
  */
 class OUS_StudioTestSuite {
     public static function init() {

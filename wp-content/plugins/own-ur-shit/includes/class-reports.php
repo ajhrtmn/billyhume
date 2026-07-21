@@ -34,13 +34,13 @@ class BHI_Reports {
         'other'      => 'Something else',
     ];
 
-    // Reused, not reinvented, for "report a technical difficulty" — AJ's
-    // own ask this session. Every other category here reports a specific
-    // piece of CONTENT (target_type + target_id both required); a bug
-    // report has no content to point at, so this is the one category
-    // allowed a zero target_id (see rest_submit()'s relaxed check below)
-    // rather than standing up a second, parallel queue/admin screen for
-    // what is functionally the same "collect it, let a human triage it"
+    // Reused, not reinvented, for "report a technical difficulty."
+    // Every other category here reports a specific piece of CONTENT
+    // (target_type + target_id both required); a bug report has no
+    // content to point at, so this is the one category allowed a zero
+    // target_id (see rest_submit()'s relaxed check below) rather than
+    // standing up a second, parallel queue/admin screen for what is
+    // functionally the same "collect it, let a human triage it"
     // workflow this class already provides.
     const TECHNICAL_TARGET_TYPE = 'technical';
     const RATE_LIMIT = 5;   // max reports per user per hour — a real moderation signal, not a way to bury someone in noise
@@ -49,13 +49,13 @@ class BHI_Reports {
     public static function init() {
         add_action('admin_post_bhi_submit_report', [self::class, 'handle_submit']);
         add_action('admin_menu', [self::class, 'add_admin_page']);
-        // Ecosystem-wide "report a technical difficulty" widget — AJ's
-        // own ask. Front-end only (a logged-in admin already has this
-        // plugin's own Debug Tools/error logs; a confused site VISITOR
-        // hitting something broken is who this is actually for), and
-        // logged-in only, matching report_button_html()'s own existing
-        // "log in to report" posture rather than accepting anonymous
-        // reports this queue has no way to follow up on.
+        // Ecosystem-wide "report a technical difficulty" widget.
+        // Front-end only (a logged-in admin already has this plugin's
+        // own Debug Tools/error logs; a confused site VISITOR hitting
+        // something broken is who this is for), and logged-in only,
+        // matching report_button_html()'s own "log in to report"
+        // posture rather than accepting anonymous reports this queue
+        // has no way to follow up on.
         add_action('wp_footer', [self::class, 'render_technical_report_widget']);
     }
 
@@ -64,21 +64,18 @@ class BHI_Reports {
         $nonce = wp_create_nonce('wp_rest');
         ?>
         <style>
-            /* AJ's own ask: this widget was colliding with bh-contest's
-               fixed bottom player bar on contest pages. First attempt
-               read bh-contest's --bh-bar-height CSS custom property
-               (set on :root by player.css) — real bug, caught live by
-               AJ, not by re-reading the code: player.css also loads on
-               Archive/Results-Reveal-only pages (they share its fonts/
-               theme vars), which do NOT render the actual
-               .bh-now-playing-bar element, but :root still defines the
-               property regardless of whether the bar exists — a
-               phantom ~84px gap under the button with nothing there to
-               justify it. Fixed with real DOM detection instead (below,
-               in JS): only apply the offset when .bh-now-playing-bar
-               genuinely exists on the page. Default bottom stays 16px;
-               JS adds the real, measured bar height via inline style
-               only when the element is actually present. */
+            /* This widget can collide with bh-contest's fixed bottom
+               player bar on contest pages. Reading bh-contest's
+               --bh-bar-height CSS custom property doesn't work: that
+               property is set on :root by player.css, which also loads
+               on Archive/Results-Reveal-only pages that do NOT render
+               the actual .bh-now-playing-bar element — so the property
+               would still apply a phantom ~84px gap with nothing there
+               to justify it. Real DOM detection instead (below, in JS):
+               only apply the offset when .bh-now-playing-bar genuinely
+               exists on the page. Default bottom stays 16px; JS adds
+               the real, measured bar height via inline style only when
+               the element is actually present. */
             /* Was 99998 — above every modal in the ecosystem (bh-contest
                10000, bh-registry 9999, bh-streaming 200/100/90), so this
                floated on top of any open modal instead of sitting behind
@@ -123,9 +120,8 @@ class BHI_Reports {
         </div>
         <script>
         (function () {
-            // Recent-action trail — AJ's own ask: "recent user actions
-            // taken or other things like that" as extra report context.
-            // A capped (last 12), sessionStorage-backed log of clicked
+            // Recent-action trail — extra report context. A capped
+            // (last 12), sessionStorage-backed log of clicked
             // interactive elements' visible labels — never keystrokes,
             // never field VALUES/PII, just "what did they click and
             // roughly when" — so whoever triages a report can see the
@@ -238,9 +234,7 @@ class BHI_Reports {
                 // over a generic "email us" link is that whoever
                 // triages it in the admin queue sees exactly what page,
                 // browser, feature area, and recent click path led here
-                // without a back-and-forth. Extended per AJ's own ask
-                // ("recent user actions... other valuable context") on
-                // top of the page/browser info already captured.
+                // without a back-and-forth.
                 var trail;
                 try { trail = JSON.parse(sessionStorage.getItem(TRAIL_KEY) || '[]'); } catch (e) { trail = []; }
                 var trailLines = trail.map(function (entry) {
@@ -252,9 +246,9 @@ class BHI_Reports {
                     + '\nBrowser: ' + navigator.userAgent
                     + '\nRecent actions this session:\n' + trailLines
                     + '\n\n' + reason;
-                // Elegant retry, AJ's own ask — the first real one
-                // anywhere in this ecosystem's JS (checked: nothing else
-                // has actual retry/backoff logic today). Retries ONLY on
+                // Elegant retry — the first real one anywhere in this
+                // ecosystem's JS (checked: nothing else has actual
+                // retry/backoff logic today). Retries ONLY on
                 // network failure (fetch() itself rejecting — offline, a
                 // dropped connection, a timeout) or a 5xx server error —
                 // never on a 4xx (bad nonce, rate-limited, validation

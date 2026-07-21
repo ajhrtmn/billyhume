@@ -57,8 +57,8 @@ if (!defined('ABSPATH')) exit;
  * placement per kanban card, at the top level.
  *
  * KANBAN-COLUMN JUDGMENT CALL (documented in more depth in
- * own-ur-shit/ELEMENT-BUILDER-DESIGN-PLAN.md's new "§7 Project Tracker"
- * section, added alongside this pass): each card's column is a plain
+ * own-ur-shit/ELEMENT-BUILDER-DESIGN-PLAN.md's "§7 Project Tracker"
+ * section): each card's column is a plain
  * schema attribute ('column', a literal string) on the bh/sticky-card
  * placement itself — NOT a separate slot per column. This was CONFIRMED,
  * not just assumed, by actually reading class-element.php's placement
@@ -103,8 +103,8 @@ if (!defined('ABSPATH')) exit;
  * (admin.php?page=bh-studio&context_type=bh_element&context_id={placement_id}),
  * exactly the way element-builder.js's own inspector already tells a
  * user to "open Content Studio separately" for any container element —
- * this pass does NOT build a bespoke recursive drag-tree editor inside
- * the kanban board itself (real scope; the board links out instead).
+ * no bespoke recursive drag-tree editor inside the kanban board itself
+ * (real scope; the board links out instead).
  * The kanban board's OWN bespoke UI (kanban-board.js/.css) covers what a
  * generic three-pane builder does badly: a real two-axis (column x
  * position) drag-and-drop board view — but it SAVES through the exact
@@ -323,9 +323,8 @@ class BHCRM_Projects {
         // QA fix: project creation used to be reachable ONLY from a
         // specific person's profile page (their user_id was baked into
         // the create form's hidden field, back when a project required
-        // exactly one owner at creation time) — AJ's own framing:
-        // "shouldn't require a weird loop back to people." A project
-        // doesn't need an owner to exist now (BHCRM_Links handles
+        // exactly one owner at creation time). A project doesn't need
+        // an owner to exist now (BHCRM_Links handles
         // ownership as an optional link, not a required column), so
         // creation belongs here, at the top level, same as any other
         // "Add new" entry point. Linking a person happens afterward on
@@ -550,10 +549,8 @@ class BHCRM_Projects {
             'notes' => ['type' => 'html',   'default' => ''],
             'done'  => ['type' => 'bool',   'default' => false],
             // 'column' — added alongside BHCRM_Subtasks' rebuild into a
-            // REAL kanban board at every nesting level (AJ's own
-            // correction: "I thought each subtask would be its own
-            // kanban board of tasks," not a flat checklist). Every
-            // level of a card's sub-task tree shares the SAME column
+            // REAL kanban board at every nesting level, not a flat
+            // checklist. Every level of a card's sub-task tree shares the SAME column
             // vocabulary as the parent project's own board
             // (BHCRM_Projects::get($project_id)['columns_config']) —
             // one shared set of stages for the whole project, not a
@@ -704,8 +701,7 @@ class BHCRM_Projects {
         }
 
         $uid = (int) ($_POST['user_id'] ?? 0);
-        // Audit log, AJ's own ask: "who deleted what [project]" —
-        // capture the name before it's gone.
+        // Audit log — capture the name before it's gone.
         $project = self::get($project_id);
         if ($project && class_exists('OUS_Audit')) {
             OUS_Audit::log('project_deleted', 'bhcrm_project', $project_id, ['name' => $project['name']]);

@@ -3,9 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * PRO (Performing Rights Organization) registration — a guided links-
- * plus-storage flow, scoped and named in this plugin's own README
- * ("PRO registration wizard — roadmapped, not built this pass") and
- * built now that higher-priority demo work is done.
+ * plus-storage flow, scoped and named in this plugin's own README.
  *
  * Deliberately NOT the same shape as OUS_MediaWizard: that wizard can
  * do live, real credential validation (an actual S3 headBucket() call)

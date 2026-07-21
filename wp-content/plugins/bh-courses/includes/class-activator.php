@@ -134,7 +134,7 @@ class BHC_Activator {
         // class-reviews.php) so an edited review is re-moderated, not
         // grandfathered in on its original approval.
         //
-        // status: real moderation gate (AJ's own ask) — a review is
+        // status: real moderation gate — a review is
         // never publicly visible until an admin approves it, same
         // "held for review" posture WordPress core comments already use
         // by default, not a bespoke concept. completed_at_review is a

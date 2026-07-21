@@ -216,7 +216,7 @@ class BHC_Render_Lesson {
         return ob_get_clean();
     }
 
-    // Caught live testing this exact field: pasting a normal YouTube
+    // Real bug: pasting a normal YouTube
     // "watch" link (youtube.com/watch?v=ID, youtu.be/ID, or a Shorts
     // link) or a plain vimeo.com/ID link — the single most likely thing
     // an author actually pastes, since that's just the URL from their

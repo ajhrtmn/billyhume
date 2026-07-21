@@ -132,8 +132,8 @@ class BH_ContestWizard {
         // Never published from creation, always an explicit later step
         // — the real handler checks isset(), not truthiness
         // (`isset($_POST['bh_results_published']) ? '1' : '0'`), so this
-        // has to be UNSET, not set to '' or false. Caught live: setting
-        // it to '' still saved _bh_results_published as '1'.
+        // has to be UNSET, not set to '' or false — setting it to ''
+        // still saved _bh_results_published as '1'.
         unset($_POST['bh_results_published']);
         $_POST['bh_vote_base'] = BH_VOTE_BASE;
         $_POST['bh_vote_bonus'] = BH_VOTE_BONUS;

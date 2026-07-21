@@ -5,17 +5,14 @@ if (!defined('ABSPATH') ) exit;
  * OUS_MenuSync — lets a plugin maintain its own submenu group inside
  * every site Navigation menu automatically, instead of Billy having to
  * hand-add/remove a link every time a contest or course is
- * published/unpublished. Direct response to AJ's own framing: "I wish
- * everything could kinda decide on its own where it belongs without
- * having to go through the painful WordPress menu builder."
+ * published/unpublished.
  *
  * A "Navigation menu" in a block theme (this site's theme) is just a
  * `wp_navigation` post whose content is ordinary serialized Gutenberg
- * blocks (core/navigation-link, core/navigation-submenu) — confirmed by
- * reading the live post directly, not assumed. Etch (ETCH-COMPATIBILITY-
- * NOTES.md) authors to that exact same real Gutenberg storage, so
- * writing valid core blocks here is Etch-compatible by construction —
- * no special-casing needed.
+ * blocks (core/navigation-link, core/navigation-submenu). Etch (ETCH-
+ * COMPATIBILITY-NOTES.md) authors to that exact same Gutenberg storage,
+ * so writing valid core blocks here is Etch-compatible by construction
+ * — no special-casing needed.
  *
  * Zero-central-registration shape is NOT used here on purpose (unlike
  * ous_search_providers/bhi_portal_panels) — a menu-sync group needs an

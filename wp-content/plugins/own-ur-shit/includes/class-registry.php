@@ -1,21 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.25 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: bh-crm's
-// admin_menus entry gained 'parent' => 'bh-crm-hub' and 'capability' =>
-// 'bhcore_manage_crm' on its existing People entry (was implicitly
-// 'own-ur-shit'/'manage_options'), plus a new second entry relocating
-// the Project Tracker (BHCRM_Projects::render_boards(), new — bh-crm's
-// own class-projects.php) under the same new top-level CRM menu. See
-// class-menu-merge.php's own changelog note for the 'parent'/
-// 'capability' key extension this depends on.
-
-// OUS_VER 3.4.19 — register_debug_section() (the "Bundled Zip
-// Freshness" section) now sets 'group' => OUS_Debug::GROUP_MONITORING
-// (Debug Tools reorganization pass — see class-debug.php's own
-// docblock), filing this under "Monitoring & Health" instead of the
-// default bucket. No other change.
-
 /**
  * As of the v3 core merge, this only tracks the plugins that are still
  * genuinely separate: bh-contest and bh-streaming. Identity and style
@@ -112,45 +97,24 @@ class OUS_Registry {
             // People is a plain custom admin page, not a CPT/taxonomy
             // list-table — unlike bh-contest's Contests or bh-streaming's
             // Tracks, there's no "WooCommerce Products" style reason to
-            // keep it as its own top-level menu, so (unlike those two) it
-            // gets relocated as a direct submenu here instead. No
-            // 'old_parent' — BHCRM_People never registers a top-level
-            // page of its own for this to remove.
+            // keep it as its own top-level menu, so it gets relocated as
+            // a direct submenu here instead. No 'old_parent' — BHCRM_People
+            // never registers a top-level page of its own to remove.
             //
-            // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1: both entries now
-            // relocate under the new 'bh-crm-hub' top-level CRM menu
-            // (bh-crm/includes/class-hub.php, BHCRM_Hub::add_menu())
-            // instead of 'own-ur-shit', gated on the new 'bhcore_manage_crm'
-            // capability instead of 'manage_options' — see class-roles.php.
-            // People's own slug ('bh-crm') is UNCHANGED, so every existing
-            // admin.php?page=bh-crm&... deep link (profile links,
-            // dashboard_link above) keeps working. Project Tracker
-            // (BHCRM_Projects::render_boards(), new — bh-crm/includes/
-            // class-projects.php) is a genuinely new, thin listing page;
-            // it does not replace the existing project_id dispatch inside
-            // BHCRM_People::render(), which stays as-is (§1.5).
-            //
-            // OUS_VER 3.4.31 — People's 'parent' changed from 'bh-crm-hub'
-            // to null (real duplication fix — see the QA walkthrough's
-            // finding that 'bh-crm-hub' top-level and this 'bh-crm'
-            // submenu were TWO independently-visible sidebar rows both
-            // rendering BHCRM_People::render(), the same accidental shape
-            // DESIGN-SUITE-UNIFICATION-PLAN.md's changelog documents for
-            // 'bh-design'/'bh-style'). BHCRM_Hub::add_menu() (bh-crm/
-            // includes/class-hub.php) already registers 'bh-crm-hub' as
-            // a top-level page whose own callback IS this exact same
-            // ['BHCRM_People', 'render'], so it's already the one real,
-            // visible destination — this entry no longer needs its own
-            // sidebar row to be reachable, only its slug ('bh-crm', kept
-            // for every existing deep link above). null here requires
-            // class-menu-merge.php's merge() to distinguish "key absent"
-            // from "key explicitly null" (fixed this same pass — see that
-            // file's own changelog note) since a bare '?? ' default would
-            // have silently ignored this and kept it visible. Project
-            // Tracker is UNCHANGED — it's genuinely distinct content
-            // (BHCRM_Projects::render_boards(), not a duplicate of
-            // People), so it keeps its normal 'bh-crm-hub' parent and
-            // stays a real, visible submenu.
+            // People's 'parent' is null rather than 'bh-crm-hub' because
+            // BHCRM_Hub::add_menu() (bh-crm/includes/class-hub.php) already
+            // registers 'bh-crm-hub' as a top-level page with this exact
+            // same callback (['BHCRM_People', 'render']) — giving this
+            // entry a 'bh-crm-hub' parent too would produce two
+            // independently-visible sidebar rows rendering the same page.
+            // Its slug ('bh-crm') stays unchanged so every existing
+            // admin.php?page=bh-crm&... deep link keeps working. null here
+            // requires class-menu-merge.php's merge() to distinguish "key
+            // absent" from "key explicitly null", since a bare '??'
+            // default would silently ignore this and keep it visible.
+            // Project Tracker (BHCRM_Projects::render_boards()) is
+            // genuinely distinct content, so it keeps its normal
+            // 'bh-crm-hub' parent and stays a real, visible submenu.
             'admin_menus' => [
                 ['slug' => 'bh-crm', 'label' => 'People', 'callback' => ['BHCRM_People', 'render'], 'parent' => null, 'capability' => 'bhcore_manage_crm'],
                 ['slug' => 'bh-crm-projects', 'label' => 'Project Tracker', 'callback' => ['BHCRM_Projects', 'render_boards'], 'parent' => 'bh-crm-hub', 'capability' => 'bhcore_manage_crm'],
@@ -332,13 +296,10 @@ class OUS_Registry {
     // installed but simply hasn't loaded yet this request for unrelated
     // reasons, which isn't the same thing as not being installed.
     public static function status($key) {
-        // QA fix: guard the lookup like OUS_ActivationManager already
-        // does (isset(OUS_Registry::all()[$key]) before use) instead of
-        // indexing directly — every current caller happens to pass an
-        // already-known-valid key, but an arbitrary/stale key (e.g. a
-        // leftover depends_on entry after a registry filter change)
-        // should fail gracefully, not throw an undefined-array-key
-        // warning on PHP 8.
+        // Guard the lookup with isset() instead of indexing directly —
+        // an arbitrary/stale key (e.g. a leftover depends_on entry after
+        // a registry filter change) should fail gracefully, not throw an
+        // undefined-array-key warning on PHP 8.
         $registry = self::all();
         if (!isset($registry[$key])) return 'missing';
         $info = $registry[$key];
@@ -366,23 +327,19 @@ class OUS_Registry {
     }
 
     /**
-     * Bundled-zip staleness check (added after a real, confirmed
-     * incident: OUS_Installer::install_from_bundle() extracts from
-     * own-ur-shit/bundled/*.zip, a copy shipped INSIDE this plugin —
-     * genuinely separate from whatever's on disk for that peer plugin
-     * right now. A build/deploy pass that updates a peer plugin's own
-     * files but forgets to regenerate its bundled/ copy leaves the
+     * Bundled-zip staleness check. OUS_Installer::install_from_bundle()
+     * extracts from own-ur-shit/bundled/*.zip, a copy shipped INSIDE this
+     * plugin — genuinely separate from whatever's on disk for that peer
+     * plugin right now. A build/deploy pass that updates a peer plugin's
+     * files but forgets to regenerate its bundled/ copy would leave the
      * dashboard's "Install"/reinstall path silently serving old code
-     * indefinitely, with no error anywhere — exactly what happened
-     * here. This reads each bundled zip's plugin header directly (no
-     * extraction needed — get_file_data() can read straight out of a
-     * zip stream via a php:// wrapper is overkill; ZipArchive is
-     * already a PHP core extension nearly universally enabled, so this
-     * just opens the entry and regexes the header block the same way
-     * WordPress's own get_file_data() does) and compares it against
-     * the currently-installed version of that same plugin, so a stale
-     * bundle is a visible warning on the debug page instead of a
-     * silent trap.
+     * indefinitely, with no error anywhere. This reads each bundled zip's
+     * plugin header directly (ZipArchive is a PHP core extension, so it
+     * just opens the entry and regexes the header block the way
+     * WordPress's own get_file_data() does — no extraction needed) and
+     * compares it against the currently-installed version of that same
+     * plugin, so a stale bundle is a visible warning instead of a silent
+     * trap.
      */
     public static function bundled_zip_report() {
         $bundled_dir = OUS_PATH . 'bundled/';
@@ -461,30 +418,17 @@ class OUS_Registry {
 
     /**
      * The actual fix for the failure mode bundled_zip_report() only
-     * ever detected, never corrected — a real, confirmed incident
-     * (2026-07-13): four bundled zips sat stale through an entire
-     * session's worth of real fixes, and OUS_Installer::install()
-     * would have silently reinstalled last week's code with zero
-     * warning had anyone hit "Install"/"Reinstall" before this ran.
-     * Fixing it by hand (a raw `zip` shell command) is a real, working
-     * one-time fix but doesn't stop it from happening again next
-     * session — this is the one-click, in-admin way to actually close
-     * the gap, plus OUS_Installer::install_from_bundle()'s own new
-     * pre-flight staleness guard (see that method's docblock) as the
-     * second half of "prevent," not just "detect."
+     * detects, never corrects: this is the one-click, in-admin way to
+     * rebuild a stale bundle, plus OUS_Installer::install_from_bundle()'s
+     * own pre-flight staleness guard as the second half of "prevent," not
+     * just "detect."
      *
      * Rebuilds `bundled/<zip>` directly from the plugin's own live
-     * source directory using ZipArchive (PHP core, no shell-out, same
-     * "no external dependency" posture as everything else in this
-     * ecosystem) — same top-level-folder-per-plugin structure every
-     * existing bundled zip already uses (verified against
-     * bh-registry.zip, the reference "known-good, never-touched-by-
-     * hand" example, before this was written). Writes to a temp file
-     * first and only renames over the real target on full success —
-     * a previous manual-zip session left two orphaned, randomly-named
-     * temp files in bundled/ from a write that never got cleaned up on
-     * failure; this closes that same gap properly rather than
-     * repeating it.
+     * source directory using ZipArchive (PHP core, no shell-out) — same
+     * top-level-folder-per-plugin structure every existing bundled zip
+     * already uses. Writes to a temp file first and only renames over
+     * the real target on full success, so a failed write never leaves
+     * orphaned temp files or a corrupt bundle behind.
      */
     public static function regenerate_bundled_zip($key) {
         if (!class_exists('ZipArchive')) return new WP_Error('no_ziparchive', 'ZipArchive isn\'t available on this server.');
@@ -583,13 +527,9 @@ class OUS_Registry {
         foreach ($rows as $row) {
             if ($row['stale']) {
                 $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE</span>';
-                // One-click fix, right next to the finding — the whole
-                // point of adding this button was closing the gap
-                // between "detected" and "fixed" that left four zips
-                // stale through an entire real session (see this
-                // method's own docblock). Only rendered when the row
-                // actually matched a registry key with a real source
-                // directory to rebuild from.
+                // One-click fix, right next to the finding. Only rendered
+                // when the row actually matched a registry key with a
+                // real source directory to rebuild from.
                 if ($row['key']) {
                     ob_start();
                     OUS_Debug::button('bundled-zips', 'regenerate', 'Regenerate bundled zip', '<input type="hidden" name="bundle_key" value="' . esc_attr($row['key']) . '">', '', false);

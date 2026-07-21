@@ -5,10 +5,7 @@ if (!defined('ABSPATH')) exit;
  * OUS_Revisions — in-admin version history for admin-built content that
  * doesn't already get it for free from `wp_posts` (WordPress core's own
  * post-revisions feature already covers real posts/pages). Scoped in
- * ROADMAP-search-and-revisions.md Section 2, capturing AJ's own ask:
- * "add in-admin version control for pretty much everything eventually...
- * anything we can think of the users might build and want multiple
- * versions of as they are building them." In-wp-admin, NOT git-based,
+ * ROADMAP-search-and-revisions.md Section 2. In-wp-admin, NOT git-based,
  * NOT developer-facing — the same restore-a-prior-save UX WordPress
  * core already gives a post, generalized to objects that don't use
  * `wp_posts` (or use it inconsistently).
@@ -171,36 +168,22 @@ class OUS_Revisions {
      * restore()/applies the snapshot however its own save path works;
      * this fragment only renders the list.
      *
-     * Real bug, caught live: this originally rendered a real <form> per
-     * row. Every consumer renders this INSIDE a metabox — which is
-     * itself already inside wp-admin's single, page-wide `<form
-     * id="post">` for the whole edit screen — and a browser doesn't
-     * actually support nested <form> elements; it silently merges the
-     * inner form's fields into the outer one instead of keeping them
-     * separate. That meant the real post-save submission picked up this
-     * panel's `action=...` hidden field instead of (or alongside) the
-     * real `action=editpost` one, so clicking the page's own real
-     * "Update"/"Publish" button submitted the WRONG action and
-     * WordPress's post.php fell back to redirecting to the plain post
-     * list instead of actually saving. A plain GET link with a nonce —
-     * the exact same pattern this ecosystem's own "Move to Trash" link
-     * already uses everywhere — sidesteps the nested-form problem
-     * entirely, since it's not a form at all.
-     */
-    /**
-     * A real CSS masonry flow (native `columns`, no JS/library needed),
-     * not a fixed table — real bug, caught live at a ~1150px viewport:
-     * this fragment gets dropped into both wide "normal" metaboxes
-     * (BHM_Tiers) AND WordPress's narrow "side" column metaboxes
-     * (bh-contest's own Version History box, ~280px), and a fixed
-     * Version/When/By/Label/Restore table simply doesn't fit the narrow
-     * case — the Restore button was getting clipped off the right edge
-     * entirely. `columns` auto-collapses to a single column once the
-     * container is narrower than `column-width`, and lays out several
-     * side-by-side (each card only as tall as its own content, packing
-     * the next one into whichever column has room — the actual masonry
-     * behavior) once there's width to spare, with zero JS and zero
-     * fixed breakpoints to maintain for two different metabox contexts.
+     * Uses a plain GET link with a nonce, not a <form>: this fragment
+     * always renders inside a metabox, which is itself already inside
+     * wp-admin's page-wide `<form id="post">` — nested forms aren't
+     * supported by browsers, so a real <form> here would get its fields
+     * merged into the outer one and hijack the page's real "Update"/
+     * "Publish" submission. Same pattern as this ecosystem's "Move to
+     * Trash" link.
+     *
+     * Layout is a real CSS masonry flow (native `columns`, no JS): this
+     * fragment renders in both wide "normal" metaboxes (BHM_Tiers) and
+     * WordPress's narrow "side" column metaboxes (bh-contest's Version
+     * History box, ~280px), where a fixed Version/When/By/Label/Restore
+     * table doesn't fit the narrow case. `columns` auto-collapses to a
+     * single column below `column-width` and packs cards side-by-side
+     * when there's room, with no JS or fixed breakpoints needed for
+     * either metabox context.
      */
     public static function render_history_panel($object_type, $object_id, $restore_action, $nonce_action) {
         $rows = self::history($object_type, $object_id);

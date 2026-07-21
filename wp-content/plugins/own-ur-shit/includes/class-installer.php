@@ -44,17 +44,11 @@ class OUS_Installer {
     }
 
     /**
-     * The real, confirmed incident (2026-07-13) this guard exists for:
-     * four of this plugin's own bundled zips sat stale through an
-     * entire session's worth of real fixes, invisible until someone
-     * happened to check OUS_Registry::bundled_zip_report() — before
-     * this guard existed, hitting "Install"/"Reinstall" on any of them
-     * would have silently overwritten a session's worth of real work
-     * with a week-old copy, no error, no warning, just a confusing "I
-     * fixed this, why is it broken again" report days later. This is
-     * the "prevent," not just "detect," half of that fix — see
-     * OUS_Registry::regenerate_bundled_zip()'s own docblock for the
-     * other half (a one-click way to actually fix a stale bundle
+     * Guards against installing a stale bundled zip over a newer copy
+     * already on disk — without this, "Install"/"Reinstall" would
+     * silently overwrite real fixes with an outdated bundle, no error.
+     * This is the "prevent" half; OUS_Registry::regenerate_bundled_zip()
+     * is the "fix" half (a one-click way to refresh a stale bundle
      * in-admin, rather than needing shell access).
      *
      * Only refuses when there's something to actually compare — a

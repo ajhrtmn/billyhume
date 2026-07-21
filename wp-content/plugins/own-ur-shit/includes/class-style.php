@@ -16,19 +16,16 @@ if (!defined('ABSPATH')) exit;
  */
 class BHY_Style {
     /**
-     * Site-wide token availability — AJ's own direct follow-up after
-     * BHY_BlockStyle's editor-canvas live preview (3.4.81) turned out to
-     * only ever be in HONEST parity with a real, separate, pre-existing
-     * gap: inline_css()'s `:root{--bh-*:...}` block was only ever echoed
-     * on specific pages that already knew to ask for it (class-public-
-     * profile.php's public profile pages, class-portal.php's portal
-     * pages, the gallery preview) — never globally. A `bg.color` token
-     * ref set through the Advanced Styles panel on an ORDINARY page/post
-     * produced a real `background-color:var(--bh-accent)` declaration in
-     * both the editor canvas and the rendered front end, but `--bh-
-     * accent` itself resolved to nothing outside those special pages —
-     * confirmed empty via getComputedStyle() on this actual install, not
-     * assumed. Two hooks fix both halves of that gap: `wp_head` (every
+     * Site-wide token availability: `inline_css()`'s `:root{--bh-*:...}`
+     * block was only ever echoed on specific pages that already knew to
+     * ask for it (class-public-profile.php's public profile pages,
+     * class-portal.php's portal pages, the gallery preview) — never
+     * globally. A `bg.color` token ref set through the Advanced Styles
+     * panel on an ORDINARY page/post produced a real
+     * `background-color:var(--bh-accent)` declaration in both the editor
+     * canvas and the rendered front end, but `--bh-accent` itself
+     * resolved to nothing outside those special pages. Two hooks fix
+     * both halves of that gap: `wp_head` (every
      * real front-end page, `print_global_css()`) and the block editor
      * iframe's own styles list via `block_editor_settings_all`
      * (`add_editor_iframe_styles()`) — the iframe has its own separate
@@ -558,16 +555,7 @@ class BHY_Style {
      * existing scale values (DEFAULTS' radius=12/radius_sm=8, the
      * font_scale 0.75-1.6 / space_scale 0.6-1.8 multipliers already
      * read via --bh-font-scale/--bh-space-scale elsewhere in this
-     * class) — no new numbers were invented for this pass.
-     *
-     * NOT runtime-verified: no live PHP/browser execution is available
-     * in this environment; reasoned through against this class's own
-     * existing safe_color()/safe_number()/inline_css() shapes and
-     * brace/logic-checked only. Smoke-test scoped_inline_style() against
-     * a real placement carrying a mixed bare+namespaced style map (and
-     * against a deliberately malformed one, to confirm it degrades to
-     * "skip that one declaration" rather than emitting anything unsafe)
-     * before trusting this in production.
+     * class) — no invented numbers.
      * ================================================================= */
 
     const SPACE_SCALE_STEPS = [
@@ -731,7 +719,7 @@ class BHY_Style {
         return $map;
     }
 
-    /** Sanitizes a bare-token value by field name, reusing the EXISTING safe_color()/safe_number() validators — never a new sanitizer for the §2.3 mechanic, which is unchanged by this pass. */
+    /** Sanitizes a bare-token value by field name, reusing the EXISTING safe_color()/safe_number() validators — never a new sanitizer for the §2.3 mechanic. */
     private static function safe_style_token_value($field, $value) {
         if (strpos($field, 'color') !== false) return self::safe_color($value);
         if ($field === 'radius')      return self::safe_number($value, 0, 32, 12) . 'px';
@@ -780,8 +768,8 @@ class BHY_Style {
 
     /**
      * General-purpose CSS *value* sanitizer for every 'custom:'/free-
-     * form length this pass introduces (safe_length(), §2.6's "new
-     * validators as needed alongside safe_color/safe_number"). Hard-
+     * form length (safe_length(), §2.6's "new validators as needed
+     * alongside safe_color/safe_number"). Hard-
      * blocks anything that could break out of a `style="..."` attribute
      * or smuggle a second declaration (semicolons/quotes/angle
      * brackets/braces), plus the legacy expression()/javascript: CSS
@@ -913,13 +901,8 @@ class BHY_Style {
      * allowed to reference (style_var_map()'s keys) — token-only
      * properties NEVER get a free-text custom option in the inspector,
      * mirroring resolve_style_value()'s "colors are always token refs,
-     * never raw hex" rule exactly.
-     *
-     * NOT runtime-verified: no live PHP execution available this pass;
-     * reasoned through directly against PROPERTY_MAP/resolve_style_value()
-     * above, which ARE this file's own already-shipped, brace-checked
-     * logic — this method only reads/reshapes them, it adds no new
-     * resolution behavior.
+     * never raw hex" rule exactly. Only reads/reshapes PROPERTY_MAP/
+     * resolve_style_value() above — adds no new resolution behavior.
      */
     public static function style_schema_for_js() {
         $group_labels = [

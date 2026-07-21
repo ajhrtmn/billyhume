@@ -80,13 +80,13 @@ class BHY_Gallery {
         if (strpos($hook, 'bh-style') === false && strpos($hook, 'bh-design') === false) return;
         wp_enqueue_media();
 
-        // 3.4.49 follow-up — AJ's own ask: font <option>s should preview
-        // in their real typeface. BHY_UI::font_field()'s <option> tags
-        // carry an inline font-family per option (class-ui.php), but
-        // that's cosmetically useless without the actual webfont files
-        // loaded on THIS page — this stylesheet used to only ever be
-        // enqueued INSIDE the canvas preview docs (preview_doc() below),
-        // never on the real admin page the <select> itself lives on.
+        // Font <option>s should preview in their real typeface.
+        // BHY_UI::font_field()'s <option> tags carry an inline
+        // font-family per option (class-ui.php), but that's cosmetically
+        // useless without the actual webfont files loaded on THIS page —
+        // this stylesheet used to only ever be enqueued INSIDE the
+        // canvas preview docs (preview_doc() below), never on the real
+        // admin page the <select> itself lives on.
         $font_url = class_exists('BHY_Style') ? BHY_Style::preview_all_fonts_url() : '';
         if ($font_url) wp_enqueue_style('bhy-font-preview', $font_url, [], null);
     }
@@ -109,10 +109,9 @@ class BHY_Gallery {
     // renders).
     public static function add_menu() {
         $hook = add_submenu_page(null, 'Designer', 'Designer', 'bhcore_design_site', 'bh-style', [self::class, 'render']);
-        // Log-pollution fix, flagged by AJ directly — only the failure
-        // case is worth a log row; this used to fire an INFO row for
-        // every successful registration too, throttled only to once per
-        // 60 seconds, on every admin page load.
+        // Only the failure case is worth a log row — this used to fire
+        // an INFO row for every successful registration too, throttled
+        // only to once per 60 seconds, on every admin page load.
         if ($hook === false && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error',
                 'add_submenu_page() for Designer (bh-style, hidden/null parent) FAILED (returned false).',
@@ -313,20 +312,14 @@ class BHY_Gallery {
         wp_nonce_field('bhy_save_settings');
         echo '<input type="hidden" name="action" value="bhy_save_settings">';
 
-        // Real usability fix, AJ's own ask: this panel used to say
-        // "Live token preview" with zero connection to whichever
-        // surface is actually selected in the canvas — reading as if
-        // IT were the live view, when the real live view is the canvas
-        // itself, right there on screen. Renamed to be honest about
-        // what this specific widget is (a fixed reference strip for
-        // the shape/scale tokens — radius, bar height, font/space
-        // scale — that many individual surfaces never happen to
-        // exercise visibly, e.g. Player never shows --bh-radius
-        // without opening a modal) and added a real "Previewing: X"
-        // label that updates live from the canvas selection
-        // (render_script()'s surface-switch handler), so the
-        // connection between "what I'm looking at" and "what these
-        // controls affect" is stated outright instead of implied.
+        // This panel used to say "Live token preview" with zero
+        // connection to whichever surface is actually selected in the
+        // canvas, reading as if IT were the live view. Renamed to be
+        // honest about what this widget is (a fixed reference strip for
+        // shape/scale tokens that many surfaces never exercise visibly,
+        // e.g. Player never shows --bh-radius without opening a modal)
+        // and added a "Previewing: X" label that updates live from the
+        // canvas selection (render_script()'s surface-switch handler).
         echo '<p class="description" style="margin:0 0 4px;">Editing global styles — applies everywhere. Previewing: <strong id="bhy-current-surface-label">&hellip;</strong></p>';
         echo '<h3>Shape &amp; scale reference <span class="description" style="text-transform:none;font-weight:400;">(always the same, not tied to the surface above)</span></h3>';
         self::render_token_preview($s);
@@ -335,17 +328,14 @@ class BHY_Gallery {
         echo '<h3>Brand</h3>';
         echo '<div class="bhel-field-row"><label>Wordmark</label><p style="display:flex;gap:8px;margin:6px 0 0;"><input type="text" id="brand_part1" name="brand_part1" class="bhy-brand-input" value="' . esc_attr($s['brand_part1']) . '" placeholder="First part" style="flex:1;"> <input type="text" id="brand_part2" name="brand_part2" class="bhy-brand-input" value="' . esc_attr($s['brand_part2']) . '" placeholder="Accent part" style="flex:1;"></p></div>';
 
-        // Real gap, caught live: BHY_Style::logo_url()/'brand_logo_id'
-        // have been part of the data model and the real save() handler
-        // (above in this file) since before this pass — brand.js/the
-        // player's own header already render a logo when one is set
-        // (BHY_Style::get_brand_payload(), 'logoUrl') — but the
-        // inspector never actually had an upload control for it, so
-        // there was no way to ever set brand_logo_id from this screen
-        // at all. wp.media() is already enqueued on this exact page
-        // (enqueue_media(), above in this class) so this needed no new
-        // asset, just the missing control — same upload-button/preview
-        // shape bh-streaming's own artwork picker uses
+        // BHY_Style::logo_url()/'brand_logo_id' are part of the data
+        // model and save() handler, and the player's own header already
+        // renders a logo when one is set (BHY_Style::get_brand_payload(),
+        // 'logoUrl') — but the inspector had no upload control for it,
+        // so brand_logo_id could never actually be set from this screen.
+        // wp.media() is already enqueued on this page (enqueue_media()),
+        // so this needed no new asset, just the missing control — same
+        // upload-button/preview shape bh-streaming's artwork picker uses
         // (class-admin.php's pick() helper).
         $logo_id = (int) ($s['brand_logo_id'] ?? 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
@@ -479,8 +469,8 @@ class BHY_Gallery {
             var buttons = document.querySelectorAll('.bhy-story-btn');
             var currentLabel = document.getElementById('bhy-current-surface-label');
 
-            // Real usability fix, AJ's own ask: the inspector's controls
-            // are genuine GLOBAL tokens (one theme, applied everywhere —
+            // Real usability fix: the inspector's controls are genuine
+            // GLOBAL tokens (one theme, applied everywhere —
             // this was never per-surface theming, see this file's own
             // top docblock), so there's nothing surface-specific for
             // them to show when you switch surfaces. What WAS missing
@@ -513,8 +503,8 @@ class BHY_Gallery {
                 var hidden = document.getElementById('brand_logo_id');
                 var preview = document.getElementById('bhy-logo-preview');
                 if (!uploadBtn) return;
-                // Real bug, caught live: this script prints inline as part
-                // of the page's own content, before wp_footer runs — and
+                // Real bug: this script prints inline as part of the
+                // page's own content, before wp_footer runs — and
                 // wp.media()'s own scripts (enqueued via wp_enqueue_media())
                 // load in the footer, so `window.wp.media` doesn't exist
                 // yet at THIS script's execution time even though it's
@@ -562,8 +552,8 @@ class BHY_Gallery {
                 var raw = frame.dataset.doc;
                 if (!raw) return;
                 var html;
-                // Real "wonky character" bug, caught live: atob() decodes
-                // base64 into a binary string where every JS character is
+                // Real "wonky character" bug: atob() decodes base64 into
+                // a binary string where every JS character is
                 // ONE BYTE, not a proper UTF-8-decoded string. Any
                 // multi-byte character in a surface's preview text (an
                 // em-dash, a curly quote) came through as 2-3 separate
@@ -599,9 +589,8 @@ class BHY_Gallery {
                 var css = buildCssText();
                 var brand1 = document.getElementById('brand_part1');
                 var brand2 = document.getElementById('brand_part2');
-                // Real gap, AJ's own report ("logo doesn't appear to update
-                // in the style viewer"): this only ever wrote the wordmark
-                // TEXT into #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
+                // Real gap: this only ever wrote the wordmark TEXT into
+                // #bh-brand-1/#bh-brand-2 — a logo, once uploaded,
                 // never appeared here at all, even though the real front-end
                 // (bh-contest/assets/js/player.js's own brand.logoUrl check)
                 // correctly swaps to an <img> when one's set. Mirrors that
@@ -768,9 +757,8 @@ class BHY_Gallery {
                 });
             });
 
-            // Real gap, AJ's own report ("logo doesn't appear to update in
-            // the style viewer"): refreshAllFrames() was only ever called
-            // in response to an edit — ANY logo already saved from a
+            // Real gap: refreshAllFrames() was only ever called in
+            // response to an edit — ANY logo already saved from a
             // previous visit never got drawn into a freshly loaded page's
             // frames at all, since nothing had "changed" yet to trigger it.
             refreshAllFrames();

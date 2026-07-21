@@ -2,71 +2,23 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * 3.4.31 UPDATE — the one remaining accidental duplication the QA
- * walkthrough flagged: BHY_Gallery's own add_menu() (class-style-
- * gallery.php) was ALSO registering 'bh-style' as its own second,
- * independently-visible submenu under this class's 'bh-design' parent —
- * so "Design Suite" (this class's top-level entry) and "Designer" (that
- * second entry) were two separate sidebar rows both landing on
- * BHY_Gallery::render()'s identical output. class-style-gallery.php's
- * add_menu() now registers 'bh-style' with a null/hidden parent instead
- * (same pattern class-studio.php already uses for 'bh-studio') — the
- * slug still resolves for existing deep links/redirects, it's just no
- * longer a second visible menu row. This class (BH_Design_Suite) needed
- * NO code change for that fix, same as the 3.4.30 pass below — the fix
- * lived entirely in the other registration.
+ * Registers the top-level "Design Suite" admin menu (slug bh-design).
+ * Its own callback deliberately reuses BHY_Gallery::render() rather than
+ * a placeholder — that render() method is the real unified shell: a
+ * "Site Styles" tab and a "Widgets & Elements" tab
+ * (BH_Element_Builder::render_shell(), inlined) in the SAME page,
+ * switched with plain JS, never a navigation. class-style-gallery.php's
+ * and class-studio.php's own add_menu() methods register their slugs
+ * ('bh-style', 'bh-studio') with a null/hidden parent instead of a
+ * second visible menu row — deep links to those slugs still resolve,
+ * they just don't appear in the sidebar. BH_Studio's Content Studio has
+ * no menu entry at all; its canvas opens as a modal iframe from inside
+ * this unified shell instead. BHY_Gallery::enqueue_media() also
+ * enqueues the media picker on this 'bh-design' hook suffix, not just
+ * 'bh-style'.
  *
- * 3.4.30 UPDATE — DESIGN-SUITE-UNIFICATION-PLAN.md's real, final
- * structural fix. The Phase 1 note below ("menu relocation ONLY... no
- * unified shell exists yet") is now OUT OF DATE and was itself a
- * misread of what was actually asked for: even after the later
- * "Phase 3" three-pane build shipped (BH_Element_Builder), it landed as
- * a SEPARATE 'bh-element-builder' submenu next to 'bh-style' — three
- * adjacent pages under one parent menu, not one interface. Per the
- * user's explicit, repeated correction ("there is no difference between
- * the two" / "the designer is the builder"), that was wrong. As of
- * 3.4.30, add_menu() below still does exactly what it already did —
- * registers ONE top-level 'bh-design' menu whose own callback IS
- * BHY_Gallery::render() — but that render() method itself is now the
- * real unified shell: a "Site Styles" tab and a "Widgets & Elements"
- * tab (BH_Element_Builder::render_shell(), inlined) in the SAME page,
- * switched with plain JS, never a navigation. BH_Studio's Content
- * Studio no longer has ANY menu entry at all (class-studio.php's
- * add_menu() now registers with a null/hidden parent) — its canvas
- * opens as a modal iframe from inside the unified shell instead. This
- * class (BH_Design_Suite) itself needed NO code change for this pass —
- * it was already pointed at the one real page; the fix lived entirely
- * in what that page renders and in retiring the OTHER two pages'
- * add_menu() hookups (class-element-builder.php, class-studio.php,
- * own-ur-shit.php).
- *
- * Original Phase 1 note, kept for history:
- * DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§4 item 1, §1.1/§1.4) — the
- * new top-level "Design Suite" admin menu (slug bh-design). This phase
- * is menu relocation ONLY: no unified Style+Element inspector shell
- * exists yet (that's Phase 3, §2.1 — the real BH_Design_Suite::render()
- * three-pane screen this class name is reserved for). Existing pages
- * (BHY_Gallery's Style page, BH_Studio's Content Studio) just move under
- * this new parent — see class-style-gallery.php's and class-studio.php's
- * own add_menu() methods, which now pass 'bh-design' as their parent
- * slug instead of 'own-ur-shit' (their own page slugs — bh-style,
- * bh-studio — and every existing admin.php?page=... deep link to them
- * are unchanged).
- *
- * This top-level menu's OWN callback (both the add_menu_page() entry and
- * the relabeled first submenu, mirroring OUS_Dashboard::add_menu()'s own
- * "top-level + same-slug submenu relabel" trick in class-dashboard.php)
- * deliberately REUSES BHY_Gallery::render() — the real, already-working
- * Style page — rather than a placeholder/stub. Per §1.4 rule 3 ("real
- * callback, not stub"), and since there is genuinely nothing else real
- * to land on yet at 'bh-design' itself until Phase 3 builds the actual
- * unified shell, pointing the landing page at the one real screen this
- * menu already contains is the honest choice, not an empty holding page.
- * BHY_Gallery::enqueue_media() was widened (one-line change) to also
- * enqueue the media picker on this 'bh-design' hook, since it previously
- * only matched the 'bh-style' hook suffix.
- *
- * Follows every one of §1.4's six standalone-page mitigation rules:
+ * Follows DESIGN-SUITE-UNIFICATION-PLAN.md §1.4's six standalone-page
+ * mitigation rules:
  *   1. Unconditional registration — no is_locked()/environment
  *      conditional wraps this add_menu_page() call.
  *   2. Default admin_menu priority (10) — registered directly at file
@@ -106,10 +58,8 @@ class BH_Design_Suite {
         self::log_result('bh-design (relabeled first submenu)', $hook2);
     }
 
-    // Log-pollution fix, flagged by AJ directly — only the failure case
-    // is worth a log row; this used to fire an INFO row for every
-    // successful registration too, throttled only to once per 60
-    // seconds, on every admin page load.
+    // Only the failure case is worth a log row — avoids an INFO row on
+    // every successful registration, every admin page load.
     private static function log_result($what, $hook) {
         if ($hook !== false || !class_exists('OUS_DebugLog')) return;
         OUS_DebugLog::log('error',

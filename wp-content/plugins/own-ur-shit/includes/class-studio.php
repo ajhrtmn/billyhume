@@ -16,19 +16,18 @@ if (!defined('ABSPATH')) exit;
 /**
  * BH_Studio — the visual authoring canvas ROADMAP-platform-evolution.md
  * Section 3 called the single highest-leverage foundational piece still
- * missing, and the thing AJ asked for directly: iWeb-style direct
- * manipulation, a GrapesJS/Storybook-style layer tree + inspector, but
- * NONE of iWeb's actual output model (absolute-positioned div soup) —
- * real semantic HTML, and one content model shared with everything else
- * (`BH_Content`) rather than a second, incompatible one.
+ * missing: iWeb-style direct manipulation, a GrapesJS/Storybook-style
+ * layer tree + inspector, but NONE of iWeb's actual output model
+ * (absolute-positioned div soup) — real semantic HTML, and one content
+ * model shared with everything else (`BH_Content`) rather than a
+ * second, incompatible one.
  *
  * DELIBERATELY NOT built on a vendored third-party canvas library
- * (GrapesJS was evaluated and dropped — AJ's own prior experience
- * customizing it was "funky," and this ecosystem's own no-external-
- * runtime-dependency convention plus a real environment constraint this
- * session hit firsthand — no network access to vendor a large binary
- * asset — both point the same direction). Instead this is built
- * entirely on `@wordpress/block-editor` and its sibling packages
+ * (GrapesJS was evaluated and dropped — customizing it proved unwieldy,
+ * and this ecosystem's own no-external-runtime-dependency convention
+ * plus no network access to vendor a large binary asset both point the
+ * same direction). Instead this is built entirely on
+ * `@wordpress/block-editor` and its sibling packages
  * (`@wordpress/blocks`, `@wordpress/element`, `@wordpress/components`,
  * `@wordpress/data`) — the SAME toolkit WordPress's own Site Editor and
  * the post editor are built from. Three real advantages this buys over
@@ -58,9 +57,8 @@ if (!defined('ABSPATH')) exit;
  * are a natural next registrant via the exact same
  * register_block_type()/JS registerBlockType() pair, from bh-courses'
  * own bootstrap, once its lesson-step editor is ready to swap onto this
- * canvas — not done in this pass, deliberately, matching this
- * ecosystem's "one real working example, not every consumer at once"
- * convention.
+ * canvas — not done here, deliberately, matching this ecosystem's "one
+ * real working example, not every consumer at once" convention.
  */
 class BH_Studio {
     // Every block type this canvas ships with by default — each one
@@ -89,8 +87,7 @@ class BH_Studio {
     }
 
     /**
-     * Same instinct as the API Docs 404 fix this pass started with — a
-     * registration/gating problem should be VISIBLE from Debug Tools,
+     * A registration/gating problem should be visible from Debug Tools,
      * not something that requires re-reading source to diagnose. Lists
      * every block type BH_Studio actually has registered with
      * BH_Content right now (both this file's own defaults and anything
@@ -232,13 +229,10 @@ class BH_Studio {
     // unregistered outright, because the modal iframe still needs a real,
     // capability-checked admin.php?page=bh-studio target to load — fully
     // unhooking add_menu() would 403 the iframe along with the menu item.
-    // Slug/callback/capability are otherwise unchanged from before this pass.
     public static function add_menu() {
         $hook = add_submenu_page(null, 'Content Studio', 'Content Studio', 'bhcore_design_site', 'bh-studio', [self::class, 'render']);
-        // Log-pollution fix, flagged by AJ directly — only the failure
-        // case is worth a log row; this used to fire an INFO row for
-        // every successful registration too, throttled only to once per
-        // 60 seconds, on every admin page load.
+        // Only the failure case is worth a log row — previously this
+        // fired an INFO row for every successful registration too.
         if ($hook === false && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error',
                 'add_submenu_page() for Content Studio (bh-studio, hidden/null parent) FAILED (returned false).',

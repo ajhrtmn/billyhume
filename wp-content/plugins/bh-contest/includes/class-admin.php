@@ -20,8 +20,8 @@ if (!defined('ABSPATH')) exit;
  * init() just wires each new class's own init().
  */
 class BH_Admin {
-    // Prefab rejection reasons, AJ's own ask: "some real reasoning
-    // behind it" rather than a bare freeform box. 'other' always keeps
+    // Prefab rejection reasons — real reasoning behind a rejection
+    // rather than a bare freeform box. 'other' always keeps
     // the freeform note meaningful even when nothing here fits.
     const REJECTION_REASONS = [
         'wrong_file'   => 'Wrong file attached (not the intended track)',

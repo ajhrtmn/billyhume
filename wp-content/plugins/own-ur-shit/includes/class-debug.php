@@ -436,8 +436,8 @@ class OUS_Debug {
         // (all current-generation ones).
         // Grouped by the optional 'group' key (see GROUP_ORDER / group_tools()
         // above) — sections that never set 'group' land in GROUP_DEFAULT
-        // automatically, so this grouping works immediately even for a
-        // section registered before this pass existed and never updated.
+        // automatically, so this grouping works for any section
+        // regardless of whether it ever set 'group' explicitly.
         $grouped = self::group_tools($tools);
         // The actual gate: everything except Monitoring & Health is
         // simply not in $grouped at all when dev mode is off, so the

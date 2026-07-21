@@ -133,7 +133,7 @@ class BHCRM_People {
         $card_id = isset($_GET['card_id']) ? (int) $_GET['card_id'] : 0;
         if ($project_id && $card_id && class_exists('BHCRM_Subtasks')) {
             // A sticky card's own nested sub-task tracker — replaces
-            // Content Studio for this purpose entirely (AJ's own call).
+            // Content Studio for this purpose entirely.
             $path = isset($_GET['subtask_path']) ? array_values(array_filter(array_map('sanitize_text_field', explode(',', (string) $_GET['subtask_path'])))) : [];
             BHCRM_Subtasks::render($project_id, $uid, $card_id, $path);
         } elseif ($project_id && class_exists('BHCRM_Projects')) {
