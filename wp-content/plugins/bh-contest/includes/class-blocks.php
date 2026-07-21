@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) exit;
  * none of. Fixed alongside these three blocks (see bh-contest.php's own
  * comment on that gate) — without it, a block-authored page would
  * render an inert, permanently-loading container with none of its JS
- * ever enqueued, a real regression this pass closes rather than ships.
+ * ever enqueued.
  */
 class BH_Blocks {
     public static function init() {

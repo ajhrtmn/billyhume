@@ -70,7 +70,7 @@ class BH_AdminModeration {
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
-        // QA fix, caught live: this fired the Discord "entry file
+        // QA fix: this fired the Discord "entry file
         // updated" announcement unconditionally, even for a submission
         // that was never actually approved (still 'pending') —
         // "Approve replacement" and the real first-time Publish
@@ -116,8 +116,8 @@ class BH_AdminModeration {
     }
 
     /**
-     * Real reject path — AJ's own ask: "some real reasoning behind
-     * it." Sets the 'rejected' post_status (registered in
+     * Real reject path — real reasoning behind a rejection. Sets the
+     * 'rejected' post_status (registered in
      * class-post-types.php), stores the prefab reason + freeform note,
      * and emails the contestant with both — closing the gap where a
      * rejected submission previously just sat at 'pending' forever
@@ -181,7 +181,7 @@ class BH_AdminModeration {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_rejected', ['user_id' => (int) $post->post_author, 'subject_type' => 'bh_submission', 'subject_id' => $pid, 'payload' => ['contest_id' => $cid, 'reason_code' => $reason_code]]);
         }
-        // Accountability log, AJ's own ask — a real moderation action (BH_Event above is the contestant's own activity feed, this is the admin-accountability side of the same action).
+        // Accountability log — a real moderation action (BH_Event above is the contestant's own activity feed, this is the admin-accountability side of the same action).
         if (class_exists('OUS_Audit')) {
             OUS_Audit::log('submission_rejected', 'bh_submission', $pid, ['reason_code' => $reason_code, 'contest_id' => $cid]);
         }

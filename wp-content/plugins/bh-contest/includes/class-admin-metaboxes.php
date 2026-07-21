@@ -31,8 +31,8 @@ class BH_AdminMetaboxes {
     }
 
     /**
-     * Submission review box — covers the file-replace workflow (AJ's own
-     * "wrong file uploaded" ask) and a real reject path. Three states
+     * Submission review box — covers the file-replace workflow ("wrong
+     * file uploaded") and a real reject path. Three states
      * this renders:
      *  1. No pending swap, not rejected: original behavior — live
      *     audio player + the existing "set Status to Published"
@@ -97,14 +97,14 @@ class BH_AdminMetaboxes {
         } else {
             echo '<hr><p><strong>To Approve:</strong> set Status to <em>Published</em> and click Update.</p>';
 
-            // QA fix, caught live: a metabox renders INSIDE WordPress's
-            // own outer post-edit <form id="post">, so a second, nested
-            // <form> here is invalid HTML — the browser silently
-            // resolves a submit click to the OUTER form (a normal post
-            // Update), never actually hitting admin-post.php at all.
-            // Confirmed live: the reject button appeared to work but
-            // the submission's status/meta never actually changed.
-            // Fixed by dropping the nested <form> entirely — these are
+            // QA fix: a metabox renders INSIDE WordPress's own outer
+            // post-edit <form id="post">, so a second, nested <form>
+            // here is invalid HTML — the browser silently resolves a
+            // submit click to the OUTER form (a normal post Update),
+            // never actually hitting admin-post.php at all (the reject
+            // button appeared to work but the submission's status/meta
+            // never actually changed). Fixed by dropping the nested
+            // <form> entirely — these are
             // plain fields plus a button with no form ancestor, and a
             // small inline script does a fetch() POST to admin-post.php
             // directly instead of relying on native form submission.
@@ -779,9 +779,9 @@ class BH_AdminMetaboxes {
         }
         update_post_meta($post_id, '_bhy_style_json', $style ? wp_json_encode($style) : '');
 
-        // Real OUS_Revisions consumer, AJ's own framing: "versioning is
-        // most important for anything that is a post, like contests and
-        // lessons." Lessons get WordPress core's own NATIVE post-
+        // Real OUS_Revisions consumer — versioning matters most for
+        // anything that's a post, like contests and lessons. Lessons
+        // get WordPress core's own NATIVE post-
         // revisions for free (bh_lesson's real post_content, just
         // needed 'revisions' support added — see class-post-types.php).
         // A contest is different: its real configuration (dates, rounds,

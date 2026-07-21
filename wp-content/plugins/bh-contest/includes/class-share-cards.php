@@ -2,8 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "Anything fun for social sharing?" — AJ's own ask, this session. Two
- * card types, both generated on demand via the shared BH_ShareCard
+ * Social sharing cards. Two card types, both generated on demand via the shared BH_ShareCard
  * engine (own-ur-shit/includes/class-share-card.php): "entered" (a
  * submitter shares straight after entering) and "vote" (a submitter
  * shares while voting is still open, to drum up votes). Same on-demand
