@@ -59,10 +59,10 @@ class BHM_Admin {
 
     public static function render() {
         // Routed through BH_Commerce (this ecosystem's abstraction seam
-        // over WooCommerce, per AJ's own standing "nothing hard-wired to
-        // an external, unmockable dependency" rule) rather than a bare
-        // class_exists() — an audit found this file had been missed in
-        // the pass that fixed the rest of this plugin's own call sites.
+        // over WooCommerce — nothing should be hard-wired to an
+        // external, unmockable dependency) rather than a bare
+        // class_exists() — an audit found this file had been missed
+        // when the rest of this plugin's own call sites were fixed.
         $has_wc = class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce');
         $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
         echo '<div class="wrap"><h1>Monetization Settings</h1>';

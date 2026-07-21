@@ -58,12 +58,11 @@ class BHM_Entitlements {
         // BH_Commerce::get_order() normalizes the order into a plain
         // array (id/status/customer_id/total_cents/items[{product_id,quantity}])
         // — this file no longer touches a WC_Order object directly, same
-        // treatment BHM_ProductSync::sync_tier_wc_product() already got
-        // in the tier-depth pass. class_exists('BH_Commerce') isn't
-        // checked here because this whole class already requires the
-        // core (BHCORE_LOADED gate in bh-monetization-woo.php); an old
-        // core without BH_Commerce would need its own fallback, out of
-        // scope for this pass same as the rest of this migration.
+        // treatment BHM_ProductSync::sync_tier_wc_product() already got.
+        // class_exists('BH_Commerce') isn't checked here because this
+        // whole class already requires the core (BHCORE_LOADED gate in
+        // bh-monetization-woo.php); an old core without BH_Commerce
+        // would need its own fallback, out of scope for this migration.
         $order = class_exists('BH_Commerce') ? BH_Commerce::get_order($order_id) : self::legacy_get_order_array($order_id);
         if (!$order) {
             // A completed-order hook firing for an order ID that can't

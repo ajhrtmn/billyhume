@@ -284,8 +284,8 @@ class BHM_Frontend {
     // has nothing to pause; there's no recurring billing to interrupt,
     // just an expiry date already running.
     private static function render_subscription_controls($user_id, $tier_id) {
-        // Routed through BH_Commerce (AJ's own standing architecture
-        // rule: nothing outside the core should be hard-wired to an
+        // Routed through BH_Commerce (standing architecture rule:
+        // nothing outside the core should be hard-wired to an
         // external dependency in a way that can't be mocked/replaced) —
         // was a bare class_exists('WC_Subscriptions') + wcs_get_subscription()
         // pair, meaning this whole feature was completely untestable

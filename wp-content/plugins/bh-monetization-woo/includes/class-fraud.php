@@ -106,9 +106,8 @@ class BHM_Fraud {
     }
 
     /**
-     * Wallet top-up velocity cap — AJ's own ask, added alongside the
-     * self-service top-up review ("perhaps a fraud/abuse cap per time
-     * period would be ideal"). Same posture as refund-pattern
+     * Wallet top-up velocity cap — added alongside the self-service
+     * top-up review. Same posture as refund-pattern
      * detection above: flags for a human to look at, never silently
      * blocks the top-up itself — the money has already been captured
      * by WooCommerce by the time BHM_Wallet::credit() runs, so refusing
