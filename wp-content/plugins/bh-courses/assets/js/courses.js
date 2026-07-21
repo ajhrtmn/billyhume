@@ -460,7 +460,30 @@
                     var correctCount = (result.correct === null || result.correct === undefined)
                         ? Math.round((result.score / 100) * result.total)
                         : result.correct;
-                    resultBox.textContent = 'Score: ' + result.score + '% (' + correctCount + '/' + result.total + ' correct) — ' + (result.passed ? 'Passed!' : 'Not quite.' + attemptsNote);
+
+                    // Checkpoint framing, not a form-validation message —
+                    // depth-of-magic pass: quizzes should read as a real
+                    // moment in the course's own story, not a bare score
+                    // line. When retries are genuinely exhausted, name
+                    // the SPECIFIC missed questions (real data already
+                    // in result.questions — chosen_index vs. correct_index)
+                    // instead of a flat "no attempts remaining" dead end,
+                    // so a student out of retries at least knows exactly
+                    // what to go back and re-read.
+                    var attemptsExhausted = !result.passed && result.max_attempts && result.attempts_remaining === 0;
+                    if (result.passed) {
+                        resultBox.textContent = 'You\'ve got this — ' + correctCount + '/' + result.total + ' correct. Nice work.';
+                    } else if (attemptsExhausted) {
+                        var missedTopics = (result.questions || [])
+                            .filter(function (q) { return q.chosen_index !== q.correct_index; })
+                            .map(function (q) { return q.q; })
+                            .filter(Boolean);
+                        resultBox.textContent = missedTopics.length
+                            ? 'Not this time — ' + correctCount + '/' + result.total + ' correct, and out of attempts. Before moving on, go back and review: ' + missedTopics.join('; ') + '.'
+                            : 'Not this time — ' + correctCount + '/' + result.total + ' correct, and out of attempts. Review the lesson before moving on.';
+                    } else {
+                        resultBox.textContent = correctCount + '/' + result.total + ' correct — not quite there yet.' + attemptsNote + ' Take another look and give it another shot.';
+                    }
 
                     // The real per-question breakdown, once — every choice
                     // marked correct/incorrect. Lock the inputs so the

@@ -569,8 +569,28 @@ class BHC_Progress {
         $attempts_so_far = $existing ? (int) $existing['attempts'] : 0;
 
         if (!$already_passed && $max_attempts > 0 && $attempts_so_far >= $max_attempts) {
+            // Depth-of-magic reframing, same intent as the fresh-submission
+            // exhausted-attempts copy in courses.js: name the specific
+            // missed questions from the LAST stored attempt (already
+            // persisted, no rescoring needed) rather than a flat dead-end
+            // message, for the case where a student reloads/re-attempts
+            // an already-exhausted quiz in a NEW request (the JS-side
+            // reframing only covers the request that just used the final
+            // attempt, not a later resubmit hitting this earlier guard).
+            $snapshot = self::stored_answers($user_id, $lesson_id, $step_index);
+            $missed = [];
+            if (is_array($snapshot['questions'] ?? null)) {
+                foreach ($snapshot['questions'] as $q) {
+                    if (($q['chosen_index'] ?? null) !== ($q['correct_index'] ?? null) && !empty($q['q'])) {
+                        $missed[] = $q['q'];
+                    }
+                }
+            }
+            $message = $missed
+                ? "Out of attempts ($max_attempts allowed). Before moving on, review: " . implode('; ', $missed) . '.'
+                : "No attempts remaining ($max_attempts allowed).";
             wp_send_json_error([
-                'message' => "No attempts remaining ($max_attempts allowed).",
+                'message' => $message,
                 'attempts_used' => $attempts_so_far, 'max_attempts' => $max_attempts,
             ], 403);
         }
