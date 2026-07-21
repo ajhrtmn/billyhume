@@ -261,6 +261,8 @@
 .bhc-stepper-image::before { content: 'I'; }
 .bhc-stepper-video::before { content: 'V'; }
 .bhc-stepper-quiz::before { content: 'Q'; }
+.bhc-stepper-resource::before { content: 'R'; }
+.bhc-stepper-callout::before { content: '!'; }
 .bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
 .bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
@@ -289,6 +291,8 @@
 .bhc-step.bhc-step-image { border-left-color: var(--bh-accent); }
 .bhc-step.bhc-step-video { border-left-color: var(--bh-accent); }
 .bhc-step.bhc-step-quiz { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-resource { border-left-color: var(--bh-accent); }
+.bhc-step.bhc-step-callout { border-left-color: var(--bh-accent); }
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
 .bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
@@ -329,6 +333,21 @@ video.bhc-step-video {
 }
 .bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
 .bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
+
+/* Depth-of-magic pass: a callout's three variants are each ONE base
+   color at a fixed tint (background) plus that same color at full
+   strength (left border/icon) — 'tip' derives from --bh-accent (this
+   ecosystem's own single-accent convention), 'note' is a deliberately
+   neutral/de-emphasized treatment (no accent color at all — a plain
+   aside, not a highlight), and 'warning' is the one real semantic
+   exception: the same red (#b32d2e) this plugin's own rejected-review
+   state already uses, since a safety-relevant warning genuinely needs
+   to read as visually distinct from a friendly tip, not share its hue. */
+.bhc-step-callout { border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; border-left: 3px solid; }
+.bhc-step-callout p:last-child { margin-bottom: 0; }
+.bhc-callout-tip { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left-color: var(--bh-accent); }
+.bhc-callout-note { background: var(--bh-surface-2); border-left-color: var(--bh-text-dim); color: var(--bh-text-dim); }
+.bhc-callout-warning { background: rgba(179, 45, 46, 0.1); border-left-color: #b32d2e; }
 
 .bhc-btn {
     background: var(--bh-accent); color: var(--bh-accent-contrast, #fff); border: none;

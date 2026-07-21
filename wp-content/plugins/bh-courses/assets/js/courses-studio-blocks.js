@@ -119,6 +119,49 @@
         save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/image callback
     });
 
+    wp.blocks.registerBlockType('bhc/callout', {
+        apiVersion: 3,
+        title: __('Lesson: Callout'),
+        icon: 'megaphone',
+        category: 'lms',
+        attributes: {
+            content: { type: 'string', default: '' },
+            variant: { type: 'string', default: 'tip' },
+        },
+        supports: Object.assign({}, SUPPORTS),
+        edit: function (props) {
+            var attrs = props.attributes, setAttrs = props.setAttributes;
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-callout bhc-callout-' + attrs.variant });
+            var variantPicker = el(wp.blockEditor.InspectorControls, {},
+                el(wp.components.PanelBody, { title: __('Callout settings') },
+                    el(wp.components.SelectControl, {
+                        label: __('Variant'),
+                        value: attrs.variant,
+                        options: [
+                            { label: __('Tip'), value: 'tip' },
+                            { label: __('Note'), value: 'note' },
+                            { label: __('Warning'), value: 'warning' },
+                        ],
+                        onChange: function (v) { setAttrs({ variant: v }); },
+                    })
+                )
+            );
+            return el(wp.element.Fragment, {},
+                variantPicker,
+                el(wp.blockEditor.RichText, Object.assign({}, blockProps, {
+                    tagName: 'div',
+                    value: attrs.content,
+                    onChange: function (v) { setAttrs({ content: v }); },
+                    placeholder: __('Key idea, tip, or warning…'),
+                }))
+            );
+        },
+        save: function (props) {
+            var blockProps = wp.blockEditor.useBlockProps.save();
+            return el(wp.blockEditor.RichText.Content, Object.assign({}, blockProps, { tagName: 'div', value: props.attributes.content }));
+        },
+    });
+
     wp.blocks.registerBlockType('bhc/video', {
         apiVersion: 3,
         title: __('Lesson: Video'),

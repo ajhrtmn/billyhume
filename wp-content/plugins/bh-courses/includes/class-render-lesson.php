@@ -375,6 +375,10 @@ class BHC_Render_Lesson {
             }
             if (!empty($step['description'])) echo '<p class="bhc-step-caption">' . esc_html($step['description']) . '</p>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
+        } elseif ($step['type'] === 'callout') {
+            $variant = in_array($step['variant'] ?? '', BHC_Steps::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
+            echo '<div class="bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . wp_kses_post($step['content']) . '</div>';
+            echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         }
         return ob_get_clean();
     }

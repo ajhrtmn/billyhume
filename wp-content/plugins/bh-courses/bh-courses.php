@@ -2,11 +2,17 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.32
+ * Version:     0.4.33
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.33 — LMS depth-of-magic Phase 2a: a new `bhc/callout` step type for
+// visual density within a lesson (a "here's the key idea" / "watch out for
+// this" moment), three fixed variants (tip/note/warning) rather than a
+// free-text style field, same non-blocking Mark-complete-and-continue
+// pattern as every other non-quiz step.
 
 // 0.4.14 — ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: real video
 // progress tracking. A course creator can now set a per-video-step "require N%

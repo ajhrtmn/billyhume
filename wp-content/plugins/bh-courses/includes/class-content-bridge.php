@@ -209,6 +209,20 @@ class BHC_ContentBridge {
         // 'resource' to BHC_Steps::VALID_TYPES — both already handle
         // any bhc/* block generically except bhc/quiz's child-block
         // promotion above.
+        // Depth-of-magic pass: real visual density inside a lesson — a
+        // highlighted "key idea" / "watch out for this" moment, instead
+        // of every step reading as an undifferentiated text block. Same
+        // three fixed variants as BHC_Steps::CALLOUT_VARIANTS (tip/note/
+        // warning) — each rendered as a shade/tint of ONE base color
+        // per variant (courses.css), not three unrelated named colors.
+        BH_Content::register_block_type('bhc/callout', [
+            'content' => ['type' => 'html', 'default' => ''],
+            'variant' => ['type' => 'string', 'default' => 'tip'],
+        ], function ($attrs) {
+            $variant = in_array($attrs['variant'], BHC_Steps::CALLOUT_VARIANTS, true) ? $attrs['variant'] : 'tip';
+            return '<div class="bhc-step bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . $attrs['content'] . '</div>';
+        });
+
         BH_Content::register_block_type('bhc/resource', [
             'attachment_id' => ['type' => 'int', 'default' => 0],
             'label' => ['type' => 'string', 'default' => ''],
