@@ -36,6 +36,25 @@ class BHC_Render {
         add_filter('template_include', [self::class, 'maybe_use_archive_template']);
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
+        add_filter('render_block', [self::class, 'suppress_duplicate_course_title'], 10, 2);
+    }
+
+    /**
+     * Real bug, exposed once a bh_course singular page actually renders
+     * BHC_Render_Course::render_course() via the_content (see
+     * bh-courses.php's own the_content filter) — that output already
+     * prints its own '<h1 class="bhc-course-title">' (needed for the
+     * [bh_course] shortcode/block's standalone usage on an arbitrary
+     * page, which has no theme-supplied title to fall back on), so the
+     * theme's own generic core/post-title block in single.html duplicates
+     * it, showing the course name twice. Only bh_course is affected —
+     * bh_lesson's render_lesson_steps() never prints its own title, so
+     * the theme's title block there is the only one and stays untouched.
+     */
+    public static function suppress_duplicate_course_title($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'core/post-title') return $block_content;
+        if (!is_singular('bh_course')) return $block_content;
+        return '';
     }
 
     /**
@@ -122,7 +141,15 @@ class BHC_Render {
         // bracket text in post_content. Same class of regression already
         // caught and fixed in bh-contest 3.5.0 and bh-streaming 0.5.4 —
         // applied here preemptively before shipping, not after.
-        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || $post->post_type === 'bh_lesson')) return;
+        // $post->post_type === 'bh_course' added alongside the new
+        // the_content wiring for the course CPT's own singular view
+        // (bh-courses.php's the_content filter) — that page never
+        // literally contains the [bh_course] shortcode text (the plugin
+        // renders it directly via the_content, bypassing the shortcode
+        // entirely), so without this the CSS/JS this whole page's markup
+        // depends on never loaded — same class of gap this comment
+        // already flags for bh_lesson, just missed for bh_course itself.
+        if (!$post || !(has_shortcode($post->post_content, 'bh_courses') || has_shortcode($post->post_content, 'bh_course') || has_block('bhc/catalog', $post) || has_block('bhc/course', $post) || $post->post_type === 'bh_lesson' || $post->post_type === 'bh_course')) return;
         self::enqueue_assets();
     }
 
