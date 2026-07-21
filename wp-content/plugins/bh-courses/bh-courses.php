@@ -185,6 +185,23 @@ add_action('plugins_loaded', function () {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
         }
+        // Real gap: a course's own permalink (bh_course singular) never
+        // rendered anything but the theme's generic title/excerpt — no
+        // lesson list, no progress bar, no enroll CTA. render_course()
+        // already builds all of that (used by the [bh_course] shortcode
+        // and the Gutenberg block), it just was never wired to the CPT's
+        // own single view the way bh_lesson is above. A static reentrancy
+        // guard is required here: render_course_header() itself calls
+        // apply_filters('the_content', ...) on the post's raw content to
+        // render the description, which would otherwise re-enter this
+        // same callback and recurse.
+        static $rendering_course = false;
+        if (!$rendering_course && get_post_type() === 'bh_course' && is_singular('bh_course') && in_the_loop() && is_main_query()) {
+            $rendering_course = true;
+            $out = BHC_Render::render_course(['id' => get_the_ID()]);
+            $rendering_course = false;
+            return $out;
+        }
         return $content;
     });
 
