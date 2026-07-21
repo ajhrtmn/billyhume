@@ -2,15 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * OUS_PortalLayout — the real, admin-editable portal layout config that
- * ROADMAP-search-and-revisions.md flagged as missing: "there's no
- * actual admin-editable portal layout config today (panels are
- * hardcoded via the bhi_portal_panels filter, nothing an admin can
- * reorder/save)". This ships that config, then wires it into
- * OUS_Revisions as its own consumer — the last item on that roadmap.
+ * OUS_PortalLayout — admin-editable portal layout config: panel order
+ * and visibility, previously only settable via the hardcoded
+ * bhi_portal_panels filter. Wires into OUS_Revisions as its own
+ * consumer.
  *
  * Deliberately NOT a drag-and-drop UI: a numeric priority field per
- * panel plus a "hide" checkbox is the same amount of real capability
+ * panel plus a "hide" checkbox gives the same real capability
  * (reorder + hide) with zero new JS dependency, consistent with how
  * this codebase avoids reaching for a library until a simpler option
  * genuinely can't do the job.
@@ -69,11 +67,10 @@ class OUS_PortalLayout {
     public static function render() {
         if (!current_user_can('manage_options')) return;
 
-        // Read raw filter output directly (not BHI_Portal::get_panels(),
-        // which would already have this class's own overrides applied —
-        // we want the full, unfiltered candidate list here so a
-        // previously-hidden panel still shows up with its checkbox
-        // available to re-enable it).
+        // Read raw filter output directly, not BHI_Portal::get_panels()
+        // (which would already have this class's overrides applied) —
+        // a previously-hidden panel still needs to show up here with
+        // its checkbox available to re-enable it.
         $panels = apply_filters('bhi_portal_panels', []);
         $panels = array_filter($panels, function ($p) {
             return !empty($p['id']) && !empty($p['label']);
@@ -86,13 +83,6 @@ class OUS_PortalLayout {
         echo '<div class="wrap"><h1>Portal Layout</h1>';
         echo '<p class="description">Controls the order and visibility of panels in the <a href="' . esc_url(home_url('/account/')) . '">account portal</a> nav. Lower number = appears first. Panels a plugin no longer registers just disappear here on their own.</p>';
 
-        // Real, confirmed gap: handle_save() has redirected here with
-        // ?updated=1 since this screen shipped, but render() never once
-        // read it — saving a reorder produced zero visible confirmation
-        // beyond the table itself (silently) reflecting the new order,
-        // easy to miss if a save didn't actually change anything visible
-        // (e.g. re-saving the same order, or a typo'd priority that
-        // didn't shift anything).
         if (isset($_GET['updated'])) {
             echo '<div class="notice notice-success is-dismissible"><p>Portal layout saved.</p></div>';
         }

@@ -141,7 +141,7 @@ class BH_Activator {
         // data under most privacy regimes (GDPR/CCPA) — if this site
         // publishes a privacy policy, it should mention that a vote's IP
         // is retained for anti-fraud review. This plugin does not
-        // (deliberately, to keep this pass right-sized) wire a WP
+        // (deliberately, out of scope here) wire a WP
         // core privacy-export/erasure integration for it; if that's
         // ever required, bh_votes.ip_address/voter_fp are the two
         // columns to cover.
@@ -173,7 +173,7 @@ class BH_Activator {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        // QA fix, caught live: dbDelta() itself will attempt to add an
+        // QA fix: dbDelta() itself will attempt to add an
         // index whose COLUMN LIST differs from what's on disk even when
         // the NAME is already taken — it doesn't drop-then-recreate, it
         // just tries a bare ADD, which fails with "Duplicate key name"

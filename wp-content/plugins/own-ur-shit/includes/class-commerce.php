@@ -54,9 +54,9 @@ class BH_Commerce {
         return apply_filters('bh_commerce_available_payment_gateways', $gateways);
     }
 
-    // Filterable, not a bare class_exists() — AJ's own standing
-    // architecture rule: no consuming plugin should be hard-wired to
-    // anything but this core, in a way that can't be mocked or swapped.
+    // Filterable, not a bare class_exists() — standing architecture
+    // rule: no consuming plugin should be hard-wired to anything but
+    // this core in a way that can't be mocked or swapped.
     // A test/mock commerce provider (or a future non-WooCommerce
     // backend) overrides this filter to report "yes, subscriptions are
     // available" without the real paid WooCommerce Subscriptions

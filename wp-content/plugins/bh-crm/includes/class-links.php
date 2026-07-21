@@ -3,10 +3,10 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * BHCRM_Links — a generic, typed relationship table between entities,
- * replacing bhcrm_projects.crm_person_id's hard single-owner column.
- * AJ's own framing: "a more standard and conventional relationship...
- * more like Jira or DevOps" — a project can link to MULTIPLE people
- * with a typed relation ('owner', 'collaborator', 'watcher', or any
+ * replacing bhcrm_projects.crm_person_id's hard single-owner column
+ * with something more like Jira/DevOps-style relationships: a project
+ * can link to MULTIPLE people with a typed relation ('owner',
+ * 'collaborator', 'watcher', or any
  * other free-text relation a future feature wants), and the same table
  * extends to any future entity pair (e.g. a course linked to an
  * instructor, a contest linked to a judge) without a new column or a

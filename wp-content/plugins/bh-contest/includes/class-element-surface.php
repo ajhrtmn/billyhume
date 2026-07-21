@@ -41,11 +41,9 @@ class BH_ElementSurface {
         self::register_data_sources();
     }
 
-    // AJ's own direct follow-up, folded into this same conversion rather
-    // than deferred as a separate pass: "is there a way to... litterally
-    // do it all via the builder instead of as hard coded files?" for
-    // server-side data specifically, the answer is this — real,
-    // registered BH_Element_Data sources (own-ur-shit/includes/class-
+    // Building this all via BH_Element rather than hardcoded files, for
+    // server-side data specifically: real, registered BH_Element_Data
+    // sources (own-ur-shit/includes/class-
     // element-data.php's own registration API, same one bhcore_events.count
     // already uses), NOT raw PHP typed into a text field. A placement in
     // the before_player/after_player slots can now bind to "this

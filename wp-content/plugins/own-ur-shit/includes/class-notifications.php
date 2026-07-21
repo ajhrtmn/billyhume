@@ -79,9 +79,9 @@ class OUS_Notifications {
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::enqueue('bhcore_send_notification_email', ['notification_id' => $id, 'user_id' => $user_id, 'title' => $title, 'body' => $body, 'url' => $url]);
             } else {
-                // No job queue active for some reason (shouldn't happen —
-                // same plugin, same activation — but fail toward "still
-                // deliver the email" rather than silently dropping it).
+                // No job queue active (shouldn't happen — same plugin,
+                // same activation) — fail toward still delivering the
+                // email rather than silently dropping it.
                 self::send_email_now($user_id, $title, $body, $url);
             }
         }
@@ -98,18 +98,14 @@ class OUS_Notifications {
         return apply_filters('bhcore_notification_should_email', !$opt_out, $user_id, $type);
     }
 
-    // QA fix, caught live (not just reasoned through): the identical
-    // queued job genuinely fired more than once in this ecosystem
-    // (confirmed for bh-crm's near-identical note-reminder job — a
-    // manual test call plus Action Scheduler's own real background
-    // processing of the same scheduled job both ran it), which would
-    // have meant a duplicate email here too, silently, with nothing to
-    // stop it. notification_id (present for every call site going
-    // forward — see notify() above) lets this claim the row atomically
-    // before mailing; a call with no notification_id (an old queued job
-    // from before this fix, still pending when the site upgrades) just
-    // sends once with no dedup, same as it always has — not worse than
-    // before.
+    // The same queued job can fire more than once (e.g. a manual test
+    // call plus Action Scheduler's own background processing of the
+    // same scheduled job both running it), which would otherwise mean a
+    // silent duplicate email. notification_id (present for every call
+    // site going forward — see notify() above) lets this claim the row
+    // atomically before mailing; a call with no notification_id (an old
+    // queued job predating this fix) just sends once with no dedup,
+    // same as before.
     public static function send_queued_email($args) {
         $notification_id = (int) ($args['notification_id'] ?? 0);
         if ($notification_id) {
@@ -144,12 +140,10 @@ class OUS_Notifications {
                 'payload' => ['title' => $title],
             ]);
         } elseif (!$sent && class_exists('OUS_DebugLog')) {
-            // Previously silent — wp_mail() returning false (misconfigured
-            // mail transport, rejected recipient, etc.) meant a queued
-            // notification email just silently never arrived, with
-            // nothing anywhere to tell a dev that. Debug-log wiring pass,
-            // AJ's own ask — routine sends feed the activity timeline
-            // above; a failure is exactly the kind of thing worth
+            // wp_mail() returning false (misconfigured mail transport,
+            // rejected recipient, etc.) previously meant a queued
+            // notification email silently never arrived. Routine sends
+            // feed the activity timeline above; a failure is worth
             // surfacing in Debug Tools instead.
             OUS_DebugLog::log('warning', 'Queued notification email failed to send (wp_mail() returned false).', [
                 'user_id' => $user_id, 'title' => $title,
@@ -271,14 +265,13 @@ class OUS_Notifications {
 
         wp_register_style('bhcore-notifications', false);
         wp_enqueue_style('bhcore-notifications');
-        // QA fix: these were hardcoded WP-admin-bar colors (admin blue
-        // #72aee6, etc). Fine for the admin-bar dropdown, but this same
-        // markup also renders inside the front-end portal/shortcode via
-        // render_portal_panel(), where the hardcoded blue clashed hard
-        // against the site's warm cream/terracotta brand. Switched to
-        // --bh-* tokens (own-ur-shit's front-end brand vars, see
-        // class-style.php) with the original hardcoded values kept as
-        // fallbacks, so wp-admin context is unaffected either way.
+        // Uses --bh-* tokens (own-ur-shit's front-end brand vars, see
+        // class-style.php) with the original hardcoded WP-admin-bar
+        // colors (admin blue #72aee6, etc.) kept as fallbacks — this
+        // same markup renders both in the admin-bar dropdown and, via
+        // render_portal_panel(), in the front-end portal/shortcode,
+        // where hardcoded admin blue clashed against the site's warm
+        // cream/terracotta brand.
         wp_add_inline_style('bhcore-notifications', '
             .bhcore-notif-count { background: #d63638; color: #fff; border-radius: 9px; font-size: 11px; padding: 0 5px; margin-left: 2px; }
             .bhcore-notifications-list { max-width: 600px; }

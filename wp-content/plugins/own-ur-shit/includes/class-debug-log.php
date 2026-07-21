@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) exit;
  * landing in one table, visible on the same Debug Tools page as
  * everything else, with zero CLI and zero separate log-file hunting.
  *
- * v2 (this pass): every row now carries a real, structured stack trace
+ * Every row carries a real, structured stack trace
  * (file/line/column where the language/runtime exposes it — PHP gives
  * file+line reliably, column only where a Throwable's trace frames
  * happen to include it; JS gives all three from the browser's own
@@ -184,14 +184,12 @@ class OUS_DebugLog {
         }
         self::maybe_trim();
 
-        // AJ's own ask, straight after this session's audit pass: "good
-        // use of Query Monitor where needed" — every log() call already
-        // lands in the DB table (Debug Tools' own Console & Logs
-        // screen), but checking THIS request's own bugs meant leaving
-        // that screen and coming back, a real workflow tax while
-        // actively building something (like the bh-contest conversion
-        // this buffer exists to support). A cheap in-memory buffer, kept
-        // only for the life of THIS request, lets class-qm-integration.php
+        // Every log() call already lands in the DB table (Debug Tools'
+        // own Console & Logs screen), but checking THIS request's own
+        // bugs meant leaving that screen and coming back — a real
+        // workflow tax while actively developing. A cheap in-memory
+        // buffer, kept only for the life of THIS request, lets
+        // class-qm-integration.php
         // surface these same rows directly inside Query Monitor's own
         // toolbar panel — one pane of glass instead of two separate
         // tools while developing.
@@ -425,9 +423,9 @@ class OUS_DebugLog {
         return $tools;
     }
 
-    // AJ's own ask: "hide or mute specific log codes... so some of the
-    // more routine and regular... logs dont pollute the main stream." This
-    // schema has no discrete error-code field (levels are only
+    // Muting specific recurring log entries, so routine/noisy ones don't
+    // pollute the main stream. This schema has no discrete error-code
+    // field (levels are only
     // error/warning/info, by design — see this class's own docblock), so
     // the practical equivalent of a VS Code "suppress this diagnostic" is
     // muting by the exact (source, message) pair a row actually has —
@@ -595,9 +593,9 @@ class OUS_DebugLog {
         }
         echo '</form>';
 
-        // Muted-signatures panel — AJ's own ask: hide routine noise from
-        // the main stream without losing track of what's actually muted
-        // or making it hard to bring back. A real, visible list (not just
+        // Muted-signatures panel: hides routine noise from the main
+        // stream without losing track of what's actually muted or
+        // making it hard to bring back. A real, visible list (not just
         // a silent filter) plus a one-click "show muted rows" toggle so
         // muting never means "gone," only "out of the way by default."
         $muted = self::muted_signatures();

@@ -4,10 +4,9 @@ if (!defined('ABSPATH')) exit;
 /**
  * BH_Element_Data — the data-binding resolver for BH_Element
  * (ELEMENT-BUILDER-DESIGN-PLAN.md Section 3.2 / Section 1 judgment call
- * 1.2). This is the piece the user explicitly asked to get the most
- * care: "quality databinding" — validated registrations, graceful
- * (never fatal) degrade on a missing/invalid/erroring source, and
- * fail-safe fallback to whatever static literal the caller supplied.
+ * 1.2). Validated registrations, graceful (never fatal) degrade on a
+ * missing/invalid/erroring source, and fail-safe fallback to whatever
+ * static literal the caller supplied.
  *
  * Registration mirrors BH_Event::register_event_type() /
  * BH_Content::register_block_type() — zero central authority, any
@@ -99,7 +98,7 @@ class BH_Element_Data {
 
     /**
      * First-party formatters (§3.2's "a small allowlisted set like
-     * compact_number/relative_time/currency"). This pass ships only
+     * compact_number/relative_time/currency"). Ships only
      * 'compact_number' — the one the stat-card live demo (class-
      * element.php's 'bh/stat-card') actually uses — for the same
      * "quality over breadth, no speculative unused surface area" reason
@@ -125,22 +124,20 @@ class BH_Element_Data {
 
     /**
      * First-party data sources own-ur-shit itself registers (design doc
-     * §3.2's "First-party sources own-ur-shit registers" list) — this
-     * pass ships only 'bhcore_events.count' (the one the Phase 2 demo
-     * slice on the dashboard actually binds to); 'bhcore_events.recent',
-     * 'bhcrm.field', 'bhcrm.activity_summary' are named in the design
-     * doc but not built this pass (no genuine dashboard/CRM consumer
-     * for them yet in this scope — adding unused sources would be
-     * speculative surface area, not the "quality over breadth" ask).
+     * §3.2's "First-party sources own-ur-shit registers" list) — ships
+     * only 'bhcore_events.count' (the one the Phase 2 demo slice on the
+     * dashboard actually binds to); 'bhcore_events.recent', 'bhcrm.field',
+     * 'bhcrm.activity_summary' are named in the design doc but not built
+     * (no genuine dashboard/CRM consumer for them yet — adding unused
+     * sources would be speculative surface area).
      *
      * Reads bhcore_events directly via $wpdb rather than through a
-     * BH_Event public query method, because BH_Event (class-event.php,
-     * read at implementation time) exposes no such method today — only
-     * private $wpdb queries inside its own debug-section renderer. This
-     * source is deliberately still registered here (not added as a new
-     * BH_Event method) to keep this pass's footprint to the element-
-     * builder files named in the task; a future pass could promote this
-     * into a real BH_Event::count_for_user() helper other callers reuse.
+     * BH_Event public query method, because BH_Event (class-event.php)
+     * exposes no such method today — only private $wpdb queries inside
+     * its own debug-section renderer. Registered here rather than added
+     * as a new BH_Event method, to keep this scoped to the element-
+     * builder files; a future pass could promote this into a real
+     * BH_Event::count_for_user() helper other callers reuse.
      */
     private static function register_default_sources() {
         self::register_source('bhcore_events.count', [

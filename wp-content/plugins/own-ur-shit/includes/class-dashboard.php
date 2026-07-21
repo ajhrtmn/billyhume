@@ -52,9 +52,9 @@ class OUS_Dashboard {
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
 
         // §3.2 v1 — this page renders the 'dashboard' surface's 'main'
-        // slot (register_element_surface() above), which is where the
-        // ONE live element this pass wires (bh/stat-card, class-
-        // element.php's own updated docblock) can actually appear once
+        // slot (register_element_surface() above), which is where a
+        // live element (bh/stat-card, see class-element.php's own
+        // docblock) can actually appear once
         // someone clicks "Add live stat-card" in Debug Tools. Enqueued
         // unconditionally on this page rather than only when a live
         // placement is known to exist — element-live.js itself is a
@@ -82,9 +82,7 @@ class OUS_Dashboard {
         echo '<h1>Own Ur Shit</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
 
-        // First-run nudge, AJ's own ask ("a fresh ecosystem install
-        // guided setup wizard would be a high value addition") — a
-        // brand-new install lands on this same page (own-ur-shit's own
+        // First-run nudge: a brand-new install lands on this same page (own-ur-shit's own
         // activation redirect) with nothing active yet; this is the
         // one moment worth pointing at the guided flow before the wall
         // of individual plugin cards below. Self-hides once the
@@ -192,8 +190,7 @@ class OUS_Dashboard {
     // via BH_Element::render_slot(). Additive only — every existing
     // dashboard card/status block above is untouched; this renders
     // BELOW them and is empty (no heading, no markup at all) when no
-    // placements exist yet, so a fresh install looks identical to
-    // before this pass.
+    // placements exist yet, so a fresh install looks unchanged.
     private static function render_element_slot() {
         if (!class_exists('BH_Element')) return; // element-builder files didn't load for some reason — degrade silently, same posture as every other class_exists() guard in this ecosystem
 

@@ -33,19 +33,15 @@ class OUS_CodebaseDocs {
 
     public static function init() {
         // add_menu() (standalone admin.php?page=ous-codebase-docs page)
-        // is deliberately NOT hooked anymore — confirmed via Query
-        // Monitor on the live install that WordPress's own page-hook
+        // is deliberately not hooked anymore — WordPress's own page-hook
         // resolution fails for this specific standalone page
         // (get_current_screen() resolves to the PARENT page's hook, not
         // this one), denying access every time despite registration and
         // capability both being correct. See VISION.md's "New dev/
-        // admin-only pages default to a Debug Tools SECTION" entry for
-        // the full incident. The real, working access point is
-        // register_debug_section() below — a dead, always-broken link in
-        // the sidebar was worse than no standalone page at all. add_menu()
-        // itself is left defined (not deleted) in case a future session
-        // gets a real fix for the underlying WordPress issue and wants
-        // to re-enable it.
+        // admin-only pages default to a Debug Tools SECTION" entry. The
+        // real, working access point is register_debug_section() below.
+        // add_menu() itself is left defined (not deleted) in case a
+        // future fix for the underlying WordPress issue re-enables it.
         add_action('wp_ajax_ous_codebase_docs_snippet', [self::class, 'ajax_snippet']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
@@ -61,30 +57,25 @@ class OUS_CodebaseDocs {
 
     public static function add_menu() {
         // Diagnostic: add_submenu_page() returns a real hook_suffix even
-        // when the CURRENT user lacks the registered capability — WP's
+        // when the current user lacks the registered capability — WP's
         // actual access gate for that case is a separate internal check
         // (current_user_can() re-evaluated when the page is requested),
         // so a successful-looking registration log doesn't rule this out.
-        // REMOVED the is_locked() gate around registration itself — this
-        // and OUS_ApiDocs were the only two pages in the whole ecosystem
+        // The is_locked() gate around registration itself is removed —
+        // this and OUS_ApiDocs were the only two pages in the ecosystem
         // that conditionally skipped their own add_submenu_page() call.
         // Every other page (Debug Tools, Job Queue, every peer plugin's
         // admin screens) registers unconditionally; is_locked() exists to
-        // gate DESTRUCTIVE seed/reset actions, not a read-only viewer
-        // page's mere existence in the menu. Real reported symptom this
-        // responds to: this page consistently denied access ("Sorry, you
-        // are not allowed to access this page") even on requests where
-        // logging proved registration had already succeeded and
-        // current_user_can('manage_options') was TRUE — meaning something
-        // about the CONDITIONAL registration path itself (not a simple
-        // logic bug in is_locked()) was the actual problem. Registering
-        // unconditionally, like every other working page, removes that
-        // asymmetry entirely rather than chasing it further blind.
-        // Un-throttled and includes the exact request URI specifically so
-        // the entry from the ACTUAL failing click (GET .../page=ous-
-        // codebase-docs) is unambiguous in Console & Logs, not lost among
-        // entries from every other admin page load also triggering this
-        // same admin_menu callback.
+        // gate destructive seed/reset actions, not a read-only viewer
+        // page's mere existence in the menu. The conditional registration
+        // path denied access even on requests where logging proved
+        // registration had succeeded and current_user_can('manage_options')
+        // was true — the conditional path itself, not a logic bug in
+        // is_locked(), was the problem. Registering unconditionally, like
+        // every other working page, removes that asymmetry. Un-throttled
+        // and includes the request URI so the entry is unambiguous in
+        // Console & Logs, not lost among every other admin page load
+        // also triggering this same admin_menu callback.
         $hook = add_submenu_page('ous-debug', 'Codebase Docs', 'Codebase Docs', 'manage_options', 'ous-codebase-docs', [self::class, 'render']);
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'add_submenu_page() for Codebase Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'") . ' | current_user_can(manage_options): ' . (current_user_can('manage_options') ? 'TRUE' : 'FALSE'), [
@@ -105,7 +96,7 @@ class OUS_CodebaseDocs {
 
     public static function render() {
         if (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('info', 'OUS_CodebaseDocs::render() was entered — the page callback is actually running.', [], 'Codebase Docs');
+            OUS_DebugLog::log('info', 'OUS_CodebaseDocs::render() entered.', [], 'Codebase Docs');
         }
         BHY_UI::shell_open('Codebase Docs', 'A guided, sequential tour of this whole ecosystem — generated from CODEBASE-WALKTHROUGH.md, with every referenced file readable live below its mention (always the current code, never a stale pasted-in snippet).');
         self::render_content();

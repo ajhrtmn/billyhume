@@ -3,15 +3,12 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * BH_Element — the placement/capability/render layer of the "element
- * builder" (ELEMENT-BUILDER-DESIGN-PLAN.md Section 3.1). Implements
- * Phase 1 (registry + one static slot, no GUI) and Phase 2 (real data
- * binding via BH_Element_Data) of that doc's phased build order — see
- * the doc's Section 6. The visual drag/drop builder GUI (the doc's
- * Phase "GUI" step) is NOT part of this pass; placements are managed
- * here through a bare Debug Tools list (add/remove/reorder), same as
- * the doc's Phase 1 says: "Placements managed via a bare Debug Tools
- * list (add/remove/reorder). This proves the storage + render +
- * capability spine end-to-end with the least surface area."
+ * builder" (ELEMENT-BUILDER-DESIGN-PLAN.md Section 3.1): registry + slot
+ * rendering (Phase 1) and real data binding via BH_Element_Data (Phase
+ * 2). No visual drag/drop builder GUI here (that's the doc's Phase
+ * "GUI" step) — placements are managed through a bare Debug Tools list
+ * (add/remove/reorder), proving the storage + render + capability spine
+ * with the least surface area.
  *
  * Element TYPES are registered in code (register_type()), never in the
  * DB — same as BH_Content block types and BH_Event event types. A type
@@ -24,71 +21,55 @@ if (!defined('ABSPATH')) exit;
  * this way, sits in this slot on this surface for this context, at this
  * position."
  *
- * NOT runtime-verified: reasoned through against BH_Content/BH_Event's
- * existing, working shape, and brace/logic-checked, but no live PHP/
- * MySQL/WordPress execution is available in this environment. Please
- * smoke-test register_type()+render_slot()+save_placement() against a
- * real dashboard load before relying on this in production.
+ * The REST bridge (read/write placements, list types/surfaces/sources,
+ * a preview-render endpoint — design doc §3.4) wires the `bh_crm_profile`
+ * surface (design doc §5.2, see register_routes()/rest_*() below and
+ * BHCRM_People::render_detail()). This is still not the visual builder
+ * GUI (§4) — the routes exist so a future GUI or REST client can
+ * read/write placements; the bare Debug Tools list still manages
+ * placements today, now scoped-selectable per surface/context (see
+ * render_debug_section()).
  *
- * 3.4.22 adds the design doc's §3.4 REST bridge (read/write placements,
- * list types/surfaces/sources, a preview-render endpoint) and wires the
- * `bh_crm_profile` surface (design doc §5.2) — see this class's
- * register_routes()/rest_*() methods below and BHCRM_People::render_detail()
- * (bh-crm/includes/class-people.php) for the surface call sites. This is
- * still NOT the visual drag/drop builder GUI (§4 of the doc) — the REST
- * routes exist so a future GUI (or any REST client) can read/write
- * placements; there is still no JS canvas shipped this pass. Placements on
- * the new surface are managed exactly as before: the bare Debug Tools list,
- * now scoped-selectable per surface/context (see render_debug_section()).
- *
- * 3.4.34 activates the `parent_placement_id` seam that class-identity-
- * activator.php's DB_VERSION 1.9 table definition already reserved but
- * left unused (see that file's own updated comment on the column) — a
- * real, shallow tree of placements WITHIN one surface/slot, closing the
- * "Pages" rail's honestly-disclosed flat-list gap (DESIGN-SUITE-
- * UNIFICATION-PLAN.md §2). `save_placement()` now enforces two invariants
- * on a non-zero `parent_placement_id`: the parent must live in the exact
- * same (surface, surface_context_id, slot) — no cross-slot trees — and
- * (on an update) accepting the new parent must not create a cycle (see
- * `would_create_cycle()`), fail-closed (the save is rejected, returns
- * false) rather than silently accepting either violation.
- * `render_slot()`/`render_placement()` are now tree-aware: `render_slot()`
- * fetches every placement for the slot in ONE query (unchanged —
- * `get_placements()` already did this), builds an in-memory parent id =>
- * children array map, and renders only the roots (parent_placement_id
- * === 0), with `render_placement()` recursing into each node's own
- * children and appending their rendered HTML inside a `.bh-element-
- * children` wrapper — never a second query per tree level. This
+ * `parent_placement_id` (reserved but unused in class-identity-
+ * activator.php's DB_VERSION 1.9 table) gives a real, shallow tree of
+ * placements WITHIN one surface/slot, closing the "Pages" rail's flat-
+ * list gap (DESIGN-SUITE-UNIFICATION-PLAN.md §2). `save_placement()`
+ * enforces two invariants on a non-zero `parent_placement_id`: the
+ * parent must live in the exact same (surface, surface_context_id,
+ * slot) — no cross-slot trees — and (on update) accepting the new
+ * parent must not create a cycle (see `would_create_cycle()`),
+ * fail-closed rather than silently accepting either violation.
+ * `render_slot()`/`render_placement()` are tree-aware: `render_slot()`
+ * fetches every placement for the slot in ONE query, builds an
+ * in-memory parent id => children map, and renders only the roots
+ * (parent_placement_id === 0), with `render_placement()` recursing into
+ * each node's own children — never a second query per tree level. This
  * placement-nesting tree is a SEPARATE, shallower mechanism from the
  * pre-existing `bh/container` -> `BH_Content` bridge (a container's
  * "nested content" still opens the Content Studio canvas for its own
- * `BH_Content` sub-tree, addressed by `content_context_id`, untouched by
- * this pass) — the two nesting mechanisms coexist and are never
- * conflated. REST: `GET .../placements` is UNCHANGED (still the flat,
- * grouped-by-slot shape every existing consumer — `BH_Element_Prefab`,
- * the bare Debug Tools list, `element-builder.js`'s own state array —
- * already depends on); each row already carries its own real
- * `parent_placement_id` column value (a `SELECT *`), so the CLIENT builds
- * the tree from the flat array it already receives rather than this
- * route growing a second, parallel nested shape. `POST .../placements`
- * now reads and persists a `parent_placement_id` per entry and computes
- * `position` PER PARENT GROUP (sibling-scoped) instead of by raw array
- * index — see `rest_save_placements()`'s own comment for the exact
- * contract. `delete_placement()` now promotes any children of a deleted
- * placement back to root (parent_placement_id reset to 0) rather than
- * leaving them pointing at a now-nonexistent parent id.
+ * `BH_Content` sub-tree, addressed by `content_context_id`) — the two
+ * nesting mechanisms coexist and are never conflated. REST:
+ * `GET .../placements` stays the flat, grouped-by-slot shape every
+ * existing consumer (`BH_Element_Prefab`, the Debug Tools list,
+ * `element-builder.js`'s state array) already depends on — each row
+ * carries its own real `parent_placement_id`, so the CLIENT builds the
+ * tree from the flat array rather than this route growing a second,
+ * parallel nested shape. `POST .../placements` reads and persists a
+ * `parent_placement_id` per entry and computes `position` PER PARENT
+ * GROUP (sibling-scoped) instead of by raw array index — see
+ * `rest_save_placements()`'s own comment for the exact contract.
+ * `delete_placement()` promotes any children of a deleted placement
+ * back to root (parent_placement_id reset to 0) rather than leaving
+ * them pointing at a now-nonexistent parent id.
  *
- * 3.4.36 implements the DESIGN-SUITE-UNIFICATION-PLAN.md "FINAL
- * ARCHITECTURE" note: one left-rail tree per surface, rooted at a
- * synthetic client-side "Site" node (this class emits no new row/id for
- * it — see element-builder.js's own updated file docblock for exactly
- * how the client recognizes it; server-side, `parent_placement_id === 0`
- * still means "root of this surface's tree", unchanged). This class
- * itself only gained two small read helpers this pass — `get_placement()`
- * (single-row fetch) and `get_subtree()` (root-first flat walk of a node
- * plus every descendant) — to back `BH_Element_Prefab`'s new full-subtree
- * snapshot/restore. Every write path above (save_placement(),
- * delete_placement(), reorder(), the REST routes) is UNCHANGED.
+ * The left-rail tree (one per surface, rooted at a synthetic
+ * client-side "Site" node — this class emits no row/id for it; see
+ * element-builder.js's own docblock for how the client recognizes it)
+ * implements DESIGN-SUITE-UNIFICATION-PLAN.md's "FINAL ARCHITECTURE"
+ * note. Server-side, `parent_placement_id === 0` still means "root of
+ * this surface's tree." `get_placement()` (single-row fetch) and
+ * `get_subtree()` (root-first flat walk of a node plus every
+ * descendant) back `BH_Element_Prefab`'s full-subtree snapshot/restore.
  */
 class BH_Element {
     /** @var array<string, array> slug => manifest (including the 'render' callable) */
@@ -142,9 +123,8 @@ class BH_Element {
      * §6 Phase 1's 'bh/note' plus Phase 2's demonstration 'bh/stat-
      * card'). Peer plugins register their OWN types the same
      * class_exists('BH_Element')-guarded way from their own bootstrap —
-     * this method only covers the two types this pass needs to prove
-     * the spine end-to-end; it is deliberately not an exhaustive
-     * element library.
+     * this is deliberately not an exhaustive element library, just
+     * enough to prove the spine end-to-end.
      */
     private static function register_default_types() {
         self::register_type('bh/note', [
@@ -267,14 +247,12 @@ class BH_Element {
     }
 
     /**
-     * Direct response to AJ's own framing, verbatim: "everything is
-     * custom and not preregistered unless it's from a plugin and is just
-     * being styled and not defined." Before this, own-ur-shit's own
-     * built-in palette was exactly two generic primitives (bh/note,
-     * bh/container above) plus two plugin-owned, genuinely DATA-BOUND
-     * widgets (bh/stat-card here, bh-crm's bh/sticky-card) — nowhere
-     * near enough to build a real page without reaching for a plugin
-     * that has no business owning a plain heading or button. register_
+     * own-ur-shit's own built-in palette was previously just two generic
+     * primitives (bh/note, bh/container above) plus two plugin-owned,
+     * genuinely DATA-BOUND widgets (bh/stat-card here, bh-crm's
+     * bh/sticky-card) — nowhere near enough to build a real page without
+     * reaching for a plugin that has no business owning a plain heading
+     * or button. register_
      * type() itself isn't going away (a real data-bound widget like
      * stat-card legitimately needs PHP: a schema, a bindable attr, a
      * render callable), but that mechanism should be reserved for things
@@ -691,12 +669,11 @@ class BH_Element {
 
         $config = $placement['config'] ?? [];
 
-        // AJ's own ask, folded into the bh-contest conversion: real JS
-        // scripting via the builder, not raw-PHP authoring (that second
-        // one stays a hard no — see this pass's chat response for why:
-        // arbitrary server-side code from an admin text field is how a
-        // site gets owned). config['custom_js'] IS a real capability now
-        // (wrap_placement_html() renders it, scoped to this one
+        // Real JS scripting via the builder is a real capability;
+        // raw-PHP authoring stays a hard no (arbitrary server-side code
+        // from an admin text field is how a site gets owned).
+        // config['custom_js'] IS supported (wrap_placement_html() renders
+        // it, scoped to this one
         // placement's own DOM node) — but it's the single most
         // dangerous thing a placement can carry, since it runs as real
         // JavaScript on the live site for every visitor. Gated here, at
@@ -1046,9 +1023,8 @@ class BH_Element {
 
         $attr_parts = self::build_html_attrs($type, $html_attrs, $tag);
 
-        // AJ's own ask: "add arbitrary class names and custom CSS to
-        // things as needed" — the real, persisted version of that for a
-        // placement. custom_class isn't gated behind the type's own
+        // Arbitrary class names/custom CSS on a placement, persisted.
+        // custom_class isn't gated behind the type's own
         // 'attrs' => ['class' => true] opt-in the way html_attrs['class']
         // is above (that gate is for AUTHOR-facing "does this type even
         // expose a class field" schema decisions) — this is a Design
@@ -1123,24 +1099,22 @@ class BH_Element {
             $html = '<' . $tag . ' ' . implode(' ', $attr_parts) . '>' . $inner . '</' . $tag . '>';
         }
 
-        // AJ's own ask, folded into the bh-contest conversion: real JS
-        // authoring via the builder. save_placement() already gates WHO
-        // can ever get a non-empty config['custom_js'] persisted in the
-        // first place (bhcore_author_custom_js, administrator-only by
-        // default) — by the time execution reaches HERE, at render time,
-        // for every visitor loading the page, that gate has already done
-        // its job; this only has to worry about SCOPING the script to
-        // this one placement's own element, not re-checking who wrote it.
-        // Scoped via this placement's own data-placement-id (already
-        // emitted above, always unique per row) rather than a class or
-        // nth-child guess — an IIFE receiving that one element as `el`,
-        // matching the same "the script gets handed its own root, never
-        // reaches for document/global selectors itself" contract element-
-        // live.js's own live-type scripts already follow.
-        // AJ's own ask, same conversation: "easy ways to wire up UI
-        // events to actions... 'On click' could trigger UI and server
-        // side stuff via fetch." This is the CODELESS, safe answer —
-        // config['actions'] is a plain array of {trigger, action, ...}
+        // save_placement() already gates WHO can ever get a non-empty
+        // config['custom_js'] persisted (bhcore_author_custom_js,
+        // administrator-only by default) — by the time execution reaches
+        // HERE, at render time, for every visitor loading the page, that
+        // gate has already done its job; this only has to worry about
+        // SCOPING the script to this one placement's own element, not
+        // re-checking who wrote it. Scoped via this placement's own
+        // data-placement-id (already emitted above, always unique per
+        // row) rather than a class or nth-child guess — an IIFE receiving
+        // that one element as `el`, matching the same "the script gets
+        // handed its own root, never reaches for document/global
+        // selectors itself" contract element-live.js's own live-type
+        // scripts already follow.
+        //
+        // Codeless UI-event wiring: config['actions'] is a plain array of
+        // {trigger, action, ...}
         // entries, each one hand-mapped below to a small, fixed,
         // reviewed JS snippet — never raw author-entered script, so this
         // needs NO capability gate the way custom_js does. Anyone who can
@@ -1441,9 +1415,9 @@ class BH_Element {
      * Fix: every registered BH_Element surface now gets its own canvas
      * story automatically, keyed by its REAL slug — no plugin has to
      * hand-author a mirror registration (bh-crm's class-style-surface.php
-     * profile_preview() one-off wrapper is now redundant, but left alone
-     * this pass rather than ripped out, since it's harmless and still
-     * renders correctly under its own separate key). Loops every slot
+     * profile_preview() one-off wrapper is now redundant, left in place
+     * since it's harmless and still renders correctly under its own
+     * separate key). Loops every slot
      * the surface declares and concatenates each one's real render_slot()
      * output, in declaration order, with a plain heading per slot so a
      * multi-slot surface (there are none left after CRM's own 1.3.3
@@ -1557,10 +1531,8 @@ class BH_Element {
             'callback'            => [self::class, 'rest_preview'],
         ]);
 
-        // A REAL delete route — added this pass alongside the prefab work
-        // (per this pass's own scope note: "the visual GUI works around
-        // this by disabling placements instead of deleting them; you may
-        // add a real DELETE route now if it's clean to do so"). This does
+        // A REAL delete route — the visual GUI works around this by
+        // disabling placements instead of deleting them. This does
         // NOT change the existing GUI's disable-instead-of-delete
         // behavior (element-builder.js's "✕" button) — that JS is left
         // exactly as-is; this route exists so a future GUI pass or any
@@ -1929,7 +1901,7 @@ class BH_Element {
         }
 
         echo '<h4 style="margin-top:20px;">Placements — dashboard / main slot</h4>';
-        echo '<p class="description">Phase 1\'s bare add/remove/reorder list, scoped to the one surface/slot wired this pass (<code>dashboard</code> / <code>main</code>, context 0). The visual builder GUI (§4 of the design doc) is a later phase, not built here.</p>';
+        echo '<p class="description">Phase 1\'s bare add/remove/reorder list, scoped to the <code>dashboard</code> / <code>main</code> surface/slot (context 0). The visual builder GUI (§4 of the design doc) is a later phase, not built here.</p>';
         self::render_dashboard_placement_list();
         self::render_add_placement_form();
         self::render_add_bound_demo_button();

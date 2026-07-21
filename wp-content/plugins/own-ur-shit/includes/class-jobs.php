@@ -1,19 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
-// class-debug.php's own docblock), filing this under "Monitoring &
-// Health" instead of the default bucket. No other change.
-//
-// OUS_VER 3.4.18 — redirect_with_notice() (the Action Scheduler
-// installer's success/failure hand-off) now also queues a BHCoreToast via
-// OUS_Toast::queue(), type inferred from whether the message text starts
-// with a known failure phrase — see that method's own comment for why
-// this is a text-sniff rather than a real status flag. Additive only:
-// the existing $_GET['ous_jobs_msg'] notice this already rendered is
-// unchanged.
-
 /**
  * A shared async job queue — the WP-Cron-driven, no-external-infra
  * version of a real message queue, since this ecosystem deliberately
@@ -57,18 +44,14 @@ class OUS_Jobs {
      * plugin's own includes/vendor/ folder, no Composer, no separate
      * plugin to activate) rather than reinventing it forever.
      *
-     * The sandbox this codebase was written in has NO outbound network
-     * access at all (confirmed, same wall documented elsewhere in this
-     * ecosystem's own VISION.md) — so the actual library files could not
-     * be fetched and vendored directly during this pass. Fabricating
-     * placeholder code under a well-known open-source project's name
-     * would be actively dishonest, so instead: a real one-click
-     * installer below, using the exact same download_url()/unzip_file()
-     * mechanism OUS_Registry's wporg_slug installer already uses for
-     * WooCommerce (see class-registry.php) — it runs on the LIVE site,
-     * which has real internet access, and pulls the actual official
-     * release straight from GitHub the moment someone clicks the button
-     * on Debug Tools → Job Queue.
+     * This dev environment has no outbound network access, so the
+     * library can't be fetched and vendored directly here. Instead: a
+     * real one-click installer below, using the exact same
+     * download_url()/unzip_file() mechanism OUS_Registry's wporg_slug
+     * installer already uses for WooCommerce (see class-registry.php) —
+     * it runs on the LIVE site, which has real internet access, and
+     * pulls the actual official release straight from GitHub the moment
+     * someone clicks the button on Debug Tools → Job Queue.
      *
      * Until that button is clicked, every method below transparently
      * falls back to this class's own original wpdb-table implementation
@@ -92,11 +75,7 @@ class OUS_Jobs {
         // migration classes are registered in time — this is the exact
         // hook timing Action Scheduler's own documentation specifies.
         //
-        // QA fix, 3.4.85: real fatal caught the moment the OUS_Jobs::
-        // init() nested-'init'-hook bug (see own-ur-shit.php's own
-        // comment at this class's bootstrap call) was fixed and this
-        // code path actually ran for the first time — WooCommerce
-        // bundles its OWN copy of Action Scheduler
+        // WooCommerce bundles its OWN copy of Action Scheduler
         // (woocommerce/packages/action-scheduler/), and requiring this
         // vendored copy on top of an already-loaded one redeclares the
         // same global functions (as_enqueue_async_action() etc.) and
@@ -109,50 +88,38 @@ class OUS_Jobs {
         // rides whichever copy got there first instead of insisting on
         // its own.
         //
-        // Second QA fix on top of the first: the class_exists('ActionScheduler')
-        // check above still isn't reliable if it runs at FILE-PARSE time
-        // (own-ur-shit.php's own bootstrap now calls OUS_Jobs::init()
-        // directly, before 'plugins_loaded' — see that fix's own
-        // comment) — WordPress loads active plugins' main files in
+        // The class_exists('ActionScheduler') check isn't reliable at
+        // FILE-PARSE time: WordPress loads active plugins' main files in
         // folder-name order, and "own-ur-shit" sorts before
-        // "woocommerce", so WooCommerce's copy of Action Scheduler
-        // genuinely isn't loaded yet at that point, regardless of
-        // whether WooCommerce is active. This is the SAME "don't trust
-        // class_exists() at file-parse time, only after plugins_loaded"
-        // principle already documented elsewhere in this ecosystem
-        // (see bh-contest.php's own bootstrap docblock) — caught here
-        // by actually booting WordPress with WP_DEBUG_LOG on and hitting
-        // the real fatal, not by re-reading that principle and assuming
-        // it applied. Deferred to 'plugins_loaded' (which is guaranteed
-        // to fire only after every active plugin's main file has been
-        // read) so the class_exists() check reflects reality regardless
-        // of plugin folder-name ordering.
+        // "woocommerce", so WooCommerce's copy of Action Scheduler isn't
+        // loaded yet at that point regardless of whether WooCommerce is
+        // active — the same "don't trust class_exists() at file-parse
+        // time, only after plugins_loaded" principle documented in
+        // bh-contest.php's own bootstrap docblock. Deferred to
+        // 'plugins_loaded' (guaranteed to fire only after every active
+        // plugin's main file has been read) so the class_exists() check
+        // reflects reality regardless of plugin folder-name ordering.
         add_action('plugins_loaded', function () {
             if (!class_exists('ActionScheduler') && self::library_available()) {
                 require_once self::vendor_path();
-                // Real production fatal, caught live: action-scheduler.php's
-                // OWN bootstrap doesn't define the ActionScheduler facade
-                // class synchronously on require — it just requires
-                // ActionScheduler_Versions and registers ITS OWN
-                // 'plugins_loaded' priority-1 callback
+                // action-scheduler.php's OWN bootstrap doesn't define the
+                // ActionScheduler facade class synchronously on require —
+                // it just requires ActionScheduler_Versions and registers
+                // ITS OWN 'plugins_loaded' priority-1 callback
                 // (ActionScheduler_Versions::initialize_latest_version) to
                 // do the actual work. But we're inside a 'plugins_loaded'
-                // callback registered at the DEFAULT priority (10) — by the
-                // time this code runs, WordPress has already passed
+                // callback registered at the DEFAULT priority (10) — by
+                // the time this code runs, WordPress has already passed
                 // priority 1 for this hook firing, so that newly-added
-                // priority-1 callback silently never runs this pass. The
-                // class then never gets defined, and the add_action('init', ...)
-                // below fatals with "Class ActionScheduler not found" the
-                // moment it runs. Fix: call initialize_latest_version()
-                // directly and synchronously instead of trusting the hook
-                // timing — it's the exact same call action-scheduler.php's
-                // own hook would have made, just not deferred to a hook
-                // stage that's already passed. This went unnoticed locally
-                // because WooCommerce's own bundled Action Scheduler copy
-                // usually loads and defines the class first, making the
-                // class_exists() check above true and skipping this whole
-                // branch — it only surfaced on a fresh deploy where that
-                // race went the other way.
+                // priority-1 callback never runs, the class never gets
+                // defined, and add_action('init', ...) below
+                // fatals with "Class ActionScheduler not found." Fix: call
+                // initialize_latest_version() directly and synchronously
+                // instead of trusting the hook timing — the exact same
+                // call action-scheduler.php's own hook would have made,
+                // just not deferred to a hook stage that's already
+                // passed. Only surfaces when WooCommerce's own bundled
+                // copy hasn't already loaded and defined the class first.
                 if (class_exists('ActionScheduler_Versions')) {
                     ActionScheduler_Versions::initialize_latest_version();
                 }
@@ -182,14 +149,13 @@ class OUS_Jobs {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
 
-        // QA fix: WP_Filesystem()'s return value was never checked —
-        // when direct filesystem access isn't available (credentials
-        // needed, permissions, etc.) every $wp_filesystem->move()/
-        // delete() call below either silently no-ops or fatals, and the
-        // user just sees "nothing happened" when the button is clicked.
-        // Initialize (and verify) the filesystem transport FIRST, before
-        // any network work, so a failure here is reported immediately
-        // and honestly instead of after an already-wasted download.
+        // WP_Filesystem()'s return value must be checked — when direct
+        // filesystem access isn't available (credentials needed,
+        // permissions, etc.) every $wp_filesystem->move()/delete() call
+        // below either silently no-ops or fatals. Initialize (and
+        // verify) the filesystem transport FIRST, before any network
+        // work, so a failure here is reported immediately instead of
+        // after an already-wasted download.
         global $wp_filesystem;
         if (!WP_Filesystem()) {
             self::redirect_with_notice("Could not get filesystem access (WP_Filesystem() failed) - this host likely requires FTP/SSH credentials for direct file writes. Check wp-config.php's FS_METHOD setting or your hosting file-permission setup, then try again.");
@@ -198,19 +164,19 @@ class OUS_Jobs {
 
         $tmp = download_url(self::AS_ZIP_URL);
         if (is_wp_error($tmp)) {
-            // QA fix: surface the FULL WP_Error message, not a
-            // paraphrase — download_url() failures on this sandboxed/
-            // Local-by-Flywheel install are often SSL-cert-related, and
-            // the real message is the only way to actually diagnose it.
+            // Surface the FULL WP_Error message, not a paraphrase —
+            // download_url() failures on a Local-by-Flywheel install are
+            // often SSL-cert-related, and the real message is the only
+            // way to actually diagnose it.
             self::redirect_with_notice('Download failed: ' . $tmp->get_error_message());
             return;
         }
 
         $vendor_dir = OUS_PATH . 'includes/vendor';
         if (!is_dir($vendor_dir)) {
-            // QA fix: wp_mkdir_p()'s return value was unchecked — if
-            // includes/ isn't writable, every subsequent step failed as
-            // a downstream side effect instead of a clear error here.
+            // wp_mkdir_p()'s return value must be checked — if includes/
+            // isn't writable, every subsequent step fails as a
+            // downstream side effect instead of a clear error here.
             if (!wp_mkdir_p($vendor_dir)) {
                 @unlink($tmp);
                 self::redirect_with_notice('Could not create the vendor directory (' . $vendor_dir . ') — check that includes/ is writable by the web server.');

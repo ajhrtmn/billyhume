@@ -70,7 +70,7 @@ class BHCRM_Event_Activity {
     /**
      * Raw event `type` -> human-readable label. Every type any active
      * plugin has actually registered via BH_Event::register_event_type()
-     * as of this pass is mapped explicitly; anything unrecognized
+     * is mapped explicitly; anything unrecognized
      * (future type, or a type registered by a plugin this list doesn't
      * know about) falls back to a readable-enough default derived from
      * the raw string rather than showing nothing.

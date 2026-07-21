@@ -95,7 +95,7 @@ class BHM_CRMIntegration {
         $flagged = get_user_meta($user_id, '_bhm_refund_flagged', true) === '1';
         $shared_device_flagged = get_user_meta($user_id, '_bhm_refund_shared_device_flagged', true) === '1';
         $velocity_flagged = get_user_meta($user_id, '_bhm_velocity_flagged', true) === '1';
-        // Wallet top-up velocity cap, AJ's own ask — a distinct signal
+        // Wallet top-up velocity cap — a distinct signal
         // from the play-rate velocity flag above (that's plays, this is
         // money going INTO the wallet unusually fast).
         $topup_flagged = class_exists('BHM_Fraud') && get_user_meta($user_id, '_bhm_topup_velocity_flagged', true) === '1';

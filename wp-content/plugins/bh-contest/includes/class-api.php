@@ -23,8 +23,7 @@ class BH_API {
         register_rest_route('bh/v1', '/results', ['methods' => 'GET',  'callback' => [self::class, 'results'], 'args' => $carg] + $pub);
         register_rest_route('bh/v1', '/vote',    ['methods' => 'POST', 'callback' => [self::class, 'vote'],    'args' => $idarg + $carg] + $auth);
         register_rest_route('bh/v1', '/submit',  ['methods' => 'POST', 'callback' => [self::class, 'submit'],  'args' => $carg] + $auth);
-        // Contestant self-service "wrong file uploaded" fix — AJ's own
-        // ask this session. Ownership is enforced INSIDE replace_audio()
+        // Contestant self-service "wrong file uploaded" fix. Ownership is enforced INSIDE replace_audio()
         // (post_author === current user), not just is_user_logged_in()
         // here, same "auth tier here + real ownership check in the
         // callback" pattern bh-monetization-woo's admin_post_
@@ -510,21 +509,20 @@ class BH_API {
     }
 
     /**
-     * "Wrong file uploaded" fix — AJ's own ask this session. Available
-     * to the submission's OWN author (self-service) or an admin, any
-     * time the contest's submission window is still open — same
-     * BH_Helpers::is_submission_open() gate submit() itself uses, so a
-     * swap can never happen after the window a fresh submission would
-     * also be rejected in.
+     * "Wrong file uploaded" fix. Available to the submission's OWN
+     * author (self-service) or an admin, any time the contest's
+     * submission window is still open — same BH_Helpers::is_submission_open()
+     * gate submit() itself uses, so a swap can never happen after the
+     * window a fresh submission would also be rejected in.
      *
      * The new file goes into `_bh_pending_audio_id`, NEVER directly
      * into `_bh_audio_id` — the currently-live file (whatever's
      * actually being played/voted on right now) keeps serving
      * unchanged until an admin reviews and approves the swap
-     * (BH_Admin::handle_approve_swap()). If a pending swap already
-     * exists (the contestant swapped more than once before review),
-     * the previous pending attachment is deleted and replaced — only
-     * the newest ever needs review, per AJ's own instruction.
+     * (BH_AdminModeration::handle_approve_swap()). If a pending swap
+     * already exists (the contestant swapped more than once before
+     * review), the previous pending attachment is deleted and
+     * replaced — only the newest ever needs review.
      */
     public static function replace_audio($req) {
         $pid = (int) $req->get_param('submission_id');

@@ -24,7 +24,7 @@ class BHM_Wallet {
 
     public static function credit($user_id, $cents, $reason, $track_id = null, $order_id = null) {
         self::apply_delta($user_id, abs((int) $cents), $reason, $track_id, $order_id);
-        // Fraud/abuse velocity cap, AJ's own ask — only real purchased
+        // Fraud/abuse velocity cap — only real purchased
         // top-ups count against this, not admin grants or refund-
         // reversal adjustments (apply_ledger_delta() below is the
         // separate entry point those use).

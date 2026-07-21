@@ -144,21 +144,19 @@ class BH_Event {
 
         if (!$data['type']) return; // malformed job, nothing sane to insert
 
-        // BUG FIX, caught live while verifying a new emit() call site:
-        // $wpdb->prepare()'s %s placeholder silently casts a PHP null
-        // to an empty string, NOT SQL NULL — confirmed directly against
-        // this table's real data (dedup_key stored as '' rather than
-        // NULL). dedup_key has a UNIQUE key, so EVERY event emitted
-        // without an explicit dedup_key (the common, "append-only"
-        // case — plays, votes, notes, links, wallet activity, etc.)
-        // was colliding with the very first such row ever inserted and
-        // being silently dropped by INSERT IGNORE ever since this
-        // table existed. Only events that supplied a real dedup_key
-        // (e.g. bhc/enroll) were ever landing correctly. This was
-        // silent data loss across the whole event-tracking system, not
-        // a cosmetic issue — surfaced now because bh-crm's per-person
+        // BUG FIX: $wpdb->prepare()'s %s placeholder silently casts a PHP
+        // null to an empty string, NOT SQL NULL (confirmed against this
+        // table's real data — dedup_key stored as '' rather than NULL).
+        // dedup_key has a UNIQUE key, so EVERY event emitted without an
+        // explicit dedup_key (the common, "append-only" case — plays,
+        // votes, notes, links, wallet activity, etc.) was colliding with
+        // the very first such row ever inserted and being silently
+        // dropped by INSERT IGNORE ever since this table existed. Only
+        // events that supplied a real dedup_key (e.g. bhc/enroll) were
+        // ever landing correctly — silent data loss across the whole
+        // event-tracking system, surfaced because bh-crm's per-person
         // activity timeline (BHCRM_Event_Activity) reads straight from
-        // this table and was visibly missing rows in a live test.
+        // this table and was visibly missing rows.
         //
         // Fix: branch the SQL so a real dedup_key uses INSERT IGNORE +
         // a bound %s (dedup collisions on a genuine repeat key still

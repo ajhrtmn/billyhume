@@ -48,7 +48,7 @@ class BHC_PostTypes {
         // made for the identical shape of problem (QUIZ-AND-CATALOG-
         // DESIGN-PLAN.md Part 2.2): the term-management admin UI, REST
         // exposure, and tax_query filtering all come for free.
-        // 'rewrite' => false deliberately — this pass has no term-archive
+        // 'rewrite' => false deliberately — no term-archive
         // page (/course-category/foo/), only filtering via the [bh_courses]
         // catalog shortcode's own query string (class-render.php). That
         // sidesteps the whole "newly registered rewrite rule is invisible
@@ -83,7 +83,7 @@ class BHC_PostTypes {
             // tracks use (public post, gated player).
             'public' => true, 'show_ui' => true, 'show_in_menu' => self::MENU_PARENT,
             'rewrite' => ['slug' => 'lesson'],
-            // 'editor' + show_in_rest added this pass — a lesson's steps
+            // 'editor' + show_in_rest — a lesson's steps
             // are now authored directly on this real block-editor screen
             // (bhc/* real Gutenberg blocks, BHC_ContentBridge) instead of
             // BH_Studio's separate canvas; see that class's own docblock.

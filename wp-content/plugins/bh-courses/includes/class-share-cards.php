@@ -2,8 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * "Anything fun for social sharing?" — AJ's own ask, this session. A
- * course-completion share card, generated on demand via the shared
+ * A course-completion share card, generated on demand via the shared
  * BH_ShareCard engine (own-ur-shit/includes/class-share-card.php),
  * same on-demand-not-stored posture class-certificates.php already
  * uses for the exact same "avoid regeneration/storage-cleanup

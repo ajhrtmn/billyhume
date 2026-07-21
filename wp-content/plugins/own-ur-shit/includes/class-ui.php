@@ -190,9 +190,8 @@ class BHY_UI {
             <select id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>" data-custom-target="<?php echo esc_attr($key); ?>_custom">
                 <?php foreach (BHY_Style::FONT_OPTIONS as $name => $param): ?>
                     <?php
-                    // 3.4.49 follow-up — AJ's own ask: "would be cool if
-                    // the color and font selectors could preview what
-                    // they look like." An <option>'s font-family CAN be
+                    // Font selectors preview their real typeface: an
+                    // <option>'s font-family CAN be
                     // styled inline (unlike a color swatch, which most
                     // browsers ignore inside <option> — colors get a real
                     // custom dropdown in the ELEMENT inspector instead,

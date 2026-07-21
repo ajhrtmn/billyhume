@@ -5,9 +5,9 @@ if (!defined('ABSPATH')) exit;
  * This plugin's contribution to BHI_Portal (own-ur-shit's `bhi_portal_panels`
  * filter — see class-portal.php over there) — one of the four real panels
  * this handoff scoped (subscription/wallet, course progress, contest
- * submissions, notifications), matching AJ's own framing: a fan should be
- * able to "manage their sub tiers" from their own account area, not
- * wp-admin. Read-only for now (view balance/ledger/active tier); actual
+ * submissions, notifications): a fan should be able to manage their
+ * supporter tier from their own account area, not wp-admin. Read-only
+ * for now (view balance/ledger/active tier); actual
  * tier changes still route through WooCommerce's own checkout/My Account
  * subscription management — this panel is the "own the interface" layer
  * on top of that, not a reimplementation of WooCommerce's billing UI.
@@ -28,8 +28,8 @@ class BHM_PortalPanel {
         return $panels;
     }
 
-    // Real bug, caught live via a fatal-adjacent DB error in the debug
-    // log: this queried an `ORDER BY tier_id` column that doesn't exist
+    // Real bug (a fatal-adjacent DB error in the debug log): this
+    // queried an `ORDER BY tier_id` column that doesn't exist
     // on `bhm_entitlements` (the real column, per class-activator.php's
     // own CREATE TABLE, is `object_id` — a tier entitlement's object_id
     // IS the tier post ID, just not named `tier_id`). Also widened to

@@ -20,11 +20,10 @@ class BH_PostTypes {
             // singular_name/all_items already stayed plain since those
             // show up in body text ("Add New Contest," "All Contests"),
             // where a prefix would have read oddly anyway.
-            // QA fix, caught live: 'edit_item'/'add_new_item' were
-            // never set, so every real edit screen showed the generic
-            // WP core fallback "Edit Post"/"Add Post" instead of
-            // "Edit Contest"/"Add Contest" — confirmed live via
-            // screenshot.
+            // QA fix: 'edit_item'/'add_new_item' were never set, so
+            // every real edit screen showed the generic WP core
+            // fallback "Edit Post"/"Add Post" instead of "Edit
+            // Contest"/"Add Contest".
             'labels'       => ['name' => 'Contests', 'menu_name' => 'Contests', 'singular_name' => 'Contest', 'all_items' => 'Contests', 'edit_item' => 'Edit Contest', 'add_new_item' => 'Add New Contest', 'new_item' => 'New Contest', 'view_item' => 'View Contest'],
             'public'       => false,
             'show_ui'      => true,
@@ -50,13 +49,12 @@ class BH_PostTypes {
         // Real 'rejected' status, replacing the previous non-existent
         // one (an admin's only prior option was to leave a submission
         // stuck at 'pending' forever, or trash it, with zero
-        // notification to the contestant either way — a real gap
-        // surfaced by AJ's own permissions/QA pass this session).
+        // notification to the contestant either way).
         // 'publicly_queryable' => false / 'exclude_from_search' =>
         // true, same posture as 'pending' itself for this CPT (public
         // => false on the post type already blocks direct access, this
         // just keeps the status consistent with that).
-        // QA fix, caught live: 'exclude_from_search' => true made
+        // QA fix: 'exclude_from_search' => true made
         // WordPress's post_status => 'any' query expansion (used in
         // SIX places across this plugin — has_submitted()'s duplicate
         // check, the portal's own submissions list, the CRM

@@ -12,12 +12,12 @@ if (!defined('ABSPATH')) exit;
  * choose to use) and touches nothing about how WordPress posts are
  * normally authored, versus the second option, which would mean
  * replacing Gutenberg's own authoring flow — a far larger, riskier
- * change with real existing-content-migration implications this pass
- * does not attempt.
+ * change with real existing-content-migration implications not
+ * attempted here.
  *
  * What this ships: ONE new block, 'own-ur-shit/element-prefab'. An
- * author picks an existing BH_Element_Prefab (built earlier this
- * session, already supports full-subtree snapshot/restore) from a
+ * author picks an existing BH_Element_Prefab (already supports
+ * full-subtree snapshot/restore) from a
  * dropdown; the block's render_callback calls the new BH_Element_
  * Prefab::render_definition() (read-only, zero database writes — see
  * that method's own docblock) to render that prefab's tree live,
@@ -37,18 +37,13 @@ if (!defined('ABSPATH')) exit;
  * ecosystem (shared hosting, no persistent Node process).
  */
 class OUS_Gutenberg_Block {
-    // QA fix, 3.4.85: init() is itself only ever invoked as an 'init'
-    // hook callback (own-ur-shit.php's bootstrap) — a second, nested
-    // add_action('init', ...) registered from inside an already-
-    // executing 'init' callback never fires in that same request (see
-    // class-blocks.php in bh-monetization-woo for the confirmed live
-    // repro of this exact pattern, found the same session). This was
-    // masked here by register_block()'s own class_exists('BH_Element_
-    // Prefab') guard already returning false (that class no longer
-    // exists post page-builder-delete pass), so nobody would have
-    // noticed the block silently never registered for the WRONG reason
-    // too. Fixed regardless, so this class is correct if/when
-    // BH_Element_Prefab ever comes back.
+    // init() is itself only ever invoked as an 'init' hook callback
+    // (own-ur-shit.php's bootstrap) — a second, nested add_action('init', ...)
+    // registered from inside an already-executing 'init' callback never
+    // fires in that same request (see class-blocks.php in bh-monetization-woo
+    // for the same pattern). register_block() itself no-ops today since
+    // BH_Element_Prefab doesn't currently exist, but this stays correct
+    // for if/when it comes back.
     public static function init() {
         self::register_block();
     }

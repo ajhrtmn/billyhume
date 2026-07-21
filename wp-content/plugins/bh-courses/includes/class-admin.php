@@ -215,7 +215,7 @@ class BHC_Admin {
 
         // "Preview as student" — the Lesson screen has had this for a
         // while (see render_steps_metabox() below); the Course screen
-        // never did, a real gap AJ's own audit caught. Same real-
+        // never did, a real gap. Same real-
         // permalink-or-preview-link pattern: a published course links
         // straight to its own detail page (BHC_Render_Course, the
         // catalog-entry-clicked-into page with the syllabus/enroll
@@ -250,12 +250,11 @@ class BHC_Admin {
         // Prefills the new lesson's course via ?bhc_course_id=, read by
         // render_lesson_metabox() below — previously this linked to a
         // blank post-new.php and made the author re-pick the course
-        // from the dropdown every single time, a real friction point
-        // AJ's own audit caught.
+        // from the dropdown every single time, a real friction point.
         $add_lesson_url = admin_url('post-new.php?post_type=bh_lesson&bhc_course_id=' . (int) $post->ID);
 
-        // "Emphasize through the UI that every lesson belongs to
-        // exactly one course" — AJ's own ask. A course is a real
+        // Emphasizes through the UI that every lesson belongs to
+        // exactly one course. A course is a real
         // COLLECTION of lessons, not just a list to drag-reorder: this
         // summary line is the "at a glance, what's this course made
         // of" a plain list never gave, and every lesson row below is
@@ -455,9 +454,9 @@ class BHC_Admin {
         }
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
 
-        // "Every lesson belongs to exactly one course" — AJ's own ask
-        // to emphasize this relationship in the UI, not just enforce it
-        // in the data model. This box led with a plain unlabeled select
+        // "Every lesson belongs to exactly one course" — emphasized in
+        // the UI, not just enforced in the data model. This box led
+        // with a plain unlabeled select
         // before; now it's framed as the defining fact about what a
         // lesson IS, with the lesson's actual position inside that
         // course's own order shown right here (previously only visible
@@ -593,8 +592,7 @@ class BHC_Admin {
                 // than trusted as-posted — a crafted or stale POST
                 // (e.g. a course deleted in another tab since this
                 // screen loaded) would otherwise leave the lesson
-                // pointing at nothing, exactly the desync class of bug
-                // AJ's own audit flagged.
+                // pointing at nothing.
                 if ($new_course_id && get_post_type($new_course_id) !== 'bh_course') $new_course_id = 0;
 
                 $old_course_id = BHC_PostTypes::course_for_lesson($post_id);

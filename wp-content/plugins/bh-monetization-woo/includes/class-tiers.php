@@ -79,7 +79,7 @@ class BHM_Tiers {
         }, ['bhm_price' => '_bhm_price_cents']);
     }
 
-    /** Accountability log, AJ's own ask: "who changed what tier" — deletion is the other half of that. */
+    /** Accountability log — deletion is the other half of tracking who changed what tier. */
     public static function log_deletion($post_id) {
         $post = get_post($post_id);
         if (!$post || $post->post_type !== self::CPT || !class_exists('OUS_Audit')) return;
@@ -260,8 +260,7 @@ class BHM_Tiers {
         if (!isset($_POST['bhm_tier_nonce']) || !wp_verify_nonce($_POST['bhm_tier_nonce'], 'bhm_save_tier')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        // Accountability log, AJ's own ask: "who changed what tier" —
-        // a granular before/after diff on the fields that actually
+        // Accountability log — a granular before/after diff on the fields that actually
         // matter (price is the one that affects real money moving).
         $before = class_exists('OUS_Audit') ? [
             'price_cents' => (int) get_post_meta($post_id, '_bhm_price_cents', true),

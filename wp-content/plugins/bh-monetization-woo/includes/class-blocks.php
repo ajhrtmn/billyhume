@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) exit;
  * path alongside it, not a breaking replacement.
  */
 class BHM_Blocks {
-    // QA fix, caught live: BHM_Blocks::init() is itself only ever called
+    // QA fix: BHM_Blocks::init() is itself only ever called
     // FROM an 'init' callback (bh-monetization-woo.php's plugins_loaded
     // handler does add_action('init', ['BHM_Blocks', 'init'])) — a
     // second, nested add_action('init', ...) registered from inside an

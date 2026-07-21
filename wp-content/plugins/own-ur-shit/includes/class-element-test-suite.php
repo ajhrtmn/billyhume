@@ -7,22 +7,16 @@ if (!defined('ABSPATH')) exit;
  * pattern every other *_TestSuite class in this ecosystem uses
  * (BHC_TestSuite, OUS_CoreTestSuite, etc.).
  *
- * Direct response to AJ's own "let's be smart about tests" ask, right
- * after a run of THREE real bugs in this exact layer (BH_Element/the
- * Design Suite canvas) were only caught by live screenshots tonight,
- * one after another: (1) render_slot() returning '' with no wrapper div
- * at all for an empty slot, silently breaking the new live-preview
- * insert-anchor; (2) a doubled/404ing REST path
- * ('/elements/preview' vs the correct bare 'preview'); (3) two
- * different surfaces registered under two different keys for the same
- * real page, causing duplicate/mismatched canvas stories. Every one of
- * these was a class of bug a cheap, deterministic assertion would have
- * caught immediately, with no live browser needed — this suite is that
- * safety net for the ones that don't require a live REST/AJAX round
- * trip (JS-side bugs like #2 and DOM-sync bugs like the tree/canvas
- * mismatch aren't testable from PHP-side assertions at all; see this
- * file's own "NOT covered here" note at the bottom for what still needs
- * a real browser pass).
+ * Covers three prior real bugs in this layer (BH_Element/Design Suite
+ * canvas), each a class a cheap deterministic assertion would catch
+ * without a live browser: (1) render_slot() returning '' with no
+ * wrapper div for an empty slot, breaking the live-preview insert-
+ * anchor; (2) a doubled/404ing REST path ('/elements/preview' vs the
+ * correct bare 'preview'); (3) two different surfaces registered under
+ * two different keys for the same page, causing duplicate/mismatched
+ * canvas stories. JS-side bugs like #2 and DOM-sync bugs like tree/
+ * canvas mismatch aren't testable from PHP-side assertions at all —
+ * see this file's "NOT covered here" note at the bottom.
  *
  * No DB fixtures/cleanup needed for any of the assertions below — every
  * one exercises pure rendering/registry logic against either a
@@ -51,11 +45,11 @@ class BH_Element_TestSuite {
     }
 
     /**
-     * Regression test for the 3.4.49 fix: a slot with zero saved
-     * placements used to return '' from render_slot() with no wrapper
-     * div at all — the single most common real-world case there is (any
-     * fresh page's first-ever edit) — which silently broke the live-
-     * preview JS's insertion anchor. Uses a surface/context id combo
+     * Regression test: a slot with zero saved placements used to return
+     * '' from render_slot() with no wrapper div at all — the single most
+     * common real-world case there is (any fresh page's first-ever edit)
+     * — which broke the live-preview JS's insertion anchor. Uses a
+     * surface/context id combo
      * ('bh-element-test-suite-surface', a random high context id) that
      * can never collide with a real registered surface or real saved
      * data, so this needs no registration/cleanup at all — an
@@ -81,12 +75,11 @@ class BH_Element_TestSuite {
     }
 
     /**
-     * BH_Element::render_surface_preview() (3.4.48, the Live Views
-     * auto-story generator) must degrade gracefully — never fatal, never
-     * warning-spam — for a surface slug nobody registered. This is
-     * exactly the shape of mistake the canvas-sync bugs this session
-     * kept producing: a slug typo or a stale key silently producing
-     * broken output instead of an obvious empty result.
+     * BH_Element::render_surface_preview() (the Live Views auto-story
+     * generator) must degrade gracefully — never fatal, never
+     * warning-spam — for a surface slug nobody registered. A slug typo
+     * or stale key should produce an obvious empty result, not broken
+     * output.
      */
     private static function run_surface_preview_tests() {
         $rows = [];
@@ -96,18 +89,14 @@ class BH_Element_TestSuite {
     }
 
     /**
-     * Regression test for the 3.4.50 color-swatch fix:
-     * BHY_Style::style_schema_for_js()'s 'colorTokens' map used to just
-     * echo each token's own name back as its value
-     * (`$color_tokens[$field] = $field`) — nothing read those values
-     * until the new color-token dropdown (buildColorTokenPopup(),
-     * element-builder.js) started building `var(--bh-accent)` swatches
-     * directly from them. If this ever regresses back to bare token
+     * Regression test: BHY_Style::style_schema_for_js()'s 'colorTokens'
+     * map used to just echo each token's own name back as its value
+     * (`$color_tokens[$field] = $field`), which the color-token dropdown
+     * (buildColorTokenPopup(), element-builder.js) needs to be a real
+     * `var(--bh-accent)` reference. If this regresses back to bare token
      * names, every swatch silently renders as a blank/transparent box
-     * with no error anywhere — exactly the kind of "looks fine until you
-     * actually look at it" bug this session had multiple live-screenshot
-     * rounds catching. Asserts every value is a real CSS custom-property
-     * reference (starts with '--'), not just any string.
+     * with no error anywhere. Asserts every value is a real CSS
+     * custom-property reference (starts with '--'), not just any string.
      */
     private static function run_color_token_schema_tests() {
         $rows = [];

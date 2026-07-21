@@ -4,14 +4,13 @@ if (!defined('ABSPATH')) exit;
 /**
  * The storefront/merchandising layer (ROADMAP-platform-evolution.md
  * Section 5) — product collections, category/collection landing pages,
- * and browse/search/filter controls, built as real BH_Studio pages per
- * AJ's own call (not a reskin of WooCommerce's stock shop/archive
- * templates). Same "own the interface, don't reimplement WooCommerce's
- * hard parts" posture as the rest of this plugin: WooCommerce still
- * owns the actual product data, cart, and checkout — this class only
- * owns how products get BROWSED and DISCOVERED, which is the part
- * AJ's ask (Amazon/Apple/Shopify-quality collections/categories/
- * listing/browse-filter) is actually about.
+ * and browse/search/filter controls, built as real BH_Studio pages
+ * (not a reskin of WooCommerce's stock shop/archive templates). Same
+ * "own the interface, don't reimplement WooCommerce's hard parts"
+ * posture as the rest of this plugin: WooCommerce still owns the
+ * actual product data, cart, and checkout — this class only owns how
+ * products get BROWSED and DISCOVERED, aiming for
+ * Amazon/Apple/Shopify-quality collections/categories/listing/browse-filter.
  *
  * Two new pieces on top of what already exists:
  *
@@ -36,7 +35,7 @@ if (!defined('ABSPATH')) exit;
  * Scope note: bhm/product-grid and bhm/product-filter are BH_Content
  * block types (rendered via BH_Content::render(), independent of
  * WordPress's own block-render pipeline) — correct and sufficient for
- * every use in this pass (collection landing pages, any bhm_collection-
+ * every current use (collection landing pages, any bhm_collection-
  * context document). If either is ever placed inside a document stored
  * against context_type='post' AND that post is later rendered through
  * WordPress's normal the_content()/render_block() path instead of
@@ -72,7 +71,7 @@ class BHM_Storefront {
         // do_blocks()/render_block() pipeline vs. BH_Content::render()).
         add_action('init', [self::class, 'register_core_blocks']);
         add_action('enqueue_block_editor_assets', [self::class, 'enqueue_editor_blocks']);
-        // Real gap, caught live while testing this pass: WooCommerce core
+        // Real gap: WooCommerce core
         // unconditionally hardcodes the block editor OFF for products
         // (WC_Post_Types::gutenberg_can_edit_post_type() always returns
         // false for post_type 'product', priority 10) — so a product's

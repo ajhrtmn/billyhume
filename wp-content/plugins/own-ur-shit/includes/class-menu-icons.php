@@ -4,35 +4,31 @@ if (!defined('ABSPATH')) exit;
 /**
  * A shared visual "family" for every OUS-owned top-level admin menu
  * item, replacing the plain "OUS ·" text prefix each one used to carry
- * in its label (AJ's own ask: signal ecosystem membership visually,
- * not just via a text label). Final direction after several live rounds
- * of visual iteration ("more iconic/whimsical/magical... space age...
- * more streamline moderne/art deco/googie... balanced, offset,
- * aerodynamic... old Hollywood glamour"): a graduated ray fan radiating
- * from the bottom-left corner — five rays of steadily increasing length
- * (7.5 → 10.5 → 13.5 → 16.5 → 19.5, widening in step), the same
- * "ordered, geometric, rhythmic" sunburst a 1930s theater marquee or
- * deco fireplace surround uses, doubling as a search-light-fan/rocket-
- * trail motion cue. Every OUS-owned top-level menu shares this exact
- * fan; only the small glyph tucked in the opposite (upper-right) corner
+ * in its label. Direction: a graduated ray fan radiating from the
+ * bottom-left corner — five rays of steadily increasing length
+ * (7.5 → 10.5 → 13.5 → 16.5 → 19.5, widening in step), an "ordered,
+ * geometric, rhythmic" sunburst evoking a 1930s theater marquee or deco
+ * fireplace surround, doubling as a search-light-fan/rocket-trail
+ * motion cue. Every OUS-owned top-level menu shares this exact fan;
+ * only the small glyph tucked in the opposite (upper-right) corner
  * changes per feature, kept fully clear of the rays so nothing overlaps
  * or reads as muddy at true ~20px sidebar size.
  *
  * Rendered as inline base64 SVG data URIs (add_menu_page()'s and
  * register_post_type()'s own 'menu_icon' both accept this natively).
  *
- * Two real, confirmed-live bugs already fixed in getting here:
+ * Two constraints to keep in mind when touching these:
  *
  * 1. The color constant must be a literal '#a7aaad', not a URL-escaped
  *    '%23a7aaad' — the whole SVG string is base64-encoded, not embedded
  *    as raw/URL-encoded XML in the data URI, so a URL-escaped value is
- *    simply invalid to SVG's own parser. Confirmed live: blank icons.
+ *    invalid to SVG's own parser and renders as a blank icon.
  *
  * 2. WP core recolors a custom SVG menu icon to match the active admin
  *    color scheme, and it is far more aggressive than "swap the fill
- *    value": confirmed live, it rewrites every `fill="..."` attribute
- *    (including `fill="none"`) to one solid scheme color, AND it takes
- *    any `style="..."` attribute on an element and replaces the ENTIRE
+ *    value": it rewrites every `fill="..."` attribute (including
+ *    `fill="none"`) to one solid scheme color, AND it takes any
+ *    `style="..."` attribute on an element and replaces the ENTIRE
  *    style string with a single `fill:SCHEMECOLOR` declaration —
  *    silently deleting stroke/stroke-width in the process. There is no
  *    attribute-level way to keep an element hollow/outlined via

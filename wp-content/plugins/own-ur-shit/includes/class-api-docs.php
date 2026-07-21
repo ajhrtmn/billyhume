@@ -33,45 +33,38 @@ class OUS_ApiDocs {
 
     public static function init() {
         // add_menu() (standalone admin.php?page=ous-api-docs page) is
-        // deliberately NOT hooked anymore — confirmed via Query Monitor
-        // on the live install that WordPress's own page-hook resolution
-        // fails for this specific standalone page (get_current_screen()
-        // resolves to the PARENT page's hook, not this one), denying
-        // access every time despite registration and capability both
-        // being correct. See VISION.md's "New dev/admin-only pages
-        // default to a Debug Tools SECTION" entry for the full incident.
-        // The real, working access point is register_debug_section()
-        // below — a dead, always-broken link in the sidebar was worse
-        // than no standalone page at all. add_menu() itself is left
-        // defined (not deleted) in case a future session gets a real fix
-        // for the underlying WordPress issue and wants to re-enable it.
+        // deliberately not hooked anymore — WordPress's own page-hook
+        // resolution fails for this specific standalone page
+        // (get_current_screen() resolves to the PARENT page's hook, not
+        // this one), denying access every time despite registration and
+        // capability both being correct. See VISION.md's "New dev/
+        // admin-only pages default to a Debug Tools SECTION" entry. The
+        // real, working access point is register_debug_section() below.
+        // add_menu() itself is left defined (not deleted) in case a
+        // future fix for the underlying WordPress issue re-enables it.
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    // A real report this pass: API Docs 404ing with no OUS_DebugLog entry
-    // explaining why — meaning is_locked() was returning false (menu WAS
-    // registered) yet the page still wasn't reachable. This section shows
-    // the is_locked() verdict AND whether the submenu is actually present
-    // in the live $submenu global for THIS request, so "registered but
-    // still 404s" (a routing/caching problem, same family as BHI_Portal's
-    // rewrite-rule issue) is distinguishable from "never registered at
-    // all" (an is_locked() problem) without needing to click through to
-    // the 404 first.
+    // Shows the is_locked() verdict and whether the submenu is actually
+    // present in the live $submenu global for this request, so
+    // "registered but still 404s" (a routing/caching problem, same
+    // family as BHI_Portal's rewrite-rule issue) is distinguishable
+    // from "never registered at all" (an is_locked() problem) without
+    // needing to click through to the 404 first.
     public static function register_debug_section($tools) {
         $tools['api-docs'] = ['label' => 'API Docs', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 
-    // Now the reliable PRIMARY way to reach this content — renders the
-    // real API docs inline, on the one page this whole session has
-    // proven never fails to load. The standalone admin.php?page=ous-api-docs
-    // page is left registered as a secondary/bonus access point (see
-    // add_menu() below), but a live bug report showed WordPress
-    // consistently blocking that standalone page for reasons this
-    // session could not fully root-cause even with registration and
-    // capability both confirmed correct — so this section, not that
-    // page, is what to actually use and link to from here on.
+    // The reliable primary way to reach this content — renders the API
+    // docs inline on the Debug Tools page. The standalone
+    // admin.php?page=ous-api-docs page is left registered as a
+    // secondary/bonus access point (see add_menu() below), but
+    // WordPress consistently blocks that standalone page for reasons
+    // never fully root-caused even with registration and capability
+    // both confirmed correct — so this section, not that page, is
+    // what to actually use and link to.
     public static function render_debug_section() {
         self::render_content();
     }
@@ -86,23 +79,20 @@ class OUS_ApiDocs {
     // menu, or to be reachable at all once "which routes exist" isn't a
     // question anyone actively developing against this install is asking.
     public static function add_menu() {
-        // REMOVED the is_locked() gate that used to wrap this call — API
-        // Docs and Codebase Docs were the only two pages in the whole
+        // The is_locked() gate that used to wrap this call is removed —
+        // API Docs and Codebase Docs were the only two pages in the
         // ecosystem that conditionally skipped their own
         // add_submenu_page() call before registering. Every other admin
-        // page in this ecosystem (Debug Tools itself, Job Queue, every
-        // peer plugin's own screens) registers unconditionally;
-        // is_locked() was designed to gate DESTRUCTIVE seed/reset
-        // actions, not a read-only viewer page's mere existence in the
-        // menu. Real reported symptom: this page consistently denied
-        // access ("Sorry, you are not allowed to access this page") even
-        // on requests where logging proved registration had already
-        // succeeded (a real hook_suffix returned) and
-        // current_user_can('manage_options') was TRUE — meaning the
-        // CONDITIONAL registration path itself, not is_locked()'s
-        // internal logic, was the actual problem. Registering
-        // unconditionally like every other working page removes that
-        // asymmetry.
+        // page (Debug Tools itself, Job Queue, every peer plugin's own
+        // screens) registers unconditionally; is_locked() was designed
+        // to gate destructive seed/reset actions, not a read-only
+        // viewer page's mere existence in the menu. The conditional
+        // registration path denied access even when logging proved
+        // registration had succeeded (a real hook_suffix returned) and
+        // current_user_can('manage_options') was true — the conditional
+        // path itself, not is_locked()'s internal logic, was the
+        // problem. Registering unconditionally like every other working
+        // page removes that asymmetry.
         $hook = add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log_throttled('info', 'api_docs_registered', 60,
@@ -223,7 +213,7 @@ class OUS_ApiDocs {
 
     // The actual body content, shared by both the standalone page
     // (render()) and the Debug Tools section (render_debug_section(),
-    // now the reliable primary path — see that method's own comment).
+    // the reliable primary path — see that method's own comment).
     private static function render_content() {
         $spec = self::generate_spec();
 

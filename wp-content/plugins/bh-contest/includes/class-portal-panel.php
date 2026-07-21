@@ -3,8 +3,8 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * This plugin's contribution to BHI_Portal (own-ur-shit's `bhi_portal_panels`
- * filter — see class-portal.php over there) — "access and edit their
- * contest submissions" from AJ's own ask. Lists every bh_submission post
+ * filter — see class-portal.php over there) — access and edit contest
+ * submissions from a fan's own account portal. Lists every bh_submission post
  * authored by the current user (across every contest, not just the
  * active one), with its status and live vote count, and a real edit link
  * for anything still in a submittable state.
@@ -111,7 +111,7 @@ class BH_PortalPanel {
 
             // Self-service "wrong file uploaded" fix — available any
             // time the contest's submission window is still open,
-            // admin or contestant, per AJ's own scoping. Deliberately
+            // admin or contestant. Deliberately
             // NOT gated on post_status (works for pending, published,
             // AND rejected — resubmitting a new file after a rejection
             // puts it back in front of an admin, see BH_API::

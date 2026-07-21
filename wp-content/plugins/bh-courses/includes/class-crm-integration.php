@@ -128,12 +128,10 @@ add_action('bhc_enrolled', function ($user_id, $course_id) {
 }, 10, 2);
 
 // First real bh-courses contributor to the shared Metrics dashboard
-// (own-ur-shit's OUS_Metrics, class-metrics.php) — AJ's own ask to
-// build this in tandem with the LMS/contest hardening rather than as a
-// later bolt-on. Two cards from BH_Event data (already flowing —
-// bhc/enroll and bhc/course_completed have been real, live events
-// since earlier this session, not new instrumentation added just for
-// this), one from a direct bhc_progress query for the metric BH_Event
+// (own-ur-shit's OUS_Metrics, class-metrics.php). Two cards from
+// BH_Event data (already flowing — bhc/enroll and bhc/course_completed
+// are real, live events, not new instrumentation added just for this),
+// one from a direct bhc_progress query for the metric BH_Event
 // doesn't carry (score isn't part of the enroll/complete event
 // payloads, and re-deriving it from events would just be a slower,
 // more roundabout version of the same query bhc_progress already
