@@ -162,6 +162,22 @@
             if (nextDot) nextDot.disabled = false;
         }
 
+        // Depth-of-magic beat: markStepDone()'s own stepper-dot pulse
+        // (500ms) was previously cut short by advance() firing in the
+        // very same tick, swapping the visible step content out from
+        // under it before a student could actually register that a
+        // step just completed — a silent snap to the next thing, not a
+        // felt moment. A short real pause here (skipped entirely under
+        // prefers-reduced-motion, same posture as the confetti/pulse
+        // animations elsewhere in this file) is the whole fix: nothing
+        // new to build, just letting the acknowledgment that already
+        // exists actually be seen before the queue moves on.
+        function advanceWithBeat(index) {
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduced) { advance(index); return; }
+            setTimeout(function () { advance(index); }, 450);
+        }
+
         function advance(fromIndex) {
             var next = fromIndex + 1;
             if (next < stepCount) {
@@ -225,7 +241,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
-                        advance(index);
+                        advanceWithBeat(index);
                     });
             }
 
@@ -311,7 +327,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
-                        advance(index);
+                        advanceWithBeat(index);
                     })
                     .catch(function () {
                         if (attempt < 2) {
