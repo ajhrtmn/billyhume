@@ -227,6 +227,32 @@ class BHC_Progress {
         return $total ? (int) round(($done / $total) * 100) : 0;
     }
 
+    // Average of this student's current best/latest quiz score across
+    // every quiz step in the course they've actually attempted — a
+    // real-time "quiz mastery" signal, not a stored attempt history
+    // (bhc_progress.score only keeps the latest attempt per step, same
+    // limitation as the rest of this file). Only quiz steps ever get a
+    // non-null score written (mark_step_complete()'s own NULL-vs-real
+    // branching above), so filtering on score IS NOT NULL is sufficient
+    // to isolate them without a second lookup against each step's type.
+    // Returns null (not 0) when no quiz has been attempted yet —
+    // callers must treat that as "nothing to show" (never a bare "0%"
+    // before a student has actually taken a quiz).
+    public static function course_quiz_average($user_id, $course_id) {
+        if (!$user_id) return null;
+        $lesson_ids = BHC_PostTypes::lesson_order($course_id);
+        if (!$lesson_ids) return null;
+        global $wpdb;
+        $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
+        $scores = $wpdb->get_col($wpdb->prepare(
+            "SELECT score FROM " . self::table() . " WHERE user_id = %d AND lesson_id IN ($placeholders) AND score IS NOT NULL",
+            array_merge([$user_id], $lesson_ids)
+        ));
+        if (!$scores) return null;
+        $scores = array_map('floatval', $scores);
+        return (int) round(array_sum($scores) / count($scores));
+    }
+
     // Every distinct user_id with a progress row on ANY lesson belonging
     // to this course — moved here from class-progress-admin.php (which
     // had its own private copy) so class-nudges.php's stalled-student
