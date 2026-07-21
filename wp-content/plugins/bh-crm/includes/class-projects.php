@@ -6,17 +6,22 @@ if (!defined('ABSPATH')) exit;
 // (a macOS task tracker for music producers/labels/mastering
 // engineers), and asked to duplicate its full feature set here: "I
 // basically will want to duplicate all of Track Its functionality."
-// That doc is a DETAILED PLAN ONLY, not built — reusable checklists,
-// timestamped fixes, a feedback log, stall analytics, separate
-// scenes/boards, and (honestly scoped as the least portable) linked
-// local audio/MIDI files are all designed there with a phased build
-// order, judgment calls, and an explicit "not ported" list (native DAW
-// launching; a per-app theme builder, since this ecosystem already has
-// one ecosystem-wide). Column customization and per-card completion
-// roll-up already match TrackIt's own equivalent features — see that
-// doc's §2 for the exact mapping against what's already built below.
-// Read that doc before starting any of these — this class's own
-// comment here is only a pointer, not a duplicate of the plan.
+// Column customization and per-card completion roll-up already match
+// TrackIt's own equivalent features — see that doc's §2 for the exact
+// mapping against what's already built below.
+//
+// STATUS UPDATE (2026-07-21, see plugins/STATUS.md): the line that used
+// to sit here calling the whole plan "DETAILED PLAN ONLY, NOT BUILT" is
+// stale — class-subtasks.php since shipped a real, substantial nested
+// sub-task system (full kanban boards, not flat checklists, at every
+// nesting level; versions 1.8.0-2.4.6). That's a genuinely different,
+// arguably more capable mechanism than the plan's own Phase A (reusable
+// checklist templates), not a literal implementation of it — read
+// class-subtasks.php's own docblock for what actually shipped there.
+// Phases B-E (timestamped fixes, a feedback log, stall analytics,
+// linked local audio/MIDI files, separate scenes/boards) remain
+// genuinely unbuilt. Read the plan doc before starting any of those —
+// this comment is only a pointer, not a duplicate of it.
 //
 // BHCRM_VER 1.3.0 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.5): new
 // list_all() + render_boards() — a thin, real listing page for the new
