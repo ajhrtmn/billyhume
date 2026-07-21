@@ -151,6 +151,14 @@ class BHC_Render_Course {
             if ($uid) {
                 $percent = BHC_Progress::course_percent($uid, $course_id);
                 echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+                // Mastery signal — only ever shown once a real quiz has
+                // actually been scored (course_quiz_average() returns
+                // null, not 0, until then), never a "0%" placeholder
+                // nagging a student who hasn't reached a quiz yet.
+                $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
+                if ($quiz_average !== null) {
+                    echo '<p class="bhc-mastery-label">Mastery: ' . (int) $quiz_average . '%</p>';
+                }
             }
             echo self::render_grouped_lesson_list($course_id, $uid, null, false);
         }

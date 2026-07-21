@@ -54,6 +54,7 @@
    instead of a static number that occasionally changes. */
 .bhc-progress-fill { height: 100%; background: var(--bh-accent); transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 .bhc-progress-label { font-size: 12px; color: var(--bh-text-dim); }
+.bhc-mastery-label { font-size: 12px; color: var(--bh-accent); font-weight: 600; margin-top: -4px; }
 @media (prefers-reduced-motion: reduce) {
     .bhc-progress-fill { transition: none; }
 }

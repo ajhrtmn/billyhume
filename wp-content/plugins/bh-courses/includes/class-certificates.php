@@ -97,6 +97,18 @@ class BHC_Certificates {
         $site_name = get_bloginfo('name');
         $date = date_i18n(get_option('date_format'));
 
+        // Distinction tier: a student who cleared a real quiz-mastery
+        // bar (not just "finished," which every certificate already
+        // proves) gets the same certificate with an added "WITH
+        // DISTINCTION" line. course_quiz_average() returns null (not 0)
+        // when no quiz was ever attempted in this course, which
+        // correctly never qualifies — distinction is earned, not a
+        // default. Filterable so a site can tune the bar without a
+        // code change.
+        $quiz_average = class_exists('BHC_Progress') ? BHC_Progress::course_quiz_average($user_id, $course_id) : null;
+        $distinction_threshold = (int) apply_filters('bhc_certificate_distinction_threshold', 90);
+        $with_distinction = $quiz_average !== null && $quiz_average >= $distinction_threshold;
+
         $pdf = new FPDF('L', 'mm', 'A4'); // landscape — the standard shape for this document type, not a preference
         $pdf->SetMargins(20, 20, 20);
         $pdf->AddPage();
@@ -112,6 +124,14 @@ class BHC_Certificates {
         $pdf->SetY(65);
         $pdf->SetFont('Helvetica', 'B', 28);
         $pdf->Cell(0, 16, 'Certificate of Completion', 0, 1, 'C');
+
+        if ($with_distinction) {
+            $pdf->SetY(83);
+            $pdf->SetFont('Helvetica', 'BI', 12);
+            $pdf->SetTextColor(180, 130, 30);
+            $pdf->Cell(0, 8, 'WITH DISTINCTION', 0, 1, 'C');
+            $pdf->SetTextColor(0, 0, 0);
+        }
 
         $pdf->SetY(95);
         $pdf->SetFont('Helvetica', '', 13);
