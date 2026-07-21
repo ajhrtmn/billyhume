@@ -176,12 +176,11 @@ class BHCRM_Notes {
         global $wpdb;
         $note_id = (int) ($args['note_id'] ?? 0);
 
-        // QA fix, caught live: an UPDATE ... WHERE reminder_dismissed = 0
-        // is the actual idempotency guard — the old code only ever READ
+        // QA fix: an UPDATE ... WHERE reminder_dismissed = 0 is the
+        // actual idempotency guard — the old code only ever READ
         // reminder_dismissed and never SET it, so a reminder that fired
-        // more than once (confirmed live: it genuinely did, once via a
-        // manual test call and once via Action Scheduler's own real
-        // background processing of the scheduled job) sent the same
+        // more than once (a manual test call and Action Scheduler's own
+        // real background processing both landing) sent the same
         // notification twice. Marking it dismissed atomically, in the
         // same query that checks it's not already dismissed, closes the
         // gap a plain SELECT-then-UPDATE would still race on if two

@@ -51,8 +51,8 @@ class BHCRM_Hub {
 
     public static function add_menu() {
         // QA reframe: renamed the visible top-level menu from "CRM" to
-        // "Studio" — AJ's own framing is that this plugin is really the
-        // full artist project-management tool (people + projects +,
+        // "Studio" — this plugin is really the full artist project-
+        // management tool (people + projects +,
         // going forward, features/issues), not just a contact database,
         // and "CRM" undersold that. Slugs (bh-crm-hub, bh-crm) are
         // UNCHANGED — every existing admin.php?page=bh-crm&... deep
@@ -73,7 +73,7 @@ class BHCRM_Hub {
         self::log_result('bh-crm-hub (relabeled first submenu)', $hook2);
     }
 
-    // Log-pollution fix, flagged by AJ directly — this used to log an
+    // Log-pollution fix — this used to log an
     // INFO row for every SUCCESSFUL registration too, throttled only to
     // once per 60 seconds, on every admin page load. Same fix as
     // OUS_MenuMerge::merge()'s own version of this exact pattern: only

@@ -213,8 +213,7 @@ class BHCRM_Segments {
         }
         global $wpdb;
         $id = (int) ($_GET['segment_id'] ?? 0);
-        // Audit log, AJ's own ask: "who deleted what segment" — capture
-        // what it actually was before it's gone.
+        // Audit log — capture what it actually was before it's gone.
         $segment = self::get($id);
         if ($segment && class_exists('OUS_Audit')) {
             OUS_Audit::log('segment_deleted', 'bhcrm_segment', $id, ['name' => $segment['name']]);

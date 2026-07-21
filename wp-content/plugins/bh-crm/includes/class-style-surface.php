@@ -25,8 +25,8 @@ if (!defined('ABSPATH')) exit;
  * people.php's own admin detail page with pure node-tree rendering —
  * that page still has its own fixed wp-admin chrome (identity header,
  * fields table, tags/notes editors, project tracker section) outside
- * BH_Element entirely, which is a separate, larger follow-up honestly
- * out of scope for this pass. What this DOES prove end-to-end: a slot's
+ * BH_Element entirely, which is a separate, larger follow-up out of
+ * scope here. What this DOES prove end-to-end: a slot's
  * content, once you add/style placements in it, shows up for real here
  * — no admin-only, no fabricated stand-in.
  *

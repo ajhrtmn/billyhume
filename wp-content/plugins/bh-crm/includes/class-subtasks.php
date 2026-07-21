@@ -3,17 +3,14 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * BHCRM_Subtasks — a real, dedicated nested-tracking view for a sticky
- * card's sub-tasks, replacing Content Studio for this purpose entirely
- * (AJ's own call: "it replaces content studio entirely, not related in
- * the slightest"). Content Studio is a generic WordPress block-editor
- * canvas with no board/column concept and no rollup display — a
- * mismatch for "track progress on nested boards," which is what this
- * class actually builds.
+ * card's sub-tasks, replacing Content Studio for this purpose entirely.
+ * Content Studio is a generic WordPress block-editor canvas with no
+ * board/column concept and no rollup display — a mismatch for "track
+ * progress on nested boards," which is what this class actually builds.
  *
- * REAL KANBAN AT EVERY LEVEL, not a flat checklist — a course
- * correction, AJ's own words: "I thought each subtask would be its
- * own kanban board of tasks." Every level of a card's sub-task tree
- * renders as a full multi-column board (drag between columns, per-
+ * REAL KANBAN AT EVERY LEVEL, not a flat checklist. Every level of a
+ * card's sub-task tree renders as a full multi-column board (drag
+ * between columns, per-
  * column add), reusing the exact same visual/interaction language as
  * the top-level project board (kanban-board.css/.js) rather than
  * inventing a second look. All levels share ONE column vocabulary —
@@ -35,9 +32,8 @@ if (!defined('ABSPATH')) exit;
  * BHCRM_Projects::register_content_block_type() for the schema itself.
  *
  * NAVIGATION: a $path (array of uids from the card's own root down to
- * the currently-viewed node) drives which level of the tree is shown —
- * AJ's own ask, "a good UX for moving up and down the trees of
- * boards." Carried as a comma-joined 'subtask_path' query arg. A real
+ * the currently-viewed node) drives which level of the tree is shown.
+ * Carried as a comma-joined 'subtask_path' query arg. A real
  * breadcrumb (render_breadcrumb()) shows the full chain back to the
  * card itself, collapsing past BREADCRUMB_COLLAPSE_AT segments so it
  * never grows unbounded sideways.
@@ -49,11 +45,11 @@ if (!defined('ABSPATH')) exit;
  * parent's progress = aggregate of its children" is true at EVERY
  * level.
  *
- * SCOPING NOTE, disclosed rather than silently half-built: AJ also
- * asked for "details sections that allow links to people and things."
- * A sub-task has no stable INTEGER id of its own (BHCRM_Links'
- * from_id/to_id columns are bigint, and a BH_Content tree node's only
- * stable identifier is the string 'uid' this pass adds) — bridging
+ * SCOPING NOTE, disclosed rather than silently half-built: linking a
+ * sub-task to people/things is not yet supported. A sub-task has no
+ * stable INTEGER id of its own (BHCRM_Links' from_id/to_id columns
+ * are bigint, and a BH_Content tree node's only stable identifier is
+ * the string 'uid' this class adds) — bridging
  * that cleanly is a real, separate design decision left for a
  * follow-up. Notes (freeform detail) are fully supported today via
  * the block's own existing 'notes' attr.
@@ -152,10 +148,9 @@ class BHCRM_Subtasks {
     }
 
     /**
-     * QA fix, caught live: a placement's decoded 'config' isn't a flat
-     * {title: 'x'} map — BH_Element stores each attr as {literal: 'x'}
-     * (or {source: ...} for a bound value), confirmed directly against
-     * a real row: {"attrs":{"title":{"literal":"QA Test Card"},...}}.
+     * QA fix: a placement's decoded 'config' isn't a flat {title: 'x'}
+     * map — BH_Element stores each attr as {literal: 'x'} (or
+     * {source: ...} for a bound value).
      */
     private static function card_title($card) {
         return (string) ($card['config']['attrs']['title']['literal'] ?? '');
@@ -208,9 +203,8 @@ class BHCRM_Subtasks {
     }
 
     /**
-     * A real visual progress bar — AJ's own ask, "a Track It style
-     * progress bar that tallies everything up under it" — replacing
-     * the previous plain "X/Y done" text with a filled bar plus the
+     * A real visual progress bar, replacing the previous plain "X/Y
+     * done" text with a filled bar plus the
      * same count, both driven by the exact same recursive
      * BHCRM_Projects::rollup_counts() this class already used for the
      * text-only version. $mini renders a smaller variant sized for
@@ -319,8 +313,7 @@ class BHCRM_Subtasks {
         wp_nonce_field('bhcrm_subtask_' . $node_uid);
         echo '<button type="submit" class="button button-small" title="Toggle done" style="padding:0 4px;min-height:auto;line-height:1.6;">' . ($done ? '&#9745;' : '&#9744;') . '</button>';
         echo '</form>';
-        // Inline-editable title — AJ's own ask, "make them editable,"
-        // matching the top-level board's own live-editable card title
+        // Inline-editable title, matching the top-level board's own live-editable card title
         // (kanban-board.js's renderCard()) exactly rather than a
         // separate collapsed edit form. Saves on blur/Enter via
         // fetch(), no page reload — subtasks.js wires the change event.
@@ -329,8 +322,7 @@ class BHCRM_Subtasks {
 
         if ($child_total > 0) self::render_progress_bar($child_done, $child_total, true);
 
-        // Description — AJ's own ask for "a description field." This
-        // is the block's existing 'notes' attr, just always visible
+        // Description field — the block's existing 'notes' attr, just always visible
         // and directly editable now instead of hidden behind a
         // collapsed "Edit" toggle.
         echo '<textarea class="bhcrm-subtask-desc-input" rows="2" placeholder="Add a description…">' . esc_textarea(wp_strip_all_tags($notes)) . '</textarea>';
@@ -501,9 +493,8 @@ class BHCRM_Subtasks {
         // Last column in the project's own list is treated as "done"
         // — same convention Track-It (and every other kanban tool)
         // uses, and matches this project's own DEFAULT_COLUMNS ending
-        // in 'Done'. AJ's own ask: "should update to done once the
-        // task has been dragged to done." Deliberately one-directional
-        // — dropping INTO the done column marks it done; dragging back
+        // in 'Done'. Deliberately one-directional — dropping INTO the
+        // done column marks it done; dragging back
         // OUT does not un-mark it, so reorganizing columns can never
         // silently erase a completion someone set on purpose.
         $done_column = end($columns);
@@ -549,8 +540,7 @@ class BHCRM_Subtasks {
 
     /**
      * Fetch-based, not a page-reload form — AJAX-style save for the
-     * now-inline-editable title/description fields (AJ's own ask,
-     * "make them editable"). Same shared per-page nonce
+     * inline-editable title/description fields. Same shared per-page nonce
      * handle_reorder() already uses (localized once as cfg.nonce,
      * covering every JS-driven mutation on this view) rather than a
      * per-node nonce field, since there's no real `<form>` submitting
