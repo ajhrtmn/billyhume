@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * marks itself done if the migration actually succeeded.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.4'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all).
+    const DB_VERSION = '1.5'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all). 1.5 added bhc_achievements (LMS depth-of-magic Phase 3 — real, persistent cross-course mastery badges, the first genuinely new schema that phase needed).
 
     public static function activate() {
         BHC_PostTypes::register();
@@ -161,6 +161,28 @@ class BHC_Activator {
             KEY course_status (course_id, status)
         ) $charset;";
         dbDelta($sql4);
+
+        // Real, persistent cross-course achievements — LMS depth-of-magic
+        // Phase 3. course_id is NOT NULL with a 0 sentinel for a global
+        // (not course-specific) achievement like "3 courses mastered",
+        // same "0 = the open/global default" convention max_attempts and
+        // watch_threshold already use elsewhere in this plugin — a real
+        // NULL here would defeat the UNIQUE KEY's once-only guarantee,
+        // since MySQL treats every NULL in a unique index as distinct
+        // from every other NULL, letting the same global achievement be
+        // inserted for the same user more than once.
+        $achievements = $wpdb->prefix . 'bhc_achievements';
+        $sql5 = "CREATE TABLE $achievements (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            achievement_key varchar(40) NOT NULL,
+            course_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            earned_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_achievement_course (user_id, achievement_key, course_id),
+            KEY user_id (user_id)
+        ) $charset;";
+        dbDelta($sql5);
 
         return true;
     }

@@ -25,6 +25,26 @@ class BHC_PortalPanel {
         return $panels;
     }
 
+    // LMS depth-of-magic Phase 3 — real cross-course mastery badges
+    // (BHC_Achievements). Obvious-or-gone: a student with none earned yet
+    // sees nothing here at all, not a row of greyed-out locked badges —
+    // this section only exists once there's something real to show.
+    private static function render_achievements($user_id) {
+        if (!class_exists('BHC_Achievements')) return;
+        $earned = BHC_Achievements::all_for_user($user_id);
+        if (!$earned) return;
+
+        echo '<div class="bhi-portal-achievements">';
+        foreach ($earned as $row) {
+            $meta = BHC_Achievements::LABELS[$row['achievement_key']] ?? null;
+            if (!$meta) continue;
+            echo '<span class="bhi-achievement-badge" title="' . esc_attr($meta['description']) . '">'
+               . '<span class="dashicons dashicons-awards"></span> ' . esc_html($meta['label'])
+               . '</span>';
+        }
+        echo '</div>';
+    }
+
     private static function enrolled_course_ids($user_id) {
         global $wpdb;
         return $wpdb->get_col($wpdb->prepare(
@@ -41,6 +61,8 @@ class BHC_PortalPanel {
             echo '<p>Course progress is unavailable right now.</p>';
             return;
         }
+
+        self::render_achievements($user_id);
 
         $course_ids = self::enrolled_course_ids($user_id);
         if (!$course_ids) {
