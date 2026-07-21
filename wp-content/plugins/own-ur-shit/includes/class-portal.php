@@ -715,6 +715,13 @@ class BHI_Portal {
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
   .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }
   .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); transition:width 0.5s cubic-bezier(0.22,1,0.36,1); }
+  /* bh-courses' My Courses panel (BHC_PortalPanel) — real cross-course
+     mastery badges (LMS depth-of-magic Phase 3). Same chip treatment as
+     the overview tier badge just below, not a second, disconnected
+     visual language for "you earned something." */
+  .bhi-portal-achievements { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 20px; }
+  .bhi-achievement-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:999px; background:var(--bh-accent-muted-bg, var(--bh-accent-soft, #eef4ff)); color:var(--bh-accent, #2271b1); font-weight:600; font-size:12px; }
+  .bhi-achievement-badge .dashicons { font-size:14px; width:14px; height:14px; }
   /* Overview tab — the tier badge is the one "you belong to something"
      signal on this whole page, so it gets real chip styling instead of
      inline plain text sitting next to a date. */

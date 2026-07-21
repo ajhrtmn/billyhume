@@ -137,6 +137,10 @@ class BHC_Progress {
             ]);
         }
 
+        if ($score !== null && class_exists('BHC_Achievements')) {
+            BHC_Achievements::maybe_award_quiz_aced($user_id, $score);
+        }
+
         if ($passed === null || $passed) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));
         }

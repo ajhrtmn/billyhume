@@ -143,6 +143,21 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_review_tests());
         }
 
+        /* ---------- achievements (BHC_Achievements) ----------
+         * LMS depth-of-magic Phase 3 — the first genuinely new schema
+         * this plugin's added all session (bhc_achievements). Runs
+         * directly against the class's own award()/count()/
+         * on_course_completed() methods (not through the real AJAX/
+         * action-firing path) — same isolated-unit-test posture
+         * run_quiz_average_tests() already uses for course_quiz_average(),
+         * to avoid dragging in course_percent()/BH_Event/notification
+         * side effects unrelated to what's actually being tested here.
+         * Real, tagged fixture user + real bhc_achievements rows,
+         * cleaned up afterward. */
+        if (class_exists('BHC_Achievements') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_achievement_tests());
+        }
+
         return $rows;
     }
 
@@ -507,6 +522,111 @@ class BHC_TestSuite {
         $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_a]);
         $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_b]);
         wp_delete_post($course_id, true);
+
+        return $rows;
+    }
+
+    private static function run_achievement_tests() {
+        $rows = [];
+        global $wpdb;
+        $uid = OUS_Debug::get_or_create_test_user('bhc_achievements_suite', false);
+        $table = $wpdb->prefix . 'bhc_achievements';
+        $wpdb->delete($table, ['user_id' => $uid]);
+
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::award($uid, BHC_Achievements::FIRST_QUIZ_ACED),
+            'award(): a brand-new achievement is newly earned (returns true)'
+        );
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Achievements::award($uid, BHC_Achievements::FIRST_QUIZ_ACED),
+            'award(): awarding the same global achievement twice is a no-op the second time — the UNIQUE KEY, not an application-level check, is what enforces this'
+        );
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::FIRST_QUIZ_ACED),
+            'has(): reads back the award just made'
+        );
+
+        // maybe_award_quiz_aced() — the mark_step_complete() hook point.
+        $wpdb->delete($table, ['user_id' => $uid, 'achievement_key' => BHC_Achievements::FIRST_QUIZ_ACED]);
+        BHC_Achievements::maybe_award_quiz_aced($uid, 90);
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Achievements::has($uid, BHC_Achievements::FIRST_QUIZ_ACED),
+            'maybe_award_quiz_aced(): a 90% score does not award — only a perfect 100 counts as "aced"'
+        );
+        BHC_Achievements::maybe_award_quiz_aced($uid, 100);
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::FIRST_QUIZ_ACED),
+            'maybe_award_quiz_aced(): a 100% score awards first_quiz_aced'
+        );
+
+        // on_course_completed() — distinction per course, then the
+        // rolled-up "3 courses mastered" once a 3rd distinct course
+        // clears the same bar. Four real, tagged fixture courses: one
+        // deliberately below the threshold (proves distinction isn't
+        // handed out for free), three above it (the actual countdown to
+        // the rollup) — since course_quiz_average() (which this method
+        // calls) reads real bhc_progress rows scoped by the course's own
+        // lesson order.
+        $progress_table = $wpdb->prefix . 'bhc_progress';
+        $course_ids = [];
+        $lesson_ids = [999999201, 999999202, 999999203, 999999204];
+        for ($i = 0; $i < 4; $i++) {
+            $course_id = wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'BHC Achievements Suite Fixture Course ' . $i], true);
+            if (is_wp_error($course_id)) {
+                return array_merge($rows, [['name' => 'BHC_TestSuite achievements fixture course insert failed', 'pass' => false, 'message' => '']]);
+            }
+            $course_ids[] = $course_id;
+            update_post_meta($course_id, '_bhc_lesson_order', [$lesson_ids[$i]]);
+            $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $lesson_ids[$i]]);
+        }
+
+        // Course 0: below the distinction threshold — no badge.
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[0], 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Achievements::on_course_completed($uid, $course_ids[0]);
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[0]),
+            'on_course_completed(): an 80% quiz average (below the 90% default threshold) does not earn course_distinction'
+        );
+
+        // Courses 1 and 2: at/above threshold — distinction earned, but
+        // "3 mastered" should not fire until the THIRD one lands.
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[1], 0, 95, 1, wp_json_encode(['score' => 95, 'passed' => true, 'questions' => []]));
+        BHC_Achievements::on_course_completed($uid, $course_ids[1]);
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[1]),
+            'on_course_completed(): a 95% quiz average earns course_distinction for that course'
+        );
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSES_MASTERED_3),
+            'on_course_completed(): courses_mastered_3 does not fire after only 1 distinction'
+        );
+
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[2], 0, 92, 1, wp_json_encode(['score' => 92, 'passed' => true, 'questions' => []]));
+        BHC_Achievements::on_course_completed($uid, $course_ids[2]);
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[2]),
+            'on_course_completed(): a 2nd course clears the threshold and earns its own distinction'
+        );
+        $rows[] = OUS_TestRunner::assert_false(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSES_MASTERED_3),
+            'on_course_completed(): courses_mastered_3 still does not fire after only 2 distinctions'
+        );
+
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[3], 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        BHC_Achievements::on_course_completed($uid, $course_ids[3]);
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[3]),
+            'on_course_completed(): a 3rd course also clears the threshold and earns its own distinction'
+        );
+        $rows[] = OUS_TestRunner::assert_true(
+            BHC_Achievements::has($uid, BHC_Achievements::COURSES_MASTERED_3),
+            'on_course_completed(): the 3rd distinction rolls up into courses_mastered_3'
+        );
+
+        // Cleanup.
+        foreach ($lesson_ids as $lid) $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $lid]);
+        foreach ($course_ids as $cid) wp_delete_post($cid, true);
+        $wpdb->delete($table, ['user_id' => $uid]);
 
         return $rows;
     }

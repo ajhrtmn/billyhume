@@ -2,11 +2,20 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.34
+ * Version:     0.4.35
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.35 — LMS depth-of-magic Phase 3: cross-course mastery. A new
+// bhc_achievements table (BHC_Activator 1.5) and BHC_Achievements class
+// award a small, fixed set of real, persistent badges — first quiz
+// aced, completed a course with distinction, 3 courses mastered —
+// hooked off events that already exist (mark_step_complete()'s quiz-
+// score path, the bhc_course_completed action), surfaced on the My
+// Courses portal panel. First genuinely new schema this plugin's
+// depth-of-magic pass has needed.
 
 // 0.4.34 — LMS depth-of-magic Phase 2b: a real hero treatment for a
 // course's own landing page. A cover image now earns a full-width banner
@@ -149,7 +158,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'progress-admin', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -171,6 +180,7 @@ add_action('plugins_loaded', function () {
     // instead of called directly at plugins_loaded time.
     add_action('init',          ['BHC_Blocks', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
+    add_action('init', ['BHC_Achievements', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
