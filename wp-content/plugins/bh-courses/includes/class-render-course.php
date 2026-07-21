@@ -114,8 +114,13 @@ class BHC_Render_Course {
         // access, start their drip-scheduling clock for this course —
         // see BHC_Progress::enroll_if_needed()'s docblock for why this
         // is the one place that's safe/correct to call it from (access
-        // just got confirmed, not merely attempted).
-        if ($uid && !$locked) BHC_Progress::enroll_if_needed($uid, $course_id);
+        // just got confirmed, not merely attempted). $just_enrolled is
+        // true only on this exact request, the real first-ever
+        // enrollment — used below to show a one-time orientation moment
+        // instead of dropping straight into the ordinary progress/lesson-
+        // list view a returning student sees.
+        $just_enrolled = false;
+        if ($uid && !$locked) $just_enrolled = BHC_Progress::enroll_if_needed($uid, $course_id);
 
         ob_start();
         echo '<div class="bhc-course-view">';
@@ -140,6 +145,13 @@ class BHC_Render_Course {
                 echo '</ol></div>';
             }
         } else {
+            // First-ever enrollment: a one-time "here's what you're
+            // about to learn" moment instead of dropping straight into
+            // the ordinary progress/lesson-list view — sets real
+            // expectations before the day-to-day lesson queue begins,
+            // same Disneyland-queue framing as the rest of this pass.
+            if ($just_enrolled) echo self::render_orientation_screen($uid, $course_id, $lesson_ids);
+
             // The real payoff moment — a dedicated completion screen
             // (stats, certificate, share card, next steps) once this
             // student has actually finished, in place of the flat
@@ -433,6 +445,43 @@ class BHC_Render_Course {
         if ($archive_url) echo '<a href="' . esc_url($archive_url) . '">Browse more courses</a>';
         if (class_exists('BHC_Reviews')) echo ' &middot; <a href="#bhc-reviews">Leave a review</a>';
         echo '</div>';
+        echo '</div>';
+        return ob_get_clean();
+    }
+
+    /**
+     * The queue's real starting line — shown exactly once, the moment
+     * BHC_Progress::enroll_if_needed() confirms a genuine first
+     * enrollment. Reuses the same grouped-lesson-list markup the
+     * ordinary progress view renders (render_grouped_lesson_list()) so
+     * a student sees the real syllabus they're about to work through,
+     * not a generic "you're enrolled!" toast with no substance.
+     */
+    private static function render_orientation_screen($uid, $course_id, array $lesson_ids) {
+        ob_start();
+        echo '<div class="bhc-orientation">';
+        echo '<p class="bhc-orientation-eyebrow">You\'re in</p>';
+        echo '<h2 class="bhc-orientation-title">Here\'s what\'s ahead</h2>';
+        $content = get_post_field('post_content', $course_id);
+        if ($content) {
+            echo '<div class="bhc-orientation-description">' . wp_kses_post(get_the_excerpt($course_id) ?: wp_trim_words(wp_strip_all_tags($content), 40)) . '</div>';
+        }
+        if ($lesson_ids) {
+            echo '<ol class="bhc-lesson-list bhc-orientation-syllabus">';
+            foreach ($lesson_ids as $lesson_id) {
+                if (get_post_status($lesson_id) !== 'publish') continue;
+                echo '<li><span>' . esc_html(get_the_title($lesson_id)) . '</span></li>';
+            }
+            echo '</ol>';
+        }
+        // first_incomplete_lesson() (not a bare $lesson_ids[0]) — same
+        // drip-lock/unpublished/no-steps skipping render_continue_cta()
+        // already relies on, so "Start" never links to a lesson that
+        // isn't actually open yet on day one of a drip-scheduled course.
+        $start_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
+        if ($start_lesson) {
+            echo '<a class="bhc-btn bhc-orientation-start" href="' . esc_url(get_permalink($start_lesson)) . '">Start &rarr;</a>';
+        }
         echo '</div>';
         return ob_get_clean();
     }
