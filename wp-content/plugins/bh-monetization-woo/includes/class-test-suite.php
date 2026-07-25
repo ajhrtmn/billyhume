@@ -170,6 +170,16 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_tier_exclusivity_tests());
         }
 
+        // Referral/affiliate tracking (ecosystem depth-pass Tier 2) —
+        // exercises the real order-completion path end to end (a real
+        // WC_Coupon, a real WC_Order, real wallet crediting), rather than
+        // a mock of any of it, same "exercise the real thing" posture as
+        // the wallet/tier-exclusivity suites above. Needs WooCommerce
+        // actually active (creates a real product/order/coupon).
+        if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && class_exists('WooCommerce')) {
+            $rows = array_merge($rows, self::run_referral_tests());
+        }
+
         return $rows;
     }
 
@@ -268,6 +278,84 @@ class BHM_TestSuite {
         // uses, not re-implemented here.
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        return $rows;
+    }
+
+    private static function run_referral_tests() {
+        $rows = [];
+        global $wpdb;
+
+        $referrer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_referrer', false);
+        $customer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_customer', false);
+        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+
+        /* ---------- calculate_commission_cents() — pure ---------- */
+        $rows[] = OUS_TestRunner::assert_same(1000, BHM_Referrals::calculate_commission_cents(100), 'A $100.00 order at the default 10% commission credits exactly $10.00 (1000 cents)');
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Referrals::calculate_commission_cents(0), 'A $0 order credits nothing');
+
+        /* ---------- get_or_create_code() ---------- */
+        $code = BHM_Referrals::get_or_create_code($referrer_id);
+        $rows[] = OUS_TestRunner::assert_true((bool) preg_match('/^[A-Z0-9]{6}$/', $code), 'get_or_create_code() returns a 6-char uppercase alphanumeric code');
+        $again = BHM_Referrals::get_or_create_code($referrer_id);
+        $rows[] = OUS_TestRunner::assert_same($code, $again, 'Calling get_or_create_code() again for the same user returns the SAME code, not a new one');
+        $coupon_id = wc_get_coupon_id_by_code($code);
+        $rows[] = OUS_TestRunner::assert_true($coupon_id > 0, 'A real WC_Coupon exists for the generated code');
+
+        /* ---------- end-to-end: a real order using the code ---------- */
+        $product = new WC_Product_Simple();
+        $product->set_name('Referral Suite Test Product');
+        $product->set_regular_price('100');
+        $product->save();
+
+        $order = wc_create_order(['customer_id' => $customer_id]);
+        $order->add_product($product, 1);
+        $order->apply_coupon($code);
+        $order->calculate_totals();
+        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path
+
+        $order_total = (float) $order->get_total();
+        $expected_cents = BHM_Referrals::calculate_commission_cents($order_total);
+        $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance, 'A completed order using the referral code credits the referrer exactly ' . BHM_Referrals::COMMISSION_PERCENT . '% of the (post-discount) order total');
+
+        $redemption_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $order->get_id()
+        ));
+        $rows[] = OUS_TestRunner::assert_same(1, $redemption_count, 'Exactly one bhm_referrals redemption row is written for the order');
+
+        // Idempotency — calling the handler again for the SAME order
+        // must not double-credit (the UNIQUE KEY on wc_order_id is the
+        // atomic guard, not a prior SELECT).
+        BHM_Referrals::on_order_completed($order->get_id());
+        $balance_after_replay = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_replay, 'Re-firing on_order_completed() for the same order does NOT credit the referrer a second time');
+
+        /* ---------- self-referral guard ---------- */
+        $self_order = wc_create_order(['customer_id' => $referrer_id]);
+        $self_order->add_product($product, 1);
+        $self_order->apply_coupon($code);
+        $self_order->calculate_totals();
+        $self_order->update_status('completed');
+        $balance_after_self = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_self, 'A referrer using their own code on their own order earns NO additional commission (self-referral guard)');
+        $self_redemption_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $self_order->get_id()
+        ));
+        $rows[] = OUS_TestRunner::assert_same(0, $self_redemption_count, 'A self-referral order writes no redemption row at all');
+
+        // Cleanup
+        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $order->get_id()]);
+        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $self_order->get_id()]);
+        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+        if ($coupon_id) wp_delete_post($coupon_id, true);
+        $order->delete(true);
+        $self_order->delete(true);
+        wp_delete_post($product->get_id(), true);
 
         return $rows;
     }

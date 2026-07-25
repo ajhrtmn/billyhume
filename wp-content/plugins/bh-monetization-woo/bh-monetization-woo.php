@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.1
+ * Version:     0.5.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
@@ -136,7 +136,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.1');
+define('BHM_VER',  '0.5.2');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::
@@ -206,7 +206,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -232,6 +232,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Admin', 'init']);
     add_action('init',          ['BHM_Products', 'init']);
     add_action('init',          ['BHM_Gifts', 'init']);
+    add_action('init',          ['BHM_Referrals', 'init']);
     add_action('init',          ['BHM_Downloads', 'init']);
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);

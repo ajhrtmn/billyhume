@@ -78,6 +78,44 @@ class OUS_CoreTestSuite {
             'base32 decode ignores stray dashes/spaces rather than corrupting'
         );
 
+        // Link-in-bio (ecosystem depth-pass Tier 2a) — BHI_Profiles::save()/
+        // get()'s links sanitization, exercised end-to-end against a real
+        // test user rather than reflection, since sanitize_links()/
+        // decode_links() are private and the save/get round trip IS the
+        // actual contract callers depend on.
+        if (class_exists('BHI_Profiles') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_profile_links_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_profile_links_tests() {
+        $rows = [];
+        $user_id = OUS_Debug::get_or_create_test_user('bhi-profile-links');
+
+        BHI_Profiles::save($user_id, ['links' => [
+            ['label' => 'New single', 'url' => 'https://example.com/single'],
+            ['label' => '', 'url' => 'https://example.com/dropped-empty-label'],
+            ['label' => 'No URL', 'url' => ''],
+        ]]);
+        $data = BHI_Profiles::get($user_id);
+        $rows[] = OUS_TestRunner::assert_same(1, count($data['links']), 'Links missing a label or URL are dropped, only the valid one is kept');
+        $rows[] = OUS_TestRunner::assert_same('New single', $data['links'][0]['label'] ?? null, 'Valid link label round-trips');
+        $rows[] = OUS_TestRunner::assert_same('https://example.com/single', $data['links'][0]['url'] ?? null, 'Valid link URL round-trips');
+
+        $many = [];
+        for ($i = 0; $i < BHI_Profiles::MAX_LINKS + 5; $i++) {
+            $many[] = ['label' => "Link $i", 'url' => "https://example.com/$i"];
+        }
+        BHI_Profiles::save($user_id, ['links' => $many]);
+        $data = BHI_Profiles::get($user_id);
+        $rows[] = OUS_TestRunner::assert_same(BHI_Profiles::MAX_LINKS, count($data['links']), 'Links are capped at MAX_LINKS even when more are submitted');
+
+        BHI_Profiles::save($user_id, ['links' => []]);
+        $data = BHI_Profiles::get($user_id);
+        $rows[] = OUS_TestRunner::assert_same([], $data['links'], 'Saving an empty links array clears them, and get() defaults to an empty array');
+
         return $rows;
     }
 }

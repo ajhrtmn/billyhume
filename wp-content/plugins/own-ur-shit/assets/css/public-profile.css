@@ -26,3 +26,20 @@
 .bhi-report form { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; max-width: 320px; }
 .bhi-report select, .bhi-report textarea, .bhi-report button { background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); padding: 6px 8px; color: var(--bh-text); }
 .bhi-report button { cursor: pointer; }
+.bhi-profile__bio-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 0 16px; margin: 0 16px 16px; }
+.bhi-bio-link { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); border-radius: 999px; padding: 8px 16px; text-decoration: none; font-weight: 600; font-size: 0.9em; }
+.bhi-bio-link:hover { background: var(--bh-accent); color: #fff; border-color: var(--bh-accent); }
+.bhi-bio-links-field legend { font-size: 0.9em; color: var(--bh-text-dim); }
+.bhi-bio-links-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.bhi-bio-link-row { display: flex; gap: 6px; align-items: center; }
+.bhi-bio-link-row input[type=text], .bhi-bio-link-row input[type=url] {
+    flex: 1; min-width: 0; /* min-width: 0 is required for a flex item to actually shrink below its content size instead of overflowing the row */
+    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); padding: 8px 10px; color: var(--bh-text);
+}
+@media (max-width: 480px) {
+    .bhi-bio-link-row { flex-wrap: wrap; }
+    .bhi-bio-link-row input[type=text], .bhi-bio-link-row input[type=url] { flex-basis: 100%; }
+}
+.bhi-bio-link-remove { background: none; border: none; color: var(--bh-text-dim); font-size: 1.2em; line-height: 1; cursor: pointer; padding: 4px 8px; }
+.bhi-bio-link-remove:hover { color: #e0554a; }
+.bhi-btn--secondary { background: var(--bh-surface-2); border: 1px solid var(--bh-border); color: var(--bh-text); border-radius: var(--bh-radius-sm); padding: 8px 14px; cursor: pointer; font-weight: 600; align-self: flex-start; }

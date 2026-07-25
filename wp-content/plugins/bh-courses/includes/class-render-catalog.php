@@ -76,6 +76,29 @@ class BHC_Render_Catalog {
             $max_pages = (int) $query->max_num_pages;
         }
 
+        // Ecosystem depth-pass Tier 2 — SEO coverage: the catalog page
+        // itself had no page-level SEO data at all (only single course
+        // pages did), leaving the one page most likely to be a search
+        // entry point invisible to it. CollectionPage/ItemList, not
+        // Course — this page lists courses, it isn't one.
+        if (class_exists('BH_SEO')) {
+            BH_SEO::set_page_data([
+                'title' => 'Courses — ' . get_bloginfo('name'),
+                'description' => 'Browse courses on ' . get_bloginfo('name') . '.',
+                'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
+                'type' => 'website',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'CollectionPage',
+                    'name' => 'Courses',
+                    'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
+                    'itemListElement' => array_values(array_filter(array_map(function ($course) {
+                        return get_post_type($course->ID) === 'bh_course' ? get_permalink($course->ID) : null;
+                    }, $query->posts ?? []))),
+                ],
+            ]);
+        }
+
         $uid = get_current_user_id();
         ob_start();
         echo '<div class="bhc-catalog-wrap">';

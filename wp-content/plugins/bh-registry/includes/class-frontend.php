@@ -107,6 +107,20 @@ class BHR_Frontend {
     }
 
     public static function render() {
+        // Ecosystem depth-pass Tier 2 — SEO coverage. The grid itself is
+        // client-rendered (no server-side artist list to enumerate into
+        // an ItemList, unlike bh-courses' catalog), so this is page-level
+        // only — a real title/description for the one directory page,
+        // not a per-artist result.
+        if (class_exists('BH_SEO')) {
+            BH_SEO::set_page_data([
+                'title' => 'Artist Registry — ' . get_bloginfo('name'),
+                'description' => 'Browse independent artists and their feeds on ' . get_bloginfo('name') . '.',
+                'url' => get_permalink() ?: home_url('/'),
+                'type' => 'website',
+            ]);
+        }
+
         return '
         <div class="bhr-app" id="bhr-app">
             <div class="bhr-search-row">

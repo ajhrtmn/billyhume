@@ -101,5 +101,7 @@ class BHM_PortalPanel {
             }
             echo '</div>';
         }
+
+        if (class_exists('BHM_Referrals')) BHM_Referrals::render_section($user_id);
     }
 }

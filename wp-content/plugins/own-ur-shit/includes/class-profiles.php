@@ -49,9 +49,38 @@ class BHI_Profiles {
             $defaults,
             array_fill_keys(self::BOOL_COLS, 0),
             array_fill_keys(self::INT_COLS, 0),
-            ['typical_platform' => '', 'bio' => '', 'profile_slug' => '']
+            ['typical_platform' => '', 'bio' => '', 'profile_slug' => '', 'links' => []]
         );
+        if ($row) {
+            $row['links'] = self::decode_links($row['links'] ?? '');
+        }
         return $row ? array_merge($defaults, $row) : $defaults;
+    }
+
+    // Link-in-bio (ecosystem depth-pass Tier 2a) — a small curated list
+    // of {label, url} pairs stored as JSON in the links column, same
+    // "one row, no separate table" choice as bio/avatar/etc. since this
+    // is presentation data, not something ever queried across users.
+    // Capped at 8 — a bio button list, not a link directory.
+    const MAX_LINKS = 8;
+
+    private static function decode_links($raw) {
+        if ($raw === '' || $raw === null) return [];
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private static function sanitize_links($links) {
+        if (!is_array($links)) return [];
+        $out = [];
+        foreach ($links as $link) {
+            $label = isset($link['label']) ? sanitize_text_field($link['label']) : '';
+            $url = isset($link['url']) ? esc_url_raw($link['url']) : '';
+            if ($label === '' || $url === '') continue;
+            $out[] = ['label' => $label, 'url' => $url];
+            if (count($out) >= self::MAX_LINKS) break;
+        }
+        return $out;
     }
 
     // Same lookup as get(), keyed by profile_slug instead of user_id —
@@ -89,6 +118,10 @@ class BHI_Profiles {
         if (array_key_exists('bio', $data)) { $row['bio'] = sanitize_textarea_field($data['bio']); $formats[] = '%s'; }
         if (array_key_exists('typical_platform', $data) && in_array($data['typical_platform'], self::PLATFORMS, true)) {
             $row['typical_platform'] = $data['typical_platform'];
+            $formats[] = '%s';
+        }
+        if (array_key_exists('links', $data)) {
+            $row['links'] = wp_json_encode(self::sanitize_links($data['links']));
             $formats[] = '%s';
         }
         if (array_key_exists('profile_slug', $data)) {
@@ -152,6 +185,7 @@ class BHI_Profiles {
         }
         if ($req->get_param('bio') !== null) $out['bio'] = $req->get_param('bio');
         if ($req->get_param('profile_slug') !== null) $out['profile_slug'] = $req->get_param('profile_slug');
+        if ($req->get_param('links') !== null) $out['links'] = $req->get_param('links');
         $platform = $req->get_param('typical_platform');
         if ($platform !== null) $out['typical_platform'] = $platform;
         return $out;

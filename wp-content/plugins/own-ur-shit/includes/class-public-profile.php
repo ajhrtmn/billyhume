@@ -73,6 +73,29 @@ class BHI_PublicProfile {
         $fonts = BHY_Style::google_fonts_url();
         if ($fonts) wp_enqueue_style('bhi-fonts', $fonts, [], null);
         echo '<style id="bhi-style-tokens">' . BHY_Style::inline_css() . '</style>';
+
+        // Link-in-bio row add/remove — small enough (and specific enough
+        // to this one form) not to warrant its own asset file; same
+        // inline-script pattern class-user-bar.php uses for its own
+        // one-off body-class script.
+        wp_register_script('bhi-public-profile', false, [], OUS_VER, true);
+        wp_enqueue_script('bhi-public-profile');
+        wp_add_inline_script('bhi-public-profile', '
+            document.addEventListener("click", function (e) {
+                if (e.target.matches("[data-bhi-bio-link-add]")) {
+                    var wrap = document.querySelector("[data-bhi-bio-links]");
+                    if (!wrap || wrap.children.length >= ' . (int) BHI_Profiles::MAX_LINKS . ') return;
+                    var row = document.createElement("div");
+                    row.className = "bhi-bio-link-row";
+                    row.innerHTML = \'<input type="text" name="link_label[]" placeholder="Label (e.g. New single)" />\'
+                        + \'<input type="url" name="link_url[]" placeholder="https://..." />\'
+                        + \'<button type="button" class="bhi-bio-link-remove" aria-label="Remove link">&times;</button>\';
+                    wrap.appendChild(row);
+                } else if (e.target.matches(".bhi-bio-link-remove")) {
+                    e.target.closest(".bhi-bio-link-row").remove();
+                }
+            });
+        ');
     }
 
     public static function profile_url($user_id) {
@@ -177,6 +200,17 @@ class BHI_PublicProfile {
             <?php if ($data['bio']): ?>
                 <div class="bhi-profile__bio"><?php echo wp_kses_post(wpautop(esc_html($data['bio']))); ?></div>
             <?php endif; ?>
+            <?php if (!empty($data['links'])): ?>
+                <div class="bhi-profile__bio-links">
+                    <?php foreach ($data['links'] as $link):
+                        if (empty($link['label']) || empty($link['url'])) continue;
+                    ?>
+                        <a class="bhi-bio-link" href="<?php echo esc_url($link['url']); ?>" target="_blank" rel="noopener noreferrer">
+                            <?php echo esc_html($link['label']); ?>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
             <ul class="bhi-profile__links">
                 <?php if ($data['real_name_public'] && $data['real_name']): ?>
                     <li><?php echo esc_html($data['real_name']); ?></li>
@@ -235,6 +269,24 @@ class BHI_PublicProfile {
                     <input type="checkbox" name="profile_public" value="1" <?php checked($data['profile_public'], 1); ?> />
                     Make my profile page public
                 </label>
+
+                <fieldset class="bhi-bio-links-field">
+                    <legend>Links</legend>
+                    <div class="bhi-bio-links-rows" data-bhi-bio-links>
+                        <?php
+                        $links = $data['links'] ?: [];
+                        if (!$links) $links = [['label' => '', 'url' => '']];
+                        foreach ($links as $link): ?>
+                            <div class="bhi-bio-link-row">
+                                <input type="text" name="link_label[]" value="<?php echo esc_attr($link['label'] ?? ''); ?>" placeholder="Label (e.g. New single)" />
+                                <input type="url" name="link_url[]" value="<?php echo esc_attr($link['url'] ?? ''); ?>" placeholder="https://..." />
+                                <button type="button" class="bhi-bio-link-remove" aria-label="Remove link">&times;</button>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="button" class="bhi-btn bhi-btn--secondary" data-bhi-bio-link-add>+ Add link</button>
+                    <p class="bhi-current">Up to <?php echo (int) BHI_Profiles::MAX_LINKS; ?> buttons shown on your public profile page — a song, a store, a social link.</p>
+                </fieldset>
 
                 <fieldset>
                     <legend>Real name</legend>
@@ -296,9 +348,17 @@ class BHI_PublicProfile {
         $user_id = get_current_user_id();
         $referer = !empty($_POST['_wp_http_referer']) ? esc_url_raw($_POST['_wp_http_referer']) : home_url('/');
 
+        $link_labels = isset($_POST['link_label']) ? (array) wp_unslash($_POST['link_label']) : [];
+        $link_urls = isset($_POST['link_url']) ? (array) wp_unslash($_POST['link_url']) : [];
+        $links = [];
+        foreach ($link_labels as $i => $label) {
+            $links[] = ['label' => $label, 'url' => $link_urls[$i] ?? ''];
+        }
+
         $data = [
             'bio' => isset($_POST['bio']) ? wp_unslash($_POST['bio']) : '',
             'profile_slug' => isset($_POST['profile_slug']) ? wp_unslash($_POST['profile_slug']) : '',
+            'links' => $links,
             'profile_public' => !empty($_POST['profile_public']),
             'real_name' => isset($_POST['real_name']) ? wp_unslash($_POST['real_name']) : '',
             'discord_name' => isset($_POST['discord_name']) ? wp_unslash($_POST['discord_name']) : '',

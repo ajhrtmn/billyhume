@@ -44,7 +44,7 @@ class BHM_Wallet {
     // balance negative) — the check and the write are the SAME atomic
     // UPDATE statement, guarded by its own WHERE clause, with success
     // determined by $wpdb->rows_affected rather than a prior read.
-    public static function debit($user_id, $cents, $track_id = null) {
+    public static function debit($user_id, $cents, $track_id = null, $reason = 'play') {
         global $wpdb;
         $cents = abs((int) $cents);
         $w = $wpdb->prefix . 'bhm_wallet';
@@ -73,7 +73,7 @@ class BHM_Wallet {
         }
 
         $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
-            'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => 'play', 'track_id' => $track_id,
+            'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $track_id,
         ]);
         // Feeds the CRM's unified per-person activity timeline
         // (BHCRM's render_timeline(), own-ur-shit's BH_Event) — same
@@ -82,7 +82,7 @@ class BHM_Wallet {
         if ($ledger_ok !== false && class_exists('BH_Event')) {
             BH_Event::emit('bhm/wallet_debit', [
                 'user_id' => $user_id, 'subject_type' => 'bhm_wallet', 'subject_id' => $user_id,
-                'payload' => ['cents' => $cents, 'reason' => 'play', 'track_id' => $track_id],
+                'payload' => ['cents' => $cents, 'reason' => $reason, 'track_id' => $track_id],
             ]);
         }
         if ($ledger_ok === false && class_exists('OUS_DebugLog')) {
