@@ -755,6 +755,16 @@ class BH_Element {
 
         if (!empty($placement['id'])) {
             $id = (int) $placement['id'];
+            // Fetched BEFORE the write so any 'bhcore_element_placement_saved'
+            // listener below can diff old vs. new config (e.g. bh-crm's
+            // Project Tracker Phase C stall analytics, detecting when a
+            // kanban card's config.attrs.column literal actually changed
+            // — see class-projects.php) — this is the ONE write path
+            // both the REST save route and every other caller funnel
+            // through, so it's the correct, single place to observe
+            // "did this placement's config just change," not a second
+            // parallel diff somewhere else.
+            $old_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
             // A container placement that somehow still has no
             // content_context_id on an UPDATE (e.g. a hand-crafted REST
             // call) gets the same self-id backfill as the insert path —
@@ -763,7 +773,9 @@ class BH_Element {
                 $data['content_context_id'] = $id;
             }
             $ok = $wpdb->update($table, $data, ['id' => $id]);
-            return $ok !== false ? $id : false;
+            if ($ok === false) return false;
+            do_action('bhcore_element_placement_saved', $id, $data, $old_row);
+            return $id;
         }
 
         $ok = $wpdb->insert($table, $data);
@@ -774,6 +786,7 @@ class BH_Element {
             $wpdb->update($table, ['content_context_id' => $id], ['id' => $id]);
         }
 
+        do_action('bhcore_element_placement_saved', $id, $data, null);
         return $id;
     }
 

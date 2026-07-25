@@ -31,6 +31,112 @@ class BHCRM_TestSuite {
         if (class_exists('BHCRM_Projects')) {
             $rows = array_merge($rows, self::run_project_scene_tests());
         }
+        if (class_exists('BHCRM_Projects') && class_exists('BH_Element')) {
+            $rows = array_merge($rows, self::run_stall_analytics_tests());
+        }
+        return $rows;
+    }
+
+    /* ---------- Phase C: stall analytics ---------- */
+
+    private static function run_stall_analytics_tests() {
+        $rows = [];
+        global $wpdb;
+
+        $project_id = BHCRM_Projects::create('Stall Suite Test Project', 0, [], '');
+
+        // A real bh/sticky-card placement, created through the SAME
+        // save_placement() write path a live board uses — this is what
+        // exercises the 'bhcore_element_placement_saved' hook for real,
+        // not a mock of it.
+        $card_id = BH_Element::save_placement([
+            'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
+            'position' => 0, 'element_type' => 'bh/sticky-card',
+            'config' => ['attrs' => ['title' => 'Suite Test Card', 'column' => 'To Do']],
+        ]);
+        $rows[] = OUS_TestRunner::assert_true($card_id > 0, 'A real bh/sticky-card placement is created via save_placement()');
+
+        $moves_table = $wpdb->prefix . 'bhcrm_project_card_moves';
+        $initial_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
+        $rows[] = OUS_TestRunner::assert_same(1, $initial_count, 'Creating a card logs exactly one initial move row (its starting column)');
+
+        // An unrelated edit (title only, same column) must NOT log a
+        // second move — this is the whole point of diffing old vs. new
+        // config rather than logging on every save.
+        BH_Element::save_placement([
+            'id' => $card_id,
+            'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
+            'position' => 0, 'element_type' => 'bh/sticky-card',
+            'config' => ['attrs' => ['title' => 'Suite Test Card (renamed)', 'column' => 'To Do']],
+        ]);
+        $count_after_rename = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
+        $rows[] = OUS_TestRunner::assert_same(1, $count_after_rename, 'Saving the SAME column again (a title-only edit) does not log a second move');
+
+        // A real column change DOES log a new move.
+        BH_Element::save_placement([
+            'id' => $card_id,
+            'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
+            'position' => 0, 'element_type' => 'bh/sticky-card',
+            'config' => ['attrs' => ['title' => 'Suite Test Card (renamed)', 'column' => 'In Progress']],
+        ]);
+        $count_after_move = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
+        $rows[] = OUS_TestRunner::assert_same(2, $count_after_move, 'A real column change logs a second move row');
+
+        // average_hours_per_column() — checked HERE, before any
+        // backdating below, while both move rows are still in their
+        // real chronological order. The first card had a real,
+        // measurable completed stay in "To Do" (its very first move) up
+        // until it moved to "In Progress." That completed stay is the
+        // ONLY thing average_hours_per_column() should count for "To
+        // Do" — the CURRENT stay in "In Progress" hasn't ended yet and
+        // must be excluded.
+        $averages = BHCRM_Projects::average_hours_per_column($project_id);
+        $rows[] = OUS_TestRunner::assert_true(isset($averages['To Do']), 'average_hours_per_column() reports a completed stay for "To Do"');
+        $rows[] = OUS_TestRunner::assert_false(isset($averages['In Progress']), 'average_hours_per_column() excludes "In Progress" — that stay has not ended yet');
+
+        // Backdate BOTH moves so the card reads as stalled — direct
+        // SQL, not the public API, since "make time pass" isn't
+        // something a real call can do. Deliberately done AFTER the
+        // average_hours_per_column() check above (backdating before
+        // that check would corrupt the chronological ordering it
+        // depends on). BOTH rows need backdating, not just the most
+        // recent one: a real test-design bug caught while writing this
+        // suite (not a product bug) — backdating only the second
+        // (most recent) row left the FIRST row's timestamp (still
+        // "now," from its real insert moment) chronologically AFTER
+        // the artificially-aged second row, so MAX(entered_at) picked
+        // the first row and the card read as completely fresh instead
+        // of stalled. Backdating both, in the correct relative order,
+        // is what actually simulates "this card moved here N days ago
+        // and has sat since."
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $moves_table SET entered_at = %s WHERE card_placement_id = %d ORDER BY id ASC LIMIT 1",
+            gmdate('Y-m-d H:i:s', time() - (BHCRM_Projects::STALL_DAYS + 10) * DAY_IN_SECONDS), $card_id
+        ));
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $moves_table SET entered_at = %s WHERE card_placement_id = %d ORDER BY id DESC LIMIT 1",
+            gmdate('Y-m-d H:i:s', time() - (BHCRM_Projects::STALL_DAYS + 2) * DAY_IN_SECONDS), $card_id
+        ));
+
+        $stalled = BHCRM_Projects::stalled_cards_for_board($project_id);
+        $rows[] = OUS_TestRunner::assert_true(isset($stalled[$card_id]) && $stalled[$card_id] >= BHCRM_Projects::STALL_DAYS, 'stalled_cards_for_board() flags a card whose most recent move is older than STALL_DAYS');
+
+        // A second card whose only move is recent should NOT show up.
+        $fresh_card_id = BH_Element::save_placement([
+            'surface' => 'bhcrm_project_board', 'surface_context_id' => $project_id, 'slot' => 'board',
+            'position' => 1, 'element_type' => 'bh/sticky-card',
+            'config' => ['attrs' => ['title' => 'Fresh Card', 'column' => 'To Do']],
+        ]);
+        $stalled_after_fresh = BHCRM_Projects::stalled_cards_for_board($project_id);
+        $rows[] = OUS_TestRunner::assert_false(isset($stalled_after_fresh[$fresh_card_id]), 'A card whose only move is recent is NOT flagged as stalled');
+
+        // Cleanup
+        $wpdb->delete($moves_table, ['card_placement_id' => $card_id]);
+        $wpdb->delete($moves_table, ['card_placement_id' => $fresh_card_id]);
+        BH_Element::delete_placement($card_id);
+        BH_Element::delete_placement($fresh_card_id);
+        BHCRM_Projects::delete($project_id);
+
         return $rows;
     }
 

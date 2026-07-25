@@ -143,7 +143,8 @@ if (!defined('ABSPATH')) exit;
  * roll-up update) has not been smoke-tested against a real install.
  */
 class BHCRM_Projects {
-    const DB_VERSION = '1.1'; // 1.1 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: bhcrm_projects.scene, a free-text, user-defined organizational grouping (same "no fixed enum" posture columns_config already uses) — render_boards() groups its listing by it, purely organizational, no context-moving semantics.
+    const DB_VERSION = '1.2'; // 1.1 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: bhcrm_projects.scene, a free-text, user-defined organizational grouping (same "no fixed enum" posture columns_config already uses) — render_boards() groups its listing by it, purely organizational, no context-moving semantics. 1.2 — Phase C: bhcrm_project_card_moves, one row per real kanban-column transition (or a card's very first column on creation) — see the 'bhcore_element_placement_saved' hook handler below.
+    const STALL_DAYS = 5; // a card whose most recent logged move is at least this many days ago shows the "hasn't moved" badge
     const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 
     public static function init() {
@@ -170,6 +171,11 @@ class BHCRM_Projects {
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('rest_api_init', [self::class, 'register_rest_routes']);
+        // Phase C stall analytics — own-ur-shit's ONE placement-save
+        // write path (BH_Element::save_placement()) fires this generic
+        // hook after every insert/update; this is a bh-crm-specific
+        // consumer of it, not a change to how that hook itself works.
+        add_action('bhcore_element_placement_saved', [self::class, 'on_placement_saved'], 10, 3);
     }
 
     /**
@@ -193,6 +199,20 @@ class BHCRM_Projects {
             'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
             'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
         ]);
+        // Phase C — same "one small bh-crm-owned route, fetched once
+        // per board load" shape as /rollups above, for the same reason:
+        // stall status isn't part of the generic BH_Element placements
+        // response, and doesn't need to be.
+        register_rest_route('bh-crm/v1', '/stalled-cards', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'rest_stalled_cards'],
+            'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
+            'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
+        ]);
+    }
+
+    public static function rest_stalled_cards($req) {
+        return new WP_REST_Response(self::stalled_cards_for_board((int) $req->get_param('project_id')), 200);
     }
 
     public static function rest_rollups($req) {
@@ -250,8 +270,32 @@ class BHCRM_Projects {
             KEY scene (scene)
         ) $charset;");
 
+        // Phase C — stall analytics. One row per real column
+        // transition (card_placement_id = a bh/sticky-card's
+        // bhcore_element_placements.id — no FK, since that table lives
+        // in own-ur-shit and this one shouldn't hard-depend on its
+        // exact engine/charset). "Most recent row per card" is the
+        // card's current column + when it landed there; the gap
+        // between consecutive rows for the same card is real
+        // time-in-column, feeding average_time_in_column() below.
+        $moves = $wpdb->prefix . 'bhcrm_project_card_moves';
+        dbDelta("CREATE TABLE $moves (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            card_placement_id bigint(20) unsigned NOT NULL,
+            column_label varchar(190) NOT NULL DEFAULT '',
+            entered_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY card_placement_id (card_placement_id, entered_at)
+        ) $charset;");
+
         if ($wpdb->last_error) return false;
-        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table
+            && $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $moves)) === $moves;
+    }
+
+    private static function moves_table() {
+        global $wpdb;
+        return $wpdb->prefix . 'bhcrm_project_card_moves';
     }
 
     private static function table() {
@@ -471,6 +515,117 @@ class BHCRM_Projects {
         global $wpdb;
         $scenes = $wpdb->get_col('SELECT DISTINCT scene FROM ' . self::table() . " WHERE scene != '' ORDER BY scene ASC");
         return array_map('strval', $scenes);
+    }
+
+    /* =================================================================
+     * Phase C — stall analytics (PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md)
+     * ================================================================= */
+
+    // Reacts to ANY placement save (own-ur-shit's generic
+    // 'bhcore_element_placement_saved' hook), not just bh-crm's own —
+    // scoped to bh/sticky-card placements on the 'bhcrm_project_board'
+    // surface specifically, a no-op for every other surface/element
+    // type this hook also fires for (bh_crm_profile's own placements,
+    // Design Suite pages, etc.). Logs a move on real column changes,
+    // AND on a card's very first save (no $old_row at all) — the
+    // initial column is itself a "move" for time-in-column purposes
+    // (without it, a never-since-moved card would have no baseline row
+    // to measure "days since" against).
+    public static function on_placement_saved($id, $data, $old_row) {
+        if (($data['surface'] ?? '') !== 'bhcrm_project_board') return;
+        if (($data['element_type'] ?? '') !== 'bh/sticky-card') return;
+
+        $new_config = json_decode((string) ($data['config'] ?? ''), true);
+        $new_column = is_array($new_config) ? (string) ($new_config['attrs']['column'] ?? '') : '';
+
+        if ($old_row === null) {
+            self::log_card_move((int) $id, $new_column);
+            return;
+        }
+
+        $old_config = json_decode((string) ($old_row['config'] ?? ''), true);
+        $old_column = is_array($old_config) ? (string) ($old_config['attrs']['column'] ?? '') : '';
+        if ($old_column !== $new_column) {
+            self::log_card_move((int) $id, $new_column);
+        }
+    }
+
+    public static function log_card_move($card_placement_id, $column) {
+        global $wpdb;
+        $wpdb->insert(self::moves_table(), [
+            'card_placement_id' => (int) $card_placement_id,
+            'column_label'      => sanitize_text_field((string) $column),
+        ]);
+    }
+
+    // {placement_id => days_since_last_move} for every card on this
+    // board whose most recent logged move is at least STALL_DAYS ago —
+    // a card with NO move rows at all (shouldn't normally happen once
+    // Phase C is live, but a pre-existing card from before this
+    // feature shipped would have none) is excluded rather than treated
+    // as infinitely stalled, since "we genuinely don't know" and
+    // "definitely stalled" are different claims.
+    public static function stalled_cards_for_board($project_id) {
+        global $wpdb;
+        if (!class_exists('BH_Element')) return [];
+        $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
+        if (!$card_ids) return [];
+
+        $ids_sql = implode(',', $card_ids);
+        // One row per card: its own most recent entered_at.
+        $rows = $wpdb->get_results(
+            "SELECT card_placement_id, MAX(entered_at) AS last_moved_at FROM " . self::moves_table() . "
+             WHERE card_placement_id IN ($ids_sql) GROUP BY card_placement_id",
+            ARRAY_A
+        );
+
+        $now = current_time('timestamp');
+        $out = [];
+        foreach ($rows as $row) {
+            $days = (int) floor(($now - strtotime($row['last_moved_at'])) / DAY_IN_SECONDS);
+            if ($days >= self::STALL_DAYS) $out[(int) $row['card_placement_id']] = $days;
+        }
+        return $out;
+    }
+
+    // Average real time-in-column (hours) across every COMPLETED
+    // column stay for this board — i.e. every move row that has a
+    // later move row after it for the same card. A card's CURRENT
+    // (most recent) stay is deliberately excluded: it hasn't ended yet,
+    // so counting it would understate real time-in-column for
+    // whichever column things currently pile up in.
+    public static function average_hours_per_column($project_id) {
+        global $wpdb;
+        if (!class_exists('BH_Element')) return [];
+        $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
+        if (!$card_ids) return [];
+        $ids_sql = implode(',', $card_ids);
+
+        $rows = $wpdb->get_results(
+            "SELECT card_placement_id, column_label, entered_at FROM " . self::moves_table() . "
+             WHERE card_placement_id IN ($ids_sql) ORDER BY card_placement_id ASC, entered_at ASC",
+            ARRAY_A
+        );
+
+        $by_card = [];
+        foreach ($rows as $row) $by_card[(int) $row['card_placement_id']][] = $row;
+
+        $totals = []; // column_label => ['hours' => sum, 'count' => n]
+        foreach ($by_card as $moves) {
+            for ($i = 0; $i < count($moves) - 1; $i++) {
+                $col = $moves[$i]['column_label'];
+                $hours = (strtotime($moves[$i + 1]['entered_at']) - strtotime($moves[$i]['entered_at'])) / HOUR_IN_SECONDS;
+                if (!isset($totals[$col])) $totals[$col] = ['hours' => 0.0, 'count' => 0];
+                $totals[$col]['hours'] += $hours;
+                $totals[$col]['count']++;
+            }
+        }
+
+        $out = [];
+        foreach ($totals as $col => $t) {
+            $out[$col] = round($t['hours'] / $t['count'], 1);
+        }
+        return $out;
     }
 
     private static function sanitize_columns(array $columns) {
@@ -951,6 +1106,7 @@ class BHCRM_Projects {
             // a separate namespace from the generic BH_Element bridge
             // above, same wp_rest cookie-nonce.
             'rollupsUrl' => esc_url_raw(rest_url('bh-crm/v1/rollups')),
+            'stalledCardsUrl' => esc_url_raw(rest_url('bh-crm/v1/stalled-cards')),
             'studioUrl'  => esc_url_raw(admin_url('admin.php?page=bh-studio')),
             'nonce'      => wp_create_nonce('wp_rest'),
             'surface'    => 'bhcrm_project_board',
