@@ -37,6 +37,53 @@ class BHCRM_TestSuite {
         if (class_exists('BHCRM_CardLog')) {
             $rows = array_merge($rows, self::run_card_log_tests());
         }
+        if (class_exists('BHCRM_CardLog')) {
+            $rows = array_merge($rows, self::run_idea_drop_tests());
+        }
+        return $rows;
+    }
+
+    /* ---------- Phase D: Idea Drop (track links + uploads) ---------- */
+
+    private static function run_idea_drop_tests() {
+        $rows = [];
+        global $wpdb;
+        $card_id = 999002;
+
+        // add_track_link() must reject anything that isn't a REAL
+        // bhs_track post — a stray/garbage id, or a post of the wrong
+        // type entirely, should never be linkable as if it were a
+        // track.
+        $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_track_link($card_id, 999999999, 1), 'add_track_link() rejects a nonexistent post id');
+        $wrong_type_post = wp_insert_post(['post_type' => 'post', 'post_title' => 'Not a track', 'post_status' => 'draft'], true);
+        $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_track_link($card_id, $wrong_type_post, 1), 'add_track_link() rejects a real post that is NOT a bhs_track');
+        wp_delete_post($wrong_type_post, true);
+
+        if (post_type_exists('bhs_track')) {
+            $track_id = wp_insert_post(['post_type' => 'bhs_track', 'post_title' => 'Suite Test Track', 'post_status' => 'publish'], true);
+            $link_id = BHCRM_CardLog::add_track_link($card_id, $track_id, 1);
+            $rows[] = OUS_TestRunner::assert_true($link_id > 0, 'add_track_link() succeeds against a real bhs_track post');
+
+            $attachments = BHCRM_CardLog::list_attachments($card_id);
+            $rows[] = OUS_TestRunner::assert_same(1, count($attachments), 'list_attachments() returns exactly the one track link just added');
+            $rows[] = OUS_TestRunner::assert_same('track_link', $attachments[0]['kind'], 'The stored row is kind=track_link');
+            $rows[] = OUS_TestRunner::assert_same($track_id, (int) $attachments[0]['track_post_id'], 'track_post_id round-trips exactly');
+            $rows[] = OUS_TestRunner::assert_same(0, (int) $attachments[0]['wp_attachment_id'], 'A track-link row never sets wp_attachment_id — the two are mutually exclusive');
+
+            $removed = BHCRM_CardLog::remove_attachment($link_id);
+            $rows[] = OUS_TestRunner::assert_true($removed, 'remove_attachment() succeeds');
+            $rows[] = OUS_TestRunner::assert_same(0, count(BHCRM_CardLog::list_attachments($card_id)), 'The card has no attachments left after removal');
+
+            wp_delete_post($track_id, true);
+        } else {
+            $rows[] = OUS_TestRunner::assert_true(true, 'bhs_track post type not registered in this environment — track-link round-trip skipped, rejection guards above still covered');
+        }
+
+        $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_upload($card_id, 0, 1), 'add_upload() rejects a zero/missing attachment id');
+
+        // Cleanup
+        $wpdb->delete($wpdb->prefix . 'bhcrm_project_attachments', ['card_placement_id' => $card_id]);
+
         return $rows;
     }
 

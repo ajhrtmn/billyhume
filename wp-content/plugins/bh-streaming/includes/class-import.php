@@ -102,11 +102,24 @@ class BHS_Import {
     // Every logged-in user's own imported tracks — deliberately scoped
     // to post_author = current user, same ownership model as playlists.
     public static function get_my_imports() {
-        $posts = get_posts([
+        return new WP_REST_Response(['success' => true, 'tracks' => array_map(['BHS_API', 'track_payload'], self::imports_for_user(get_current_user_id()))], 200);
+    }
+
+    // Plain-array counterpart to get_my_imports() above, parameterized
+    // by an arbitrary user id rather than hardcoding the current user —
+    // added for bh-crm's Project Tracker Phase D ("link a card to an
+    // already-imported track, no copy"), which needs a specific
+    // person's imports from an admin context where the viewed person
+    // isn't necessarily the logged-in user. Returns real WP_Post
+    // objects, not a REST_Response, so any plugin can call this
+    // directly (the established class_exists()-guarded cross-plugin
+    // call convention this ecosystem already uses) without needing a
+    // round-trip through the REST layer.
+    public static function imports_for_user($user_id) {
+        return get_posts([
             'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
-            'author' => get_current_user_id(), 'meta_key' => '_bhs_source', 'meta_value' => 'local-import',
+            'author' => (int) $user_id, 'meta_key' => '_bhs_source', 'meta_value' => 'local-import',
         ]);
-        return new WP_REST_Response(['success' => true, 'tracks' => array_map(['BHS_API', 'track_payload'], $posts)], 200);
     }
 
     public static function delete_import($req) {
