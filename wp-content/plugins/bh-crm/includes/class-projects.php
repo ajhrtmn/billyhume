@@ -143,7 +143,7 @@ if (!defined('ABSPATH')) exit;
  * roll-up update) has not been smoke-tested against a real install.
  */
 class BHCRM_Projects {
-    const DB_VERSION = '1.0';
+    const DB_VERSION = '1.1'; // 1.1 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: bhcrm_projects.scene, a free-text, user-defined organizational grouping (same "no fixed enum" posture columns_config already uses) — render_boards() groups its listing by it, purely organizational, no context-moving semantics.
     const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 
     public static function init() {
@@ -164,6 +164,7 @@ class BHCRM_Projects {
 
         add_action('admin_post_bhcrm_project_create', [self::class, 'handle_create']);
         add_action('admin_post_bhcrm_project_save_columns', [self::class, 'handle_save_columns']);
+        add_action('admin_post_bhcrm_project_save_scene', [self::class, 'handle_save_scene']);
         add_action('admin_post_bhcrm_project_delete', [self::class, 'handle_delete']);
         add_action('admin_post_bhcrm_project_link', [self::class, 'handle_link_person']);
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
@@ -241,10 +242,12 @@ class BHCRM_Projects {
             name varchar(190) NOT NULL,
             crm_person_id bigint(20) unsigned NOT NULL DEFAULT 0,
             columns_config longtext,
+            scene varchar(190) NOT NULL DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            KEY crm_person_id (crm_person_id)
+            KEY crm_person_id (crm_person_id),
+            KEY scene (scene)
         ) $charset;");
 
         if ($wpdb->last_error) return false;
@@ -336,10 +339,17 @@ class BHCRM_Projects {
         // the board itself (render_people_panel()), same as it would
         // for a second/third person on an existing project.
         $nonce = wp_create_nonce('bhcrm_project_create');
+        $scene_suggestions = self::distinct_scenes();
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:16px 0;display:flex;gap:8px;align-items:center;">';
         echo '<input type="hidden" name="action" value="bhcrm_project_create">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
         echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;">';
+        echo '<input type="text" name="project_scene" list="bhcrm-scene-suggestions" placeholder="Scene (optional)" style="width:180px;">';
+        if ($scene_suggestions) {
+            echo '<datalist id="bhcrm-scene-suggestions">';
+            foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
+            echo '</datalist>';
+        }
         echo '<button class="button button-primary">Create project</button>';
         echo '</form>';
 
@@ -350,44 +360,68 @@ class BHCRM_Projects {
             return;
         }
 
-        echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+        // PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E — purely
+        // organizational grouping, no context-moving semantics: a
+        // scene only changes which heading a project's row sits under
+        // in THIS listing, nothing about the project/board itself.
+        // Every project already carries its own scene value (or none),
+        // grouped here in PHP rather than a second query per scene.
+        $groups = [];
         foreach ($rows as $p) {
-            // QA fix: a project can now be linked to multiple people
-            // under different relations (BHCRM_Links) — show all of
-            // them, not just the legacy single crm_person_id owner.
-            $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
-            if ($linked) {
-                $labels = array_map(function ($l) {
-                    $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
-                    return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
-                }, $linked);
-                $person_label = implode(', ', $labels);
-            } else {
-                $uid = (int) $p['crm_person_id'];
-                $user = $uid ? get_userdata($uid) : null;
-                $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
-            }
-            $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
-            $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
-            $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $board_uid . '&project_id=' . (int) $p['id']);
-
-            echo '<tr>';
-            echo '<td><a href="' . esc_url($board_url) . '"><strong>' . esc_html($p['name']) . '</strong></a></td>';
-            echo '<td>' . $person_label . '</td>';
-            echo '<td>' . (int) $card_count . '</td>';
-            echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
-            echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
-            echo '</tr>';
+            $scene = trim((string) $p['scene']);
+            $groups[$scene === '' ? '' : $scene][] = $p;
         }
-        echo '</tbody></table>';
+        // Named scenes first (alphabetical), "Unsorted" (no scene) last
+        // — an unsorted project shouldn't visually lead the list.
+        ksort($groups);
+        if (isset($groups[''])) {
+            $unsorted = $groups[''];
+            unset($groups['']);
+            $groups[''] = $unsorted;
+        }
+
+        foreach ($groups as $scene => $scene_rows) {
+            echo '<h2>' . esc_html($scene !== '' ? $scene : 'Unsorted') . '</h2>';
+            echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+            foreach ($scene_rows as $p) {
+                // QA fix: a project can now be linked to multiple people
+                // under different relations (BHCRM_Links) — show all of
+                // them, not just the legacy single crm_person_id owner.
+                $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
+                if ($linked) {
+                    $labels = array_map(function ($l) {
+                        $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                        return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
+                    }, $linked);
+                    $person_label = implode(', ', $labels);
+                } else {
+                    $uid = (int) $p['crm_person_id'];
+                    $user = $uid ? get_userdata($uid) : null;
+                    $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
+                }
+                $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
+                $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
+                $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $board_uid . '&project_id=' . (int) $p['id']);
+
+                echo '<tr>';
+                echo '<td><a href="' . esc_url($board_url) . '"><strong>' . esc_html($p['name']) . '</strong></a></td>';
+                echo '<td>' . $person_label . '</td>';
+                echo '<td>' . (int) $card_count . '</td>';
+                echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
+                echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
         echo '</div>';
     }
 
-    public static function create($name, $person_id, array $columns = []) {
+    public static function create($name, $person_id, array $columns = [], $scene = '') {
         global $wpdb;
         $name = sanitize_text_field((string) $name);
         if ($name === '') $name = 'Untitled project';
         $columns = self::sanitize_columns($columns ?: self::DEFAULT_COLUMNS);
+        $scene = sanitize_text_field((string) $scene);
 
         // crm_person_id is still written for anyone reading the raw
         // table directly, but it's no longer the source of truth for
@@ -400,6 +434,7 @@ class BHCRM_Projects {
             'name'           => $name,
             'crm_person_id'  => (int) $person_id,
             'columns_config' => wp_json_encode($columns),
+            'scene'          => $scene,
             'updated_at'     => current_time('mysql'),
         ]);
         if (!$ok) return false;
@@ -417,6 +452,25 @@ class BHCRM_Projects {
             'columns_config' => wp_json_encode($columns),
             'updated_at'     => current_time('mysql'),
         ], ['id' => (int) $id]);
+    }
+
+    public static function update_scene($id, $scene) {
+        global $wpdb;
+        return (bool) $wpdb->update(self::table(), [
+            'scene'      => sanitize_text_field((string) $scene),
+            'updated_at' => current_time('mysql'),
+        ], ['id' => (int) $id]);
+    }
+
+    // Every distinct, non-empty scene currently in use — feeds a
+    // <datalist> suggestion list on the create/edit forms, same
+    // "freeform text with autocomplete over existing values" posture
+    // class-tags.php's all_in_use() already established for tags,
+    // rather than a fixed enum anywhere.
+    public static function distinct_scenes() {
+        global $wpdb;
+        $scenes = $wpdb->get_col('SELECT DISTINCT scene FROM ' . self::table() . " WHERE scene != '' ORDER BY scene ASC");
+        return array_map('strval', $scenes);
     }
 
     private static function sanitize_columns(array $columns) {
@@ -666,7 +720,8 @@ class BHCRM_Projects {
 
         $uid = (int) ($_POST['user_id'] ?? 0);
         $name = sanitize_text_field(wp_unslash($_POST['project_name'] ?? ''));
-        $id = self::create($name, $uid);
+        $scene = sanitize_text_field(wp_unslash($_POST['project_scene'] ?? ''));
+        $id = self::create($name, $uid, [], $scene);
 
         $msg = $id ? "Created project #$id." : 'Failed to create project.';
         // QA fix: redirect straight to the new project's own board
@@ -693,6 +748,19 @@ class BHCRM_Projects {
         self::update_columns($project_id, $columns);
 
         wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Columns updated.'], admin_url('admin.php')));
+        exit;
+    }
+
+    public static function handle_save_scene() {
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
+        $project_id = (int) ($_POST['project_id'] ?? 0);
+        if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_scene_' . $project_id)) wp_die('Bad nonce.');
+
+        $uid = (int) ($_POST['user_id'] ?? 0);
+        self::update_scene($project_id, wp_unslash($_POST['scene'] ?? ''));
+
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Scene updated.'], admin_url('admin.php')));
         exit;
     }
 
@@ -750,6 +818,24 @@ class BHCRM_Projects {
         echo '<p class="description">One column label per line, in the order they should appear on the board.</p>';
         echo '<textarea name="columns" rows="5" style="width:300px;">' . esc_textarea(implode("\n", $project['columns_config'])) . '</textarea><br>';
         echo '<button class="button">Save columns</button>';
+        echo '</form></details>';
+
+        echo '<details style="margin-bottom:14px;"><summary style="cursor:pointer;">Edit scene</summary>';
+        $scene_nonce = wp_create_nonce('bhcrm_project_scene_' . $project_id);
+        $scene_suggestions = self::distinct_scenes();
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
+        echo '<input type="hidden" name="action" value="bhcrm_project_save_scene">';
+        echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
+        echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($scene_nonce) . '">';
+        echo '<p class="description">Purely organizational — groups this project under a heading on the Project Tracker index. Leave blank for "Unsorted".</p>';
+        echo '<input type="text" name="scene" list="bhcrm-scene-suggestions" value="' . esc_attr($project['scene']) . '" style="width:220px;"><br>';
+        if ($scene_suggestions) {
+            echo '<datalist id="bhcrm-scene-suggestions">';
+            foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
+            echo '</datalist>';
+        }
+        echo '<button class="button">Save scene</button>';
         echo '</form></details>';
 
         echo '<noscript><p class="description">The kanban board requires JavaScript.</p></noscript>';

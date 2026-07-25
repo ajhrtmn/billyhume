@@ -28,6 +28,41 @@ class BHCRM_TestSuite {
         $rows = array_merge($rows, self::run_segment_condition_tests());
         $rows = array_merge($rows, self::run_csv_safe_tests());
         $rows = array_merge($rows, self::run_subtasks_tree_tests());
+        if (class_exists('BHCRM_Projects')) {
+            $rows = array_merge($rows, self::run_project_scene_tests());
+        }
+        return $rows;
+    }
+
+    /* ---------- PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: scene ---------- */
+
+    private static function run_project_scene_tests() {
+        $rows = [];
+
+        $id_scened = BHCRM_Projects::create('Scene Suite Test Project A', 0, [], 'Album Launch');
+        $id_unscened = BHCRM_Projects::create('Scene Suite Test Project B', 0, [], '');
+
+        $rows[] = OUS_TestRunner::assert_true($id_scened > 0 && $id_unscened > 0, 'create() succeeds both with and without a scene');
+
+        $scened = BHCRM_Projects::get($id_scened);
+        $rows[] = OUS_TestRunner::assert_same('Album Launch', $scened['scene'] ?? null, 'A scene passed to create() is stored and read back exactly');
+
+        $unscened = BHCRM_Projects::get($id_unscened);
+        $rows[] = OUS_TestRunner::assert_same('', $unscened['scene'] ?? null, 'Omitting a scene at creation stores an empty string, not null/false');
+
+        $updated = BHCRM_Projects::update_scene($id_unscened, 'Merch Drop');
+        $rows[] = OUS_TestRunner::assert_true($updated, 'update_scene() succeeds against an existing project');
+        $after_update = BHCRM_Projects::get($id_unscened);
+        $rows[] = OUS_TestRunner::assert_same('Merch Drop', $after_update['scene'] ?? null, 'update_scene() actually persists the new value');
+
+        $scenes = BHCRM_Projects::distinct_scenes();
+        $rows[] = OUS_TestRunner::assert_true(in_array('Album Launch', $scenes, true) && in_array('Merch Drop', $scenes, true), 'distinct_scenes() includes every non-empty scene currently in use');
+        $rows[] = OUS_TestRunner::assert_false(in_array('', $scenes, true), 'distinct_scenes() never includes the empty/unsorted scene as a suggestion');
+
+        // Cleanup
+        BHCRM_Projects::delete($id_scened);
+        BHCRM_Projects::delete($id_unscened);
+
         return $rows;
     }
 
