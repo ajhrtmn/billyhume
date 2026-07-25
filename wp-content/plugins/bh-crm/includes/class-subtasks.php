@@ -198,6 +198,13 @@ class BHCRM_Subtasks {
             self::render_progress_bar($done_count, $total_count);
         }
 
+        // Phase B — fixes/feedback belong to the CARD itself, not to
+        // any one sub-task node, so these only render at the root of
+        // its tree ($path empty), never on a nested sub-task level.
+        if (!$path && class_exists('BHCRM_CardLog')) {
+            BHCRM_CardLog::render($project_id, $uid, $card_id);
+        }
+
         self::render_board($project_id, $uid, $card_id, $path, $children, $columns);
         self::render_bulk_add_form($project_id, $uid, $card_id, $path, $columns);
     }

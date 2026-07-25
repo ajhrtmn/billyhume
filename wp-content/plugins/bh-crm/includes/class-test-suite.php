@@ -34,6 +34,63 @@ class BHCRM_TestSuite {
         if (class_exists('BHCRM_Projects') && class_exists('BH_Element')) {
             $rows = array_merge($rows, self::run_stall_analytics_tests());
         }
+        if (class_exists('BHCRM_CardLog')) {
+            $rows = array_merge($rows, self::run_card_log_tests());
+        }
+        return $rows;
+    }
+
+    /* ---------- Phase B: fixes + feedback log ---------- */
+
+    private static function run_card_log_tests() {
+        $rows = [];
+        global $wpdb;
+
+        // No real card needed here — BHCRM_CardLog is keyed purely by
+        // card_placement_id (an integer), never validating that the id
+        // actually belongs to a real bh/sticky-card row (same posture
+        // BHCRM_Projects' own card_moves table takes, cross-plugin,
+        // no FK) — a fake fixture id exercises the exact same code path
+        // a real card would.
+        $card_id = 999001;
+
+        $fix_id = BHCRM_CardLog::add_fix($card_id, 83, 'Fixed the muddy low end.');
+        $rows[] = OUS_TestRunner::assert_true($fix_id > 0, 'add_fix() succeeds and returns a real row id');
+
+        $fixes = BHCRM_CardLog::list_fixes($card_id);
+        $rows[] = OUS_TestRunner::assert_same(1, count($fixes), 'list_fixes() returns exactly the one fix just added');
+        $rows[] = OUS_TestRunner::assert_same(83, (int) $fixes[0]['timestamp_seconds'], 'The fix\'s timestamp_seconds round-trips exactly');
+        $rows[] = OUS_TestRunner::assert_same(0, (int) $fixes[0]['resolved'], 'A new fix starts unresolved');
+
+        $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_fix($card_id, 10, ''), 'add_fix() rejects an empty note rather than logging a blank row');
+
+        $toggled = BHCRM_CardLog::toggle_fix_resolved($fix_id);
+        $rows[] = OUS_TestRunner::assert_true($toggled, 'toggle_fix_resolved() succeeds');
+        $fixes_after_toggle = BHCRM_CardLog::list_fixes($card_id);
+        $this_fix = null;
+        foreach ($fixes_after_toggle as $f) { if ((int) $f['id'] === $fix_id) $this_fix = $f; }
+        $rows[] = OUS_TestRunner::assert_same(1, (int) ($this_fix['resolved'] ?? -1), 'toggle_fix_resolved() actually flips resolved to 1');
+
+        BHCRM_CardLog::toggle_fix_resolved($fix_id);
+        $fixes_after_second_toggle = BHCRM_CardLog::list_fixes($card_id);
+        foreach ($fixes_after_second_toggle as $f) { if ((int) $f['id'] === $fix_id) $this_fix = $f; }
+        $rows[] = OUS_TestRunner::assert_same(0, (int) $this_fix['resolved'], 'Toggling a second time flips it back to unresolved (a real toggle, not a one-way mark)');
+
+        BHCRM_CardLog::add_feedback($card_id, 'A Client', 'Love the new mix, thank you!');
+        $feedback = BHCRM_CardLog::list_feedback($card_id);
+        $rows[] = OUS_TestRunner::assert_same(1, count($feedback), 'add_feedback()/list_feedback() round-trips exactly one entry');
+        $rows[] = OUS_TestRunner::assert_same('A Client', $feedback[0]['author_name'], 'author_name is stored as free text, not resolved against any user account');
+
+        BHCRM_CardLog::add_feedback($card_id, '', 'Feedback with no name given.');
+        $feedback_after_blank_author = BHCRM_CardLog::list_feedback($card_id);
+        $rows[] = OUS_TestRunner::assert_same('Anonymous', $feedback_after_blank_author[1]['author_name'] ?? null, 'An empty author_name falls back to "Anonymous" rather than storing a blank');
+
+        $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_feedback($card_id, 'Someone', ''), 'add_feedback() rejects an empty note rather than logging a blank row');
+
+        // Cleanup
+        $wpdb->delete($wpdb->prefix . 'bhcrm_project_fixes', ['card_placement_id' => $card_id]);
+        $wpdb->delete($wpdb->prefix . 'bhcrm_project_feedback', ['card_placement_id' => $card_id]);
+
         return $rows;
     }
 
