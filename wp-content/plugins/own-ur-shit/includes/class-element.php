@@ -804,6 +804,25 @@ class BH_Element {
         return (bool) $wpdb->delete($table, ['id' => $id]);
     }
 
+    // DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5 — every placement
+    // belonging to one (surface, context) pair, gone in one call.
+    // Deliberately scoped to a whole context (every slot), not one
+    // slot at a time — a real delete (post trashed permanently, a CRM
+    // profile's owner account removed, etc.) means NOTHING under that
+    // context should survive as an orphan, regardless of how many
+    // slots that surface happens to define. Root placements are
+    // deleted directly; delete_placement()'s own parent-promotion
+    // logic isn't needed here since every row in this context is going
+    // regardless of parent/child relationships.
+    public static function delete_context($surface, $context_id) {
+        global $wpdb;
+        $table = self::table();
+        return (bool) $wpdb->delete($table, [
+            'surface' => sanitize_key($surface),
+            'surface_context_id' => (int) $context_id,
+        ]);
+    }
+
     /**
      * True if $proposed_parent_id IS $placement_id, or is a descendant of
      * it walked the OTHER direction (i.e. accepting $proposed_parent_id as

@@ -31,11 +31,24 @@ class OUS_PageSurface {
     // bh_contest entries, etc.) already has, or is getting, its own
     // purpose-built surface with its own semantics; folding it into
     // this generic one too would create two competing systems fighting
-    // over the same post. `page` is recommended default-on eventually
-    // (Phase 4, pending AJ's sign-off); `post` stays opt-in-only — but
-    // the TOGGLE MECHANISM itself (this file) is identical for both,
-    // that recommendation only affects the "+ New Page" default set in
-    // a later phase.
+    // over the same post.
+    //
+    // Phase 4 (defaulting NEW pages to managed by default) — DECIDED
+    // AGAINST, 2026-07-25, specifically because of Etch (see
+    // ETCH-COMPATIBILITY-NOTES.md; Billy's dev builds the real site in
+    // Etch, a WordPress visual environment that authors real
+    // post_content via Gutenberg blocks). The managed toggle's
+    // maybe_replace_content() below DISCARDS post_content entirely at
+    // render time and substitutes render_slot() output instead — Etch
+    // has no awareness this happens. Defaulting new pages to managed
+    // would mean anything Billy's dev visually builds in Etch on that
+    // page silently never appears on the real front end, with no
+    // obvious reason why. Opt-in-only avoids that trap entirely — the
+    // NEW bh/page-content block (below) is the actually Etch-safe way
+    // to add Design-Suite-rendered content to a page, since it's a
+    // real registered block Etch passes through correctly (same
+    // "keep building new features as real blocks" posture that doc's
+    // own bottom-line recommendation #2 already calls for).
     const MANAGED_POST_TYPES = ['page', 'post'];
 
     public static function init() {
@@ -47,6 +60,23 @@ class OUS_PageSurface {
 
         add_action('init', [self::class, 'register_page_content_block']);
         add_action('enqueue_block_editor_assets', [self::class, 'enqueue_block_editor_assets']);
+
+        add_action('before_delete_post', [self::class, 'handle_delete']);
+    }
+
+    // Plan §4/Phase 5 — real delete only (before_delete_post), never
+    // trash: trash is recoverable, so a page's placements should
+    // survive a trash/restore cycle exactly the way the post row
+    // itself does. Without this, every genuinely-deleted page leaves
+    // orphaned rows in bhcore_element_placements forever — cheap
+    // individually, real hygiene debt at scale. Scoped to
+    // MANAGED_POST_TYPES only, same as everything else in this class —
+    // a plugin-owned CPT's own surface cleans up after itself
+    // separately, not through this generic hook.
+    public static function handle_delete($post_id) {
+        if (!in_array(get_post_type($post_id), self::MANAGED_POST_TYPES, true)) return;
+        if (!class_exists('BH_Element')) return;
+        BH_Element::delete_context('bh_page', $post_id);
     }
 
     public static function register_element_surface($surfaces) {
@@ -123,14 +153,18 @@ class OUS_PageSurface {
         // wants Design-Suite-rendered content INSIDE an otherwise
         // normal page, without the full-page replacement this toggle
         // does.
+        $etch_warning = '<p class="description" style="color:#b45309;">&#9888; If this page is built in Etch (or any tool that edits the block editor\'s own content), turning this on means whatever it builds here will never actually appear on the live site — the front end shows the Design Suite content instead, silently. Use the "Page Content (Design Suite)" block below instead if you just want Design-Suite content alongside an Etch-built page.</p>';
+
         if ($managed) {
             echo '<p>This page\'s FRONT-END output is fully replaced by its Design Suite content — the editor below still works normally, but what visitors see is generated separately, not from what\'s written here.</p>';
             echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1" checked> Replace this page\'s output with its Design Suite content</label>';
             echo '<p class="description">Turning this off does NOT delete anything — it just switches the front end back to showing this editor\'s own content (frozen as it was when you opted in). Turning it back on shows the exact same Design Suite content again.</p>';
+            echo $etch_warning;
         } else {
             echo '<p class="description">Fully replace this page\'s front-end output with a separate Design Suite node tree, instead of what\'s written in the editor below — the same underlying system as CRM profile pages and lesson extras. Most pages don\'t need this; for adding a Design-Suite-rendered section INSIDE a normal page, insert the "Page Content (Design Suite)" block below instead.</p>';
             echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1"> Replace this page\'s output with its Design Suite content</label>';
             echo '<p class="description">Nothing in the editor below is touched unless you check this box and save — and even then, whatever you\'ve already written is kept, not discarded (wrapped as a starting node you can still edit).</p>';
+            echo $etch_warning;
         }
     }
 

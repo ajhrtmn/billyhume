@@ -40,6 +40,45 @@ class BH_Element_TestSuite {
         $rows = array_merge($rows, self::run_empty_slot_tests());
         $rows = array_merge($rows, self::run_surface_preview_tests());
         $rows = array_merge($rows, self::run_color_token_schema_tests());
+        $rows = array_merge($rows, self::run_delete_context_tests());
+
+        return $rows;
+    }
+
+    /* ---------- DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5: delete_context() ---------- */
+
+    private static function run_delete_context_tests() {
+        $rows = [];
+        $surface = 'bh_element_suite_delete_context_test';
+        $context_id = 999003;
+
+        $id_a = BH_Element::save_placement([
+            'surface' => $surface, 'surface_context_id' => $context_id, 'slot' => 'root',
+            'position' => 0, 'element_type' => 'bh/note', 'config' => ['attrs' => ['text' => 'A']],
+        ]);
+        $id_b = BH_Element::save_placement([
+            'surface' => $surface, 'surface_context_id' => $context_id, 'slot' => 'root',
+            'position' => 1, 'element_type' => 'bh/note', 'config' => ['attrs' => ['text' => 'B']],
+        ]);
+        // A different context under the SAME surface — must survive.
+        $id_other_context = BH_Element::save_placement([
+            'surface' => $surface, 'surface_context_id' => $context_id + 1, 'slot' => 'root',
+            'position' => 0, 'element_type' => 'bh/note', 'config' => ['attrs' => ['text' => 'C']],
+        ]);
+
+        $rows[] = OUS_TestRunner::assert_true($id_a > 0 && $id_b > 0 && $id_other_context > 0, 'Three real placements are created across two contexts for this test');
+
+        $deleted = BH_Element::delete_context($surface, $context_id);
+        $rows[] = OUS_TestRunner::assert_true($deleted, 'delete_context() succeeds');
+
+        $remaining = BH_Element::get_placements($surface, $context_id, 'root');
+        $rows[] = OUS_TestRunner::assert_same(0, count($remaining), 'Every placement under the deleted context is gone');
+
+        $other_still_there = BH_Element::get_placements($surface, $context_id + 1, 'root');
+        $rows[] = OUS_TestRunner::assert_same(1, count($other_still_there), 'A DIFFERENT context under the same surface is completely untouched');
+
+        // Cleanup
+        BH_Element::delete_context($surface, $context_id + 1);
 
         return $rows;
     }
