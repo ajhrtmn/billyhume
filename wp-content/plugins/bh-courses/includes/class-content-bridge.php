@@ -85,6 +85,7 @@ class BHC_ContentBridge {
         // blocks.js) needed zero changes, only where they're enqueued.
         add_action('enqueue_block_editor_assets', [self::class, 'maybe_enqueue_lesson_blocks']);
         add_filter('block_categories_all', [self::class, 'register_block_category']);
+        add_filter('block_editor_settings_all', [self::class, 'add_studio_block_editor_styles'], 10, 2);
 
         // The ONLY writer of `_bhc_steps` now — fires on every real
         // save of a bh_lesson post (the real editor, REST, anywhere),
@@ -131,6 +132,53 @@ class BHC_ContentBridge {
             defined('BHC_VER') ? BHC_VER : null,
             true
         );
+    }
+
+    // Real bug, caught live: bhc/quiz-question's own edit view renders
+    // each answer's radio + text input inside a plain
+    // '.bhc-studio-choice-row' div with zero CSS anywhere in the
+    // plugin — RadioControl/TextControl are both block-level Gutenberg
+    // components, so with no flex styling they stacked vertically
+    // (radio on its own line, ABOVE the choice text field) instead of
+    // reading as one row.
+    //
+    // A plain wp_enqueue_style() hooked to enqueue_block_editor_assets
+    // (tried first) never actually reaches this content: since WP 5.9
+    // the post editor's canvas is a SEPARATE IFRAMED document, and
+    // ordinary enqueued stylesheets only load in the outer admin
+    // document, never inside that iframe — confirmed live (the
+    // stylesheet loaded, `.bhc-studio-choice-row` inside the iframe
+    // still computed `display: block`). The `styles` array on
+    // `block_editor_settings_all` is core's own actual mechanism for
+    // getting CSS into the iframe (the same one theme.json/
+    // add_editor_style() use) — each entry's `css` string gets
+    // collected into the iframe's own stylesheet.
+    public static function add_studio_block_editor_styles($settings, $context) {
+        $screen = $context->post ? get_post_type($context->post) : null;
+        if ($screen !== 'bh_lesson') return $settings;
+
+        $settings['styles'][] = ['css' => '
+            .bhc-studio-choice-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+            .bhc-studio-choice-row > * { margin-bottom: 0 !important; }
+            /* The text input sits two levels inside .components-base-control
+               (fieldset > .components-base-control > ...__input) — flex only
+               grows a DIRECT child of the row, so the grow rule belongs on
+               .components-base-control itself, not the input nested inside it
+               (targeting the input alone left it narrower than the Question
+               field above, with a big empty gap on the right). */
+            .bhc-studio-choice-row .components-base-control { flex: 1; min-width: 0; margin-bottom: 0; }
+            .bhc-studio-choice-row .components-base-control__field { margin-bottom: 0; }
+            .bhc-studio-choice-row .components-text-control__input { width: 100%; box-sizing: border-box; }
+            /* RadioControl renders its option inside a <fieldset><legend>
+               (even with no visible legend text) — the fieldset/legend\'s
+               own default spacing pushed the actual radio circle down
+               inside its box, so it read as sitting lower than the middle
+               of the text field beside it instead of level with it. */
+            .bhc-studio-choice-row fieldset.components-radio-control { margin: 0; padding: 0; border: 0; display: flex; align-items: center; }
+            .bhc-studio-choice-row fieldset.components-radio-control legend { display: none; }
+            .bhc-studio-choice-row .components-radio-control__option { margin: 0; }
+        '];
+        return $settings;
     }
 
     private static function register_block_types() {
