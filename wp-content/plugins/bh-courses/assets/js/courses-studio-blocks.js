@@ -33,10 +33,49 @@
  */
 (function (wp) {
     'use strict';
-    if (!wp || !wp.blocks || !wp.element || !wp.blockEditor || !wp.components) return;
+    if (!wp || !wp.blocks || !wp.element || !wp.blockEditor || !wp.components || !wp.primitives || !wp.data) return;
 
     var el = wp.element.createElement;
     var __ = wp.i18n ? wp.i18n.__ : function (s) { return s; };
+
+    // A minimal, self-authored "×" SVG — deliberately NOT wp.icons
+    // (that package isn't loaded/exposed as a global in every WP
+    // install; confirmed missing entirely here, which crashed the
+    // "Remove choice" button below with nothing on screen but "This
+    // block has encountered an error") and NOT the Dashicon string
+    // 'no-alt' either (that one silently rendered a 0x0-sized, invisible
+    // icon inside the post editor's iframed canvas — the 'dashicons'
+    // stylesheet doesn't reach that iframe). A plain inline SVG has no
+    // external dependency to fail either way.
+    function closeIcon() {
+        return el(wp.primitives.SVG, { viewBox: '0 0 24 24', width: 20, height: 20, xmlns: 'http://www.w3.org/2000/svg' },
+            el(wp.primitives.Path, { d: 'M13.06 12l6.47-6.47-1.06-1.06L12 10.94 5.53 4.47 4.47 5.53 10.94 12l-6.47 6.47 1.06 1.06L12 13.06l6.47 6.47 1.06-1.06L13.06 12z' })
+        );
+    }
+
+    // Replaces InnerBlocks.ButtonBlockAppender (an icon-only "+" square)
+    // for bhc/quiz. That default appender rendered right next to
+    // bhc/quiz-question's own "Add choice" button (a completely
+    // different action, scoped to one question's answer list, not the
+    // whole quiz) — two small "+"-ish controls sitting side by side with
+    // nothing to tell them apart. A real text label removes the
+    // ambiguity regardless of exact spacing/position. Uses
+    // useBlockEditContext() to get the CURRENT block's clientId (the
+    // quiz container itself, since this component only ever renders
+    // inside its InnerBlocks area) and inserts a real new child block
+    // at the end — the same action the default appender performed,
+    // just with a clear label instead of a bare icon.
+    function AddQuestionAppender() {
+        var clientId = wp.blockEditor.useBlockEditContext().clientId;
+        var insertBlock = wp.data.useDispatch('core/block-editor').insertBlock;
+        return el(wp.components.Button, {
+            variant: 'secondary',
+            className: 'bhc-studio-add-question',
+            onClick: function () {
+                insertBlock(wp.blocks.createBlock('bhc/quiz-question'), undefined, clientId);
+            },
+        }, __('Add another question'));
+    }
 
     // Same COMMON_SUPPORTS posture as studio.js's own default block set —
     // no absolute positioning, no raw-HTML editing escape hatch.
@@ -555,7 +594,7 @@
             var innerBlocksProps = wp.blockEditor.useInnerBlocksProps(blockProps, {
                 allowedBlocks: ['bhc/quiz-question'],
                 templateLock: false,
-                renderAppender: wp.blockEditor.InnerBlocks.ButtonBlockAppender,
+                renderAppender: AddQuestionAppender,
             });
             return el(wp.element.Fragment, {},
                 el(wp.blockEditor.InspectorControls, {},
@@ -617,7 +656,18 @@
                         onChange: function () { setAttrs({ correct_index: i }); },
                     }),
                     el(wp.components.TextControl, { value: c, placeholder: __('Choice text'), onChange: function (v) { setChoice(i, v); } }),
-                    choices.length > 2 ? el(wp.components.Button, { icon: 'no-alt', label: __('Remove choice'), onClick: function () { removeChoice(i); } }) : null
+                    // Real bug, caught live: icon: 'no-alt' renders via
+                    // wp.components.Dashicon, a font-icon that depends on
+                    // the 'dashicons' stylesheet actually reaching this
+                    // element — confirmed NOT to inside the post editor's
+                    // iframed canvas (computed icon size came back 0x0,
+                    // font-family fell through to the theme's own body
+                    // font instead of "dashicons"). closeIcon() (top of
+                    // file) is a hand-authored inline SVG — no external
+                    // stylesheet or package (wp.icons isn't loaded/exposed
+                    // as a global in this install either, confirmed via
+                    // console) for either rendering path to fail on.
+                    choices.length > 2 ? el(wp.components.Button, { icon: closeIcon(), label: __('Remove choice'), onClick: function () { removeChoice(i); } }) : null
                 );
             });
 
@@ -625,7 +675,14 @@
                 el(wp.components.TextControl, { label: __('Question'), value: attrs.question, onChange: function (v) { setAttrs({ question: v }); } }),
                 el('p', { className: 'description' }, __('Select the radio next to the correct choice.')),
                 choiceRows,
-                el(wp.components.Button, { variant: 'secondary', onClick: addChoice }, __('Add choice'))
+                // className carries its own margin-bottom (see
+                // add_studio_block_editor_styles() in class-content-
+                // bridge.php) — without it, this button sat directly
+                // against Gutenberg's own "Add quiz question" block-
+                // appender (a totally different action: a new question,
+                // not a new choice), the two reading as one confusing
+                // cluster of "add" buttons.
+                el(wp.components.Button, { variant: 'secondary', className: 'bhc-studio-add-choice', onClick: addChoice }, __('Add choice'))
             );
         },
         save: function () { return null; }, // dynamic

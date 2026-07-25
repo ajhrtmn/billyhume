@@ -128,7 +128,7 @@ class BHC_ContentBridge {
         wp_enqueue_script(
             'bhc-courses-studio-blocks',
             defined('BHC_URL') ? BHC_URL . 'assets/js/courses-studio-blocks.js' : plugins_url('assets/js/courses-studio-blocks.js', dirname(__FILE__)),
-            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch'],
+            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'wp-data'],
             defined('BHC_VER') ? BHC_VER : null,
             true
         );
@@ -177,6 +177,36 @@ class BHC_ContentBridge {
             .bhc-studio-choice-row fieldset.components-radio-control { margin: 0; padding: 0; border: 0; display: flex; align-items: center; }
             .bhc-studio-choice-row fieldset.components-radio-control legend { display: none; }
             .bhc-studio-choice-row .components-radio-control__option { margin: 0; }
+            /* "Add choice" (adds another answer to THIS question, small/
+               inline) vs "Add another question" (a real labeled button
+               replacing Gutenberg\'s bare icon-only block appender,
+               scoped to the WHOLE quiz, not one question) — distinct
+               label text now says what each does, and this full-width/
+               top-bordered treatment plus real spacing makes clear the
+               second one belongs to a different, larger scope than the
+               question it visually follows. */
+            .bhc-studio-add-choice { margin-bottom: 20px; }
+            /* Gutenberg wraps any custom InnerBlocks appender in its own
+               ".block-list-appender" div, which (a) shrink-wraps to the
+               button\'s natural width by default — width:100% on the
+               BUTTON alone did nothing while its own wrapper box was
+               still only as wide as the button once was — and (b), the
+               real culprit for the overlap: core styles this wrapper
+               position:absolute (designed for the default tiny "+"
+               icon-only appender, which doesn\'t need to reserve real
+               flow space). A full-width, full-height custom button
+               inside an absolutely-positioned wrapper doesn\'t push
+               anything below it out of the way, so it rendered floating
+               ON TOP of "Add choice" instead of stacked cleanly beneath
+               it. position:static puts it back in normal document flow,
+               where it belongs given how much visual space it now
+               actually takes up. */
+            .bhc-studio-quiz .block-list-appender { display: block; width: 100%; position: static; }
+            .bhc-studio-add-question {
+                display: flex; width: 100%; justify-content: center;
+                box-sizing: border-box;
+                margin-top: 12px; padding-top: 16px; border-top: 1px dashed #ccc;
+            }
         '];
         return $settings;
     }

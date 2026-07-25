@@ -185,6 +185,15 @@ class OUS_Registry {
                 ['slug' => 'bh-registry-review', 'label' => 'Registry Submissions', 'callback' => ['BHR_Admin', 'render']],
             ],
         ],
+        'bh-feedback' => [
+            'label' => 'BH Feedback',
+            'file' => 'bh-feedback/bh-feedback.php',
+            'depends_on' => [],
+            'check_class' => 'BHF_PostTypes',
+            'description' => 'Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue.',
+            'dashboard_link' => 'edit.php?post_type=bh_feedback_request',
+            'bundled_zip' => 'bh-feedback.zip',
+        ],
         'bh-monetization-woo' => [
             'label' => 'BH Monetization',
             'file' => 'bh-monetization-woo/bh-monetization-woo.php',
