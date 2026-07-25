@@ -42,31 +42,11 @@ class OUS_PageSurface {
         add_filter('bh_element_surfaces', [self::class, 'register_element_surface']);
         add_filter('the_content', [self::class, 'maybe_replace_content']);
 
-        add_action('current_screen', [self::class, 'maybe_hide_editor']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes'], 10, 2);
         add_action('save_post', [self::class, 'handle_save'], 20); // 20: after other metaboxes' own save_post handlers that might read/adjust post_content
-    }
 
-    // Real bug, caught live: remove_post_type_support('editor') called
-    // from inside 'add_meta_boxes' DOES hide the classic editor
-    // screen's content box (edit-form-advanced.php checks support at
-    // render time, after that hook fires) but has NO effect on the
-    // block editor — Gutenberg decides whether to show the content
-    // canvas much earlier in the request (building the editor's own
-    // settings/REST schema), before 'add_meta_boxes' ever fires.
-    // Confirmed live: a managed page's title AND its old paragraph
-    // content were both still fully visible/editable in the block
-    // editor canvas after this call ran too late. 'current_screen'
-    // fires early enough on every wp-admin page load (well before
-    // block-editor initialization) for the support removal to actually
-    // take effect for both editors — the exact hook several real page-
-    // builder plugins use for this same "replace the block editor
-    // canvas" technique.
-    public static function maybe_hide_editor($screen) {
-        if (!$screen || $screen->base !== 'post' || !in_array($screen->post_type, self::MANAGED_POST_TYPES, true)) return;
-        $post_id = (int) ($_GET['post'] ?? $_POST['post_ID'] ?? 0);
-        if (!$post_id || get_post_meta($post_id, self::META_KEY, true) !== '1') return;
-        remove_post_type_support($screen->post_type, 'editor');
+        add_action('init', [self::class, 'register_page_content_block']);
+        add_action('enqueue_block_editor_assets', [self::class, 'enqueue_block_editor_assets']);
     }
 
     public static function register_element_surface($surfaces) {
@@ -127,16 +107,30 @@ class OUS_PageSurface {
         wp_nonce_field('ous_design_suite_toggle', 'ous_design_suite_nonce');
         $managed = get_post_meta($post->ID, self::META_KEY, true) === '1';
 
+        // Revised after AJ's own call (2026-07-25): the Design Suite's
+        // visual tree/canvas builder was deliberately deleted in an
+        // earlier session in favor of WordPress's own block editor
+        // (see class-style-gallery.php's docblock) — so hiding the
+        // native editor and pointing at a separate "Open in Design
+        // Suite" screen no longer makes sense; that screen can't show
+        // or edit a placement tree, it never could after that
+        // deletion. The editor stays fully visible either way now.
+        // This toggle's only remaining job: whether the FRONT END
+        // fully replaces this page's rendered output with its
+        // bh_page/root node tree (see maybe_replace_content()) — an
+        // independent, additive "Page Content (Design Suite)" block is
+        // also insertable directly in the editor below for anyone who
+        // wants Design-Suite-rendered content INSIDE an otherwise
+        // normal page, without the full-page replacement this toggle
+        // does.
         if ($managed) {
-            $design_suite_url = add_query_arg(['page' => 'bh-design', 'surface' => 'bh_page', 'context_id' => $post->ID], admin_url('admin.php'));
-            echo '<p>This page\'s content is managed by the Design Suite — the content editor above is hidden because editing it here would have no effect on what visitors see.</p>';
-            echo '<p><a href="' . esc_url($design_suite_url) . '" class="button button-primary button-hero">Open in Design Suite &rarr;</a></p>';
-            echo '<p class="description">Turning the toggle below off does NOT delete what you\'ve built — it just switches this page back to showing its old native content (frozen as it was when you opted in). Your Design Suite content is still there if you turn it back on.</p>';
-            echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1" checked> Build this page with Design Suite</label>';
+            echo '<p>This page\'s FRONT-END output is fully replaced by its Design Suite content — the editor below still works normally, but what visitors see is generated separately, not from what\'s written here.</p>';
+            echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1" checked> Replace this page\'s output with its Design Suite content</label>';
+            echo '<p class="description">Turning this off does NOT delete anything — it just switches the front end back to showing this editor\'s own content (frozen as it was when you opted in). Turning it back on shows the exact same Design Suite content again.</p>';
         } else {
-            echo '<p class="description">Build this page\'s content as a Design Suite node tree instead of the editor above — the same builder used for CRM profile pages, lesson extras, and the rest of this ecosystem\'s "no special-cased pages" system.</p>';
-            echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1"> Build this page with Design Suite</label>';
-            echo '<p class="description">Nothing in the editor above is touched unless you check this box and save — and even then, whatever you\'ve already written is kept, not discarded (see below).</p>';
+            echo '<p class="description">Fully replace this page\'s front-end output with a separate Design Suite node tree, instead of what\'s written in the editor below — the same underlying system as CRM profile pages and lesson extras. Most pages don\'t need this; for adding a Design-Suite-rendered section INSIDE a normal page, insert the "Page Content (Design Suite)" block below instead.</p>';
+            echo '<label><input type="checkbox" name="ous_design_suite_managed" value="1"> Replace this page\'s output with its Design Suite content</label>';
+            echo '<p class="description">Nothing in the editor below is touched unless you check this box and save — and even then, whatever you\'ve already written is kept, not discarded (wrapped as a starting node you can still edit).</p>';
         }
     }
 
@@ -177,5 +171,93 @@ class OUS_PageSurface {
             // reconstruction back into post_content HTML.
             delete_post_meta($post_id, self::META_KEY);
         }
+
+        self::sync_page_content_block($post_id);
+    }
+
+    /* =================================================================
+     * "Page Content (Design Suite)" block — AJ's own call (2026-07-25),
+     * once it was clear the old visual tree/canvas builder had been
+     * deleted (see class-style-gallery.php's docblock): rather than
+     * hiding the native editor and pointing at a separate screen that
+     * can no longer show a placement tree at all, this block lives
+     * INSIDE the normal block editor like any other block — insert it,
+     * type into it, move it, delete it, same as a paragraph or image
+     * block. One bridging block, not a full per-BH_Element-type block
+     * set (that's real, separate, much bigger scope than this pass —
+     * a whole future rebuild of the Structure/Library layer that was
+     * just deleted, not a Phase 3 add-on).
+     *
+     * The block's own attribute IS the authoritative content the
+     * author sees/edits in Gutenberg. On save, that content is synced
+     * out to a single bh/note placement in the SAME bh_page/root slot
+     * Phase 1/2 already render from — so the front end still renders
+     * through the existing, already-tested render_slot() call, "under
+     * the hood," exactly as originally scoped, rather than needing a
+     * second rendering path. A page can have both this block AND the
+     * full-replacement toggle above; the toggle's the_content filter
+     * simply wins when it's on (same "one clear owner" rule, not two
+     * competing renderers).
+     */
+    public static function register_page_content_block() {
+        register_block_type('bh/page-content', [
+            'attributes' => [
+                'content' => ['type' => 'string', 'default' => ''],
+            ],
+            'render_callback' => [self::class, 'render_page_content_block'],
+        ]);
+    }
+
+    public static function enqueue_block_editor_assets() {
+        wp_enqueue_script(
+            'ous-page-content-block',
+            OUS_URL . 'assets/js/page-content-block.js',
+            ['wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n'],
+            OUS_VER,
+            true
+        );
+    }
+
+    // Server-rendered (dynamic) — always reads the CURRENT placement
+    // state via render_slot(), not the block's own possibly-stale
+    // attribute value, so a future direct edit to the placement (via
+    // REST, Debug Tools, etc.) is reflected immediately without
+    // needing this specific post re-saved.
+    public static function render_page_content_block($attrs) {
+        $post_id = get_the_ID();
+        if (!$post_id || !class_exists('BH_Element')) return '';
+        return BH_Element::render_slot('bh_page', $post_id, 'root');
+    }
+
+    // Called from handle_save() above — parses the just-saved
+    // post_content for this block's own current attribute value and
+    // upserts ONE bh/note placement to match. A post with no
+    // bh/page-content block in it is a no-op; a post with more than
+    // one is deliberately unsupported in this v1 (last one wins) —
+    // multiple independent Design-Suite sections per ordinary page is
+    // real, plausible future scope, not assumed needed yet.
+    private static function sync_page_content_block($post_id) {
+        if (!class_exists('BH_Element')) return;
+        $post = get_post($post_id);
+        if (!$post) return;
+
+        $blocks = parse_blocks($post->post_content);
+        $text = null;
+        foreach ($blocks as $block) {
+            if (($block['blockName'] ?? '') === 'bh/page-content') {
+                $text = (string) ($block['attrs']['content'] ?? '');
+            }
+        }
+        if ($text === null) return; // no such block in this save — nothing to sync
+
+        $existing = BH_Element::get_placements('bh_page', $post_id, 'root');
+        $placement = [
+            'surface' => 'bh_page', 'surface_context_id' => $post_id, 'slot' => 'root',
+            'position' => 0, 'element_type' => 'bh/note',
+            'config' => ['attrs' => ['text' => $text]],
+        ];
+        if ($existing) $placement['id'] = (int) $existing[0]['id']; // update in place rather than accumulating duplicate rows on every save
+
+        BH_Element::save_placement($placement);
     }
 }
