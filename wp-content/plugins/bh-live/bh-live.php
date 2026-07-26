@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Live
  * Description: Two-way interactive live streaming — a thin WordPress-side integration over a self-hosted Owncast server (v1), behind an engine abstraction so a future swap (OvenMediaEngine, a different chat mechanism) is a new class, not a rewrite. Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.2.0
+ * Version:     0.3.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -29,9 +29,9 @@ if (!defined('ABSPATH')) exit;
 // does and doesn't do.
 define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
-define('BHL_VER',  '0.2.0');
+define('BHL_VER',  '0.3.0');
 
-foreach (['stream-engine', 'post-types', 'streams', 'admin'] as $f) {
+foreach (['stream-engine', 'post-types', 'streams', 'admin', 'api', 'live-player'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";
 }
 
@@ -46,6 +46,8 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHL_PostTypes', 'register']);
     add_action('init', ['BHL_Streams', 'init']);
     add_action('init', ['BHL_Admin', 'init']);
+    add_action('init', ['BHL_Player', 'init']);
+    add_action('rest_api_init', ['BHL_API', 'register_routes']);
 });
 
 // Cleared on deactivation, same convention every other cron-scheduling
