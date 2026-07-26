@@ -110,6 +110,16 @@ class BHM_Referrals {
         // order (this hook firing twice, or a race) fails here and never
         // reaches the wallet credit below, same idempotency pattern as
         // bhcore_notifications.email_sent elsewhere in this ecosystem.
+        // suppress_errors() around just this one call: a duplicate-key
+        // failure here is a fully anticipated, handled outcome (see
+        // $inserted === false below), not a real error — without this,
+        // $wpdb prints a scary "WordPress database error" notice for
+        // something that's actually working exactly as designed,
+        // whether that's WooCommerce genuinely re-firing the
+        // order-completed hook twice in production or this class's own
+        // test suite deliberately re-triggering it to prove the guard
+        // works.
+        $suppress_state = $wpdb->suppress_errors(true);
         $inserted = $wpdb->insert($wpdb->prefix . 'bhm_referrals', [
             'code' => $matched_code,
             'referrer_user_id' => $referrer_user_id,
@@ -117,6 +127,7 @@ class BHM_Referrals {
             'wc_order_id' => $order_id,
             'commission_cents' => $commission_cents,
         ]);
+        $wpdb->suppress_errors($suppress_state);
         if ($inserted === false) return; // already credited for this order
 
         if (class_exists('BHM_Wallet')) {
