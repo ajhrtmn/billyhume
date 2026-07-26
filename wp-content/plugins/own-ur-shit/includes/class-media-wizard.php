@@ -144,7 +144,31 @@ class OUS_MediaWizard {
         if (class_exists('BHL_OwncastEngine')) {
             add_action('admin_post_ous_media_wizard_save_live', [self::class, 'handle_save_live']);
         }
+        if (class_exists('BHL_FlyProvisioner')) {
+            add_action('admin_post_ous_media_wizard_save_provisioner', [self::class, 'handle_save_provisioner']);
+            add_action('admin_post_ous_media_wizard_deploy_host', [self::class, 'handle_deploy_host']);
+            add_action('admin_post_ous_media_wizard_destroy_host', [self::class, 'handle_destroy_host']);
+        }
     }
+
+    // key => [name, class implementing BHL_HostProvisioner, why, fields].
+    // Only Fly.io exists today — the registry shape itself (matching
+    // PROVIDERS above) is what makes adding a second provider later
+    // just another array entry plus a class, not a rewrite of this
+    // section's rendering/save logic.
+    const HOST_PROVISIONERS = [
+        'fly' => [
+            'name' => 'Fly.io',
+            'class' => 'BHL_FlyProvisioner',
+            'why' => 'Machines start in under a second and can be stopped between streams — you only pay while actually live, not for an always-on box the way a plain VPS charges 24/7.',
+            'fields' => [
+                ['name' => 'api_token', 'label' => 'Fly API Token', 'type' => 'password'],
+                ['name' => 'app_name', 'label' => 'App Name', 'type' => 'text', 'placeholder' => 'e.g. yourname-live (must be globally unique across all of Fly.io)'],
+                ['name' => 'org_slug', 'label' => 'Organization Slug', 'type' => 'text', 'placeholder' => 'personal'],
+                ['name' => 'region', 'label' => 'Region', 'type' => 'text', 'placeholder' => 'iad'],
+            ],
+        ],
+    ];
 
     public static function add_menu() {
         add_submenu_page('own-ur-shit', 'Media & CDN Setup', 'Media & CDN Setup', 'manage_options', 'ous-media-setup', [self::class, 'render']);
@@ -276,6 +300,74 @@ class OUS_MediaWizard {
         echo '<input type="password" name="bhl_access_token" value="" placeholder="' . (!empty($s['access_token']) ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
         echo '<p><button type="submit" class="button button-primary button-hero">Save &amp; test connection</button></p>';
         echo '</form>';
+
+        if (class_exists('BHL_FlyProvisioner')) {
+            self::render_provisioner_section();
+        }
+    }
+
+    /**
+     * "Administered from the WP plugin, hosted elsewhere" — AJ's own
+     * ask. Deploy/destroy the actual box Owncast runs on directly from
+     * this screen, via BHL_HostProvisioner (a real API call, not a
+     * trip to another dashboard). A successful deploy auto-fills the
+     * Owncast server URL above — the one thing this can't do for you
+     * is allocate a dedicated public IPv4 for RTMP, a one-time
+     * `fly ips allocate-v4` step Fly's REST API has no endpoint for at
+     * all (confirmed against their own docs) — said plainly here
+     * rather than implying full automation this API can't back up.
+     */
+    private static function render_provisioner_section() {
+        $provider_key = 'fly'; // the only entry in HOST_PROVISIONERS today
+        $provider = self::HOST_PROVISIONERS[$provider_key];
+        $settings = BHL_FlyProvisioner::settings();
+        $deploy_result = get_transient('ous_media_wizard_deploy_result');
+        delete_transient('ous_media_wizard_deploy_result');
+
+        echo '<hr style="max-width:760px;margin:32px 0;">';
+        echo '<h2>Deploy a live server (optional)</h2>';
+        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<p><strong>' . esc_html($provider['name']) . ':</strong> ' . esc_html($provider['why']) . ' A one-time step this can\'t do for you: allocate a dedicated public IPv4 for RTMP (<code>fly ips allocate-v4 -a ' . esc_html($settings['app_name'] ?: '&lt;app-name&gt;') . '</code>) — Fly\'s API has no endpoint for that at all, only their CLI/GraphQL API.</p>';
+        echo '</div>';
+
+        if ($deploy_result) {
+            $class = $deploy_result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($deploy_result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($deploy_result['message']) . '</p></div>';
+        }
+
+        if (!empty($settings['active_machine_id']) && class_exists($provider['class'])) {
+            $engine = new $provider['class']();
+            $status = $engine->get_status($settings['active_machine_id']);
+            if (!is_wp_error($status)) {
+                echo '<p><strong>Current machine:</strong> <code>' . esc_html($settings['active_machine_id']) . '</code> — status: <strong>' . esc_html($status['state']) . '</strong> (' . esc_html($status['raw_state']) . ')</p>';
+            }
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;">';
+            wp_nonce_field('ous_media_wizard_destroy_host', 'ous_media_wizard_destroy_nonce');
+            echo '<input type="hidden" name="action" value="ous_media_wizard_destroy_host">';
+            echo '<button type="submit" class="button" onclick="return confirm(\'Destroy this machine? This stops the live server entirely.\');">Destroy machine</button>';
+            echo '</form>';
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;margin-top:16px;">';
+        wp_nonce_field('ous_media_wizard_save_provisioner', 'ous_media_wizard_provisioner_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_provisioner">';
+        foreach ($provider['fields'] as $f) {
+            $val = $settings[$f['name']] ?? '';
+            echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">' . esc_html($f['label']) . '<br>';
+            echo '<input type="' . esc_attr($f['type']) . '" name="fly_' . esc_attr($f['name']) . '" value="' . esc_attr($f['type'] === 'password' ? '' : $val) . '" placeholder="' . esc_attr($f['placeholder'] ?? '') . '" style="width:100%;max-width:480px;" autocomplete="off">';
+            if ($f['type'] === 'password' && $val) echo '<span class="description"> (already set — leave blank to keep it)</span>';
+            echo '</label></p>';
+        }
+        echo '<p><button type="submit" class="button">Save connection settings</button></p>';
+        echo '</form>';
+
+        if (!empty($settings['api_token']) && !empty($settings['app_name'])) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            wp_nonce_field('ous_media_wizard_deploy_host', 'ous_media_wizard_deploy_nonce');
+            echo '<input type="hidden" name="action" value="ous_media_wizard_deploy_host">';
+            echo '<button type="submit" class="button button-primary">Deploy Owncast to ' . esc_html($provider['name']) . '</button>';
+            echo '</form>';
+        }
     }
 
     public static function handle_save() {
@@ -361,6 +453,60 @@ class OUS_MediaWizard {
             ? ['success' => false, 'message' => 'Could not reach the Owncast server: ' . $status->get_error_message()]
             : ['success' => true, 'message' => 'Connected — server is currently ' . ($status['online'] ? 'LIVE' : 'offline') . '.'];
         set_transient('ous_media_wizard_live_test_result', $result, 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_provisioner() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_provisioner_nonce'] ?? '', 'ous_media_wizard_save_provisioner')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        BHL_FlyProvisioner::save_settings(
+            wp_unslash($_POST['fly_api_token'] ?? ''),
+            wp_unslash($_POST['fly_app_name'] ?? ''),
+            wp_unslash($_POST['fly_org_slug'] ?? ''),
+            wp_unslash($_POST['fly_region'] ?? '')
+        );
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_deploy_host() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_deploy_nonce'] ?? '', 'ous_media_wizard_deploy_host')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+
+        $provisioner = new BHL_FlyProvisioner();
+        $result = $provisioner->provision();
+        if (is_wp_error($result)) {
+            set_transient('ous_media_wizard_deploy_result', ['success' => false, 'message' => 'Deploy failed: ' . $result->get_error_message()], 60);
+        } else {
+            // Auto-fill the Owncast connection settings above with the
+            // freshly-deployed box's own URL — the actual "one click"
+            // loop AJ asked for, not deploy-then-copy-paste-manually.
+            BHL_OwncastEngine::save_settings($result['public_url'], null);
+            set_transient('ous_media_wizard_deploy_result', [
+                'success' => true,
+                'message' => 'Deployed — machine ' . $result['host_id'] . ' is starting at ' . $result['public_url'] . '. It can take a minute to finish booting; refresh this page to check its status. Remember the one-time IPv4 step above before RTMP ingest will work.',
+            ], 60);
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_destroy_host() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_destroy_nonce'] ?? '', 'ous_media_wizard_destroy_host')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+
+        $settings = BHL_FlyProvisioner::settings();
+        $provisioner = new BHL_FlyProvisioner();
+        $result = $provisioner->destroy($settings['active_machine_id']);
+        set_transient('ous_media_wizard_deploy_result', is_wp_error($result)
+            ? ['success' => false, 'message' => 'Could not destroy the machine: ' . $result->get_error_message()]
+            : ['success' => true, 'message' => 'Machine destroyed.'], 60);
 
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;

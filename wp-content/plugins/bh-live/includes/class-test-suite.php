@@ -32,6 +32,7 @@ class BHL_TestSuite {
         $rows = array_merge($rows, self::run_stream_lifecycle_tests());
         $rows = array_merge($rows, self::run_engine_settings_tests());
         $rows = array_merge($rows, self::run_api_tests());
+        $rows = array_merge($rows, self::run_fly_provisioner_tests());
         return $rows;
     }
 
@@ -113,6 +114,69 @@ class BHL_TestSuite {
         $rows[] = OUS_TestRunner::assert_true(empty($found), 'get_replays(): a stream with no replay attachment ever assigned is excluded from the list, not shown with a broken url');
 
         wp_delete_post($no_replay_id, true);
+        return $rows;
+    }
+
+    /* ---------- BHL_FlyProvisioner: real request shape, mocked network ---------- */
+
+    // pre_http_request lets this suite verify the ACTUAL HTTP method/
+    // URL/auth-header/body BHL_FlyProvisioner builds against Fly's
+    // real, documented API (confirmed 2026-07-26) without ever hitting
+    // the real network — same principle as the rest of this ecosystem's
+    // "grounded, not guessed" testing discipline, just applied to an
+    // external API's request shape instead of this codebase's own logic.
+    private static function run_fly_provisioner_tests() {
+        if (!class_exists('BHL_FlyProvisioner')) return [];
+        $rows = [];
+        $original = get_option('bhl_fly_settings');
+
+        $captured = [];
+        $intercept = function ($false, $args, $url) use (&$captured) {
+            $captured[] = ['url' => $url, 'method' => $args['method'], 'headers' => $args['headers'] ?? [], 'body' => $args['body'] ?? null];
+            if (strpos($url, '/machines') === false && $args['method'] === 'GET') {
+                return ['response' => ['code' => 404], 'body' => wp_json_encode(['error' => 'not found'])];
+            }
+            if (strpos($url, '/v1/apps') !== false && strpos($url, '/machines') === false && $args['method'] === 'POST') {
+                return ['response' => ['code' => 201], 'body' => wp_json_encode(['name' => 'suite-test-app'])];
+            }
+            if (strpos($url, '/machines') !== false && $args['method'] === 'POST') {
+                return ['response' => ['code' => 200], 'body' => wp_json_encode(['id' => 'suite-machine-1', 'state' => 'created'])];
+            }
+            return $false;
+        };
+        add_filter('pre_http_request', $intercept, 10, 3);
+
+        BHL_FlyProvisioner::save_settings('suite-token', 'suite-test-app', 'personal', 'iad');
+        $p = new BHL_FlyProvisioner();
+        $result = $p->provision();
+
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error($result), 'provision(): succeeds against a mocked 200/201 sequence');
+        if (!is_wp_error($result)) {
+            $rows[] = OUS_TestRunner::assert_same('suite-machine-1', $result['host_id'], 'provision(): returns the machine id Fly assigned');
+            $rows[] = OUS_TestRunner::assert_same('https://suite-test-app.fly.dev', $result['public_url'], 'provision(): public_url is the app\'s own shared *.fly.dev hostname');
+        }
+        $rows[] = OUS_TestRunner::assert_same(3, count($captured), 'provision(): exactly 3 real requests — check app exists, create app, create machine');
+        $rows[] = OUS_TestRunner::assert_true(strpos($captured[1]['body'], '"org_slug":"personal"') !== false, 'provision(): app-creation body includes the configured org slug');
+        $body = json_decode($captured[2]['body'], true);
+        $rows[] = OUS_TestRunner::assert_same('owncast/owncast:latest', $body['config']['image'] ?? null, 'provision(): machine config uses the real Owncast Docker image');
+        $rows[] = OUS_TestRunner::assert_same(2, count($body['config']['services'] ?? []), 'provision(): declares both the HTTP/TLS web service and the raw-TCP RTMP service');
+        $rows[] = OUS_TestRunner::assert_same('Bearer suite-token', $captured[0]['headers']['Authorization'] ?? null, 'provision(): every request carries the configured API token as a Bearer header');
+
+        remove_filter('pre_http_request', $intercept, 10);
+
+        // Error path — Fly rejecting the request (bad token, etc.)
+        add_filter('pre_http_request', $error_intercept = function () {
+            return ['response' => ['code' => 401], 'body' => wp_json_encode(['error' => 'invalid token'])];
+        }, 10, 3);
+        $result2 = $p->provision();
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($result2), 'provision(): a rejected request (401) returns a WP_Error, never a fatal');
+        remove_filter('pre_http_request', $error_intercept, 10);
+
+        if ($original === false) {
+            delete_option('bhl_fly_settings');
+        } else {
+            update_option('bhl_fly_settings', $original);
+        }
         return $rows;
     }
 }
