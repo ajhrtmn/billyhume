@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Video
  * Description: A standalone video catalog and player — its own CPT, taxonomy, and browse/playback SPA, independent of bh-streaming's audio catalog. Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.1.0
+ * Version:     0.2.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
 // reference.
 define('BHV_PATH', plugin_dir_path(__FILE__));
 define('BHV_URL',  plugin_dir_url(__FILE__));
-define('BHV_VER',  '0.1.0');
+define('BHV_VER',  '0.2.0');
 
 /**
  * A genuine PEER to bh-streaming/bh-courses/bh-feedback — depends only
@@ -30,7 +30,7 @@ define('BHV_VER',  '0.1.0');
  * OUS_MediaWizard — same one-line abstraction BHS_API::audio_url_for()
  * already proves for audio.
  */
-foreach (['activator', 'post-types'] as $f) {
+foreach (['activator', 'post-types', 'admin', 'api'] as $f) {
     require_once BHV_PATH . "includes/class-$f.php";
 }
 
@@ -46,4 +46,6 @@ add_action('plugins_loaded', function () {
     }
 
     add_action('init', ['BHV_PostTypes', 'register']);
+    add_action('init', ['BHV_Admin', 'init']);
+    add_action('rest_api_init', ['BHV_API', 'register_routes']);
 });

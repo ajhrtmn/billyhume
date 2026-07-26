@@ -16,8 +16,10 @@ if (!defined('ABSPATH')) exit;
  *                        call, scoping pass 2026-07-26: keep non-music
  *                        video content from being forced into a fake
  *                        track relationship)
- *   _bhv_duration_secs   cached video length, same shape as
- *                        bh-streaming's own track-duration caching
+ *
+ * Duration isn't cached server-side (no ffprobe-equivalent in this
+ * stack) — the player reads it client-side off the <video> element's
+ * own loadedmetadata event, same as any plain HTML5 video.
  *
  * bhv_genre is a plain WP taxonomy on bhv_video, same "just the
  * built-in taxonomy system" call bh-streaming's own bhs_genre makes.
