@@ -5,10 +5,16 @@
 
     function renderLiveSlot(status) {
         var slot = el('bhl-live-slot');
+        var chatSlot = el('bhl-chat-slot');
         if (status.online) {
             slot.innerHTML = '<span class="bhl-live-badge">LIVE</span><h3>' + escapeHtml(status.title || '') + '</h3>' + status.embed_html;
+            if (status.chat_embed_html) {
+                chatSlot.innerHTML = status.chat_embed_html;
+                chatSlot.style.display = '';
+            }
         } else {
             slot.innerHTML = '<div class="bhl-offline-notice">Not live right now — check back later, or watch a past stream below.</div>';
+            chatSlot.style.display = 'none';
         }
     }
 

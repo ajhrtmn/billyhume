@@ -28,7 +28,10 @@ class BHL_Player {
     public static function render($atts = []) {
         return '
         <div class="bhl-app" id="bhl-app">
-            <div class="bhl-live-slot" id="bhl-live-slot"><div class="bhl-empty">Checking live status…</div></div>
+            <div class="bhl-live-row">
+                <div class="bhl-live-slot" id="bhl-live-slot"><div class="bhl-empty">Checking live status…</div></div>
+                <div class="bhl-chat-slot" id="bhl-chat-slot" style="display:none;"></div>
+            </div>
             <h3 class="bhl-replays-heading" id="bhl-replays-heading" style="display:none;">Past streams</h3>
             <div class="bhl-replay-grid" id="bhl-replay-grid"></div>
         </div>';

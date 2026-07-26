@@ -28,12 +28,18 @@ class BHL_API {
             return new WP_REST_Response(['success' => true, 'online' => false, 'embed_html' => ''], 200);
         }
         $engine = class_exists('BHL_OwncastEngine') ? new BHL_OwncastEngine() : null;
+        $chat = class_exists('BHL_OwncastChat') ? new BHL_OwncastChat() : null;
         return new WP_REST_Response([
-            'success'    => true,
-            'online'     => true,
-            'title'      => $current->post_title,
-            'started_at' => get_post_meta($current->ID, '_bhl_started_at', true),
-            'embed_html' => $engine ? $engine->get_embed_html() : '',
+            'success'         => true,
+            'online'          => true,
+            'title'           => $current->post_title,
+            'started_at'      => get_post_meta($current->ID, '_bhl_started_at', true),
+            'embed_html'      => $engine ? $engine->get_embed_html() : '',
+            // Chat is deliberately a SEPARATE field from embed_html, not
+            // baked into it — the whole point of abstracting it
+            // separately (class-chat.php's own docblock) is that a
+            // future chat swap only ever touches this one field.
+            'chat_embed_html' => ($chat && $chat->is_configured()) ? $chat->get_embed_html() : '',
         ], 200);
     }
 
