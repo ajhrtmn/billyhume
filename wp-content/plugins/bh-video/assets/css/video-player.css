@@ -21,6 +21,12 @@
 .bhv-player-wrap { padding: 20px; border-bottom: 1px solid var(--bh-border); }
 .bhv-player-wrap video { width: 100%; max-height: 70vh; border-radius: 8px; background: #000; display: block; }
 .bhv-player-wrap h3 { margin-top: 10px; font-size: 16px; }
+.bhv-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.bhv-chapter-marker {
+    background: var(--bh-surface); color: var(--bh-text-dim); border: 1px solid var(--bh-border);
+    border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.bhv-chapter-marker:hover { color: var(--bh-text); border-color: var(--bh-accent); }
 
 .bhv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 20px; }
 .bhv-card { background: var(--bh-surface); border: none; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; color: var(--bh-text); font-family: inherit; }

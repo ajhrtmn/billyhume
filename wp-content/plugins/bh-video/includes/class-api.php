@@ -35,9 +35,8 @@ class BHV_API {
             'url'      => self::video_url_for($post->ID),
             'genres'   => is_wp_error($genres) ? [] : $genres,
             'track_id' => $track_id ?: null,
-            // 'chapters'/'resumeSeconds' land here once BHS_Chapters is
-            // ported (see bh-video's own class-chapters.php, not yet
-            // built — task #71 in the video/live scoping plan).
+            'chapters' => class_exists('BHV_Chapters') ? BHV_Chapters::get($post->ID) : [],
+            'resumeSeconds' => (is_user_logged_in() && class_exists('BHV_Chapters')) ? BHV_Chapters::resume_position($post->ID, get_current_user_id()) : 0,
         ];
     }
 
