@@ -30,7 +30,7 @@ define('BHV_VER',  '0.4.0');
  * OUS_MediaWizard — same one-line abstraction BHS_API::audio_url_for()
  * already proves for audio.
  */
-foreach (['activator', 'post-types', 'admin', 'api', 'video-player', 'chapters'] as $f) {
+foreach (['activator', 'post-types', 'admin', 'api', 'video-player', 'chapters', 'test-suite'] as $f) {
     require_once BHV_PATH . "includes/class-$f.php";
 }
 
@@ -49,5 +49,6 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHV_Admin', 'init']);
     add_action('init', ['BHV_Player', 'init']);
     add_action('init', ['BHV_Chapters', 'init']);
+    if (class_exists('OUS_TestRunner')) add_action('init', ['BHV_TestSuite', 'init']);
     add_action('rest_api_init', ['BHV_API', 'register_routes']);
 });
