@@ -147,6 +147,57 @@ final class StepsSanitizationTest extends TestCase
         $this->assertSame(0, $result[0]['max_attempts'], 'A negative max_attempts must clamp to 0 (unlimited), not silently mean "zero attempts allowed," which would lock every student out of a quiz step entirely.');
     }
 
+    // Audit fix (2026-07-25): the four LMS depth-of-magic step types
+    // (callout/checklist/chord-chart/audio-compare) each have their own
+    // "drop dead step" branch in BHC_Steps::save() but had zero test
+    // coverage of it — same pattern as the quiz/video tests above, one
+    // per type's actual empty/invalid condition.
+
+    public function testEmptyCalloutIsDropped()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'callout', 'content' => '   ', 'variant' => 'tip']]);
+        $this->assertSame([], $result, 'A callout with no real content (after stripping tags) must not be stored as a dead step.');
+    }
+
+    public function testCalloutWithInvalidVariantFallsBackToTip()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'callout', 'content' => 'Heads up', 'variant' => 'not_a_real_variant']]);
+        $this->assertSame('tip', $result[0]['variant']);
+    }
+
+    public function testEmptyChecklistIsDropped()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'checklist', 'title' => 'Steps', 'items' => ['', '   ']]]);
+        $this->assertSame([], $result, 'A checklist with no non-blank items has nothing to check and must not be stored.');
+    }
+
+    public function testChecklistFiltersOutBlankItemsButKeepsRealOnes()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'checklist', 'items' => ['Real item', '', '  ', 'Another']]]);
+        $this->assertSame(['Real item', 'Another'], $result[0]['items']);
+    }
+
+    public function testEmptyChordChartIsDropped()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'chord-chart', 'title' => 'Verse', 'content' => "   \n  "]]);
+        $this->assertSame([], $result, 'A chord chart with no real content must not be stored as a dead step.');
+    }
+
+    public function testAudioCompareMissingEitherClipIsDropped()
+    {
+        $onlyA = BHC_Steps::save(1, [['type' => 'audio-compare', 'attachment_id_a' => 5, 'attachment_id_b' => 0]]);
+        $onlyB = BHC_Steps::save(1, [['type' => 'audio-compare', 'attachment_id_a' => 0, 'attachment_id_b' => 7]]);
+        $this->assertSame([], $onlyA, 'A comparison with only clip A must be dropped, not rendered as a lonely single player.');
+        $this->assertSame([], $onlyB, 'A comparison with only clip B must be dropped, not rendered as a lonely single player.');
+    }
+
+    public function testAudioCompareWithBothClipsDefaultsLabelsWhenBlank()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'audio-compare', 'attachment_id_a' => 5, 'attachment_id_b' => 7, 'label_a' => '', 'label_b' => '']]);
+        $this->assertSame('A', $result[0]['label_a']);
+        $this->assertSame('B', $result[0]['label_b']);
+    }
+
     public function testMultiStepLessonPreservesAuthoredOrder()
     {
         // Order is the entire point of a "multistep" lesson — text,

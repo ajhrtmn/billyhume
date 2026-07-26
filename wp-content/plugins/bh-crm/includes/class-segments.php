@@ -169,10 +169,11 @@ class BHCRM_Segments {
                 return $ts && $user && strtotime($user->user_registered) <= $ts;
 
             case 'has_project':
-                global $wpdb;
-                return (bool) $wpdb->get_var($wpdb->prepare(
-                    'SELECT COUNT(*) FROM ' . $wpdb->prefix . 'bhcrm_projects WHERE crm_person_id = %d', $user_id
-                ));
+                // Routed through BHCRM_Links, same as BHCRM_Projects::list_for_person()
+                // — a person linked via ANY relation (owner/collaborator/watcher,
+                // including the newer "Link person" panel) counts, not just the
+                // legacy single crm_person_id owner column.
+                return class_exists('BHCRM_Links') && (bool) BHCRM_Links::project_ids_for_person($user_id);
 
             default:
                 return false;

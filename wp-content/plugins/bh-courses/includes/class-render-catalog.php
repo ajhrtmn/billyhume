@@ -76,6 +76,29 @@ class BHC_Render_Catalog {
             $max_pages = (int) $query->max_num_pages;
         }
 
+        // Ecosystem depth-pass Tier 2 — SEO coverage: the catalog page
+        // itself had no page-level SEO data at all (only single course
+        // pages did), leaving the one page most likely to be a search
+        // entry point invisible to it. CollectionPage/ItemList, not
+        // Course — this page lists courses, it isn't one.
+        if (class_exists('BH_SEO')) {
+            BH_SEO::set_page_data([
+                'title' => 'Courses — ' . get_bloginfo('name'),
+                'description' => 'Browse courses on ' . get_bloginfo('name') . '.',
+                'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
+                'type' => 'website',
+                'schema' => [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'CollectionPage',
+                    'name' => 'Courses',
+                    'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
+                    'itemListElement' => array_values(array_filter(array_map(function ($course) {
+                        return get_post_type($course->ID) === 'bh_course' ? get_permalink($course->ID) : null;
+                    }, $query->posts ?? []))),
+                ],
+            ]);
+        }
+
         $uid = get_current_user_id();
         ob_start();
         echo '<div class="bhc-catalog-wrap">';
@@ -90,12 +113,25 @@ class BHC_Render_Catalog {
             // each side of it, matching what WooCommerce's own default
             // empty state (one plugin away) already does correctly.
             $is_filtered = (bool) ($search || $category || $topic);
-            echo class_exists('BHY_Style') ? BHY_Style::empty_state_html([
-                'reason' => $is_filtered ? 'filtered' : 'zero',
-                'title' => $is_filtered ? 'No courses match your filters' : 'No courses published yet',
-                'description' => $is_filtered ? '' : 'Check back soon — new courses will show up here as they\'re published.',
-                'clear_url' => $is_filtered ? remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged']) : '',
-            ]) : '<p class="bhc-empty">No courses found' . ($is_filtered ? ' matching your filters.' : ' yet.') . '</p>';
+            // Audit fix (2026-07-25): the zero (non-filtered) branch never
+            // passed cta_label/cta_url even though the component supports
+            // it — an admin looking at a genuinely empty catalog got no
+            // "create your first course" prompt. current_user_can() gate
+            // so a regular visitor doesn't see an admin-only action.
+            $zero_args = [
+                'reason' => 'zero',
+                'title' => 'No courses published yet',
+                'description' => 'Check back soon — new courses will show up here as they\'re published.',
+            ];
+            if (current_user_can('edit_posts')) {
+                $zero_args['cta_label'] = 'Create your first course';
+                $zero_args['cta_url'] = admin_url('post-new.php?post_type=bh_course');
+            }
+            echo class_exists('BHY_Style') ? BHY_Style::empty_state_html($is_filtered ? [
+                'reason' => 'filtered',
+                'title' => 'No courses match your filters',
+                'clear_url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged']),
+            ] : $zero_args) : '<p class="bhc-empty">No courses found' . ($is_filtered ? ' matching your filters.' : ' yet.') . '</p>';
         } else {
             echo '<div class="bhc-catalog">';
             foreach ($query->posts as $course) {
@@ -197,7 +233,39 @@ class BHC_Render_Catalog {
         if ($page > 1) {
             echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page - 1, $base)) . '">&larr; Previous</a>';
         }
-        echo '<span class="bhc-pagination-status">Page ' . (int) $page . ' of ' . (int) $max_pages . '</span>';
+        // Audit fix (2026-07-25): a deep catalog (more than a handful of
+        // pages) used to be prev/next-only, "Page 3 of 40" with no way
+        // to jump ahead except clicking Next 37 times. A windowed set of
+        // numbered links (current ±2, first/last always shown) appears
+        // once there's actually enough depth to need it; small catalogs
+        // keep the plain "Page X of Y" status text unchanged.
+        if ($max_pages > 5) {
+            echo '<span class="bhc-pagination-numbers">';
+            $window = 2;
+            $shown_ellipsis_before = false;
+            $shown_ellipsis_after = false;
+            for ($i = 1; $i <= $max_pages; $i++) {
+                $in_window = abs($i - $page) <= $window || $i === 1 || $i === $max_pages;
+                if (!$in_window) {
+                    if ($i < $page && !$shown_ellipsis_before) {
+                        echo '<span class="bhc-pagination-ellipsis">&hellip;</span>';
+                        $shown_ellipsis_before = true;
+                    } elseif ($i > $page && !$shown_ellipsis_after) {
+                        echo '<span class="bhc-pagination-ellipsis">&hellip;</span>';
+                        $shown_ellipsis_after = true;
+                    }
+                    continue;
+                }
+                if ($i === $page) {
+                    echo '<span class="bhc-pagination-number bhc-pagination-current">' . (int) $i . '</span>';
+                } else {
+                    echo '<a class="bhc-pagination-number" href="' . esc_url(add_query_arg('bhc_paged', $i, $base)) . '">' . (int) $i . '</a>';
+                }
+            }
+            echo '</span>';
+        } else {
+            echo '<span class="bhc-pagination-status">Page ' . (int) $page . ' of ' . (int) $max_pages . '</span>';
+        }
         if ($page < $max_pages) {
             echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(add_query_arg('bhc_paged', $page + 1, $base)) . '">Next &rarr;</a>';
         }

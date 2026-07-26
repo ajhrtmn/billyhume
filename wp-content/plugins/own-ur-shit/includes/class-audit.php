@@ -108,19 +108,7 @@ class OUS_Audit {
 
     /** Plain action log, no diff — "X happened," e.g. a deletion or a reject. */
     public static function log($action, $object_type = '', $object_id = 0, array $meta = [], $actor_user_id = null) {
-        global $wpdb;
-        $actor_user_id = $actor_user_id === null ? get_current_user_id() : (int) $actor_user_id;
-
-        $wpdb->insert(self::table(), [
-            'actor_user_id' => $actor_user_id,
-            'action'        => sanitize_key($action),
-            'object_type'   => sanitize_key($object_type),
-            'object_id'     => (int) $object_id,
-            'diff'          => null,
-            'meta'          => $meta ? wp_json_encode($meta) : null,
-            'created_at'    => current_time('mysql'),
-        ]);
-        self::maybe_prune();
+        self::write($action, $object_type, $object_id, null, $meta, $actor_user_id);
     }
 
     /**
@@ -139,7 +127,16 @@ class OUS_Audit {
         foreach ($before as $key => $old_value) {
             if (!array_key_exists($key, $after)) $diff[$key] = [$old_value, null];
         }
+        self::write($action, $object_type, $object_id, $diff ?: null, $meta, $actor_user_id);
+    }
 
+    // Audit fix (2026-07-25): extracted out of log()/log_diff(), which
+    // previously hand-duplicated this entire write body. Also unifies
+    // the timestamp basis to UTC — this used to write with
+    // current_time('mysql') (site-local time) while BH_Event writes with
+    // current_time('mysql', true) (UTC), so correlating an audit entry
+    // to an event row by timestamp was silently off by the site's UTC offset.
+    private static function write($action, $object_type, $object_id, $diff, array $meta, $actor_user_id) {
         global $wpdb;
         $actor_user_id = $actor_user_id === null ? get_current_user_id() : (int) $actor_user_id;
         $wpdb->insert(self::table(), [
@@ -149,7 +146,7 @@ class OUS_Audit {
             'object_id'     => (int) $object_id,
             'diff'          => $diff ? wp_json_encode($diff) : null,
             'meta'          => $meta ? wp_json_encode($meta) : null,
-            'created_at'    => current_time('mysql'),
+            'created_at'    => current_time('mysql', true),
         ]);
         self::maybe_prune();
     }
@@ -264,7 +261,12 @@ class OUS_Audit {
             }
 
             echo '<tr>';
-            echo '<td>' . esc_html(mysql2date('M j, Y g:ia', $r['created_at'])) . '</td>';
+            // get_date_from_gmt(), not mysql2date() — created_at is now
+            // stored in UTC (audit fix, 2026-07-25, to match BH_Event's
+            // own timestamp basis); mysql2date() assumes its input is
+            // already site-local time and would render this off by the
+            // site's UTC offset.
+            echo '<td>' . esc_html(mysql2date('M j, Y g:ia', get_date_from_gmt($r['created_at']))) . '</td>';
             echo '<td>' . ($actor ? esc_html($actor->display_name) : '<em>system</em>') . '</td>';
             echo '<td>' . esc_html($r['action']) . '</td>';
             echo '<td>' . ($r['object_type'] ? esc_html($r['object_type']) . ' #' . (int) $r['object_id'] : '—') . '</td>';

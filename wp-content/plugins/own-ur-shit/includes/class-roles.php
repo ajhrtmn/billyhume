@@ -8,13 +8,22 @@ if (!defined('ABSPATH')) exit;
  * meaning "any contributor or above" rather than anything specific to
  * a role like course instructor.
  *
- * This registers new, genuinely granular capabilities — not new
- * WordPress ROLES (a full role-assignment admin UI is separate,
- * roadmapped scope) — granted to `administrator` by default so nothing
- * anyone already has access to changes. A site that wants a non-admin
- * "instructor" account can grant `bhcore_manage_students` to any role
- * via the `bhcore_role_capabilities` filter below (or a one-off
- * `$user->add_cap(...)` call) without waiting on a dedicated UI.
+ * This registers new, genuinely granular capabilities, granted to
+ * `administrator` by default so nothing anyone already has access to
+ * changes. A site that wants a non-admin "instructor" account can grant
+ * `bhcore_manage_students` to any role via the `bhcore_role_capabilities`
+ * filter below (or a one-off `$user->add_cap(...)` call) without waiting
+ * on a dedicated UI.
+ *
+ * Correction (2026-07-25 audit): this docblock used to say "not new
+ * WordPress ROLES" as a flat claim — that's no longer fully accurate.
+ * ensure_manager_role() below DOES create one real baseline role
+ * ('bhcore_studio_manager', editor's own capability set at registration
+ * time) as a starting point for sites that want a non-admin manager
+ * account without hand-building one. A full role-ASSIGNMENT admin UI
+ * (letting an admin pick which user gets which role/capability through
+ * a screen, rather than a filter or a one-off add_cap() call) is still
+ * separate, roadmapped scope — that half of the original claim still holds.
  *
  * Any plugin can register its own new capability the same way, via the
  * same filter, with zero changes needed here — same "core provides the

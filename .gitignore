@@ -44,7 +44,7 @@ wp-content/plugins/*/tests/.phpunit.result.cache
 /wp-content/advanced-cache.php
 
 # Third-party plugins: ignore everything under wp-content/plugins EXCEPT
-# the seven Own Ur Shit ecosystem plugins (own-ur-shit + peers) and the
+# the eight Own Ur Shit ecosystem plugins (own-ur-shit + peers) and the
 # ecosystem's own root-level docs. Anything else installed later (a new
 # WooCommerce extension, a one-off diagnostic tool like Query Monitor,
 # etc.) is ignored by default without needing a new line added here —
@@ -54,6 +54,7 @@ wp-content/plugins/*/tests/.phpunit.result.cache
 !/wp-content/plugins/bh-contest/
 !/wp-content/plugins/bh-courses/
 !/wp-content/plugins/bh-crm/
+!/wp-content/plugins/bh-feedback/
 !/wp-content/plugins/bh-monetization-woo/
 !/wp-content/plugins/bh-registry/
 !/wp-content/plugins/bh-streaming/

@@ -755,6 +755,16 @@ class BH_Element {
 
         if (!empty($placement['id'])) {
             $id = (int) $placement['id'];
+            // Fetched BEFORE the write so any 'bhcore_element_placement_saved'
+            // listener below can diff old vs. new config (e.g. bh-crm's
+            // Project Tracker Phase C stall analytics, detecting when a
+            // kanban card's config.attrs.column literal actually changed
+            // — see class-projects.php) — this is the ONE write path
+            // both the REST save route and every other caller funnel
+            // through, so it's the correct, single place to observe
+            // "did this placement's config just change," not a second
+            // parallel diff somewhere else.
+            $old_row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
             // A container placement that somehow still has no
             // content_context_id on an UPDATE (e.g. a hand-crafted REST
             // call) gets the same self-id backfill as the insert path —
@@ -763,7 +773,9 @@ class BH_Element {
                 $data['content_context_id'] = $id;
             }
             $ok = $wpdb->update($table, $data, ['id' => $id]);
-            return $ok !== false ? $id : false;
+            if ($ok === false) return false;
+            do_action('bhcore_element_placement_saved', $id, $data, $old_row);
+            return $id;
         }
 
         $ok = $wpdb->insert($table, $data);
@@ -774,6 +786,7 @@ class BH_Element {
             $wpdb->update($table, ['content_context_id' => $id], ['id' => $id]);
         }
 
+        do_action('bhcore_element_placement_saved', $id, $data, null);
         return $id;
     }
 
@@ -789,6 +802,25 @@ class BH_Element {
         $table = self::table();
         $wpdb->update($table, ['parent_placement_id' => 0], ['parent_placement_id' => $id]);
         return (bool) $wpdb->delete($table, ['id' => $id]);
+    }
+
+    // DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5 — every placement
+    // belonging to one (surface, context) pair, gone in one call.
+    // Deliberately scoped to a whole context (every slot), not one
+    // slot at a time — a real delete (post trashed permanently, a CRM
+    // profile's owner account removed, etc.) means NOTHING under that
+    // context should survive as an orphan, regardless of how many
+    // slots that surface happens to define. Root placements are
+    // deleted directly; delete_placement()'s own parent-promotion
+    // logic isn't needed here since every row in this context is going
+    // regardless of parent/child relationships.
+    public static function delete_context($surface, $context_id) {
+        global $wpdb;
+        $table = self::table();
+        return (bool) $wpdb->delete($table, [
+            'surface' => sanitize_key($surface),
+            'surface_context_id' => (int) $context_id,
+        ]);
     }
 
     /**
@@ -1716,27 +1748,16 @@ class BH_Element {
         $body = json_decode($req->get_body(), true);
         $incoming = is_array($body['tokens'] ?? null) ? $body['tokens'] : [];
 
-        $data = [];
-        $data['brand_part1'] = sanitize_text_field($incoming['brand_part1'] ?? BHY_Style::DEFAULTS['brand_part1']);
-        $data['brand_part2'] = sanitize_text_field($incoming['brand_part2'] ?? BHY_Style::DEFAULTS['brand_part2']);
-        $data['brand_logo_id'] = isset($incoming['brand_logo_id']) ? (int) $incoming['brand_logo_id'] : 0;
-        foreach (BHY_Style::DEFAULTS as $key => $default) {
-            if (strpos($key, 'color_') !== 0 && strpos($key, 'cat_color_') !== 0) continue;
-            $val = isset($incoming[$key]) ? sanitize_text_field($incoming[$key]) : $default;
-            $data[$key] = BHY_Style::safe_color($val);
-        }
-        foreach (['font_display', 'font_body'] as $key) {
-            $picked = sanitize_text_field($incoming[$key] ?? BHY_Style::DEFAULTS[$key]);
-            $data[$key] = (array_key_exists($picked, BHY_Style::FONT_OPTIONS) || $picked === 'Custom') ? $picked : BHY_Style::DEFAULTS[$key];
-            $data[$key . '_custom'] = sanitize_text_field($incoming[$key . '_custom'] ?? '');
-        }
-        $data['font_scale']  = BHY_Style::safe_number($incoming['font_scale']  ?? null, 0.75, 1.6, 1);
-        $data['space_scale'] = BHY_Style::safe_number($incoming['space_scale'] ?? null, 0.6, 1.8, 1);
-        $data['radius']      = BHY_Style::safe_number($incoming['radius']      ?? null, 0, 32, 12);
-        $data['radius_sm']   = BHY_Style::safe_number($incoming['radius_sm']   ?? null, 0, 24, 8);
-        $data['bar_height']  = BHY_Style::safe_number($incoming['bar_height']  ?? null, 56, 140, 84);
+        // Routed through the same authority BHY_Gallery::save() uses —
+        // this REST path used to hand-copy the sanitize pass and had
+        // drifted (silently dropped custom_sliders() handling, meaning a
+        // save from here would wipe any registered custom slider value).
+        $data = BHY_Style::save_from_input($incoming);
 
         update_option(BHY_Style::OPTION, $data);
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $data);
+        }
         return new \WP_REST_Response(BHY_Style::get(), 200);
     }
 
@@ -1934,6 +1955,22 @@ class BH_Element {
         ));
     }
 
+    // Audit fix (2026-07-25): every debug placement action was a
+    // hand-copied 5-line "hidden action/op/id/nonce fields + one button"
+    // form differing only in the op value, button label, and (for
+    // delete) a confirm(). One shared builder instead.
+    private static function render_debug_op_form($op, $placement_id, $button_html, $style = '') {
+        $nonce = wp_create_nonce('ous_element_debug_' . $placement_id);
+        $out = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"' . ($style ? ' style="' . esc_attr($style) . '"' : '') . '>';
+        $out .= '<input type="hidden" name="action" value="ous_element_debug_action">';
+        $out .= '<input type="hidden" name="op" value="' . esc_attr($op) . '">';
+        $out .= '<input type="hidden" name="id" value="' . (int) $placement_id . '">';
+        $out .= '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+        $out .= $button_html;
+        $out .= '</form>';
+        return $out;
+    }
+
     private static function render_dashboard_placement_list() {
         $placements = self::get_placements('dashboard', 0, 'main');
         if (!$placements) {
@@ -1945,30 +1982,9 @@ class BH_Element {
         foreach ($placements as $p) {
             echo '<tr><td>' . (int) $p['id'] . '</td><td><code>' . esc_html($p['element_type']) . '</code></td><td>' . (int) $p['position'] . '</td><td><code style="font-size:11px;">' . esc_html(wp_json_encode($p['config'])) . '</code></td><td>';
 
-            $nonce = wp_create_nonce('ous_element_debug_' . $p['id']);
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:6px;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="delete">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button button-secondary" onclick="return confirm(\'Remove this placement?\');">Remove</button>';
-            echo '</form>';
-
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:6px;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="move_up">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button">&uarr;</button>';
-            echo '</form>';
-
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="move_down">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button">&darr;</button>';
-            echo '</form>';
+            echo self::render_debug_op_form('delete', $p['id'], '<button class="button button-secondary" onclick="return confirm(\'Remove this placement?\');">Remove</button>', 'display:inline-block;margin-right:6px;');
+            echo self::render_debug_op_form('move_up', $p['id'], '<button class="button">&uarr;</button>', 'display:inline-block;margin-right:6px;');
+            echo self::render_debug_op_form('move_down', $p['id'], '<button class="button">&darr;</button>', 'display:inline-block;');
 
             echo '</td></tr>';
         }

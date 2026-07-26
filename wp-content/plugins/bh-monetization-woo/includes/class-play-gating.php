@@ -110,7 +110,7 @@ class BHM_PlayGating {
         if (!$ppp_cents) return $default;
         return sprintf(
             'This track costs $%s to play and your account isn\'t logged in or doesn\'t have enough play credit. Log in and top up your wallet to continue.',
-            number_format($ppp_cents / 100, 2)
+            BHM_Money::display($ppp_cents)
         );
     }
 

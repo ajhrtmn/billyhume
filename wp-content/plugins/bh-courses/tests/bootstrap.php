@@ -41,6 +41,26 @@ if (!function_exists('esc_url_raw')) {
         return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
     }
 }
+// Audit fix (2026-07-25): missing stub — BHC_Steps::save()'s chord-chart
+// branch calls sanitize_textarea_field() (deliberately not
+// sanitize_text_field(), since a chord chart's alignment/newlines ARE
+// the content), which would otherwise fatal as an undefined function
+// the moment a chord-chart test actually exercised that branch.
+if (!function_exists('sanitize_textarea_field')) {
+    function sanitize_textarea_field($str) {
+        return trim(preg_replace('/[\r\t ]+/', ' ', strip_tags((string) $str)));
+    }
+}
+// Audit fix (2026-07-25): missing stub — BHC_Steps::save()'s callout
+// branch calls wp_strip_all_tags() to check for real (non-whitespace)
+// content, undefined here until now — same fatal-on-first-real-test gap
+// as sanitize_textarea_field() above, both only surfacing once the new
+// step types actually got test coverage.
+if (!function_exists('wp_strip_all_tags')) {
+    function wp_strip_all_tags($str) {
+        return trim(strip_tags((string) $str));
+    }
+}
 // BHC_Steps::get()/get_step()/count() call get_post_meta(); nothing in
 // this suite exercises those (they're pure passthrough over WP's own
 // postmeta API, not logic worth testing independent of a real DB), but

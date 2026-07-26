@@ -205,12 +205,12 @@ class BHI_Portal {
         // Reads straight from the DB rather than get_option(), so this
         // answers "what's actually in the database" rather than "what
         // does a possibly-stale object cache claim."
-        $found = self::rewrite_rule_persisted();
+        $found = class_exists('BHY_RewriteHealer') ? BHY_RewriteHealer::rule_persisted('^' . self::REWRITE_SLUG) : false;
         if ($found) {
             echo '<p>&#9989; Found in the persisted rewrite table — WordPress itself knows this URL. '
                . 'If <code>/' . esc_html(self::REWRITE_SLUG) . '/</code> still 404s from here, the request likely never reaches WordPress\'s PHP at all — check the web server (nginx/Apache) config for a rewrite/proxy rule sending unmatched paths to <code>index.php</code>, or a caching layer serving a stale 404.</p>';
         } else {
-            echo '<p>&#10060; NOT found in the persisted rewrite table as of this page load. This class self-heals automatically on the next un-throttled request (at most a ' . (int) self::VERIFY_THROTTLE_SECONDS . '-second wait, see <code>not_recently_attempted()</code>) — reload this page in a moment before assuming it\'s stuck. If it\'s STILL missing after that, the cause is outside what a flush + full cache eviction can fix from PHP: a reverse proxy/CDN caching the route itself, a read-only options table, or multisite domain mapping. Check <code>OUS_DebugLog</code> for a matching "still not persisted after a forced flush" entry, which confirms the self-heal genuinely ran and genuinely failed, rather than just not having fired yet.</p>';
+            echo '<p>&#10060; NOT found in the persisted rewrite table as of this page load. This class self-heals automatically on the next un-throttled request (at most a ' . (int) self::VERIFY_THROTTLE_SECONDS . '-second wait, see <code>BHY_RewriteHealer::maybe_heal()</code>) — reload this page in a moment before assuming it\'s stuck. If it\'s STILL missing after that, the cause is outside what a flush + full cache eviction can fix from PHP: a reverse proxy/CDN caching the route itself, a read-only options table, or multisite domain mapping. Check <code>OUS_DebugLog</code> for a matching "still not persisted after a forced flush" entry, which confirms the self-heal genuinely ran and genuinely failed, rather than just not having fired yet.</p>';
         }
     }
 
@@ -247,13 +247,21 @@ class BHI_Portal {
     // traffic doesn't turn into a flush storm.
     const VERIFY_THROTTLE_SECONDS = 60;
 
+    // Audit fix (2026-07-25): the self-heal algorithm previously
+    // implemented directly in this class (rewrite_rule_persisted()/
+    // not_recently_attempted()/force_flush_and_verify()) is now shared
+    // with bh-monetization-woo's BHM_Storefront via BHY_RewriteHealer
+    // (own-ur-shit/includes/class-rewrite-healer.php) — that class's own
+    // docblock has the full history of why this shape exists and a real
+    // bug found in the Storefront copy while extracting it. Only the
+    // rule registration below (this plugin's own slugs/query vars)
+    // stays here; the verify/throttle/flush/log algorithm is shared.
     public static function add_rewrite() {
         // Unconditional (but throttled) breadcrumb: if this never appears
         // in Console & Logs, the problem is upstream of this class
         // entirely (the 'init' hook never firing, or a fatal earlier in
         // the request); if it appears but nothing below it does, the
-        // problem is isolated to rewrite_rule_persisted()/
-        // not_recently_attempted().
+        // problem is isolated to BHY_RewriteHealer itself.
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log_throttled('info', 'portal_add_rewrite_entered', 120,
                 'BHI_Portal::add_rewrite() was entered this request.', [], 'Portal'
@@ -263,140 +271,8 @@ class BHI_Portal {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?' . self::QUERY_VAR . '=1&panel=$matches[1]', 'top');
 
-        // Self-heals on every request that isn't currently throttled,
-        // rather than once per version — the real bug this replaces
-        // (reported on a live install, see REWRITE_VERSION's docblock)
-        // was a flush that reported success via its own flag while never
-        // actually persisting, because nothing ever went back and
-        // checked the PERSISTED value again. This does — reads
-        // rewrite_rules straight from the DB (bypassing wp_cache_get()
-        // entirely, so a stale object-cache layer can't lie about it),
-        // and only flushes when that direct read proves the pattern is
-        // genuinely still missing. No wp-admin visit, permalink resave,
-        // or manual step required — this runs on the same 'init' hook
-        // every front-end and admin request already fires.
-        if (self::rewrite_rule_persisted()) {
-            // Throttled trace of a PASSING check — without this, an
-            // empty Console & Logs table for "Portal" is ambiguous
-            // between "checked every request and always fine" and
-            // "the self-heal stopped running at all" (e.g. a throttle
-            // bug silently blocking it forever, which is exactly what
-            // happened in 3.3.3 before this same 3.3.4 pass fixed it —
-            // that bug produced precisely this kind of indistinguishable
-            // silence). See OUS_DebugLog::log_throttled()'s own docblock.
-            if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log_throttled('info', 'portal_rewrite_pass', 300,
-                    'Rewrite-rule persistence check ran and confirmed the rule is present.', [], 'Portal'
-                );
-            }
-        } elseif (self::not_recently_attempted()) {
-            self::force_flush_and_verify();
-        } elseif (class_exists('OUS_DebugLog')) {
-            // Missing AND throttled — logged at 'warning' (not 'info',
-            // unlike the two throttled traces above) because this is the
-            // exact state that was silently invisible before: the rule
-            // is confirmed broken on THIS request, but the self-heal is
-            // sitting out its throttle window rather than acting. Without
-            // this line, that state produces zero log output, which is
-            // the precise blind spot this whole logging pass exists to
-            // close.
-            OUS_DebugLog::log_throttled('warning', 'portal_rewrite_missing_throttled', 300,
-                'Rewrite rule confirmed missing from the persisted table this request, but a self-heal attempt was made recently — sitting out the throttle window rather than re-flushing.', [], 'Portal'
-            );
-        }
-    }
-
-    // Bypasses the object cache on purpose — $wpdb->get_var() talks
-    // straight to the database, so this can't be fooled by a persistent
-    // cache (Redis/Memcached) serving back a stale copy of the option,
-    // which is exactly the failure mode that made the old version-gated
-    // flush look successful when it wasn't.
-    private static function rewrite_rule_persisted() {
-        global $wpdb;
-        $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'rewrite_rules'));
-        if (!$raw) return false;
-        return strpos($raw, '^' . self::REWRITE_SLUG) !== false;
-    }
-
-    // Deliberately NOT get_transient()/set_transient() — on an install
-    // with a persistent object cache active (the exact install class
-    // this whole fix targets), transients are stored IN that cache, not
-    // the options table. If the cache is genuinely stuck/broken, a
-    // transient-based throttle can read as "already attempted" forever,
-    // silently skipping the self-heal on every single request with
-    // nothing ever logged — which is indistinguishable from "working
-    // correctly, just waiting" from the outside. That's a real bug this
-    // class shipped with initially and a real reported symptom (zero log
-    // entries despite the rule staying broken across many reloads) — the
-    // fix is a direct, cache-bypassing DB read/write, same technique as
-    // rewrite_rule_persisted() above.
-    private static function not_recently_attempted() {
-        global $wpdb;
-        $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'bhi_portal_rewrite_last_attempt'));
-        if ($last && (time() - (int) $last) < self::VERIFY_THROTTLE_SECONDS) return false;
-        // Direct INSERT ... ON DUPLICATE KEY UPDATE, not update_option() —
-        // update_option() reads the current cached value first to decide
-        // whether a write is even needed, which reintroduces the exact
-        // cache-trust problem this method exists to avoid. This writes
-        // unconditionally and evicts any cached copy of the key
-        // immediately after, the same pattern force_flush_and_verify()
-        // already uses for 'rewrite_rules'/'alloptions'.
-        $wpdb->query($wpdb->prepare(
-            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')
-             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
-            'bhi_portal_rewrite_last_attempt', (string) time()
-        ));
-        wp_cache_delete('bhi_portal_rewrite_last_attempt', 'options');
-        wp_cache_delete('alloptions', 'options');
-        return true;
-    }
-
-    private static function force_flush_and_verify() {
-        flush_rewrite_rules();
-        // Explicitly evict any object-cache copy of the two keys a stale
-        // cache could serve back instead of what flush_rewrite_rules()
-        // just wrote — 'alloptions' is the bundled cache WordPress's own
-        // get_option() reads from for options this size by default, so a
-        // stale 'rewrite_rules' entry can hide behind an equally stale
-        // 'alloptions' blob even if the individual key were otherwise
-        // correct.
-        wp_cache_delete('rewrite_rules', 'options');
-        wp_cache_delete('alloptions', 'options');
-
-        $persisted = self::rewrite_rule_persisted();
-
-        // The full wp_cache_flush() is now an ESCALATION, only reached if
-        // the two targeted evictions above weren't enough — not called
-        // unconditionally on every throttled attempt like before. A full
-        // flush wipes the ENTIRE object cache mid-request, which other
-        // code running later in this same request (OUS_Debug::is_locked()'s
-        // host checks, among others) depends on having a warm cache for;
-        // doing that on every self-heal attempt (as often as once a
-        // minute, across all site traffic) was very likely the cause of
-        // the API Docs page intermittently breaking right after the first
-        // version of this fix shipped. Reaching for it only when the
-        // cheaper, targeted eviction demonstrably wasn't enough keeps
-        // this method's blast radius as small as it can be while still
-        // actually fixing a genuinely stuck cache when one exists.
-        if (!$persisted && function_exists('wp_cache_flush')) {
-            wp_cache_flush();
-            $persisted = self::rewrite_rule_persisted();
-        }
-
-        if ($persisted) {
-            update_option('bhi_portal_rewrite_flushed', self::REWRITE_VERSION);
-            if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('info', 'Portal rewrite rule self-healed and confirmed persisted.', [], 'Portal');
-            }
-        } elseif (class_exists('OUS_DebugLog')) {
-            // Still broken after a real flush + full cache eviction —
-            // worth a log entry (not just silent retry-forever) since at
-            // this point the likely cause is something outside WordPress
-            // entirely (a reverse proxy/CDN caching /account/ itself, a
-            // read-only options table, multisite domain mapping) rather
-            // than the object-cache staleness this fix targets. The
-            // Debug Tools panel below surfaces this same verdict live.
-            OUS_DebugLog::log('warning', 'Portal rewrite rule still not persisted after a forced flush + full cache eviction — likely cause is outside WordPress\'s own caching layer (reverse proxy/CDN, read-only DB, multisite domain mapping).', [], 'Portal');
+        if (class_exists('BHY_RewriteHealer')) {
+            BHY_RewriteHealer::maybe_heal('^' . self::REWRITE_SLUG, 'bhi_portal_rewrite_last_attempt', 'Portal', self::VERIFY_THROTTLE_SECONDS);
         }
     }
 

@@ -24,11 +24,11 @@ if (!defined('ABSPATH')) exit;
  * Automatic triggers: a submission being approved — not submitted; this
  * webhook is public, so announcing before anyone's reviewed it would
  * mean the whole channel sees every submission including rejected ones
- * (class-admin.php maybe_notify_approval(), hooked to the actual
- * pending→publish transition so re-saving an already-approved
- * submission doesn't re-announce it) — and voting being explicitly
- * started via the "Start now" quick action (class-admin.php
- * quick_schedule() — note this does NOT fire if a pre-scheduled start
+ * (BH_AdminModeration::maybe_notify_approval() in class-admin-moderation.php,
+ * hooked to the actual pending→publish transition so re-saving an
+ * already-approved submission doesn't re-announce it) — and voting being
+ * explicitly started via the "Start now" quick action (BH_AdminMenus::
+ * quick_schedule() in class-admin-menus.php — note this does NOT fire if a pre-scheduled start
  * date just silently arrives with no admin action, since that would
  * need a cron-style check this plugin doesn't have).
  *
@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
  * results (the "Publish Results to Public" checkbox) only makes them
  * visible on the site — announcing them is a separate, explicit action
  * ("Send Winner Notifications" in the same metabox, see
- * class-admin.php send_winner_notifications()), so an admin can publish,
+ * BH_AdminReports::send_winner_notifications() in class-admin-reports.php), so an admin can publish,
  * sanity-check the numbers, and announce whenever they're actually
  * ready rather than the moment they check a box.
  *
@@ -185,8 +185,15 @@ class BH_Discord {
     private static function medal_lines($results) {
         $medals = ['🥇', '🥈', '🥉'];
         $lines = [];
-        foreach (array_slice($results, 0, 3) as $i => $r) {
-            $lines[] = ($medals[$i] ?? '#' . ($i + 1)) . ' **' . $r['title'] . '** — ' . $r['artist'] . ' (' . $r['votes'] . ' votes)';
+        // Audit fix (2026-07-25): was indexed by array POSITION, not
+        // $r['rank'] — the winner-notification email path (class-admin-
+        // reports.php's email_winners()) already correctly indexes by
+        // rank, so a tie (two entries both rank=1) would show mismatched
+        // medals between the two notification paths. Rank-indexed now,
+        // matching the email path exactly.
+        foreach (array_slice($results, 0, 3) as $r) {
+            $rank = (int) ($r['rank'] ?? 0);
+            $lines[] = ($medals[$rank - 1] ?? '#' . $rank) . ' **' . $r['title'] . '** — ' . $r['artist'] . ' (' . $r['votes'] . ' votes)';
         }
         return implode("\n", $lines);
     }

@@ -248,8 +248,18 @@ class OUS_Jobs {
     }
 
     private static function redirect_with_notice($msg) {
+        $is_failure = self::notice_looks_like_failure($msg);
         if (class_exists('OUS_Toast')) {
-            OUS_Toast::queue($msg, self::notice_looks_like_failure($msg) ? 'error' : 'success');
+            OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
+        }
+        // Audit fix (2026-07-25): the six distinct failure branches in
+        // handle_install_action_scheduler() (WP_Filesystem/download/mkdir/
+        // extraction/archive-layout/post-move-verification) previously
+        // only surfaced via the toast above — this class logs its
+        // successes to OUS_DebugLog elsewhere, but not these failures.
+        // One change here covers all six branches at once.
+        if ($is_failure && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', $msg, [], 'OUS_Jobs');
         }
         wp_safe_redirect(add_query_arg(['page' => 'ous-debug', 'ous_jobs_msg' => rawurlencode($msg)], admin_url('admin.php')) . '#ous-section-bh-jobs');
         exit;
@@ -327,6 +337,27 @@ class OUS_Jobs {
     private static function table() {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_jobs';
+    }
+
+    // Bounded-growth cap for the fallback (no-Action-Scheduler) queue
+    // table — previously manual-clear-only (audit finding, 2026-07-25).
+    // Same opportunistic shape as OUS_DebugLog::maybe_trim(): only ever
+    // deletes 'done'/'failed' rows, never anything still pending/running,
+    // and only pays the COUNT+DELETE cost on roughly 1/50 completions.
+    const MAX_FINISHED_ROWS = 5000;
+
+    private static function maybe_trim_finished() {
+        if (self::library_available()) return; // Action Scheduler owns its own table/cleanup when active.
+        if (wp_rand(1, 50) !== 1) return;
+        global $wpdb;
+        $table = self::table();
+        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status IN ('done','failed')");
+        if ($count > self::MAX_FINISHED_ROWS) {
+            $excess = $count - self::MAX_FINISHED_ROWS;
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM $table WHERE status IN ('done','failed') ORDER BY updated_at ASC LIMIT %d", $excess
+            ));
+        }
     }
 
     // Any plugin calls this once (typically on init) to say "when a job
@@ -417,24 +448,35 @@ class OUS_Jobs {
             // yet) rather than a permanently-orphaned job, so this counts
             // as a failed ATTEMPT (with backoff) rather than an instant
             // permanent failure.
-            self::mark_failed($id, $row['attempts'], 'No handler registered for hook: ' . $hook);
+            self::mark_failed($id, $row['attempts'], 'No handler registered for hook: ' . $hook, $hook);
             return;
         }
 
         try {
             call_user_func(self::$handlers[$hook], $args);
             $wpdb->update(self::table(), ['status' => 'done'], ['id' => $id]);
+            self::maybe_trim_finished();
         } catch (\Throwable $e) {
-            self::mark_failed($id, $row['attempts'], $e->getMessage());
+            self::mark_failed($id, $row['attempts'], $e->getMessage(), $hook);
         }
     }
 
-    private static function mark_failed($id, $attempts_so_far, $error) {
+    private static function mark_failed($id, $attempts_so_far, $error, $hook = '') {
         global $wpdb;
         $attempts = (int) $attempts_so_far + 1;
 
         if ($attempts >= self::MAX_ATTEMPTS) {
             $wpdb->update(self::table(), ['status' => 'failed', 'attempts' => $attempts, 'last_error' => $error], ['id' => $id]);
+            self::maybe_trim_finished();
+            // Audit fix (2026-07-25): a job's final-attempt failure
+            // previously went nowhere but this row's own 'last_error'
+            // column — the shared OUS_DebugLog console (where every
+            // other failure in this ecosystem shows up) never saw it,
+            // matching the pattern OUS_Notifications::send_email_now()
+            // already uses for its own failures.
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', "Job permanently failed after $attempts attempts: $hook — $error", ['job_id' => $id, 'hook' => $hook], 'OUS_Jobs');
+            }
             return;
         }
 

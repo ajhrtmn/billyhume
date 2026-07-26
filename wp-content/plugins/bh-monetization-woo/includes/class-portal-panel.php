@@ -84,7 +84,7 @@ class BHM_PortalPanel {
             $balance = BHM_Wallet::balance_cents($user_id);
             echo '<div class="bhi-portal-section">';
             echo '<h2>Wallet</h2>';
-            echo '<p class="bhi-wallet-balance"><span class="bhi-wallet-balance-amount">$' . esc_html(number_format($balance / 100, 2)) . '</span> <span class="bhi-overview-dim">balance</span></p>';
+            echo '<p class="bhi-wallet-balance"><span class="bhi-wallet-balance-amount">$' . esc_html(BHM_Money::display($balance)) . '</span> <span class="bhi-overview-dim">balance</span></p>';
 
             $ledger = BHM_Wallet::ledger_for($user_id, 20);
             if ($ledger) {
@@ -101,5 +101,34 @@ class BHM_PortalPanel {
             }
             echo '</div>';
         }
+
+        if (class_exists('BHM_PurchaseLedger')) {
+            $purchases = BHM_PurchaseLedger::for_user($user_id, 25);
+            echo '<div class="bhi-portal-section">';
+            echo '<h2>Purchases</h2>';
+            if (!$purchases) {
+                echo '<div class="bhi-portal-empty"><span class="dashicons dashicons-media-default"></span><p>No track/release purchases yet.</p></div>';
+            } else {
+                echo '<table class="bhi-portal-table"><thead><tr><th>Track</th><th>Price</th><th>Purchased</th><th>Status</th><th></th></tr></thead><tbody>';
+                foreach ($purchases as $p) {
+                    $title = $p->track_id ? (get_the_title($p->track_id) ?: ('#' . $p->track_id)) : '—';
+                    $reversed = BHM_PurchaseLedger::reversal_for($p->id);
+                    echo '<tr><td>' . esc_html($title) . '</td><td>$' . esc_html(BHM_Money::display($p->price_cents)) . '</td><td>' . esc_html(mysql2date('M j, Y', $p->created_at)) . '</td>';
+                    echo '<td>' . ($reversed ? 'Refunded' : esc_html(BHM_PurchaseLedger::status_label($p->anchor_status))) . '</td>';
+                    echo '<td><a class="button button-small" href="' . esc_url(add_query_arg('bhm_verify', $p->id, get_permalink())) . '">Verify</a></td></tr>';
+                }
+                echo '</tbody></table>';
+                echo '<p class="description">"Verify" shows this purchase\'s tamper-evident proof record — independent of this site\'s own database.</p>';
+            }
+            // A verify link on this same page renders inline via the
+            // shortcode rather than navigating away, so a fan reviewing
+            // their purchases can check one without losing their place.
+            if (isset($_GET['bhm_verify'])) {
+                echo '<div class="bhi-portal-section">' . do_shortcode('[bhm_verify_purchase id="' . (int) $_GET['bhm_verify'] . '"]') . '</div>';
+            }
+            echo '</div>';
+        }
+
+        if (class_exists('BHM_Referrals')) BHM_Referrals::render_section($user_id);
     }
 }

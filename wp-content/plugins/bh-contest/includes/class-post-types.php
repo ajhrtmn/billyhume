@@ -32,8 +32,8 @@ class BH_PostTypes {
             // No 'editor' — a contest has no free-text body content of
             // its own; everything that actually matters (dates, contact
             // fields, categories, shortcode, branding) already lives in
-            // this CPT's dedicated meta boxes (see BH_Admin::
-            // add_meta_boxes()). Keeping the default block editor around
+            // this CPT's dedicated meta boxes (see BH_AdminMetaboxes::
+            // add_meta_boxes() in class-admin-metaboxes.php). Keeping the default block editor around
             // just added an empty, unused content area above those boxes.
             'supports'     => ['title'],
         ]);

@@ -81,14 +81,24 @@ class BHS_Player {
             // now uses everywhere replaces this file's own bare
             // "No tracks match." string — one source of truth, not a
             // second JS-side reimplementation of the same component.
+            // Audit fix (2026-07-25): the "Import my music" CTA above the
+            // library was never repeated INSIDE the empty-state message
+            // itself — the original 07-13 finding this component was
+            // meant to close. cta_url is a same-page anchor (#bhs-import)
+            // rather than a real URL, since import is a JS modal, not a
+            // navigable page — player.js delegates the click back onto
+            // the real #bhs-import-open button (see its own comment).
             'emptyStateZero' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'zero',
                 'title' => 'Your library is empty',
                 'description' => 'Import your music to start building your streaming library.',
+                'cta_label' => 'Import my music',
+                'cta_url' => '#bhs-import',
             ]) : '',
             'emptyStateFiltered' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
                 'reason' => 'filtered',
                 'title' => 'No tracks match',
+                'clear_url' => '#bhs-clear-filters',
             ]) : '',
             // Same reasoning as emptyStateZero/emptyStateFiltered above —
             // the Releases and Liked tabs had their own bare "No X yet"
@@ -102,6 +112,18 @@ class BHS_Player {
                 'reason' => 'zero',
                 'title' => 'Nothing liked yet',
                 'description' => 'Tap the heart on a track to save it here.',
+            ]) : '',
+            // Audit fix (2026-07-25): the Playlists tab had two of its
+            // own bare empty-state strings never migrated onto this
+            // shared component, unlike every other tab above.
+            'emptyStatePlaylistsLoggedOut' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'Log in to create playlists',
+            ]) : '',
+            'emptyStatePlaylistsEmpty' => class_exists('BHY_Style') ? BHY_Style::empty_state_html([
+                'reason' => 'zero',
+                'title' => 'No playlists yet',
+                'description' => 'Use the + button on a track while it\'s playing to start one.',
             ]) : '',
         ]);
     }
@@ -202,6 +224,7 @@ class BHS_Player {
                     <input type="range" id="bhs-volume" min="0" max="100" value="100">
                 </div>
                 <input type="range" id="bhs-seek" class="bhs-seek" min="0" max="100" value="0">
+                <div class="bhs-np-chapters" id="bhs-np-chapters" style="display:none;"></div>
                 <div class="bhs-jam-banner" id="bhs-jam-banner" style="display:none;"></div>
             </div>
 

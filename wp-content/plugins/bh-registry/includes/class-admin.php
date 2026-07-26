@@ -94,7 +94,10 @@ class BHR_Admin {
             }
             echo '</td>';
             echo '<td>';
-            if ($artist->status !== 'rejected') echo self::action_link($artist->id, 'reject', 'Reject (hide)') . ' ';
+            // Audit fix (2026-07-25): matched to 'delete' below, which
+            // already confirms — rejecting was firing with zero
+            // click-time confirmation despite hiding a live artist.
+            if ($artist->status !== 'rejected') echo self::action_link($artist->id, 'reject', 'Reject (hide)', null, 'Reject and hide this artist from public browse/search?') . ' ';
             if ($artist->status === 'rejected') echo self::action_link($artist->id, 'unreject', 'Restore') . ' ';
             echo self::action_link($artist->id, 'delete', 'Delete', null, 'Delete this artist and all its links permanently?');
             echo '</td></tr>';
@@ -102,10 +105,14 @@ class BHR_Admin {
         echo '</tbody></table></div></div>';
     }
 
+    // Audit fix (2026-07-25): was hand-rolled inline hex-color styling —
+    // own-ur-shit's BHY_UI already prints a shared .bhy-badge-* system
+    // globally on every admin screen (BHY_UI::init_shared_admin_assets()),
+    // this just uses it instead of a one-off style attribute.
     private static function status_badge($status) {
-        $colors = ['active' => '#1DB954', 'verified' => '#1DB954', 'pending' => '#B99584', 'failed' => '#b3261e', 'rejected' => '#b3261e'];
-        $color = $colors[$status] ?? '#666';
-        return '<span style="color:' . esc_attr($color) . ';font-weight:600;">' . esc_html($status) . '</span>';
+        $variants = ['active' => 'success', 'verified' => 'success', 'pending' => 'warning', 'failed' => 'danger', 'rejected' => 'danger'];
+        $variant = $variants[$status] ?? 'neutral';
+        return '<span class="bhy-badge bhy-badge-' . esc_attr($variant) . '">' . esc_html($status) . '</span>';
     }
 
     private static function action_link($artist_id, $action, $label, $link_id = null, $confirm = '') {

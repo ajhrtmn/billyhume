@@ -8,7 +8,10 @@ if (!defined('ABSPATH')) exit;
  * other plugin here uses.
  *
  * "Seed realistic test data" is the actual point: one full course, two
- * lessons, every step type (text, image, quiz), and — if BH Monetization
+ * lessons, the original three step types (text, image, quiz — audit fix,
+ * 2026-07-25: corrected from "every step type," which overclaimed; the
+ * four LMS depth-of-magic types — callout/checklist/chord-chart/
+ * audio-compare — aren't seeded here yet), and — if BH Monetization
  * is active — one gated course behind a test tier, PLUS a real test
  * student with progress already partway through, so this whole feature
  * is genuinely clickable/demoable in one button rather than staring at
@@ -25,7 +28,7 @@ class BHC_Debug {
     }
 
     public static function render_section() {
-        echo '<p>Seed a fully working course (multiple lessons, every step type, a test student partway through it) — or wipe it all and start clean.</p>';
+        echo '<p>Seed a fully working course (multiple lessons, text/image/quiz steps, a test student partway through it) — or wipe it all and start clean.</p>';
 
         echo '<h4>Seed</h4>';
         echo OUS_Debug::button('bh-courses', 'seed_course', 'Seed a complete test course (2 lessons, text + image + quiz steps)');

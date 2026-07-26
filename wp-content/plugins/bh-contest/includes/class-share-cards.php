@@ -21,8 +21,8 @@ if (!defined('ABSPATH')) exit;
  *
  * No per-submission public page exists for the "vote" card to deep-link
  * to (bh_submission has no public single template) — it links to the
- * contest's own auto-created page (_bh_page_id, see class-admin.php's
- * maybe_create_contest_page()) instead, same page the contest's own
+ * contest's own auto-created page (_bh_page_id, see BH_AdminMenus::
+ * maybe_create_contest_page() in class-admin-menus.php) instead, same page the contest's own
  * "Shortcode & Page" meta box already links an admin to. A viewer lands
  * on the real voting UI and finds the submission themselves, rather
  * than a deep link into a page that doesn't exist.

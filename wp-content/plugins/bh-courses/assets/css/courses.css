@@ -4,9 +4,14 @@
    it defends against theme-level a/button/ul/h1-h6 resets bleeding in —
    scoped entirely under .bhc-catalog / .bhc-course-view / .bhc-lesson so
    it can't leak back out onto the rest of the theme's page either. */
+/* Audit fix (2026-07-25): --bhc-danger normalizes the #b32d2e literal
+   that was repeated 4 times in this file (rejected-review status,
+   incorrect-answer overlay, callout-warning variant) into one named
+   token — kept as each site's own fallback too, so nothing breaks if
+   this declaration somehow isn't in scope. */
 .bhc-catalog, .bhc-catalog *,
 .bhc-course-view, .bhc-course-view *,
-.bhc-lesson, .bhc-lesson * { box-sizing: border-box; }
+.bhc-lesson, .bhc-lesson * { box-sizing: border-box; --bhc-danger: #b32d2e; }
 .bhc-catalog :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
 .bhc-course-view :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
 .bhc-lesson :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
@@ -122,6 +127,12 @@
 /* ---- catalog: pagination ---- */
 .bhc-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding-top: 8px; }
 .bhc-pagination-status { font-size: 12px; color: var(--bh-text-dim); }
+/* Audit fix (2026-07-25) — numbered pagination for deep catalogs, see class-render-catalog.php. */
+.bhc-pagination-numbers { display: flex; align-items: center; gap: 4px; }
+.bhc-pagination-number { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 6px; font-size: 12px; color: var(--bh-text-dim); }
+a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-text); }
+.bhc-pagination-current { background: var(--bh-accent); color: #fff; font-weight: 600; }
+.bhc-pagination-ellipsis { color: var(--bh-text-dim); padding: 0 2px; }
 
 /* ---- course detail header (Section 2.7) ---- */
 .bhc-course-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
@@ -175,7 +186,7 @@
 .bhc-review-date { font-size: 12px; color: var(--bh-text-dim); margin: 0; }
 .bhc-review-form-wrap { max-width: 480px; }
 .bhc-review-status-note { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
-.bhc-review-status-rejected { color: #b32d2e; }
+.bhc-review-status-rejected { color: var(--bhc-danger, #b32d2e); }
 .bhc-review-form fieldset { border: none; padding: 0; margin: 0; }
 .bhc-review-form legend { font-family: var(--bh-font-heading); font-size: 14px; font-weight: 600; margin-bottom: 8px; padding: 0; }
 /* Star picker: real radios (native form semantics/keyboard support),
@@ -219,6 +230,7 @@
 .bhc-lesson-layout { display: flex; gap: 28px; align-items: flex-start; }
 .bhc-lesson-main { flex: 1 1 auto; min-width: 0; }
 .bhc-course-sidebar {
+    box-sizing: border-box; /* required — the mobile breakpoint below sets width:100% on this element, and without border-box its own padding+border would push it past the container's edge instead of being absorbed into that 100% */
     flex: 0 0 240px; position: sticky; top: 20px;
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px;
@@ -377,7 +389,7 @@ video.bhc-step-video {
 .bhc-video-overlay-choice:hover:not(:disabled) { border-color: var(--bh-accent); }
 .bhc-video-overlay-choice:disabled { cursor: default; }
 .bhc-video-overlay-choice.bhc-video-overlay-correct { border-color: var(--bh-accent); background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); font-weight: 600; }
-.bhc-video-overlay-choice.bhc-video-overlay-incorrect { border-color: #b32d2e; color: #b32d2e; }
+.bhc-video-overlay-choice.bhc-video-overlay-incorrect { border-color: var(--bhc-danger, #b32d2e); color: var(--bhc-danger, #b32d2e); }
 .bhc-video-overlay-continue { margin-top: 12px; }
 
 /* TRL-style lower-third — non-blocking, slides in from the bottom over
@@ -410,7 +422,7 @@ video.bhc-step-video {
 .bhc-step-callout p:last-child { margin-bottom: 0; }
 .bhc-callout-tip { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left-color: var(--bh-accent); }
 .bhc-callout-note { background: var(--bh-surface-2); border-left-color: var(--bh-text-dim); color: var(--bh-text-dim); }
-.bhc-callout-warning { background: rgba(179, 45, 46, 0.1); border-left-color: #b32d2e; }
+.bhc-callout-warning { background: rgba(179, 45, 46, 0.1); border-left-color: var(--bhc-danger, #b32d2e); }
 
 /* Depth-of-magic Phase 2c — checklist/chord-chart/audio-compare, scoped
    directly from AJ's own answer on what's actually missing for THIS
@@ -433,6 +445,8 @@ video.bhc-step-video {
     padding: 12px 16px; margin-bottom: 12px;
 }
 
+/* Audit fix (2026-07-25) — explicit "compare these" cue, see class-render-lesson.php. */
+.bhc-audio-compare-prompt { font-size: 13px; font-weight: 600; color: var(--bh-text-dim); margin: 0 0 10px; }
 .bhc-audio-compare-clip { margin-bottom: 12px; }
 .bhc-audio-compare-clip:last-of-type { margin-bottom: 8px; }
 .bhc-audio-compare-label { font-size: 13px; font-weight: 600; color: var(--bh-text-dim); margin-bottom: 4px; }

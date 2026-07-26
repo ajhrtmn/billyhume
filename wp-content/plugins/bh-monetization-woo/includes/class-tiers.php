@@ -74,8 +74,8 @@ class BHM_Tiers {
             $price = (int) get_post_meta($post_id, '_bhm_price_cents', true);
             $annual = (int) get_post_meta($post_id, '_bhm_annual_price_cents', true);
             if (!$price) { echo '&#8212;'; return; }
-            echo '$' . esc_html(number_format($price / 100, 2)) . '/mo';
-            if ($annual) echo '<br><span class="description">$' . esc_html(number_format($annual / 100, 2)) . '/yr</span>';
+            echo '$' . esc_html(BHM_Money::display($price)) . '/mo';
+            if ($annual) echo '<br><span class="description">$' . esc_html(BHM_Money::display($annual)) . '/yr</span>';
         }, ['bhm_price' => '_bhm_price_cents']);
     }
 
@@ -121,7 +121,7 @@ class BHM_Tiers {
             // is asking them to — must still be able to find this
             // screen at all, not have it silently vanish into a parent
             // menu slug that doesn't exist yet).
-            'public' => false, 'show_ui' => true, 'show_in_menu' => (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) ? 'woocommerce' : true,
+            'public' => false, 'show_ui' => true, 'show_in_menu' => (BH_Commerce::available()) ? 'woocommerce' : true,
             'menu_icon' => 'dashicons-star-filled', 'supports' => ['title'], 'capability_type' => 'post',
         ]);
     }
@@ -142,8 +142,8 @@ class BHM_Tiers {
         // and class-frontend.php this same audit pass — these two calls
         // were missed when the rest of this plugin migrated onto the
         // abstraction.
-        $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
-        $has_wc = class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce');
+        $has_subs = BH_Commerce::has_subscriptions();
+        $has_wc = BH_Commerce::available();
 
         if (!$has_wc) {
             echo '<p class="description">WooCommerce isn\'t active yet — this tier will start selling automatically once it is. See <strong>Own Ur Shit → Monetization Settings</strong> to install it.</p>';
@@ -165,7 +165,7 @@ class BHM_Tiers {
         echo '<button type="button" class="button" id="bhm-tier-cover-choose">' . ($cover_image_id ? 'Change image' : 'Choose image') . '</button> ';
         echo '<button type="button" class="button" id="bhm-tier-cover-remove" style="display:' . ($cover_image_id ? 'inline-block' : 'none') . ';">Remove</button></p>';
 
-        echo '<p><label><strong>Monthly price (USD)</strong><br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? number_format($price / 100, 2, '.', '') : '') . '" style="width:160px;"></label></p>';
+        echo '<p><label><strong>Monthly price (USD)</strong><br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? BHM_Money::price($price) : '') . '" style="width:160px;"></label></p>';
 
         // Annual pricing — optional, on top of the always-present monthly
         // price rather than replacing it (Patreon itself offers annual as
@@ -174,7 +174,7 @@ class BHM_Tiers {
         // this ecosystem's "don't claim a capability that isn't actually
         // configured" convention (same posture as the Subscriptions
         // detection message below).
-        echo '<p><label><strong>Annual price (USD, optional)</strong> <span class="description">— leave blank to offer monthly billing only</span><br><input type="number" step="0.01" min="0.50" name="bhm_annual_price" value="' . esc_attr($annual_price ? number_format($annual_price / 100, 2, '.', '') : '') . '" style="width:160px;"></label>';
+        echo '<p><label><strong>Annual price (USD, optional)</strong> <span class="description">— leave blank to offer monthly billing only</span><br><input type="number" step="0.01" min="0.50" name="bhm_annual_price" value="' . esc_attr($annual_price ? BHM_Money::price($annual_price) : '') . '" style="width:160px;"></label>';
         if (!$has_subs) {
             echo '<br><span class="description">Requires WooCommerce Subscriptions to actually bill annually — without it this stores the price but the tier still sells as the one-time fallback below.</span>';
         }
@@ -243,9 +243,9 @@ class BHM_Tiers {
         // BH_Commerce::product_exists()/get_edit_url() rather than a
         // direct wc_get_product() existence check — same BH_Commerce
         // migration pass as class-products.php/class-frontend.php.
-        $product_exists = $wc_product_id && (class_exists('BH_Commerce') ? BH_Commerce::product_exists($wc_product_id) : (function_exists('wc_get_product') && wc_get_product($wc_product_id)));
+        $product_exists = $wc_product_id && (BH_Commerce::product_exists($wc_product_id));
         if ($product_exists) {
-            $edit_url = class_exists('BH_Commerce') ? BH_Commerce::get_edit_url($wc_product_id) : get_edit_post_link($wc_product_id);
+            $edit_url = BH_Commerce::get_edit_url($wc_product_id);
             echo '<p><a href="' . esc_url($edit_url) . '" target="_blank">View the underlying WooCommerce product &rarr;</a></p>';
         }
 
@@ -267,10 +267,10 @@ class BHM_Tiers {
             'annual_price_cents' => (int) get_post_meta($post_id, '_bhm_annual_price_cents', true),
         ] : [];
 
-        $price_cents = isset($_POST['bhm_price']) ? (int) round(((float) $_POST['bhm_price']) * 100) : 0;
+        $price_cents = isset($_POST['bhm_price']) ? BHM_Money::parse($_POST['bhm_price']) : 0;
         update_post_meta($post_id, '_bhm_price_cents', $price_cents);
 
-        $annual_price_cents = isset($_POST['bhm_annual_price']) ? (int) round(((float) $_POST['bhm_annual_price']) * 100) : 0;
+        $annual_price_cents = isset($_POST['bhm_annual_price']) ? BHM_Money::parse($_POST['bhm_annual_price']) : 0;
         update_post_meta($post_id, '_bhm_annual_price_cents', $annual_price_cents);
 
         $trial_days = isset($_POST['bhm_trial_days']) ? max(0, (int) $_POST['bhm_trial_days']) : 0;
@@ -297,7 +297,7 @@ class BHM_Tiers {
         $clean_keys = array_values(array_intersect($known_keys, array_map('sanitize_key', $submitted)));
         update_post_meta($post_id, '_bhm_benefit_keys', $clean_keys);
 
-        if (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) {
+        if (BH_Commerce::available()) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), $price_cents, $annual_price_cents, $trial_days);
         }
 
@@ -345,7 +345,7 @@ class BHM_Tiers {
         update_post_meta($post_id, '_bhm_cover_image_id', (int) ($data['cover_image_id'] ?? 0));
         update_post_meta($post_id, '_bhm_benefit_keys', (array) ($data['benefit_keys'] ?? []));
 
-        if (class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce')) {
+        if (BH_Commerce::available()) {
             BHM_Products::sync_tier_wc_product($post_id, get_the_title($post_id), (int) ($data['price_cents'] ?? 0), (int) ($data['annual_price_cents'] ?? 0), (int) ($data['trial_days'] ?? 0));
         }
 

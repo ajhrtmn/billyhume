@@ -485,6 +485,49 @@ class BHY_Style {
         return apply_filters('bhy_style_custom_sliders', []);
     }
 
+    /**
+     * Single authority for turning a raw associative array (either
+     * $_POST from BHY_Gallery::save() or the decoded JSON body from
+     * BH_Element::rest_save_site_tokens()) into a sanitized style-settings
+     * array ready for update_option(). Both call sites used to hand-copy
+     * this ~25-line sanitize pass independently; they'd already drifted
+     * (the REST copy silently dropped custom_sliders() handling), so this
+     * is the one place the field list/sanitization rules live now — add a
+     * new sanitized field here once, not in two places that can diverge again.
+     */
+    public static function save_from_input(array $incoming) {
+        $data = [];
+        $data['brand_part1'] = sanitize_text_field($incoming['brand_part1'] ?? self::DEFAULTS['brand_part1']);
+        $data['brand_part2'] = sanitize_text_field($incoming['brand_part2'] ?? self::DEFAULTS['brand_part2']);
+        $data['brand_logo_id'] = isset($incoming['brand_logo_id']) ? (int) $incoming['brand_logo_id'] : 0;
+        foreach (self::DEFAULTS as $key => $default) {
+            if (strpos($key, 'color_') !== 0 && strpos($key, 'cat_color_') !== 0) continue;
+            $val = isset($incoming[$key]) ? sanitize_text_field($incoming[$key]) : $default;
+            $data[$key] = self::safe_color($val);
+        }
+        foreach (['font_display', 'font_body'] as $key) {
+            $picked = sanitize_text_field($incoming[$key] ?? self::DEFAULTS[$key]);
+            $data[$key] = (array_key_exists($picked, self::FONT_OPTIONS) || $picked === 'Custom') ? $picked : self::DEFAULTS[$key];
+            $data[$key . '_custom'] = sanitize_text_field($incoming[$key . '_custom'] ?? '');
+        }
+        $data['font_scale']  = self::safe_number($incoming['font_scale']  ?? null, 0.75, 1.6, 1);
+        $data['space_scale'] = self::safe_number($incoming['space_scale'] ?? null, 0.6, 1.8, 1);
+        $data['radius']      = self::safe_number($incoming['radius']      ?? null, 0, 32, 12);
+        $data['radius_sm']   = self::safe_number($incoming['radius_sm']   ?? null, 0, 24, 8);
+        $data['bar_height']  = self::safe_number($incoming['bar_height']  ?? null, 56, 140, 84);
+
+        $custom_sliders = self::custom_sliders();
+        if ($custom_sliders) {
+            $data['custom'] = [];
+            foreach ($custom_sliders as $key => $def) {
+                $raw = $incoming['custom_' . $key] ?? ($def['default'] ?? 0);
+                $data['custom'][$key] = self::safe_number($raw, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0);
+            }
+        }
+
+        return $data;
+    }
+
     public static function font_family($s, $slot) {
         $picked = $s['font_' . $slot];
         if ($picked === 'Custom' || !array_key_exists($picked, self::FONT_OPTIONS)) {
@@ -729,36 +772,20 @@ class BHY_Style {
         return self::safe_length($value); // any other bare key a plugin invents: run through the general CSS-value sanitizer, fail-safe to null (dropped) rather than guessing
     }
 
-    private static function scale_table($name) {
-        switch ($name) {
-            case 'SPACE_SCALE_STEPS':    return self::SPACE_SCALE_STEPS;
-            case 'SIZE_STEPS':           return self::SIZE_STEPS;
-            case 'FONT_SIZE_STEPS':      return self::FONT_SIZE_STEPS;
-            case 'FONT_WEIGHT_STEPS':    return self::FONT_WEIGHT_STEPS;
-            case 'RADIUS_STEPS':         return self::RADIUS_STEPS;
-            case 'BORDER_WIDTH_STEPS':   return self::BORDER_WIDTH_STEPS;
-            case 'Z_INDEX_STEPS':        return self::Z_INDEX_STEPS;
-            case 'SHADOW_STEPS':         return self::SHADOW_STEPS;
-            case 'BG_SIZE_ENUM_PRESETS': return self::BG_SIZE_ENUM_PRESETS;
-            default: return [];
-        }
+    // Audit fix (2026-07-25): scale_table()/enum_table() used to be two
+    // separate hand-maintained switch statements mapping a constant NAME
+    // string to its own value — every new scale/enum constant needed a
+    // matching case added here too, a second place to remember. Both
+    // collapse to one generic lookup via constant(); a name that isn't a
+    // real class constant fails safe to [] rather than a fatal, same as
+    // the switches' own default branches did.
+    private static function const_table($name) {
+        $fqcn = self::class . '::' . $name;
+        return defined($fqcn) ? constant($fqcn) : [];
     }
 
-    private static function enum_table($name) {
-        switch ($name) {
-            case 'DISPLAY_ENUM':        return self::DISPLAY_ENUM;
-            case 'POSITION_ENUM':       return self::POSITION_ENUM;
-            case 'FLEX_DIRECTION_ENUM': return self::FLEX_DIRECTION_ENUM;
-            case 'FLEX_WRAP_ENUM':      return self::FLEX_WRAP_ENUM;
-            case 'JUSTIFY_ENUM':        return self::JUSTIFY_ENUM;
-            case 'ALIGN_ENUM':          return self::ALIGN_ENUM;
-            case 'OVERFLOW_ENUM':       return self::OVERFLOW_ENUM;
-            case 'VISIBILITY_ENUM':     return self::VISIBILITY_ENUM;
-            case 'BORDER_STYLE_ENUM':   return self::BORDER_STYLE_ENUM;
-            case 'BG_REPEAT_ENUM':      return self::BG_REPEAT_ENUM;
-            default: return [];
-        }
-    }
+    private static function scale_table($name) { return self::const_table($name); }
+    private static function enum_table($name) { return self::const_table($name); }
 
     /** 'screen' means "the full viewport in whichever axis this property moves in" — height-shaped properties get 100vh, everything else gets 100vw. Every other step is a flat SIZE_STEPS lookup. */
     private static function resolve_size_step($step, $css_prop) {
@@ -1015,60 +1042,13 @@ class BHY_Style {
     // (drop into any front-end template, own-ur-shit loaded or not,
     // with zero extra enqueue to remember). currentColor so it inherits
     // the surrounding text color automatically.
-    const EMPTY_STATE_ICONS = [
-        'search' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="10" r="7"></circle><line x1="21" y1="21" x2="15.5" y2="15.5"></line></svg>',
-        'info-outline' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="11" x2="12" y2="16"></line><line x1="12" y1="8" x2="12" y2="8"></line></svg>',
-    ];
-
+    // Audit fix (2026-07-25): moved to BHY_UI (own-ur-shit/includes/
+    // class-ui.php) — a more cohesive home for a front-end list/catalog
+    // UI component than the style-tokens class. Kept here as a thin
+    // delegate so the ~12 existing call sites across the ecosystem
+    // don't all need updating in the same pass; new callers should
+    // prefer BHY_UI::empty_state_html() directly.
     public static function empty_state_html(array $args) {
-        $reason = $args['reason'] ?? 'zero';
-        $title = (string) ($args['title'] ?? ($reason === 'filtered' ? 'Nothing matches your filters' : 'Nothing here yet'));
-        $description = (string) ($args['description'] ?? '');
-        $icon_key = (string) ($args['icon'] ?? ($reason === 'filtered' ? 'search' : 'info-outline'));
-        $icon_svg = self::EMPTY_STATE_ICONS[$icon_key] ?? self::EMPTY_STATE_ICONS['info-outline'];
-
-        // Deliberately embedded on EVERY call, not guarded to print
-        // once per request — confirmed live (bh-streaming's player.js)
-        // that a "print once" guard breaks the moment a consumer swaps
-        // `element.innerHTML` between two different rendered variants
-        // (e.g. the zero-data fragment, then the filtered fragment on
-        // the same view): the second swap destroys the first
-        // fragment's <style> tag along with everything else that was
-        // inside that container, silently losing all the CSS with no
-        // error. A few hundred duplicated bytes of CSS per call is a
-        // trivial cost next to a component that only sometimes works
-        // depending on how its caller happens to use the markup.
-        $out = '<style>
-            .bhy-empty-state { text-align: center; padding: 48px 20px; color: var(--bh-text-dim, #6b6b6b); }
-            .bhy-empty-state .bhy-empty-icon { display: inline-block; width: 40px; height: 40px; margin: 0 auto; color: var(--bh-border, #ccc); }
-            .bhy-empty-state .bhy-empty-icon svg { width: 100%; height: 100%; }
-            .bhy-empty-state h3 { margin: 12px 0 4px; font-size: 18px; color: var(--bh-text, #222); }
-            .bhy-empty-state p { margin: 0 0 16px; font-size: 14px; }
-            .bhy-empty-state .bhy-empty-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-            .bhy-empty-state .bhy-empty-cta { display: inline-block; padding: 8px 18px; border-radius: 6px; background: var(--bh-accent, #2271b1); color: #fff; text-decoration: none; font-size: 14px; }
-            .bhy-empty-state .bhy-empty-clear { display: inline-block; padding: 8px 18px; font-size: 14px; color: var(--bh-text-dim, #6b6b6b); text-decoration: underline; }
-            @media (max-width: 480px) {
-                .bhy-empty-state { padding: 32px 16px; }
-                .bhy-empty-state .bhy-empty-icon { width: 28px; height: 28px; }
-                .bhy-empty-state h3 { font-size: 16px; }
-                .bhy-empty-state .bhy-empty-actions { flex-direction: column; align-items: center; }
-            }
-        </style>';
-
-        $out .= '<div class="bhy-empty-state">';
-        $out .= '<span class="bhy-empty-icon" aria-hidden="true">' . $icon_svg . '</span>';
-        $out .= '<h3>' . esc_html($title) . '</h3>';
-        if ($description !== '') $out .= '<p>' . esc_html($description) . '</p>';
-
-        $has_cta = !empty($args['cta_label']) && !empty($args['cta_url']);
-        $has_clear = $reason === 'filtered' && !empty($args['clear_url']);
-        if ($has_cta || $has_clear) {
-            $out .= '<div class="bhy-empty-actions">';
-            if ($has_cta) $out .= '<a class="bhy-empty-cta" href="' . esc_url($args['cta_url']) . '">' . esc_html($args['cta_label']) . '</a>';
-            if ($has_clear) $out .= '<a class="bhy-empty-clear" href="' . esc_url($args['clear_url']) . '">Clear filters</a>';
-            $out .= '</div>';
-        }
-        $out .= '</div>';
-        return $out;
+        return BHY_UI::empty_state_html($args);
     }
 }

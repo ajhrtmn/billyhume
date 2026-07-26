@@ -85,6 +85,7 @@ class BHC_ContentBridge {
         // blocks.js) needed zero changes, only where they're enqueued.
         add_action('enqueue_block_editor_assets', [self::class, 'maybe_enqueue_lesson_blocks']);
         add_filter('block_categories_all', [self::class, 'register_block_category']);
+        add_filter('block_editor_settings_all', [self::class, 'add_studio_block_editor_styles'], 10, 2);
 
         // The ONLY writer of `_bhc_steps` now — fires on every real
         // save of a bh_lesson post (the real editor, REST, anywhere),
@@ -127,10 +128,87 @@ class BHC_ContentBridge {
         wp_enqueue_script(
             'bhc-courses-studio-blocks',
             defined('BHC_URL') ? BHC_URL . 'assets/js/courses-studio-blocks.js' : plugins_url('assets/js/courses-studio-blocks.js', dirname(__FILE__)),
-            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch'],
+            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'wp-data'],
             defined('BHC_VER') ? BHC_VER : null,
             true
         );
+    }
+
+    // Real bug, caught live: bhc/quiz-question's own edit view renders
+    // each answer's radio + text input inside a plain
+    // '.bhc-studio-choice-row' div with zero CSS anywhere in the
+    // plugin — RadioControl/TextControl are both block-level Gutenberg
+    // components, so with no flex styling they stacked vertically
+    // (radio on its own line, ABOVE the choice text field) instead of
+    // reading as one row.
+    //
+    // A plain wp_enqueue_style() hooked to enqueue_block_editor_assets
+    // (tried first) never actually reaches this content: since WP 5.9
+    // the post editor's canvas is a SEPARATE IFRAMED document, and
+    // ordinary enqueued stylesheets only load in the outer admin
+    // document, never inside that iframe — confirmed live (the
+    // stylesheet loaded, `.bhc-studio-choice-row` inside the iframe
+    // still computed `display: block`). The `styles` array on
+    // `block_editor_settings_all` is core's own actual mechanism for
+    // getting CSS into the iframe (the same one theme.json/
+    // add_editor_style() use) — each entry's `css` string gets
+    // collected into the iframe's own stylesheet.
+    public static function add_studio_block_editor_styles($settings, $context) {
+        $screen = $context->post ? get_post_type($context->post) : null;
+        if ($screen !== 'bh_lesson') return $settings;
+
+        $settings['styles'][] = ['css' => '
+            .bhc-studio-choice-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+            .bhc-studio-choice-row > * { margin-bottom: 0 !important; }
+            /* The text input sits two levels inside .components-base-control
+               (fieldset > .components-base-control > ...__input) — flex only
+               grows a DIRECT child of the row, so the grow rule belongs on
+               .components-base-control itself, not the input nested inside it
+               (targeting the input alone left it narrower than the Question
+               field above, with a big empty gap on the right). */
+            .bhc-studio-choice-row .components-base-control { flex: 1; min-width: 0; margin-bottom: 0; }
+            .bhc-studio-choice-row .components-base-control__field { margin-bottom: 0; }
+            .bhc-studio-choice-row .components-text-control__input { width: 100%; box-sizing: border-box; }
+            /* RadioControl renders its option inside a <fieldset><legend>
+               (even with no visible legend text) — the fieldset/legend\'s
+               own default spacing pushed the actual radio circle down
+               inside its box, so it read as sitting lower than the middle
+               of the text field beside it instead of level with it. */
+            .bhc-studio-choice-row fieldset.components-radio-control { margin: 0; padding: 0; border: 0; display: flex; align-items: center; }
+            .bhc-studio-choice-row fieldset.components-radio-control legend { display: none; }
+            .bhc-studio-choice-row .components-radio-control__option { margin: 0; }
+            /* "Add choice" (adds another answer to THIS question, small/
+               inline) vs "Add another question" (a real labeled button
+               replacing Gutenberg\'s bare icon-only block appender,
+               scoped to the WHOLE quiz, not one question) — distinct
+               label text now says what each does, and this full-width/
+               top-bordered treatment plus real spacing makes clear the
+               second one belongs to a different, larger scope than the
+               question it visually follows. */
+            .bhc-studio-add-choice { margin-bottom: 20px; }
+            /* Gutenberg wraps any custom InnerBlocks appender in its own
+               ".block-list-appender" div, which (a) shrink-wraps to the
+               button\'s natural width by default — width:100% on the
+               BUTTON alone did nothing while its own wrapper box was
+               still only as wide as the button once was — and (b), the
+               real culprit for the overlap: core styles this wrapper
+               position:absolute (designed for the default tiny "+"
+               icon-only appender, which doesn\'t need to reserve real
+               flow space). A full-width, full-height custom button
+               inside an absolutely-positioned wrapper doesn\'t push
+               anything below it out of the way, so it rendered floating
+               ON TOP of "Add choice" instead of stacked cleanly beneath
+               it. position:static puts it back in normal document flow,
+               where it belongs given how much visual space it now
+               actually takes up. */
+            .bhc-studio-quiz .block-list-appender { display: block; width: 100%; position: static; }
+            .bhc-studio-add-question {
+                display: flex; width: 100%; justify-content: center;
+                box-sizing: border-box;
+                margin-top: 12px; padding-top: 16px; border-top: 1px dashed #ccc;
+            }
+        '];
+        return $settings;
     }
 
     private static function register_block_types() {
@@ -212,19 +290,14 @@ class BHC_ContentBridge {
             return '<p class="bhc-quiz-question">' . esc_html($attrs['question']) . '</p>';
         });
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c —
-        // downloadable resources per step (a worksheet, a PDF, a
-        // reference doc). Flat attrs, no children, so this needed
-        // nothing in steps_to_tree()/tree_to_steps() beyond adding
-        // 'resource' to BHC_Steps::VALID_TYPES — both already handle
-        // any bhc/* block generically except bhc/quiz's child-block
-        // promotion above.
         // Depth-of-magic pass: real visual density inside a lesson — a
         // highlighted "key idea" / "watch out for this" moment, instead
         // of every step reading as an undifferentiated text block. Same
         // three fixed variants as BHC_Steps::CALLOUT_VARIANTS (tip/note/
         // warning) — each rendered as a shade/tint of ONE base color
         // per variant (courses.css), not three unrelated named colors.
+        // (Audit fix, 2026-07-25: this comment used to sit above the
+        // 'resource' registration below, describing THIS block instead.)
         BH_Content::register_block_type('bhc/callout', [
             'content' => ['type' => 'html', 'default' => ''],
             'variant' => ['type' => 'string', 'default' => 'tip'],
@@ -233,6 +306,13 @@ class BHC_ContentBridge {
             return '<div class="bhc-step bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . $attrs['content'] . '</div>';
         });
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c —
+        // downloadable resources per step (a worksheet, a PDF, a
+        // reference doc). Flat attrs, no children, so this needed
+        // nothing in steps_to_tree()/tree_to_steps() beyond adding
+        // 'resource' to BHC_Steps::VALID_TYPES — both already handle
+        // any bhc/* block generically except bhc/quiz's child-block
+        // promotion above.
         BH_Content::register_block_type('bhc/resource', [
             'attachment_id' => ['type' => 'int', 'default' => 0],
             'label' => ['type' => 'string', 'default' => ''],

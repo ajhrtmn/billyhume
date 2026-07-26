@@ -23,7 +23,7 @@ class BHM_ProductSync {
     // while drafting; a stale-but-hidden annual product is harmless —
     // catalog_visibility is already 'hidden', same as the monthly one).
     public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0, $trial_days = 0) {
-        if (!(class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce'))) return;
+        if (!(BH_Commerce::available())) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
         $existing_annual_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id_annual', true);
 
@@ -81,7 +81,7 @@ class BHM_ProductSync {
 
         // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
         $has_subs = class_exists('WC_Subscriptions') && class_exists('WC_Product_Subscription');
-        $price = number_format($price_cents / 100, 2, '.', '');
+        $price = BHM_Money::price($price_cents);
         $product = $existing_id ? wc_get_product($existing_id) : null;
         if (!$product) {
             $product = $has_subs ? new WC_Product_Subscription() : new WC_Product_Simple();
@@ -102,7 +102,7 @@ class BHM_ProductSync {
         // billing period to speak of, so "annual" would be meaningless
         // (identical to the monthly one-time product, just mispriced).
         if ($annual_price_cents > 0 && $has_subs) {
-            $annual_price = number_format($annual_price_cents / 100, 2, '.', '');
+            $annual_price = BHM_Money::price($annual_price_cents);
             $annual_product = $existing_annual_id ? wc_get_product($existing_annual_id) : null;
             if (!$annual_product) $annual_product = new WC_Product_Subscription();
             $annual_product->set_name($name . ' — Supporter Tier (Annual)');
@@ -126,7 +126,7 @@ class BHM_ProductSync {
     // since BHM_MonetizationUI::save_object() now calls it from a
     // different class.
     public static function sync_object_purchase_product($object_id, $post_type, $price_cents) {
-        if (!(class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce'))) return 0;
+        if (!(BH_Commerce::available())) return 0;
         $meta_key = '_bhm_purchase_wc_product_id';
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);
         $title = get_the_title($object_id);
@@ -151,7 +151,7 @@ class BHM_ProductSync {
         $product = $existing_id ? wc_get_product($existing_id) : null;
         if (!$product) $product = new WC_Product_Simple();
         $product->set_name($name);
-        $product->set_regular_price(number_format($price_cents / 100, 2, '.', ''));
+        $product->set_regular_price(BHM_Money::price($price_cents));
         $product->set_virtual(true);
         $product->set_downloadable(true);
         $product->set_catalog_visibility('hidden');

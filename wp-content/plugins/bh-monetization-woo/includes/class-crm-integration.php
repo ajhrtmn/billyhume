@@ -102,7 +102,7 @@ class BHM_CRMIntegration {
         $topup_recent_cents = class_exists('BHM_Fraud') ? BHM_Fraud::topup_total_recent_cents($user_id) : 0;
 
         $summary = ($active_tier ? $active_tier . ' supporter' : 'No active tier') . ', ' . $purchase_count . ' purchase' . ($purchase_count === 1 ? '' : 's')
-            . ', $' . number_format($balance / 100, 2) . ' play credit'
+            . ', $' . BHM_Money::display($balance) . ' play credit'
             . ($flagged ? ' — ⚠ ' . $refund_count . ' refunds in 30 days' : '')
             . ($shared_device_flagged ? ' — ⚠ shared device with another refunding account' : '')
             . ($velocity_flagged ? ' — ⚠ unusual play-rate burst detected' : '')
@@ -117,14 +117,14 @@ class BHM_CRMIntegration {
     }
 
     private static function render_detail($entitlements, $balance, $refund_count = 0, $flagged = false, $shared_device_flagged = false, $velocity_flagged = false, $topup_flagged = false, $topup_recent_cents = 0) {
-        echo '<p><strong>Wallet balance:</strong> $' . esc_html(number_format($balance / 100, 2)) . '</p>';
+        echo '<p><strong>Wallet balance:</strong> $' . esc_html(BHM_Money::display($balance)) . '</p>';
         if ($refund_count > 0) {
             echo '<p' . ($flagged ? ' style="color:#b32d2e;font-weight:600;"' : '') . '>'
                . ($flagged ? '⚠ ' : '') . esc_html($refund_count) . ' refund' . ($refund_count === 1 ? '' : 's') . ' in the last 30 days'
                . ($flagged ? ' — repeated-refund pattern, worth a human look before extending further trust (e.g. wallet top-ups).' : '') . '</p>';
         }
         if ($topup_flagged) {
-            echo '<p style="color:#b32d2e;font-weight:600;">⚠ $' . esc_html(number_format($topup_recent_cents / 100, 2)) . ' in wallet top-ups in the last 24 hours — an unusually fast burst (default cap $500/24h). Could be normal heavy use or a compromised payment method being tested. Worth a look.</p>';
+            echo '<p style="color:#b32d2e;font-weight:600;">⚠ $' . esc_html(BHM_Money::display($topup_recent_cents)) . ' in wallet top-ups in the last 24 hours — an unusually fast burst (default cap $500/24h). Could be normal heavy use or a compromised payment method being tested. Worth a look.</p>';
         }
         if ($shared_device_flagged) {
             echo '<p style="color:#b32d2e;font-weight:600;">⚠ This account\'s device/connection matches another account with a recent refund — possible same-person, new-account evasion. Worth a look, not proof on its own (shared networks/households do happen).</p>';

@@ -347,21 +347,25 @@ class BHCRM_People {
         if (!$avatar) $avatar = get_avatar_url($uid, ['size' => 96]);
         $banner = $p['banner_id'] ? wp_get_attachment_image_url((int) $p['banner_id'], 'medium_large') : '';
 
-        echo '<div class="bhcrm-identity-header" style="position:relative;margin-bottom:16px;">';
+        // Audit fix (2026-07-25): brought in line with this same file's
+        // own stated convention (see render_segments_panel()'s docblock,
+        // "--bhy-* tokens... worth matching going forward") — was raw
+        // hex/px throughout, unlike the segments panel just below it.
+        echo '<div class="bhcrm-identity-header" style="position:relative;margin-bottom:var(--bhy-space-4,16px);">';
         if ($banner) {
-            echo '<div style="height:120px;background:url(' . esc_url($banner) . ') center/cover;border-radius:8px;margin-bottom:-40px;"></div>';
+            echo '<div style="height:120px;background:url(' . esc_url($banner) . ') center/cover;border-radius:var(--bhy-radius,8px);margin-bottom:-40px;"></div>';
         }
-        echo '<div style="display:flex;align-items:flex-end;gap:14px;padding:0 12px;">';
-        echo '<img src="' . esc_url($avatar) . '" width="80" height="80" style="border-radius:50%;object-fit:cover;border:3px solid #fff;background:#eee;" />';
+        echo '<div style="display:flex;align-items:flex-end;gap:var(--bhy-space-3,14px);padding:0 var(--bhy-space-3,12px);">';
+        echo '<img src="' . esc_url($avatar) . '" width="80" height="80" style="border-radius:50%;object-fit:cover;border:3px solid var(--bhy-surface,#fff);background:var(--bhy-border,#eee);" />';
         echo '<div>';
         if ($p['profile_public'] && class_exists('BHI_PublicProfile')) {
             echo '<a href="' . esc_url(BHI_PublicProfile::profile_url($uid)) . '" target="_blank">View public profile page &rarr;</a>';
         } else {
-            echo '<span style="color:#777;">Profile page not public</span>';
+            echo '<span style="color:var(--bhy-text-dim,#777);">Profile page not public</span>';
         }
         echo '</div></div>';
         if ($p['bio']) {
-            echo '<p style="margin-top:10px;padding:0 12px;color:#555;">' . esc_html(wp_trim_words($p['bio'], 40)) . '</p>';
+            echo '<p style="margin-top:var(--bhy-space-2,10px);padding:0 var(--bhy-space-3,12px);color:var(--bhy-text-dim,#555);">' . esc_html(wp_trim_words($p['bio'], 40)) . '</p>';
         }
         echo '</div>';
     }

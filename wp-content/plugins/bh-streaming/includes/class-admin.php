@@ -169,7 +169,11 @@ class BHS_Admin {
         });
         document.getElementById("bhs_isrc_field").addEventListener("input", function () {
             var note = document.getElementById("bhs_isrc_mock_note");
-            if (!/^ZZOUS\d{7}$/.test(this.value)) note.style.display = "none";
+            // Audit fix (2026-07-25): sourced from BHS_ISRC::MOCK_PATTERN
+            // (the one PHP source of truth) instead of a second, hand-typed
+            // JS literal that could silently drift from it.
+            var mockPattern = new RegExp(' . wp_json_encode(trim(BHS_ISRC::MOCK_PATTERN, '/')) . ');
+            if (!mockPattern.test(this.value)) note.style.display = "none";
         });
         </script>';
 

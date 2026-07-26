@@ -90,6 +90,13 @@
         // (BHCRM_Projects::rest_rollups()) instead of a per-card round
         // trip.
         rollups: {},
+        // {placementId: daysSinceLastMove} — Phase C stall analytics,
+        // fetched from bh-crm's own /stalled-cards route (see
+        // loadStalledCards()). Only ever contains cards that actually
+        // cross BHCRM_Projects::STALL_DAYS — a card's absence here
+        // means "not stalled" OR "no move history yet," not "stalled by
+        // some other unknown amount."
+        stalled: {},
         flashId: null, // set by saveSlot(), consumed once by renderCard() — see saveSlot()'s own docblock
     };
 
@@ -114,9 +121,23 @@
             .catch(function () { state.rollups = {}; });
     }
 
+    // Phase C stall analytics — {placementId: daysSinceLastMove}, only
+    // for cards that actually cross BHCRM_Projects::STALL_DAYS; same
+    // "one small bh-crm route, fetched once per board load" shape as
+    // loadRollups() above.
+    function loadStalledCards() {
+        if (!cfg.stalledCardsUrl) return Promise.resolve();
+        return fetch(cfg.stalledCardsUrl + '?project_id=' + encodeURIComponent(cfg.projectId), {
+            headers: { 'X-WP-Nonce': cfg.nonce },
+            credentials: 'same-origin',
+        }).then(function (res) { return res.ok ? res.json() : {}; })
+            .then(function (data) { state.stalled = data || {}; })
+            .catch(function () { state.stalled = {}; });
+    }
+
     function load() {
         root.setAttribute('data-loading', '1');
-        Promise.all([api(placementsPath()), loadRollups()]).then(function (results) {
+        Promise.all([api(placementsPath()), loadRollups(), loadStalledCards()]).then(function (results) {
             var grouped = results[0];
             state.placements = (grouped && grouped.board) ? grouped.board : [];
             render();
@@ -319,6 +340,17 @@
         });
         titleRow.appendChild(titleInput);
         card.appendChild(titleRow);
+
+        // Phase C stall analytics — "hasn't moved in N days," surfaced
+        // directly on the card itself (AJ's own ask: a visible flag
+        // BEFORE it's obviously a problem, not a separate report page
+        // nobody remembers to open).
+        var daysStalled = state.stalled[p.id];
+        if (daysStalled) {
+            var badge = el('span', 'bhcrm-kanban-stalled-badge', '⚠ ' + daysStalled + 'd stalled');
+            badge.title = 'This card has been in "' + attrLiteral(p, 'column', '') + '" for ' + daysStalled + ' days.';
+            card.appendChild(badge);
+        }
 
         // A card's own recursive sub-task rollup — AJ's own ask, "each
         // card should track the total progress of everything under

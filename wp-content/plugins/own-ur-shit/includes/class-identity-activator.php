@@ -9,8 +9,8 @@ if (!defined('ABSPATH')) exit;
  * migration actually succeeded.
  */
 class BHI_Activator {
-    // 1.2 bhi_reports (class-reports.php); 1.3 bhcore_notifications + bhcore_jobs (class-notifications.php / class-jobs.php); 1.4 bhcore_debug_log (class-debug-log.php); 1.5 bhcore_content (class-content.php); 1.6 bhcore_debug_log structured-trace columns (file/line/col/trace/url/user_id/request_method); 1.7 bhcore_debug_log.request_id — per-request correlation ID, see request_id()/has_request_id_column() in class-debug-log.php; 1.8 bhcore_events (class-event.php/BH_Event), per EVENT-TRACKING-ARCHITECTURE-PLAN.md; 1.9 bhcore_element_placements (class-element.php/BH_Element), per ELEMENT-BUILDER-DESIGN-PLAN.md §2.1; 1.10 bhcore_element_prefabs (class-element-prefab.php/BH_Element_Prefab) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 bhcore_element_states (class-element-state.php/BH_Element_State) — named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above; 1.13 bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php): guards against the same queued email job firing twice (Action Scheduler's background processing plus a direct call both landing) and sending a duplicate.
-    const DB_VERSION = '1.13';
+    // 1.2 bhi_reports (class-reports.php); 1.3 bhcore_notifications + bhcore_jobs (class-notifications.php / class-jobs.php); 1.4 bhcore_debug_log (class-debug-log.php); 1.5 bhcore_content (class-content.php); 1.6 bhcore_debug_log structured-trace columns (file/line/col/trace/url/user_id/request_method); 1.7 bhcore_debug_log.request_id — per-request correlation ID, see request_id()/has_request_id_column() in class-debug-log.php; 1.8 bhcore_events (class-event.php/BH_Event), per EVENT-TRACKING-ARCHITECTURE-PLAN.md; 1.9 bhcore_element_placements (class-element.php/BH_Element), per ELEMENT-BUILDER-DESIGN-PLAN.md §2.1; 1.10 bhcore_element_prefabs (class-element-prefab.php/BH_Element_Prefab) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 bhcore_element_states (class-element-state.php/BH_Element_State) — named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above; 1.13 bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php): guards against the same queued email job firing twice (Action Scheduler's background processing plus a direct call both landing) and sending a duplicate; 1.14 bhi_profiles.links — ecosystem depth-pass Tier 2a, link-in-bio: a JSON array of {label, url} pairs a person curates for their public profile, rendered as a button list (see class-public-profile.php); 1.15 bhcore_campaigns — ecosystem depth-pass Tier 2, email broadcast/campaigns (see class-campaigns.php).
+    const DB_VERSION = '1.15';
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -47,10 +47,14 @@ class BHI_Activator {
             bio text,
             profile_slug varchar(60) DEFAULT NULL,
             profile_public tinyint(1) unsigned NOT NULL DEFAULT 0,
+            links longtext,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (user_id),
             UNIQUE KEY profile_slug (profile_slug)
         ) $charset;";
+        // 1.14 — links (JSON array of {label, url}), added to the CREATE
+        // TABLE above so dbDelta() adds it as a new column on an existing
+        // install, same pattern as every other mid-life column here.
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta($sql);
@@ -327,6 +331,29 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql10);
 
+        // Email broadcast/campaigns (ecosystem depth-pass Tier 2) — see
+        // class-campaigns.php. segment_key + total_recipients/sent_count
+        // are the only campaign-level state kept; the actual recipient
+        // list is a LIVE query at send time (OUS_Campaigns::send_now()),
+        // never stored here — this table holds what was sent and to how
+        // many, not who.
+        $campaigns = $wpdb->prefix . 'bhcore_campaigns';
+        $sql11 = "CREATE TABLE $campaigns (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            subject varchar(190) NOT NULL DEFAULT '',
+            body longtext,
+            segment_key varchar(60) NOT NULL DEFAULT '',
+            status varchar(20) NOT NULL DEFAULT 'draft',
+            total_recipients int(10) unsigned NOT NULL DEFAULT 0,
+            sent_count int(10) unsigned NOT NULL DEFAULT 0,
+            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            sent_at datetime DEFAULT NULL,
+            PRIMARY KEY  (id),
+            KEY status (status)
+        ) $charset;";
+        dbDelta($sql11);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -338,6 +365,7 @@ class BHI_Activator {
         $element_placements_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $element_placements));
         $prefabs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $prefabs));
         $states_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states;
+        $campaigns_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $campaigns));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states && $campaigns_exists === $campaigns;
     }
 }

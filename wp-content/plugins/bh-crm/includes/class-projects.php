@@ -10,6 +10,21 @@ if (!defined('ABSPATH')) exit;
 // TrackIt's own equivalent features — see that doc's §2 for the exact
 // mapping against what's already built below.
 //
+// STATUS UPDATE (2026-07-25 audit pass — this is the SECOND time this
+// comment has gone stale, see plugins/STATUS.md for the standing note
+// about that): Phase A (see 2026-07-21 note below, still accurate) plus
+// Phases B, C, and D are ALL built, not "genuinely unbuilt" as the prior
+// version of this comment claimed. Phase B (timestamped fixes/feedback
+// log) and Phase D (Idea Drop — linked files/uploads) both live in
+// class-card-log.php (BHCRM_CardLog). Phase C (stall analytics) lives
+// right in THIS file — see stalled_cards_for_board() and the
+// bh-crm/v1/stalled-cards REST route below. "Scenes" (part of Phase E,
+// separate boards) is also real — see distinct_scenes() below. Given
+// this comment has drifted stale twice on the same file, treat
+// plugins/STATUS.md as the source of truth for what's actually shipped
+// going forward rather than trusting this local comment at face value —
+// it's a pointer, not guaranteed current.
+//
 // STATUS UPDATE (2026-07-21, see plugins/STATUS.md): the line that used
 // to sit here calling the whole plan "DETAILED PLAN ONLY, NOT BUILT" is
 // stale — class-subtasks.php since shipped a real, substantial nested
@@ -18,10 +33,6 @@ if (!defined('ABSPATH')) exit;
 // arguably more capable mechanism than the plan's own Phase A (reusable
 // checklist templates), not a literal implementation of it — read
 // class-subtasks.php's own docblock for what actually shipped there.
-// Phases B-E (timestamped fixes, a feedback log, stall analytics,
-// linked local audio/MIDI files, separate scenes/boards) remain
-// genuinely unbuilt. Read the plan doc before starting any of those —
-// this comment is only a pointer, not a duplicate of it.
 //
 // BHCRM_VER 1.3.0 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.5): new
 // list_all() + render_boards() — a thin, real listing page for the new
@@ -143,7 +154,8 @@ if (!defined('ABSPATH')) exit;
  * roll-up update) has not been smoke-tested against a real install.
  */
 class BHCRM_Projects {
-    const DB_VERSION = '1.0';
+    const DB_VERSION = '1.2'; // 1.1 — PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: bhcrm_projects.scene, a free-text, user-defined organizational grouping (same "no fixed enum" posture columns_config already uses) — render_boards() groups its listing by it, purely organizational, no context-moving semantics. 1.2 — Phase C: bhcrm_project_card_moves, one row per real kanban-column transition (or a card's very first column on creation) — see the 'bhcore_element_placement_saved' hook handler below.
+    const STALL_DAYS = 5; // a card whose most recent logged move is at least this many days ago shows the "hasn't moved" badge
     const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 
     public static function init() {
@@ -164,11 +176,17 @@ class BHCRM_Projects {
 
         add_action('admin_post_bhcrm_project_create', [self::class, 'handle_create']);
         add_action('admin_post_bhcrm_project_save_columns', [self::class, 'handle_save_columns']);
+        add_action('admin_post_bhcrm_project_save_scene', [self::class, 'handle_save_scene']);
         add_action('admin_post_bhcrm_project_delete', [self::class, 'handle_delete']);
         add_action('admin_post_bhcrm_project_link', [self::class, 'handle_link_person']);
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('rest_api_init', [self::class, 'register_rest_routes']);
+        // Phase C stall analytics — own-ur-shit's ONE placement-save
+        // write path (BH_Element::save_placement()) fires this generic
+        // hook after every insert/update; this is a bh-crm-specific
+        // consumer of it, not a change to how that hook itself works.
+        add_action('bhcore_element_placement_saved', [self::class, 'on_placement_saved'], 10, 3);
     }
 
     /**
@@ -192,6 +210,20 @@ class BHCRM_Projects {
             'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
             'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
         ]);
+        // Phase C — same "one small bh-crm-owned route, fetched once
+        // per board load" shape as /rollups above, for the same reason:
+        // stall status isn't part of the generic BH_Element placements
+        // response, and doesn't need to be.
+        register_rest_route('bh-crm/v1', '/stalled-cards', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'rest_stalled_cards'],
+            'permission_callback' => function () { return current_user_can('bhcore_manage_crm'); },
+            'args' => ['project_id' => ['required' => true, 'sanitize_callback' => 'absint']],
+        ]);
+    }
+
+    public static function rest_stalled_cards($req) {
+        return new WP_REST_Response(self::stalled_cards_for_board((int) $req->get_param('project_id')), 200);
     }
 
     public static function rest_rollups($req) {
@@ -241,14 +273,40 @@ class BHCRM_Projects {
             name varchar(190) NOT NULL,
             crm_person_id bigint(20) unsigned NOT NULL DEFAULT 0,
             columns_config longtext,
+            scene varchar(190) NOT NULL DEFAULT '',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            KEY crm_person_id (crm_person_id)
+            KEY crm_person_id (crm_person_id),
+            KEY scene (scene)
+        ) $charset;");
+
+        // Phase C — stall analytics. One row per real column
+        // transition (card_placement_id = a bh/sticky-card's
+        // bhcore_element_placements.id — no FK, since that table lives
+        // in own-ur-shit and this one shouldn't hard-depend on its
+        // exact engine/charset). "Most recent row per card" is the
+        // card's current column + when it landed there; the gap
+        // between consecutive rows for the same card is real
+        // time-in-column, feeding average_time_in_column() below.
+        $moves = $wpdb->prefix . 'bhcrm_project_card_moves';
+        dbDelta("CREATE TABLE $moves (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            card_placement_id bigint(20) unsigned NOT NULL,
+            column_label varchar(190) NOT NULL DEFAULT '',
+            entered_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY card_placement_id (card_placement_id, entered_at)
         ) $charset;");
 
         if ($wpdb->last_error) return false;
-        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table
+            && $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $moves)) === $moves;
+    }
+
+    private static function moves_table() {
+        global $wpdb;
+        return $wpdb->prefix . 'bhcrm_project_card_moves';
     }
 
     private static function table() {
@@ -336,10 +394,17 @@ class BHCRM_Projects {
         // the board itself (render_people_panel()), same as it would
         // for a second/third person on an existing project.
         $nonce = wp_create_nonce('bhcrm_project_create');
+        $scene_suggestions = self::distinct_scenes();
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:16px 0;display:flex;gap:8px;align-items:center;">';
         echo '<input type="hidden" name="action" value="bhcrm_project_create">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
         echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;">';
+        echo '<input type="text" name="project_scene" list="bhcrm-scene-suggestions" placeholder="Scene (optional)" style="width:180px;">';
+        if ($scene_suggestions) {
+            echo '<datalist id="bhcrm-scene-suggestions">';
+            foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
+            echo '</datalist>';
+        }
         echo '<button class="button button-primary">Create project</button>';
         echo '</form>';
 
@@ -350,44 +415,68 @@ class BHCRM_Projects {
             return;
         }
 
-        echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+        // PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E — purely
+        // organizational grouping, no context-moving semantics: a
+        // scene only changes which heading a project's row sits under
+        // in THIS listing, nothing about the project/board itself.
+        // Every project already carries its own scene value (or none),
+        // grouped here in PHP rather than a second query per scene.
+        $groups = [];
         foreach ($rows as $p) {
-            // QA fix: a project can now be linked to multiple people
-            // under different relations (BHCRM_Links) — show all of
-            // them, not just the legacy single crm_person_id owner.
-            $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
-            if ($linked) {
-                $labels = array_map(function ($l) {
-                    $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
-                    return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
-                }, $linked);
-                $person_label = implode(', ', $labels);
-            } else {
-                $uid = (int) $p['crm_person_id'];
-                $user = $uid ? get_userdata($uid) : null;
-                $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
-            }
-            $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
-            $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
-            $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $board_uid . '&project_id=' . (int) $p['id']);
-
-            echo '<tr>';
-            echo '<td><a href="' . esc_url($board_url) . '"><strong>' . esc_html($p['name']) . '</strong></a></td>';
-            echo '<td>' . $person_label . '</td>';
-            echo '<td>' . (int) $card_count . '</td>';
-            echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
-            echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
-            echo '</tr>';
+            $scene = trim((string) $p['scene']);
+            $groups[$scene === '' ? '' : $scene][] = $p;
         }
-        echo '</tbody></table>';
+        // Named scenes first (alphabetical), "Unsorted" (no scene) last
+        // — an unsorted project shouldn't visually lead the list.
+        ksort($groups);
+        if (isset($groups[''])) {
+            $unsorted = $groups[''];
+            unset($groups['']);
+            $groups[''] = $unsorted;
+        }
+
+        foreach ($groups as $scene => $scene_rows) {
+            echo '<h2>' . esc_html($scene !== '' ? $scene : 'Unsorted') . '</h2>';
+            echo '<table class="widefat striped"><thead><tr><th>Project</th><th>People</th><th>Cards</th><th>Updated</th><th></th></tr></thead><tbody>';
+            foreach ($scene_rows as $p) {
+                // QA fix: a project can now be linked to multiple people
+                // under different relations (BHCRM_Links) — show all of
+                // them, not just the legacy single crm_person_id owner.
+                $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($p['id']) : [];
+                if ($linked) {
+                    $labels = array_map(function ($l) {
+                        $name = $l['user'] ? $l['user']->display_name : ('User #' . $l['user_id']);
+                        return esc_html($name) . ' <span class="description">(' . esc_html(BHCRM_Links::RELATIONS[$l['relation']] ?? $l['relation']) . ')</span>';
+                    }, $linked);
+                    $person_label = implode(', ', $labels);
+                } else {
+                    $uid = (int) $p['crm_person_id'];
+                    $user = $uid ? get_userdata($uid) : null;
+                    $person_label = $user ? esc_html($user->display_name) : '<span class="description">No one linked</span>';
+                }
+                $board_uid = $linked ? $linked[0]['user_id'] : (int) $p['crm_person_id'];
+                $card_count = class_exists('BH_Element') ? count(BH_Element::get_placements('bhcrm_project_board', (int) $p['id'], 'board')) : 0;
+                $board_url = admin_url('admin.php?page=bh-crm&user_id=' . $board_uid . '&project_id=' . (int) $p['id']);
+
+                echo '<tr>';
+                echo '<td><a href="' . esc_url($board_url) . '"><strong>' . esc_html($p['name']) . '</strong></a></td>';
+                echo '<td>' . $person_label . '</td>';
+                echo '<td>' . (int) $card_count . '</td>';
+                echo '<td>' . esc_html(mysql2date('M j, Y', $p['updated_at'])) . '</td>';
+                echo '<td><a class="button button-small" href="' . esc_url($board_url) . '">Open board</a></td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table>';
+        }
         echo '</div>';
     }
 
-    public static function create($name, $person_id, array $columns = []) {
+    public static function create($name, $person_id, array $columns = [], $scene = '') {
         global $wpdb;
         $name = sanitize_text_field((string) $name);
         if ($name === '') $name = 'Untitled project';
         $columns = self::sanitize_columns($columns ?: self::DEFAULT_COLUMNS);
+        $scene = sanitize_text_field((string) $scene);
 
         // crm_person_id is still written for anyone reading the raw
         // table directly, but it's no longer the source of truth for
@@ -400,6 +489,7 @@ class BHCRM_Projects {
             'name'           => $name,
             'crm_person_id'  => (int) $person_id,
             'columns_config' => wp_json_encode($columns),
+            'scene'          => $scene,
             'updated_at'     => current_time('mysql'),
         ]);
         if (!$ok) return false;
@@ -417,6 +507,136 @@ class BHCRM_Projects {
             'columns_config' => wp_json_encode($columns),
             'updated_at'     => current_time('mysql'),
         ], ['id' => (int) $id]);
+    }
+
+    public static function update_scene($id, $scene) {
+        global $wpdb;
+        return (bool) $wpdb->update(self::table(), [
+            'scene'      => sanitize_text_field((string) $scene),
+            'updated_at' => current_time('mysql'),
+        ], ['id' => (int) $id]);
+    }
+
+    // Every distinct, non-empty scene currently in use — feeds a
+    // <datalist> suggestion list on the create/edit forms, same
+    // "freeform text with autocomplete over existing values" posture
+    // class-tags.php's all_in_use() already established for tags,
+    // rather than a fixed enum anywhere.
+    public static function distinct_scenes() {
+        global $wpdb;
+        $scenes = $wpdb->get_col('SELECT DISTINCT scene FROM ' . self::table() . " WHERE scene != '' ORDER BY scene ASC");
+        return array_map('strval', $scenes);
+    }
+
+    /* =================================================================
+     * Phase C — stall analytics (PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md)
+     * ================================================================= */
+
+    // Reacts to ANY placement save (own-ur-shit's generic
+    // 'bhcore_element_placement_saved' hook), not just bh-crm's own —
+    // scoped to bh/sticky-card placements on the 'bhcrm_project_board'
+    // surface specifically, a no-op for every other surface/element
+    // type this hook also fires for (bh_crm_profile's own placements,
+    // Design Suite pages, etc.). Logs a move on real column changes,
+    // AND on a card's very first save (no $old_row at all) — the
+    // initial column is itself a "move" for time-in-column purposes
+    // (without it, a never-since-moved card would have no baseline row
+    // to measure "days since" against).
+    public static function on_placement_saved($id, $data, $old_row) {
+        if (($data['surface'] ?? '') !== 'bhcrm_project_board') return;
+        if (($data['element_type'] ?? '') !== 'bh/sticky-card') return;
+
+        $new_config = json_decode((string) ($data['config'] ?? ''), true);
+        $new_column = is_array($new_config) ? (string) ($new_config['attrs']['column'] ?? '') : '';
+
+        if ($old_row === null) {
+            self::log_card_move((int) $id, $new_column);
+            return;
+        }
+
+        $old_config = json_decode((string) ($old_row['config'] ?? ''), true);
+        $old_column = is_array($old_config) ? (string) ($old_config['attrs']['column'] ?? '') : '';
+        if ($old_column !== $new_column) {
+            self::log_card_move((int) $id, $new_column);
+        }
+    }
+
+    public static function log_card_move($card_placement_id, $column) {
+        global $wpdb;
+        $wpdb->insert(self::moves_table(), [
+            'card_placement_id' => (int) $card_placement_id,
+            'column_label'      => sanitize_text_field((string) $column),
+        ]);
+    }
+
+    // {placement_id => days_since_last_move} for every card on this
+    // board whose most recent logged move is at least STALL_DAYS ago —
+    // a card with NO move rows at all (shouldn't normally happen once
+    // Phase C is live, but a pre-existing card from before this
+    // feature shipped would have none) is excluded rather than treated
+    // as infinitely stalled, since "we genuinely don't know" and
+    // "definitely stalled" are different claims.
+    public static function stalled_cards_for_board($project_id) {
+        global $wpdb;
+        if (!class_exists('BH_Element')) return [];
+        $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
+        if (!$card_ids) return [];
+
+        $ids_sql = implode(',', $card_ids);
+        // One row per card: its own most recent entered_at.
+        $rows = $wpdb->get_results(
+            "SELECT card_placement_id, MAX(entered_at) AS last_moved_at FROM " . self::moves_table() . "
+             WHERE card_placement_id IN ($ids_sql) GROUP BY card_placement_id",
+            ARRAY_A
+        );
+
+        $now = current_time('timestamp');
+        $out = [];
+        foreach ($rows as $row) {
+            $days = (int) floor(($now - strtotime($row['last_moved_at'])) / DAY_IN_SECONDS);
+            if ($days >= self::STALL_DAYS) $out[(int) $row['card_placement_id']] = $days;
+        }
+        return $out;
+    }
+
+    // Average real time-in-column (hours) across every COMPLETED
+    // column stay for this board — i.e. every move row that has a
+    // later move row after it for the same card. A card's CURRENT
+    // (most recent) stay is deliberately excluded: it hasn't ended yet,
+    // so counting it would understate real time-in-column for
+    // whichever column things currently pile up in.
+    public static function average_hours_per_column($project_id) {
+        global $wpdb;
+        if (!class_exists('BH_Element')) return [];
+        $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
+        if (!$card_ids) return [];
+        $ids_sql = implode(',', $card_ids);
+
+        $rows = $wpdb->get_results(
+            "SELECT card_placement_id, column_label, entered_at FROM " . self::moves_table() . "
+             WHERE card_placement_id IN ($ids_sql) ORDER BY card_placement_id ASC, entered_at ASC",
+            ARRAY_A
+        );
+
+        $by_card = [];
+        foreach ($rows as $row) $by_card[(int) $row['card_placement_id']][] = $row;
+
+        $totals = []; // column_label => ['hours' => sum, 'count' => n]
+        foreach ($by_card as $moves) {
+            for ($i = 0; $i < count($moves) - 1; $i++) {
+                $col = $moves[$i]['column_label'];
+                $hours = (strtotime($moves[$i + 1]['entered_at']) - strtotime($moves[$i]['entered_at'])) / HOUR_IN_SECONDS;
+                if (!isset($totals[$col])) $totals[$col] = ['hours' => 0.0, 'count' => 0];
+                $totals[$col]['hours'] += $hours;
+                $totals[$col]['count']++;
+            }
+        }
+
+        $out = [];
+        foreach ($totals as $col => $t) {
+            $out[$col] = round($t['hours'] / $t['count'], 1);
+        }
+        return $out;
     }
 
     private static function sanitize_columns(array $columns) {
@@ -520,7 +740,7 @@ class BHCRM_Projects {
                         // so the bar markup is duplicated inline here
                         // rather than shared, matching this render
                         // callback's existing self-contained style.
-                        $pct = (int) round(($done_count / $total) * 100);
+                        $pct = self::progress_percent($done_count, $total);
                         $rollup_html = '<div class="bhcrm-sticky-card-rollup">'
                             . '<div class="bhcrm-progress-bar-track" style="height:5px;background:#dcdcde;border-radius:999px;overflow:hidden;margin-bottom:2px;">'
                             . '<div class="bhcrm-progress-bar-fill' . ($pct >= 100 ? ' is-complete' : '') . '" style="height:100%;width:' . $pct . '%;background:' . ($pct >= 100 ? '#00a32a' : '#2271b1') . ';"></div>'
@@ -588,6 +808,19 @@ class BHCRM_Projects {
      *
      * @return array{0:int,1:int} [$done_count, $total_count]
      */
+    // Audit fix (2026-07-25): $done_count/$total_count -> percent was
+    // duplicated between this file's own bh/sticky-card render callback
+    // and BHCRM_Subtasks::render_progress_bar() — sharing THIS
+    // calculation (pure logic, zero coupling) rather than the actual
+    // HTML/CSS markup, which is deliberately NOT shared between them
+    // (see the render callback's own comment: sticky-card is a portable
+    // BH_Element widget that can render anywhere, including contexts
+    // where kanban-board.css isn't loaded, so it uses fully inline
+    // styles rather than depending on that admin-only stylesheet).
+    public static function progress_percent($done, $total) {
+        return $total > 0 ? (int) round(($done / $total) * 100) : 0;
+    }
+
     public static function rollup_counts(array $tree) {
         $done = 0;
         $total = 0;
@@ -666,7 +899,8 @@ class BHCRM_Projects {
 
         $uid = (int) ($_POST['user_id'] ?? 0);
         $name = sanitize_text_field(wp_unslash($_POST['project_name'] ?? ''));
-        $id = self::create($name, $uid);
+        $scene = sanitize_text_field(wp_unslash($_POST['project_scene'] ?? ''));
+        $id = self::create($name, $uid, [], $scene);
 
         $msg = $id ? "Created project #$id." : 'Failed to create project.';
         // QA fix: redirect straight to the new project's own board
@@ -693,6 +927,19 @@ class BHCRM_Projects {
         self::update_columns($project_id, $columns);
 
         wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Columns updated.'], admin_url('admin.php')));
+        exit;
+    }
+
+    public static function handle_save_scene() {
+        // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
+        if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
+        $project_id = (int) ($_POST['project_id'] ?? 0);
+        if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_scene_' . $project_id)) wp_die('Bad nonce.');
+
+        $uid = (int) ($_POST['user_id'] ?? 0);
+        self::update_scene($project_id, wp_unslash($_POST['scene'] ?? ''));
+
+        wp_safe_redirect(add_query_arg(['page' => 'bh-crm', 'user_id' => $uid, 'project_id' => $project_id, 'bhcrm_msg' => 'Scene updated.'], admin_url('admin.php')));
         exit;
     }
 
@@ -750,6 +997,24 @@ class BHCRM_Projects {
         echo '<p class="description">One column label per line, in the order they should appear on the board.</p>';
         echo '<textarea name="columns" rows="5" style="width:300px;">' . esc_textarea(implode("\n", $project['columns_config'])) . '</textarea><br>';
         echo '<button class="button">Save columns</button>';
+        echo '</form></details>';
+
+        echo '<details style="margin-bottom:14px;"><summary style="cursor:pointer;">Edit scene</summary>';
+        $scene_nonce = wp_create_nonce('bhcrm_project_scene_' . $project_id);
+        $scene_suggestions = self::distinct_scenes();
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
+        echo '<input type="hidden" name="action" value="bhcrm_project_save_scene">';
+        echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
+        echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
+        echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($scene_nonce) . '">';
+        echo '<p class="description">Purely organizational — groups this project under a heading on the Project Tracker index. Leave blank for "Unsorted".</p>';
+        echo '<input type="text" name="scene" list="bhcrm-scene-suggestions" value="' . esc_attr($project['scene']) . '" style="width:220px;"><br>';
+        if ($scene_suggestions) {
+            echo '<datalist id="bhcrm-scene-suggestions">';
+            foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
+            echo '</datalist>';
+        }
+        echo '<button class="button">Save scene</button>';
         echo '</form></details>';
 
         echo '<noscript><p class="description">The kanban board requires JavaScript.</p></noscript>';
@@ -865,6 +1130,7 @@ class BHCRM_Projects {
             // a separate namespace from the generic BH_Element bridge
             // above, same wp_rest cookie-nonce.
             'rollupsUrl' => esc_url_raw(rest_url('bh-crm/v1/rollups')),
+            'stalledCardsUrl' => esc_url_raw(rest_url('bh-crm/v1/stalled-cards')),
             'studioUrl'  => esc_url_raw(admin_url('admin.php?page=bh-studio')),
             'nonce'      => wp_create_nonce('wp_rest'),
             'surface'    => 'bhcrm_project_board',

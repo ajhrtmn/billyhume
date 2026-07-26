@@ -177,6 +177,11 @@ class BHPlayer {
                 </div>
 
                 <div class="bh-category-tabs" style="display:none;"></div>
+                <!-- Audit fix (2026-07-25): a voter previously had no
+                     persistent way to see votes remaining in the active
+                     category — only a post-vote toast that disappeared.
+                     See renderVotesRemaining(). -->
+                <div class="bh-votes-remaining" style="display:none;"></div>
 
                 <!-- Task #80 follow-up, safe slice #2: a genuinely new,
                      empty zone above the tracklist that no lookup
@@ -768,6 +773,13 @@ class BHPlayer {
         }
         this.renderCategoryTabs();
 
+        // Audit fix (2026-07-25): votes_remaining/vote_limit come back
+        // from /tracks now specifically so this counter has real data
+        // from page load, not only after casting a first vote.
+        this.voteLimit = body.vote_limit ?? null;
+        this.votesRemaining = body.votes_remaining || {};
+        this.renderVotesRemaining();
+
         this.contactFields = body.contact_fields || {
             show: CONTACT_FIELD_KEYS,
             require_real_name: true, require_handle: true, require_phone: false,
@@ -833,6 +845,24 @@ class BHPlayer {
         this.activeCategory = slug;
         this.renderCategoryTabs();
         this.renderTrackRows();
+        this.renderVotesRemaining();
+    }
+
+    // Audit fix (2026-07-25): persistent votes-remaining indicator for
+    // the active category — voteLimit/votesRemaining are populated from
+    // loadTracks() (page load) and kept current from castVote()'s own
+    // response after every cast, so this never needs its own round trip.
+    renderVotesRemaining() {
+        const el = this.q('.bh-votes-remaining');
+        if (!el) return;
+        const cat = this.activeCategory || '';
+        const left = this.votesRemaining ? this.votesRemaining[cat] : undefined;
+        if (left === undefined || this.voteLimit === null) { el.style.display = 'none'; return; }
+        el.style.display = '';
+        el.textContent = left > 0
+            ? `${left} vote${left === 1 ? '' : 's'} left${this.voteLimit ? ` of ${this.voteLimit}` : ''}`
+            : 'No votes left in this category';
+        el.classList.toggle('bh-votes-remaining--empty', left <= 0);
     }
 
     activeCategoryName() {
@@ -936,6 +966,16 @@ class BHPlayer {
         } else {
             this.toast(body.message || 'Could not record your vote.', true);
         }
+        // Audit fix (2026-07-25): both the added/removed branches above
+        // already return votes_left/limit — keep the persistent counter
+        // in sync with the same response instead of only showing it in
+        // the transient toast.
+        if (ok && body.votes_left !== undefined) {
+            this.votesRemaining = this.votesRemaining || {};
+            this.votesRemaining[this.activeCategory] = body.votes_left;
+            if (body.limit !== undefined) this.voteLimit = body.limit;
+            this.renderVotesRemaining();
+        }
         if (btn) btn.disabled = false;
     }
 
@@ -976,21 +1016,29 @@ class BHPlayer {
             </li>`).join('')}</ol>`;
     }
 
-    // Every category's results flattened into one list, re-ranked by vote
-    // count across the whole contest, with a colored category badge per
-    // row (matching the tab colors) so it reads as "all of it in one
-    // place" rather than a confusing mash-up.
+    // Every category's results flattened into one list, re-ranked, with a
+    // colored category badge per row (matching the tab colors) so it
+    // reads as "all of it in one place" rather than a confusing mash-up.
     //
-    // Known gap: only ever reads `.results`, so a judges/hybrid contest
-    // with 2+ categories would mislabel scores as "votes" here and
-    // never show judge_results in the "All" tab. Not yet fixed.
+    // Audit fix (2026-07-25): this used to always sum/label rows as
+    // "votes," which was wrong for a 'judges'-format contest (`.results`
+    // there IS the rubric score, per renderResultsBody()'s own comment
+    // above). Now uses the same contest-wide unit renderResultsBody()
+    // already derives from this._resultsFormat. For 'hybrid' contests
+    // this still flattens each category's People's Choice (.results) —
+    // real vote counts — not judge_results, matching how the single-
+    // category active-tab view already keeps "Judges' Pick" and
+    // "People's Choice" as two separate lists rather than blending
+    // mismatched scales (a % score and a raw vote count) into one
+    // ranked list.
     renderAllResultsList(cats) {
+        const unit = this._resultsFormat === 'judges' ? 'score' : 'votes';
         const rows = [];
         cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
         rows.sort((a, b) => b.votes - a.votes);
         rows.forEach((r, i) => { r.rank = i + 1; });
         const top = rows.slice(0, 20);
-        if (!top.length) return '<p class="bh-results-empty">No votes have been cast yet.</p>';
+        if (!top.length) return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
 
         const medals = ['🥇', '🥈', '🥉'];
         return `<ol class="bh-results-list">${top.map(r => `
@@ -1001,7 +1049,7 @@ class BHPlayer {
                     <span class="bh-results-artist">${this.esc(r.artist)}</span>
                 </span>
                 <span class="bh-results-cat" style="--bh-cat-color:${this.catColor(r.categorySlug)}">${this.esc(r.categoryName)}</span>
-                <span class="bh-results-votes">${r.votes} vote${r.votes === 1 ? '' : 's'}</span>
+                <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
 

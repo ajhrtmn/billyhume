@@ -39,8 +39,9 @@ class BH_Identity {
     // else hooking 'init' at normal priority (BH_Event consumers, etc).
     public static function maybe_issue_cookie() {
         if (is_admin() || wp_doing_ajax() || wp_doing_cron()) return;
-        if (!empty($_COOKIE[self::COOKIE])) {
-            self::$client_id = sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE]));
+        $existing = self::cookie_value();
+        if ($existing !== '') {
+            self::$client_id = $existing;
             return;
         }
         if (headers_sent()) return;
@@ -62,10 +63,15 @@ class BH_Identity {
     // never goes through the front-end 'init' flow in the same way).
     public static function client_id() {
         if (self::$client_id !== null) return self::$client_id;
-        if (!empty($_COOKIE[self::COOKIE])) {
-            return sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE]));
-        }
-        return '';
+        return self::cookie_value();
+    }
+
+    // Audit fix (2026-07-25): the read+sanitize idiom below was
+    // duplicated between maybe_issue_cookie() and client_id() — one
+    // shared helper instead.
+    private static function cookie_value() {
+        if (empty($_COOKIE[self::COOKIE])) return '';
+        return sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE]));
     }
 
     /* ---------------- stitching ---------------- */
@@ -105,8 +111,11 @@ class BH_Identity {
     public static function client_ids_for_user($user_id) {
         $user_id = (int) $user_id;
         if (!$user_id) return [];
+        if (!class_exists('BH_Event')) return [];
         global $wpdb;
-        $table = $wpdb->prefix . 'bhcore_events';
+        // BH_Event::table() (audit fix, 2026-07-25) — was hardcoded here,
+        // duplicating schema knowledge BH_Event already owns.
+        $table = BH_Event::table();
         $ids = $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT client_id FROM {$table} WHERE user_id = %d AND client_id != ''",
             $user_id

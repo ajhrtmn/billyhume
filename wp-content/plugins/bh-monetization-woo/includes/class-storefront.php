@@ -112,37 +112,62 @@ class BHM_Storefront {
     // the block comment + attributes, never baked HTML — same "live
     // WooCommerce data on every request" posture as the BH_Content
     // registration.
+    // Audit fix (2026-07-25): the three attribute schemas below were
+    // hand-duplicated between here (WP-core 'boolean'/'integer' type
+    // names) and register_content_block_types() below (BH_Content's own
+    // 'bool'/'int' shorthand) — same field names/defaults, just spelled
+    // per-system. BLOCK_SCHEMAS is the one place a field/default now
+    // lives; both registration methods derive their own type-name
+    // format from it via core_attributes()/content_attributes().
+    const BLOCK_SCHEMAS = [
+        'bhm/product-grid' => [
+            'collection'  => ['type' => 'string', 'default' => ''],
+            'category'    => ['type' => 'string', 'default' => ''],
+            'columns'     => ['type' => 'int', 'default' => 4],
+            'limit'       => ['type' => 'int', 'default' => 12],
+            'showFilters' => ['type' => 'bool', 'default' => false],
+        ],
+        'bhm/product-filter' => [
+            'showPrice'    => ['type' => 'bool', 'default' => true],
+            'showCategory' => ['type' => 'bool', 'default' => true],
+            'showStock'    => ['type' => 'bool', 'default' => true],
+        ],
+        'bhm/related-products' => [
+            'productId' => ['type' => 'int', 'default' => 0],
+            'limit'     => ['type' => 'int', 'default' => 8],
+            'heading'   => ['type' => 'string', 'default' => 'You may also like'],
+        ],
+    ];
+
+    // BH_Content's own shorthand type names ('int'/'bool') -> WP core
+    // block.json type names ('integer'/'boolean'); anything else
+    // (currently just 'string') already matches both systems as-is.
+    private static function core_attributes($schema) {
+        $map = ['int' => 'integer', 'bool' => 'boolean'];
+        $out = [];
+        foreach ($schema as $key => $def) {
+            $out[$key] = ['type' => $map[$def['type']] ?? $def['type'], 'default' => $def['default']];
+        }
+        return $out;
+    }
+
     public static function register_core_blocks() {
         if (!function_exists('register_block_type')) return;
         register_block_type('bhm/product-grid', [
             'api_version' => 3,
             'render_callback' => [self::class, 'render_product_grid_block'],
-            'attributes' => [
-                'collection' => ['type' => 'string', 'default' => ''],
-                'category'   => ['type' => 'string', 'default' => ''],
-                'columns'    => ['type' => 'integer', 'default' => 4],
-                'limit'      => ['type' => 'integer', 'default' => 12],
-                'showFilters' => ['type' => 'boolean', 'default' => false],
-            ],
+            'attributes' => self::core_attributes(self::BLOCK_SCHEMAS['bhm/product-grid']),
         ]);
         register_block_type('bhm/product-filter', [
             'api_version' => 3,
             'render_callback' => [self::class, 'render_product_filter_block'],
-            'attributes' => [
-                'showPrice' => ['type' => 'boolean', 'default' => true],
-                'showCategory' => ['type' => 'boolean', 'default' => true],
-                'showStock' => ['type' => 'boolean', 'default' => true],
-            ],
+            'attributes' => self::core_attributes(self::BLOCK_SCHEMAS['bhm/product-filter']),
         ]);
         if (class_exists('BHM_Recommendations')) {
             register_block_type('bhm/related-products', [
                 'api_version' => 3,
                 'render_callback' => ['BHM_Recommendations', 'render_related_products_block_public'],
-                'attributes' => [
-                    'productId' => ['type' => 'integer', 'default' => 0],
-                    'limit' => ['type' => 'integer', 'default' => 8],
-                    'heading' => ['type' => 'string', 'default' => 'You may also like'],
-                ],
+                'attributes' => self::core_attributes(self::BLOCK_SCHEMAS['bhm/related-products']),
             ]);
         }
     }
@@ -154,11 +179,26 @@ class BHM_Storefront {
     // real post_content. The client registration file itself already
     // guards on wp.blocks/wp.element/etc. existing, so enqueuing it
     // broadly is safe.
+    // Audit fix (2026-07-25): this used to register the SAME file
+    // (storefront-studio-blocks.js) under two different handles —
+    // 'bhm-storefront-studio-blocks-core' here and
+    // 'bhm-storefront-studio-blocks' in maybe_enqueue_studio_blocks()
+    // below — with two different dependency lists, for no reason other
+    // than the two call sites having different gating conditions. One
+    // shared handle now (self::STUDIO_BLOCKS_HANDLE); if the 'bh-studio'
+    // script happens to already be registered when this fires (broad
+    // "every block editor screen" call site, not just the Studio canvas
+    // one), it's included as a dependency too — harmless either way,
+    // since Studio's own JS already no-ops without its canvas markup.
+    const STUDIO_BLOCKS_HANDLE = 'bhm-storefront-studio-blocks';
+
     public static function enqueue_editor_blocks() {
+        $deps = ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor'];
+        if (wp_script_is('bh-studio', 'registered')) $deps[] = 'bh-studio';
         wp_enqueue_script(
-            'bhm-storefront-studio-blocks-core',
+            self::STUDIO_BLOCKS_HANDLE,
             BHM_URL . 'assets/js/storefront-studio-blocks.js',
-            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor'],
+            $deps,
             defined('BHM_VER') ? BHM_VER : null,
             true
         );
@@ -200,58 +240,21 @@ class BHM_Storefront {
     // near-identical unfixed instance during a broader logging/error-
     // handling audit, not from a live report on THIS specific rule — so
     // treat it as preventative, not confirmed-broken.
+    // Audit fix (2026-07-25): this self-heal algorithm (persistence
+    // check/throttle/flush/log) is now shared via BHY_RewriteHealer
+    // (own-ur-shit/includes/class-rewrite-healer.php) instead of a
+    // hand-synced copy of BHI_Portal's own version — that extraction
+    // also fixed a real latent bug this copy had fallen behind on: the
+    // old force_flush_and_verify() below called wp_cache_flush()
+    // unconditionally on every attempt, the exact pattern Portal's own
+    // history already identified as risky (see BHY_RewriteHealer's own
+    // docblock for the full story). This is now escalation-only, same
+    // as Portal.
     public static function add_rewrite() {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
-        if (self::rewrite_rule_persisted()) {
-            if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log_throttled('info', 'storefront_rewrite_pass', 300,
-                    'Storefront collection rewrite-rule persistence check ran and confirmed the rule is present.', [], 'BH Storefront'
-                );
-            }
-        } elseif (self::not_recently_attempted()) {
-            self::force_flush_and_verify();
-        } elseif (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log_throttled('warning', 'storefront_rewrite_missing_throttled', 300,
-                'Storefront collection rewrite rule confirmed missing this request, but a self-heal attempt was made recently — sitting out the throttle window.', [], 'BH Storefront'
-            );
-        }
-    }
-
-    private static function rewrite_rule_persisted() {
-        global $wpdb;
-        $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'rewrite_rules'));
-        if (!$raw) return false;
-        return strpos($raw, '^' . self::REWRITE_SLUG) !== false;
-    }
-
-    private static function not_recently_attempted() {
-        global $wpdb;
-        $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'bhm_storefront_rewrite_last_attempt'));
-        if ($last && (time() - (int) $last) < self::VERIFY_THROTTLE_SECONDS) return false;
-        $wpdb->query($wpdb->prepare(
-            "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')
-             ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
-            'bhm_storefront_rewrite_last_attempt', (string) time()
-        ));
-        wp_cache_delete('bhm_storefront_rewrite_last_attempt', 'options');
-        wp_cache_delete('alloptions', 'options');
-        return true;
-    }
-
-    private static function force_flush_and_verify() {
-        flush_rewrite_rules();
-        wp_cache_delete('rewrite_rules', 'options');
-        wp_cache_delete('alloptions', 'options');
-        if (function_exists('wp_cache_flush')) wp_cache_flush();
-
-        if (self::rewrite_rule_persisted()) {
-            update_option('bhm_storefront_rewrite_flushed', self::REWRITE_VERSION);
-            if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('info', 'Storefront collection rewrite rule self-healed and confirmed persisted.', [], 'BH Storefront');
-            }
-        } elseif (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('warning', 'Storefront collection rewrite rule still not persisted after a forced flush + full cache eviction — likely cause is outside WordPress\'s own caching layer.', [], 'BH Storefront');
+        if (class_exists('BHY_RewriteHealer')) {
+            BHY_RewriteHealer::maybe_heal('^' . self::REWRITE_SLUG, 'bhm_storefront_rewrite_last_attempt', 'BH Storefront', self::VERIFY_THROTTLE_SECONDS);
         }
     }
 
@@ -312,26 +315,11 @@ class BHM_Storefront {
     /* ---------------- BH_Content block registration (server render) ---------------- */
 
     private static function register_content_block_types() {
-        BH_Content::register_block_type('bhm/product-grid', [
-            'collection' => ['type' => 'string', 'default' => ''],
-            'category'   => ['type' => 'string', 'default' => ''],
-            'columns'    => ['type' => 'int', 'default' => 4],
-            'limit'      => ['type' => 'int', 'default' => 12],
-            'showFilters' => ['type' => 'bool', 'default' => false],
-        ], [self::class, 'render_product_grid_block']);
-
-        BH_Content::register_block_type('bhm/product-filter', [
-            'showPrice' => ['type' => 'bool', 'default' => true],
-            'showCategory' => ['type' => 'bool', 'default' => true],
-            'showStock' => ['type' => 'bool', 'default' => true],
-        ], [self::class, 'render_product_filter_block']);
+        BH_Content::register_block_type('bhm/product-grid', self::BLOCK_SCHEMAS['bhm/product-grid'], [self::class, 'render_product_grid_block']);
+        BH_Content::register_block_type('bhm/product-filter', self::BLOCK_SCHEMAS['bhm/product-filter'], [self::class, 'render_product_filter_block']);
 
         if (class_exists('BHM_Recommendations')) {
-            BH_Content::register_block_type('bhm/related-products', [
-                'productId' => ['type' => 'int', 'default' => 0],
-                'limit' => ['type' => 'int', 'default' => 8],
-                'heading' => ['type' => 'string', 'default' => 'You may also like'],
-            ], ['BHM_Recommendations', 'render_related_products_block_public']);
+            BH_Content::register_block_type('bhm/related-products', self::BLOCK_SCHEMAS['bhm/related-products'], ['BHM_Recommendations', 'render_related_products_block_public']);
         }
     }
 
@@ -339,12 +327,21 @@ class BHM_Storefront {
      * A dynamic block's real renderer — queries live WooCommerce data on
      * every request rather than baking a product list into the stored
      * block tree, the same reason Gutenberg core's own "Latest Posts"
-     * block works this way. $attrs here always has every schema key
-     * filled (BH_Content::validate()'s coercion guarantees that), so no
-     * isset() guarding is needed for any of them.
+     * block works this way.
+     *
+     * Audit fix (2026-07-25): the previous version of this comment
+     * claimed "$attrs here always has every schema key filled... so no
+     * isset()/empty() guarding is needed" — that's only true for the
+     * one caller that goes through BH_Content::validate() (the block-
+     * render path). This method is ALSO called directly with hand-built
+     * arrays from maybe_render_collection() and (for the filter block)
+     * render_related_products_block(), neither of which validates first
+     * — the defensive max(1,min(...))/!empty() guards below are real and
+     * load-bearing for those two callers, not leftover caution to be
+     * removed on a future cleanup pass.
      */
     public static function render_product_grid_block($attrs) {
-        if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
+        if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
             return '<p class="description">WooCommerce isn\'t active — nothing to show here yet.</p>';
         }
 
@@ -467,7 +464,7 @@ class BHM_Storefront {
     }
 
     public static function rest_query_products(\WP_REST_Request $req) {
-        if (!class_exists('WooCommerce') || !function_exists('wc_get_products')) {
+        if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
             return new \WP_Error('bhm_storefront_no_woocommerce', 'WooCommerce is unavailable.', ['status' => 500]);
         }
         $is_filtered = $req->get_param('min_price') !== null || $req->get_param('max_price') !== null || (bool) $req->get_param('in_stock');
@@ -500,8 +497,15 @@ class BHM_Storefront {
     public static function maybe_enqueue_studio_blocks($hook) {
         if (strpos($hook, 'bh-studio') === false) return;
         if (!wp_script_is('bh-studio', 'enqueued') && !wp_script_is('bh-studio', 'registered')) return; // BH_Studio itself isn't active/loaded
+        if (wp_script_is(self::STUDIO_BLOCKS_HANDLE, 'registered')) {
+            wp_enqueue_script(self::STUDIO_BLOCKS_HANDLE);
+            return;
+        }
+        // Not yet registered by enqueue_editor_blocks() on this request
+        // (shouldn't normally happen on a real block-editor screen, but
+        // guards the ordering assumption rather than fataling if it did).
         wp_enqueue_script(
-            'bhm-storefront-studio-blocks',
+            self::STUDIO_BLOCKS_HANDLE,
             BHM_URL . 'assets/js/storefront-studio-blocks.js',
             ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'bh-studio'],
             defined('BHM_VER') ? BHM_VER : null,

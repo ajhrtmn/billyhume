@@ -179,6 +179,15 @@ class BHS_API {
                 'synced' => $access_allowed ? ($lrc ?: null) : null,
                 'plain'  => $access_allowed ? ($plain ?: null) : null,
             ],
+            // Long-form audio Phase 1 (ROADMAP-streaming-media-scope-
+            // and-blockchain.md Part 5) — chapter markers are an
+            // artist-authored JSON array of {time, label} on the track
+            // itself (BHS_Chapters::get()), and resumeSeconds is this
+            // specific listener's own last-played position (never
+            // another user's), so a logged-out visitor simply always
+            // gets 0/no markers rather than a fatal on a missing user.
+            'chapters' => $access_allowed && class_exists('BHS_Chapters') ? BHS_Chapters::get($post->ID) : [],
+            'resumeSeconds' => $access_allowed && is_user_logged_in() && class_exists('BHS_Chapters') ? BHS_Chapters::resume_position($post->ID, get_current_user_id()) : 0,
         ];
     }
 

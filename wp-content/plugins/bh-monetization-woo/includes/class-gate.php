@@ -170,10 +170,34 @@ class BHM_Gate {
     // this plugin's own documented one-time-tier period (see
     // class-tiers.php's docblock), not a general subscription-billing
     // assumption.
+    // Audit fix (2026-07-25): this divisor and BHM_Entitlements' own
+    // strtotime('+30 days') grant-expiry literals were three independent
+    // copies of the same "one-time tier = 30 days" assumption, with
+    // nothing stopping them silently diverging (e.g. someone updating
+    // the grant period without knowing this proration math needs the
+    // same number) — a real invisible-coupling risk on actual wallet
+    // money. One constant, referenced everywhere the assumption is used.
+    const FALLBACK_ACCESS_DAYS = 30;
+
     public static function calculate_downgrade_credit_cents($old_tier_price_cents, $days_remaining) {
         if ($old_tier_price_cents <= 0 || $days_remaining <= 0) return 0;
-        $daily_rate_cents = $old_tier_price_cents / 30;
+        $daily_rate_cents = $old_tier_price_cents / self::FALLBACK_ACCESS_DAYS;
         return (int) round($daily_rate_cents * $days_remaining);
+    }
+
+    // Audit fix (2026-07-25): extracted out of class-frontend.php's
+    // render_tiers() — the one fan-facing money number in this plugin
+    // that wasn't independently testable before this, unlike this same
+    // class's calculate_downgrade_credit_cents() above. Pure function,
+    // same "no DB, no WordPress calls" shape. Only ever shown when it's a
+    // genuine discount (annual < 12x monthly) — never a misleading "0%"
+    // or negative number if an admin priced annual at or above the
+    // monthly-times-12 cost.
+    public static function annual_savings_percent($monthly_price_cents, $annual_price_cents) {
+        $full_year_at_monthly_rate = $monthly_price_cents * 12;
+        if ($full_year_at_monthly_rate <= 0) return 0;
+        $percent = round((1 - ($annual_price_cents / $full_year_at_monthly_rate)) * 100);
+        return max(0, (int) $percent);
     }
 
     public static function handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $expires_at) {
@@ -182,7 +206,7 @@ class BHM_Gate {
         // class_exists('WC_Subscriptions_Switcher') check underneath,
         // just no longer spelled out in a plugin file (see
         // class-commerce.php's docblock for the full migration history).
-        $has_switching = class_exists('BH_Commerce') ? BH_Commerce::has_subscription_switching() : class_exists('WC_Subscriptions_Switcher');
+        $has_switching = BH_Commerce::has_subscription_switching();
         if ($has_switching) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('info', 'Tier downgrade deferred to WooCommerce Subscriptions\' own switch/proration handling.', ['user_id' => $user_id, 'old_tier_id' => $old_tier_id, 'new_tier_id' => $new_tier_id], 'BH Monetization');

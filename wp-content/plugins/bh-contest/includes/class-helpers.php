@@ -389,7 +389,7 @@ class BH_Helpers {
     // has_submitted(), but it must NOT earn the bonus vote — otherwise
     // anyone could submit junk, get the bonus instantly, and vote with
     // it before an admin ever reviews the track. Only a post_status of
-    // 'publish' (i.e. actually approved — see class-admin.php) counts
+    // 'publish' (i.e. actually approved — see BH_AdminModeration in class-admin-moderation.php) counts
     // here.
     public static function has_approved_submission($uid, $cid) {
         $q = new WP_Query([

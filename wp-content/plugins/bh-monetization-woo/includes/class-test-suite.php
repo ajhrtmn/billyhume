@@ -57,6 +57,25 @@ class BHM_TestSuite {
             'Negative days remaining (already expired) credits nothing, never a negative wallet debit'
         );
 
+        /* ---------- annual_savings_percent() (audit fix, 2026-07-25) ---------- */
+
+        $rows[] = OUS_TestRunner::assert_same(
+            17, BHM_Gate::annual_savings_percent(1000, 10000),
+            '$10/mo tier priced at $100/yr (vs. $120/yr at monthly rate) is a real 17% savings'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(1000, 12000),
+            'Annual priced exactly at monthly-times-12 is 0% savings, not a rounding artifact'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(1000, 15000),
+            'Annual priced ABOVE monthly-times-12 never shows a misleading negative percent'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(0, 0),
+            'A free tier never divides by zero'
+        );
+
         /* ---------- benefit_registry() exact contents ---------- */
 
         $registry = BHM_Tiers::benefit_registry();
@@ -170,6 +189,16 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_tier_exclusivity_tests());
         }
 
+        // Referral/affiliate tracking (ecosystem depth-pass Tier 2) —
+        // exercises the real order-completion path end to end (a real
+        // WC_Coupon, a real WC_Order, real wallet crediting), rather than
+        // a mock of any of it, same "exercise the real thing" posture as
+        // the wallet/tier-exclusivity suites above. Needs WooCommerce
+        // actually active (creates a real product/order/coupon).
+        if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && BH_Commerce::available()) {
+            $rows = array_merge($rows, self::run_referral_tests());
+        }
+
         return $rows;
     }
 
@@ -196,12 +225,12 @@ class BHM_TestSuite {
         $grant->setAccessible(true);
 
         // Grant the cheap tier first — a plain, uncontested grant.
-        $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
         $count_after_first = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, $count_after_first, 'Granting a first tier leaves exactly one active entitlement row');
 
         // Grant a DIFFERENT (pricier) tier — must replace, not stack.
-        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000002, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000002, null, gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
         $rows_after_switch = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, count($rows_after_switch), 'Granting a DIFFERENT tier replaces the old one — never two simultaneous active tiers');
         $rows[] = OUS_TestRunner::assert_same((string) $pricey_tier, (string) ($rows_after_switch[0]->object_id ?? null), 'After switching tiers, the ONE remaining row is the newly-granted tier, not the old one');
@@ -268,6 +297,84 @@ class BHM_TestSuite {
         // uses, not re-implemented here.
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        return $rows;
+    }
+
+    private static function run_referral_tests() {
+        $rows = [];
+        global $wpdb;
+
+        $referrer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_referrer', false);
+        $customer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_customer', false);
+        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+
+        /* ---------- calculate_commission_cents() — pure ---------- */
+        $rows[] = OUS_TestRunner::assert_same(1000, BHM_Referrals::calculate_commission_cents(100), 'A $100.00 order at the default 10% commission credits exactly $10.00 (1000 cents)');
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Referrals::calculate_commission_cents(0), 'A $0 order credits nothing');
+
+        /* ---------- get_or_create_code() ---------- */
+        $code = BHM_Referrals::get_or_create_code($referrer_id);
+        $rows[] = OUS_TestRunner::assert_true((bool) preg_match('/^[A-Z0-9]{6}$/', $code), 'get_or_create_code() returns a 6-char uppercase alphanumeric code');
+        $again = BHM_Referrals::get_or_create_code($referrer_id);
+        $rows[] = OUS_TestRunner::assert_same($code, $again, 'Calling get_or_create_code() again for the same user returns the SAME code, not a new one');
+        $coupon_id = wc_get_coupon_id_by_code($code);
+        $rows[] = OUS_TestRunner::assert_true($coupon_id > 0, 'A real WC_Coupon exists for the generated code');
+
+        /* ---------- end-to-end: a real order using the code ---------- */
+        $product = new WC_Product_Simple();
+        $product->set_name('Referral Suite Test Product');
+        $product->set_regular_price('100');
+        $product->save();
+
+        $order = wc_create_order(['customer_id' => $customer_id]);
+        $order->add_product($product, 1);
+        $order->apply_coupon($code);
+        $order->calculate_totals();
+        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path
+
+        $order_total = (float) $order->get_total();
+        $expected_cents = BHM_Referrals::calculate_commission_cents($order_total);
+        $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance, 'A completed order using the referral code credits the referrer exactly ' . BHM_Referrals::COMMISSION_PERCENT . '% of the (post-discount) order total');
+
+        $redemption_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $order->get_id()
+        ));
+        $rows[] = OUS_TestRunner::assert_same(1, $redemption_count, 'Exactly one bhm_referrals redemption row is written for the order');
+
+        // Idempotency — calling the handler again for the SAME order
+        // must not double-credit (the UNIQUE KEY on wc_order_id is the
+        // atomic guard, not a prior SELECT).
+        BHM_Referrals::on_order_completed($order->get_id());
+        $balance_after_replay = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_replay, 'Re-firing on_order_completed() for the same order does NOT credit the referrer a second time');
+
+        /* ---------- self-referral guard ---------- */
+        $self_order = wc_create_order(['customer_id' => $referrer_id]);
+        $self_order->add_product($product, 1);
+        $self_order->apply_coupon($code);
+        $self_order->calculate_totals();
+        $self_order->update_status('completed');
+        $balance_after_self = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
+        $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_self, 'A referrer using their own code on their own order earns NO additional commission (self-referral guard)');
+        $self_redemption_count = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $self_order->get_id()
+        ));
+        $rows[] = OUS_TestRunner::assert_same(0, $self_redemption_count, 'A self-referral order writes no redemption row at all');
+
+        // Cleanup
+        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $order->get_id()]);
+        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $self_order->get_id()]);
+        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
+        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+        if ($coupon_id) wp_delete_post($coupon_id, true);
+        $order->delete(true);
+        $self_order->delete(true);
+        wp_delete_post($product->get_id(), true);
 
         return $rows;
     }

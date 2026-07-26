@@ -415,8 +415,14 @@ class BHC_Render_Lesson {
             $url_a = wp_get_attachment_url($step['attachment_id_a']);
             $url_b = wp_get_attachment_url($step['attachment_id_b']);
             if ($url_a && $url_b) {
+                // Audit fix (2026-07-25): the two clips previously had no
+                // explicit "compare these" framing — just two stacked
+                // players with no cue that the point is to A/B them.
+                echo '<p class="bhc-audio-compare-prompt">Play each and compare:</p>';
+                echo '<div class="bhc-audio-compare-wrap">';
                 echo '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($step['label_a']) . '</p>' . wp_audio_shortcode(['src' => $url_a]) . '</div>';
                 echo '<div class="bhc-audio-compare-clip"><p class="bhc-audio-compare-label">' . esc_html($step['label_b']) . '</p>' . wp_audio_shortcode(['src' => $url_b]) . '</div>';
+                echo '</div>';
             } else {
                 echo '<p class="bhc-empty">One or both audio files not found.</p>';
             }

@@ -63,8 +63,8 @@ class BHM_Admin {
         // external, unmockable dependency) rather than a bare
         // class_exists() — an audit found this file had been missed
         // when the rest of this plugin's own call sites were fixed.
-        $has_wc = class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce');
-        $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
+        $has_wc = BH_Commerce::available();
+        $has_subs = BH_Commerce::has_subscriptions();
         echo '<div class="wrap"><h1>Monetization Settings</h1>';
 
         if (!$has_wc) {
@@ -85,7 +85,7 @@ class BHM_Admin {
             echo '<input type="hidden" name="action" value="bhm_save_settings">';
             echo '<table class="form-table"><tbody>';
             foreach ($topup_options as $cents => $price) {
-                echo '<tr><td>' . esc_html(number_format($cents / 100, 2)) . ' credit</td><td><input type="number" step="0.01" name="bhm_topup_price[' . esc_attr($cents) . ']" value="' . esc_attr($price) . '"></td></tr>';
+                echo '<tr><td>' . esc_html(BHM_Money::display($cents)) . ' credit</td><td><input type="number" step="0.01" name="bhm_topup_price[' . esc_attr($cents) . ']" value="' . esc_attr($price) . '"></td></tr>';
             }
             echo '</tbody></table>';
             echo '<p><button type="submit" class="button button-primary">Save</button></p>';
@@ -99,8 +99,51 @@ class BHM_Admin {
             } else {
                 echo '<p><em>Not set yet.</em></p>';
             }
+
+            // Audit fix (2026-07-25): gifting is a real revenue-adjacent
+            // feature (class-gifts.php) that silently degrades to "claim
+            // link points at the homepage" if this page isn't set up —
+            // same "Not set yet" visibility the tiers page above already
+            // gets, closing a real "it just works" gap before a fan hits
+            // a dead-end claim link.
+            $gift_redeem_page = get_option('bhm_gift_redeem_page_id', 0);
+            echo '<h2>Gift redemption page</h2>';
+            echo '<p class="description">Add the <code>[bhm_redeem_gift]</code> shortcode to a page so a gift recipient has somewhere to claim their tier.</p>';
+            if ($gift_redeem_page && get_post($gift_redeem_page)) {
+                echo '<p><a href="' . esc_url(get_edit_post_link($gift_redeem_page)) . '">' . esc_html(get_the_title($gift_redeem_page)) . '</a> — <a href="' . esc_url(get_permalink($gift_redeem_page)) . '" target="_blank">view</a></p>';
+            } else {
+                echo '<p><em>Not set yet — gift claim links currently have nowhere to send a recipient.</em></p>';
+            }
+
+            self::render_gift_status();
         }
         echo '</div>';
+    }
+
+    // Audit fix (2026-07-25): the only place an admin could previously
+    // see gift-redemption status was the locked Debug Tools panel
+    // (class-debug.php, dev-only, shows claim links meant for local
+    // testing) — an artist selling gifts had no ordinary way to check
+    // "did they claim it yet." This is that ordinary view: status only,
+    // no test-only claim-link column.
+    private static function render_gift_status() {
+        if (!class_exists('BHM_Gifts')) return;
+        global $wpdb;
+        $t = $wpdb->prefix . BHM_Gifts::TABLE;
+        $recent = $wpdb->get_results("SELECT recipient_email, status, created_at, redeemed_at FROM $t ORDER BY id DESC LIMIT 20", ARRAY_A);
+
+        echo '<h2>Recent gift redemptions</h2>';
+        if (!$recent) {
+            echo '<p class="description">No gifts purchased yet.</p>';
+            return;
+        }
+        echo '<div class="bhy-table-wrap" style="max-width:760px;"><table class="wp-list-table widefat striped"><thead><tr><th>Recipient</th><th>Status</th><th>Purchased</th><th>Claimed</th></tr></thead><tbody>';
+        foreach ($recent as $row) {
+            echo '<tr><td>' . esc_html($row['recipient_email']) . '</td><td>' . esc_html(ucfirst($row['status'])) . '</td>'
+               . '<td>' . esc_html(mysql2date('M j, Y', $row['created_at'])) . '</td>'
+               . '<td>' . ($row['redeemed_at'] ? esc_html(mysql2date('M j, Y', $row['redeemed_at'])) : '—') . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
     }
 
     /**
@@ -119,10 +162,15 @@ class BHM_Admin {
      * posture as OUS_MediaWizard pointing at Advanced Media Offloader.
      */
     private static function render_get_paid_card() {
-        $enabled = class_exists('BH_Commerce') ? BH_Commerce::get_available_payment_gateways() : (class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : []);
+        $enabled = BH_Commerce::get_available_payment_gateways();
         $payments_url = admin_url('admin.php?page=wc-settings&tab=checkout');
 
-        echo '<div class="bhy-alert" style="border-left:3px solid ' . ($enabled ? '#1DB954' : '#d63638') . ';background:#f6f7f7;padding:14px 16px;margin:16px 0;max-width:760px;">';
+        // Audit fix (2026-07-25): was a bare 'bhy-alert' class carrying
+        // its own hand-rolled inline styles — a real, shared alert
+        // component with success/danger variants already exists
+        // (own-ur-shit's class-ui.php), this just uses it instead of
+        // re-implementing the same visual language one-off.
+        echo '<div class="bhy-alert ' . ($enabled ? 'bhy-alert-success' : 'bhy-alert-danger') . '" style="max-width:760px;">';
         if ($enabled) {
             $names = implode(', ', array_map(fn($g) => $g->get_title(), $enabled));
             echo '<p><strong>&#9989; Ready to get paid.</strong> Active payment method' . (count($enabled) === 1 ? '' : 's') . ': ' . esc_html($names) . '.</p>';

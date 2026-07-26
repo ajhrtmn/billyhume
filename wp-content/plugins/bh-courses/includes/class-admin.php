@@ -587,6 +587,20 @@ class BHC_Admin {
             case 'quiz':
                 $qcount = count($step['questions'] ?? []);
                 return 'Quiz — ' . $qcount . ' question' . ($qcount === 1 ? '' : 's') . ' (passing score ' . (int) ($step['passing_score'] ?? 70) . '%)';
+            // Audit fix (2026-07-25): the four newer step types
+            // (LMS depth-of-magic pass) fell through to the bare
+            // ucfirst($type) default, unlike every older type above.
+            case 'callout':
+                $snippet = wp_trim_words(wp_strip_all_tags((string) ($step['content'] ?? '')), 10, '…');
+                return 'Callout (' . ($step['variant'] ?? 'tip') . ') — ' . ($snippet !== '' ? $snippet : '(empty)');
+            case 'checklist':
+                $icount = count($step['items'] ?? []);
+                $label = 'Checklist — ' . $icount . ' item' . ($icount === 1 ? '' : 's');
+                return $step['title'] ? $label . ': ' . wp_trim_words((string) $step['title'], 8, '…') : $label;
+            case 'chord-chart':
+                return 'Chord chart' . ($step['title'] ? ' — ' . wp_trim_words((string) $step['title'], 8, '…') : '');
+            case 'audio-compare':
+                return 'Audio compare — ' . ($step['label_a'] ?? 'A') . ' vs. ' . ($step['label_b'] ?? 'B');
             default:
                 return ucfirst($type);
         }
@@ -752,6 +766,7 @@ class BHC_Admin {
             '_bhc_instructor_id', '_bhc_difficulty', '_bhc_duration_note',
             '_bhc_comments_enabled', '_bhc_certificate_enabled', '_bhc_certificate_signature', '_bhc_share_card_style',
             '_bhm_required_tier', '_bhm_required_benefit',
+            '_bhc_leaderboard_enabled', // audit fix (2026-07-25): duplication was silently dropping this course-level opt-in
         ] as $key) {
             $val = get_post_meta($course_id, $key, true);
             if ($val !== '') update_post_meta($new_course_id, $key, $val);
@@ -784,7 +799,10 @@ class BHC_Admin {
             update_post_meta($new_lesson_id, '_bhc_course_id', $new_course_id);
             $steps = get_post_meta($lesson_id, '_bhc_steps', true);
             if (is_array($steps)) update_post_meta($new_lesson_id, '_bhc_steps', $steps);
-            foreach (['_bhc_available_after_days', '_bhc_available_on_date'] as $key) {
+            // '_bhc_module_title' added (audit fix, 2026-07-25) — was
+            // dropped on whole-course duplication, silently losing
+            // module/section grouping on every cloned lesson.
+            foreach (['_bhc_available_after_days', '_bhc_available_on_date', '_bhc_module_title'] as $key) {
                 $val = get_post_meta($lesson_id, $key, true);
                 if ($val !== '') update_post_meta($new_lesson_id, $key, $val);
             }
@@ -852,7 +870,10 @@ class BHC_Admin {
         }
         $steps = get_post_meta($lesson_id, '_bhc_steps', true);
         if (is_array($steps)) update_post_meta($new_id, '_bhc_steps', $steps);
-        foreach (['_bhc_available_after_days', '_bhc_available_on_date'] as $key) {
+        // '_bhc_module_title' added (audit fix, 2026-07-25) — same gap as
+        // whole-course duplication above: was dropped, silently losing
+        // module/section grouping on the cloned lesson.
+        foreach (['_bhc_available_after_days', '_bhc_available_on_date', '_bhc_module_title'] as $key) {
             $val = get_post_meta($lesson_id, $key, true);
             if ($val !== '') update_post_meta($new_id, $key, $val);
         }

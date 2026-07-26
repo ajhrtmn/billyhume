@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  */
 class BHM_Downloads {
     public static function init() {
-        if (!class_exists('WooCommerce')) return;
+        if (!BH_Commerce::available()) return;
         // Attach the real file list to a purchase product right before
         // checkout completion needs it — lazily, at order-processing
         // time, rather than trying to keep every purchase product's

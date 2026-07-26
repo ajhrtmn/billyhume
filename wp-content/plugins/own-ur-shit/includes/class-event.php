@@ -40,7 +40,6 @@ if (!defined('ABSPATH')) exit;
  */
 class BH_Event {
     const JOB_HOOK = 'bhcore_ingest_event';
-    const SCHEMA_VERSION = 1;
 
     /** @var array<string, array{v:int, schema:array}> */
     private static $types = [];
@@ -116,7 +115,10 @@ class BH_Event {
 
     /* ---------------- the actual write, off the live request ---------------- */
 
-    private static function table() {
+    // Public (audit fix, 2026-07-25) so BH_Identity's debug-only reverse
+    // lookup can reuse this instead of hardcoding the table name itself —
+    // this class is the one owner of this table's schema.
+    public static function table() {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_events';
     }
@@ -163,23 +165,27 @@ class BH_Event {
         // silently no-op, as designed), while a null dedup_key is
         // written as a literal SQL NULL — never touching the unique
         // index at all, since NULL is never equal to NULL there.
+        // Audit fix (2026-07-25): the column list, value placeholders,
+        // and bound args below were previously duplicated verbatim
+        // across both branches — only the INSERT/INSERT IGNORE keyword
+        // and the dedup_key slot actually differ (per the bug-fix
+        // comment above). Sharing them means a future column addition
+        // only needs to change one place, not two that can drift apart.
+        $columns = '(type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)';
+        $args = [
+            $data['type'], $data['v'], $data['user_id'], $data['client_id'],
+            $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
+            $data['occurred_at'],
+        ];
         if ($data['dedup_key'] === null) {
             $wpdb->query($wpdb->prepare(
-                "INSERT INTO " . self::table() . "
-                 (type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)
-                 VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, NULL)",
-                $data['type'], $data['v'], $data['user_id'], $data['client_id'],
-                $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
-                $data['occurred_at']
+                "INSERT INTO " . self::table() . " $columns VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, NULL)",
+                ...$args
             ));
         } else {
             $wpdb->query($wpdb->prepare(
-                "INSERT IGNORE INTO " . self::table() . "
-                 (type, v, user_id, client_id, subject_type, subject_id, payload, context, occurred_at, dedup_key)
-                 VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, %s)",
-                $data['type'], $data['v'], $data['user_id'], $data['client_id'],
-                $data['subject_type'], $data['subject_id'], $data['payload'], $data['context'],
-                $data['occurred_at'], $data['dedup_key']
+                "INSERT IGNORE INTO " . self::table() . " $columns VALUES (%s, %d, %d, %s, %s, %d, %s, %s, %s, %s)",
+                ...array_merge($args, [$data['dedup_key']])
             ));
         }
     }
