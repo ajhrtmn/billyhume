@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Live
  * Description: Two-way interactive live streaming — a thin WordPress-side integration over a self-hosted Owncast server (v1), behind an engine abstraction so a future swap (OvenMediaEngine, a different chat mechanism) is a new class, not a rewrite. Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.1.0
+ * Version:     0.2.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -29,9 +29,9 @@ if (!defined('ABSPATH')) exit;
 // does and doesn't do.
 define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
-define('BHL_VER',  '0.1.0');
+define('BHL_VER',  '0.2.0');
 
-foreach (['stream-engine', 'admin'] as $f) {
+foreach (['stream-engine', 'post-types', 'streams', 'admin'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";
 }
 
@@ -43,5 +43,16 @@ add_action('plugins_loaded', function () {
         return;
     }
 
+    add_action('init', ['BHL_PostTypes', 'register']);
+    add_action('init', ['BHL_Streams', 'init']);
     add_action('init', ['BHL_Admin', 'init']);
+});
+
+// Cleared on deactivation, same convention every other cron-scheduling
+// plugin in this ecosystem follows (bh-streaming's BHS_Feeds does not
+// currently clear its own — worth revisiting there too, out of scope
+// here) — a deactivated plugin shouldn't leave a dangling scheduled
+// event calling a hook nothing will ever handle again.
+register_deactivation_hook(__FILE__, function () {
+    wp_clear_scheduled_hook(BHL_Streams::CRON_HOOK);
 });
