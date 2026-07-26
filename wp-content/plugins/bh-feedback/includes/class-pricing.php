@@ -11,12 +11,23 @@ if (!defined('ABSPATH')) exit;
  */
 class BHF_Pricing {
     const TIERS = [
-        'quick_take' => ['label' => 'Quick take', 'description' => 'A short, honest first-impression review.', 'cents' => 500],
-        'detailed' => ['label' => 'Detailed review', 'description' => 'A full written breakdown — structure, mix, what\'s working and what isn\'t.', 'cents' => 1500],
+        'quick_take' => ['label' => 'Quick take', 'description' => 'A short, honest first-impression review.', 'cents' => 500, 'turnaround_days' => 3],
+        'detailed' => ['label' => 'Detailed review', 'description' => 'A full written breakdown — structure, mix, what\'s working and what isn\'t.', 'cents' => 1500, 'turnaround_days' => 7],
     ];
 
     public static function label_for($tier) {
         return self::TIERS[$tier]['label'] ?? $tier;
+    }
+
+    // Audit fix (2026-07-25): the submission flow never set a turnaround-
+    // time expectation anywhere, so a paying user had no baseline for
+    // what "normal wait" looked like. Deliberately a rough, filterable
+    // ballpark rather than an SLA guarantee — this plugin has no queue-
+    // depth-aware estimator, so promising anything more precise would be
+    // its own "accept-and-hope" problem.
+    public static function turnaround_days_for($tier) {
+        $days = self::TIERS[$tier]['turnaround_days'] ?? 5;
+        return (int) apply_filters('bhf_tier_turnaround_days', $days, $tier);
     }
 
     public static function cents_for($tier) {

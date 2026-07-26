@@ -67,7 +67,7 @@ class BHM_MonetizationUI {
             return;
         }
 
-        if (!(class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce'))) {
+        if (!(BH_Commerce::available())) {
             echo '<p class="description">Install WooCommerce (Own Ur Shit → Monetization Settings) to turn any of this on.</p>';
             return;
         }
@@ -81,7 +81,7 @@ class BHM_MonetizationUI {
         echo '<p><label><strong>Require a supporter tier to access this ' . ($post_type === 'bhs_release' ? 'release' : 'track') . '</strong><br>';
         echo '<select name="bhm_required_tier"><option value="0">— Open to everyone —</option>';
         foreach ($tiers as $t) {
-            echo '<option value="' . esc_attr($t['id']) . '" ' . selected($required_tier, $t['id'], false) . '>' . esc_html($t['name']) . ' ($' . number_format($t['price_cents'] / 100, 2) . '/mo or equivalent)</option>';
+            echo '<option value="' . esc_attr($t['id']) . '" ' . selected($required_tier, $t['id'], false) . '>' . esc_html($t['name']) . ' ($' . BHM_Money::display($t['price_cents']) . '/mo or equivalent)</option>';
         }
         echo '</select></label> <span class="description">' . (empty($tiers) ? 'No tiers created yet — see Supporter Tiers.' : '') . '</span></p>';
 
@@ -92,10 +92,10 @@ class BHM_MonetizationUI {
         // is the SAME field either way — a fixed price when PWYW is off, a
         // floor/minimum when it's on, exactly like the tip jar's own
         // TIP_MIN_CENTS concept.
-        echo '<p><label><strong>Outright purchase price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_purchase_price" id="bhm_purchase_price" value="' . esc_attr($purchase_price ? number_format($purchase_price / 100, 2, '.', '') : '') . '" style="width:140px;"> <span class="description" id="bhm_purchase_price_desc">Delivers whatever quality encodes are attached (see Quality Encodes above) as downloads on purchase.</span></label></p>';
+        echo '<p><label><strong>Outright purchase price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_purchase_price" id="bhm_purchase_price" value="' . esc_attr($purchase_price ? BHM_Money::price($purchase_price) : '') . '" style="width:140px;"> <span class="description" id="bhm_purchase_price_desc">Delivers whatever quality encodes are attached (see Quality Encodes above) as downloads on purchase.</span></label></p>';
         echo '<p><label><input type="checkbox" name="bhm_purchase_pwyw" value="1" ' . checked($purchase_pwyw, true, false) . '> <strong>Let fans pay what they want</strong></label> <span class="description">If checked, the price above becomes a minimum instead of a fixed price — a fan can offer more at checkout.</span></p>';
 
-        echo '<p><label><strong>Pay-per-play price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_pay_per_play" value="' . esc_attr($pay_per_play ? number_format($pay_per_play / 100, 2, '.', '') : '') . '" style="width:140px;"> <span class="description">Debited from the listener\'s play-credit wallet each time they start this track. Leave blank for free streaming (subject to any tier requirement above).</span></label></p>';
+        echo '<p><label><strong>Pay-per-play price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_pay_per_play" value="' . esc_attr($pay_per_play ? BHM_Money::price($pay_per_play) : '') . '" style="width:140px;"> <span class="description">Debited from the listener\'s play-credit wallet each time they start this track. Leave blank for free streaming (subject to any tier requirement above).</span></label></p>';
     }
 
     public static function save_track($post_id) { self::save_object($post_id, 'bhs_track'); }
@@ -105,7 +105,7 @@ class BHM_MonetizationUI {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhm_object_nonce']) || !wp_verify_nonce($_POST['bhm_object_nonce'], 'bhm_save_object')) return;
         if (!current_user_can('edit_post', $post_id)) return;
-        if (!(class_exists('BH_Commerce') ? BH_Commerce::available() : class_exists('WooCommerce'))) return;
+        if (!(BH_Commerce::available())) return;
         // Never persist monetization config for an externally-aggregated
         // track — the UI doesn't render the fields for these at all, but
         // this is the actual enforcement point (a crafted POST request
@@ -116,14 +116,14 @@ class BHM_MonetizationUI {
         $required_tier = isset($_POST['bhm_required_tier']) ? (int) $_POST['bhm_required_tier'] : 0;
         update_post_meta($post_id, '_bhm_required_tier', $required_tier);
 
-        $purchase_price = isset($_POST['bhm_purchase_price']) ? (int) round(((float) $_POST['bhm_purchase_price']) * 100) : 0;
+        $purchase_price = isset($_POST['bhm_purchase_price']) ? BHM_Money::parse($_POST['bhm_purchase_price']) : 0;
         update_post_meta($post_id, '_bhm_purchase_price_cents', $purchase_price);
         update_post_meta($post_id, '_bhm_purchase_pwyw', !empty($_POST['bhm_purchase_pwyw']) ? 1 : 0);
         if ($purchase_price > 0) {
             BHM_ProductSync::sync_object_purchase_product($post_id, $post_type, $purchase_price);
         }
 
-        $ppp = isset($_POST['bhm_pay_per_play']) ? (int) round(((float) $_POST['bhm_pay_per_play']) * 100) : 0;
+        $ppp = isset($_POST['bhm_pay_per_play']) ? BHM_Money::parse($_POST['bhm_pay_per_play']) : 0;
         update_post_meta($post_id, '_bhm_pay_per_play_cents', $ppp);
     }
 }

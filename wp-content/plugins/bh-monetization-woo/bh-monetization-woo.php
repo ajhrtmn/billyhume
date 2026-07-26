@@ -206,7 +206,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks'] as $f) {
+foreach (['money', 'activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -240,6 +240,13 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Debug', 'init']);
     add_action('init',          ['BHM_MockCommerce', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);
+    // Ledger-anchored proof of purchase (ROADMAP-streaming-media-scope-
+    // and-blockchain.md Part 2) — anchoring must init before the ledger,
+    // since the ledger calls BHM_Anchoring::anchor_async() the moment a
+    // row is written.
+    add_action('init',          ['BHM_Anchoring', 'init']);
+    add_action('init',          ['BHM_PurchaseLedger', 'init']);
+    add_action('init',          ['BHM_LedgerCRMIntegration', 'init']);
     // BHM_PortalPanel is a class_exists()-guarded consumer of BHI_Portal's
     // filter, not a hard dependency — harmless if core is absent/too old.
     add_action('init',          ['BHM_PortalPanel', 'init']);

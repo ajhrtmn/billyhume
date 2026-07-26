@@ -44,7 +44,12 @@ class BHF_Requests {
         $balance = BHM_Wallet::balance_cents(get_current_user_id());
         $notice = '';
         if (isset($_GET['bhf_submitted'])) {
-            $notice = '<p class="bhf-notice bhf-notice--ok">' . esc_html__('Submitted! You\'ll see the review in your account once a reviewer claims it.', 'bh-feedback') . '</p>';
+            // Audit fix (2026-07-25): the old copy said the review appears
+            // "once a reviewer claims it," but per the actual render logic
+            // (BHF_PortalPanel::render_my_requests()) only a COMPLETED
+            // request shows review text — claiming just changes the badge.
+            // Now accurate to what actually happens at each stage.
+            $notice = '<p class="bhf-notice bhf-notice--ok">' . esc_html__('Submitted! You\'ll see the status update once a reviewer claims it, and the full written review once it\'s complete.', 'bh-feedback') . '</p>';
         }
         if (isset($_GET['bhf_error'])) {
             $notice = '<p class="bhf-notice bhf-notice--error">' . esc_html(sanitize_text_field(wp_unslash($_GET['bhf_error']))) . '</p>';
@@ -71,7 +76,7 @@ class BHF_Requests {
                         <label class="bhf-tier-option">
                             <input type="radio" name="tier" value="<?php echo esc_attr($key); ?>" <?php checked($key === array_key_first(BHF_Pricing::TIERS)); ?> />
                             <strong><?php echo esc_html($tier['label']); ?></strong> — $<?php echo esc_html(number_format(BHF_Pricing::cents_for($key) / 100, 2)); ?>
-                            <span class="bhf-tier-description"><?php echo esc_html($tier['description']); ?></span>
+                            <span class="bhf-tier-description"><?php echo esc_html($tier['description']); ?> Typically within <?php echo (int) BHF_Pricing::turnaround_days_for($key); ?> days.</span>
                         </label>
                     <?php endforeach; ?>
                 </fieldset>

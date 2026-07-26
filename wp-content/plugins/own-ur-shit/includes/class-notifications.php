@@ -60,6 +60,23 @@ class OUS_Notifications {
         return $wpdb->prefix . 'bhcore_notifications';
     }
 
+    // Bounded-growth cap — this table has no other trim/expiry path
+    // (audit finding, 2026-07-25). Same opportunistic shape as
+    // OUS_DebugLog::maybe_trim(): a cheap COUNT+DELETE on roughly 1/50
+    // writes, no separate cron job needed to keep it bounded.
+    const MAX_ROWS = 20000;
+
+    private static function maybe_trim() {
+        if (wp_rand(1, 50) !== 1) return;
+        global $wpdb;
+        $table = self::table();
+        $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM $table");
+        if ($count > self::MAX_ROWS) {
+            $excess = $count - self::MAX_ROWS;
+            $wpdb->query($wpdb->prepare("DELETE FROM $table ORDER BY id ASC LIMIT %d", $excess));
+        }
+    }
+
     /**
      * The one call any plugin needs. $email: true to also queue an
      * email (respecting the recipient's own opt-out — see
@@ -71,11 +88,22 @@ class OUS_Notifications {
     public static function notify($user_id, $type, $title, $body = '', $url = '', $source = '', $email = true) {
         if (!$user_id) return 0;
         global $wpdb;
-        $wpdb->insert(self::table(), [
+        $inserted = $wpdb->insert(self::table(), [
             'user_id' => $user_id, 'type' => sanitize_key($type), 'source' => sanitize_text_field($source),
             'title' => sanitize_text_field($title), 'body' => wp_kses_post($body), 'url' => esc_url_raw($url),
         ]);
+        // Audit fix (2026-07-25): $wpdb->insert()'s return value was
+        // previously ignored — on a schema-drift failure this would
+        // enqueue an email keyed to a notification row that doesn't
+        // exist. Fail loud (to DebugLog) and stop before queuing anything.
+        if (!$inserted) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'OUS_Notifications::notify() insert failed: ' . $wpdb->last_error, ['user_id' => $user_id, 'type' => $type], 'OUS_Notifications');
+            }
+            return 0;
+        }
         $id = (int) $wpdb->insert_id;
+        self::maybe_trim();
 
         if ($email && self::user_wants_email($user_id, $type)) {
             if (class_exists('OUS_Jobs')) {

@@ -173,6 +173,11 @@ class BHC_Render_Course {
             // the ordinary progress/lesson-list view — sets real
             // expectations before the day-to-day lesson queue begins,
             // same Disneyland-queue framing as the rest of this pass.
+            // Bug fix (2026-07-25 audit): this used to render ALONGSIDE
+            // the ordinary progress bar + full lesson list below, not
+            // "instead of" as the comment above claims — the syllabus
+            // showed twice on one page. $just_enrolled now gates the
+            // rest of this branch too (see the matching check below).
             if ($just_enrolled) echo self::render_orientation_screen($uid, $course_id, $lesson_ids);
 
             // The real payoff moment — a dedicated completion screen
@@ -187,19 +192,27 @@ class BHC_Render_Course {
             // Enrollment/continue CTA now lives in render_course_header()
             // above (shown for every locked/unlocked state consistently)
             // — not duplicated here anymore.
-            if ($uid) {
-                $percent = BHC_Progress::course_percent($uid, $course_id);
-                echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
-                // Mastery signal — only ever shown once a real quiz has
-                // actually been scored (course_quiz_average() returns
-                // null, not 0, until then), never a "0%" placeholder
-                // nagging a student who hasn't reached a quiz yet.
-                $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
-                if ($quiz_average !== null) {
-                    echo '<p class="bhc-mastery-label">Mastery: ' . (int) $quiz_average . '%</p>';
+            // Suppressed on the orientation screen itself ($just_enrolled):
+            // the orientation card already shows its own syllabus <ol> and
+            // a "Start" CTA — showing the ordinary progress bar + full
+            // lesson list right underneath duplicated that same content
+            // on one page. This block now renders on every visit AFTER
+            // the one-time orientation moment, same as before.
+            if (!$just_enrolled) {
+                if ($uid) {
+                    $percent = BHC_Progress::course_percent($uid, $course_id);
+                    echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+                    // Mastery signal — only ever shown once a real quiz has
+                    // actually been scored (course_quiz_average() returns
+                    // null, not 0, until then), never a "0%" placeholder
+                    // nagging a student who hasn't reached a quiz yet.
+                    $quiz_average = BHC_Progress::course_quiz_average($uid, $course_id);
+                    if ($quiz_average !== null) {
+                        echo '<p class="bhc-mastery-label">Mastery: ' . (int) $quiz_average . '%</p>';
+                    }
                 }
+                echo self::render_grouped_lesson_list($course_id, $uid, null, false);
             }
-            echo self::render_grouped_lesson_list($course_id, $uid, null, false);
         }
         if (!$locked && class_exists('BHC_Leaderboard')) echo BHC_Leaderboard::render($course_id);
         if (!$locked && class_exists('BHC_Reviews')) echo self::render_reviews_section($course_id, $uid);
@@ -453,7 +466,10 @@ class BHC_Render_Course {
                 echo '<a class="bhc-btn bhc-btn-primary" href="' . esc_url(BHC_Certificates::download_url($course_id)) . '">Download certificate' . ($with_distinction ? ' (with distinction)' : '') . '</a>';
             }
             if ($has_share_card) {
-                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener">Get share image</a>';
+                // Audit fix (2026-07-25): opened a raw PNG in a new tab
+                // with no download/save affordance — download attribute
+                // makes the browser save it directly instead.
+                echo '<a class="bhc-btn bhc-btn-secondary" href="' . esc_url(BHC_ShareCards::card_url($uid, $course_id)) . '" target="_blank" rel="noopener" download>Get share image</a>';
             }
             echo '</div>';
         }

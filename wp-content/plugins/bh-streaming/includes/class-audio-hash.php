@@ -53,10 +53,18 @@ class BHS_AudioHash {
         update_post_meta($post_id, '_bhs_audio_hash', $hash);
 
         global $wpdb;
+        // post_type IN ('bhs_track', 'bhs_video') — widened from
+        // bhs_track-only when video (ROADMAP-streaming-media-scope-and-
+        // blockchain.md Part 5, Phase 2) started reusing this same
+        // hash-and-check call for video uploads via
+        // BHS_VideoPostTypes::import_local_video(). The check itself
+        // only ever hashes raw file bytes, so it was already medium-
+        // agnostic in practice — this just stops the query from
+        // silently ignoring the other post type's own hash rows.
         $matches = $wpdb->get_col($wpdb->prepare(
             "SELECT p.ID FROM {$wpdb->posts} p
              INNER JOIN {$wpdb->postmeta} m ON m.post_id = p.ID AND m.meta_key = '_bhs_audio_hash' AND m.meta_value = %s
-             WHERE p.post_type = 'bhs_track' AND p.ID != %d AND p.post_status = 'publish'",
+             WHERE p.post_type IN ('bhs_track', 'bhs_video') AND p.ID != %d AND p.post_status = 'publish'",
             $hash, $post_id
         ));
         if (!$matches) return;

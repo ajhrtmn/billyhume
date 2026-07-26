@@ -290,19 +290,14 @@ class BHC_ContentBridge {
             return '<p class="bhc-quiz-question">' . esc_html($attrs['question']) . '</p>';
         });
 
-        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c —
-        // downloadable resources per step (a worksheet, a PDF, a
-        // reference doc). Flat attrs, no children, so this needed
-        // nothing in steps_to_tree()/tree_to_steps() beyond adding
-        // 'resource' to BHC_Steps::VALID_TYPES — both already handle
-        // any bhc/* block generically except bhc/quiz's child-block
-        // promotion above.
         // Depth-of-magic pass: real visual density inside a lesson — a
         // highlighted "key idea" / "watch out for this" moment, instead
         // of every step reading as an undifferentiated text block. Same
         // three fixed variants as BHC_Steps::CALLOUT_VARIANTS (tip/note/
         // warning) — each rendered as a shade/tint of ONE base color
         // per variant (courses.css), not three unrelated named colors.
+        // (Audit fix, 2026-07-25: this comment used to sit above the
+        // 'resource' registration below, describing THIS block instead.)
         BH_Content::register_block_type('bhc/callout', [
             'content' => ['type' => 'html', 'default' => ''],
             'variant' => ['type' => 'string', 'default' => 'tip'],
@@ -311,6 +306,13 @@ class BHC_ContentBridge {
             return '<div class="bhc-step bhc-step-callout bhc-callout-' . esc_attr($variant) . '">' . $attrs['content'] . '</div>';
         });
 
+        // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4c —
+        // downloadable resources per step (a worksheet, a PDF, a
+        // reference doc). Flat attrs, no children, so this needed
+        // nothing in steps_to_tree()/tree_to_steps() beyond adding
+        // 'resource' to BHC_Steps::VALID_TYPES — both already handle
+        // any bhc/* block generically except bhc/quiz's child-block
+        // promotion above.
         BH_Content::register_block_type('bhc/resource', [
             'attachment_id' => ['type' => 'int', 'default' => 0],
             'label' => ['type' => 'string', 'default' => ''],

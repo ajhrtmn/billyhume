@@ -78,12 +78,6 @@ class BHM_MockCommerce {
         }
     }
 
-    public static function delete($id) {
-        $store = self::store();
-        unset($store[$id]);
-        self::save_store($store);
-    }
-
     // bh_commerce_get_subscription filter callback — only steps in when
     // BH_Commerce's real wcs_get_subscription() call came back empty
     // (never overrides a genuinely real subscription object).

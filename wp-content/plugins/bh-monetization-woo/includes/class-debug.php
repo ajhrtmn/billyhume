@@ -56,7 +56,7 @@ class BHM_Debug {
         echo OUS_Debug::button('bh-monetization-woo', 'credit_wallet', 'Credit your wallet $10.00 (no real charge)');
         echo OUS_Debug::button('bh-monetization-woo', 'zero_wallet', 'Zero out your wallet balance');
         $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($uid) : 0;
-        echo '<p class="description">Current wallet balance: $' . esc_html(number_format($balance / 100, 2)) . '</p>';
+        echo '<p class="description">Current wallet balance: $' . esc_html(BHM_Money::display($balance)) . '</p>';
 
         echo '<h4>Refund/fraud-path simulation</h4>';
         echo '<p class="description">Exercises the SAME revocation code path a real chargeback/refund triggers (class-products.php\'s on_order_reversed()) — confirms an entitlement or wallet credit actually gets taken back, not just granted.</p>';
@@ -95,7 +95,7 @@ class BHM_Debug {
         }
 
         echo '<h4>WooCommerce order simulation</h4>';
-        if (class_exists('WooCommerce')) {
+        if (BH_Commerce::available()) {
             echo OUS_Debug::button('bh-monetization-woo', 'simulate_tier_order', 'Create + complete a real WC order for the top test tier (drives the actual on_order_completed() path, not a shortcut around it)');
             if (class_exists('BHM_Gifts')) {
                 echo OUS_Debug::button('bh-monetization-woo', 'simulate_gift_order', 'Create + complete a real WC gift order for the top test tier (drives BHM_Gifts::create_redemption(), not a shortcut around it)', '<input type="email" name="gift_email" placeholder="Recipient email" style="width:200px;">');
@@ -150,7 +150,7 @@ class BHM_Debug {
                         update_post_meta($id, '_bhm_price_cents', $t[1]);
                         update_post_meta($id, '_bhm_benefits', 'Test tier — safe to delete.');
                         update_post_meta($id, '_bhm_benefit_keys', $t[2]);
-                        if (class_exists('WooCommerce')) BHM_Products::sync_tier_wc_product($id, $t[0], $t[1]);
+                        if (BH_Commerce::available()) BHM_Products::sync_tier_wc_product($id, $t[0], $t[1]);
                     }
                 }
                 return '2 test tiers created (with different benefit keys each, not just different prices — see class-debug.php\'s own comment on this).';
@@ -237,7 +237,7 @@ class BHM_Debug {
                 if ($last_credit) {
                     $reverse = min((int) $last_credit->delta_cents, BHM_Wallet::balance_cents($uid));
                     BHM_Wallet::apply_ledger_delta($uid, -$reverse, 'test_refund_reversal');
-                    return 'Reversed $' . number_format($reverse / 100, 2) . ' of wallet credit — simulating a refund/chargeback.';
+                    return 'Reversed $' . BHM_Money::display($reverse) . ' of wallet credit — simulating a refund/chargeback.';
                 }
                 return 'Nothing to reverse — grant yourself a tier or wallet credit first.';
 
@@ -279,7 +279,7 @@ class BHM_Debug {
                 return 'Fake subscription #' . $sub_id . ' set to "' . $new_status . '" via the real ' . ($action === 'mock_pause' ? 'on_subscription_paused()' : ($action === 'mock_resume' ? 'on_subscription_active()' : 'on_subscription_ended()')) . ' handler.';
 
             case 'simulate_tier_order':
-                if (!class_exists('WooCommerce')) return 'WooCommerce isn\'t active.';
+                if (!BH_Commerce::available()) return 'WooCommerce isn\'t active.';
                 $tiers = BHM_Tiers::all();
                 if (!$tiers) return 'No tiers exist yet — click "Create 2 test tiers" first.';
                 $top = end($tiers);
@@ -292,7 +292,7 @@ class BHM_Debug {
                 return 'Created and completed a real WooCommerce order (#' . $order->get_id() . ') for "' . $top['name'] . '" — check that the entitlement now shows up.';
 
             case 'simulate_gift_order':
-                if (!class_exists('WooCommerce')) return 'WooCommerce isn\'t active.';
+                if (!BH_Commerce::available()) return 'WooCommerce isn\'t active.';
                 $gift_email = sanitize_email((string) ($post['gift_email'] ?? ''));
                 if (!is_email($gift_email)) return 'Enter a valid recipient email first.';
                 $tiers = BHM_Tiers::all();

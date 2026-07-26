@@ -130,6 +130,18 @@ class BHCRM_Event_Activity {
             return;
         }
 
+        // Audit fix (2026-07-25): bhm/wallet_credit / bhm/wallet_debit
+        // rows also appear, rolled up, in bh-monetization-woo's own
+        // Activity-section contribution (if that plugin is active) — the
+        // raw log here is the audit-trail source of truth and shouldn't
+        // suppress rows, but a one-line pointer avoids it reading as an
+        // unexplained duplicate for anyone who's already seen the summary.
+        $has_wallet_rows = false;
+        foreach ($rows as $r) { if (strpos($r['type'], 'bhm/wallet_') === 0) { $has_wallet_rows = true; break; } }
+        if ($has_wallet_rows && class_exists('BHM_Wallet')) {
+            echo '<p class="description">Wallet events below are also summarized, rolled up, in this contact\'s wallet-balance section above.</p>';
+        }
+
         echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr>'
            . '<th>When</th><th>Event</th><th>Subject</th><th>Details</th>'
            . '</tr></thead><tbody>';

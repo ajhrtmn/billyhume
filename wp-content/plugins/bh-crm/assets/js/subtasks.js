@@ -46,17 +46,20 @@
             fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd })
                 .then(function (res) { return res.json(); })
                 .then(function (body) {
-                    // Always reload on a successful write, not just a
-                    // failure — dropping a card into the "done" column
-                    // server-side auto-checks it (AJ's own ask), and
-                    // that state (plus every ancestor card's own
-                    // recursive progress bar) needs a real re-render,
-                    // not just a client-side guess at what changed.
-                    // A brief toast first — the reload used to fire
-                    // instantly with zero confirmation the drag actually
-                    // saved, unlike the catch() branch below it.
+                    // Only reload when a card's completion state actually
+                    // flipped (server tells us via state_changed) — that's
+                    // the one case with an effect OUTSIDE this board (every
+                    // ancestor card's own recursive progress bar elsewhere
+                    // on the page), so it's the only case that genuinely
+                    // needs a full re-render. Plain reordering already
+                    // reflects correctly in the DOM (that's what the drag
+                    // itself just did) plus refreshCounts() above — no
+                    // reload needed, matching kanban-board.js's in-place feel.
+                    var stateChanged = !!(body && body.data && body.data.state_changed);
                     if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Saved.', 'success'); }
-                    setTimeout(function () { window.location.reload(); }, 600);
+                    if (stateChanged) {
+                        setTimeout(function () { window.location.reload(); }, 600);
+                    }
                 })
                 .catch(function () {
                     // Retry-audit pass, AJ's own standing ask: this
@@ -175,6 +178,35 @@
                     saveField(cardEl, 'notes', descInput.value, statusEl);
                 });
             }
+        });
+
+        // Audit fix (2026-07-25): arm/disarm double-click, replacing the
+        // native confirm() this delete form used to have — matches
+        // kanban-board.js's own pattern exactly (first click arms +
+        // relabels, 3s window, second click while armed actually
+        // submits; any other interaction on the card disarms it).
+        board.querySelectorAll('.bhcrm-subtask-delete-form').forEach(function (form) {
+            var btn = form.querySelector('.bhcrm-subtask-delete-btn');
+            if (!btn) return;
+            var armed = false, armTimer = null;
+            function disarm() {
+                armed = false;
+                clearTimeout(armTimer);
+                btn.classList.remove('is-armed');
+                btn.textContent = 'Delete';
+            }
+            btn.addEventListener('click', function (e) {
+                if (!armed) {
+                    e.preventDefault();
+                    armed = true;
+                    btn.classList.add('is-armed');
+                    btn.textContent = 'Really delete?';
+                    armTimer = setTimeout(disarm, 3000);
+                }
+                // else: armed and clicked again — let the form submit normally.
+            });
+            var card = form.closest('.bhcrm-kanban-card');
+            if (card) card.addEventListener('pointerdown', function (e) { if (e.target !== btn) disarm(); }, true);
         });
     });
 })();

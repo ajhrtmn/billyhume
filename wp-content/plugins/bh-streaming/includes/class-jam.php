@@ -397,6 +397,14 @@ class BHS_Jam {
         $state = self::decode_state($session);
         $queue = $req->get_param('queue');
         if (is_array($queue) && $queue) $state['queue'] = array_map('intval', $queue);
+        // Audit fix (2026-07-25), documenting existing intentional
+        // behavior: with an empty queue, count($state['queue'])-1 is -1,
+        // so min(-1, $requested) is always <= -1 and max(0, ...) clamps
+        // the result back to 0 regardless of what was requested — index
+        // absorbs to 0 rather than going negative, which is correct
+        // (there's no valid index into an empty queue, but 0 is a safe,
+        // harmless value to store rather than a sentinel that could
+        // confuse a client expecting a valid array position).
         if ($req->get_param('index') !== null) $state['index'] = max(0, min(count($state['queue']) - 1, (int) $req->get_param('index')));
         if ($req->get_param('playing') !== null) $state['playing'] = (bool) $req->get_param('playing');
         if ($req->get_param('position') !== null) $state['position'] = max(0, (float) $req->get_param('position'));

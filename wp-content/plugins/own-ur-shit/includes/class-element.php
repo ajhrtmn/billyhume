@@ -1748,27 +1748,16 @@ class BH_Element {
         $body = json_decode($req->get_body(), true);
         $incoming = is_array($body['tokens'] ?? null) ? $body['tokens'] : [];
 
-        $data = [];
-        $data['brand_part1'] = sanitize_text_field($incoming['brand_part1'] ?? BHY_Style::DEFAULTS['brand_part1']);
-        $data['brand_part2'] = sanitize_text_field($incoming['brand_part2'] ?? BHY_Style::DEFAULTS['brand_part2']);
-        $data['brand_logo_id'] = isset($incoming['brand_logo_id']) ? (int) $incoming['brand_logo_id'] : 0;
-        foreach (BHY_Style::DEFAULTS as $key => $default) {
-            if (strpos($key, 'color_') !== 0 && strpos($key, 'cat_color_') !== 0) continue;
-            $val = isset($incoming[$key]) ? sanitize_text_field($incoming[$key]) : $default;
-            $data[$key] = BHY_Style::safe_color($val);
-        }
-        foreach (['font_display', 'font_body'] as $key) {
-            $picked = sanitize_text_field($incoming[$key] ?? BHY_Style::DEFAULTS[$key]);
-            $data[$key] = (array_key_exists($picked, BHY_Style::FONT_OPTIONS) || $picked === 'Custom') ? $picked : BHY_Style::DEFAULTS[$key];
-            $data[$key . '_custom'] = sanitize_text_field($incoming[$key . '_custom'] ?? '');
-        }
-        $data['font_scale']  = BHY_Style::safe_number($incoming['font_scale']  ?? null, 0.75, 1.6, 1);
-        $data['space_scale'] = BHY_Style::safe_number($incoming['space_scale'] ?? null, 0.6, 1.8, 1);
-        $data['radius']      = BHY_Style::safe_number($incoming['radius']      ?? null, 0, 32, 12);
-        $data['radius_sm']   = BHY_Style::safe_number($incoming['radius_sm']   ?? null, 0, 24, 8);
-        $data['bar_height']  = BHY_Style::safe_number($incoming['bar_height']  ?? null, 56, 140, 84);
+        // Routed through the same authority BHY_Gallery::save() uses —
+        // this REST path used to hand-copy the sanitize pass and had
+        // drifted (silently dropped custom_sliders() handling, meaning a
+        // save from here would wipe any registered custom slider value).
+        $data = BHY_Style::save_from_input($incoming);
 
         update_option(BHY_Style::OPTION, $data);
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bhy_style', 1, $data);
+        }
         return new \WP_REST_Response(BHY_Style::get(), 200);
     }
 
@@ -1966,6 +1955,22 @@ class BH_Element {
         ));
     }
 
+    // Audit fix (2026-07-25): every debug placement action was a
+    // hand-copied 5-line "hidden action/op/id/nonce fields + one button"
+    // form differing only in the op value, button label, and (for
+    // delete) a confirm(). One shared builder instead.
+    private static function render_debug_op_form($op, $placement_id, $button_html, $style = '') {
+        $nonce = wp_create_nonce('ous_element_debug_' . $placement_id);
+        $out = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"' . ($style ? ' style="' . esc_attr($style) . '"' : '') . '>';
+        $out .= '<input type="hidden" name="action" value="ous_element_debug_action">';
+        $out .= '<input type="hidden" name="op" value="' . esc_attr($op) . '">';
+        $out .= '<input type="hidden" name="id" value="' . (int) $placement_id . '">';
+        $out .= '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
+        $out .= $button_html;
+        $out .= '</form>';
+        return $out;
+    }
+
     private static function render_dashboard_placement_list() {
         $placements = self::get_placements('dashboard', 0, 'main');
         if (!$placements) {
@@ -1977,30 +1982,9 @@ class BH_Element {
         foreach ($placements as $p) {
             echo '<tr><td>' . (int) $p['id'] . '</td><td><code>' . esc_html($p['element_type']) . '</code></td><td>' . (int) $p['position'] . '</td><td><code style="font-size:11px;">' . esc_html(wp_json_encode($p['config'])) . '</code></td><td>';
 
-            $nonce = wp_create_nonce('ous_element_debug_' . $p['id']);
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:6px;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="delete">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button button-secondary" onclick="return confirm(\'Remove this placement?\');">Remove</button>';
-            echo '</form>';
-
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:6px;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="move_up">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button">&uarr;</button>';
-            echo '</form>';
-
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;">';
-            echo '<input type="hidden" name="action" value="ous_element_debug_action">';
-            echo '<input type="hidden" name="op" value="move_down">';
-            echo '<input type="hidden" name="id" value="' . (int) $p['id'] . '">';
-            echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-            echo '<button class="button">&darr;</button>';
-            echo '</form>';
+            echo self::render_debug_op_form('delete', $p['id'], '<button class="button button-secondary" onclick="return confirm(\'Remove this placement?\');">Remove</button>', 'display:inline-block;margin-right:6px;');
+            echo self::render_debug_op_form('move_up', $p['id'], '<button class="button">&uarr;</button>', 'display:inline-block;margin-right:6px;');
+            echo self::render_debug_op_form('move_down', $p['id'], '<button class="button">&darr;</button>', 'display:inline-block;');
 
             echo '</td></tr>';
         }

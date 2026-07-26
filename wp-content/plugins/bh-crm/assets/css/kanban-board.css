@@ -144,6 +144,13 @@
     color: #646970;
 }
 
+/* Audit fix (2026-07-25) — Done-column hint, see class-subtasks.php. */
+.bhcrm-kanban-column-hint {
+    font-weight: 400;
+    color: #646970;
+    cursor: help;
+}
+
 .bhcrm-kanban-column-cards {
     min-height: 40px;
     display: flex;
@@ -278,10 +285,10 @@
     margin-top: 6px;
 }
 
-/* Arm/disarm delete (kanban-board.js) instead of a native confirm() —
-   the armed state needs to read as clearly "one more click deletes this"
-   without a dialog. */
-.bhcrm-delete-btn.is-armed {
+/* Arm/disarm delete (kanban-board.js, and subtasks.js as of the
+   2026-07-25 audit fix) instead of a native confirm() — the armed state
+   needs to read as clearly "one more click deletes this" without a dialog. */
+.bhcrm-delete-btn.is-armed, .bhcrm-subtask-delete-btn.is-armed {
     background: #d63638; border-color: #d63638; color: #fff;
 }
 

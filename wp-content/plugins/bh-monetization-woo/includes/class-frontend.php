@@ -146,7 +146,7 @@ class BHM_Frontend {
     /* ---------- tier picker ---------- */
 
     public static function render_tiers() {
-        if (!class_exists('WooCommerce')) return '<p>Supporter tiers aren\'t available yet.</p>';
+        if (!BH_Commerce::available()) return '<p>Supporter tiers aren\'t available yet.</p>';
         $tiers = BHM_Tiers::all();
         if (!$tiers) return '<p>No supporter tiers are set up yet.</p>';
 
@@ -181,7 +181,7 @@ class BHM_Frontend {
             // need to remember to repeat manually.
             $has_subscriptions = class_exists('BH_Commerce') && BH_Commerce::has_subscriptions();
             echo '<span class="bhm-billing-badge">' . ($has_subscriptions ? 'Recurring — billed monthly' : 'One-time — 30 days access') . '</span>';
-            echo '<div class="bhm-tier-price">$' . esc_html(number_format($t['price_cents'] / 100, 2)) . '/mo</div>';
+            echo '<div class="bhm-tier-price">$' . esc_html(BHM_Money::display($t['price_cents'])) . '/mo</div>';
             if (!empty($t['annual_price_cents'])) {
                 // Real gap this closes: the annual price was a raw lump
                 // sum ("or $96.00/yr") with no monthly-equivalent
@@ -193,11 +193,8 @@ class BHM_Frontend {
                 // number if an admin priced annual equal to or above the
                 // monthly-times-12 cost.
                 $annual_monthly_equivalent = $t['annual_price_cents'] / 12;
-                $full_year_at_monthly_rate = $t['price_cents'] * 12;
-                $savings_percent = $full_year_at_monthly_rate > 0
-                    ? round((1 - ($t['annual_price_cents'] / $full_year_at_monthly_rate)) * 100)
-                    : 0;
-                echo '<div class="bhm-tier-price-annual">or $' . esc_html(number_format($t['annual_price_cents'] / 100, 2)) . '/yr ($' . esc_html(number_format($annual_monthly_equivalent / 100, 2)) . '/mo equivalent)';
+                $savings_percent = BHM_Gate::annual_savings_percent($t['price_cents'], $t['annual_price_cents']);
+                echo '<div class="bhm-tier-price-annual">or $' . esc_html(BHM_Money::display($t['annual_price_cents'])) . '/yr ($' . esc_html(BHM_Money::display($annual_monthly_equivalent)) . '/mo equivalent)';
                 if ($savings_percent > 0) echo ' <span class="bhm-tier-savings">— save ' . (int) $savings_percent . '%</span>';
                 echo '</div>';
             }
@@ -311,7 +308,11 @@ class BHM_Frontend {
                 $out .= '<button type="submit" name="bhm_sub_action" value="resume" class="bhm-btn">Resume subscription</button>';
             }
         } elseif ($subscription->can_be_updated_to('on-hold')) {
-            $out .= '<button type="submit" name="bhm_sub_action" value="pause" class="bhm-btn bhm-btn-secondary">Pause subscription</button>';
+            // Audit fix (2026-07-25): a real billing/access-affecting
+            // action that previously fired with zero click-time
+            // confirmation — less friction than this plugin's own
+            // internal Debug Tools destructive-action confirm gets.
+            $out .= '<button type="submit" name="bhm_sub_action" value="pause" class="bhm-btn bhm-btn-secondary" onclick="return confirm(\'Pause your subscription? You\\\'ll lose supporter access until you resume it.\');">Pause subscription</button>';
         }
         $out .= '</form>';
         return $out;
@@ -375,7 +376,7 @@ class BHM_Frontend {
     // "Name Your Price"-style variable pricing via a simple custom
     // field on a virtual product) — no separate payment machinery here.
     public static function render_tip_jar($atts) {
-        if (!class_exists('WooCommerce')) return '';
+        if (!BH_Commerce::available()) return '';
         $product_id = (int) get_option('bhm_tip_product_id', 0);
         if (!$product_id) $product_id = self::ensure_tip_product();
 
@@ -423,7 +424,7 @@ class BHM_Frontend {
         // --- fallback: direct WooCommerce (pre-BH_Commerce core) ---
         $product = new WC_Product_Simple();
         $product->set_name('Tip');
-        $product->set_regular_price(number_format(self::TIP_MIN_CENTS / 100, 2, '.', ''));
+        $product->set_regular_price(BHM_Money::price(self::TIP_MIN_CENTS));
         $product->set_virtual(true);
         $product->set_catalog_visibility('hidden');
         $product->save();
@@ -439,7 +440,7 @@ class BHM_Frontend {
     // regardless of what the fan actually typed).
     public static function apply_tip_amount($cart_item_data, $product_id) {
         if ((int) $product_id !== (int) get_option('bhm_tip_product_id', 0)) return $cart_item_data;
-        $requested_cents = isset($_GET['bhm_tip_amount']) ? (int) round(((float) $_GET['bhm_tip_amount']) * 100) : 500;
+        $requested_cents = isset($_GET['bhm_tip_amount']) ? BHM_Money::parse($_GET['bhm_tip_amount']) : 500;
         // Clamped server-side — the min/max on the <input> above is a
         // UX hint only; a request can trivially bypass HTML attributes,
         // so the actual bound has to be enforced here.
@@ -458,7 +459,7 @@ class BHM_Frontend {
         foreach ($cart->get_cart() as $item) {
             if (!isset($item['bhm_tip_cents'])) continue;
             $cents = max(self::TIP_MIN_CENTS, min(self::TIP_MAX_CENTS, (int) $item['bhm_tip_cents']));
-            $item['data']->set_price(number_format($cents / 100, 2, '.', ''));
+            $item['data']->set_price(BHM_Money::price($cents));
         }
     }
 
@@ -479,7 +480,7 @@ class BHM_Frontend {
     // track/release post ID (its own real ID, not the WC product ID —
     // matches how BHM_Products::render_object_ui() is already keyed).
     public static function render_purchase_button($atts) {
-        if (!class_exists('WooCommerce')) return '';
+        if (!BH_Commerce::available()) return '';
         $atts = shortcode_atts(['id' => 0], $atts);
         $object_id = (int) $atts['id'];
         if (!$object_id) return '';
@@ -508,14 +509,14 @@ class BHM_Frontend {
                         <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr($amt); ?>">$<?php echo esc_html($amt); ?></button>
                     <?php endforeach; ?>
                 </div>
-                <label>Name your price (min $<?php echo esc_html(number_format($price_cents / 100, 2)); ?>): $
+                <label>Name your price (min $<?php echo esc_html(BHM_Money::display($price_cents)); ?>): $
                     <input type="number" step="1" min="<?php echo esc_attr($price_cents / 100); ?>" max="<?php echo esc_attr(self::PURCHASE_MAX_CENTS / 100); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr($price_cents / 100); ?>" class="bhm-amount-input">
                 </label>
                 <button type="submit" class="bhm-btn">Buy</button>
             </form>
             <?php
         } else {
-            echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Buy for $' . esc_html(number_format($price_cents / 100, 2)) . '</a>';
+            echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Buy for $' . esc_html(BHM_Money::display($price_cents)) . '</a>';
         }
         return ob_get_clean();
     }
@@ -532,7 +533,7 @@ class BHM_Frontend {
         $floor_cents = (int) get_post_meta($object_id, '_bhm_purchase_price_cents', true);
         if (!$floor_cents) return $cart_item_data;
 
-        $requested_cents = isset($_GET['bhm_purchase_amount']) ? (int) round(((float) $_GET['bhm_purchase_amount']) * 100) : $floor_cents;
+        $requested_cents = isset($_GET['bhm_purchase_amount']) ? BHM_Money::parse($_GET['bhm_purchase_amount']) : $floor_cents;
         // Clamped server-side — same reasoning as apply_tip_amount()'s
         // own comment: the <input> min/max is a UX hint only.
         $cents = max($floor_cents, min(self::PURCHASE_MAX_CENTS, $requested_cents));
@@ -549,7 +550,7 @@ class BHM_Frontend {
             $floor_cents = $object_id ? (int) get_post_meta($object_id, '_bhm_purchase_price_cents', true) : 0;
             if (!$floor_cents) continue; // re-check at calculation time too — the price could have changed since add-to-cart
             $cents = max($floor_cents, min(self::PURCHASE_MAX_CENTS, (int) $item['bhm_purchase_cents']));
-            $item['data']->set_price(number_format($cents / 100, 2, '.', ''));
+            $item['data']->set_price(BHM_Money::price($cents));
         }
     }
 
@@ -564,14 +565,14 @@ class BHM_Frontend {
 
         ob_start();
         echo '<div class="bhm-wallet">';
-        echo '<p class="bhm-wallet-balance">Balance: $' . esc_html(number_format($balance / 100, 2)) . '</p>';
-        if (class_exists('WooCommerce') && $topup_options) {
+        echo '<p class="bhm-wallet-balance">Balance: $' . esc_html(BHM_Money::display($balance)) . '</p>';
+        if (BH_Commerce::available() && $topup_options) {
             echo '<div class="bhm-wallet-topups">';
             foreach ($topup_options as $cents => $price) {
                 $product_id = (int) ($topup_products[$cents] ?? 0);
-                $exists = class_exists('BH_Commerce') ? BH_Commerce::product_exists($product_id) : ($product_id && wc_get_product($product_id));
+                $exists = BH_Commerce::product_exists($product_id);
                 if (!$product_id || !$exists) continue; // not synced yet — admin needs to save settings once
-                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Add $' . esc_html(number_format($cents / 100, 2)) . ' credit — $' . esc_html(number_format((float) $price, 2)) . '</a>';
+                echo '<a class="bhm-btn" href="' . esc_url(self::add_to_cart_url($product_id)) . '">Add $' . esc_html(BHM_Money::display($cents)) . ' credit — $' . esc_html(number_format((float) $price, 2)) . '</a>';
             }
             echo '</div>';
         }
@@ -593,7 +594,7 @@ class BHM_Frontend {
     // screen), converted to integer cents for upsert_product()'s
     // contract rather than passed through as a formatted price string.
     public static function sync_wallet_topup_products() {
-        if (!class_exists('WooCommerce')) return;
+        if (!BH_Commerce::available()) return;
         $options = get_option('bhm_wallet_topup_options', []);
         $existing = get_option('bhm_wallet_topup_products', []); // cents => product_id
         $new_map = [];
@@ -601,8 +602,8 @@ class BHM_Frontend {
 
         foreach ($options as $cents => $price) {
             $product_id = $existing[$cents] ?? 0;
-            $name = 'Play Credit — $' . number_format($cents / 100, 2);
-            $price_cents = (int) round(((float) $price) * 100);
+            $name = 'Play Credit — $' . BHM_Money::display($cents);
+            $price_cents = BHM_Money::parse($price);
 
             if ($use_commerce) {
                 $new_id = BH_Commerce::upsert_product($product_id, [

@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) exit;
  *   what actually happened, not just a single opaque number.
  */
 class BHM_Activator {
-    const DB_VERSION = '1.5'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php)
+    const DB_VERSION = '1.6'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php); 1.6 added bhm_purchase_ledger (ledger-anchored proof of purchase — see class-purchase-ledger.php, ROADMAP-streaming-media-scope-and-blockchain.md Part 2)
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -224,8 +224,45 @@ class BHM_Activator {
         ) $charset;";
         dbDelta($referrals_sql);
 
+        // Ledger-anchored proof of purchase (ROADMAP-streaming-media-
+        // scope-and-blockchain.md Part 2) — one row per purchase AND one
+        // linked row per reversal, never a row deleted or overwritten.
+        // record_hash is what actually gets anchored to a public ledger
+        // (see class-anchoring.php); everything else here is this
+        // site's own plain-database copy of what that hash covers, kept
+        // ONLY so the record can be looked up and displayed — the
+        // anchored hash is what makes it independently verifiable, not
+        // this table. user_id is deliberately the only person-identifying
+        // column, and it never leaves this database (see
+        // class-anchoring.php's own docblock on what gets hashed vs.
+        // what gets anchored). linked_record_id points a reversal row
+        // back at the purchase it reverses, so BOTH remain visible —
+        // this table is a history, not a current-state cache, precisely
+        // so a buyer's "proof of purchase" can never be quietly made to
+        // look like it never happened.
+        $purchase_ledger = $wpdb->prefix . 'bhm_purchase_ledger';
+        $purchase_ledger_sql = "CREATE TABLE $purchase_ledger (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            event_type varchar(20) NOT NULL,
+            wc_order_id bigint(20) unsigned NOT NULL,
+            user_id bigint(20) unsigned NOT NULL,
+            track_id bigint(20) unsigned DEFAULT NULL,
+            content_hash varchar(64) DEFAULT NULL,
+            price_cents bigint(20) NOT NULL DEFAULT 0,
+            record_hash varchar(64) NOT NULL,
+            anchor_status varchar(20) NOT NULL DEFAULT 'pending',
+            anchor_proof longtext DEFAULT NULL,
+            linked_record_id bigint(20) unsigned DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY wc_order_id (wc_order_id),
+            KEY user_id (user_id),
+            KEY anchor_status (anchor_status)
+        ) $charset;";
+        dbDelta($purchase_ledger_sql);
+
         if ($wpdb->last_error) return false;
-        foreach ([$entitlements, $wallet, $ledger, $play_log, $fingerprints, $gifts, $referral_codes, $referrals] as $t) {
+        foreach ([$entitlements, $wallet, $ledger, $play_log, $fingerprints, $gifts, $referral_codes, $referrals, $purchase_ledger] as $t) {
             if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $t)) !== $t) return false;
         }
         return true;

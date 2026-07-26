@@ -186,3 +186,8 @@
 .bhs-stream-health { display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 4px; margin-bottom: 4px; }
 .bhs-stream-health--poor { background: rgba(180,120,20,0.25); color: #d9a441; }
 .bhs-stream-health--error { background: rgba(180,40,40,0.25); color: #e0554a; }
+
+/* Long-form audio chapter markers — ROADMAP-streaming-media-scope-and-blockchain.md Part 5 */
+.bhs-np-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.bhs-chapter-marker { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: inherit; cursor: pointer; }
+.bhs-chapter-marker:hover { background: rgba(255,255,255,0.1); }

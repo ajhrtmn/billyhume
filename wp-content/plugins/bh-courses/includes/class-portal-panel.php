@@ -64,6 +64,11 @@ class BHC_PortalPanel {
         $earned = BHC_Achievements::all_for_user($user_id);
         if (!$earned) return;
 
+        // Audit fix (2026-07-25): the badge row had no heading — its
+        // meaning lived entirely in a `title` tooltip attribute, invisible
+        // on touch devices (no hover). A visible label makes the section
+        // legible without depending on tooltip support at all.
+        echo '<h3 class="bhi-portal-achievements-heading">Achievements</h3>';
         echo '<div class="bhi-portal-achievements">';
         foreach ($earned as $row) {
             $meta = BHC_Achievements::LABELS[$row['achievement_key']] ?? null;
@@ -109,15 +114,25 @@ class BHC_PortalPanel {
             $course = get_post($course_id);
             if (!$course || $course->post_status !== 'publish') continue;
 
+            // Audit fix (2026-07-25): the line above already calls
+            // BHC_Progress::course_percent() with no guard at all — this
+            // is a same-plugin class, always loaded, so the
+            // class_exists()/method_exists() fallback here was
+            // inconsistent with that and dead in practice.
             $percent = BHC_Progress::course_percent($user_id, $course_id);
-            $completed = class_exists('BHC_Progress') && method_exists('BHC_Progress', 'is_course_completed')
-                ? BHC_Progress::is_course_completed($user_id, $course_id) : ($percent >= 100);
+            $completed = BHC_Progress::is_course_completed($user_id, $course_id);
 
             echo '<div class="bhi-portal-course-card">';
             echo '<h3>' . esc_html($course->post_title) . '</h3>';
             echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
             echo '<p>' . (int) $percent . '% complete' . ($completed ? ' — <strong>Completed</strong>' : '') . '</p>';
-            echo '<p><a class="button" href="' . esc_url(get_permalink($course_id)) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';
+            // Audit fix (2026-07-25): this used to always link to the
+            // course page, unlike the quick-link above (line ~36) which
+            // already does the smarter thing — jump straight to the next
+            // incomplete lesson. Now consistent.
+            $continue_lesson = !$completed ? BHC_Progress::first_incomplete_lesson($user_id, $course_id) : 0;
+            $continue_url = $continue_lesson ? get_permalink($continue_lesson) : get_permalink($course_id);
+            echo '<p><a class="button" href="' . esc_url($continue_url) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';
             echo '</div>';
         }
         echo '</div>';

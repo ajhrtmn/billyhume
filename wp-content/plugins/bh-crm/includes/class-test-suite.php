@@ -393,6 +393,82 @@ class BHCRM_TestSuite {
             'total_node_count(): an empty tree counts as 0, not an error'
         );
 
+        $rows = array_merge($rows, self::run_subtasks_blank_uid_tests());
+
+        return $rows;
+    }
+
+    /**
+     * Regression coverage for a real data-loss bug found live: seeded/
+     * imported sub-cards can end up with a blank 'uid' attr (real
+     * UI-created cards always get one via wp_generate_password() in
+     * add_subtask()). Two blank-uid siblings used to collide as the
+     * SAME array key wherever BHCRM_Subtasks indexed children by uid,
+     * silently deleting one of them on the very next drag-reorder save.
+     * Covers both halves of the fix: backfill_uids() self-healing bad
+     * data on read, and apply_reorder() never colliding/dropping a
+     * blank-uid node even if one somehow still reaches it.
+     */
+    private static function run_subtasks_blank_uid_tests() {
+        $rows = [];
+
+        $backfill_uids = new ReflectionMethod('BHCRM_Subtasks', 'backfill_uids');
+        $apply_reorder = new ReflectionMethod('BHCRM_Subtasks', 'apply_reorder');
+
+        // --- backfill_uids(): self-heal on read ---
+        $tree = [
+            ['attrs' => ['uid' => '', 'title' => 'Thumbnail sketch'], 'children' => []],
+            ['attrs' => ['uid' => '', 'title' => 'Lineart pass'], 'children' => []],
+            ['attrs' => ['uid' => 'kept'], 'children' => [
+                ['attrs' => ['uid' => ''], 'children' => []],
+            ]],
+        ];
+        $changed = $backfill_uids->invokeArgs(null, [&$tree]);
+        $rows[] = OUS_TestRunner::assert_true($changed, 'backfill_uids(): reports a change when it had to assign a missing uid');
+
+        $uids = [$tree[0]['attrs']['uid'], $tree[1]['attrs']['uid'], $tree[2]['children'][0]['attrs']['uid']];
+        $rows[] = OUS_TestRunner::assert_true(
+            $uids[0] !== '' && $uids[1] !== '' && $uids[2] !== '',
+            'backfill_uids(): every blank uid (top-level and nested) is replaced with a real, non-empty one'
+        );
+        $rows[] = OUS_TestRunner::assert_true(
+            $uids[0] !== $uids[1] && $uids[0] !== $uids[2] && $uids[1] !== $uids[2],
+            'backfill_uids(): two sibling blank-uid nodes are backfilled with DISTINCT uids, not the same one'
+        );
+        $rows[] = OUS_TestRunner::assert_same('kept', $tree[2]['attrs']['uid'], 'backfill_uids(): a node that already has a real uid is left untouched');
+
+        $unchanged_tree = [['attrs' => ['uid' => 'x'], 'children' => []]];
+        $rows[] = OUS_TestRunner::assert_false(
+            $backfill_uids->invokeArgs(null, [&$unchanged_tree]),
+            'backfill_uids(): reports no change when every uid was already present'
+        );
+
+        // --- apply_reorder(): two blank-uid siblings survive a reorder round-trip ---
+        $columns = ['To Do', 'In Progress', 'Done'];
+        $children = [
+            ['attrs' => ['uid' => '', 'title' => 'Thumbnail sketch', 'column' => 'To Do', 'done' => false], 'children' => []],
+            ['attrs' => ['uid' => '', 'title' => 'Lineart pass', 'column' => 'To Do', 'done' => false], 'children' => []],
+            ['attrs' => ['uid' => 'real-uid', 'title' => 'Inking', 'column' => 'To Do', 'done' => false], 'children' => []],
+        ];
+        // Layout only mentions the one addressable (real-uid) card being
+        // dragged to 'In Progress' — mirrors the client posting every
+        // visible card, of which only real-uid ones can be named.
+        $layout = [
+            ['uid' => 'real-uid', 'column' => 'In Progress'],
+        ];
+        [$reordered, $state_changed] = $apply_reorder->invokeArgs(null, [$children, $layout, $columns]);
+
+        $rows[] = OUS_TestRunner::assert_same(
+            3, count($reordered),
+            'apply_reorder(): both blank-uid siblings survive the reorder — neither is dropped by a uid-key collision'
+        );
+        $titles = array_map(fn($n) => $n['attrs']['title'], $reordered);
+        $rows[] = OUS_TestRunner::assert_true(
+            in_array('Thumbnail sketch', $titles, true) && in_array('Lineart pass', $titles, true),
+            'apply_reorder(): both specific blank-uid cards ("Thumbnail sketch" and "Lineart pass") are present by name after the round-trip'
+        );
+        $rows[] = OUS_TestRunner::assert_false($state_changed, 'apply_reorder(): moving into a non-done column does not report a done-state flip');
+
         return $rows;
     }
 }

@@ -126,38 +126,11 @@ class BHY_Gallery {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhy_save_settings');
 
-        $data = [];
-        $data['brand_part1'] = sanitize_text_field($_POST['brand_part1'] ?? BHY_Style::DEFAULTS['brand_part1']);
-        $data['brand_part2'] = sanitize_text_field($_POST['brand_part2'] ?? BHY_Style::DEFAULTS['brand_part2']);
-        $data['brand_logo_id'] = isset($_POST['brand_logo_id']) ? (int) $_POST['brand_logo_id'] : 0;
-        foreach (BHY_Style::DEFAULTS as $key => $default) {
-            if (strpos($key, 'color_') !== 0 && strpos($key, 'cat_color_') !== 0) continue;
-            $val = isset($_POST[$key]) ? sanitize_text_field($_POST[$key]) : $default;
-            $data[$key] = BHY_Style::safe_color($val);
-        }
-        foreach (['font_display', 'font_body'] as $key) {
-            $picked = sanitize_text_field($_POST[$key] ?? BHY_Style::DEFAULTS[$key]);
-            $data[$key] = (array_key_exists($picked, BHY_Style::FONT_OPTIONS) || $picked === 'Custom') ? $picked : BHY_Style::DEFAULTS[$key];
-            $data[$key . '_custom'] = sanitize_text_field($_POST[$key . '_custom'] ?? '');
-        }
-        $data['font_scale']  = BHY_Style::safe_number($_POST['font_scale']  ?? null, 0.75, 1.6, 1);
-        $data['space_scale'] = BHY_Style::safe_number($_POST['space_scale'] ?? null, 0.6, 1.8, 1);
-        $data['radius']      = BHY_Style::safe_number($_POST['radius']      ?? null, 0, 32, 12);
-        $data['radius_sm']   = BHY_Style::safe_number($_POST['radius_sm']   ?? null, 0, 24, 8);
-        $data['bar_height']  = BHY_Style::safe_number($_POST['bar_height']  ?? null, 56, 140, 84);
-
-        // Plugin-registered custom sliders (class-style.php's
-        // custom_sliders()) — same sanitize-through-safe_number()
-        // treatment as every built-in field above, just looped instead
-        // of hardcoded, since the set is whatever's registered right now.
-        $custom_sliders = BHY_Style::custom_sliders();
-        if ($custom_sliders) {
-            $data['custom'] = [];
-            foreach ($custom_sliders as $key => $def) {
-                $raw = $_POST['custom_' . $key] ?? ($def['default'] ?? 0);
-                $data['custom'][$key] = BHY_Style::safe_number($raw, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0);
-            }
-        }
+        // BHY_Style::save_from_input() is the single authority for this
+        // sanitize pass — see its docblock for why (this used to be
+        // hand-copied here and in BH_Element::rest_save_site_tokens(),
+        // and the two copies had already drifted).
+        $data = BHY_Style::save_from_input($_POST);
 
         update_option(BHY_Style::OPTION, $data);
 

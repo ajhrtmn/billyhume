@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.11
+ * Version:     3.7.12
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -108,7 +108,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.11');
+define('BH_VER',        '3.7.12');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible
@@ -326,6 +326,7 @@ add_action('plugins_loaded', function () {
         }
     });
     add_action('init',          ['BH_Auth', 'init']);
+    add_action('init',          ['BH_API', 'init']);
     add_action('rest_api_init', ['BH_API', 'register_routes']);
     add_action('init',          ['BH_Admin', 'init']);
     add_action('init',          ['BH_ContestWizard', 'init']);

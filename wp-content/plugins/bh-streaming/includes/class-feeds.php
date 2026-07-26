@@ -394,9 +394,21 @@ class BHS_Feeds {
             $item->appendChild($doc->createElement('itunes:author', get_post_meta($p->ID, '_bhs_artist', true)));
             $item->appendChild($doc->createElement('pubDate', get_the_date(DATE_RSS, $p)));
 
+            // Audit fix (2026-07-25): this used to hardcode audio/mpeg for
+            // every track, breaking re-import fidelity for the AIFF/WAV
+            // uploads this plugin explicitly supports. A real attachment
+            // (_bhs_audio_id) has its own stored mime type; an externally-
+            // aggregated track (_bhs_external_audio_url, no attachment)
+            // falls back to guessing from the URL's extension, with
+            // audio/mpeg only as the last-resort default when even that fails.
+            $mime = $aid ? get_post_mime_type($aid) : '';
+            if (!$mime) {
+                $filetype = wp_check_filetype($audio_url);
+                $mime = $filetype['type'] ?: 'audio/mpeg';
+            }
             $enclosure = $doc->createElement('enclosure');
             $enclosure->setAttribute('url', $audio_url);
-            $enclosure->setAttribute('type', 'audio/mpeg');
+            $enclosure->setAttribute('type', $mime);
             $item->appendChild($enclosure);
 
             $channel->appendChild($item);

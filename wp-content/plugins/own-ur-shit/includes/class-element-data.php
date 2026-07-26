@@ -457,7 +457,7 @@ class BH_Element_Data {
         if (!$formatters) {
             echo '<p class="description">No formatters registered yet.</p>';
         } else {
-            echo '<p><code>' . esc_html(implode('</code>, <code>', $formatters)) . '</code></p>';
+            echo '<p><code>' . implode('</code>, <code>', array_map('esc_html', $formatters)) . '</code></p>';
         }
     }
 }

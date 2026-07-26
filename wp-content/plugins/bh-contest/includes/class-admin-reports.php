@@ -10,6 +10,16 @@ class BH_AdminReports {
     public static function init() {
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
+
+        // Audit fix (2026-07-25) — email_winners() used to send() its
+        // whole per-winner loop synchronously inside the admin-post
+        // request (real timeout risk on a large contest); each winner's
+        // email is now one OUS_Jobs job instead, same "never a synchronous
+        // wp_mail() on a request that can have many recipients" discipline
+        // OUS_Notifications already established elsewhere in this ecosystem.
+        if (class_exists('OUS_Jobs')) {
+            OUS_Jobs::register('bh_contest_email_winner', [self::class, 'send_one_winner_email']);
+        }
     }
 
     // A raw data export as a safety net — if a vote or a submission is
@@ -136,7 +146,19 @@ class BH_AdminReports {
         $collect(BH_Reveal::overall_results($cid), 'Overall');
 
         $contest_title = get_the_title($cid);
-        $sent = 0; $failed_uids = [];
+
+        // Audit fix (2026-07-25): this loop used to call wp_mail()
+        // synchronously for every winner, inside the same admin-post
+        // request that also fires the Discord announcement — a large
+        // contest with many category winners was a genuine timeout risk
+        // on one request. Each winner's email is now its own OUS_Jobs
+        // job (registered in init() above), same "never a synchronous
+        // per-recipient wp_mail() loop" discipline OUS_Notifications
+        // already follows elsewhere. Failure is no longer summarized
+        // synchronously here — send_one_winner_email() logs its own
+        // per-recipient failure to OUS_DebugLog, matching how
+        // OUS_Notifications::send_email_now() reports its own failures.
+        $queued = 0;
         foreach ($placements as $uid => $wins) {
             $user = get_userdata($uid);
             if (!$user || !$user->user_email) continue;
@@ -147,25 +169,39 @@ class BH_AdminReports {
             );
             $body = "Hi {$user->user_login},\n\nCongratulations — here's how you placed in {$contest_title}:\n\n"
                 . implode("\n", $lines) . "\n\nWell done!";
-            if (wp_mail($user->user_email, "You placed in {$contest_title}!", $body)) {
-                $sent++;
-            } else {
-                $failed_uids[] = $uid;
+
+            if (class_exists('OUS_Jobs')) {
+                OUS_Jobs::enqueue('bh_contest_email_winner', [
+                    'contest_id' => $cid, 'user_id' => $uid,
+                    'email' => $user->user_email, 'subject' => "You placed in {$contest_title}!", 'body' => $body,
+                ]);
+                $queued++;
+            } elseif (wp_mail($user->user_email, "You placed in {$contest_title}!", $body)) {
+                // No job queue active (shouldn't happen — same plugin,
+                // same activation) — fail toward still sending rather
+                // than silently dropping the notification.
+                $queued++;
+            } elseif (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', "Winner-notification email failed (no job queue fallback path).", ['contest_id' => $cid, 'user_id' => $uid], 'BH Contest');
             }
         }
-        // Previously wp_mail()'s return value was ignored entirely — a
-        // bulk send with some/all messages silently rejected by the mail
-        // transport looked identical to a fully successful one from the
-        // admin's side, with no record of WHICH winners never got
-        // notified. wp_mail() itself doesn't expose a failure reason
-        // (that's the well-known limitation OUS_Mail's own roadmap entry
-        // exists to eventually fix — see ROADMAP-platform-evolution.md
-        // Section 2's BH_Mail interface item), but a count + the
-        // specific affected user IDs is still a real, actionable
-        // improvement over nothing.
-        if ($failed_uids && class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('warning', "Winner-notification bulk send: $sent sent, " . count($failed_uids) . ' failed.', [
-                'contest_id' => $cid, 'failed_user_ids' => $failed_uids,
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', "Winner-notification send: $queued winner email(s) queued.", ['contest_id' => $cid], 'BH Contest');
+        }
+    }
+
+    // OUS_Jobs handler, registered in init() above — one call per winner,
+    // run via Action Scheduler (or the fallback cron queue) rather than
+    // inside the admin request that triggered the bulk send.
+    public static function send_one_winner_email($args) {
+        $email = $args['email'] ?? '';
+        $subject = $args['subject'] ?? '';
+        $body = $args['body'] ?? '';
+        if (!$email || !$subject || !$body) return;
+
+        if (!wp_mail($email, $subject, $body) && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', 'Winner-notification email failed to send.', [
+                'contest_id' => $args['contest_id'] ?? 0, 'user_id' => $args['user_id'] ?? 0, 'email' => $email,
             ], 'BH Contest');
         }
     }

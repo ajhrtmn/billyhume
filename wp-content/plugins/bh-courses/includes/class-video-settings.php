@@ -86,7 +86,7 @@ class BHC_VideoSettings {
 
         $over = [];
         foreach ($tree as $block) {
-            if ($block['blockName'] !== 'bhc/video') continue;
+            if (($block['type'] ?? '') !== 'bhc/video') continue;
             $attrs = $block['attrs'] ?? [];
             if (($attrs['source'] ?? 'upload') !== 'upload' || empty($attrs['attachment_id'])) continue;
             $file = get_attached_file((int) $attrs['attachment_id']);

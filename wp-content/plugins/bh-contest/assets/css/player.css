@@ -186,6 +186,30 @@
    as part of the same system rather than a bolted-on control. Only ever
    shown when a contest defines 2+ categories (see renderCategoryTabs). */
 .bh-category-tabs { display: flex; gap: calc(8px * var(--bh-space-scale)); margin-bottom: calc(18px * var(--bh-space-scale)); flex-wrap: wrap; }
+/* Audit fix (2026-07-25) — persistent votes-remaining indicator, see
+   BHContestPlayer.renderVotesRemaining(). A small quiet pill rather
+   than a full-width text line: it's a persistent status readout, not
+   an alert, so it should read as calm ambient chrome next to the tabs
+   it describes — not compete with them for attention. */
+.bh-votes-remaining {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--bh-text-dim);
+    background: color-mix(in srgb, var(--bh-text-dim) 12%, transparent);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin: -4px 0 calc(14px * var(--bh-space-scale));
+    font-variant-numeric: tabular-nums;
+}
+/* Still a status, not a warning — "no votes left" is expected, normal
+   end-state, so this only lowers emphasis (no fill/hue change) rather
+   than switching to --bh-accent, which reads as an error elsewhere in
+   this stylesheet. */
+.bh-votes-remaining--empty { opacity: 0.75; }
 .bh-cat-tab {
     background: transparent;
     color: var(--bh-cat-color, var(--bh-text-dim));

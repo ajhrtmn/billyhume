@@ -137,7 +137,7 @@ class BHM_Blocks {
                 'id' => $p->ID,
                 'title' => $p->post_title,
                 'type' => $p->post_type === 'bhs_release' ? 'Album' : 'Track',
-                'price' => number_format($cents / 100, 2),
+                'price' => BHM_Money::display($cents),
             ];
         }
         return new WP_REST_Response($out, 200);

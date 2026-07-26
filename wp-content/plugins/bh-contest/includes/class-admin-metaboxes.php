@@ -779,6 +779,11 @@ class BH_AdminMetaboxes {
         }
         update_post_meta($post_id, '_bhy_style_json', $style ? wp_json_encode($style) : '');
 
+        update_post_meta($post_id, '_bh_show_in_menu', !empty($_POST['bh_show_in_menu']) ? '1' : '');
+        if (isset($_POST['bh_menu_label'])) {
+            update_post_meta($post_id, '_bh_menu_label', sanitize_text_field($_POST['bh_menu_label']));
+        }
+
         // Real OUS_Revisions consumer — versioning matters most for
         // anything that's a post, like contests and lessons. Lessons
         // get WordPress core's own NATIVE post-
@@ -791,11 +796,8 @@ class BH_AdminMetaboxes {
         // full flat dump is the honest "complete current state" here,
         // rather than hand-curating a field list that would silently
         // drift out of sync with this save method's own field list.
-        update_post_meta($post_id, '_bh_show_in_menu', !empty($_POST['bh_show_in_menu']) ? '1' : '');
-        if (isset($_POST['bh_menu_label'])) {
-            update_post_meta($post_id, '_bh_menu_label', sanitize_text_field($_POST['bh_menu_label']));
-        }
-
+        // (Audit fix, 2026-07-25: this comment used to sit 12 lines
+        // above, over two unrelated menu-visibility meta updates.)
         if (class_exists('OUS_Revisions')) {
             $all_meta = get_post_meta($post_id);
             $flat = [];

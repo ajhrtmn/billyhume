@@ -40,7 +40,7 @@ class BHM_Referrals {
     public static function get_or_create_code($user_id) {
         $existing = self::code_for_user($user_id);
         if ($existing) return $existing;
-        if (!class_exists('WooCommerce')) return '';
+        if (!BH_Commerce::available()) return '';
 
         global $wpdb;
         $code = self::generate_unique_code();
@@ -149,7 +149,7 @@ class BHM_Referrals {
     // this class registering an entirely separate panel for what's
     // really one more section of the same "money" panel.
     public static function render_section($user_id) {
-        if (!class_exists('WooCommerce')) return;
+        if (!BH_Commerce::available()) return;
         $code = self::get_or_create_code($user_id);
         if (!$code) return;
 
@@ -159,7 +159,7 @@ class BHM_Referrals {
         echo '<p>Share your code — anyone who uses it gets ' . (int) self::DISCOUNT_PERCENT . '% off, and you earn ' . (int) self::COMMISSION_PERCENT . '% of what they spend as wallet credit.</p>';
         echo '<p class="bhi-referral-code">' . esc_html($code) . '</p>';
         if ($stats['redemptions'] > 0) {
-            echo '<p>' . (int) $stats['redemptions'] . ' redemption' . ($stats['redemptions'] === 1 ? '' : 's') . ' — $' . esc_html(number_format($stats['total_cents'] / 100, 2)) . ' earned.</p>';
+            echo '<p>' . (int) $stats['redemptions'] . ' redemption' . ($stats['redemptions'] === 1 ? '' : 's') . ' — $' . esc_html(BHM_Money::display($stats['total_cents'])) . ' earned.</p>';
         }
         echo '</div>';
     }

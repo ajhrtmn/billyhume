@@ -10,6 +10,21 @@ if (!defined('ABSPATH')) exit;
 // TrackIt's own equivalent features — see that doc's §2 for the exact
 // mapping against what's already built below.
 //
+// STATUS UPDATE (2026-07-25 audit pass — this is the SECOND time this
+// comment has gone stale, see plugins/STATUS.md for the standing note
+// about that): Phase A (see 2026-07-21 note below, still accurate) plus
+// Phases B, C, and D are ALL built, not "genuinely unbuilt" as the prior
+// version of this comment claimed. Phase B (timestamped fixes/feedback
+// log) and Phase D (Idea Drop — linked files/uploads) both live in
+// class-card-log.php (BHCRM_CardLog). Phase C (stall analytics) lives
+// right in THIS file — see stalled_cards_for_board() and the
+// bh-crm/v1/stalled-cards REST route below. "Scenes" (part of Phase E,
+// separate boards) is also real — see distinct_scenes() below. Given
+// this comment has drifted stale twice on the same file, treat
+// plugins/STATUS.md as the source of truth for what's actually shipped
+// going forward rather than trusting this local comment at face value —
+// it's a pointer, not guaranteed current.
+//
 // STATUS UPDATE (2026-07-21, see plugins/STATUS.md): the line that used
 // to sit here calling the whole plan "DETAILED PLAN ONLY, NOT BUILT" is
 // stale — class-subtasks.php since shipped a real, substantial nested
@@ -18,10 +33,6 @@ if (!defined('ABSPATH')) exit;
 // arguably more capable mechanism than the plan's own Phase A (reusable
 // checklist templates), not a literal implementation of it — read
 // class-subtasks.php's own docblock for what actually shipped there.
-// Phases B-E (timestamped fixes, a feedback log, stall analytics,
-// linked local audio/MIDI files, separate scenes/boards) remain
-// genuinely unbuilt. Read the plan doc before starting any of those —
-// this comment is only a pointer, not a duplicate of it.
 //
 // BHCRM_VER 1.3.0 — DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 (§1.5): new
 // list_all() + render_boards() — a thin, real listing page for the new
@@ -729,7 +740,7 @@ class BHCRM_Projects {
                         // so the bar markup is duplicated inline here
                         // rather than shared, matching this render
                         // callback's existing self-contained style.
-                        $pct = (int) round(($done_count / $total) * 100);
+                        $pct = self::progress_percent($done_count, $total);
                         $rollup_html = '<div class="bhcrm-sticky-card-rollup">'
                             . '<div class="bhcrm-progress-bar-track" style="height:5px;background:#dcdcde;border-radius:999px;overflow:hidden;margin-bottom:2px;">'
                             . '<div class="bhcrm-progress-bar-fill' . ($pct >= 100 ? ' is-complete' : '') . '" style="height:100%;width:' . $pct . '%;background:' . ($pct >= 100 ? '#00a32a' : '#2271b1') . ';"></div>'
@@ -797,6 +808,19 @@ class BHCRM_Projects {
      *
      * @return array{0:int,1:int} [$done_count, $total_count]
      */
+    // Audit fix (2026-07-25): $done_count/$total_count -> percent was
+    // duplicated between this file's own bh/sticky-card render callback
+    // and BHCRM_Subtasks::render_progress_bar() — sharing THIS
+    // calculation (pure logic, zero coupling) rather than the actual
+    // HTML/CSS markup, which is deliberately NOT shared between them
+    // (see the render callback's own comment: sticky-card is a portable
+    // BH_Element widget that can render anywhere, including contexts
+    // where kanban-board.css isn't loaded, so it uses fully inline
+    // styles rather than depending on that admin-only stylesheet).
+    public static function progress_percent($done, $total) {
+        return $total > 0 ? (int) round(($done / $total) * 100) : 0;
+    }
+
     public static function rollup_counts(array $tree) {
         $done = 0;
         $total = 0;

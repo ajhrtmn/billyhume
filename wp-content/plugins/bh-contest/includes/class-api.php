@@ -2,6 +2,17 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_API {
+    // Audit fix (2026-07-25) — separate from register_routes() (only
+    // fires on rest_api_init) because OUS_Jobs::register() needs to run
+    // on every request, including the plain WP-Cron/Action-Scheduler tick
+    // that later actually processes a queued job — rest_api_init doesn't
+    // fire on that request. Hooked on plain 'init' in bh-contest.php.
+    public static function init() {
+        if (class_exists('OUS_Jobs')) {
+            OUS_Jobs::register('bh_contest_submission_confirmation_email', [self::class, 'send_submission_confirmation_email']);
+        }
+    }
+
     public static function register_routes() {
         $pub    = ['permission_callback' => '__return_true'];
         $auth   = ['permission_callback' => 'is_user_logged_in'];
@@ -98,6 +109,28 @@ class BH_API {
                 'votes'  => $votes,
             ];
         }
+        // Audit fix (2026-07-25) — a voter previously had no way to know
+        // how many votes they had left in a category before/after
+        // casting one; the only signal was a post-vote toast that
+        // disappeared, and otherwise clicking "Vote" until it stopped
+        // working. Computed once per category here (same
+        // BH_Helpers::vote_limit()/user_vote_count() pair the vote-cast
+        // endpoint already uses for its own votes_left) so the front end
+        // can render a persistent counter from page load, not only after
+        // the first vote.
+        $votes_remaining = [];
+        $vote_limit = null;
+        if (is_user_logged_in()) {
+            $vote_limit = BH_Helpers::vote_limit(get_current_user_id(), $cid);
+            if ($cats) {
+                foreach ($cats as $c) {
+                    $votes_remaining[$c['slug']] = max(0, $vote_limit - BH_Helpers::user_vote_count(get_current_user_id(), $cid, $c['slug']));
+                }
+            } else {
+                $votes_remaining[''] = max(0, $vote_limit - BH_Helpers::user_vote_count(get_current_user_id(), $cid, ''));
+            }
+        }
+
         return self::ok([
             'tracks'            => $out,
             'total_pages'       => (int) $q->max_num_pages,
@@ -106,6 +139,8 @@ class BH_API {
             'categories'        => $cats,
             'contact_fields'    => BH_Helpers::contact_config($cid),
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
+            'vote_limit'        => $vote_limit,
+            'votes_remaining'   => $votes_remaining,
         ]);
     }
 
@@ -185,7 +220,7 @@ class BH_API {
         // still published" gate below — a real trapped-vote bug, found
         // by tracing what happens when an admin rejects a submission
         // AFTER it already collected votes (handle_reject_submission()
-        // sets post_status = 'rejected', class-admin.php): every voter
+        // sets post_status = 'rejected', BH_AdminModeration in class-admin-moderation.php): every voter
         // who'd already voted for it used to hit the publish-status
         // check on every future request for that submission_id and get
         // "That track does not belong to this contest" — permanently
@@ -490,21 +525,58 @@ class BH_API {
         if ($user && $user->user_email) {
             $contest_title = get_the_title($cid);
             $subject = 'We got your submission — ' . get_bloginfo('name');
-            $sent = wp_mail(
-                $user->user_email,
-                $subject,
-                "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!"
-            );
-            if ($sent && class_exists('BH_Event')) {
-                BH_Event::emit('bhcore/email_sent', [
-                    'user_id' => $uid, 'subject_type' => 'email', 'subject_id' => 0,
-                    'payload' => ['title' => $subject],
+            $body = "Hi {$user->user_login},\n\nYour track \"{$title}\" for {$contest_title} has been received and is pending review. You'll hear from us once it's approved.\n\nThanks for entering!";
+
+            // Audit fix (2026-07-25): this used to call wp_mail()
+            // synchronously here — inside the same REST request that's
+            // also handling the submission's file upload, a real timeout
+            // risk on a slow mail transport. Now queued via OUS_Jobs
+            // (handler registered in init() above, run_one() actually
+            // sends it), same discipline as bh_contest_email_winner.
+            // bhcore/email_sent now fires from the job handler on real
+            // send success, not at enqueue time.
+            if (class_exists('OUS_Jobs')) {
+                OUS_Jobs::enqueue('bh_contest_submission_confirmation_email', [
+                    'user_id' => $uid, 'submission_id' => $pid, 'email' => $user->user_email, 'subject' => $subject, 'body' => $body,
                 ]);
-            } elseif (!$sent && class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
-                    'user_id' => $uid, 'submission_id' => $pid,
-                ], 'BH Contest Submission');
+            } else {
+                // No job queue active (shouldn't happen — same plugin,
+                // same activation) — fail toward still sending rather
+                // than silently dropping the confirmation.
+                $sent = wp_mail($user->user_email, $subject, $body);
+                if ($sent && class_exists('BH_Event')) {
+                    BH_Event::emit('bhcore/email_sent', [
+                        'user_id' => $uid, 'subject_type' => 'email', 'subject_id' => 0,
+                        'payload' => ['title' => $subject],
+                    ]);
+                } elseif (!$sent && class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
+                        'user_id' => $uid, 'submission_id' => $pid,
+                    ], 'BH Contest Submission');
+                }
             }
+        }
+    }
+
+    // OUS_Jobs handler, registered in init() above — the actual send now
+    // happens off the original REST request, via Action Scheduler (or
+    // the fallback cron queue).
+    public static function send_submission_confirmation_email($args) {
+        $email = $args['email'] ?? '';
+        $subject = $args['subject'] ?? '';
+        $body = $args['body'] ?? '';
+        if (!$email || !$subject || !$body) return;
+
+        $sent = wp_mail($email, $subject, $body);
+        if ($sent && class_exists('BH_Event')) {
+            BH_Event::emit('bhcore/email_sent', [
+                'user_id' => $args['user_id'] ?? 0, 'subject_type' => 'email', 'subject_id' => 0,
+                'payload' => ['title' => $subject],
+            ]);
+        } elseif (!$sent && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
+                'user_id' => $args['user_id'] ?? 0, 'submission_id' => $args['submission_id'] ?? 0,
+            ], 'BH Contest Submission');
         }
     }
 

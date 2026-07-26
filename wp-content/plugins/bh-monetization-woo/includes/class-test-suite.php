@@ -57,6 +57,25 @@ class BHM_TestSuite {
             'Negative days remaining (already expired) credits nothing, never a negative wallet debit'
         );
 
+        /* ---------- annual_savings_percent() (audit fix, 2026-07-25) ---------- */
+
+        $rows[] = OUS_TestRunner::assert_same(
+            17, BHM_Gate::annual_savings_percent(1000, 10000),
+            '$10/mo tier priced at $100/yr (vs. $120/yr at monthly rate) is a real 17% savings'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(1000, 12000),
+            'Annual priced exactly at monthly-times-12 is 0% savings, not a rounding artifact'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(1000, 15000),
+            'Annual priced ABOVE monthly-times-12 never shows a misleading negative percent'
+        );
+        $rows[] = OUS_TestRunner::assert_same(
+            0, BHM_Gate::annual_savings_percent(0, 0),
+            'A free tier never divides by zero'
+        );
+
         /* ---------- benefit_registry() exact contents ---------- */
 
         $registry = BHM_Tiers::benefit_registry();
@@ -176,7 +195,7 @@ class BHM_TestSuite {
         // a mock of any of it, same "exercise the real thing" posture as
         // the wallet/tier-exclusivity suites above. Needs WooCommerce
         // actually active (creates a real product/order/coupon).
-        if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && class_exists('WooCommerce')) {
+        if (class_exists('BHM_Referrals') && class_exists('OUS_Debug') && BH_Commerce::available()) {
             $rows = array_merge($rows, self::run_referral_tests());
         }
 
@@ -206,12 +225,12 @@ class BHM_TestSuite {
         $grant->setAccessible(true);
 
         // Grant the cheap tier first — a plain, uncontested grant.
-        $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $grant->invoke(null, $uid, 'subscription', 'account', $cheap_tier, 1000001, null, gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
         $count_after_first = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, $count_after_first, 'Granting a first tier leaves exactly one active entitlement row');
 
         // Grant a DIFFERENT (pricier) tier — must replace, not stack.
-        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000002, null, gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+        $grant->invoke(null, $uid, 'subscription', 'account', $pricey_tier, 1000002, null, gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
         $rows_after_switch = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE user_id = %d", $uid));
         $rows[] = OUS_TestRunner::assert_same(1, count($rows_after_switch), 'Granting a DIFFERENT tier replaces the old one — never two simultaneous active tiers');
         $rows[] = OUS_TestRunner::assert_same((string) $pricey_tier, (string) ($rows_after_switch[0]->object_id ?? null), 'After switching tiers, the ONE remaining row is the newly-granted tier, not the old one');

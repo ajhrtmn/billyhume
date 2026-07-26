@@ -27,7 +27,7 @@ class BHM_Entitlements {
         // Subscription renewal/cancellation — only registered if
         // WooCommerce Subscriptions is actually present, since these
         // hooks don't exist otherwise.
-        $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
+        $has_subs = BH_Commerce::has_subscriptions();
         if ($has_subs) {
             add_action('woocommerce_subscription_status_active', [self::class, 'on_subscription_active']);
             add_action('woocommerce_subscription_status_cancelled', [self::class, 'on_subscription_ended']);
@@ -63,7 +63,7 @@ class BHM_Entitlements {
         // whole class already requires the core (BHCORE_LOADED gate in
         // bh-monetization-woo.php); an old core without BH_Commerce
         // would need its own fallback, out of scope for this migration.
-        $order = class_exists('BH_Commerce') ? BH_Commerce::get_order($order_id) : self::legacy_get_order_array($order_id);
+        $order = BH_Commerce::get_order($order_id);
         if (!$order) {
             // A completed-order hook firing for an order ID that can't
             // be loaded is exactly the kind of "money moved but nothing
@@ -102,9 +102,9 @@ class BHM_Entitlements {
                         continue;
                     }
 
-                    $has_subs = class_exists('BH_Commerce') ? BH_Commerce::has_subscriptions() : class_exists('WC_Subscriptions');
+                    $has_subs = BH_Commerce::has_subscriptions();
                     self::grant_entitlement($user_id, $has_subs ? 'subscription' : 'streaming_tier', 'account', $tier_id, $order_id, null,
-                        $has_subs ? null : gmdate('Y-m-d H:i:s', strtotime('+30 days')));
+                        $has_subs ? null : gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')));
                     continue;
                 }
 
@@ -159,7 +159,7 @@ class BHM_Entitlements {
     // any real merchant would on a chargeback for a consumed good.
     public static function on_order_reversed($order_id) {
         global $wpdb;
-        $order = class_exists('BH_Commerce') ? BH_Commerce::get_order($order_id) : self::legacy_get_order_array($order_id);
+        $order = BH_Commerce::get_order($order_id);
         if (!$order) return;
 
         $t = $wpdb->prefix . 'bhm_entitlements';
@@ -223,7 +223,7 @@ class BHM_Entitlements {
     // get_customer_id()/get_items()/get_id(), same treatment
     // BH_Commerce::get_order() already gives WC_Order objects.
     public static function on_subscription_active($subscription) {
-        $sub = class_exists('BH_Commerce') ? BH_Commerce::normalize_subscription($subscription) : null;
+        $sub = BH_Commerce::normalize_subscription($subscription);
         if (!$sub) {
             // Fallback for an old core without BH_Commerce — same
             // direct-object shape this migration removed from the main
@@ -316,7 +316,7 @@ class BHM_Entitlements {
         self::replace_active_tier_entitlements($user_id, $tier_id);
         $wpdb->insert($t, [
             'user_id' => $user_id, 'type' => 'streaming_tier', 'scope' => 'account', 'object_id' => $tier_id,
-            'wc_order_id' => $order_id, 'expires_at' => gmdate('Y-m-d H:i:s', strtotime('+30 days')),
+            'wc_order_id' => $order_id, 'expires_at' => gmdate('Y-m-d H:i:s', strtotime('+' . BHM_Gate::FALLBACK_ACCESS_DAYS . ' days')),
         ]);
         do_action('bhm_entitlement_granted', $user_id, 'streaming_tier', 'account', $tier_id);
     }

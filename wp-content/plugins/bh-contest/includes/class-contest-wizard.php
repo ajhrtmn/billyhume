@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) exit;
  * That split is deliberate, not a shortcut: those fields have sensible
  * defaults a first-time contest doesn't need to touch.
  *
- * Does NOT duplicate BH_Admin::save_contest_meta()'s validation/
+ * Does NOT duplicate BH_AdminMetaboxes::save_contest_meta()'s validation/
  * sanitization logic (categories parsing, rubric parsing, contact-
  * field defaults) — it populates $_POST with the exact same field
  * names that screen posts and creates the contest via wp_insert_post(),
@@ -122,7 +122,7 @@ class BH_ContestWizard {
         $title = sanitize_text_field(wp_unslash($_POST['wiz_title'] ?? ''));
         if ($title === '') wp_die('A contest name is required.', '', ['response' => 400, 'back_link' => true]);
 
-        // Same real save path the raw edit screen uses (BH_Admin::
+        // Same real save path the raw edit screen uses (BH_AdminMetaboxes::
         // save_contest_meta(), hooked on save_post_bh_contest) — this
         // class's own docblock explains why populating $_POST with that
         // screen's own field names and letting wp_insert_post() fire the

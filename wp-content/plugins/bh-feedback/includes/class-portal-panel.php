@@ -57,6 +57,16 @@ class BHF_PortalPanel {
                 echo '<div class="bhf-request-card">';
                 echo '<h3>' . esc_html($request->post_title) . '</h3>';
                 echo '<p><span class="bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span> — ' . esc_html(BHF_Pricing::label_for($tier)) . '</p>';
+                // Audit fix (2026-07-25): the claim/release/complete state
+                // machine already tracks _bhf_claimed_at, but a submitter
+                // never saw it — the "claimed" badge looked identical in
+                // meaning to "open" beyond its text label alone. Surface it.
+                if ($status === BHF_PostTypes::STATUS_CLAIMED) {
+                    $claimed_at = get_post_meta($request->ID, '_bhf_claimed_at', true);
+                    if ($claimed_at) {
+                        echo '<p class="bhf-claimed-note description">Claimed ' . esc_html(human_time_diff(strtotime($claimed_at), current_time('timestamp'))) . ' ago — a reviewer is working on this.</p>';
+                    }
+                }
                 if ($status === BHF_PostTypes::STATUS_COMPLETED) {
                     $review = BHF_Queue::review_for($request->ID);
                     if ($review) {

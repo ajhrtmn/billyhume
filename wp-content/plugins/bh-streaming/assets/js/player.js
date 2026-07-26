@@ -213,8 +213,10 @@
     }
 
     function renderPlaylistsView() {
-        if (!loggedIn) { library.innerHTML = '<p class="bhs-empty">Log in to create playlists.</p>'; return; }
-        if (!myPlaylists.length) { library.innerHTML = '<p class="bhs-empty">No playlists yet — use the + button on a track while it\'s playing to start one.</p>'; return; }
+        // Audit fix (2026-07-25): migrated onto the shared empty-state
+        // component, matching every other tab (BHSData.emptyState*).
+        if (!loggedIn) { library.innerHTML = (window.BHSData && BHSData.emptyStatePlaylistsLoggedOut) || '<p class="bhs-empty">Log in to create playlists.</p>'; return; }
+        if (!myPlaylists.length) { library.innerHTML = (window.BHSData && BHSData.emptyStatePlaylistsEmpty) || '<p class="bhs-empty">No playlists yet — use the + button on a track while it\'s playing to start one.</p>'; return; }
 
         library.innerHTML = '<div class="bhs-grid">' + myPlaylists.map(function (p) {
             return '<button type="button" class="bhs-card bhs-playlist-card" data-playlist="' + p.id + '">'
@@ -272,7 +274,11 @@
 
         var track = allTracks.find(function (t) { return t.id === trackId; });
         if (!track) {
-            library.innerHTML = '<p class="bhs-empty">That track isn\'t available.</p>';
+            // Audit fix (2026-07-25): a dead-end deep link had no way
+            // back except the browser's own Back button — same pattern
+            // showLockNotice()/openRelease() already use.
+            library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-from-deep-link">&larr; Back to library</button><p class="bhs-empty">That track isn\'t available.</p>';
+            document.getElementById('bhs-back-from-deep-link').addEventListener('click', renderView);
             return true;
         }
         library.innerHTML = '<h2 class="bhs-release-title">' + esc(track.title) + '</h2><div class="bhs-grid">' + trackCardHtml(track) + '</div>';
@@ -404,6 +410,9 @@
         updateMediaSession(t);
         loadRelated(t.id);
         renderQueuePanel();
+        renderChapters(t);
+        maybeResumeSeek(t);
+        lastResumeSave = 0;
     }
 
     function playPrev() {
@@ -576,7 +585,62 @@
             navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: audio.currentTime });
         }
         updateLyricsHighlight();
+        maybeSaveResumePosition();
     });
+
+    /* ---------- long-form audio: chapters + resume position (ROADMAP-streaming-media-scope-and-blockchain.md Part 5, Phase 1) ---------- */
+
+    var chaptersEl = document.getElementById('bhs-np-chapters');
+    var lastResumeSave = 0;
+
+    function renderChapters(t) {
+        if (!chaptersEl) return;
+        var chapters = t && t.chapters;
+        if (!chapters || !chapters.length) { chaptersEl.style.display = 'none'; chaptersEl.innerHTML = ''; return; }
+        chaptersEl.style.display = '';
+        chaptersEl.innerHTML = '';
+        chapters.forEach(function (c) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bhs-chapter-marker';
+            var mm = Math.floor(c.time / 60), ss = c.time % 60;
+            btn.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss + ' ' + c.label;
+            btn.addEventListener('click', function () { audio.currentTime = c.time; });
+            chaptersEl.appendChild(btn);
+        });
+    }
+
+    // Only logged-in listeners get resume (BHSData.loggedIn — the same
+    // flag every other per-user player feature already checks), and
+    // only via a real user gesture already granting audio.play()
+    // elsewhere — this never autoplays, it just seeks once metadata is
+    // available so the FIRST play of a track a listener already started
+    // picks up where they left off.
+    function maybeResumeSeek(t) {
+        if (!t || !t.resumeSeconds || t.resumeSeconds < 5) return; // a few seconds in isn't worth resuming into — that's just "the start"
+        function onLoaded() {
+            if (t.resumeSeconds < (audio.duration || Infinity) - 5) audio.currentTime = t.resumeSeconds;
+            audio.removeEventListener('loadedmetadata', onLoaded);
+        }
+        audio.addEventListener('loadedmetadata', onLoaded);
+    }
+
+    // Throttled to once per 10s of real playback, not every timeupdate
+    // tick (which can fire several times a second) — a resume position
+    // is a convenience, not something that needs sub-second accuracy.
+    function maybeSaveResumePosition() {
+        if (!window.BHSData || !BHSData.loggedIn) return;
+        var t = queue[queueIndex];
+        if (!t || audio.paused) return;
+        var now = Date.now();
+        if (now - lastResumeSave < 10000) return;
+        lastResumeSave = now;
+        fetch(rest + 'tracks/' + t.id + '/resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': BHSData.nonce },
+            body: JSON.stringify({ seconds: Math.floor(audio.currentTime) }),
+        }).catch(function () { /* best-effort — a failed resume-position save just means next play starts from 0, not a real error to surface */ });
+    }
 
     playPauseBtn.addEventListener('click', function () {
         if (jam.active && !jam.isHost) return; // a participant doesn't drive playback directly, just hears the host's
@@ -1231,6 +1295,24 @@
     document.getElementById('bhs-import-open').addEventListener('click', function () {
         if (!loggedIn) { notify('Log in to import your own music.', true); return; }
         importModal.style.display = 'flex';
+    });
+
+    // Audit fix (2026-07-25): the shared empty-state component's CTA/clear
+    // links are same-page anchors (#bhs-import, #bhs-clear-filters), not
+    // real URLs — the library is re-rendered via innerHTML on every view
+    // change, so a plain addEventListener on the CTA itself would be lost
+    // the moment the empty state re-renders. Delegated on `library` (a
+    // stable container that's never itself replaced) instead.
+    library.addEventListener('click', function (e) {
+        if (e.target.closest('a[href="#bhs-import"]')) {
+            e.preventDefault();
+            document.getElementById('bhs-import-open').click();
+        } else if (e.target.closest('a[href="#bhs-clear-filters"]')) {
+            e.preventDefault();
+            searchInput.value = '';
+            genreFilter.value = '';
+            if (currentView === 'all') renderView();
+        }
     });
     document.getElementById('bhs-import-close').addEventListener('click', function () { importModal.style.display = 'none'; });
 
