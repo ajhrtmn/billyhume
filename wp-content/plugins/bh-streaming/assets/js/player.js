@@ -1724,8 +1724,17 @@
     }
 
     Promise.all([
-        fetch(rest + 'tracks').then(function (r) { return r.json(); }),
-        fetch(rest + 'releases').then(function (r) { return r.json(); }),
+        // WordPress's REST cookie-auth deliberately treats a request as
+        // anonymous unless X-WP-Nonce is present (rest_cookie_check_errors()
+        // sets current user to 0 with no nonce at all, precisely to stop a
+        // random page from silently riding a visitor's cookie) — so without
+        // this header, a logged-in listener's resumeSeconds always read
+        // back 0 here even though BHS_Chapters::save_resume_position() had
+        // genuinely saved it. Found and fixed while building bh-video's own
+        // chapters port (2026-07-26) — authHeaders() already existed and
+        // was already used elsewhere in this file, just not on this call.
+        fetch(rest + 'tracks', { headers: authHeaders() }).then(function (r) { return r.json(); }),
+        fetch(rest + 'releases', { headers: authHeaders() }).then(function (r) { return r.json(); }),
         loggedIn ? fetch(rest + 'likes', { headers: authHeaders() }).then(function (r) { return r.json(); }) : Promise.resolve({ track_ids: [] }),
         loggedIn ? fetch(rest + 'playlists', { headers: authHeaders() }).then(function (r) { return r.json(); }) : Promise.resolve({ playlists: [] }),
     ]).then(function (results) {
