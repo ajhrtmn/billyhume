@@ -131,9 +131,19 @@ class OUS_MediaWizard {
     ];
 
     public static function init() {
-        if (!class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')) return; // harmless no-op if ADVMO isn't installed/active — same class_exists()-guard posture as every other cross-plugin touch in this ecosystem
-        add_action('admin_menu', [self::class, 'add_menu']);
-        add_action('admin_post_ous_media_wizard_save', [self::class, 'handle_save']);
+        // The live-engine step (below) is independent of ADVMO — a
+        // site running bh-live without ADVMO installed still gets that
+        // one step, so the early-return only ever skips the
+        // storage/CDN section, never this whole class.
+        if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')) {
+            add_action('admin_post_ous_media_wizard_save', [self::class, 'handle_save']);
+        }
+        if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory') || class_exists('BHL_OwncastEngine')) {
+            add_action('admin_menu', [self::class, 'add_menu']);
+        }
+        if (class_exists('BHL_OwncastEngine')) {
+            add_action('admin_post_ous_media_wizard_save_live', [self::class, 'handle_save_live']);
+        }
     }
 
     public static function add_menu() {
@@ -142,6 +152,9 @@ class OUS_MediaWizard {
 
     public static function render() {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
+
+        $has_advmo = class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory');
+        $has_live = class_exists('BHL_OwncastEngine');
 
         $settings = get_option('advmo_settings', []);
         $current_provider = $settings['cloud_provider'] ?? '';
@@ -152,7 +165,7 @@ class OUS_MediaWizard {
         echo '<div class="wrap"><h1>Media &amp; CDN Setup</h1>';
         echo '<p class="description">Part of the Own Ur Shit ecosystem — see <code>ROADMAP-guided-setup-wizards.md</code> for the full plan this implements.</p>';
 
-        if ($current_provider) {
+        if ($has_advmo && $current_provider) {
             $label = self::PROVIDERS[$current_provider]['name'] ?? $current_provider;
             echo '<div class="notice notice-success" style="padding:12px;"><p><strong>Currently connected:</strong> ' . esc_html($label) . '. New uploads offload automatically.' . (!empty($settings['auto_offload_uploads']) ? '' : ' <strong>Auto-offload is currently OFF</strong> — existing media stays local until you re-save below.') . '</p></div>';
         }
@@ -162,6 +175,7 @@ class OUS_MediaWizard {
             echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;"><p>' . ($test_result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($test_result['message']) . '</p></div>';
         }
 
+        if ($has_advmo) {
         echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
         echo '<p><strong>Why this matters, especially for video:</strong> a single long, high-resolution video served straight from ordinary WordPress hosting can eat up your host\'s bandwidth allowance fast, or slow down for everyone else on shared hosting. Moving media to real object storage behind a CDN fixes both — your own server just stores a pointer, the CDN does the heavy lifting, and viewers get fast, reliable playback (including proper seeking/scrubbing) regardless of file size.</p>';
         echo '</div>';
@@ -218,8 +232,50 @@ class OUS_MediaWizard {
             });
         })();
         </script>';
+        } // end if ($has_advmo)
+
+        if ($has_live) {
+            self::render_live_section();
+        }
 
         echo '</div>';
+    }
+
+    /**
+     * Live streaming's own step in the same one wizard (AJ's own call,
+     * 2026-07-26: "For VODs and for live, we should have wizards for
+     * the required upgrading to media hosting offloading ... it should
+     * still all be managed from the one place here") — not a second
+     * settings screen. Owns the 'bhl_owncast_settings' option's shape;
+     * BHL_OwncastEngine (bh-live's own class) is the only other reader/
+     * writer of that option, and only ever through save_settings()/
+     * settings(), so this form is the one place the shape is defined.
+     */
+    private static function render_live_section() {
+        $s = BHL_OwncastEngine::settings();
+        $status_result = get_transient('ous_media_wizard_live_test_result');
+        delete_transient('ous_media_wizard_live_test_result');
+
+        echo '<hr style="max-width:760px;margin:32px 0;">';
+        echo '<h2>Live Streaming (Owncast)</h2>';
+        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<p><strong>Why this is separate from storage above:</strong> real-time live video (RTMP ingest, transcoding, low-latency delivery) genuinely can\'t run on ordinary shared WordPress hosting — it needs its own dedicated server. This connects to an <a href="https://owncast.online/docs/quickstart/" target="_blank" rel="noopener">Owncast</a> server you\'ve set up separately (a real, free, self-hosted "your own Twitch"); this site just embeds its player and reads its live status. Once connected, streaming starts the moment your broadcasting software (e.g. OBS) connects to that server with its stream key — there\'s no "start" button here.</p>';
+        echo '</div>';
+
+        if ($status_result) {
+            $class = $status_result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($status_result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($status_result['message']) . '</p></div>';
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;">';
+        wp_nonce_field('ous_media_wizard_save_live', 'ous_media_wizard_live_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_live">';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Owncast Server URL<br>';
+        echo '<input type="text" name="bhl_server_url" value="' . esc_attr($s['server_url']) . '" placeholder="https://live.yourdomain.com" style="width:100%;max-width:480px;"></label></p>';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Admin Access Token <span class="description">(optional — only needed to force-end a stream from here)</span><br>';
+        echo '<input type="password" name="bhl_access_token" value="" placeholder="' . (!empty($s['access_token']) ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo '<p><button type="submit" class="button button-primary button-hero">Save &amp; test connection</button></p>';
+        echo '</form>';
     }
 
     public static function handle_save() {
@@ -280,6 +336,31 @@ class OUS_MediaWizard {
             }
         }
         set_transient('ous_media_wizard_test_result', $result, 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_live() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_live_nonce'] ?? '', 'ous_media_wizard_save_live')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+
+        $server_url = wp_unslash($_POST['bhl_server_url'] ?? '');
+        $access_token = wp_unslash($_POST['bhl_access_token'] ?? '');
+        BHL_OwncastEngine::save_settings($server_url, $access_token);
+
+        // Real, live status check — same "validate in real time" rule
+        // the storage section's own checkConnection() call follows,
+        // via BHL_OwncastEngine's own get_status() (a real wp_remote_get
+        // against Owncast's public /api/status endpoint), not a
+        // format-only URL check.
+        $engine = new BHL_OwncastEngine();
+        $status = $engine->get_status();
+        $result = is_wp_error($status)
+            ? ['success' => false, 'message' => 'Could not reach the Owncast server: ' . $status->get_error_message()]
+            : ['success' => true, 'message' => 'Connected — server is currently ' . ($status['online'] ? 'LIVE' : 'offline') . '.'];
+        set_transient('ous_media_wizard_live_test_result', $result, 60);
 
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;
