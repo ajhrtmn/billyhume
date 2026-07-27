@@ -23,6 +23,9 @@ Every design decision in this codebase gets measured against that: **self-hosted
 | **`bh-registry`** | A decentralized, anonymous artist-link directory — no account required to list or browse. |
 | **`bh-monetization-woo`** | Supporter tiers, purchases, tips, pay-per-play — all backed by WooCommerce, never a parallel payments stack, plus a generic paywall any content type can use. |
 | **`bh-courses`** | An LMS — multistep lessons (text/image/video/quiz), progress tracking, drip scheduling, optional tier-gating. |
+| **`bh-feedback`** | Paid, wallet-charged feedback on a submitted track — quick-take or detailed written review, a self-serve reviewer claim queue. |
+| **`bh-video`** | A standalone video catalog and player, independent of the audio streaming library. |
+| **`bh-live`** | Two-way interactive live streaming — chat, a real broadcast engine (self-hosted Owncast or managed Cloudflare Stream Live), replays. |
 
 ## The architecture, in one paragraph
 
@@ -41,8 +44,8 @@ The core provides real shared infrastructure once, centrally, so no feature plug
 - [`VISION.md`](VISION.md) — the mission, the current state of the ecosystem, and the near-term roadmap. Start here.
 - [`ROADMAP-platform-evolution.md`](ROADMAP-platform-evolution.md) — the next scale of ambition: a full storefront/merchandising layer, an auction mechanism, deeper monetization tiers, a visual content-block builder, a fully custom user-facing portal, and roadmap-only research into social/marketing platform integrations.
 - [`ROADMAP-safety-and-metrics.md`](ROADMAP-safety-and-metrics.md) — fraud/abuse detection, moderation, and long-term safety/legal items (audio fingerprinting, DMCA, GDPR/CCPA erasure, royalty-split payouts).
-- [`ROADMAP-feedback-and-courses-v2.md`](ROADMAP-feedback-and-courses-v2.md) — the BH Feedback plan and BH Courses' remaining gap list, in full technical detail.
 - [`EVENT-TRACKING-ARCHITECTURE-PLAN.md`](EVENT-TRACKING-ARCHITECTURE-PLAN.md) — the design of the self-hosted event-tracking/identity layer described above.
+- [`STATUS.md`](STATUS.md) — the authoritative "what's actually built vs. still open" reconciliation across the whole ecosystem.
 
 ## License
 
