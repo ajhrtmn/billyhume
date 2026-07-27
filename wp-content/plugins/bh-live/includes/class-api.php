@@ -17,18 +17,21 @@ class BHL_API {
     }
 
     // The REST response reads the CURRENT bhl_stream record (fast, no
-    // network call) rather than calling BHL_OwncastEngine::get_status()
-    // directly on every page load — BHL_Streams' own polling job is
-    // what keeps that record in sync with Owncast's real status, same
-    // "poll on a schedule, read the cached result on request" split
-    // bh-streaming's own feed-health checks already use.
+    // network call) rather than calling the active engine's
+    // get_status() directly on every page load — BHL_Streams' own
+    // polling job is what keeps that record in sync with the real
+    // engine's status, same "poll on a schedule, read the cached
+    // result on request" split bh-streaming's own feed-health checks
+    // already use. Which engine is "active" (Owncast vs Cloudflare
+    // Stream Live) only matters for get_embed_html()/chat below — the
+    // bhl_stream record itself is engine-agnostic.
     public static function get_status() {
         $current = class_exists('BHL_Streams') ? BHL_Streams::current_live_stream() : null;
         if (!$current) {
             return new WP_REST_Response(['success' => true, 'online' => false, 'embed_html' => ''], 200);
         }
-        $engine = class_exists('BHL_OwncastEngine') ? new BHL_OwncastEngine() : null;
-        $chat = class_exists('BHL_OwncastChat') ? new BHL_OwncastChat() : null;
+        $engine = class_exists('BHL_EngineRegistry') ? BHL_EngineRegistry::active() : null;
+        $chat = class_exists('BHL_EngineRegistry') ? BHL_EngineRegistry::active_chat() : null;
         return new WP_REST_Response([
             'success'         => true,
             'online'          => true,

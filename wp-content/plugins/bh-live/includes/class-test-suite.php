@@ -33,6 +33,8 @@ class BHL_TestSuite {
         $rows = array_merge($rows, self::run_engine_settings_tests());
         $rows = array_merge($rows, self::run_api_tests());
         $rows = array_merge($rows, self::run_fly_provisioner_tests());
+        $rows = array_merge($rows, self::run_cloudflare_engine_tests());
+        $rows = array_merge($rows, self::run_engine_registry_tests());
         return $rows;
     }
 
@@ -176,6 +178,92 @@ class BHL_TestSuite {
             delete_option('bhl_fly_settings');
         } else {
             update_option('bhl_fly_settings', $original);
+        }
+        return $rows;
+    }
+
+    /* ---------- BHL_CloudflareStreamEngine: real request shape, mocked network ---------- */
+
+    private static function run_cloudflare_engine_tests() {
+        if (!class_exists('BHL_CloudflareStreamEngine')) return [];
+        $rows = [];
+        $original = get_option('bhl_cloudflare_settings');
+
+        BHL_CloudflareStreamEngine::save_connection_settings('suite-account', 'suite-token', 'suitecode');
+        $engine = new BHL_CloudflareStreamEngine();
+        $rows[] = OUS_TestRunner::assert_true($engine->is_configured(), 'is_configured(): true once account id/token/customer code are all saved');
+
+        $captured = [];
+        add_filter('pre_http_request', $create_intercept = function ($false, $args, $url) use (&$captured) {
+            $captured[] = ['url' => $url, 'method' => $args['method'], 'headers' => $args['headers'] ?? [], 'body' => $args['body'] ?? null];
+            return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => [
+                'uid' => 'suite-cf-uid', 'rtmps' => ['url' => 'rtmps://live.cloudflare.com:443/live/', 'streamKey' => 'suite-cf-key'],
+            ]])];
+        }, 10, 3);
+
+        $result = $engine->create_live_input();
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error($result), 'create_live_input(): succeeds against a mocked 200 response');
+        if (!is_wp_error($result)) {
+            $rows[] = OUS_TestRunner::assert_same('suite-cf-uid', $result['uid'], 'create_live_input(): returns the uid Cloudflare assigned');
+            $rows[] = OUS_TestRunner::assert_same('suite-cf-key', $result['stream_key'], 'create_live_input(): returns the stream key to paste into OBS');
+        }
+        $rows[] = OUS_TestRunner::assert_same('POST', $captured[0]['method'] ?? null, 'create_live_input(): a real POST to the live_inputs endpoint');
+        $rows[] = OUS_TestRunner::assert_true(strpos($captured[0]['url'] ?? '', '/accounts/suite-account/stream/live_inputs') !== false, 'create_live_input(): URL includes the configured account id');
+        $rows[] = OUS_TestRunner::assert_same('Bearer suite-token', $captured[0]['headers']['Authorization'] ?? null, 'create_live_input(): carries the configured API token as a Bearer header');
+        remove_filter('pre_http_request', $create_intercept, 10);
+
+        $rows[] = OUS_TestRunner::assert_same('suite-cf-uid', BHL_CloudflareStreamEngine::settings()['live_input_uid'], 'create_live_input(): persists the uid for later get_status()/get_embed_html() calls');
+        $rows[] = OUS_TestRunner::assert_true(strpos($engine->get_embed_html(), 'suitecode.cloudflarestream.com/suite-cf-uid/iframe') !== false, 'get_embed_html(): embeds using the configured customer code + the created live input\'s uid');
+
+        // status mapping — 'connected' is the only value that means online
+        add_filter('pre_http_request', $status_intercept = function () {
+            return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => ['status' => 'connected']])];
+        }, 10, 3);
+        $status = $engine->get_status();
+        $rows[] = OUS_TestRunner::assert_true($status['online'], 'get_status(): status "connected" maps to online = true');
+        remove_filter('pre_http_request', $status_intercept, 10);
+
+        add_filter('pre_http_request', $status_intercept2 = function () {
+            return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => ['status' => 'reconnecting']])];
+        }, 10, 3);
+        $status2 = $engine->get_status();
+        $rows[] = OUS_TestRunner::assert_false($status2['online'], 'get_status(): any status OTHER than "connected" maps to online = false');
+        remove_filter('pre_http_request', $status_intercept2, 10);
+
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($engine->disconnect()), 'disconnect(): honestly returns a WP_Error rather than a fake no-op — Cloudflare Stream Live has no such API');
+
+        if ($original === false) {
+            delete_option('bhl_cloudflare_settings');
+        } else {
+            update_option('bhl_cloudflare_settings', $original);
+        }
+        return $rows;
+    }
+
+    /* ---------- BHL_EngineRegistry ---------- */
+
+    private static function run_engine_registry_tests() {
+        if (!class_exists('BHL_EngineRegistry')) return [];
+        $rows = [];
+        $original = get_option('bhl_active_engine');
+
+        $rows[] = OUS_TestRunner::assert_same('owncast', BHL_EngineRegistry::active_key(), 'active_key(): defaults to owncast when never explicitly set');
+
+        BHL_EngineRegistry::save_active_key('cloudflare');
+        $rows[] = OUS_TestRunner::assert_same('cloudflare', BHL_EngineRegistry::active_key(), 'save_active_key(): switches the active engine correctly');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active() instanceof BHL_CloudflareStreamEngine, 'active(): resolves to the correct engine class once switched');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() === null, 'active_chat(): null for cloudflare — no BHL_Chat implementation exists for it yet, honestly, not silently falling back to Owncast\'s');
+
+        BHL_EngineRegistry::save_active_key('owncast');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active() instanceof BHL_OwncastEngine, 'active(): resolves back to Owncast after switching back');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_OwncastChat, 'active_chat(): resolves to BHL_OwncastChat when owncast is active');
+
+        $rows[] = OUS_TestRunner::assert_same('owncast', (function () { BHL_EngineRegistry::save_active_key('not_a_real_engine'); return BHL_EngineRegistry::active_key(); })(), 'save_active_key(): an unrecognized key is silently ignored rather than corrupting the stored choice');
+
+        if ($original === false) {
+            delete_option('bhl_active_engine');
+        } else {
+            update_option('bhl_active_engine', $original);
         }
         return $rows;
     }

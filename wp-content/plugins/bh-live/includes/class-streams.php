@@ -35,9 +35,9 @@ class BHL_Streams {
     }
 
     public static function poll_status() {
-        if (!class_exists('BHL_OwncastEngine')) return;
-        $engine = new BHL_OwncastEngine();
-        if (!$engine->is_configured()) return;
+        if (!class_exists('BHL_EngineRegistry')) return;
+        $engine = BHL_EngineRegistry::active();
+        if (!$engine || !$engine->is_configured()) return;
 
         $status = $engine->get_status();
         if (is_wp_error($status)) return; // a transient network hiccup shouldn't flip a stream's state

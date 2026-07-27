@@ -138,11 +138,18 @@ class OUS_MediaWizard {
         if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')) {
             add_action('admin_post_ous_media_wizard_save', [self::class, 'handle_save']);
         }
-        if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory') || class_exists('BHL_OwncastEngine')) {
+        if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory') || class_exists('BHL_EngineRegistry')) {
             add_action('admin_menu', [self::class, 'add_menu']);
+        }
+        if (class_exists('BHL_EngineRegistry')) {
+            add_action('admin_post_ous_media_wizard_save_engine_choice', [self::class, 'handle_save_engine_choice']);
         }
         if (class_exists('BHL_OwncastEngine')) {
             add_action('admin_post_ous_media_wizard_save_live', [self::class, 'handle_save_live']);
+        }
+        if (class_exists('BHL_CloudflareStreamEngine')) {
+            add_action('admin_post_ous_media_wizard_save_cloudflare', [self::class, 'handle_save_cloudflare']);
+            add_action('admin_post_ous_media_wizard_create_cf_input', [self::class, 'handle_create_cloudflare_input']);
         }
         if (class_exists('BHL_FlyProvisioner')) {
             add_action('admin_post_ous_media_wizard_save_provisioner', [self::class, 'handle_save_provisioner']);
@@ -178,7 +185,7 @@ class OUS_MediaWizard {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
         $has_advmo = class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory');
-        $has_live = class_exists('BHL_OwncastEngine');
+        $has_live = class_exists('BHL_EngineRegistry');
 
         $settings = get_option('advmo_settings', []);
         $current_provider = $settings['cloud_provider'] ?? '';
@@ -276,15 +283,44 @@ class OUS_MediaWizard {
      * settings(), so this form is the one place the shape is defined.
      */
     private static function render_live_section() {
+        $active_key = BHL_EngineRegistry::active_key();
+
+        echo '<hr style="max-width:760px;margin:32px 0;">';
+        echo '<h2>Live Streaming</h2>';
+        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<p><strong>Why this is separate from storage above:</strong> real-time live video (RTMP ingest, transcoding, low-latency delivery) genuinely can\'t run on ordinary shared WordPress hosting. Two real choices, opposite tradeoffs: <strong>Owncast</strong> is free and self-hosted, but needs its own server somewhere (deploy one below, or self-host it yourself); <strong>Cloudflare Stream Live</strong> is fully managed (no server at all to run), metered per minute, and video-only (no bundled chat).</p>';
+        echo '</div>';
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;margin-bottom:20px;">';
+        wp_nonce_field('ous_media_wizard_save_engine_choice', 'ous_media_wizard_engine_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_engine_choice">';
+        foreach (BHL_EngineRegistry::ENGINES as $key => $info) {
+            echo '<label style="display:block;margin-bottom:6px;"><input type="radio" name="bhl_engine" value="' . esc_attr($key) . '" onchange="this.form.submit()"' . checked($active_key, $key, false) . '> ' . esc_html($info['label']) . '</label>';
+        }
+        echo '<noscript><button type="submit" class="button">Switch engine</button></noscript>';
+        echo '</form>';
+
+        if ($active_key === 'owncast' && class_exists('BHL_OwncastEngine')) {
+            self::render_owncast_section();
+            if (class_exists('BHL_FlyProvisioner')) self::render_provisioner_section();
+        } elseif ($active_key === 'cloudflare' && class_exists('BHL_CloudflareStreamEngine')) {
+            self::render_cloudflare_section();
+        }
+    }
+
+    /**
+     * Owns the 'bhl_owncast_settings' option's shape; BHL_OwncastEngine
+     * (bh-live's own class) is the only other reader/writer of that
+     * option, and only ever through save_settings()/settings(), so
+     * this form is the one place the shape is defined.
+     */
+    private static function render_owncast_section() {
         $s = BHL_OwncastEngine::settings();
         $status_result = get_transient('ous_media_wizard_live_test_result');
         delete_transient('ous_media_wizard_live_test_result');
 
-        echo '<hr style="max-width:760px;margin:32px 0;">';
-        echo '<h2>Live Streaming (Owncast)</h2>';
-        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
-        echo '<p><strong>Why this is separate from storage above:</strong> real-time live video (RTMP ingest, transcoding, low-latency delivery) genuinely can\'t run on ordinary shared WordPress hosting — it needs its own dedicated server. This connects to an <a href="https://owncast.online/docs/quickstart/" target="_blank" rel="noopener">Owncast</a> server you\'ve set up separately (a real, free, self-hosted "your own Twitch"); this site just embeds its player and reads its live status. Once connected, streaming starts the moment your broadcasting software (e.g. OBS) connects to that server with its stream key — there\'s no "start" button here.</p>';
-        echo '</div>';
+        echo '<h3>Owncast connection</h3>';
+        echo '<p class="description" style="max-width:760px;">Connects to an <a href="https://owncast.online/docs/quickstart/" target="_blank" rel="noopener">Owncast</a> server (a real, free, self-hosted "your own Twitch") — this site just embeds its player and reads its live status. Streaming starts the moment your broadcasting software (e.g. OBS) connects to that server with its stream key; there\'s no "start" button here.</p>';
 
         if ($status_result) {
             $class = $status_result['success'] ? 'notice-success' : 'notice-error';
@@ -300,9 +336,50 @@ class OUS_MediaWizard {
         echo '<input type="password" name="bhl_access_token" value="" placeholder="' . (!empty($s['access_token']) ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
         echo '<p><button type="submit" class="button button-primary button-hero">Save &amp; test connection</button></p>';
         echo '</form>';
+    }
 
-        if (class_exists('BHL_FlyProvisioner')) {
-            self::render_provisioner_section();
+    /**
+     * Cloudflare Stream Live needs no BHL_HostProvisioner section at
+     * all — there's no box, "deploying" is just the one-time
+     * create-live-input API call below, which returns an RTMP URL +
+     * stream key to paste into OBS, same role a self-hosted Owncast
+     * server's own stream key plays.
+     */
+    private static function render_cloudflare_section() {
+        $s = BHL_CloudflareStreamEngine::settings();
+        $result = get_transient('ous_media_wizard_cf_result');
+        delete_transient('ous_media_wizard_cf_result');
+
+        echo '<h3>Cloudflare Stream Live connection</h3>';
+        echo '<p class="description" style="max-width:760px;">Needs a Cloudflare account with Stream enabled. Find your Account ID and create an API token (Stream:Edit permission) in the Cloudflare dashboard; the "customer code" is the subdomain Cloudflare gives your account\'s stream playback URLs (also on the Stream dashboard).</p>';
+
+        if ($result) {
+            $class = $result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($result['message']) . '</p></div>';
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;">';
+        wp_nonce_field('ous_media_wizard_save_cloudflare', 'ous_media_wizard_cf_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_cloudflare">';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Account ID<br>';
+        echo '<input type="text" name="cf_account_id" value="' . esc_attr($s['account_id']) . '" style="width:100%;max-width:480px;"></label></p>';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">API Token<br>';
+        echo '<input type="password" name="cf_api_token" value="" placeholder="' . (!empty($s['api_token']) ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Customer Code<br>';
+        echo '<input type="text" name="cf_customer_code" value="' . esc_attr($s['customer_code']) . '" style="width:100%;max-width:480px;"></label></p>';
+        echo '<p><button type="submit" class="button button-primary">Save connection settings</button></p>';
+        echo '</form>';
+
+        if (!empty($s['account_id']) && !empty($s['api_token'])) {
+            if (!empty($s['live_input_uid'])) {
+                echo '<p><strong>Live input:</strong> <code>' . esc_html($s['live_input_uid']) . '</code></p>';
+                echo '<p><strong>RTMP URL:</strong> <code>' . esc_html($s['rtmps_url']) . '</code><br><strong>Stream Key:</strong> <code>' . esc_html($s['stream_key']) . '</code> — paste both into OBS.</p>';
+            }
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            wp_nonce_field('ous_media_wizard_create_cf_input', 'ous_media_wizard_cf_input_nonce');
+            echo '<input type="hidden" name="action" value="ous_media_wizard_create_cf_input">';
+            echo '<button type="submit" class="button">' . (!empty($s['live_input_uid']) ? 'Create a new live input (replaces the one above)' : 'Create live input') . '</button>';
+            echo '</form>';
         }
     }
 
@@ -507,6 +584,42 @@ class OUS_MediaWizard {
         set_transient('ous_media_wizard_deploy_result', is_wp_error($result)
             ? ['success' => false, 'message' => 'Could not destroy the machine: ' . $result->get_error_message()]
             : ['success' => true, 'message' => 'Machine destroyed.'], 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_engine_choice() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_engine_nonce'] ?? '', 'ous_media_wizard_save_engine_choice')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        BHL_EngineRegistry::save_active_key(sanitize_key($_POST['bhl_engine'] ?? 'owncast'));
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_cloudflare() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_nonce'] ?? '', 'ous_media_wizard_save_cloudflare')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        BHL_CloudflareStreamEngine::save_connection_settings(
+            wp_unslash($_POST['cf_account_id'] ?? ''),
+            wp_unslash($_POST['cf_api_token'] ?? ''),
+            wp_unslash($_POST['cf_customer_code'] ?? '')
+        );
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_create_cloudflare_input() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_input_nonce'] ?? '', 'ous_media_wizard_create_cf_input')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        $engine = new BHL_CloudflareStreamEngine();
+        $result = $engine->create_live_input();
+        set_transient('ous_media_wizard_cf_result', is_wp_error($result)
+            ? ['success' => false, 'message' => 'Could not create a live input: ' . $result->get_error_message()]
+            : ['success' => true, 'message' => 'Live input created — copy the RTMP URL and stream key below into OBS.'], 60);
 
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;
