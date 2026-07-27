@@ -162,6 +162,31 @@
             if (nextDot) nextDot.disabled = false;
         }
 
+        // Bug found via live walkthrough (2026-07-26): the course-
+        // progress sidebar (class-render-course.php's
+        // render_lesson_sidebar()) is server-rendered once at page load
+        // and this whole lesson flow never touches it again — completing
+        // a step (via mark-complete, video auto-complete, or a quiz
+        // submit) left the sidebar's percentage/bar stuck at the OLD
+        // number until a full reload, most jarringly right when the
+        // final step's own completion screen reveals itself as "Course
+        // complete!" next to a sidebar still claiming 67%. The three AJAX
+        // handlers behind those actions (class-progress.php's
+        // ajax_mark_complete/ajax_update_watch_progress/ajax_submit_quiz)
+        // now all return course_id/course_percent; this is the one place
+        // that response data gets applied, so all three call sites stay
+        // in sync through a single function rather than three near-
+        // duplicate DOM updates.
+        function updateSidebarProgress(data) {
+            if (!data || !data.course_id || data.course_percent === null || data.course_percent === undefined) return;
+            document.querySelectorAll('.bhc-course-sidebar .bhc-progress-fill').forEach(function (el) {
+                el.style.width = data.course_percent + '%';
+            });
+            document.querySelectorAll('.bhc-course-sidebar .bhc-progress-label').forEach(function (el) {
+                el.textContent = data.course_percent + '% complete';
+            });
+        }
+
         // Depth-of-magic beat: markStepDone()'s own stepper-dot pulse
         // (500ms) was previously cut short by advance() firing in the
         // very same tick, swapping the visible step content out from
@@ -241,6 +266,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
+                        updateSidebarProgress(res.data);
                         advanceWithBeat(index);
                     });
             }
@@ -446,6 +472,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
+                        updateSidebarProgress(res.data);
                         advanceWithBeat(index);
                     })
                     .catch(function () {
@@ -646,6 +673,7 @@
 
                     step.classList.add('bhc-step-done');
                     markStepDone(index);
+                    updateSidebarProgress(result);
                     if (result.passed) {
                         // Do NOT auto-advance here — the whole point of
                         // the breakdown above is for the student to
