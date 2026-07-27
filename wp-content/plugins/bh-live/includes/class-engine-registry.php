@@ -74,10 +74,10 @@ class BHL_EngineRegistry {
     // Chat options compatible with whichever engine is CURRENTLY
     // active AND whose class is actually loaded — what the wizard
     // offers as radio choices. The class_exists() check matters
-    // specifically because CHAT_OPTIONS can (and does) list an entry
-    // for a chat implementation that's real but not yet built
-    // (BHL_WorkersChat) — this keeps the wizard from ever offering a
-    // choice that would silently resolve to nothing.
+    // because CHAT_OPTIONS is the registry for ANY future chat
+    // implementation, built or not yet — this keeps the wizard from
+    // ever offering a choice that would silently resolve to nothing
+    // if a future entry is added here before its class exists.
     public static function available_chat_options() {
         $engine_key = self::active_key();
         return array_filter(

@@ -8,18 +8,22 @@
  */
 if (!defined('ABSPATH')) exit;
 
-// 0.1.0 — scaffold. Video/live-streaming scoping pass (2026-07-26,
-// wondrous-mixing-forest.md): Owncast decided for v1 specifically
-// because it bundles chat + a web player + RTMP ingest in one
-// deployable unit, making it the easiest real thing to integrate
-// first — behind bh-live's own BHL_StreamEngine interface
+// 0.1.0 — scaffold (2026-07-26, wondrous-mixing-forest.md): Owncast
+// decided for v1 specifically because it bundles chat + a web player +
+// RTMP ingest in one deployable unit, making it the easiest real thing
+// to integrate first — behind bh-live's own BHL_StreamEngine interface
 // (class-stream-engine.php) so a later OvenMediaEngine implementation
-// is a second class, not a rewrite. Chat is deliberately NOT
-// abstracted yet in this scaffold — Owncast's own bundled chat/embed
-// covers v1 entirely; a separate BHL_Chat interface (so a custom
-// polling-based chat, matching bh-streaming's own Jam sessions, can
-// later replace Owncast's bundled one independent of the video engine)
-// is real future work, not needed for this first slice.
+// is a second class, not a rewrite.
+//
+// Since grown well beyond that first scaffold, same session: chat IS
+// now abstracted (class-chat.php's BHL_Chat interface), with three
+// real implementations — Owncast's own bundled chat, a free polling-
+// based BHL_PollingChat (matching bh-streaming's own Jam sessions'
+// proven pattern), and a real-time BHL_WorkersChat via a Cloudflare
+// Worker + Durable Object — plus BHL_CloudflareStreamEngine as a
+// second BHL_StreamEngine, and BHL_HostProvisioner/BHL_FlyProvisioner
+// for deploying the Owncast box directly from the wizard. See
+// STATUS.md for the full current picture.
 //
 // A live stream genuinely cannot run on ordinary shared hosting —
 // real-time RTMP ingest/transcoding needs its own dedicated box. This
