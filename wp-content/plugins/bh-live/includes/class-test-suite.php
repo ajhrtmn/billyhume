@@ -36,6 +36,7 @@ class BHL_TestSuite {
         $rows = array_merge($rows, self::run_cloudflare_engine_tests());
         $rows = array_merge($rows, self::run_engine_registry_tests());
         $rows = array_merge($rows, self::run_polling_chat_tests());
+        $rows = array_merge($rows, self::run_workers_chat_tests());
         return $rows;
     }
 
@@ -354,6 +355,55 @@ class BHL_TestSuite {
         global $wpdb;
         $wpdb->delete($wpdb->prefix . 'bhl_chat_messages', ['stream_id' => $stream_id]);
         wp_delete_post($stream_id, true);
+        return $rows;
+    }
+
+    /* ---------- BHL_WorkersChat: real request shape, mocked network ---------- */
+
+    private static function run_workers_chat_tests() {
+        if (!class_exists('BHL_WorkersChat') || !class_exists('BHL_CloudflareStreamEngine')) return [];
+        $rows = [];
+        $original_cf = get_option('bhl_cloudflare_settings');
+        $original_workers = get_option('bhl_workers_settings');
+
+        BHL_CloudflareStreamEngine::save_connection_settings('suite-account', 'suite-token', 'suitecode');
+        BHL_WorkersChat::save_settings('suite-chat-worker', 'suitesubdomain');
+        $chat = new BHL_WorkersChat();
+
+        $rows[] = OUS_TestRunner::assert_false($chat->is_configured(), 'is_configured(): false before a deploy has ever succeeded');
+
+        $captured = [];
+        add_filter('pre_http_request', $intercept = function ($false, $args, $url) use (&$captured) {
+            $captured[] = ['url' => $url, 'method' => $args['method'], 'headers' => $args['headers'] ?? [], 'body' => $args['body'] ?? null];
+            return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => ['id' => 'suite-chat-worker']])];
+        }, 10, 3);
+
+        $result = $chat->deploy();
+        remove_filter('pre_http_request', $intercept, 10);
+
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error($result), 'deploy(): succeeds against a mocked 200/200 sequence');
+        $rows[] = OUS_TestRunner::assert_same(2, count($captured), 'deploy(): exactly 2 real requests — upload the script, then enable the subdomain');
+        $rows[] = OUS_TestRunner::assert_same('PUT', $captured[0]['method'] ?? null, 'deploy(): script upload is a real PUT, matching Cloudflare\'s documented method');
+        $rows[] = OUS_TestRunner::assert_true(strpos($captured[0]['url'] ?? '', '/accounts/suite-account/workers/scripts/suite-chat-worker') !== false, 'deploy(): upload URL includes the configured account and script name');
+        $rows[] = OUS_TestRunner::assert_true(strpos($captured[0]['headers']['Content-Type'] ?? '', 'multipart/form-data; boundary=') === 0, 'deploy(): upload request declares a real multipart boundary');
+
+        $body = $captured[0]['body'] ?? '';
+        $rows[] = OUS_TestRunner::assert_true(strpos($body, 'name="metadata"') !== false, 'deploy(): multipart body includes the metadata part');
+        $rows[] = OUS_TestRunner::assert_true(strpos($body, '"main_module":"chat-worker.js"') !== false, 'deploy(): metadata JSON declares the correct main_module');
+        $rows[] = OUS_TestRunner::assert_true(strpos($body, '"type":"durable_object_namespace"') !== false, 'deploy(): metadata declares the Durable Object binding');
+        $rows[] = OUS_TestRunner::assert_true(strpos($body, '"new_sqlite_classes":["ChatRoom"]') !== false, 'deploy(): metadata declares the migration that creates the ChatRoom class');
+        $rows[] = OUS_TestRunner::assert_true(strpos($body, 'export default') !== false && strpos($body, 'export class ChatRoom') !== false, 'deploy(): the actual bundled worker script content is included in the upload');
+
+        $rows[] = OUS_TestRunner::assert_same('POST', $captured[1]['method'] ?? null, 'deploy(): subdomain-enable is a real POST');
+        $rows[] = OUS_TestRunner::assert_true(strpos($captured[1]['url'] ?? '', '/subdomain') !== false, 'deploy(): second request targets the subdomain-enable endpoint');
+
+        $rows[] = OUS_TestRunner::assert_true($chat->is_configured(), 'is_configured(): true once deploy() has succeeded');
+        $render = $chat->render(77);
+        $rows[] = OUS_TestRunner::assert_same('iframe', $render['type'], 'render(): type is iframe');
+        $rows[] = OUS_TestRunner::assert_true(strpos($render['html'], 'suite-chat-worker.suitesubdomain.workers.dev/?stream=77') !== false, 'render(): embeds the deployed worker\'s own URL with the stream id as a query param');
+
+        if ($original_cf === false) { delete_option('bhl_cloudflare_settings'); } else { update_option('bhl_cloudflare_settings', $original_cf); }
+        if ($original_workers === false) { delete_option('bhl_workers_settings'); } else { update_option('bhl_workers_settings', $original_workers); }
         return $rows;
     }
 }

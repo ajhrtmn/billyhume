@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Live
  * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.8.0
+ * Version:     0.9.0
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -29,9 +29,9 @@ if (!defined('ABSPATH')) exit;
 // does and doesn't do.
 define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
-define('BHL_VER',  '0.8.0');
+define('BHL_VER',  '0.9.0');
 
-foreach (['activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'live-player', 'test-suite'] as $f) {
+foreach (['activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'workers-chat', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'live-player', 'test-suite'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";
 }
 

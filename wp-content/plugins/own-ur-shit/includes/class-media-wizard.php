@@ -157,6 +157,10 @@ class OUS_MediaWizard {
             add_action('admin_post_ous_media_wizard_deploy_host', [self::class, 'handle_deploy_host']);
             add_action('admin_post_ous_media_wizard_destroy_host', [self::class, 'handle_destroy_host']);
         }
+        if (class_exists('BHL_WorkersChat')) {
+            add_action('admin_post_ous_media_wizard_save_workers', [self::class, 'handle_save_workers']);
+            add_action('admin_post_ous_media_wizard_deploy_workers', [self::class, 'handle_deploy_workers']);
+        }
     }
 
     // key => [name, class implementing BHL_HostProvisioner, why, fields].
@@ -414,6 +418,49 @@ class OUS_MediaWizard {
     }
 
     /**
+     * The real-time paid-tier chat deploy step — reuses the SAME
+     * account_id/api_token already entered in the Cloudflare Stream
+     * Live section above (BHL_WorkersChat's own settings() reads
+     * BHL_CloudflareStreamEngine's, not a duplicate credential form),
+     * only asking for the two things unique to Workers: a script name
+     * and the account's workers.dev subdomain slug.
+     */
+    private static function render_workers_chat_section() {
+        $s = BHL_WorkersChat::settings();
+        $result = get_transient('ous_media_wizard_workers_result');
+        delete_transient('ous_media_wizard_workers_result');
+
+        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<p><strong>Real-time chat via Cloudflare Workers:</strong> true WebSocket delivery (not a poll), deployed to your own Cloudflare account with one click below — but anonymous and unmoderated in this first version (no WordPress-login awareness yet), and typically requires Cloudflare\'s Workers Paid plan for Durable Objects. Reuses the Account ID/API Token entered above.</p>';
+        echo '</div>';
+
+        if ($result) {
+            $class = $result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($result['message']) . '</p></div>';
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;">';
+        wp_nonce_field('ous_media_wizard_save_workers', 'ous_media_wizard_workers_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_workers">';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Script Name<br>';
+        echo '<input type="text" name="workers_script_name" value="' . esc_attr($s['script_name']) . '" style="width:100%;max-width:480px;"></label></p>';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Workers.dev Subdomain<br>';
+        echo '<input type="text" name="workers_subdomain" value="' . esc_attr($s['workers_subdomain']) . '" placeholder="e.g. yourname (from your Workers dashboard)" style="width:100%;max-width:480px;"></label></p>';
+        echo '<p><button type="submit" class="button">Save</button></p>';
+        echo '</form>';
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        wp_nonce_field('ous_media_wizard_deploy_workers', 'ous_media_wizard_deploy_workers_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_deploy_workers">';
+        echo '<button type="submit" class="button button-primary">' . (!empty($s['deployed']) ? 'Redeploy chat Worker' : 'Deploy chat Worker') . '</button>';
+        echo '</form>';
+
+        if (!empty($s['deployed'])) {
+            echo '<p><strong>Chat URL:</strong> <code>https://' . esc_html($s['script_name']) . '.' . esc_html($s['workers_subdomain']) . '.workers.dev</code></p>';
+        }
+    }
+
+    /**
      * "Administered from the WP plugin, hosted elsewhere" — AJ's own
      * ask. Deploy/destroy the actual box Owncast runs on directly from
      * this screen, via BHL_HostProvisioner (a real API call, not a
@@ -659,6 +706,32 @@ class OUS_MediaWizard {
         set_transient('ous_media_wizard_cf_result', is_wp_error($result)
             ? ['success' => false, 'message' => 'Could not create a live input: ' . $result->get_error_message()]
             : ['success' => true, 'message' => 'Live input created — copy the RTMP URL and stream key below into OBS.'], 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_workers() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_workers_nonce'] ?? '', 'ous_media_wizard_save_workers')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        BHL_WorkersChat::save_settings(
+            wp_unslash($_POST['workers_script_name'] ?? ''),
+            wp_unslash($_POST['workers_subdomain'] ?? '')
+        );
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_deploy_workers() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_deploy_workers_nonce'] ?? '', 'ous_media_wizard_deploy_workers')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        $chat = new BHL_WorkersChat();
+        $result = $chat->deploy();
+        set_transient('ous_media_wizard_workers_result', is_wp_error($result)
+            ? ['success' => false, 'message' => 'Deploy failed: ' . $result->get_error_message()]
+            : ['success' => true, 'message' => 'Chat Worker deployed at ' . $result['url']], 60);
 
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;
