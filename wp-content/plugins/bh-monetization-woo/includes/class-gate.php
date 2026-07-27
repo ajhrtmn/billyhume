@@ -9,15 +9,15 @@ if (!defined('ABSPATH')) exit;
  * calls one static method to check access. bh-streaming is the FIRST
  * consumer, not the only intended one.
  *
- * Anticipated future consumer (per VISION.md's "artist platform" layer,
- * not built yet): the eventual learning-management/courses plugin gates
- * its own lesson/course post type the exact same way — set
- * `_bhm_required_tier` on its own CPT and call
- * `BHM_Gate::user_has_tier_access()`, or register a completely custom
- * entitlement type via the `bhm_extra_entitlement_check` filter below —
- * without this plugin requiring a single line of changes to support it,
- * and without that future plugin requiring bh-streaming to exist
- * either. This is deliberately designed now so that decision doesn't
+ * Real, shipped consumer (confirmed, doc-cleanup pass 2026-07-26 —
+ * this comment previously called it "anticipated... not built yet"):
+ * bh-courses gates its own lesson/course post type exactly this way —
+ * sets `_bhm_required_tier` on its own CPT (`class-admin.php`,
+ * `class-debug.php`) and calls `BHM_Gate::user_has_tier_access()` via
+ * its own `class-gate.php`, without this plugin requiring a single
+ * line of changes to support it, and without bh-courses requiring
+ * bh-streaming to exist either. This was deliberately designed ahead
+ * of time so that decision didn't
  * need revisiting later.
  */
 class BHM_Gate {
