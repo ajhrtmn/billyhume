@@ -1118,7 +1118,8 @@ add_action('init',          ['BHY_BlockStyle', 'init']);
 // wide, so a token-based color set anywhere else produced a real but
 // inert CSS declaration.
 add_action('init',          ['BHY_Style', 'init']);
-// PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — real, live-verified
+// Page-builder delete/keep audit (2026-07-13, doc since deleted — the
+// reasoning below is the full record now) — real, live-verified
 // cleanup, not a guess: BH_Element/BH_Element_Data (the data model +
 // render_slot() engine, immediately above) are confirmed LIVE — real
 // pages in bh-contest, bh-crm, bh-courses, own-ur-shit's own dashboard/
@@ -1139,8 +1140,9 @@ add_action('init',          ['BHY_Style', 'init']);
 // render_callback()s are simpler and more idiomatic). All four files
 // (plus assets/js/element-builder.js, assets/css/element-builder.css,
 // assets/js/component-studio.js, assets/css/component-studio.css) are
-// deleted, not just unhooked — PAGE-BUILDER-DELETE-KEEP-AUDIT.md's own
-// table has the full file-by-file reasoning and line counts.
+// deleted, not just unhooked — the audit doc's own table had the full
+// file-by-file reasoning and line counts; this comment is now the
+// summary of record since that doc was deleted.
 //
 // OUS_Gutenberg_Block (class-gutenberg-block.php) is DELIBERATELY LEFT
 // IN PLACE, unlike the others — its own register_block() already guards
