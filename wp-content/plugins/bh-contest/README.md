@@ -9,9 +9,23 @@ built for streaming, and Discord integration for announcements.
 - **Contests**: admin-configurable submission and voting windows,
   per-contest branding overrides, and configurable contact-info
   requirements (which fields a submitter must provide, per contest).
+  Format is a genuine per-contest choice — public voting, judge/rubric
+  scoring, or a hybrid of both (two separate leaderboards, Judges' Pick
+  and People's Choice, never a blended score) — plus optional
+  multi-round/elimination structure (1-4 rounds, each with its own
+  submission/voting window and cut count, later rounds scoped to
+  whoever survived the last one).
 - **Voting**: per-category vote limits (a base amount plus a bonus for
   submitting a track), with proper tie handling — ties share a rank,
   Olympic-medal style, rather than an arbitrary tiebreak.
+- **Judge/rubric scoring**: an admin-defined rubric (criteria, 1-10
+  scale), a per-contest judge list, and a dedicated `[bh_judge_panel]`
+  scoring UI — judges never see each other's scores, only the admin
+  sees the aggregate.
+- **Anti-fraud signal**: IP address + a first-party cookie/fingerprint
+  captured alongside each vote, surfaced as suspicious-cluster
+  detection on the Results console — manual-review only, no automated
+  blocking, no third-party CAPTCHA.
 - **Live Console**: a private, contest-scoped dashboard tying together
   participant identity info, live vote counts, CSV export, and the
   Results Reveal controls in one place — built specifically for running
