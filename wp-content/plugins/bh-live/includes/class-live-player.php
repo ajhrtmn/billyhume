@@ -19,9 +19,18 @@ class BHL_Player {
 
         wp_enqueue_style('bhl-player', BHL_URL . 'assets/css/live-player.css', [], BHL_VER);
         if (class_exists('BHY_Style')) wp_add_inline_style('bhl-player', BHY_Style::inline_css());
-        wp_enqueue_script('bhl-player', BHL_URL . 'assets/js/live-player.js', [], BHL_VER, true);
+
+        // chat.js registered as a dependency (not just enqueued
+        // alongside) so WordPress guarantees it loads and defines
+        // window.BHLChatWidget BEFORE live-player.js's own status-fetch
+        // callback ever tries to call .mount() on it — enqueuing both
+        // with no declared relationship would leave that a race.
+        wp_enqueue_script('bhl-chat', BHL_URL . 'assets/js/chat.js', [], BHL_VER, true);
+        wp_enqueue_script('bhl-player', BHL_URL . 'assets/js/live-player.js', ['bhl-chat'], BHL_VER, true);
         wp_localize_script('bhl-player', 'BHLData', [
-            'rest' => esc_url_raw(rest_url('bhl/v1/')),
+            'rest'     => esc_url_raw(rest_url('bhl/v1/')),
+            'nonce'    => wp_create_nonce('wp_rest'),
+            'loggedIn' => is_user_logged_in(),
         ]);
     }
 

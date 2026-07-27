@@ -32,17 +32,20 @@ class BHL_API {
         }
         $engine = class_exists('BHL_EngineRegistry') ? BHL_EngineRegistry::active() : null;
         $chat = class_exists('BHL_EngineRegistry') ? BHL_EngineRegistry::active_chat() : null;
+        $chat_render = ($chat && $chat->is_configured()) ? $chat->render($current->ID) : ['type' => 'iframe', 'html' => ''];
         return new WP_REST_Response([
             'success'         => true,
             'online'          => true,
             'title'           => $current->post_title,
             'started_at'      => get_post_meta($current->ID, '_bhl_started_at', true),
+            'stream_id'       => $current->ID,
             'embed_html'      => $engine ? $engine->get_embed_html() : '',
-            // Chat is deliberately a SEPARATE field from embed_html, not
+            // Chat is deliberately SEPARATE fields from embed_html, not
             // baked into it — the whole point of abstracting it
             // separately (class-chat.php's own docblock) is that a
-            // future chat swap only ever touches this one field.
-            'chat_embed_html' => ($chat && $chat->is_configured()) ? $chat->get_embed_html() : '',
+            // future chat swap only ever touches these two fields.
+            'chat_type'       => $chat_render['type'],
+            'chat_embed_html' => $chat_render['html'],
         ], 200);
     }
 

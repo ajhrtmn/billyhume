@@ -143,6 +143,7 @@ class OUS_MediaWizard {
         }
         if (class_exists('BHL_EngineRegistry')) {
             add_action('admin_post_ous_media_wizard_save_engine_choice', [self::class, 'handle_save_engine_choice']);
+            add_action('admin_post_ous_media_wizard_save_chat_choice', [self::class, 'handle_save_chat_choice']);
         }
         if (class_exists('BHL_OwncastEngine')) {
             add_action('admin_post_ous_media_wizard_save_live', [self::class, 'handle_save_live']);
@@ -306,6 +307,8 @@ class OUS_MediaWizard {
         } elseif ($active_key === 'cloudflare' && class_exists('BHL_CloudflareStreamEngine')) {
             self::render_cloudflare_section();
         }
+
+        self::render_chat_choice_section();
     }
 
     /**
@@ -380,6 +383,33 @@ class OUS_MediaWizard {
             echo '<input type="hidden" name="action" value="ous_media_wizard_create_cf_input">';
             echo '<button type="submit" class="button">' . (!empty($s['live_input_uid']) ? 'Create a new live input (replaces the one above)' : 'Create live input') . '</button>';
             echo '</form>';
+        }
+    }
+
+    /**
+     * "Levels of it just works to fit every need and budget" — AJ's
+     * own ask, 2026-07-26. Only shows chat options actually compatible
+     * with whichever engine is active right now (BHL_EngineRegistry::
+     * available_chat_options()) — Owncast's own bundled chat only ever
+     * appears as a choice when Owncast itself is the active engine.
+     */
+    private static function render_chat_choice_section() {
+        $options = BHL_EngineRegistry::available_chat_options();
+        if (count($options) < 2) return; // nothing to choose between (e.g. Owncast's own bundled chat is the only option today unless bh-live's other chat classes are also active)
+
+        $active_chat = BHL_EngineRegistry::active_chat_key();
+        echo '<h3>Chat</h3>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;">';
+        wp_nonce_field('ous_media_wizard_save_chat_choice', 'ous_media_wizard_chat_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_chat_choice">';
+        foreach ($options as $key => $info) {
+            echo '<label style="display:block;margin-bottom:6px;"><input type="radio" name="bhl_chat" value="' . esc_attr($key) . '" onchange="this.form.submit()"' . checked($active_chat, $key, false) . '> ' . esc_html($info['label']) . '</label>';
+        }
+        echo '<noscript><button type="submit" class="button">Switch chat</button></noscript>';
+        echo '</form>';
+
+        if ($active_chat === 'workers' && class_exists('BHL_WorkersChat')) {
+            self::render_workers_chat_section();
         }
     }
 
@@ -594,6 +624,15 @@ class OUS_MediaWizard {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
         BHL_EngineRegistry::save_active_key(sanitize_key($_POST['bhl_engine'] ?? 'owncast'));
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_save_chat_choice() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_chat_nonce'] ?? '', 'ous_media_wizard_save_chat_choice')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        BHL_EngineRegistry::save_active_chat_key(sanitize_key($_POST['bhl_chat'] ?? 'polling'));
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;
     }

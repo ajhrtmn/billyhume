@@ -35,6 +35,7 @@ class BHL_TestSuite {
         $rows = array_merge($rows, self::run_fly_provisioner_tests());
         $rows = array_merge($rows, self::run_cloudflare_engine_tests());
         $rows = array_merge($rows, self::run_engine_registry_tests());
+        $rows = array_merge($rows, self::run_polling_chat_tests());
         return $rows;
     }
 
@@ -87,7 +88,9 @@ class BHL_TestSuite {
 
         if (class_exists('BHL_OwncastChat')) {
             $chat = new BHL_OwncastChat();
-            $rows[] = OUS_TestRunner::assert_true(strpos($chat->get_embed_html(), 'suite-test.invalid/embed/chat') !== false, 'BHL_OwncastChat::get_embed_html(): embeds the configured server\'s own /embed/chat route');
+            $chat_render = $chat->render(0); // $stream_id is unused by BHL_OwncastChat — one chat room per server, not per stream
+            $rows[] = OUS_TestRunner::assert_same('iframe', $chat_render['type'], 'BHL_OwncastChat::render(): type is always iframe');
+            $rows[] = OUS_TestRunner::assert_true(strpos($chat_render['html'], 'suite-test.invalid/embed/chat') !== false, 'BHL_OwncastChat::render(): embeds the configured server\'s own /embed/chat route');
         }
 
         update_option('bhl_owncast_settings', $original);
@@ -246,25 +249,111 @@ class BHL_TestSuite {
         if (!class_exists('BHL_EngineRegistry')) return [];
         $rows = [];
         $original = get_option('bhl_active_engine');
+        $original_chat = get_option('bhl_active_chat');
 
         $rows[] = OUS_TestRunner::assert_same('owncast', BHL_EngineRegistry::active_key(), 'active_key(): defaults to owncast when never explicitly set');
 
         BHL_EngineRegistry::save_active_key('cloudflare');
         $rows[] = OUS_TestRunner::assert_same('cloudflare', BHL_EngineRegistry::active_key(), 'save_active_key(): switches the active engine correctly');
         $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active() instanceof BHL_CloudflareStreamEngine, 'active(): resolves to the correct engine class once switched');
-        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() === null, 'active_chat(): null for cloudflare — no BHL_Chat implementation exists for it yet, honestly, not silently falling back to Owncast\'s');
+        $rows[] = OUS_TestRunner::assert_same('polling', BHL_EngineRegistry::active_chat_key(), 'active_chat_key(): defaults to the free polling chat under Cloudflare — Owncast\'s bundled chat isn\'t compatible with it');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_PollingChat, 'active_chat(): resolves to BHL_PollingChat by default under Cloudflare');
+
+        // Explicitly choosing an incompatible chat for the current
+        // engine (owncast_bundled while Cloudflare is active) falls
+        // back to the engine's own default rather than resolving to a
+        // chat class that can never actually work here.
+        BHL_EngineRegistry::save_active_chat_key('owncast_bundled');
+        $rows[] = OUS_TestRunner::assert_same('polling', BHL_EngineRegistry::active_chat_key(), 'active_chat_key(): an incompatible stored choice (owncast\'s chat while Cloudflare is active) falls back to the engine\'s own default rather than resolving to something that can\'t work');
 
         BHL_EngineRegistry::save_active_key('owncast');
         $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active() instanceof BHL_OwncastEngine, 'active(): resolves back to Owncast after switching back');
-        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_OwncastChat, 'active_chat(): resolves to BHL_OwncastChat when owncast is active');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_OwncastChat, 'active_chat(): resolves to BHL_OwncastChat by default when owncast is active');
+
+        BHL_EngineRegistry::save_active_chat_key('polling');
+        $rows[] = OUS_TestRunner::assert_true(BHL_EngineRegistry::active_chat() instanceof BHL_PollingChat, 'active_chat_key(): polling chat is selectable under Owncast too, since it declares no engine restriction');
 
         $rows[] = OUS_TestRunner::assert_same('owncast', (function () { BHL_EngineRegistry::save_active_key('not_a_real_engine'); return BHL_EngineRegistry::active_key(); })(), 'save_active_key(): an unrecognized key is silently ignored rather than corrupting the stored choice');
 
+        if ($original_chat === false) {
+            delete_option('bhl_active_chat');
+        } else {
+            update_option('bhl_active_chat', $original_chat);
+        }
         if ($original === false) {
             delete_option('bhl_active_engine');
         } else {
             update_option('bhl_active_engine', $original);
         }
+        return $rows;
+    }
+
+    /* ---------- BHL_PollingChat ---------- */
+
+    private static function run_polling_chat_tests() {
+        if (!class_exists('BHL_PollingChat')) return [];
+        $rows = [];
+
+        $chat = new BHL_PollingChat();
+        $rows[] = OUS_TestRunner::assert_true($chat->is_configured(), 'is_configured(): always true — no external account needed');
+        $render = $chat->render(999);
+        $rows[] = OUS_TestRunner::assert_same('native', $render['type'], 'render(): type is native, not iframe');
+        $rows[] = OUS_TestRunner::assert_true(strpos($render['html'], 'data-stream-id="999"') !== false, 'render(): embeds the given stream id in the mount container');
+
+        $stream_id = wp_insert_post(['post_type' => 'bhl_stream', 'post_status' => 'publish', 'post_title' => 'BHL Chat Suite Fixture', 'meta_input' => ['bhcore_is_test' => 'bhl_chat_suite']], true);
+        $poster = class_exists('OUS_Debug') ? OUS_Debug::get_or_create_test_user('bhl_chat_poster') : 1;
+        $previous_user = get_current_user_id();
+        wp_set_current_user($poster);
+
+        $req = new WP_REST_Request('POST', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $req->set_url_params(['stream_id' => $stream_id]);
+        $req->set_param('message', 'Hello from the suite');
+        $result = BHL_PollingChat::post_message($req);
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error($result), 'post_message(): a real logged-in post succeeds');
+
+        $get_req = new WP_REST_Request('GET', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $get_req->set_url_params(['stream_id' => $stream_id]);
+        $get_req->set_param('after_id', 0);
+        $messages = BHL_PollingChat::get_messages($get_req)->get_data()['messages'];
+        $rows[] = OUS_TestRunner::assert_same(1, count($messages), 'get_messages(): the posted message shows up for this stream');
+        $rows[] = OUS_TestRunner::assert_same('Hello from the suite', $messages[0]['message'] ?? null, 'get_messages(): message text round-trips correctly');
+
+        // after_id pagination — asking for messages after the one just
+        // fetched returns nothing new yet.
+        $get_req2 = new WP_REST_Request('GET', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $get_req2->set_url_params(['stream_id' => $stream_id]);
+        $get_req2->set_param('after_id', $messages[0]['id']);
+        $rows[] = OUS_TestRunner::assert_same(0, count(BHL_PollingChat::get_messages($get_req2)->get_data()['messages']), 'get_messages(): after_id correctly excludes messages already seen');
+
+        // Muted user can't post
+        set_transient('bhl_chat_muted_' . $poster, 1, 60);
+        $muted_req = new WP_REST_Request('POST', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $muted_req->set_url_params(['stream_id' => $stream_id]);
+        $muted_req->set_param('message', 'Should be blocked');
+        $muted_result = BHL_PollingChat::post_message($muted_req);
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($muted_result), 'post_message(): a muted user\'s message is rejected');
+        delete_transient('bhl_chat_muted_' . $poster);
+
+        // Empty message rejected
+        $empty_req = new WP_REST_Request('POST', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $empty_req->set_url_params(['stream_id' => $stream_id]);
+        $empty_req->set_param('message', '   ');
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHL_PollingChat::post_message($empty_req)), 'post_message(): a whitespace-only message is rejected, not saved as blank');
+
+        // mute_user() sets the same transient post_message() checks
+        $mute_req = new WP_REST_Request('POST', '/bhl/v1/chat/' . $stream_id . '/mute');
+        $mute_req->set_param('target_user_id', $poster);
+        BHL_PollingChat::mute_user($mute_req);
+        $remuted_req = new WP_REST_Request('POST', '/bhl/v1/chat/' . $stream_id . '/messages');
+        $remuted_req->set_url_params(['stream_id' => $stream_id]);
+        $remuted_req->set_param('message', 'Should also be blocked');
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHL_PollingChat::post_message($remuted_req)), 'mute_user(): the same transient block post_message() checks is actually set by the mute action');
+        delete_transient('bhl_chat_muted_' . $poster);
+
+        wp_set_current_user($previous_user);
+        global $wpdb;
+        $wpdb->delete($wpdb->prefix . 'bhl_chat_messages', ['stream_id' => $stream_id]);
+        wp_delete_post($stream_id, true);
         return $rows;
     }
 }
