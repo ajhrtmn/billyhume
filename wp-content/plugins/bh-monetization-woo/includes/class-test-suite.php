@@ -199,6 +199,13 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_referral_tests());
         }
 
+        // Same availability gate as run_referral_tests() above — a real
+        // WC product/order is needed to exercise write_row() through
+        // its actual entry point (on_order_completed()), not a mock of it.
+        if (class_exists('BHM_PurchaseLedger') && class_exists('OUS_Debug') && BH_Commerce::available()) {
+            $rows = array_merge($rows, self::run_purchase_ledger_tests());
+        }
+
         return $rows;
     }
 
@@ -375,6 +382,109 @@ class BHM_TestSuite {
         $order->delete(true);
         $self_order->delete(true);
         wp_delete_post($product->get_id(), true);
+
+        return $rows;
+    }
+
+    // Audit fix (2026-07-26): BHM_PurchaseLedger + BHM_Anchoring
+    // (tamper-evident proof-of-purchase, ROADMAP-streaming-media-scope-
+    // and-blockchain.md Part 2) had zero test coverage since they
+    // shipped. Live-verified in a browser this pass (a real WC order,
+    // a real anchoring job, a real refund) — this covers the same
+    // ground as a real DB-backed fixture, matching every other suite
+    // in this file, EXCEPT BHM_Anchoring's own actual network calls to
+    // OpenTimestamps (handle_submit_job()/handle_upgrade_job()):
+    // deliberately NOT exercised here — hitting a real third-party
+    // calendar server from an automated suite is slow, flaky, and not
+    // CI-friendly (the live browser pass already confirmed the real
+    // submission round-trip works). This only asserts that write_row()
+    // successfully ENQUEUES the job — a job-queue interaction, not the
+    // HTTP call itself.
+    private static function run_purchase_ledger_tests() {
+        if (!class_exists('BHS_API')) return []; // content_hash lookup needs a real bhs_track
+
+        $rows = [];
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_purchase_ledger';
+
+        $track_id = wp_insert_post([
+            'post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'BHM Purchase Ledger Suite Fixture Track',
+            'meta_input' => ['bhcore_is_test' => 'bhm_purchase_ledger_suite', '_bhs_audio_hash' => 'suitehash1234567890'],
+        ], true);
+        if (is_wp_error($track_id)) {
+            return [['name' => 'Purchase-ledger fixture creation failed', 'pass' => false, 'message' => 'Could not create fixture bhs_track post — skipping.']];
+        }
+
+        $product_id = BHM_ProductSync::sync_object_purchase_product($track_id, 'bhs_track', 199);
+        $customer_id = OUS_Debug::get_or_create_test_user('bhm_purchase_ledger_suite_customer', false);
+        $wpdb->delete($t, ['user_id' => $customer_id]);
+
+        $order = wc_create_order(['customer_id' => $customer_id]);
+        $order->add_product(wc_get_product($product_id), 1);
+        $order->calculate_totals();
+        $order->update_status('completed'); // fires the real woocommerce_order_status_completed path, same convention as run_referral_tests() above
+
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'purchase'", $order->get_id()));
+        $rows[] = OUS_TestRunner::assert_true((bool) $row, 'A completed order for a downloadable track-purchase product writes a real bhm_purchase_ledger row');
+        if ($row) {
+            $rows[] = OUS_TestRunner::assert_same('suitehash1234567890', $row->content_hash, 'The ledger row carries the track\'s real _bhs_audio_hash as content_hash');
+            $rows[] = OUS_TestRunner::assert_same(199, (int) $row->price_cents, 'The ledger row records the order total in cents, not dollars');
+            $rows[] = OUS_TestRunner::assert_true((bool) $row->record_hash && strlen($row->record_hash) === 64, 'record_hash is a real 64-char SHA-256 hex digest');
+            $rows[] = OUS_TestRunner::assert_same('pending', $row->anchor_status, 'A freshly-written row starts anchor_status=pending, before any anchoring job has run');
+
+            // write_row() -> anchor_async() should have enqueued a real
+            // bhm_anchor_submit job for this row — checked via Action
+            // Scheduler's own query API (this ecosystem runs on real
+            // Action Scheduler, not the OUS_Jobs fallback table, per
+            // BHM_Anchoring::init()'s registration). Not asserting the
+            // job actually RAN (see this method's own docblock).
+            // Queried directly against Action Scheduler's own table
+            // rather than as_get_scheduled_actions() — that helper
+            // defaults to pending-only status, but this install's
+            // Action Scheduler runner processes jobs almost immediately
+            // (confirmed live this pass), so by the time this query
+            // runs the job may already be 'complete'. The assertion is
+            // "a job was enqueued at all" (any status), not "one is
+            // still waiting."
+            $as_table = $wpdb->prefix . 'actionscheduler_actions';
+            if ($wpdb->get_var("SHOW TABLES LIKE '$as_table'") === $as_table) {
+                $enqueued_count = (int) $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $as_table WHERE hook = 'bhm_anchor_submit' AND args LIKE %s",
+                    '%"ledger_row_id":' . (int) $row->id . '%'
+                ));
+                $rows[] = OUS_TestRunner::assert_true($enqueued_count > 0, 'write_row() enqueues a real bhm_anchor_submit job for the new row (not asserting the network call itself ran)');
+            }
+        }
+
+        // Reversal: refunding the order must write a SECOND, linked row
+        // — never mutate/delete the original.
+        $order->update_status('refunded');
+        $reversal = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
+        $rows[] = OUS_TestRunner::assert_true((bool) $reversal, 'Refunding the order writes a linked reversal row rather than mutating the original purchase row');
+        if ($reversal && $row) {
+            $rows[] = OUS_TestRunner::assert_same((string) $row->id, (string) $reversal->linked_record_id, 'The reversal row\'s linked_record_id points back at the original purchase row');
+        }
+
+        // The double-reversal guard: a second status transition through
+        // a reversal-triggering hook (e.g. refunded -> cancelled, a real
+        // multi-step lifecycle) must NOT record a second reversal for
+        // the same already-reversed purchase.
+        BHM_PurchaseLedger::on_order_reversed($order->get_id());
+        $reversal_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE wc_order_id = %d AND event_type = 'reversal'", $order->get_id()));
+        $rows[] = OUS_TestRunner::assert_same(1, $reversal_count, 'Calling on_order_reversed() again for an already-reversed order does not record a second reversal (the NOT EXISTS guard)');
+
+        // Read helpers
+        $rows[] = OUS_TestRunner::assert_same(1, count(BHM_PurchaseLedger::for_user($customer_id)), 'for_user() returns exactly this customer\'s one purchase row');
+        if ($row) {
+            $found_reversal = BHM_PurchaseLedger::reversal_for($row->id);
+            $rows[] = OUS_TestRunner::assert_true((bool) $found_reversal, 'reversal_for() finds the linked reversal row for the original purchase');
+        }
+
+        // Cleanup
+        $wpdb->delete($t, ['wc_order_id' => $order->get_id()]);
+        $order->delete(true);
+        if ($product_id) wp_delete_post($product_id, true);
+        wp_delete_post($track_id, true);
 
         return $rows;
     }

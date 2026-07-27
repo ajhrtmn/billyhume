@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.8.7
+ * Version:     3.9.2
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -598,7 +598,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.8.7');
+define('OUS_VER', '3.9.2');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -1013,6 +1013,22 @@ add_action('init',          ['OUS_PageSurface', 'init']);
 add_action('init',          ['OUS_UserBar', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);
 add_action('init',          ['OUS_Revisions', 'init']);
+// Deferred require (not the unconditional foreach above): this file's
+// class formally `implements WC_Log_Handler_Interface`, which
+// WooCommerce only defines during ITS OWN main-file load — and
+// active_plugins load in the order WordPress stores them, which on
+// this install (and in general, since 'own-ur-shit' < 'woocommerce'
+// alphabetically) puts own-ur-shit's main file BEFORE WooCommerce's.
+// require_once-ing this file in the unconditional foreach above would
+// fatal (interface not found yet). Guarding both the require AND the
+// init() call behind 'init' (which fires only after every active
+// plugin's main file has already loaded, WooCommerce included) is what
+// makes this safe regardless of load order.
+add_action('init', function () {
+    if (!interface_exists('WC_Log_Handler_Interface')) return;
+    require_once OUS_PATH . 'includes/class-wc-log-bridge.php';
+    OUS_WCLogBridge::init();
+}, 5); // priority 5: before WC_Logger's own get_handlers() call sites might run later the same request
 add_action('init',          ['OUS_Search', 'init']);
 add_action('init',          ['OUS_SetupWizard', 'init']);
 add_action('init',          ['OUS_PortalLayout', 'init']);

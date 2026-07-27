@@ -30,6 +30,73 @@ class BHS_TestSuite {
         $rows = array_merge($rows, self::run_isrc_tests());
         $rows = array_merge($rows, self::run_jam_skip_vote_tests());
         $rows = array_merge($rows, self::run_recommendations_tests());
+        $rows = array_merge($rows, self::run_chapters_tests());
+        return $rows;
+    }
+
+    /* ---------- BHS_Chapters: line parsing, sorting, resume position ---------- */
+
+    // Audit fix (2026-07-26): BHS_Chapters (long-form audio, ROADMAP-
+    // streaming-media-scope-and-blockchain.md Part 1 Phase 1) had zero
+    // test coverage since it shipped — live-verified in a browser this
+    // pass (real track, real chapter lines, real player), but the pure
+    // parsing/sorting logic deserves the same DB-backed real-fixture
+    // coverage every other suite in this file already has.
+    private static function run_chapters_tests() {
+        if (!class_exists('BHS_Chapters')) return [];
+        $rows = [];
+
+        $fixture_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'draft', 'post_title' => 'BHS Test Suite Chapters Fixture'], true);
+        if (is_wp_error($fixture_id)) return $rows;
+
+        // save()'s current_user_can('edit_post', $post_id) gate needs a
+        // real capable user in context — this CLI test-runner request
+        // has no logged-in user by default, unlike a real admin-screen
+        // save. Swapped in only for the duration of this test and
+        // restored after, same "don't leave global state changed for
+        // suites that run after this one" discipline as everywhere else
+        // real WP state gets touched in this file.
+        $previous_user_id = get_current_user_id();
+        $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
+        if ($admins) wp_set_current_user($admins[0]);
+
+        // save() is normally reached via save_post_bhs_track + a real
+        // nonce/capability check — the nonce is real (still required),
+        // only the auth CONTEXT is seeded above, since the pure parsing/
+        // sorting logic is what's under test, not the save-hook's own
+        // gate (already the same shape everywhere else in this
+        // ecosystem: real DB-backed fixtures, no HTTP round-trip needed
+        // to exercise the actual method).
+        $_POST['bhs_chapters_raw'] = "00:05 Chapter Two (out of order)\n00:00 Introduction\nnotachapterline\n00:03 Chapter One (out of order too)";
+        $_POST['bhs_chapters_nonce'] = wp_create_nonce('bhs_save_chapters');
+        BHS_Chapters::save($fixture_id);
+        unset($_POST['bhs_chapters_raw'], $_POST['bhs_chapters_nonce']);
+
+        $chapters = BHS_Chapters::get($fixture_id);
+        $rows[] = OUS_TestRunner::assert_same(3, count($chapters), 'save(): 3 valid lines saved, the malformed "notachapterline" line silently skipped rather than rejecting the whole save');
+        $rows[] = OUS_TestRunner::assert_same(
+            [0, 3, 5], array_column($chapters, 'time'),
+            'save(): chapters are sorted by time regardless of the order they were entered in (input was 5, 0, [invalid], 3)'
+        );
+        $rows[] = OUS_TestRunner::assert_same('Introduction', $chapters[0]['label'] ?? null, 'save(): the 0:00 line\'s label parsed correctly');
+
+        // Malformed-only input: every line invalid should leave a clean
+        // empty array, not a partial/corrupt one.
+        $_POST['bhs_chapters_raw'] = "not a chapter\nalso not one";
+        $_POST['bhs_chapters_nonce'] = wp_create_nonce('bhs_save_chapters');
+        BHS_Chapters::save($fixture_id);
+        unset($_POST['bhs_chapters_raw'], $_POST['bhs_chapters_nonce']);
+        $rows[] = OUS_TestRunner::assert_same([], BHS_Chapters::get($fixture_id), 'save(): an input with zero valid lines saves a clean empty array, not a partial/corrupt one');
+
+        // resume_position(): per-track, per-user read/write round-trip.
+        $test_user_id = class_exists('OUS_Debug') ? OUS_Debug::get_or_create_test_user('bhs_chapters_test') : get_current_user_id();
+        update_user_meta($test_user_id, '_bhs_resume_' . $fixture_id, 137);
+        $rows[] = OUS_TestRunner::assert_same(137, BHS_Chapters::resume_position($fixture_id, $test_user_id), 'resume_position(): reads back exactly what was written for this track/user pair');
+        $rows[] = OUS_TestRunner::assert_same(0, BHS_Chapters::resume_position($fixture_id, 999999), 'resume_position(): a user with no saved position at all reads back 0, not a notice/null');
+        delete_user_meta($test_user_id, '_bhs_resume_' . $fixture_id);
+
+        wp_set_current_user($previous_user_id);
+        wp_delete_post($fixture_id, true);
         return $rows;
     }
 

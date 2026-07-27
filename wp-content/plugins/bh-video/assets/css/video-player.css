@@ -1,0 +1,36 @@
+/* Theme-isolation reset — same reasoning as bh-streaming's player.css:
+   scoped entirely under .bhv-app so theme-level resets can't bleed in,
+   and this can't leak back out onto the rest of the theme's page. */
+.bhv-app, .bhv-app * { box-sizing: border-box; }
+.bhv-app :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
+.bhv-app :where(a) { text-decoration: none; color: inherit; }
+.bhv-app :where(button, input, select) {
+    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
+    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+}
+.bhv-app { line-height: 1.4; font-family: var(--bh-font-body); color: var(--bh-text); background: var(--bh-bg); min-height: 100vh; }
+.bhv-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
+
+.bhv-topbar { display: flex; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--bh-border); }
+.bhv-topbar input, .bhv-topbar select {
+    background: var(--bh-surface); color: var(--bh-text); border: 1px solid var(--bh-border);
+    border-radius: 6px; padding: 8px 12px; font-size: 13px;
+}
+.bhv-topbar input { flex: 1; min-width: 0; }
+
+.bhv-player-wrap { padding: 20px; border-bottom: 1px solid var(--bh-border); }
+.bhv-player-wrap video { width: 100%; max-height: 70vh; border-radius: 8px; background: #000; display: block; }
+.bhv-player-wrap h3 { margin-top: 10px; font-size: 16px; }
+.bhv-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.bhv-chapter-marker {
+    background: var(--bh-surface); color: var(--bh-text-dim); border: 1px solid var(--bh-border);
+    border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.bhv-chapter-marker:hover { color: var(--bh-text); border-color: var(--bh-accent); }
+
+.bhv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 20px; }
+.bhv-card { background: var(--bh-surface); border: none; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer; color: var(--bh-text); font-family: inherit; }
+.bhv-card:hover { background: var(--bh-surface-2); }
+.bhv-card-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 6px; margin-bottom: 8px; background: #000; }
+.bhv-card-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bhv-card-meta { color: var(--bh-text-dim); font-size: 11px; margin-top: 4px; }
