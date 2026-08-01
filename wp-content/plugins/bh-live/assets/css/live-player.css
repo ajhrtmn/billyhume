@@ -18,6 +18,12 @@
 .bhl-chat-log { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
 .bhl-chat-message { margin-bottom: 6px; word-break: break-word; }
 .bhl-chat-message strong { color: var(--bh-accent); }
+.bhl-chat-source-tag {
+    display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+    padding: 1px 5px; border-radius: 3px; margin-right: 2px; background: var(--bh-surface-2); color: var(--bh-text-dim);
+}
+.bhl-chat-message--twitch .bhl-chat-source-tag { background: #9146ff; color: #fff; }
+.bhl-chat-message--youtube .bhl-chat-source-tag { background: #ff0000; color: #fff; }
 .bhl-chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--bh-border); }
 .bhl-chat-form input {
     flex: 1; min-width: 0; background: var(--bh-bg); color: var(--bh-text); border: 1px solid var(--bh-border);

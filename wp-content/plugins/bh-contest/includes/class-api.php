@@ -543,16 +543,13 @@ class BH_API {
                 // No job queue active (shouldn't happen — same plugin,
                 // same activation) — fail toward still sending rather
                 // than silently dropping the confirmation.
-                $sent = wp_mail($user->user_email, $subject, $body);
-                if ($sent && class_exists('BH_Event')) {
-                    BH_Event::emit('bhcore/email_sent', [
-                        'user_id' => $uid, 'subject_type' => 'email', 'subject_id' => 0,
-                        'payload' => ['title' => $subject],
+                if (class_exists('BH_Mail')) {
+                    BH_Mail::send([
+                        'to' => $user->user_email, 'user_id' => $uid, 'subject' => $subject, 'body' => $body,
+                        'source' => 'BH Contest Submission', 'log_context' => ['submission_id' => $pid],
                     ]);
-                } elseif (!$sent && class_exists('OUS_DebugLog')) {
-                    OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
-                        'user_id' => $uid, 'submission_id' => $pid,
-                    ], 'BH Contest Submission');
+                } else {
+                    wp_mail($user->user_email, $subject, $body);
                 }
             }
         }
@@ -567,17 +564,14 @@ class BH_API {
         $body = $args['body'] ?? '';
         if (!$email || !$subject || !$body) return;
 
-        $sent = wp_mail($email, $subject, $body);
-        if ($sent && class_exists('BH_Event')) {
-            BH_Event::emit('bhcore/email_sent', [
-                'user_id' => $args['user_id'] ?? 0, 'subject_type' => 'email', 'subject_id' => 0,
-                'payload' => ['title' => $subject],
+        if (class_exists('BH_Mail')) {
+            BH_Mail::send([
+                'to' => $email, 'user_id' => (int) ($args['user_id'] ?? 0), 'subject' => $subject, 'body' => $body,
+                'source' => 'BH Contest Submission', 'log_context' => ['submission_id' => $args['submission_id'] ?? 0],
             ]);
-        } elseif (!$sent && class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('warning', 'Submission-received confirmation email failed to send (wp_mail() returned false).', [
-                'user_id' => $args['user_id'] ?? 0, 'submission_id' => $args['submission_id'] ?? 0,
-            ], 'BH Contest Submission');
+            return;
         }
+        wp_mail($email, $subject, $body);
     }
 
     /**

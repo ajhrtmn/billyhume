@@ -7,3 +7,11 @@
 .ous-badge-active { background: #1DB954; color: #fff; }
 .ous-badge-inactive { background: #f0e6c8; color: #8a5a00; }
 .ous-badge-missing { background: #f0f0f1; color: #787c82; }
+
+/* Feature-maturity badges (OUS_Badge) — distinct from the install-status
+   trio above (active/inactive/missing describe whether a PLUGIN is
+   running; these describe whether a specific FEATURE has been verified
+   against a live account/API yet). */
+.ous-badge-alpha { background: #f0e6c8; color: #8a5a00; }
+.ous-badge-beta { background: #dbe9ff; color: #1a4d99; }
+.ous-badge-experimental { background: #f3e3ff; color: #6b2fa3; }

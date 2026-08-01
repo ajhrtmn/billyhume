@@ -261,7 +261,19 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-module-lesson-list { animation: bhc-step-in 0.25s ease both; }
 
 @media (max-width: 780px) {
-    .bhc-lesson-layout { flex-direction: column; }
+    /* Real bug, caught auditing the new lesson/quiz-pass banners:
+       .bhc-lesson-layout's own align-items:flex-start (correct for the
+       desktop side-by-side layout, where sidebar and main should each
+       size to their own height) carries over once flex-direction flips
+       to column here — but on the now-vertical cross axis, flex-start
+       means "shrink to content width" instead of "stretch to fill,"
+       so .bhc-lesson-main (every step card, the quiz-pass banner, the
+       lesson-complete banner) sat narrower than the sidebar above it,
+       leaving a real dead-space gap on the right at exactly the widths
+       this breakpoint covers (tablet and the narrower end of desktop).
+       stretch here restores full-width content without touching the
+       desktop-only side-by-side behavior above this breakpoint. */
+    .bhc-lesson-layout { flex-direction: column; align-items: stretch; }
     .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
     .bhc-sidebar-lesson-list { max-height: none; }
 }
@@ -316,7 +328,16 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    interchangeable — a thin left border echoing the stepper dot's type,
    not a full re-theme (the content itself should stay the focal
    point). */
-.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+/* Real bug, caught in the same layout audit as the sidebar-width fix
+   above: neither this card nor .bhc-lesson-next (its very next sibling
+   once the last step's completion reveals it) had any margin between
+   them — two bordered, differently-colored boxes sat flush against
+   each other with zero visual separation, reading as one glued-together
+   shape rather than two distinct moments. 20px matches this card's own
+   padding, the same "gap between blocks = padding within a block"
+   rhythm .bhc-course-header/.bhc-orientation already use elsewhere in
+   this file. */
+.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
 /* Scoped to the outer .bhc-step wrapper specifically — a text step's
    INNER content div is coincidentally also named .bhc-step-text (see
    render_step()'s own markup), so an unscoped rule here would double-
@@ -496,11 +517,34 @@ video.bhc-step-video {
    Kept identical to the rule above; :has() just paints it instantly
    without waiting on the change event to fire. */
 .bhc-quiz-choice.bhc-selected { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
-.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
-.bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
+.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
-.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-continue { display: inline-block; }
+/* Kept for the one remaining plain usage: the quiz FORM's own inline
+   "you already passed" note shown above a disabled input set (see
+   render_step()'s quiz branch) — a degraded-case note, not the review
+   banner below, so it stays a plain accent-colored line rather than
+   getting the full card treatment. */
+.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
+
+/* Passing a quiz is the one step type with real stakes (attempts,
+   scoring) already built in, so it gets its own visual register — a
+   step up from a plain step's "mark complete" but a step down from the
+   full course-completion moment (.bhc-completion below): a real
+   card, the actual score front and center, not a plain note buried in
+   with the rest of the form. Shared by both the live-submit path
+   (courses.js writes this same markup into .bhc-quiz-result on a pass)
+   and the static revisit path (BHC_Render_Lesson::render_quiz_review()),
+   so a student sees the identical moment whether they just passed or
+   are looking at an old pass. */
+.bhc-quiz-result.bhc-pass {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+    padding: 20px 16px; background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border: 1px solid var(--bh-accent); border-radius: 10px;
+}
+.bhc-quiz-pass-icon { font-size: 26px; line-height: 1; color: var(--bh-accent); margin-bottom: 2px; }
+.bhc-quiz-pass-score { font-size: 16px; font-weight: 600; margin: 0; }
+.bhc-quiz-pass-sub { font-size: 13px; color: var(--bh-text-dim); margin: 0; }
 
 /* ---- quiz per-question review/breakdown ---- */
 .bhc-quiz-review { margin-top: 8px; }
@@ -534,15 +578,85 @@ video.bhc-step-video {
 .bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .bhc-step-back { margin-right: 8px; }
 
+/* Finishing a lesson (not the whole course — that's .bhc-completion
+   below, the biggest moment in the flow) is a real, constantly-recurring
+   beat that was previously just a plain button sitting in the same
+   plain box as "Back to lesson." Depth-of-magic pass: a filled banner
+   using --bh-accent as the actual background (not just a border/tint
+   like the quiz-pass moment above) gives it real weight without
+   competing with .bhc-completion's gradient treatment, since this
+   happens far more often and shouldn't be exhausting to see repeatedly. */
+.bhc-lesson-complete-banner {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: var(--bh-accent); color: var(--bh-accent-contrast, #fff);
+    border-radius: 10px; padding: 24px 20px; margin-bottom: 16px;
+    /* position:relative so courses.js's confetti pieces (absolutely
+       positioned at 50%/50% of their nearest positioned ancestor) anchor
+       to THIS banner's own center — without it they'd anchor to whatever
+       positioned ancestor happens to exist further up the tree (or the
+       viewport, if none), landing nowhere near the actual moment.
+       overflow:visible so a piece thrown past the banner's own edge
+       isn't clipped by its border-radius. */
+    position: relative; overflow: visible;
+}
+/* A distinct entrance for this specific banner, on top of the generic
+   fade-up every .bhc-step-entering block already gets (that animates
+   the whole .bhc-lesson-next wrapper, including this banner as a
+   passive child) — courses.js adds this class only to the banner
+   itself, right as it's revealed, so the PAYOFF gets its own extra
+   beat of motion instead of just riding along with the wrapper's plain
+   fade. A small overshoot (1.06 before settling at 1) reads as a pop,
+   not a mechanical scale-up. */
+.bhc-lesson-complete-banner.bhc-banner-pop { animation: bhc-banner-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bhc-banner-pop {
+    0% { opacity: 0; transform: scale(0.85); }
+    60% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-lesson-complete-banner.bhc-banner-pop { animation: none; }
+}
+.bhc-lesson-complete-icon { font-size: 30px; line-height: 1; margin-bottom: 2px; }
+/* Consistency fix: every other "moment" title in this file
+   (.bhc-completion-title, .bhc-orientation-title, .bhc-course-title)
+   uses the heading typeface, not the body font — this one was left
+   plain/bold, reading as smaller-scale UI text rather than a real
+   headline moment. Sized to match .bhc-orientation-title (20px) rather
+   than staying smaller than it: orientation is a calm, one-time setup
+   beat by its own design intent, so the recurring PAYOFF here shouldn't
+   read as quieter than it. */
+.bhc-lesson-complete-title { font-family: var(--bh-font-heading); font-size: 20px; font-weight: 600; margin: 0; }
+.bhc-lesson-complete-stats { font-size: 13px; opacity: 0.85; margin: 0; }
+/* Back/Next grouped in one row under the banner (same shape as
+   .bhc-completion-actions below) rather than each button carrying its
+   own stacked margin-top — .bhc-btn's default margin-top is meant for a
+   lone button sitting under prose, not a pair that should read as one
+   action group. */
+.bhc-lesson-next-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bhc-lesson-next-actions .bhc-btn { margin-top: 0; }
+/* .bhc-step-back's own margin-right:8px (below, in the lesson step
+   walker section) is meant for a LONE back button with nothing after
+   it — inside this flex row it would stack on top of the row's own
+   gap:10px, spacing Back and Next further apart than every other
+   button pair in this file (10px is the shared row-gap value used by
+   .bhc-completion-actions too). Cancelled here so this row's spacing
+   matches that same 10px, not 18px. */
+.bhc-lesson-next-actions .bhc-step-back { margin-right: 0; }
+
 /* ---- course-completion moment: the one real payoff in the whole
    course-taking flow, so it gets a visually distinct treatment (a
    gradient ring derived from the same --bh-accent used everywhere else,
    not a new color) instead of sitting flush with the plain surface
    around it ---- */
+/* Same "touching boxes" bug as .bhc-step/.bhc-lesson-next above, found
+   in the same audit: on the course page this sits directly before
+   .bhc-progress-bar-large with zero gap between them (no margin-bottom
+   here, no margin-top there) — the two read as one fused shape instead
+   of a card followed by a separate progress element. */
 .bhc-completion {
     text-align: center; padding: 4px; position: relative; overflow: visible;
     background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
-    border-radius: 14px;
+    border-radius: 14px; margin-bottom: 24px;
 }
 .bhc-completion > * { background: var(--bh-surface); position: relative; z-index: 1; }
 
@@ -613,7 +727,13 @@ video.bhc-step-video {
     .bhc-stepper-dot { width: 32px; height: 32px; font-size: 12px; } /* larger tap target, not just a smaller desktop dot shrunk further */
     .bhc-btn { width: 100%; text-align: center; }
     .bhc-lesson-next { padding: 14px; }
-    .bhc-lesson-next .bhc-btn { margin-top: 8px; }
+    /* Direct-child selector, not .bhc-lesson-next .bhc-btn — a lone
+       "Back to lesson" button (the course-completion branch, a direct
+       child of .bhc-lesson-next) still needs this top margin, but
+       buttons inside .bhc-lesson-next-actions are a grandchild, one
+       level deeper, and already get consistent spacing from that row's
+       own gap:10px. An unscoped rule here doubled up with that gap. */
+    .bhc-lesson-next > .bhc-btn { margin-top: 8px; }
     .bhc-quiz-choice-review { flex-direction: column; align-items: flex-start; gap: 2px; }
     .bhc-lesson-breadcrumb { flex-direction: column; align-items: flex-start; gap: 4px; }
 }

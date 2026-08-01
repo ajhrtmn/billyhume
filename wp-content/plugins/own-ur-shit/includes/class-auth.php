@@ -188,7 +188,11 @@ class BHI_Auth {
         $verify_url = add_query_arg(['action' => 'bhi_verify_email', 'uid' => $uid, 'token' => $token], admin_url('admin-post.php'));
         $subject = 'Confirm your email — ' . get_bloginfo('name');
         $body = "Hi {$username},\n\nOne more step: confirm this is really your email.\n\n{$verify_url}\n\nThis link works for 48 hours. If you didn't sign up for this, you can ignore it.";
-        wp_mail($email, $subject, $body);
+        if (class_exists('BH_Mail')) {
+            BH_Mail::send(['to' => $email, 'user_id' => $uid, 'subject' => $subject, 'body' => $body, 'source' => 'BH Auth']);
+        } else {
+            wp_mail($email, $subject, $body);
+        }
     }
 
     public static function verify_email_action() {

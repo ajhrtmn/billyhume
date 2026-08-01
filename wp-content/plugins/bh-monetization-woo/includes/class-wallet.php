@@ -22,6 +22,119 @@ class BHM_Wallet {
         return $bal === null ? 0 : (int) $bal;
     }
 
+    public static function held_cents($user_id) {
+        global $wpdb;
+        $held = $wpdb->get_var($wpdb->prepare("SELECT held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id));
+        return $held === null ? 0 : (int) $held;
+    }
+
+    /** What's actually still spendable/biddable right now — balance minus whatever's already committed to an open auction bid. */
+    public static function available_cents($user_id) {
+        global $wpdb;
+        $row = $wpdb->get_row($wpdb->prepare("SELECT balance_cents, held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id), ARRAY_A);
+        return $row ? ((int) $row['balance_cents'] - (int) $row['held_cents']) : 0;
+    }
+
+    // Auction bidding (class-auctions.php's own use, 1.7): commits
+    // $cents against a bid WITHOUT touching balance_cents yet — a bid
+    // that gets outbid or loses only ever needs release_hold(), never a
+    // separate refund/credit, because the spendable balance was never
+    // actually debited. Same TOCTOU-safe shape as debit() above: the
+    // "is there enough available to hold" check and the write are the
+    // SAME atomic UPDATE, guarded by its own WHERE clause, so two bids
+    // racing for the same low-available-balance user can't both pass a
+    // prior read before either commits.
+    public static function hold($user_id, $cents, $reason, $ref_id = null) {
+        global $wpdb;
+        $cents = abs((int) $cents);
+        $w = $wpdb->prefix . 'bhm_wallet';
+
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $w SET held_cents = held_cents + %d, updated_at = %s WHERE user_id = %d AND (balance_cents - held_cents) >= %d",
+            $cents, current_time('mysql'), $user_id, $cents
+        ));
+        if ($wpdb->rows_affected !== 1) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Wallet hold declined — insufficient available balance or no wallet row exists for this user.', [
+                    'user_id' => $user_id, 'cents' => $cents, 'reason' => $reason, 'ref_id' => $ref_id,
+                ], 'BH Wallet');
+            }
+            return false;
+        }
+
+        $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+            'user_id' => $user_id, 'delta_cents' => 0, 'reason' => $reason, 'track_id' => $ref_id,
+        ]);
+        // delta_cents is deliberately 0 here — a hold moves money between
+        // "available" and "held," it never changes the actual
+        // balance_cents total the ledger's delta_cents column tracks.
+        // The ledger row still exists (reason + ref_id) purely as an
+        // audit trail entry: "a hold happened, here's when and why."
+        return true;
+    }
+
+    /** Releases a hold without ever touching balance_cents — the outbid/lost path. Floors at 0 so a duplicate release call can't drive held_cents negative. */
+    public static function release_hold($user_id, $cents, $reason, $ref_id = null) {
+        global $wpdb;
+        $cents = abs((int) $cents);
+        $w = $wpdb->prefix . 'bhm_wallet';
+
+        $ok = $wpdb->query($wpdb->prepare(
+            "UPDATE $w SET held_cents = GREATEST(held_cents - %d, 0), updated_at = %s WHERE user_id = %d",
+            $cents, current_time('mysql'), $user_id
+        ));
+        if ($ok !== false) {
+            $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+                'user_id' => $user_id, 'delta_cents' => 0, 'reason' => $reason, 'track_id' => $ref_id,
+            ]);
+        } elseif (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error', 'Wallet hold release failed — held_cents may now be overstated for this user.', [
+                'user_id' => $user_id, 'cents' => $cents, 'reason' => $reason, 'ref_id' => $ref_id, 'db_error' => $wpdb->last_error,
+            ], 'BH Wallet');
+        }
+        return $ok !== false;
+    }
+
+    // The actual spend, once an auction closes in this bidder's favor —
+    // moves the already-held amount out of BOTH held_cents AND
+    // balance_cents together, in one atomic statement. Requires
+    // held_cents >= $cents in its own WHERE clause rather than trusting
+    // the caller's bookkeeping — a capture can only ever spend money
+    // that was genuinely held for it.
+    public static function capture_hold($user_id, $cents, $reason, $ref_id = null) {
+        global $wpdb;
+        $cents = abs((int) $cents);
+        $w = $wpdb->prefix . 'bhm_wallet';
+
+        $wpdb->query($wpdb->prepare(
+            "UPDATE $w SET balance_cents = balance_cents - %d, held_cents = held_cents - %d, updated_at = %s WHERE user_id = %d AND held_cents >= %d",
+            $cents, $cents, current_time('mysql'), $user_id, $cents
+        ));
+        if ($wpdb->rows_affected !== 1) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Wallet hold capture failed — held_cents was less than the amount being captured (a real bookkeeping bug, not a routine decline).', [
+                    'user_id' => $user_id, 'cents' => $cents, 'reason' => $reason, 'ref_id' => $ref_id,
+                ], 'BH Wallet');
+            }
+            return false;
+        }
+
+        $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+            'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $ref_id,
+        ]);
+        if ($ledger_ok !== false && class_exists('BH_Event')) {
+            BH_Event::emit('bhm/wallet_debit', [
+                'user_id' => $user_id, 'subject_type' => 'bhm_wallet', 'subject_id' => $user_id,
+                'payload' => ['cents' => $cents, 'reason' => $reason],
+            ]);
+        } elseif ($ledger_ok === false && class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('error', 'Wallet hold captured but the ledger row failed to insert — balance and ledger are now out of sync for this user.', [
+                'user_id' => $user_id, 'cents' => $cents, 'reason' => $reason, 'ref_id' => $ref_id, 'db_error' => $wpdb->last_error,
+            ], 'BH Wallet');
+        }
+        return true;
+    }
+
     public static function credit($user_id, $cents, $reason, $track_id = null, $order_id = null) {
         self::apply_delta($user_id, abs((int) $cents), $reason, $track_id, $order_id);
         // Fraud/abuse velocity cap — only real purchased

@@ -77,16 +77,28 @@
     // this only fired for on page load, missing the actual live moment
     // entirely. window-scoped (not a module) to stay reachable from
     // both listeners without restructuring this whole IIFE.
-    window.bhcFireConfetti = function (completion) {
+    // opts lets a QUIETER moment (the per-lesson completion banner,
+    // added later — see advance() below) reuse this same mechanism at a
+    // smaller scale instead of duplicating it: fewer pieces, thrown a
+    // shorter distance, so it reads as a small flourish rather than
+    // competing with the course-completion burst's own visual weight.
+    // Every default below matches this function's original, unparameterized
+    // behavior exactly, so the course-completion call site (unchanged)
+    // looks pixel-identical to before.
+    window.bhcFireConfetti = function (completion, opts) {
         if (!completion || completion.dataset.bhcConfettiFired) return;
         completion.dataset.bhcConfettiFired = '1';
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        opts = opts || {};
+        var count = opts.count || 18;
+        var minDistance = opts.minDistance || 70;
+        var distanceSpread = opts.distanceSpread || 90;
         var colors = ['var(--bh-accent)', 'var(--bh-accent-soft)', 'var(--bh-text)'];
-        for (var i = 0; i < 18; i++) {
+        for (var i = 0; i < count; i++) {
             var piece = document.createElement('span');
             piece.className = 'bhc-confetti-piece';
             var angle = Math.random() * Math.PI * 2;
-            var distance = 70 + Math.random() * 90;
+            var distance = minDistance + Math.random() * distanceSpread;
             piece.style.setProperty('--bhc-confetti-x', (Math.cos(angle) * distance).toFixed(0) + 'px');
             piece.style.setProperty('--bhc-confetti-y', (Math.sin(angle) * distance + 40).toFixed(0) + 'px');
             piece.style.setProperty('--bhc-confetti-r', (Math.random() * 360).toFixed(0) + 'deg');
@@ -228,6 +240,24 @@
                     nextBlock.focus({ preventScroll: true });
                     var completion = nextBlock.querySelector('.bhc-completion');
                     if (completion && window.bhcFireConfetti) window.bhcFireConfetti(completion);
+                    // The mid-tier "Lesson complete" banner (no course_id
+                    // match, i.e. a next lesson still follows) gets its own
+                    // smaller beat — a real entrance pop distinct from the
+                    // wrapper's plain fade, plus a scaled-down confetti
+                    // burst reusing bhcFireConfetti's new opts param. Both
+                    // only fire here, the live same-session path — a
+                    // student who reloads and lands back on an already-
+                    // revealed banner (dataset.bhcConfettiFired already set,
+                    // see bhcFireConfetti's own guard) doesn't see it replay.
+                    var completeBanner = nextBlock.querySelector('.bhc-lesson-complete-banner');
+                    if (completeBanner) {
+                        completeBanner.classList.remove('bhc-banner-pop');
+                        void completeBanner.offsetWidth;
+                        completeBanner.classList.add('bhc-banner-pop');
+                        if (window.bhcFireConfetti) {
+                            window.bhcFireConfetti(completeBanner, { count: 8, minDistance: 30, distanceSpread: 40 });
+                        }
+                    }
                 }
             }
         }
@@ -645,7 +675,16 @@
                     // what to go back and re-read.
                     var attemptsExhausted = !result.passed && result.max_attempts && result.attempts_remaining === 0;
                     if (result.passed) {
-                        resultBox.textContent = 'You\'ve got this — ' + correctCount + '/' + result.total + ' correct. Nice work.';
+                        // Same escalated banner markup as the static
+                        // revisit path (BHC_Render_Lesson::render_quiz_review())
+                        // — a student sees the identical moment whether
+                        // this is a fresh pass or an old one. correctCount/
+                        // result.total/result.score are all server-computed
+                        // numbers, never user input, so building this as
+                        // HTML (not textContent) carries no injection risk.
+                        resultBox.innerHTML = '<div class="bhc-quiz-pass-icon">&#10003;</div>'
+                            + '<p class="bhc-quiz-pass-score">Quiz passed — ' + result.score + '%.</p>'
+                            + '<p class="bhc-quiz-pass-sub">' + correctCount + '/' + result.total + ' correct. Nice work.</p>';
                     } else if (attemptsExhausted) {
                         var missedTopics = (result.questions || [])
                             .filter(function (q) { return q.chosen_index !== q.correct_index; })

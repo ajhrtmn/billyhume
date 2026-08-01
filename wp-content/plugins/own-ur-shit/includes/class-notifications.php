@@ -187,35 +187,29 @@ class OUS_Notifications {
     }
 
     private static function send_email_now($user_id, $title, $body, $url) {
-        $user = get_userdata($user_id);
-        if (!$user || !$user->user_email) return;
         $message = wp_strip_all_tags($body);
         if ($url) $message .= "\n\n" . $url;
-        $sent = wp_mail($user->user_email, wp_specialchars_decode($title), $message);
 
-        // Feeds the CRM's unified per-person activity timeline (BH_Event
-        // -> bh-crm's BHCRM_Event_Activity) — this is the single choke
-        // point every queued notification email sends through, so this
-        // one emit() covers every email this ecosystem sends via its
-        // own notification system (course/contest/CRM reminders, etc.).
-        // Does NOT cover ad hoc wp_mail() calls made directly elsewhere
-        // (e.g. bh-contest's submission-received confirmation) — those
-        // aren't routed through this class.
-        if ($sent && class_exists('BH_Event')) {
-            BH_Event::emit('bhcore/email_sent', [
-                'user_id' => $user_id, 'subject_type' => 'email', 'subject_id' => 0,
-                'payload' => ['title' => $title],
+        // Routed through BH_Mail (class-mail.php) — the shared send/
+        // emit-on-success/log-on-failure boilerplate this method used
+        // to hand-roll itself now lives there, shared with every other
+        // plugin's own notification emails instead of being reimplemented
+        // per call site. Falls back to the raw wp_mail() path only if
+        // BH_Mail somehow isn't loaded (shouldn't happen — same plugin).
+        if (class_exists('BH_Mail')) {
+            BH_Mail::send([
+                'user_id' => $user_id,
+                'subject' => wp_specialchars_decode($title),
+                'body' => $message,
+                'source' => 'OUS Notifications',
+                'log_context' => ['title' => $title],
             ]);
-        } elseif (!$sent && class_exists('OUS_DebugLog')) {
-            // wp_mail() returning false (misconfigured mail transport,
-            // rejected recipient, etc.) previously meant a queued
-            // notification email silently never arrived. Routine sends
-            // feed the activity timeline above; a failure is worth
-            // surfacing in Debug Tools instead.
-            OUS_DebugLog::log('warning', 'Queued notification email failed to send (wp_mail() returned false).', [
-                'user_id' => $user_id, 'title' => $title,
-            ], 'OUS Notifications');
+            return;
         }
+
+        $user = get_userdata($user_id);
+        if (!$user || !$user->user_email) return;
+        wp_mail($user->user_email, wp_specialchars_decode($title), $message);
     }
 
     /* ---------------- reading ---------------- */

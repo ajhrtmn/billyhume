@@ -178,6 +178,14 @@ class BH_Rounds {
             ], 'BH Contest Rounds');
         }
 
+        // Hookable so a peer plugin (bh-live's OBS automation bridge is
+        // the first real consumer) can react to a round transition —
+        // this isn't a BH_Event (those are async via OUS_Jobs, too
+        // slow for a scene-switch trigger someone's watching live) —
+        // a plain synchronous action fired the moment the round
+        // actually advances.
+        do_action('bh_contest_round_advanced', $cid, $idx + 1);
+
         return ['advanced' => $survivors, 'eliminated' => array_values($eliminated), 'next_round' => $idx + 1];
     }
 }

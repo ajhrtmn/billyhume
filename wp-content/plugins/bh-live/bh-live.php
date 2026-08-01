@@ -35,7 +35,7 @@ define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
 define('BHL_VER',  '0.9.0');
 
-foreach (['activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'workers-chat', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'live-player', 'test-suite', 'privacy'] as $f) {
+foreach (['activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'workers-chat', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'overlay', 'automation', 'live-player', 'test-suite', 'privacy'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";
 }
 
@@ -56,8 +56,11 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHL_Admin', 'init']);
     add_action('init', ['BHL_Player', 'init']);
     add_action('init', ['BHL_PollingChat', 'init']);
+    add_action('init', ['BHL_Automation', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHL_TestSuite', 'init']);
     add_action('rest_api_init', ['BHL_API', 'register_routes']);
+    add_action('rest_api_init', ['BHL_Overlay', 'register_routes']);
+    add_action('rest_api_init', ['BHL_Automation', 'register_routes']);
 });
 
 // Cleared on deactivation, same convention every other cron-scheduling

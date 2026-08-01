@@ -88,11 +88,18 @@ class BHM_Gifts {
 
         $subject = $buyer_name . ' sent you a gift membership!';
         $body = $buyer_name . " signed you up for \"$tier_name\" — click below to claim it:\n\n$claim_url\n\nIf you don't already have an account, you'll be able to create one on that page first.";
-        $sent = wp_mail($recipient_email, $subject, $body);
-        if (!$sent && class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log('warning', 'Gift redemption email failed to send (wp_mail() returned false).', [
-                'recipient_email' => $recipient_email, 'tier_id' => $tier_id, 'order_id' => $order_id, 'code' => $code,
-            ], 'BH Monetization');
+        if (class_exists('BH_Mail')) {
+            BH_Mail::send([
+                'to' => $recipient_email, 'subject' => $subject, 'body' => $body, 'source' => 'BH Monetization',
+                'log_context' => ['recipient_email' => $recipient_email, 'tier_id' => $tier_id, 'order_id' => $order_id, 'code' => $code],
+            ]);
+        } else {
+            $sent = wp_mail($recipient_email, $subject, $body);
+            if (!$sent && class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'Gift redemption email failed to send (wp_mail() returned false).', [
+                    'recipient_email' => $recipient_email, 'tier_id' => $tier_id, 'order_id' => $order_id, 'code' => $code,
+                ], 'BH Monetization');
+            }
         }
 
         return $code;
