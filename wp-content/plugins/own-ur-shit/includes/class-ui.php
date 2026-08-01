@@ -676,6 +676,14 @@ class BHY_UI {
 
     public static function design_system_css() {
         return '
+            /* ============================================================
+               LAYER 1 — TOKENS. Custom properties only, no selectors.
+               New color/spacing/type value? It goes here, named, with a
+               fallback the rest of this file can reference. See
+               STYLE-SYSTEM.md at the plugins root for the full 4-layer
+               model (tokens / utilities / components / plugin-local) this
+               file and class-style.php both follow.
+               ============================================================ */
             :root {
                 --bhy-space-1: 4px; --bhy-space-2: 8px; --bhy-space-3: 12px; --bhy-space-4: 16px;
                 --bhy-space-5: 20px; --bhy-space-6: 24px; --bhy-space-8: 32px;
@@ -700,6 +708,15 @@ class BHY_UI {
             }
             .bhy-shell h1 { font-size: var(--bhy-text-2xl); margin-bottom: var(--bhy-space-2); }
             .bhy-shell .description { font-size: var(--bhy-text-base); color: var(--bhy-ink-dim); margin-bottom: var(--bhy-space-4); }
+
+            /* ============================================================
+               LAYER 3 — COMPONENTS. Named, reusable UI pieces that
+               compose tokens + utilities (card/alert/badge/table below).
+               New admin screen needs a status pill, a notice box, a
+               surface panel, or a wide table? Check here BEFORE hand-
+               rolling one inline — this is the whole reason those got
+               reinvented per call site in the 2026-08 style audit.
+               ============================================================ */
 
             /* Card — the one surface treatment every custom admin
                screen should reuse instead of inventing its own
@@ -749,7 +766,11 @@ class BHY_UI {
                title="..." attribute carrying the full text. */
             .bhy-badge-truncate { overflow: hidden; text-overflow: ellipsis; max-width: 160px; vertical-align: bottom; }
 
-            /* Text-overflow utilities — the admin-side counterpart to
+            /* ---- LAYER 2 (utilities, not a component) — kept here next
+               to .bhy-badge since that\'s their most common pairing, but
+               these are generic single-purpose helpers, not one named
+               "thing." See STYLE-SYSTEM.md. ----
+               Text-overflow utilities — the admin-side counterpart to
                the front-end .bh-truncate/.bh-clamp-* in class-style.php
                (see that own docblock for the full per-content-type
                reasoning: single-line content truncates with an

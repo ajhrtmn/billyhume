@@ -44,9 +44,29 @@ class BHY_Style {
         add_filter('block_editor_settings_all', [self::class, 'add_editor_iframe_styles']);
     }
 
+    /**
+     * Prints all three front-end CSS layers, in layer order — see
+     * STYLE-SYSTEM.md at the plugins root for the full 4-layer model
+     * (tokens / utilities / components / plugin-local) this file and
+     * class-ui.php's admin-side equivalent both follow. Quick map for
+     * "where does my new rule go":
+     *   inline_css()             — LAYER 1, tokens (--bh-* custom
+     *                               properties only, no selectors).
+     *   text_overflow_utils_css()— LAYER 2, utilities (.bh-truncate,
+     *                               .bh-clamp-2/3, .bh-nowrap — generic,
+     *                               single-purpose, composable).
+     *   badge_css()               — LAYER 3, components (.bh-badge and
+     *                               its color/truncate modifiers — a
+     *                               named, reusable UI piece built from
+     *                               the two layers above).
+     * Anything more specific than these three belongs in the consuming
+     * plugin's own .css file (LAYER 4), referencing these tokens/
+     * utilities/components rather than re-declaring them.
+     */
     public static function print_global_css() {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
         echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
+        echo '<style id="bh-badge">' . self::badge_css() . '</style>';
     }
 
     /**
@@ -104,6 +124,55 @@ class BHY_Style {
             . '.bh-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
             . '.bh-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}'
             . '.bh-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}';
+    }
+
+    /**
+     * Front-end counterpart to class-ui.php's admin-only .bhy-badge —
+     * this exact "small pill, ~11px text, ~999px radius" shape was
+     * independently hand-rolled at least 8 times across the ecosystem's
+     * front-end stylesheets (bh-courses' .bhc-badge/.bhc-term/
+     * .bhc-review-badge, bh-streaming's .bhs-badge, bh-crm's
+     * .bhcrm-kanban-stalled-badge, bh-registry's .bhr-badge, bh-live's
+     * .bhl-live-badge, bh-feedback's .bhf-badge, bh-monetization-woo's
+     * .bhm-badge/.bhm-billing-badge/.bhm-amount-chip), each with its own
+     * ad hoc color literal and inconsistent white-space handling — the
+     * 2026-08 CSS-file audit's single clearest "belongs in the shared
+     * system" finding. One definition here instead of a ninth.
+     *
+     * Deliberately fixed semantic colors (success/warning/danger), not
+     * themeable via inline_css()'s per-entity color settings — these are
+     * status colors (a submission is "open" or "closed" regardless of
+     * a track's brand palette), not brand colors, so they don't belong
+     * in the same override system as --bh-accent/--bh-surface/etc.
+     *
+     * --bh-success is deliberately #1DB954 (Spotify green), NOT a mirror
+     * of class-ui.php's admin --bhy-success (#1a7f37, WP-admin-style
+     * muted green). The 2026-08 audit found #1DB954 already pervasive
+     * across the front-end ecosystem's OWN established "open/live/
+     * attached/success" convention (bh-contest, bh-streaming,
+     * bh-monetization-woo, bh-registry) well before this token existed —
+     * an earlier version of this token copied the admin shade instead
+     * and would have been a 4th, unused green nobody was actually
+     * calling. Admin intentionally keeps its own muted --bhy-success;
+     * front-end and admin are allowed to disagree here since they're
+     * different visual contexts (a WP-admin screen vs. a themed public
+     * page) that happened to reach different colors independently.
+     */
+    private static function badge_css() {
+        return ':root{'
+            . '--bh-success:#1DB954;--bh-success-bg:rgba(29,185,84,0.15);'
+            . '--bh-warning:#8a5a00;--bh-warning-bg:#fef3e2;'
+            . '--bh-danger:#b3261e;--bh-danger-bg:#fbe4e2;'
+            . '}'
+            . '.bh-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}'
+            . '.bh-badge-success{background:var(--bh-success-bg);color:var(--bh-success);}'
+            . '.bh-badge-warning{background:var(--bh-warning-bg);color:var(--bh-warning);}'
+            . '.bh-badge-danger{background:var(--bh-danger-bg);color:var(--bh-danger);}'
+            . '.bh-badge-neutral{background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}';
+        // Need a truncating badge? Combine with the existing
+        // .bh-badge-truncate utility from text_overflow_utils_css()
+        // above (class="bh-badge bh-badge-success bh-badge-truncate")
+        // rather than a third variant here.
     }
 
     public static function add_editor_iframe_styles($settings) {

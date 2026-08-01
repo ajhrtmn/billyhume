@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.9.5
+ * Version:     3.9.7
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -605,7 +605,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.9.5');
+define('OUS_VER', '3.9.7');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
