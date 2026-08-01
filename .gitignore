@@ -19,12 +19,21 @@ wp-config.php
 # htaccess
 /.htaccess
 
-# Dev-only Composer tooling (PHPUnit for wp-content/plugins/*/tests/) — not
-# committed, same as node_modules. Never deployed to the live site (see
-# run-all-tests.sh's own docblock) — the live site only ever runs
-# OUS_TestRunner via Debug Tools.
+# /vendor/ is dev-only Composer tooling (PHPUnit for wp-content/plugins/*/tests/)
+# — not committed, same as node_modules. Never deployed to the live FTP site
+# (see run-all-tests.sh's own docblock) — that site only ever runs
+# OUS_TestRunner via Debug Tools, and the stable->FTP GitHub Action never
+# touches composer files at all.
+#
+# composer.lock WAS also gitignored here for the same reasoning, but that
+# broke every Wasmer preview deploy (dev/master) for 12+ days: Wasmer's own
+# build step unconditionally runs `composer install` against a committed
+# composer.lock as part of packaging ANY WordPress site, regardless of
+# whether the app needs PHPUnit at runtime — with no composer.lock in the
+# repo, the build fails outright ("/composer.lock": not found) before the
+# site ever deploys. vendor/ itself still doesn't need to be committed since
+# Wasmer's own `composer install` regenerates it during the build.
 /vendor/
-/composer.lock
 wp-content/plugins/*/tests/.phpunit.result.cache
 
 # macOS Finder metadata — never something a WordPress install needs
