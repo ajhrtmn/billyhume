@@ -28,6 +28,39 @@
 }
 .bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
 
+/* ---- archive page header ----
+   Real gap, caught live: .bhc-archive-header/.bhc-archive-title sit
+   OUTSIDE the .bhc-catalog reset scope above (they're siblings of
+   .bhc-catalog-wrap under <main>, not descendants of .bhc-catalog
+   itself) and had zero rules of their own — the page title was
+   rendering as a raw, unstyled browser-default H1 while everything
+   below it (the cards) had a fully considered design system applied.
+   Same page, two completely different levels of polish. This block is
+   the one exception to "only reset what .bhc-catalog wraps" — scoped
+   tightly to just this header rather than widening the reset's own
+   selector list, since nothing else lives in this element.
+   Streamline Moderne cues (AJ's own reference): a small tracked-out
+   uppercase kicker, a confident but NOT oversized display headline,
+   and a thin horizontal accent rule standing in for the era's speed-
+   line motif — restrained, not a full deco pastiche. */
+.bhc-archive-header { max-width: 1200px; margin: 0 auto; padding: 40px 20px 0; box-sizing: border-box; }
+.bhc-archive-kicker {
+    display: block; font-family: var(--bh-font-heading); font-size: 11px; font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--bh-accent); margin-bottom: 6px;
+}
+.bhc-archive-title {
+    margin: 0; padding: 0; font-family: var(--bh-font-heading); font-size: 32px; font-weight: 700;
+    letter-spacing: -.01em; line-height: 1.15; color: var(--bh-text);
+}
+.bhc-archive-rule {
+    width: 64px; height: 3px; margin-top: 18px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--bh-accent) 0%, color-mix(in srgb, var(--bh-accent) 25%, transparent) 100%);
+}
+@media (max-width: 600px) {
+    .bhc-archive-header { padding: 28px 16px 0; }
+    .bhc-archive-title { font-size: 26px; }
+}
+
 /* ---- catalog ---- */
 /* auto-fit, not auto-fill — with few courses (a new site, or a narrow
    filtered result) auto-fill still reserves empty track width for
@@ -211,11 +244,28 @@
 .bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
 .bhc-continue-btn { margin-top: auto; }
 
-/* ---- catalog: filter/sort/search bar ---- */
-.bhc-catalog-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* ---- catalog: filter/sort/search bar ----
+   Same gap as the archive header above: bare inputs floating directly
+   on the page background, no container, while the cards two rows down
+   already read as a considered surface. Wrapping the whole row in one
+   slightly-recessed panel (surface-2, not surface — reads as "control
+   deck," distinct from the cards' own surface) gives it the same
+   deliberate weight, and pill-shaped controls (radius:999px) match the
+   badges/buttons vocabulary used everywhere else instead of introducing
+   a third corner-radius value into the page. */
+.bhc-catalog-filters {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: var(--bh-surface-2, #f6f6f7); border: 1px solid var(--bh-border);
+    border-radius: 14px; padding: 14px 16px;
+}
 .bhc-filter-search, .bhc-filter-select {
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 6px;
-    padding: 8px 10px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 999px;
+    padding: 9px 16px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.bhc-filter-search:focus, .bhc-filter-select:focus {
+    outline: none; border-color: var(--bh-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent) 18%, transparent);
 }
 .bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
 /* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
