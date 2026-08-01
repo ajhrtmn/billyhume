@@ -317,6 +317,19 @@
     padding: 0 calc(28px * var(--bh-space-scale));
     z-index: 9999;
 }
+/* Real bug, caught live: own-ur-shit's own bottom user bar
+   (.bhi-user-bar, class-user-bar.php) is ALSO position:fixed;bottom:0,
+   z-index 99998 — higher than this bar's 9999 — so on any page with
+   both (a logged-in fan playing a track), the user bar sat on top of
+   and covered this bar's lower ~49px, hiding the actual playback
+   controls behind it. own-ur-shit already flags its own presence via
+   body.bhi-has-user-bar so other plugins can react to it, and now also
+   exposes --bhi-user-bar-height for the exact stacking offset — an
+   earlier version of this fix guessed 56px (that class's own body
+   padding-bottom value, which deliberately includes extra breathing
+   room under scrolled content) instead of the bar's true height,
+   leaving a stray 7px gap between the two bars. */
+body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 56px); }
 
 .bh-np-track { display: flex; align-items: center; gap: calc(12px * var(--bh-space-scale)); width: 240px; flex: 0 0 auto; overflow: hidden; }
 .bh-now-playing-bar .bh-disc { width: calc(var(--bh-disc-size) * 0.9); height: calc(var(--bh-disc-size) * 0.9); }

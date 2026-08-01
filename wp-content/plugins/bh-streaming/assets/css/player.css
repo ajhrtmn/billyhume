@@ -70,6 +70,15 @@
     background: var(--bh-surface); border-top: 1px solid var(--bh-border);
     display: flex; align-items: center; gap: 14px; padding: 0 16px; box-sizing: border-box; flex-wrap: wrap;
 }
+/* Same cross-plugin stacking bug found and fixed live in bh-contest's
+   .bh-now-playing-bar — own-ur-shit's own bottom user bar
+   (.bhi-user-bar, always visible for a logged-in fan) is ALSO
+   position:fixed;bottom:0 with a higher z-index, so it silently covers
+   this bar's lower ~49px on any page where both render. Uses
+   --bhi-user-bar-height (own-ur-shit's exact bar height, not its body
+   padding-bottom value, which has extra breathing room and left a
+   stray 7px gap in an earlier version of this fix). */
+body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px); }
 .bhs-np-art { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; flex: 0 0 auto; }
 .bhs-np-info { min-width: 0; flex: 1; }
 .bhs-np-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
