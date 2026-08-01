@@ -56,7 +56,7 @@ class BHF_PortalPanel {
                 $tier = get_post_meta($request->ID, '_bhf_tier', true);
                 echo '<div class="bhf-request-card">';
                 echo '<h3>' . esc_html($request->post_title) . '</h3>';
-                echo '<p><span class="bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span> — ' . esc_html(BHF_Pricing::label_for($tier)) . '</p>';
+                echo '<p><span class="bh-badge bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span> — ' . esc_html(BHF_Pricing::label_for($tier)) . '</p>';
                 // Audit fix (2026-07-25): the claim/release/complete state
                 // machine already tracks _bhf_claimed_at, but a submitter
                 // never saw it — the "claimed" badge looked identical in

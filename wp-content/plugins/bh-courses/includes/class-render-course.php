@@ -41,7 +41,7 @@ class BHC_Render_Course {
             echo get_the_post_thumbnail($course_id, 'large');
             echo '<div class="bhc-course-hero-scrim"><div class="bhc-course-hero-content">';
             echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
-            if ($difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
+            if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
             echo '</div></div>';
             echo '</div>';
         } else {
@@ -57,7 +57,7 @@ class BHC_Render_Course {
         }
 
         echo '<div class="bhc-course-meta">';
-        if (!$has_cover && $difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
+        if (!$has_cover && $difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
         if (class_exists('BHC_Reviews')) {
@@ -251,8 +251,8 @@ class BHC_Render_Course {
                 echo '<div class="bhc-review">';
                 echo '<div class="bhc-review-head">' . self::render_stars((int) $review['rating']) . ' <strong>' . esc_html($name) . '</strong>';
                 echo $review['completed_at_review']
-                    ? ' <span class="bhc-review-badge bhc-review-badge-completed">Completed the course</span>'
-                    : ' <span class="bhc-review-badge bhc-review-badge-enrolled">Enrolled</span>';
+                    ? ' <span class="bh-badge bhc-review-badge bhc-review-badge-completed">Completed the course</span>'
+                    : ' <span class="bh-badge bhc-review-badge bhc-review-badge-enrolled">Enrolled</span>';
                 echo '</div>';
                 if ($review['body']) echo '<p class="bhc-review-body">' . esc_html($review['body']) . '</p>';
                 echo '<p class="bhc-review-date">' . esc_html(date_i18n(get_option('date_format'), strtotime($review['created_at']))) . '</p>';

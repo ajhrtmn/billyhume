@@ -347,7 +347,7 @@
         // nobody remembers to open).
         var daysStalled = state.stalled[p.id];
         if (daysStalled) {
-            var badge = el('span', 'bhcrm-kanban-stalled-badge', '⚠ ' + daysStalled + 'd stalled');
+            var badge = el('span', 'bhy-badge bhy-badge-warning bhcrm-kanban-stalled-badge', '⚠ ' + daysStalled + 'd stalled');
             badge.title = 'This card has been in "' + attrLiteral(p, 'column', '') + '" for ' + daysStalled + ' days.';
             card.appendChild(badge);
         }

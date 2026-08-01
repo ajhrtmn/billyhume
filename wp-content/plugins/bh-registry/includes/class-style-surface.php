@@ -38,14 +38,14 @@ class BHR_StyleSurface {
             <div class="bhr-card-avatar" style="background:var(--bh-accent);"></div>
             <div class="bhr-card-name">Nova Bloom</div>
             <div class="bhr-card-links">
-                <span class="bhr-badge bhr-badge-verified">&#10003; ActivityPub</span>
+                <span class="bh-badge bhr-badge bhr-badge-verified">&#10003; ActivityPub</span>
             </div>
         </div>
         <div class="bhr-card">
             <div class="bhr-card-avatar" style="background:var(--bh-accent-soft);"></div>
             <div class="bhr-card-name">Echo Parade</div>
             <div class="bhr-card-links">
-                <span class="bhr-badge bhr-badge-verified">&#10003; RSS Feed</span>
+                <span class="bh-badge bhr-badge bhr-badge-verified">&#10003; RSS Feed</span>
             </div>
         </div>
     </div>

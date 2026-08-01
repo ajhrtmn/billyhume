@@ -216,7 +216,7 @@ class BHM_Frontend {
                 echo '</ul>';
             }
             if ($active) {
-                echo '<span class="bhm-badge">Your current tier</span>';
+                echo '<span class="bh-badge bhm-badge">Your current tier</span>';
                 echo self::render_subscription_controls($user_id, $t['id']);
             } elseif ($t['wc_product_id']) {
                 // Real gap this closes: a fan already supporting at

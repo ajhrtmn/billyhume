@@ -50,7 +50,7 @@
 .bhc-course-card h3 a:hover { color: var(--bh-accent); }
 .bhc-course-card.bhc-locked { opacity: 0.7; }
 .bhc-lock { font-size: 13px; }
-.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); }
+.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
 .bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
 /* Width changes (a step/lesson completing) used to jump instantly —
@@ -111,14 +111,19 @@
 @media (max-width: 600px) {
     .bhc-catalog-wrap { padding: 0 16px; }
 }
-.bhc-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.02em; }
+/* Shape (padding/radius/font-size/nowrap) now comes from the shared
+   .bh-badge component (class-style.php) — markup carries both classes;
+   this file only supplies what's genuinely different from the shared
+   shape (the uppercase treatment, and the border .bh-badge doesn't have). */
+.bhc-badge { text-transform: uppercase; letter-spacing: 0.02em; }
 .bhc-badge-difficulty { background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
 .bhc-difficulty-beginner { color: var(--bh-accent); border-color: var(--bh-accent); }
 .bhc-difficulty-intermediate { color: var(--bh-text); }
 .bhc-difficulty-advanced { color: var(--bh-text); font-weight: 700; }
 .bhc-card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--bh-text-dim); flex-wrap: wrap; }
 .bhc-card-lesson-count { color: var(--bh-text-dim); }
-.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); }
+.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); min-width: 0; }
+.bhc-card-instructor span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bhc-card-instructor img { border-radius: 50%; }
 .bhc-card-rating { color: var(--bh-accent); font-weight: 600; }
 .bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
@@ -159,7 +164,7 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-course-instructor-name { display: block; font-size: 14px; font-weight: 600; color: var(--bh-text); }
 .bhc-course-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--bh-text-dim); }
 .bhc-course-terms { display: flex; flex-wrap: wrap; gap: 6px; }
-.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
+.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); white-space: nowrap; }
 .bhc-term-category { border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-course-description { font-size: 14px; color: var(--bh-text); line-height: 1.6; }
 .bhc-course-header-cta { margin-top: 4px; }
@@ -185,12 +190,13 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-leaderboard-row.bhc-leaderboard-medal { background: var(--bh-surface-2); }
 .bhc-leaderboard-rank { flex: 0 0 32px; font-weight: 700; color: var(--bh-text-dim); text-align: center; }
 .bhc-leaderboard-medal .bhc-leaderboard-rank { font-size: 18px; }
-.bhc-leaderboard-name { flex: 1; font-size: 14px; }
+.bhc-leaderboard-name { flex: 1; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhc-leaderboard-score { font-weight: 600; color: var(--bh-accent); }
 .bhc-review-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .bhc-review { padding: 14px 16px; border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm, 8px); background: var(--bh-surface); }
 .bhc-review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.bhc-review-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+/* Shape now comes from the shared .bh-badge component — see .bhc-badge's
+   comment above. This class carries no shape overrides of its own. */
 .bhc-review-badge-completed { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); }
 .bhc-review-badge-enrolled { background: var(--bh-surface-2); color: var(--bh-text-dim); }
 .bhc-review-body { font-size: 14px; color: var(--bh-text); line-height: 1.5; margin: 4px 0; }

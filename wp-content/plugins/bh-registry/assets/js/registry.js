@@ -41,7 +41,7 @@
     }
     grid.innerHTML = artists.map(function (a) {
       var badges = a.links.map(function (l) {
-        return '<span class="bhr-badge bhr-badge-verified">&#10003; ' + protocolLabel(l.protocol) + '</span>';
+        return '<span class="bh-badge bhr-badge bhr-badge-verified">&#10003; ' + protocolLabel(l.protocol) + '</span>';
       }).join('');
       return '<div class="bhr-card">' +
         '<div class="bhr-card-avatar" data-avatar="' + escapeHtml(a.avatar_url || '') + '"></div>' +

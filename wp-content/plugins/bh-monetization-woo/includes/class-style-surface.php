@@ -34,7 +34,7 @@ class BHM_StyleSurface {
         <h3>Supporter</h3>
         <div class="bhm-tier-price">$8.00/mo</div>
         <p class="bhm-tier-benefits">Everything in Fan, plus exclusive tracks and streaming-library access.</p>
-        <span class="bhm-badge">Your current tier</span>
+        <span class="bh-badge bhm-badge">Your current tier</span>
     </div>
 </div>
 <div class="bhm-paywall" style="margin-top:16px;">
