@@ -77,16 +77,28 @@
     // this only fired for on page load, missing the actual live moment
     // entirely. window-scoped (not a module) to stay reachable from
     // both listeners without restructuring this whole IIFE.
-    window.bhcFireConfetti = function (completion) {
+    // opts lets a QUIETER moment (the per-lesson completion banner,
+    // added later — see advance() below) reuse this same mechanism at a
+    // smaller scale instead of duplicating it: fewer pieces, thrown a
+    // shorter distance, so it reads as a small flourish rather than
+    // competing with the course-completion burst's own visual weight.
+    // Every default below matches this function's original, unparameterized
+    // behavior exactly, so the course-completion call site (unchanged)
+    // looks pixel-identical to before.
+    window.bhcFireConfetti = function (completion, opts) {
         if (!completion || completion.dataset.bhcConfettiFired) return;
         completion.dataset.bhcConfettiFired = '1';
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        opts = opts || {};
+        var count = opts.count || 18;
+        var minDistance = opts.minDistance || 70;
+        var distanceSpread = opts.distanceSpread || 90;
         var colors = ['var(--bh-accent)', 'var(--bh-accent-soft)', 'var(--bh-text)'];
-        for (var i = 0; i < 18; i++) {
+        for (var i = 0; i < count; i++) {
             var piece = document.createElement('span');
             piece.className = 'bhc-confetti-piece';
             var angle = Math.random() * Math.PI * 2;
-            var distance = 70 + Math.random() * 90;
+            var distance = minDistance + Math.random() * distanceSpread;
             piece.style.setProperty('--bhc-confetti-x', (Math.cos(angle) * distance).toFixed(0) + 'px');
             piece.style.setProperty('--bhc-confetti-y', (Math.sin(angle) * distance + 40).toFixed(0) + 'px');
             piece.style.setProperty('--bhc-confetti-r', (Math.random() * 360).toFixed(0) + 'deg');
@@ -162,6 +174,31 @@
             if (nextDot) nextDot.disabled = false;
         }
 
+        // Bug found via live walkthrough (2026-07-26): the course-
+        // progress sidebar (class-render-course.php's
+        // render_lesson_sidebar()) is server-rendered once at page load
+        // and this whole lesson flow never touches it again — completing
+        // a step (via mark-complete, video auto-complete, or a quiz
+        // submit) left the sidebar's percentage/bar stuck at the OLD
+        // number until a full reload, most jarringly right when the
+        // final step's own completion screen reveals itself as "Course
+        // complete!" next to a sidebar still claiming 67%. The three AJAX
+        // handlers behind those actions (class-progress.php's
+        // ajax_mark_complete/ajax_update_watch_progress/ajax_submit_quiz)
+        // now all return course_id/course_percent; this is the one place
+        // that response data gets applied, so all three call sites stay
+        // in sync through a single function rather than three near-
+        // duplicate DOM updates.
+        function updateSidebarProgress(data) {
+            if (!data || !data.course_id || data.course_percent === null || data.course_percent === undefined) return;
+            document.querySelectorAll('.bhc-course-sidebar .bhc-progress-fill').forEach(function (el) {
+                el.style.width = data.course_percent + '%';
+            });
+            document.querySelectorAll('.bhc-course-sidebar .bhc-progress-label').forEach(function (el) {
+                el.textContent = data.course_percent + '% complete';
+            });
+        }
+
         // Depth-of-magic beat: markStepDone()'s own stepper-dot pulse
         // (500ms) was previously cut short by advance() firing in the
         // very same tick, swapping the visible step content out from
@@ -203,6 +240,24 @@
                     nextBlock.focus({ preventScroll: true });
                     var completion = nextBlock.querySelector('.bhc-completion');
                     if (completion && window.bhcFireConfetti) window.bhcFireConfetti(completion);
+                    // The mid-tier "Lesson complete" banner (no course_id
+                    // match, i.e. a next lesson still follows) gets its own
+                    // smaller beat — a real entrance pop distinct from the
+                    // wrapper's plain fade, plus a scaled-down confetti
+                    // burst reusing bhcFireConfetti's new opts param. Both
+                    // only fire here, the live same-session path — a
+                    // student who reloads and lands back on an already-
+                    // revealed banner (dataset.bhcConfettiFired already set,
+                    // see bhcFireConfetti's own guard) doesn't see it replay.
+                    var completeBanner = nextBlock.querySelector('.bhc-lesson-complete-banner');
+                    if (completeBanner) {
+                        completeBanner.classList.remove('bhc-banner-pop');
+                        void completeBanner.offsetWidth;
+                        completeBanner.classList.add('bhc-banner-pop');
+                        if (window.bhcFireConfetti) {
+                            window.bhcFireConfetti(completeBanner, { count: 8, minDistance: 30, distanceSpread: 40 });
+                        }
+                    }
                 }
             }
         }
@@ -241,6 +296,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
+                        updateSidebarProgress(res.data);
                         advanceWithBeat(index);
                     });
             }
@@ -446,6 +502,7 @@
                         step.classList.add('bhc-step-done');
                         if (typeof BHCoreToast !== 'undefined') { BHCoreToast.show('Step complete.', 'success'); }
                         markStepDone(index);
+                        updateSidebarProgress(res.data);
                         advanceWithBeat(index);
                     })
                     .catch(function () {
@@ -618,7 +675,16 @@
                     // what to go back and re-read.
                     var attemptsExhausted = !result.passed && result.max_attempts && result.attempts_remaining === 0;
                     if (result.passed) {
-                        resultBox.textContent = 'You\'ve got this — ' + correctCount + '/' + result.total + ' correct. Nice work.';
+                        // Same escalated banner markup as the static
+                        // revisit path (BHC_Render_Lesson::render_quiz_review())
+                        // — a student sees the identical moment whether
+                        // this is a fresh pass or an old one. correctCount/
+                        // result.total/result.score are all server-computed
+                        // numbers, never user input, so building this as
+                        // HTML (not textContent) carries no injection risk.
+                        resultBox.innerHTML = '<div class="bhc-quiz-pass-icon">&#10003;</div>'
+                            + '<p class="bhc-quiz-pass-score">Quiz passed — ' + result.score + '%.</p>'
+                            + '<p class="bhc-quiz-pass-sub">' + correctCount + '/' + result.total + ' correct. Nice work.</p>';
                     } else if (attemptsExhausted) {
                         var missedTopics = (result.questions || [])
                             .filter(function (q) { return q.chosen_index !== q.correct_index; })
@@ -646,6 +712,7 @@
 
                     step.classList.add('bhc-step-done');
                     markStepDone(index);
+                    updateSidebarProgress(result);
                     if (result.passed) {
                         // Do NOT auto-advance here — the whole point of
                         // the breakdown above is for the student to

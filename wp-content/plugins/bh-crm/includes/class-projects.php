@@ -398,8 +398,8 @@ class BHCRM_Projects {
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:16px 0;display:flex;gap:8px;align-items:center;">';
         echo '<input type="hidden" name="action" value="bhcrm_project_create">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-        echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;">';
-        echo '<input type="text" name="project_scene" list="bhcrm-scene-suggestions" placeholder="Scene (optional)" style="width:180px;">';
+        echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;max-width:100%;">';
+        echo '<input type="text" name="project_scene" list="bhcrm-scene-suggestions" placeholder="Scene (optional)" style="width:180px;max-width:100%;">';
         if ($scene_suggestions) {
             echo '<datalist id="bhcrm-scene-suggestions">';
             foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';
@@ -887,7 +887,7 @@ class BHCRM_Projects {
         echo '<input type="hidden" name="action" value="bhcrm_project_create">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
-        echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;"> ';
+        echo '<input type="text" name="project_name" placeholder="New project name (e.g. \'Fenwick — full character commission\')" style="width:360px;max-width:100%;"> ';
         echo '<button class="button button-primary">Create project</button>';
         echo '</form>';
     }
@@ -995,7 +995,7 @@ class BHCRM_Projects {
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">';
         echo '<p class="description">One column label per line, in the order they should appear on the board.</p>';
-        echo '<textarea name="columns" rows="5" style="width:300px;">' . esc_textarea(implode("\n", $project['columns_config'])) . '</textarea><br>';
+        echo '<textarea name="columns" rows="5" style="width:300px;max-width:100%;">' . esc_textarea(implode("\n", $project['columns_config'])) . '</textarea><br>';
         echo '<button class="button">Save columns</button>';
         echo '</form></details>';
 
@@ -1008,7 +1008,7 @@ class BHCRM_Projects {
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="_wpnonce" value="' . esc_attr($scene_nonce) . '">';
         echo '<p class="description">Purely organizational — groups this project under a heading on the Project Tracker index. Leave blank for "Unsorted".</p>';
-        echo '<input type="text" name="scene" list="bhcrm-scene-suggestions" value="' . esc_attr($project['scene']) . '" style="width:220px;"><br>';
+        echo '<input type="text" name="scene" list="bhcrm-scene-suggestions" value="' . esc_attr($project['scene']) . '" style="width:220px;max-width:100%;"><br>';
         if ($scene_suggestions) {
             echo '<datalist id="bhcrm-scene-suggestions">';
             foreach ($scene_suggestions as $s) echo '<option value="' . esc_attr($s) . '">';

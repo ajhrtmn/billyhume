@@ -40,8 +40,9 @@ class OUS_Roles {
         // plugin with a "students/participants" concept, can reuse it
         // rather than minting its own near-identical capability.
         'bhcore_manage_students' => ['administrator'],
-        // Scaffolded now, used by nothing yet — the reviewer capability
-        // BH Feedback (roadmapped, not built) will check once it exists.
+        // The reviewer capability bh-feedback (a real, shipped plugin)
+        // gates its claim queue on — see class-queue.php/class-portal-
+        // panel.php, actively checked in 5 places.
         'bhcore_review_submissions' => ['administrator'],
         // DESIGN-SUITE-UNIFICATION-PLAN.md §1.3, Phase 1 — gates the
         // two new top-level menus to "real employees, not just devs/

@@ -140,9 +140,17 @@ class OUS_Campaigns {
 
         $opted_out = get_user_meta($user_id, 'bhcore_notifications_email_optout', true);
         if (!$opted_out) {
-            $user = get_userdata($user_id);
-            if ($user && $user->user_email) {
-                wp_mail($user->user_email, $campaign['subject'], wpautop(wp_kses_post($campaign['body'])), ['Content-Type: text/html; charset=UTF-8']);
+            if (class_exists('BH_Mail')) {
+                BH_Mail::send([
+                    'user_id' => $user_id, 'subject' => $campaign['subject'],
+                    'body' => wpautop(wp_kses_post($campaign['body'])), 'html' => true,
+                    'source' => 'OUS Campaigns', 'log_context' => ['campaign_id' => $campaign_id],
+                ]);
+            } else {
+                $user = get_userdata($user_id);
+                if ($user && $user->user_email) {
+                    wp_mail($user->user_email, $campaign['subject'], wpautop(wp_kses_post($campaign['body'])), ['Content-Type: text/html; charset=UTF-8']);
+                }
             }
         }
 

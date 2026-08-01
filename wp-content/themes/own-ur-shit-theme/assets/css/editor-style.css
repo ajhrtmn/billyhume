@@ -1,0 +1,41 @@
+/*
+ * Loaded into the block-editor iframe via add_editor_style(). The
+ * --bh-* custom properties themselves are already piped into this same
+ * iframe by BHY_Style::add_editor_iframe_styles() (class-style.php) —
+ * this file only needs to make the editor CANVAS look like the actual
+ * .oust-prose front-end output, same font/color/measure, so what an
+ * editor sees while writing matches what a visitor sees.
+ */
+body {
+    background: var(--bh-bg, #170807);
+    color: var(--bh-text, #EDDFCB);
+    font-family: var(--bh-font-body, 'Inter', 'Segoe UI', sans-serif);
+    font-size: 16px;
+    line-height: 1.75;
+}
+.editor-styles-wrapper .wp-block { max-width: 800px; }
+.editor-styles-wrapper .wp-block[data-align="wide"] { max-width: 1100px; }
+.editor-styles-wrapper .wp-block[data-align="full"] { max-width: none; }
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--bh-font-display, 'Space Grotesk', 'Segoe UI', sans-serif);
+    font-weight: 700; color: var(--bh-text, #EDDFCB);
+}
+/* color-mix toward --bh-text, not a plain accent-soft/-hover swap — see
+   theme.css's own comment on this same pattern: an admin-chosen accent
+   can land on either a light or dark preset, and accent-soft/-hover only
+   move in one fixed lightening/darkening direction, so they pass WCAG AA
+   on some presets and badly fail it on others. Mixing toward --bh-text
+   (itself always tuned for ~15:1 contrast against bg by definition)
+   reliably lands >=4.5:1 in either direction — confirmed against three
+   real presets (Door Night 6.61:1, Door Day 6.37:1, Neon Vinyl 8.71:1). */
+a { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+.wp-block-quote {
+    border-left: 3px solid var(--bh-accent, #C1503A);
+    padding-left: 20px; color: var(--bh-text-dim, #B99584); font-style: italic;
+}
+.wp-block-button__link {
+    background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705);
+    border-radius: 999px; font-weight: 600;
+}
+.wp-block-separator { border-color: var(--bh-border, #3D1B14); }
+code, .wp-block-code { background: var(--bh-surface-2, #2C120E); }

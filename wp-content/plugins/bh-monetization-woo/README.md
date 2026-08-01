@@ -14,9 +14,9 @@ post type from any plugin can paylock itself with one line —
 access with `BHM_Gate::user_has_tier_access($user_id, $tier_id, $id)`.
 `bhm_extra_entitlement_check` is the escape hatch for a future plugin's
 own entitlement types (mirroring `bh-crm`'s own extension-point
-pattern). This is explicitly anticipated groundwork for the future
-learning-management/courses layer (VISION.md's "artist platform"
-layer) — gating a paid lesson works identically, with zero changes
+pattern). This groundwork has a real consumer now: `bh-courses` gates
+its lessons/courses this exact same way (`_bhm_required_tier` on its
+own CPT + `BHM_Gate::user_has_tier_access()`), with zero changes
 needed here.
 
 ## Independence

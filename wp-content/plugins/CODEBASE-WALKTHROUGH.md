@@ -296,5 +296,5 @@ You've now read, with real depth: the entire shared foundation (bootstrap, peer-
 From here, the fastest way to keep learning is need-driven, not systematic: next time you want to understand or change something specific, use what you now know to navigate directly — find the plugin, find the file whose name matches what you're curious about, find its `init()`, and read outward from there.
 
 Two documents worth reading once you're comfortable navigating on your own:
-- **`QA-REPORT.md`** and **`QA-REPORT-code-quality.md`** (plugins root) — written as "here's what's rough about this codebase and why," a genuinely good way to deepen your understanding of a system you can already read.
+- **`STATUS.md`** (plugins root) — the authoritative "what's actually done vs. still open" ledger; the old point-in-time QA/audit reports it superseded were deleted once fully reconciled into it, so this is the one place to check current state now.
 - **`ROADMAP-platform-evolution.md`** and the other `ROADMAP-*.md` files — show you where this whole ecosystem is deliberately heading, and which parts (like `BH_Commerce`) were built as interfaces specifically to make that future easier.

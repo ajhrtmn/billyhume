@@ -360,8 +360,8 @@ class BHCRM_CardLog {
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<label>Timestamp (mm:ss, optional) <input type="text" name="timestamp" placeholder="1:23" style="width:70px;"></label> ';
-        echo '<input type="text" name="note" placeholder="What did you fix?" style="width:320px;"> ';
+        echo '<label>Timestamp (mm:ss, optional) <input type="text" name="timestamp" placeholder="1:23" style="width:70px;max-width:100%;"></label> ';
+        echo '<input type="text" name="note" placeholder="What did you fix?" style="width:320px;max-width:100%;"> ';
         echo '<button class="button">Add fix</button>';
         echo '</form>';
 
@@ -400,8 +400,8 @@ class BHCRM_CardLog {
         echo '<input type="hidden" name="project_id" value="' . (int) $project_id . '">';
         echo '<input type="hidden" name="user_id" value="' . (int) $uid . '">';
         echo '<input type="hidden" name="card_id" value="' . (int) $card_id . '">';
-        echo '<input type="text" name="author_name" placeholder="From (e.g. a client\'s name)" style="width:180px;"> ';
-        echo '<input type="text" name="note" placeholder="Feedback…" style="width:300px;"> ';
+        echo '<input type="text" name="author_name" placeholder="From (e.g. a client\'s name)" style="width:180px;max-width:100%;"> ';
+        echo '<input type="text" name="note" placeholder="Feedback…" style="width:300px;max-width:100%;"> ';
         echo '<button class="button">Add feedback</button>';
         echo '</form>';
 

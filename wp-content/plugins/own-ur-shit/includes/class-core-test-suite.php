@@ -87,6 +87,64 @@ class OUS_CoreTestSuite {
             $rows = array_merge($rows, self::run_profile_links_tests());
         }
 
+        if (class_exists('BH_Mail')) {
+            $rows = array_merge($rows, self::run_mail_tests());
+        }
+
+        return $rows;
+    }
+
+    /**
+     * BH_Mail (class-mail.php) — the shared send() every plugin's own
+     * notification/campaign/gift/contest-winner email now routes
+     * through instead of calling wp_mail() directly. Never lets a real
+     * email actually dispatch: pre_wp_mail (WP 5.7+) short-circuits the
+     * send and hands back the exact assembled args (to/subject/message/
+     * headers) instead, which is what these assertions check against —
+     * the same technique any test suite would need to verify an email
+     * WOULD have been sent correctly, without spamming a real inbox
+     * every time this suite runs.
+     */
+    private static function run_mail_tests() {
+        $rows = [];
+
+        $rows[] = OUS_TestRunner::assert_false(BH_Mail::send(['subject' => 'x', 'body' => 'y']), 'send() rejects when neither to nor a resolvable user_id is given');
+        $rows[] = OUS_TestRunner::assert_false(BH_Mail::send(['to' => 'test@example.com', 'body' => 'y']), 'send() rejects a missing subject');
+        $rows[] = OUS_TestRunner::assert_false(BH_Mail::send(['to' => 'test@example.com', 'subject' => 'x']), 'send() rejects a missing body');
+        $rows[] = OUS_TestRunner::assert_false(BH_Mail::send(['user_id' => 999999999, 'subject' => 'x', 'body' => 'y']), 'send() rejects a user_id that resolves to no real user');
+
+        $captured = null;
+        $capture = function ($null, $atts) use (&$captured) { $captured = $atts; return true; };
+        add_filter('pre_wp_mail', $capture, 10, 2);
+
+        $user_id = class_exists('OUS_Debug') ? OUS_Debug::get_or_create_test_user('bh-mail-suite') : 0;
+        if ($user_id) {
+            $result = BH_Mail::send(['user_id' => $user_id, 'subject' => 'Test Subject', 'body' => 'Test body']);
+            $rows[] = OUS_TestRunner::assert_true($result, 'send() returns true when the short-circuited send succeeds');
+            $rows[] = OUS_TestRunner::assert_same('Test Subject', $captured['subject'] ?? null, 'send() passes the exact subject through to wp_mail()');
+            $user = get_userdata($user_id);
+            $rows[] = OUS_TestRunner::assert_same($user->user_email, $captured['to'] ?? null, "send() resolves a bare user_id to that user's real email");
+        } else {
+            $rows[] = OUS_TestRunner::assert_true(true, 'OUS_Debug test-user helper not available — user_id resolution skipped, explicit-\'to\' coverage below still applies');
+        }
+
+        $captured = null;
+        BH_Mail::send(['to' => 'raw@example.com', 'user_id' => $user_id, 'subject' => 'Raw recipient test', 'body' => 'plain body', 'html' => true]);
+        $rows[] = OUS_TestRunner::assert_same('raw@example.com', $captured['to'] ?? null, "an explicit 'to' address wins over user_id's own email when both are given");
+        $rows[] = OUS_TestRunner::assert_true(
+            in_array('Content-Type: text/html; charset=UTF-8', (array) ($captured['headers'] ?? []), true),
+            "html => true adds the HTML content-type header"
+        );
+
+        $captured = null;
+        BH_Mail::send(['to' => 'plain@example.com', 'subject' => 'Plain', 'body' => 'plain body']);
+        $rows[] = OUS_TestRunner::assert_false(
+            in_array('Content-Type: text/html; charset=UTF-8', (array) ($captured['headers'] ?? []), true),
+            'omitting html leaves the plain-text default untouched (no stray HTML header)'
+        );
+
+        remove_filter('pre_wp_mail', $capture);
+
         return $rows;
     }
 

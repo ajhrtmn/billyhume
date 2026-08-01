@@ -55,7 +55,10 @@
 }
 .bhm-product-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.08); border-color:var(--bh-accent, #2271b1); }
 .bhm-product-card-image img { width:100%; height:auto; display:block; aspect-ratio:1/1; object-fit:cover; }
-.bhm-product-card-title { padding:0 12px; font-weight:600; font-size:14px; color:var(--bh-text, inherit); }
+.bhm-product-card-title {
+    padding:0 12px; font-weight:600; font-size:14px; color:var(--bh-text, inherit);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
 .bhm-product-card-price { padding:0 12px 12px; color:var(--bh-accent, #2271b1); font-weight:600; }
 
 .bhm-studio-block-placeholder {

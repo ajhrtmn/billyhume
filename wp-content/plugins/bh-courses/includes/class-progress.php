@@ -482,12 +482,37 @@ class BHC_Progress {
         }
     }
 
+    // Bug found via live walkthrough (2026-07-26): a bhc_completions
+    // row is written once, permanently, at the moment a student
+    // finishes every lesson that exists AT THAT TIME. If a course
+    // creator adds a new lesson afterward, that row never gets
+    // invalidated — every caller of this method (certificate download,
+    // share-card generation, the completion-screen banner, the "verified
+    // completion" review badge, the My Courses "Completed" badge) kept
+    // treating the student as fully done with content they'd never
+    // actually seen, while course_percent() correctly recalculated a
+    // lower number against the CURRENT lesson count. That contradiction
+    // was directly visible: a course page showing both "67% complete"
+    // and "Course complete — with distinction!" with a live certificate-
+    // download link, side by side.
+    //
+    // Requiring course_percent() === 100 here too (rather than just the
+    // historical row) closes the gap for every one of those 7 call
+    // sites at once, without needing to hook every place a course's
+    // lesson set could change (added, removed, reordered-with-new-
+    // content) to invalidate the row directly. The row itself is left
+    // alone — course_completed_at() (the completion screen's "time
+    // invested" stat) still reads the student's real original
+    // completion timestamp, which stays historically accurate even
+    // though "is this course completed RIGHT NOW" no longer is.
     public static function is_course_completed($user_id, $course_id) {
         global $wpdb;
-        return (bool) $wpdb->get_var($wpdb->prepare(
+        $has_completion_row = (bool) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
             $user_id, $course_id
         ));
+        if (!$has_completion_row) return false;
+        return self::course_percent($user_id, $course_id) === 100;
     }
 
     /** Null if not yet completed — same shape as enrolled_at(), for the completion screen's "time invested" stat. */
@@ -536,7 +561,24 @@ class BHC_Progress {
         }
 
         self::mark_step_complete($user_id, $lesson_id, $step_index);
-        wp_send_json_success(['step_index' => $step_index]);
+
+        // Bug found via live walkthrough (2026-07-26): the lesson
+        // sidebar's course-progress bar/label are server-rendered once
+        // at page load and never touched again by this AJAX flow, so
+        // completing a lesson's final step left them stuck at the
+        // PREVIOUS percentage until a full page reload — right at the
+        // exact moment the completion screen reveals itself as "Course
+        // complete!", the sidebar next to it kept showing the old,
+        // lower number. Returning the freshly-recalculated percent here
+        // lets courses.js update the sidebar in the same tick as the
+        // completion reveal, instead of two visibly contradictory
+        // states coexisting on screen.
+        $course_id = class_exists('BHC_PostTypes') ? BHC_PostTypes::course_for_lesson($lesson_id) : 0;
+        wp_send_json_success([
+            'step_index' => $step_index,
+            'course_id' => $course_id,
+            'course_percent' => $course_id ? self::course_percent($user_id, $course_id) : null,
+        ]);
     }
 
     public static function ajax_update_watch_progress() {
@@ -556,7 +598,18 @@ class BHC_Progress {
         }
 
         $auto_completed = self::update_watch_progress($user_id, $lesson_id, $step_index, $percent);
-        wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed]);
+
+        // Same sidebar-staleness fix as ajax_mark_complete() above —
+        // only worth the extra query on the tick that actually crosses
+        // the auto-complete threshold, not every timeupdate-driven
+        // progress ping.
+        $course_id = 0;
+        $course_percent = null;
+        if ($auto_completed && class_exists('BHC_PostTypes')) {
+            $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
+            if ($course_id) $course_percent = self::course_percent($user_id, $course_id);
+        }
+        wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed, 'course_id' => $course_id, 'course_percent' => $course_percent]);
     }
 
     public static function ajax_submit_quiz() {
@@ -622,6 +675,7 @@ class BHC_Progress {
             // replayed POST could — still gets the same rich response a
             // fresh pass would, rather than a degraded one.
             $snapshot = self::stored_answers($user_id, $lesson_id, $step_index);
+            $course_id = class_exists('BHC_PostTypes') ? BHC_PostTypes::course_for_lesson($lesson_id) : 0;
             wp_send_json_success([
                 'score' => (int) $existing['score'], 'passed' => true,
                 'total' => count($step['questions'] ?? []), 'correct' => null,
@@ -629,6 +683,8 @@ class BHC_Progress {
                 'attempts_used' => $attempts_so_far, 'max_attempts' => $max_attempts,
                 'attempts_remaining' => $max_attempts > 0 ? max(0, $max_attempts - $attempts_so_far) : null,
                 'already_passed' => true,
+                'course_id' => $course_id,
+                'course_percent' => $course_id ? self::course_percent($user_id, $course_id) : null,
             ]);
         }
 
@@ -657,6 +713,10 @@ class BHC_Progress {
         $result['attempts_used'] = $attempts_so_far + 1;
         $result['max_attempts'] = $max_attempts;
         $result['attempts_remaining'] = $max_attempts > 0 ? max(0, $max_attempts - $result['attempts_used']) : null;
+
+        $course_id = class_exists('BHC_PostTypes') ? BHC_PostTypes::course_for_lesson($lesson_id) : 0;
+        $result['course_id'] = $course_id;
+        $result['course_percent'] = $course_id ? self::course_percent($user_id, $course_id) : null;
         wp_send_json_success($result);
     }
 }

@@ -10,7 +10,8 @@ if (!defined('ABSPATH')) exit;
  */
 class BHI_Activator {
     // 1.2 bhi_reports (class-reports.php); 1.3 bhcore_notifications + bhcore_jobs (class-notifications.php / class-jobs.php); 1.4 bhcore_debug_log (class-debug-log.php); 1.5 bhcore_content (class-content.php); 1.6 bhcore_debug_log structured-trace columns (file/line/col/trace/url/user_id/request_method); 1.7 bhcore_debug_log.request_id — per-request correlation ID, see request_id()/has_request_id_column() in class-debug-log.php; 1.8 bhcore_events (class-event.php/BH_Event), per EVENT-TRACKING-ARCHITECTURE-PLAN.md; 1.9 bhcore_element_placements (class-element.php/BH_Element), per ELEMENT-BUILDER-DESIGN-PLAN.md §2.1; 1.10 bhcore_element_prefabs (class-element-prefab.php/BH_Element_Prefab) — a saved, deep-copyable composition of one or more placements, distinct from a single placement row; 1.11 bhcore_element_states (class-element-state.php/BH_Element_State) — named fixture-state storage for the Library tab's Storybook-style Default/Empty/Viral variants, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 2; 1.12 bhcore_element_placements.library_component_id — linked-instance support, per LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4, see that column's own inline comment above; 1.13 bhcore_notifications.email_sent — an idempotency claim flag for send_queued_email() (class-notifications.php): guards against the same queued email job firing twice (Action Scheduler's background processing plus a direct call both landing) and sending a duplicate; 1.14 bhi_profiles.links — ecosystem depth-pass Tier 2a, link-in-bio: a JSON array of {label, url} pairs a person curates for their public profile, rendered as a button list (see class-public-profile.php); 1.15 bhcore_campaigns — ecosystem depth-pass Tier 2, email broadcast/campaigns (see class-campaigns.php).
-    const DB_VERSION = '1.15';
+    // 1.16 bhcore_dmca_notices — structured DMCA takedown-notice intake/tracking (class-dmca-notices.php), distinct from bhi_reports: a copyright claim needs claimant identity, sworn-statement attestation, and a counter-notice timeline, none of which fit bhi_reports' generic reason/category shape.
+    const DB_VERSION = '1.16';
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -354,6 +355,41 @@ class BHI_Activator {
         ) $charset;";
         dbDelta($sql11);
 
+        // DMCA takedown-notice intake/tracking — see class-dmca-notices.php.
+        // Deliberately its own table, not a bhi_reports category: a real
+        // copyright notice needs claimant identity, a sworn good-faith/
+        // accuracy attestation, and a counter-notice deadline as actual
+        // queryable columns, not squeezed into a generic reason/category
+        // pair. Admin-entered (the site owner logs a notice they received
+        // by email to their registered DMCA agent), not a public form —
+        // this is intake/tracking, not the notice-language/legal-review
+        // workflow itself, which stays out of scope until that gets real
+        // legal review.
+        $dmca_notices = $wpdb->prefix . 'bhcore_dmca_notices';
+        $sql12 = "CREATE TABLE $dmca_notices (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            claimant_name varchar(190) NOT NULL DEFAULT '',
+            claimant_email varchar(190) NOT NULL DEFAULT '',
+            claimant_address text,
+            target_type varchar(40) NOT NULL DEFAULT '',
+            target_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            target_url text,
+            work_description text,
+            infringing_description text,
+            sworn_statement tinyint(1) NOT NULL DEFAULT 0,
+            status varchar(20) NOT NULL DEFAULT 'received',
+            counter_notice_deadline datetime DEFAULT NULL,
+            counter_notice_received_at datetime DEFAULT NULL,
+            admin_note text,
+            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            resolved_at datetime DEFAULT NULL,
+            PRIMARY KEY  (id),
+            KEY target (target_type, target_id),
+            KEY status (status)
+        ) $charset;";
+        dbDelta($sql12);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $reports_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reports));
@@ -366,6 +402,7 @@ class BHI_Activator {
         $prefabs_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $prefabs));
         $states_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $states));
         $campaigns_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $campaigns));
-        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states && $campaigns_exists === $campaigns;
+        $dmca_notices_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $dmca_notices));
+        return $exists === $table && $reports_exists === $reports && $notif_exists === $notifications && $jobs_exists === $jobs && $log_exists === $debug_log && $content_exists === $content && $events_exists === $events && $element_placements_exists === $element_placements && $prefabs_exists === $prefabs && $states_exists === $states && $campaigns_exists === $campaigns && $dmca_notices_exists === $dmca_notices;
     }
 }

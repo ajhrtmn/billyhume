@@ -4,7 +4,7 @@
 .bhi-profile__avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid var(--bh-surface); background: var(--bh-surface-2); }
 .bhi-profile__name { font-family: var(--bh-font-display), sans-serif; margin: 12px 0 4px; }
 .bhi-profile__badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }
-.bhi-badge { background: var(--bh-surface-2); border: 1px solid var(--bh-border); color: var(--bh-text-dim); border-radius: 999px; padding: 3px 10px; font-size: 0.8em; text-decoration: none; }
+.bhi-badge { background: var(--bh-surface-2); border: 1px solid var(--bh-border); color: var(--bh-text-dim); border-radius: 999px; padding: 3px 10px; font-size: 0.8em; text-decoration: none; white-space: nowrap; }
 .bhi-profile__bio { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius); padding: 16px; margin: 16px; }
 .bhi-profile__links { list-style: none; padding: 0 16px; margin: 0 0 16px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .bhi-profile__links a { color: var(--bh-accent); }
@@ -27,7 +27,7 @@
 .bhi-report select, .bhi-report textarea, .bhi-report button { background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); padding: 6px 8px; color: var(--bh-text); }
 .bhi-report button { cursor: pointer; }
 .bhi-profile__bio-links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 0 16px; margin: 0 16px 16px; }
-.bhi-bio-link { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); border-radius: 999px; padding: 8px 16px; text-decoration: none; font-weight: 600; font-size: 0.9em; }
+.bhi-bio-link { background: var(--bh-surface); border: 1px solid var(--bh-border); color: var(--bh-text); border-radius: 999px; padding: 8px 16px; text-decoration: none; font-weight: 600; font-size: 0.9em; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhi-bio-link:hover { background: var(--bh-accent); color: #fff; border-color: var(--bh-accent); }
 .bhi-bio-links-field legend { font-size: 0.9em; color: var(--bh-text-dim); }
 .bhi-bio-links-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }

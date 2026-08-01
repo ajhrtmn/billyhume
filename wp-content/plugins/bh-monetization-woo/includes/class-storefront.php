@@ -90,7 +90,34 @@ class BHM_Storefront {
         // already rendered, so an explicitly-placed bhm/related-products
         // block inside the description has already set the
         // "don't double-render" flag by the time this checks it.
+        //
+        // Real bug, caught live: WooCommerce core hooks its OWN default
+        // related-products output (woocommerce_output_related_products)
+        // to this exact same action at this exact same priority — since
+        // both land on the same hook+priority, WordPress runs them in
+        // registration order and BOTH rendered, showing the same
+        // recommended product twice on every single-product page in two
+        // different visual treatments (this plugin's styled "You may
+        // also like" grid, then WooCommerce's own plain list right below
+        // it). Removing the core callback so this plugin's version is
+        // the only one shown — same content, one considered
+        // presentation instead of a redundant duplicate.
+        remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
         add_action('woocommerce_after_single_product_summary', ['BHM_Recommendations', 'auto_render_related'], 20);
+        // The remove_action above only covers a CLASSIC theme's
+        // template-hook based related-products output — live-checked on
+        // this (block theme) install and the actual duplicate was
+        // coming from a completely different source: the current
+        // active theme's single-product block TEMPLATE itself ships a
+        // woocommerce/product-collection block hardcoded to the
+        // "related" collection (data-collection=
+        // "woocommerce/product-collection/related", confirmed via the
+        // rendered block's own attributes) — an entirely separate
+        // rendering path the classic remove_action can't reach.
+        // Suppressing it at render time so whichever theme/template this
+        // runs under, only this plugin's own styled related-products
+        // section shows, not a duplicate.
+        add_filter('render_block', [self::class, 'suppress_core_related_products_block'], 10, 2);
 
         if (class_exists('BH_Studio')) {
             add_filter('bh_studio_block_types', [self::class, 'register_studio_block_types']);
@@ -287,17 +314,61 @@ class BHM_Storefront {
         exit;
     }
 
+    // Real bug, caught live: plain get_header()/get_footer() only covers
+    // a CLASSIC theme, which ships real header.php/footer.php files —
+    // a block theme (Twenty Twenty-Five and every core theme since 5.9,
+    // and any future theme built for this ecosystem) ships none, so
+    // those calls silently fell through to WordPress core's own
+    // decades-old bare theme-compat stub with no nav, no real chrome,
+    // nothing this site actually looks like. Same failure mode
+    // bh-courses' own templates/archive-bh_course.php already hit and
+    // fixed (see that file's docblock) — block_header_area()/
+    // block_footer_area() are WordPress's own documented way to print
+    // whatever the active block theme's real header/footer template
+    // parts are, so this renders correctly regardless of which theme
+    // (classic or block, this ecosystem's own or a third-party one) is
+    // active. This is the concrete fix for a real architectural rule:
+    // plugin-owned pages must be theme-independent — never assume a
+    // specific theme's structure, never break silently when the active
+    // theme changes.
+    private static function print_header() {
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_header_area')) {
+            ?><!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+    <meta charset="<?php bloginfo('charset'); ?>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?php wp_head(); ?>
+</head>
+<body <?php body_class(); ?>>
+<?php wp_body_open(); ?>
+<?php block_header_area();
+        } else {
+            get_header();
+        }
+    }
+
+    private static function print_footer() {
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_footer_area')) {
+            block_footer_area();
+            wp_footer();
+            ?></body></html><?php
+        } else {
+            get_footer();
+        }
+    }
+
     private static function render_404() {
         status_header(404);
         nocache_headers();
-        get_header();
+        self::print_header();
         echo '<div class="bhm-storefront-wrap"><p>That collection doesn\'t exist.</p></div>';
-        get_footer();
+        self::print_footer();
         exit;
     }
 
     private static function render_collection_page($term) {
-        get_header();
+        self::print_header();
         echo '<div class="bhm-storefront-wrap">';
         echo '<h1 class="bhm-collection-title">' . esc_html($term->name) . '</h1>';
         if ($term->description) echo '<p class="bhm-collection-desc">' . esc_html($term->description) . '</p>';
@@ -309,7 +380,7 @@ class BHM_Storefront {
 
         echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true], '');
         echo '</div>';
-        get_footer();
+        self::print_footer();
     }
 
     /* ---------------- BH_Content block registration (server render) ---------------- */
@@ -518,5 +589,18 @@ class BHM_Storefront {
         $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
         $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Related Products'];
         return $types;
+    }
+
+    // See the add_filter('render_block', ...) call above for why this
+    // exists — only ever matches the one specific WooCommerce core
+    // block/collection combination (identified the same way the browser
+    // itself reports it: block name + the 'related' collection id),
+    // never any other product-collection block a site owner might
+    // deliberately place elsewhere (a "featured products" or manually
+    // curated collection block is left completely alone).
+    public static function suppress_core_related_products_block($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'woocommerce/product-collection') return $block_content;
+        if (($block['attrs']['collection'] ?? '') !== 'woocommerce/product-collection/related') return $block_content;
+        return '';
     }
 }

@@ -1,5 +1,7 @@
 # ROADMAP: UX polish & feature parity — contests, CRM, LMS, monetization
 
+**Status (doc-cleanup pass, 2026-07-26): 13 of Section 6's 14 build-order items are shipped, confirmed still accurate.** Spot-checked the one item without a ✅ (donor/supporter wall, Section 5b/item 9) — genuinely still unbuilt, no false-positive code found. Sections 3a (support ticketing) and 6a (event ticketing) remain explicitly "not scoped in detail yet," and Section 7's "deep future/speculative" list remains deliberately deferred. This doc is otherwise excellently self-tracked (specific version numbers cited per item) — left as-is rather than rewritten.
+
 Written 2026-07-13, off the back of a same-day four-plugin research pass (parallel deep-dive against real competitor products/plugins for each of bh-contest, bh-crm, bh-courses, bh-monetization-woo) plus direct refinement answers from the project owner. This doc is the synthesis + decision record + build order — the four source research reports themselves aren't preserved as separate files (they lived in the session, not disk); this doc captures everything from them worth keeping.
 
 **Standing priority still applies:** harden core before extending (see CLAUDE.md/VISION.md). Everything below is real, wanted feature work, but it's still "next," not "now" relative to any open core-hardening item. Nothing in this doc should be started without a fresh check that no higher-priority core fragility has surfaced since this was written.

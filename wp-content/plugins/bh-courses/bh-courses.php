@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.51
+ * Version:     0.4.65
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -109,7 +109,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.51');
+define('BHC_VER',  '0.4.65');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
@@ -196,7 +196,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews', 'privacy'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -219,6 +219,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHC_Blocks', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Achievements', 'init']);
+    add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,

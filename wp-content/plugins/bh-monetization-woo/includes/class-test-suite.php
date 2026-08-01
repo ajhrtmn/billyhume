@@ -206,6 +206,20 @@ class BHM_TestSuite {
             $rows = array_merge($rows, self::run_purchase_ledger_tests());
         }
 
+        // Auction listings (Section 5a) — hold/release/capture on a real
+        // (tagged, cleaned-up) fake wallet, same posture as
+        // run_wallet_tests() above, plus the bidding engine itself
+        // (BHM_Auctions) against a real post standing in for a product —
+        // this class never actually calls wc_get_product() or checks
+        // post_type, so a plain post exercises the exact same code path
+        // a real WooCommerce product would.
+        if (class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_wallet_hold_tests());
+        }
+        if (class_exists('BHM_Auctions') && class_exists('BHM_Wallet') && class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_auction_tests());
+        }
+
         return $rows;
     }
 
@@ -304,6 +318,138 @@ class BHM_TestSuite {
         // uses, not re-implemented here.
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        return $rows;
+    }
+
+    /**
+     * BHM_Wallet::hold()/release_hold()/capture_hold() (1.7, auction
+     * listings) — the three new methods a bid actually calls. Same
+     * fresh-tagged-user + real-DB-round-trip posture as run_wallet_tests()
+     * above, since these are exactly the kind of atomic-UPDATE-with-a-
+     * WHERE-clause logic worth exercising for real rather than mocking.
+     */
+    private static function run_wallet_hold_tests() {
+        $rows = [];
+        global $wpdb;
+        $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_hold_suite', false);
+        $wallet_table = $wpdb->prefix . 'bhm_wallet';
+        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
+        $wpdb->delete($wallet_table, ['user_id' => $uid]);
+        $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        BHM_Wallet::apply_ledger_delta($uid, 1000, 'test_topup');
+
+        $rows[] = OUS_TestRunner::assert_true(BHM_Wallet::hold($uid, 400, 'test_hold'), 'hold(400) against a 1000-cent balance succeeds');
+        $rows[] = OUS_TestRunner::assert_same(1000, BHM_Wallet::balance_cents($uid), 'a hold never touches balance_cents — still exactly 1000');
+        $rows[] = OUS_TestRunner::assert_same(400, BHM_Wallet::held_cents($uid), 'held_cents is exactly 400 after hold(400)');
+        $rows[] = OUS_TestRunner::assert_same(600, BHM_Wallet::available_cents($uid), 'available_cents (balance - held) is exactly 600');
+
+        $rows[] = OUS_TestRunner::assert_false(BHM_Wallet::hold($uid, 700, 'test_hold'), 'a second hold(700) — more than the 600 still available — is declined, not allowed to overcommit');
+        $rows[] = OUS_TestRunner::assert_same(400, BHM_Wallet::held_cents($uid), 'a declined hold leaves held_cents completely unchanged');
+
+        $rows[] = OUS_TestRunner::assert_true(BHM_Wallet::release_hold($uid, 400, 'test_release'), 'release_hold(400) succeeds');
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($uid), 'held_cents is back to 0 after releasing the full hold');
+        $rows[] = OUS_TestRunner::assert_same(1000, BHM_Wallet::balance_cents($uid), 'balance_cents is untouched by the release — still 1000, exactly what a losing/outbid bidder should keep');
+
+        BHM_Wallet::hold($uid, 300, 'test_hold');
+        $rows[] = OUS_TestRunner::assert_true(BHM_Wallet::capture_hold($uid, 300, 'test_capture'), 'capture_hold(300) against a genuine 300-cent hold succeeds');
+        $rows[] = OUS_TestRunner::assert_same(700, BHM_Wallet::balance_cents($uid), 'capture_hold() actually spends the money — balance drops from 1000 to 700');
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($uid), 'capture_hold() clears the held amount it just captured');
+
+        $rows[] = OUS_TestRunner::assert_false(BHM_Wallet::capture_hold($uid, 100, 'test_capture'), 'capture_hold() against a NON-existent hold (held_cents is 0) is refused, never silently spending un-held money');
+        $rows[] = OUS_TestRunner::assert_same(700, BHM_Wallet::balance_cents($uid), 'a refused capture leaves the balance completely unchanged');
+
+        $wpdb->delete($wallet_table, ['user_id' => $uid]);
+        $wpdb->delete($ledger_table, ['user_id' => $uid]);
+
+        return $rows;
+    }
+
+    /**
+     * BHM_Auctions end to end — bidding, outbid release, reserve
+     * handling, and close_auction()'s own idempotency — against two
+     * real (tagged, cleaned-up) fake users and a plain post standing in
+     * for a product (see the call site's own comment on why that's a
+     * faithful stand-in here).
+     */
+    private static function run_auction_tests() {
+        $rows = [];
+        global $wpdb;
+        $bidder_a = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_a', false);
+        $bidder_b = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_b', false);
+        $wallet_table = $wpdb->prefix . 'bhm_wallet';
+        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
+        $bids_table = $wpdb->prefix . 'bhm_auction_bids';
+        foreach ([$bidder_a, $bidder_b] as $uid) {
+            $wpdb->delete($wallet_table, ['user_id' => $uid]);
+            $wpdb->delete($ledger_table, ['user_id' => $uid]);
+        }
+        BHM_Wallet::apply_ledger_delta($bidder_a, 10000, 'test_topup');
+        BHM_Wallet::apply_ledger_delta($bidder_b, 10000, 'test_topup');
+
+        $product_id = wp_insert_post(['post_type' => 'product', 'post_status' => 'publish', 'post_title' => 'Auction Suite Fixture'], true);
+        $wpdb->delete($bids_table, ['product_id' => $product_id]);
+
+        $rows[] = OUS_TestRunner::assert_false(BHM_Auctions::is_auction($product_id), 'a plain product is not an auction until convert_to_auction() is called');
+
+        $ends_at = date('Y-m-d H:i:s', strtotime(current_time('mysql') . ' +1 hour'));
+        $rows[] = OUS_TestRunner::assert_true(
+            BHM_Auctions::convert_to_auction($product_id, 500, 800, $ends_at),
+            'convert_to_auction() succeeds with a real future end time'
+        );
+        $rows[] = OUS_TestRunner::assert_true(BHM_Auctions::is_auction($product_id), 'is_auction() is true immediately after conversion');
+        $rows[] = OUS_TestRunner::assert_same('open', BHM_Auctions::status($product_id), 'status() is "open" while the end time is still in the future');
+        $rows[] = OUS_TestRunner::assert_same(500, BHM_Auctions::current_bid_cents($product_id), 'current_bid_cents() is the starting price before any real bid exists');
+
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 400)), 'a bid below the starting price is rejected');
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_a, 500)), "bidder A's opening bid at exactly the starting price succeeds");
+        $rows[] = OUS_TestRunner::assert_same(500, BHM_Wallet::held_cents($bidder_a), "bidder A's wallet now holds exactly 500 for their open bid");
+
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_b, 500)), "bidder B matching (not beating) the current high bid is rejected");
+        $rows[] = OUS_TestRunner::assert_false(is_wp_error(BHM_Auctions::place_bid($product_id, $bidder_b, 700)), "bidder B's higher bid of 700 succeeds");
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_a), "bidder A's hold is fully released the instant they're outbid");
+        $rows[] = OUS_TestRunner::assert_same(700, BHM_Wallet::held_cents($bidder_b), "bidder B's wallet now holds exactly their own 700 bid");
+        $rows[] = OUS_TestRunner::assert_same(700, BHM_Auctions::current_bid_cents($product_id), 'current_bid_cents() reflects the new high bid of 700');
+        $rows[] = OUS_TestRunner::assert_same((int) $bidder_b, BHM_Auctions::current_bidder_id($product_id), 'current_bidder_id() is bidder B after their bid takes the lead');
+
+        $outbid_status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $bids_table WHERE product_id = %d AND user_id = %d AND amount_cents = 500", $product_id, $bidder_a));
+        $rows[] = OUS_TestRunner::assert_same('outbid', $outbid_status, "bidder A's own 500-cent bid row is marked 'outbid', not deleted — a real history, not just current-state");
+
+        // Reserve (800) is NOT met by the current 700 high bid —
+        // close_auction() should release B's hold rather than capture
+        // it, and the listing should NOT report as sold.
+        BHM_Auctions::close_auction(['product_id' => $product_id]);
+        $rows[] = OUS_TestRunner::assert_same('closed', BHM_Auctions::status($product_id), 'status() is "closed" once close_auction() has actually finalized it');
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_b), "bidder B's hold is released (not captured) because the 700 bid never met the 800 reserve");
+        $rows[] = OUS_TestRunner::assert_same(10000, BHM_Wallet::balance_cents($bidder_b), "bidder B's balance is completely untouched — the reserve wasn't met, so nothing was ever actually spent");
+
+        // Idempotency: calling close_auction() again must be a pure
+        // no-op, never a second release/capture against money that was
+        // already settled once.
+        BHM_Wallet::apply_ledger_delta($bidder_b, 0, 'test_noop'); // no-op ledger touch, just to have a fresh read point
+        $held_before_replay = BHM_Wallet::held_cents($bidder_b);
+        BHM_Auctions::close_auction(['product_id' => $product_id]);
+        $rows[] = OUS_TestRunner::assert_same($held_before_replay, BHM_Wallet::held_cents($bidder_b), 'calling close_auction() a second time on an already-finalized auction is a no-op — held_cents does not move again');
+
+        // A SEPARATE listing with no reserve should actually sell —
+        // capture_hold() moves the winner's money for real.
+        $product_id_2 = wp_insert_post(['post_type' => 'product', 'post_status' => 'publish', 'post_title' => 'Auction Suite Fixture (no reserve)'], true);
+        BHM_Auctions::convert_to_auction($product_id_2, 500, 0, $ends_at);
+        BHM_Auctions::place_bid($product_id_2, $bidder_a, 600);
+        BHM_Auctions::close_auction(['product_id' => $product_id_2]);
+        $rows[] = OUS_TestRunner::assert_same('closed', BHM_Auctions::status($product_id_2), 'the no-reserve listing is also closed after close_auction()');
+        $rows[] = OUS_TestRunner::assert_same(9400, BHM_Wallet::balance_cents($bidder_a), "the winning bidder's balance actually drops by the winning 600-cent bid once a sale with no reserve genuinely closes");
+        $rows[] = OUS_TestRunner::assert_same(0, BHM_Wallet::held_cents($bidder_a), "the winner's hold is cleared once captured — it's spent, not still 'held'");
+
+        foreach ([$bidder_a, $bidder_b] as $uid) {
+            $wpdb->delete($wallet_table, ['user_id' => $uid]);
+            $wpdb->delete($ledger_table, ['user_id' => $uid]);
+        }
+        $wpdb->delete($bids_table, ['product_id' => $product_id]);
+        $wpdb->delete($bids_table, ['product_id' => $product_id_2]);
+        wp_delete_post($product_id, true);
+        wp_delete_post($product_id_2, true);
 
         return $rows;
     }

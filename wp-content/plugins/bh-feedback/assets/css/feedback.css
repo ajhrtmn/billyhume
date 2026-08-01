@@ -16,12 +16,13 @@
 
 .bhf-request-card { background: var(--bh-surface, #fff); border: 1px solid var(--bh-border, #e2e2e2); border-radius: var(--bh-radius, 10px); padding: 14px; margin-bottom: 10px; }
 .bhf-request-card audio { width: 100%; margin: 8px 0; }
-.bhf-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8em; font-weight: 600; background: var(--bh-surface-2, #f6f6f7); color: var(--bh-text-dim, #6b7280); }
-/* Audit fix (2026-07-25): open/claimed/completed used to share the same
+/* Shape now comes from the shared .bh-badge component (class-style.php)
+   — markup carries both classes; this file only supplies color.
+   Audit fix (2026-07-25): open/claimed/completed used to share the same
    styling, distinguished only by badge text — added distinct treatments
    so the three states read as visually different, not just textually. */
 .bhf-badge-open { background: var(--bh-surface-2, #f6f6f7); color: var(--bh-text-dim, #6b7280); }
-.bhf-badge-claimed { background: var(--bh-warning-muted-bg, #fff6e5); color: var(--bh-warning, #9a6700); }
+.bhf-badge-claimed { background: var(--bh-warning-bg, #fff6e5); color: var(--bh-warning, #9a6700); }
 .bhf-badge-completed { background: var(--bh-accent-muted-bg, #eef4ff); color: var(--bh-accent, #b3502e); }
 .bhf-claimed-note { margin-top: -4px; }
 .bhf-review-body { margin-top: 10px; padding: 10px; background: var(--bh-surface-2, #f6f6f7); border-radius: var(--bh-radius-sm, 6px); }

@@ -381,7 +381,7 @@ class OUS_Debug {
         if ($dev_mode) {
             echo '<p class="description">Developer mode is on — every registered section is shown. <a href="' . esc_url($toggle_url) . '">Hide developer tools</a> (just for your account; this doesn\'t affect other admins).</p>';
         } else {
-            echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;padding:10px 14px;margin:12px 0;background:#f6f7f7;">'
+            echo '<div class="bhy-alert bhy-alert-info">'
                . 'Showing monitoring &amp; health tools only. Reference docs and seed/reset tools are hidden by default — '
                . '<a href="' . esc_url($toggle_url) . '"><strong>show developer tools</strong></a> to see everything (just for your account).</div>';
         }

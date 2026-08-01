@@ -676,6 +676,14 @@ class BHY_UI {
 
     public static function design_system_css() {
         return '
+            /* ============================================================
+               LAYER 1 — TOKENS. Custom properties only, no selectors.
+               New color/spacing/type value? It goes here, named, with a
+               fallback the rest of this file can reference. See
+               STYLE-SYSTEM.md at the plugins root for the full 4-layer
+               model (tokens / utilities / components / plugin-local) this
+               file and class-style.php both follow.
+               ============================================================ */
             :root {
                 --bhy-space-1: 4px; --bhy-space-2: 8px; --bhy-space-3: 12px; --bhy-space-4: 16px;
                 --bhy-space-5: 20px; --bhy-space-6: 24px; --bhy-space-8: 32px;
@@ -700,6 +708,15 @@ class BHY_UI {
             }
             .bhy-shell h1 { font-size: var(--bhy-text-2xl); margin-bottom: var(--bhy-space-2); }
             .bhy-shell .description { font-size: var(--bhy-text-base); color: var(--bhy-ink-dim); margin-bottom: var(--bhy-space-4); }
+
+            /* ============================================================
+               LAYER 3 — COMPONENTS. Named, reusable UI pieces that
+               compose tokens + utilities (card/alert/badge/table below).
+               New admin screen needs a status pill, a notice box, a
+               surface panel, or a wide table? Check here BEFORE hand-
+               rolling one inline — this is the whole reason those got
+               reinvented per call site in the 2026-08 style audit.
+               ============================================================ */
 
             /* Card — the one surface treatment every custom admin
                screen should reuse instead of inventing its own
@@ -739,6 +756,29 @@ class BHY_UI {
             .bhy-badge-success { background: var(--bhy-success-bg); color: var(--bhy-success); }
             .bhy-badge-warning { background: var(--bhy-warning-bg); color: var(--bhy-warning); }
             .bhy-badge-danger  { background: var(--bhy-danger-bg);  color: var(--bhy-danger); }
+            /* The white-space:nowrap on .bhy-badge above is correct for a
+               FIXED-vocabulary label ("up to date", "Approved") — no
+               length risk to guard against. A badge wrapping dynamic/
+               unbounded content (a user-entered tag, an artist-chosen
+               category) needs bounding too, or nowrap alone just blows
+               out the layout instead of wrapping ugly — add this
+               alongside .bhy-badge for that case. Pair with a real
+               title="..." attribute carrying the full text. */
+            .bhy-badge-truncate { overflow: hidden; text-overflow: ellipsis; max-width: 160px; vertical-align: bottom; }
+
+            /* ---- LAYER 2 (utilities, not a component) — kept here next
+               to .bhy-badge since that\'s their most common pairing, but
+               these are generic single-purpose helpers, not one named
+               "thing." See STYLE-SYSTEM.md. ----
+               Text-overflow utilities — the admin-side counterpart to
+               the front-end .bh-truncate/.bh-clamp-* in class-style.php
+               (see that own docblock for the full per-content-type
+               reasoning: single-line content truncates with an
+               ellipsis + title attr, multi-line content clamps at a
+               fixed line count). These are for everything else in an
+               admin table/list that is not a badge. */
+            .bhy-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .bhy-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
             /* Table wrapper — every wide admin table gets the same
                horizontal-scroll behavior, and (via container query) a

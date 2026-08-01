@@ -1,15 +1,50 @@
 .bhr-app { max-width: 960px; margin: 0 auto; padding: 24px 16px; color: var(--bh-text, #EDDFCB); }
-.bhr-search-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
-.bhr-search, .bhr-protocol-filter { padding: 10px 12px; border-radius: 6px; border: 1px solid var(--bh-border, #3D1B14); background: var(--bh-surface, #220C0A); color: inherit; }
+/* Same "control panel" treatment as bh-courses' catalog filter bar
+   (courses.css) — ecosystem-wide consistency, not a one-off here: a
+   recessed surface-2 container instead of bare fields floating on the
+   page, pill-shaped inputs (radius:999px) matching the badge/button
+   vocabulary, and a visible focus ring. */
+.bhr-search-row {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+    background: var(--bh-surface-2, #2C120E); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 14px; padding: 14px 16px;
+}
+.bhr-search, .bhr-protocol-filter {
+    padding: 10px 16px; border-radius: 999px; border: 1px solid var(--bh-border, #3D1B14);
+    background: var(--bh-surface, #220C0A); color: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.bhr-search:focus, .bhr-protocol-filter:focus {
+    outline: none; border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent, #C1503A) 22%, transparent);
+}
 .bhr-search { flex: 1; min-width: 200px; }
-.bhr-btn { padding: 10px 16px; border-radius: 6px; border: none; background: var(--bh-accent, #C1503A); color: #fff; cursor: pointer; font-weight: 600; }
+.bhr-btn { padding: 10px 16px; border-radius: 999px; border: none; background: var(--bh-accent, #C1503A); color: #fff; cursor: pointer; font-weight: 600; transition: opacity .15s ease, transform .15s ease; }
 .bhr-btn:hover { opacity: 0.9; }
-.bhr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
-.bhr-card { background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 16px; }
+.bhr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; align-items: start; }
+/* Same resting-depth + hover-lift language as bh-courses' .bhc-course-card
+   — ecosystem-wide, not plugin-specific. */
+.bhr-card {
+    background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14); border-radius: 8px; padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.bhr-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 16px 32px -14px color-mix(in srgb, var(--bh-accent, #C1503A) 45%, transparent), 0 4px 8px rgba(0, 0, 0, .15);
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhr-card { transition: none; }
+    .bhr-card:hover { transform: none; }
+}
 .bhr-card-avatar { width: 64px; height: 64px; border-radius: 50%; background-color: var(--bh-accent-soft, #E0A184); background-size: cover; background-position: center; margin-bottom: 10px; }
-.bhr-card-name { font-weight: 700; margin-bottom: 6px; }
-.bhr-badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 100px; margin: 2px 4px 0 0; }
-.bhr-badge-verified { background: rgba(29,185,84,0.15); color: #1DB954; }
+.bhr-card-name { font-weight: 700; margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Shape now comes from the shared .bh-badge component (class-style.php)
+   — markup carries both classes; this file only supplies the layout
+   spacing between badges (.bh-badge alone has no margin) and color. */
+.bhr-badge { margin: 2px 4px 0 0; }
+.bhr-badge-verified { background: var(--bh-success-bg, rgba(29,185,84,0.15)); color: var(--bh-success, #1DB954); }
 .bhr-empty { color: var(--bh-text-dim, #B99584); grid-column: 1 / -1; }
 .bhr-report-link { display: block; margin-top: 8px; background: none; border: none; padding: 0; font-size: 11px; color: var(--bh-text-dim, #B99584); text-decoration: underline; cursor: pointer; }
 
@@ -36,7 +71,7 @@
   border: 1px solid var(--bh-border, #3D1B14); background: var(--bh-surface-2, #2C120E); color: inherit;
 }
 .bhr-form-error { color: #b3261e; font-size: 13px; margin-top: 8px; }
-.bhr-form-success { color: var(--bh-accent, #1DB954); font-size: 13px; margin-top: 8px; font-weight: 600; }
+.bhr-form-success { color: var(--bh-success, #1DB954); font-size: 13px; margin-top: 8px; font-weight: 600; }
 .bhr-submit-modal-inner code { display: block; background: var(--bh-surface-2, #2C120E); padding: 8px; border-radius: 4px; word-break: break-all; margin-bottom: 10px; }
 
 /* This file had zero mobile breakpoints at all — every other front-end

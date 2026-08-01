@@ -106,15 +106,15 @@ class BHC_ProgressAdmin {
             if ($last && strtotime($last) < $stalled_cutoff) $stalled++;
         }
 
-        echo '<div class="bhy-card" style="margin:16px 0;padding:16px;border:1px solid #dcdcde;background:#fff;">';
-        echo '<h2 style="margin-top:0;font-size:14px;">At a glance</h2>';
+        echo '<div class="bhy-card">';
+        echo '<h2>At a glance</h2>';
         if ($stalled > 0) {
             echo '<p><strong style="color:#b32d2e;">' . (int) $stalled . ' student' . ($stalled === 1 ? '' : 's') . '</strong> active before but quiet for ' . self::STALLED_DAYS . '+ days and not yet finished — flagged &#9888; in the table below.</p>';
         } else {
             echo '<p class="description">No stalled students right now (none quiet ' . self::STALLED_DAYS . '+ days without finishing).</p>';
         }
 
-        echo '<table class="widefat striped" style="max-width:720px;"><thead><tr><th>Lesson</th><th>Completion rate</th><th>Avg. quiz score</th></tr></thead><tbody>';
+        echo '<div class="bhy-table-wrap" style="max-width:720px;"><table class="widefat striped"><thead><tr><th>Lesson</th><th>Completion rate</th><th>Avg. quiz score</th></tr></thead><tbody>';
         foreach ($lesson_ids as $lesson_id) {
             $step_count = BHC_Steps::count($lesson_id);
             $finished = 0;
@@ -129,7 +129,7 @@ class BHC_ProgressAdmin {
             echo '<td>' . (int) $rate . '% (' . (int) $finished . '/' . count($students) . ')</td>';
             echo '<td>' . ($quiz_avg === null ? '&#8212;' : (int) round($quiz_avg) . '%') . '</td></tr>';
         }
-        echo '</tbody></table></div>';
+        echo '</tbody></table></div></div>';
     }
 
     // Averages every quiz step's mean score, then averages those means —
@@ -222,8 +222,8 @@ class BHC_ProgressAdmin {
     private static function render_override_form($course_id, array $students) {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
 
-        echo '<div class="bhy-card" style="margin:16px 0;padding:16px;border:1px solid #dcdcde;background:#fff;max-width:640px;">';
-        echo '<h2 style="margin-top:0;font-size:14px;">Manual override</h2>';
+        echo '<div class="bhy-card" style="max-width:640px;">';
+        echo '<h2>Manual override</h2>';
         echo '<p class="description">For support cases where progress didn\'t record correctly — marks steps complete directly (quiz steps as scored/passed), bypassing normal submission. Only students with existing activity in this course are listed; this isn\'t an enrollment or access tool.</p>';
 
         if (!$students) {

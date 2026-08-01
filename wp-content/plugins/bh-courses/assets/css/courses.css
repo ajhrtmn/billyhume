@@ -28,29 +28,139 @@
 }
 .bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
 
+/* ---- archive page header ----
+   Real gap, caught live: .bhc-archive-header/.bhc-archive-title sit
+   OUTSIDE the .bhc-catalog reset scope above (they're siblings of
+   .bhc-catalog-wrap under <main>, not descendants of .bhc-catalog
+   itself) and had zero rules of their own — the page title was
+   rendering as a raw, unstyled browser-default H1 while everything
+   below it (the cards) had a fully considered design system applied.
+   Same page, two completely different levels of polish. This block is
+   the one exception to "only reset what .bhc-catalog wraps" — scoped
+   tightly to just this header rather than widening the reset's own
+   selector list, since nothing else lives in this element.
+   Streamline Moderne cues (AJ's own reference): a small tracked-out
+   uppercase kicker, a confident but NOT oversized display headline,
+   and a thin horizontal accent rule standing in for the era's speed-
+   line motif — restrained, not a full deco pastiche. */
+.bhc-archive-header { max-width: 1200px; margin: 0 auto; padding: 40px 20px 0; box-sizing: border-box; }
+.bhc-archive-kicker {
+    display: block; font-family: var(--bh-font-heading); font-size: 11px; font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--bh-accent); margin-bottom: 6px;
+}
+.bhc-archive-title {
+    margin: 0; padding: 0; font-family: var(--bh-font-heading); font-size: 32px; font-weight: 700;
+    letter-spacing: -.01em; line-height: 1.15; color: var(--bh-text);
+}
+.bhc-archive-rule {
+    width: 64px; height: 3px; margin-top: 18px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--bh-accent) 0%, color-mix(in srgb, var(--bh-accent) 25%, transparent) 100%);
+}
+@media (max-width: 600px) {
+    .bhc-archive-header { padding: 28px 16px 0; }
+    .bhc-archive-title { font-size: 26px; }
+}
+
 /* ---- catalog ---- */
 /* auto-fit, not auto-fill — with few courses (a new site, or a narrow
    filtered result) auto-fill still reserves empty track width for
    columns with no card in them, leaving a single lonely card floating
    in a mostly-blank row. auto-fit collapses those empty tracks so real
    cards expand to actually fill the row instead. */
-.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+/* Real bug, caught live: CSS Grid's default align-items:stretch was
+   forcing every card in a row to match the row's TALLEST card (e.g. one
+   with a cover image + description + button stretches its shorter
+   siblings into mostly-empty boxes) instead of each card sizing to its
+   own content. align-items:start opts every card out of that stretch. */
+.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: start; }
+/* Depth + hover lift — derived entirely from --bh-accent/--bh-border
+   (no new colors invented) rather than a flat, static card. Rest state
+   gets a faint shadow so the grid reads as a stack of physical cards,
+   not a flat table; hovering lifts the card and swaps the border for a
+   soft accent-tinted glow, giving the browsing moment some life without
+   touching layout (translateY, not a scale, so nothing shifts its
+   neighbors or triggers reflow). */
 .bhc-course-card {
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
-/* Real bug: this was un-scoped and also matched the instructor avatar
-   nested inside .bhc-card-instructor further down the card, stretching
-   a 20x20 get_avatar() image to the full card width while its height
-   stayed fixed. Direct-child selector targets only the cover thumbnail
-   (get_the_post_thumbnail()'s own unwrapped <img>, echoed straight
-   into .bhc-course-card in class-render-catalog.php). */
-.bhc-course-card > img { width: 100%; border-radius: 6px; object-fit: cover; }
+.bhc-course-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--bh-accent);
+    box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent) 35%, transparent), 0 4px 8px rgba(0, 0, 0, .06);
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-course-card { transition: none; }
+    .bhc-course-card:hover { transform: none; }
+}
+/* Every card gets the same shape now — a fixed 16:9 slot, whether it
+   holds a real thumbnail or the gradient placeholder below — instead of
+   only some cards having an image block and others skipping straight to
+   the title, which was the actual cause of the row looking jagged even
+   once cards stopped being stretched to match their tallest sibling. */
+.bhc-card-thumb {
+    position: relative; margin: -16px -16px 0; border-radius: 10px 10px 0 0; aspect-ratio: 16 / 9;
+    overflow: hidden; display: flex; align-items: flex-end;
+}
+.bhc-card-thumb img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .3s ease;
+}
+.bhc-course-card:hover .bhc-card-thumb img { transform: scale(1.05); }
+/* Gradient built from the site's own accent tokens (color-mix, no new
+   color invented) plus a faint centered mark so an un-illustrated
+   course still reads as a considered card, not a hole in the grid. */
+/* Real image, not just a flat color block — an inline SVG waveform
+   (fitting content: these are audio/production courses) layered over
+   the accent gradient. White shapes at low opacity so the illustration
+   reads correctly over whatever accent color a given site is themed
+   with, rather than baking in a fixed color the gradient can't match. */
+.bhc-card-thumb-placeholder {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 169'%3E%3Cg fill='white' fill-opacity='0.38'%3E%3Crect x='40' y='74' width='10' height='21' rx='5'/%3E%3Crect x='58' y='60' width='10' height='49' rx='5'/%3E%3Crect x='76' y='40' width='10' height='89' rx='5'/%3E%3Crect x='94' y='55' width='10' height='59' rx='5'/%3E%3Crect x='112' y='70' width='10' height='29' rx='5'/%3E%3Crect x='130' y='35' width='10' height='99' rx='5'/%3E%3Crect x='148' y='50' width='10' height='69' rx='5'/%3E%3Crect x='166' y='65' width='10' height='39' rx='5'/%3E%3Crect x='184' y='45' width='10' height='79' rx='5'/%3E%3Crect x='202' y='72' width='10' height='25' rx='5'/%3E%3Crect x='220' y='58' width='10' height='53' rx='5'/%3E%3Crect x='238' y='68' width='10' height='33' rx='5'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, color-mix(in srgb, var(--bh-accent) 26%, var(--bh-surface)) 0%, color-mix(in srgb, var(--bh-accent) 8%, var(--bh-surface)) 100%);
+    background-size: 60% auto, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+}
+/* Bottom-anchored scrim purely for text legibility — dark enough near
+   the title to guarantee contrast against any photo, fully transparent
+   by the top of the image so it never looks like a flat dark bar. */
+.bhc-card-thumb-scrim {
+    position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(to top, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, transparent 85%);
+}
+.bhc-card-thumb-title {
+    position: relative; z-index: 2; margin: 0; padding: 14px 14px 12px; width: 100%; box-sizing: border-box;
+}
+.bhc-card-thumb-title a { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.bhc-card-thumb-title a:hover { text-decoration: underline; }
+.bhc-card-thumb-title .bhc-lock { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+/* font-family/size only — this h3 now always lives inside the thumb
+   overlay (the only h3 left in this card), so its hover COLOR is owned
+   entirely by .bhc-card-thumb-title above (always white for contrast
+   against the dark scrim); an accent-color hover here would silently
+   fail legibility over a photo. */
 .bhc-course-card h3 { font-family: var(--bh-font-heading); font-size: 17px; }
-.bhc-course-card h3 a:hover { color: var(--bh-accent); }
 .bhc-course-card.bhc-locked { opacity: 0.7; }
 .bhc-lock { font-size: 13px; }
-.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); }
+/* min-height reserves the same vertical space a 2-line excerpt would
+   take even when a course has none yet, so a card with no description
+   doesn't visually collapse against its siblings that have one — part
+   of the same "every card reads as the same considered shape" fix as
+   .bhc-card-thumb/.bhc-footer-spacer above/below. */
+.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.8em; }
+/* margin-top:auto alone does nothing here — .bhc-course-card is an
+   auto-height flex column (align-items:start on the parent grid means
+   it's never stretched taller than its own content), so there's no
+   leftover space for auto margins to consume. The min-height below is
+   what actually keeps a card with no progress/CTA footer (logged-out
+   view, or a locked course) from just stopping short of its siblings
+   that do have one — roughly the real footer block's own height
+   (6px bar + label + button) reserved either way. */
+.bhc-footer-spacer { margin-top: auto; min-height: 54px; }
 
 .bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
 /* Width changes (a step/lesson completing) used to jump instantly —
@@ -99,25 +209,63 @@
 }
 
 /* ---- catalog: card badges/meta (Part 2 catalog rebuild) ---- */
-.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; }
-.bhc-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.02em; }
+/* Real bug, caught live TWICE: the original fix here (max-width:600px
+   padding only) assumed the theme's own content margin covered every
+   width above that — checked live with getComputedStyle() and that
+   assumption was false. This archive template's ancestor chain
+   (.bhc-archive-main -> body -> html) has ZERO horizontal padding or
+   margin at any width; the theme supplies none for this custom archive
+   at all, mobile or desktop. Cards, search bar, and filter row were
+   flush against the browser edge at every viewport, not just narrow
+   ones. Fixed by giving this wrapper its own max-width+centered-margin
+   +padding unconditionally, matching the pattern bh-registry's .bhr-app
+   and bh-monetization-woo's .bhm-storefront-wrap already use for the
+   same "this template owns its own width, don't trust the theme"
+   reason — not a new invented value. */
+.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
+@media (max-width: 600px) {
+    .bhc-catalog-wrap { padding: 20px 16px; }
+}
+/* Shape (padding/radius/font-size/nowrap) now comes from the shared
+   .bh-badge component (class-style.php) — markup carries both classes;
+   this file only supplies what's genuinely different from the shared
+   shape (the uppercase treatment, and the border .bh-badge doesn't have). */
+.bhc-badge { text-transform: uppercase; letter-spacing: 0.02em; }
 .bhc-badge-difficulty { background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
 .bhc-difficulty-beginner { color: var(--bh-accent); border-color: var(--bh-accent); }
 .bhc-difficulty-intermediate { color: var(--bh-text); }
 .bhc-difficulty-advanced { color: var(--bh-text); font-weight: 700; }
 .bhc-card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--bh-text-dim); flex-wrap: wrap; }
 .bhc-card-lesson-count { color: var(--bh-text-dim); }
-.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); }
+.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); min-width: 0; }
+.bhc-card-instructor span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bhc-card-instructor img { border-radius: 50%; }
 .bhc-card-rating { color: var(--bh-accent); font-weight: 600; }
 .bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
 .bhc-continue-btn { margin-top: auto; }
 
-/* ---- catalog: filter/sort/search bar ---- */
-.bhc-catalog-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* ---- catalog: filter/sort/search bar ----
+   Same gap as the archive header above: bare inputs floating directly
+   on the page background, no container, while the cards two rows down
+   already read as a considered surface. Wrapping the whole row in one
+   slightly-recessed panel (surface-2, not surface — reads as "control
+   deck," distinct from the cards' own surface) gives it the same
+   deliberate weight, and pill-shaped controls (radius:999px) match the
+   badges/buttons vocabulary used everywhere else instead of introducing
+   a third corner-radius value into the page. */
+.bhc-catalog-filters {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: var(--bh-surface-2, #f6f6f7); border: 1px solid var(--bh-border);
+    border-radius: 14px; padding: 14px 16px;
+}
 .bhc-filter-search, .bhc-filter-select {
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 6px;
-    padding: 8px 10px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 999px;
+    padding: 9px 16px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.bhc-filter-search:focus, .bhc-filter-select:focus {
+    outline: none; border-color: var(--bh-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent) 18%, transparent);
 }
 .bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
 /* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
@@ -136,8 +284,20 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 
 /* ---- course detail header (Section 2.7) ---- */
 .bhc-course-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.bhc-course-hero { position: relative; border-radius: 12px; overflow: hidden; }
+.bhc-course-hero { position: relative; border-radius: 12px; overflow: hidden; min-height: 320px; }
 .bhc-course-hero img { display: block; width: 100%; height: 320px; object-fit: cover; }
+/* Same waveform-over-gradient treatment as the catalog card placeholder
+   (.bhc-card-thumb-placeholder) — a course with no cover uploaded yet
+   gets the same considered hero every other course gets, not a
+   noticeably plainer page. */
+.bhc-course-hero-placeholder {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 169'%3E%3Cg fill='white' fill-opacity='0.38'%3E%3Crect x='40' y='74' width='10' height='21' rx='5'/%3E%3Crect x='58' y='60' width='10' height='49' rx='5'/%3E%3Crect x='76' y='40' width='10' height='89' rx='5'/%3E%3Crect x='94' y='55' width='10' height='59' rx='5'/%3E%3Crect x='112' y='70' width='10' height='29' rx='5'/%3E%3Crect x='130' y='35' width='10' height='99' rx='5'/%3E%3Crect x='148' y='50' width='10' height='69' rx='5'/%3E%3Crect x='166' y='65' width='10' height='39' rx='5'/%3E%3Crect x='184' y='45' width='10' height='79' rx='5'/%3E%3Crect x='202' y='72' width='10' height='25' rx='5'/%3E%3Crect x='220' y='58' width='10' height='53' rx='5'/%3E%3Crect x='238' y='68' width='10' height='33' rx='5'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, color-mix(in srgb, var(--bh-accent) 26%, var(--bh-surface)) 0%, color-mix(in srgb, var(--bh-accent) 8%, var(--bh-surface)) 100%);
+    background-size: 34% auto, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+}
 .bhc-course-hero-scrim { position: absolute; inset: 0; display: flex; align-items: flex-end; background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.25) 55%, transparent 100%); }
 .bhc-course-hero-content { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 24px; }
 .bhc-course-hero-content .bhc-course-title { color: #fff; margin: 0; }
@@ -148,7 +308,7 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-course-instructor-name { display: block; font-size: 14px; font-weight: 600; color: var(--bh-text); }
 .bhc-course-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--bh-text-dim); }
 .bhc-course-terms { display: flex; flex-wrap: wrap; gap: 6px; }
-.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
+.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); white-space: nowrap; }
 .bhc-term-category { border-color: var(--bh-accent); color: var(--bh-accent); }
 .bhc-course-description { font-size: 14px; color: var(--bh-text); line-height: 1.6; }
 .bhc-course-header-cta { margin-top: 4px; }
@@ -174,12 +334,13 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-leaderboard-row.bhc-leaderboard-medal { background: var(--bh-surface-2); }
 .bhc-leaderboard-rank { flex: 0 0 32px; font-weight: 700; color: var(--bh-text-dim); text-align: center; }
 .bhc-leaderboard-medal .bhc-leaderboard-rank { font-size: 18px; }
-.bhc-leaderboard-name { flex: 1; font-size: 14px; }
+.bhc-leaderboard-name { flex: 1; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhc-leaderboard-score { font-weight: 600; color: var(--bh-accent); }
 .bhc-review-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
 .bhc-review { padding: 14px 16px; border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm, 8px); background: var(--bh-surface); }
 .bhc-review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.bhc-review-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+/* Shape now comes from the shared .bh-badge component — see .bhc-badge's
+   comment above. This class carries no shape overrides of its own. */
 .bhc-review-badge-completed { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); }
 .bhc-review-badge-enrolled { background: var(--bh-surface-2); color: var(--bh-text-dim); }
 .bhc-review-body { font-size: 14px; color: var(--bh-text); line-height: 1.5; margin: 4px 0; }
@@ -233,8 +394,10 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
     box-sizing: border-box; /* required — the mobile breakpoint below sets width:100% on this element, and without border-box its own padding+border would push it past the container's edge instead of being absorbed into that 100% */
     flex: 0 0 240px; position: sticky; top: 20px;
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
-    padding: 16px;
+    padding: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
+.bhc-sidebar-lesson-list li a { display: block; border-radius: 4px; transition: background-color .15s ease; }
+.bhc-sidebar-lesson-list li:not(.bhc-lesson-current) a:hover { background: var(--bh-surface-2, rgba(0, 0, 0, .03)); }
 .bhc-sidebar-course-link {
     display: block; font-family: var(--bh-font-heading); font-weight: 600; font-size: 14px;
     color: var(--bh-text); margin-bottom: 10px;
@@ -261,7 +424,19 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-module-lesson-list { animation: bhc-step-in 0.25s ease both; }
 
 @media (max-width: 780px) {
-    .bhc-lesson-layout { flex-direction: column; }
+    /* Real bug, caught auditing the new lesson/quiz-pass banners:
+       .bhc-lesson-layout's own align-items:flex-start (correct for the
+       desktop side-by-side layout, where sidebar and main should each
+       size to their own height) carries over once flex-direction flips
+       to column here — but on the now-vertical cross axis, flex-start
+       means "shrink to content width" instead of "stretch to fill,"
+       so .bhc-lesson-main (every step card, the quiz-pass banner, the
+       lesson-complete banner) sat narrower than the sidebar above it,
+       leaving a real dead-space gap on the right at exactly the widths
+       this breakpoint covers (tablet and the narrower end of desktop).
+       stretch here restores full-width content without touching the
+       desktop-only side-by-side behavior above this breakpoint. */
+    .bhc-lesson-layout { flex-direction: column; align-items: stretch; }
     .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
     .bhc-sidebar-lesson-list { max-height: none; }
 }
@@ -316,7 +491,20 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    interchangeable — a thin left border echoing the stepper dot's type,
    not a full re-theme (the content itself should stay the focal
    point). */
-.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+/* Real bug, caught in the same layout audit as the sidebar-width fix
+   above: neither this card nor .bhc-lesson-next (its very next sibling
+   once the last step's completion reveals it) had any margin between
+   them — two bordered, differently-colored boxes sat flush against
+   each other with zero visual separation, reading as one glued-together
+   shape rather than two distinct moments. 20px matches this card's own
+   padding, the same "gap between blocks = padding within a block"
+   rhythm .bhc-course-header/.bhc-orientation already use elsewhere in
+   this file. */
+/* Same resting-depth treatment as the catalog cards (.bhc-course-card)
+   — a faint shadow so the lesson-taking surface reads as a considered,
+   physical stack of content, not flat boxes with only a border to
+   separate them from the page background. */
+.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
 /* Scoped to the outer .bhc-step wrapper specifically — a text step's
    INNER content div is coincidentally also named .bhc-step-text (see
    render_step()'s own markup), so an unscoped rule here would double-
@@ -496,11 +684,34 @@ video.bhc-step-video {
    Kept identical to the rule above; :has() just paints it instantly
    without waiting on the change event to fire. */
 .bhc-quiz-choice.bhc-selected { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
-.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
-.bhc-quiz-result.bhc-pass { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
+.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
-.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
 .bhc-quiz-continue { display: inline-block; }
+/* Kept for the one remaining plain usage: the quiz FORM's own inline
+   "you already passed" note shown above a disabled input set (see
+   render_step()'s quiz branch) — a degraded-case note, not the review
+   banner below, so it stays a plain accent-colored line rather than
+   getting the full card treatment. */
+.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
+
+/* Passing a quiz is the one step type with real stakes (attempts,
+   scoring) already built in, so it gets its own visual register — a
+   step up from a plain step's "mark complete" but a step down from the
+   full course-completion moment (.bhc-completion below): a real
+   card, the actual score front and center, not a plain note buried in
+   with the rest of the form. Shared by both the live-submit path
+   (courses.js writes this same markup into .bhc-quiz-result on a pass)
+   and the static revisit path (BHC_Render_Lesson::render_quiz_review()),
+   so a student sees the identical moment whether they just passed or
+   are looking at an old pass. */
+.bhc-quiz-result.bhc-pass {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+    padding: 20px 16px; background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border: 1px solid var(--bh-accent); border-radius: 10px;
+}
+.bhc-quiz-pass-icon { font-size: 26px; line-height: 1; color: var(--bh-accent); margin-bottom: 2px; }
+.bhc-quiz-pass-score { font-size: 16px; font-weight: 600; margin: 0; }
+.bhc-quiz-pass-sub { font-size: 13px; color: var(--bh-text-dim); margin: 0; }
 
 /* ---- quiz per-question review/breakdown ---- */
 .bhc-quiz-review { margin-top: 8px; }
@@ -534,15 +745,85 @@ video.bhc-step-video {
 .bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 .bhc-step-back { margin-right: 8px; }
 
+/* Finishing a lesson (not the whole course — that's .bhc-completion
+   below, the biggest moment in the flow) is a real, constantly-recurring
+   beat that was previously just a plain button sitting in the same
+   plain box as "Back to lesson." Depth-of-magic pass: a filled banner
+   using --bh-accent as the actual background (not just a border/tint
+   like the quiz-pass moment above) gives it real weight without
+   competing with .bhc-completion's gradient treatment, since this
+   happens far more often and shouldn't be exhausting to see repeatedly. */
+.bhc-lesson-complete-banner {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    background: var(--bh-accent); color: var(--bh-accent-contrast, #fff);
+    border-radius: 10px; padding: 24px 20px; margin-bottom: 16px;
+    /* position:relative so courses.js's confetti pieces (absolutely
+       positioned at 50%/50% of their nearest positioned ancestor) anchor
+       to THIS banner's own center — without it they'd anchor to whatever
+       positioned ancestor happens to exist further up the tree (or the
+       viewport, if none), landing nowhere near the actual moment.
+       overflow:visible so a piece thrown past the banner's own edge
+       isn't clipped by its border-radius. */
+    position: relative; overflow: visible;
+}
+/* A distinct entrance for this specific banner, on top of the generic
+   fade-up every .bhc-step-entering block already gets (that animates
+   the whole .bhc-lesson-next wrapper, including this banner as a
+   passive child) — courses.js adds this class only to the banner
+   itself, right as it's revealed, so the PAYOFF gets its own extra
+   beat of motion instead of just riding along with the wrapper's plain
+   fade. A small overshoot (1.06 before settling at 1) reads as a pop,
+   not a mechanical scale-up. */
+.bhc-lesson-complete-banner.bhc-banner-pop { animation: bhc-banner-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes bhc-banner-pop {
+    0% { opacity: 0; transform: scale(0.85); }
+    60% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-lesson-complete-banner.bhc-banner-pop { animation: none; }
+}
+.bhc-lesson-complete-icon { font-size: 30px; line-height: 1; margin-bottom: 2px; }
+/* Consistency fix: every other "moment" title in this file
+   (.bhc-completion-title, .bhc-orientation-title, .bhc-course-title)
+   uses the heading typeface, not the body font — this one was left
+   plain/bold, reading as smaller-scale UI text rather than a real
+   headline moment. Sized to match .bhc-orientation-title (20px) rather
+   than staying smaller than it: orientation is a calm, one-time setup
+   beat by its own design intent, so the recurring PAYOFF here shouldn't
+   read as quieter than it. */
+.bhc-lesson-complete-title { font-family: var(--bh-font-heading); font-size: 20px; font-weight: 600; margin: 0; }
+.bhc-lesson-complete-stats { font-size: 13px; opacity: 0.85; margin: 0; }
+/* Back/Next grouped in one row under the banner (same shape as
+   .bhc-completion-actions below) rather than each button carrying its
+   own stacked margin-top — .bhc-btn's default margin-top is meant for a
+   lone button sitting under prose, not a pair that should read as one
+   action group. */
+.bhc-lesson-next-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bhc-lesson-next-actions .bhc-btn { margin-top: 0; }
+/* .bhc-step-back's own margin-right:8px (below, in the lesson step
+   walker section) is meant for a LONE back button with nothing after
+   it — inside this flex row it would stack on top of the row's own
+   gap:10px, spacing Back and Next further apart than every other
+   button pair in this file (10px is the shared row-gap value used by
+   .bhc-completion-actions too). Cancelled here so this row's spacing
+   matches that same 10px, not 18px. */
+.bhc-lesson-next-actions .bhc-step-back { margin-right: 0; }
+
 /* ---- course-completion moment: the one real payoff in the whole
    course-taking flow, so it gets a visually distinct treatment (a
    gradient ring derived from the same --bh-accent used everywhere else,
    not a new color) instead of sitting flush with the plain surface
    around it ---- */
+/* Same "touching boxes" bug as .bhc-step/.bhc-lesson-next above, found
+   in the same audit: on the course page this sits directly before
+   .bhc-progress-bar-large with zero gap between them (no margin-bottom
+   here, no margin-top there) — the two read as one fused shape instead
+   of a card followed by a separate progress element. */
 .bhc-completion {
     text-align: center; padding: 4px; position: relative; overflow: visible;
     background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
-    border-radius: 14px;
+    border-radius: 14px; margin-bottom: 24px;
 }
 .bhc-completion > * { background: var(--bh-surface); position: relative; z-index: 1; }
 
@@ -613,7 +894,13 @@ video.bhc-step-video {
     .bhc-stepper-dot { width: 32px; height: 32px; font-size: 12px; } /* larger tap target, not just a smaller desktop dot shrunk further */
     .bhc-btn { width: 100%; text-align: center; }
     .bhc-lesson-next { padding: 14px; }
-    .bhc-lesson-next .bhc-btn { margin-top: 8px; }
+    /* Direct-child selector, not .bhc-lesson-next .bhc-btn — a lone
+       "Back to lesson" button (the course-completion branch, a direct
+       child of .bhc-lesson-next) still needs this top margin, but
+       buttons inside .bhc-lesson-next-actions are a grandchild, one
+       level deeper, and already get consistent spacing from that row's
+       own gap:10px. An unscoped rule here doubled up with that gap. */
+    .bhc-lesson-next > .bhc-btn { margin-top: 8px; }
     .bhc-quiz-choice-review { flex-direction: column; align-items: flex-start; gap: 2px; }
     .bhc-lesson-breadcrumb { flex-direction: column; align-items: flex-start; gap: 4px; }
 }

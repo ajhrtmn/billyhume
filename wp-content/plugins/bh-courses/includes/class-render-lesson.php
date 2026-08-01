@@ -155,12 +155,36 @@ class BHC_Render_Lesson {
         // last step) so a student who completes the lesson mid-session
         // sees it appear without a page reload.
         echo '<div class="bhc-lesson-next" tabindex="-1" style="display:none;">';
-        if (count($steps) > 0) {
-            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
-        }
         if ($next_lesson_id) {
+            // A step up from a plain step's "mark complete" but a step
+            // down from the full course-completion moment below — this
+            // happens every lesson, not just once per course, so it
+            // gets a real filled banner (weight) without the gradient/
+            // confetti treatment .bhc-completion reserves for the rarer,
+            // bigger moment. The banner comes FIRST here (the payoff),
+            // with both actions grouped in a row underneath it — audit
+            // fix: "Back to lesson" used to render before the banner,
+            // landing as an orphaned button sitting above an otherwise
+            // empty gap instead of after the moment it's reacting to.
+            $quiz_total = 0;
+            foreach ($steps as $step) if ($step['type'] === 'quiz') $quiz_total++;
+            echo '<div class="bhc-lesson-complete-banner">';
+            echo '<div class="bhc-lesson-complete-icon">&#10003;</div>';
+            echo '<p class="bhc-lesson-complete-title">Lesson complete</p>';
+            $stats = count($steps) . ' of ' . count($steps) . ' steps';
+            if ($quiz_total > 0) $stats .= ' &middot; ' . $quiz_total . ' quiz' . ($quiz_total > 1 ? 'zes' : '') . ' passed';
+            echo '<p class="bhc-lesson-complete-stats">' . $stats . '</p>';
+            echo '</div>';
+            echo '<div class="bhc-lesson-next-actions">';
+            if (count($steps) > 0) {
+                echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
+            }
             echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">Next Lesson &rarr;</a>';
+            echo '</div>';
         } elseif ($course_id) {
+            if (count($steps) > 0) {
+                echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
+            }
             // The real "payoff" moment, fired the instant the final step
             // of the final lesson completes. Delegates to the shared
             // BHC_Render_Course::render_completion_screen() (stats,
@@ -464,7 +488,15 @@ class BHC_Render_Lesson {
             }
             echo '</fieldset>';
         }
-        echo '<p class="bhc-attempts-note bhc-quiz-passed-note">&#10003; You passed this quiz — score: ' . $score . '%.</p>';
+        // Same escalated banner courses.js writes into .bhc-quiz-result
+        // on a fresh live pass (see courses.js's quiz-submit handler) —
+        // a student revisiting an old pass sees the identical moment,
+        // not a plainer server-rendered version of it.
+        echo '<div class="bhc-quiz-result bhc-pass">';
+        echo '<div class="bhc-quiz-pass-icon">&#10003;</div>';
+        echo '<p class="bhc-quiz-pass-score">Quiz passed &mdash; ' . $score . '%.</p>';
+        echo '<p class="bhc-quiz-pass-sub">Nice work.</p>';
+        echo '</div>';
         echo '</div>';
         return ob_get_clean();
     }

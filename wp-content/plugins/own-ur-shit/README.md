@@ -4,7 +4,7 @@ The ecosystem core, plus its hub: shared accounts/profiles/email
 verification, shared design tokens with a Storybook-patterned live
 preview gallery, and one dashboard for installing and activating every
 peer plugin (BH Contest, BH Streaming, BH CRM, BH Registry, BH
-Monetization, BH Courses) on top of it.
+Monetization, BH Courses, BH Feedback, BH Video, BH Live) on top of it.
 
 ## What it does
 
@@ -43,11 +43,11 @@ dashboard — with zero feature plugins installed.
 
 ## Installation
 
-Two ways to get all seven plugins, depending on how you're deploying:
+Two ways to get all ten plugins, depending on how you're deploying:
 
 1. **Standard "Upload Plugin" button** (wp-admin → Plugins → Add New →
    Upload Plugin): upload this plugin's own zip. It's structurally a
-   single valid plugin — the other six ship as inert zip files inside
+   single valid plugin — the other nine ship as inert zip files inside
    its own folder — so the normal upload flow accepts it without
    complaint. Once active, use the dashboard to install and activate the
    rest.

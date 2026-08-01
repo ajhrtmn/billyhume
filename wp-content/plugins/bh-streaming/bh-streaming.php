@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.16
+ * Version:     0.5.18
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.16');
+define('BHS_VER',  '0.5.18');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
@@ -85,7 +85,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types', 'privacy'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -164,6 +164,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_StyleSurface', 'init']);
     add_action('init',          ['BHS_CRMIntegration', 'init']);
     add_action('init',          ['BHS_Stats', 'init']);
+    add_action('init',          ['BHS_Privacy', 'init']);
     add_action('init',          ['BHS_Chapters', 'init']);
     add_action('init',          ['BHS_VideoPostTypes', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHS_TestSuite', 'init']);

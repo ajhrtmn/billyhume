@@ -176,13 +176,25 @@ class BH_AdminReports {
                     'email' => $user->user_email, 'subject' => "You placed in {$contest_title}!", 'body' => $body,
                 ]);
                 $queued++;
-            } elseif (wp_mail($user->user_email, "You placed in {$contest_title}!", $body)) {
+            } else {
                 // No job queue active (shouldn't happen — same plugin,
                 // same activation) — fail toward still sending rather
-                // than silently dropping the notification.
-                $queued++;
-            } elseif (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('warning', "Winner-notification email failed (no job queue fallback path).", ['contest_id' => $cid, 'user_id' => $uid], 'BH Contest');
+                // than silently dropping the notification. BH_Mail::send()
+                // already logs its own failure via OUS_DebugLog (see
+                // class-mail.php) — the explicit log below only covers
+                // the raw wp_mail() fallback, so a failure is never
+                // logged twice.
+                $sent = class_exists('BH_Mail')
+                    ? BH_Mail::send([
+                        'to' => $user->user_email, 'user_id' => $uid, 'subject' => "You placed in {$contest_title}!", 'body' => $body,
+                        'source' => 'BH Contest', 'log_context' => ['contest_id' => $cid],
+                    ])
+                    : wp_mail($user->user_email, "You placed in {$contest_title}!", $body);
+                if ($sent) {
+                    $queued++;
+                } elseif (!class_exists('BH_Mail') && class_exists('OUS_DebugLog')) {
+                    OUS_DebugLog::log('warning', "Winner-notification email failed (no job queue fallback path).", ['contest_id' => $cid, 'user_id' => $uid], 'BH Contest');
+                }
             }
         }
         if (class_exists('OUS_DebugLog')) {
@@ -199,6 +211,13 @@ class BH_AdminReports {
         $body = $args['body'] ?? '';
         if (!$email || !$subject || !$body) return;
 
+        if (class_exists('BH_Mail')) {
+            BH_Mail::send([
+                'to' => $email, 'user_id' => (int) ($args['user_id'] ?? 0), 'subject' => $subject, 'body' => $body,
+                'source' => 'BH Contest', 'log_context' => ['contest_id' => $args['contest_id'] ?? 0],
+            ]);
+            return;
+        }
         if (!wp_mail($email, $subject, $body) && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('warning', 'Winner-notification email failed to send.', [
                 'contest_id' => $args['contest_id'] ?? 0, 'user_id' => $args['user_id'] ?? 0, 'email' => $email,

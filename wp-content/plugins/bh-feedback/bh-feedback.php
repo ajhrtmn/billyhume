@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Feedback
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on Own Ur Shit's shared identity/wallet.
- * Version:     0.1.1
+ * Version:     0.1.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
@@ -27,7 +27,7 @@ if (!defined('ABSPATH')) exit;
 // separately.
 define('BHF_PATH', plugin_dir_path(__FILE__));
 define('BHF_URL',  plugin_dir_url(__FILE__));
-define('BHF_VER',  '0.1.1');
+define('BHF_VER',  '0.1.3');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo

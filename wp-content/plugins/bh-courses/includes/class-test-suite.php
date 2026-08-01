@@ -196,6 +196,65 @@ class BHC_TestSuite {
             $rows = array_merge($rows, self::run_leaderboard_tests());
         }
 
+        /* ---------- is_course_completed() vs a course whose content changed after completion ----------
+         * Bug found via live walkthrough (2026-07-26): a bhc_completions
+         * row is permanent once written, so adding a new lesson to an
+         * already-completed course left is_course_completed() (and
+         * every one of its 7 callers — certificate download, share
+         * cards, the completion-screen banner, etc.) still reporting
+         * "done" against content the student never saw. Fixed by
+         * requiring course_percent() === 100 too, not just the row's
+         * existence. Real fixture course + real lesson posts (course_
+         * percent() needs BHC_Steps::count() to read real _bhc_steps
+         * postmeta, unlike run_quiz_average_tests()'s fake lesson IDs
+         * further up this file, which only ever exercise bhc_progress
+         * directly). */
+        if (class_exists('OUS_Debug')) {
+            $rows = array_merge($rows, self::run_completion_consistency_tests());
+        }
+
+        return $rows;
+    }
+
+    private static function run_completion_consistency_tests() {
+        $rows = [];
+        $uid = OUS_Debug::get_or_create_test_user('bhc_completion_consistency_suite', false);
+
+        $course_id = wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'BHC Test Suite Completion-Consistency Fixture'], true);
+        $lesson_a = wp_insert_post(['post_type' => 'bhc_lesson', 'post_status' => 'publish', 'post_title' => 'Fixture Lesson A', 'meta_input' => ['_bhc_course_id' => $course_id]], true);
+        if (is_wp_error($course_id) || is_wp_error($lesson_a)) {
+            return [['name' => 'BHC_TestSuite completion-consistency fixture insert failed', 'pass' => false, 'message' => '']];
+        }
+        BHC_Steps::save($lesson_a, [['type' => 'text', 'content' => 'Step one']]);
+        update_post_meta($course_id, '_bhc_lesson_order', [$lesson_a]);
+
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 0);
+        $rows[] = OUS_TestRunner::assert_same(100, BHC_Progress::course_percent($uid, $course_id), 'course_percent(): 100 once the only lesson\'s only step is complete');
+        $rows[] = OUS_TestRunner::assert_true(BHC_Progress::is_course_completed($uid, $course_id), 'is_course_completed(): true once course_percent() genuinely reads 100 and a completions row exists');
+
+        // The bug scenario: a new lesson gets added to the course AFTER
+        // this student already completed it.
+        $lesson_b = wp_insert_post(['post_type' => 'bhc_lesson', 'post_status' => 'publish', 'post_title' => 'Fixture Lesson B (added later)', 'meta_input' => ['_bhc_course_id' => $course_id]], true);
+        BHC_Steps::save($lesson_b, [['type' => 'text', 'content' => 'Step one of the new lesson']]);
+        update_post_meta($course_id, '_bhc_lesson_order', [$lesson_a, $lesson_b]);
+
+        $rows[] = OUS_TestRunner::assert_same(50, BHC_Progress::course_percent($uid, $course_id), 'course_percent(): correctly recalculates against the CURRENT lesson set (drops to 50 once a second, unfinished lesson exists)');
+        $rows[] = OUS_TestRunner::assert_false(BHC_Progress::is_course_completed($uid, $course_id), 'is_course_completed(): false now, even though a bhc_completions row still exists from before the new lesson was added — this is the exact bug the live walkthrough found');
+
+        // Completing the new lesson too restores full completion.
+        BHC_Progress::mark_step_complete($uid, $lesson_b, 0);
+        $rows[] = OUS_TestRunner::assert_same(100, BHC_Progress::course_percent($uid, $course_id), 'course_percent(): back to 100 once the newly-added lesson is also completed');
+        $rows[] = OUS_TestRunner::assert_true(BHC_Progress::is_course_completed($uid, $course_id), 'is_course_completed(): true again once the student has genuinely finished everything currently in the course');
+
+        // Cleanup.
+        global $wpdb;
+        $wpdb->delete($wpdb->prefix . 'bhc_progress', ['user_id' => $uid, 'lesson_id' => $lesson_a]);
+        $wpdb->delete($wpdb->prefix . 'bhc_progress', ['user_id' => $uid, 'lesson_id' => $lesson_b]);
+        $wpdb->delete($wpdb->prefix . 'bhc_completions', ['user_id' => $uid, 'course_id' => $course_id]);
+        wp_delete_post($lesson_a, true);
+        wp_delete_post($lesson_b, true);
+        wp_delete_post($course_id, true);
+
         return $rows;
     }
 

@@ -2,11 +2,18 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.9.2
+ * Version:     3.9.8
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.9.3 — OUS_Badge (class-badge.php): a small reusable status-badge
+// helper for flagging a specific FEATURE (not a whole plugin) as
+// alpha/beta/experimental, added when bh-social needed a way to mark
+// its untested-against-a-live-account platform integrations. See
+// class-badge.php's own docblock for why this exists as a render
+// helper rather than a registry-tracked flag.
+//
 // 3.7.8 — ecosystem depth-pass Tier 1c: OUS_UserBar
 // (class-user-bar.php), the front-end user bar VISION.md names
 // directly — a bottom-docked bar, styled with this site's own --bh-*
@@ -598,7 +605,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.9.2');
+define('OUS_VER', '3.9.8');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -952,7 +959,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -979,6 +986,9 @@ add_action('init',          ['OUS_Metrics', 'init']);
 add_action('init',          ['OUS_StyleSurface', 'init']);
 add_action('rest_api_init', ['BHI_Reports', 'register_routes']);
 add_action('init',          ['BHI_TwoFactor', 'init']);
+add_action('init',          ['OUS_Privacy', 'init']);
+add_action('init',          ['OUS_DMCA', 'init']);
+add_action('init',          ['OUS_DMCA_Notices', 'init']);
 
 add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
 // QA fix, 3.4.85: OUS_Jobs::init()/OUS_Notifications::init() both
@@ -1118,7 +1128,8 @@ add_action('init',          ['BHY_BlockStyle', 'init']);
 // wide, so a token-based color set anywhere else produced a real but
 // inert CSS declaration.
 add_action('init',          ['BHY_Style', 'init']);
-// PAGE-BUILDER-DELETE-KEEP-AUDIT.md (2026-07-13) — real, live-verified
+// Page-builder delete/keep audit (2026-07-13, doc since deleted — the
+// reasoning below is the full record now) — real, live-verified
 // cleanup, not a guess: BH_Element/BH_Element_Data (the data model +
 // render_slot() engine, immediately above) are confirmed LIVE — real
 // pages in bh-contest, bh-crm, bh-courses, own-ur-shit's own dashboard/
@@ -1139,8 +1150,9 @@ add_action('init',          ['BHY_Style', 'init']);
 // render_callback()s are simpler and more idiomatic). All four files
 // (plus assets/js/element-builder.js, assets/css/element-builder.css,
 // assets/js/component-studio.js, assets/css/component-studio.css) are
-// deleted, not just unhooked — PAGE-BUILDER-DELETE-KEEP-AUDIT.md's own
-// table has the full file-by-file reasoning and line counts.
+// deleted, not just unhooked — the audit doc's own table had the full
+// file-by-file reasoning and line counts; this comment is now the
+// summary of record since that doc was deleted.
 //
 // OUS_Gutenberg_Block (class-gutenberg-block.php) is DELIBERATELY LEFT
 // IN PLACE, unlike the others — its own register_block() already guards

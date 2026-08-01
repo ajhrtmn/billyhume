@@ -51,7 +51,9 @@ if ($is_block_theme && function_exists('block_header_area') && function_exists('
 <?php block_header_area(); ?>
 <main id="bhc-course-archive" class="bhc-archive-main">
     <header class="bhc-archive-header">
+        <span class="bhc-archive-kicker"><?php esc_html_e('Course Catalog', 'bh-courses'); ?></span>
         <h1 class="bhc-archive-title"><?php esc_html_e('Courses', 'bh-courses'); ?></h1>
+        <div class="bhc-archive-rule" aria-hidden="true"></div>
     </header>
     <?php echo $catalog_html; ?>
 </main>
@@ -65,7 +67,9 @@ if ($is_block_theme && function_exists('block_header_area') && function_exists('
     ?>
 <main id="bhc-course-archive" class="bhc-archive-main">
     <header class="bhc-archive-header">
+        <span class="bhc-archive-kicker"><?php esc_html_e('Course Catalog', 'bh-courses'); ?></span>
         <h1 class="bhc-archive-title"><?php esc_html_e('Courses', 'bh-courses'); ?></h1>
+        <div class="bhc-archive-rule" aria-hidden="true"></div>
     </header>
     <?php echo $catalog_html; ?>
 </main>

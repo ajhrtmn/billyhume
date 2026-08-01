@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) exit;
  *   what actually happened, not just a single opaque number.
  */
 class BHM_Activator {
-    const DB_VERSION = '1.6'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php); 1.6 added bhm_purchase_ledger (ledger-anchored proof of purchase — see class-purchase-ledger.php, ROADMAP-streaming-media-scope-and-blockchain.md Part 2)
+    const DB_VERSION = '1.7'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php); 1.6 added bhm_purchase_ledger (ledger-anchored proof of purchase — see class-purchase-ledger.php, ROADMAP-streaming-media-scope-and-blockchain.md Part 2); 1.7 added bhm_wallet.held_cents + bhm_auction_bids (auction listings, ROADMAP-platform-evolution.md Section 5a — see class-auctions.php)
 
     public static function activate() {
         if (self::create_or_update_schema()) {
@@ -92,9 +92,20 @@ class BHM_Activator {
             KEY user_lookup (user_id, type, scope, object_id)
         ) $charset;");
 
+        // held_cents (1.7): funds committed to an open auction bid but not
+        // yet captured — a separate column, not a second row/table,
+        // because "how much can this user still spend right now" is
+        // balance_cents - held_cents, computed on every hold() the exact
+        // same atomic-UPDATE-with-WHERE-clause way debit() already avoids
+        // a TOCTOU race for plain plays (see class-wallet.php's hold()).
+        // A bid never actually debits balance_cents until the auction
+        // closes and that bidder has won (capture_hold()) — losing or
+        // being outbid only ever needs held_cents released, the
+        // spendable balance itself was never touched.
         dbDelta("CREATE TABLE $wallet (
             user_id bigint(20) unsigned NOT NULL,
             balance_cents bigint(20) NOT NULL DEFAULT 0,
+            held_cents bigint(20) NOT NULL DEFAULT 0,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (user_id)
         ) $charset;");
@@ -260,6 +271,29 @@ class BHM_Activator {
             KEY anchor_status (anchor_status)
         ) $charset;";
         dbDelta($purchase_ledger_sql);
+
+        // Auction listings (1.7, ROADMAP-platform-evolution.md Section
+        // 5a) — "reuse existing product/tier machinery with an auction
+        // pricing mode" was the agreed shape, not a new CPT: an auction
+        // IS a real WooCommerce product (see class-auctions.php), this
+        // table is only the per-bid history that product/tier machinery
+        // has no equivalent of. status: 'active' (still the current
+        // high bid) | 'outbid' (a later bid beat it) | 'won' | 'refunded'
+        // (reserve wasn't met, or the auction never finalized in this
+        // bidder's favor — held funds were released either way).
+        $auction_bids = $wpdb->prefix . 'bhm_auction_bids';
+        $auction_bids_sql = "CREATE TABLE $auction_bids (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            product_id bigint(20) unsigned NOT NULL,
+            user_id bigint(20) unsigned NOT NULL,
+            amount_cents bigint(20) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'active',
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY product_id (product_id, amount_cents),
+            KEY user_id (user_id)
+        ) $charset;";
+        dbDelta($auction_bids_sql);
 
         if ($wpdb->last_error) return false;
         foreach ([$entitlements, $wallet, $ledger, $play_log, $fingerprints, $gifts, $referral_codes, $referrals, $purchase_ledger] as $t) {

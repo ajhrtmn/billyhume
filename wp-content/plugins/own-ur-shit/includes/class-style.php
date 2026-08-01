@@ -44,8 +44,135 @@ class BHY_Style {
         add_filter('block_editor_settings_all', [self::class, 'add_editor_iframe_styles']);
     }
 
+    /**
+     * Prints all three front-end CSS layers, in layer order — see
+     * STYLE-SYSTEM.md at the plugins root for the full 4-layer model
+     * (tokens / utilities / components / plugin-local) this file and
+     * class-ui.php's admin-side equivalent both follow. Quick map for
+     * "where does my new rule go":
+     *   inline_css()             — LAYER 1, tokens (--bh-* custom
+     *                               properties only, no selectors).
+     *   text_overflow_utils_css()— LAYER 2, utilities (.bh-truncate,
+     *                               .bh-clamp-2/3, .bh-nowrap — generic,
+     *                               single-purpose, composable).
+     *   badge_css()               — LAYER 3, components (.bh-badge and
+     *                               its color/truncate modifiers — a
+     *                               named, reusable UI piece built from
+     *                               the two layers above).
+     * Anything more specific than these three belongs in the consuming
+     * plugin's own .css file (LAYER 4), referencing these tokens/
+     * utilities/components rather than re-declaring them.
+     */
     public static function print_global_css() {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
+        echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
+        echo '<style id="bh-badge">' . self::badge_css() . '</style>';
+    }
+
+    /**
+     * Shared front-end text-overflow utility classes — the client-side
+     * counterpart to class-ui.php's admin-only .bhy-badge/.bhy-truncate
+     * (that file's own doc comment already argues for "reuse instead of
+     * one-off inline overflow handling per call site"; this is the same
+     * argument for every plugin's own front-end stylesheet). Printed
+     * once, site-wide, via the same wp_head hook print_global_css()
+     * already uses for --bh-* tokens — any plugin's markup can reach for
+     * these instead of re-inventing nowrap/ellipsis/line-clamp per
+     * component. One rule per content shape:
+     *
+     *   .bh-nowrap         — a badge/pill with a short, FIXED-length
+     *                        label (a status word like "up to date",
+     *                        "Active", "Draft"). Never wraps onto a
+     *                        second line — a chip breaking mid-phrase
+     *                        (e.g. "up to" / "date") is always wrong,
+     *                        and a fixed-vocabulary label has no length
+     *                        risk to guard against, so plain nowrap is
+     *                        enough on its own.
+     *   .bh-badge-truncate — a badge/pill whose content is dynamic/
+     *                        unbounded (a user-entered tag, a username,
+     *                        an artist-chosen category name) — nowrap
+     *                        ALONE would just blow out the layout
+     *                        instead of wrapping ugly. Bounds the badge
+     *                        to a sane max-width and truncates with an
+     *                        ellipsis instead. Pair with title="..."
+     *                        carrying the full text, same reasoning as
+     *                        .bh-truncate below.
+     *   .bh-truncate       — single-line truncation for non-badge
+     *                        content (table cells, list titles, file
+     *                        names). Pair with a real title="..."
+     *                        attribute carrying the FULL text — this
+     *                        only hides content visually for a sighted
+     *                        mouse user, who needs some way to recover
+     *                        it; a screen reader already gets the
+     *                        untruncated DOM text regardless.
+     *   .bh-clamp-2 / .bh-clamp-3 — multi-line clamp (card titles/
+     *                    descriptions — a course/lesson card, a product
+     *                    card). Ends in a real ellipsis at a fixed line
+     *                    count instead of either overflowing the card's
+     *                    own layout or cutting off with no visual
+     *                    indicator that text is missing.
+     *
+     * Deliberately NOT a rule for long unbreakable tokens (URLs, hashes) —
+     * that's `overflow-wrap: break-word` on the specific element showing
+     * one, applied inline where it's needed rather than a reusable class,
+     * since (unlike the ones above) the goal there is showing the FULL
+     * string, just wrapped gracefully instead of truncated.
+     */
+    private static function text_overflow_utils_css() {
+        return '.bh-nowrap{white-space:nowrap;}'
+            . '.bh-badge-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;display:inline-block;vertical-align:bottom;}'
+            . '.bh-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
+            . '.bh-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}'
+            . '.bh-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}';
+    }
+
+    /**
+     * Front-end counterpart to class-ui.php's admin-only .bhy-badge —
+     * this exact "small pill, ~11px text, ~999px radius" shape was
+     * independently hand-rolled at least 8 times across the ecosystem's
+     * front-end stylesheets (bh-courses' .bhc-badge/.bhc-term/
+     * .bhc-review-badge, bh-streaming's .bhs-badge, bh-crm's
+     * .bhcrm-kanban-stalled-badge, bh-registry's .bhr-badge, bh-live's
+     * .bhl-live-badge, bh-feedback's .bhf-badge, bh-monetization-woo's
+     * .bhm-badge/.bhm-billing-badge/.bhm-amount-chip), each with its own
+     * ad hoc color literal and inconsistent white-space handling — the
+     * 2026-08 CSS-file audit's single clearest "belongs in the shared
+     * system" finding. One definition here instead of a ninth.
+     *
+     * Deliberately fixed semantic colors (success/warning/danger), not
+     * themeable via inline_css()'s per-entity color settings — these are
+     * status colors (a submission is "open" or "closed" regardless of
+     * a track's brand palette), not brand colors, so they don't belong
+     * in the same override system as --bh-accent/--bh-surface/etc.
+     *
+     * --bh-success is deliberately #1DB954 (Spotify green), NOT a mirror
+     * of class-ui.php's admin --bhy-success (#1a7f37, WP-admin-style
+     * muted green). The 2026-08 audit found #1DB954 already pervasive
+     * across the front-end ecosystem's OWN established "open/live/
+     * attached/success" convention (bh-contest, bh-streaming,
+     * bh-monetization-woo, bh-registry) well before this token existed —
+     * an earlier version of this token copied the admin shade instead
+     * and would have been a 4th, unused green nobody was actually
+     * calling. Admin intentionally keeps its own muted --bhy-success;
+     * front-end and admin are allowed to disagree here since they're
+     * different visual contexts (a WP-admin screen vs. a themed public
+     * page) that happened to reach different colors independently.
+     */
+    private static function badge_css() {
+        return ':root{'
+            . '--bh-success:#1DB954;--bh-success-bg:rgba(29,185,84,0.15);'
+            . '--bh-warning:#8a5a00;--bh-warning-bg:#fef3e2;'
+            . '--bh-danger:#b3261e;--bh-danger-bg:#fbe4e2;'
+            . '}'
+            . '.bh-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}'
+            . '.bh-badge-success{background:var(--bh-success-bg);color:var(--bh-success);}'
+            . '.bh-badge-warning{background:var(--bh-warning-bg);color:var(--bh-warning);}'
+            . '.bh-badge-danger{background:var(--bh-danger-bg);color:var(--bh-danger);}'
+            . '.bh-badge-neutral{background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}';
+        // Need a truncating badge? Combine with the existing
+        // .bh-badge-truncate utility from text_overflow_utils_css()
+        // above (class="bh-badge bh-badge-success bh-badge-truncate")
+        // rather than a third variant here.
     }
 
     public static function add_editor_iframe_styles($settings) {

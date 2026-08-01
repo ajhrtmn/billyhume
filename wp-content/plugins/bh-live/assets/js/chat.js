@@ -33,9 +33,21 @@ window.BHLChatWidget = (function () {
                 seenIds[m.id] = true;
                 var row = document.createElement('div');
                 row.className = 'bhl-chat-message';
-                row.innerHTML = '<strong></strong> <span></span>';
+                // source (ROADMAP-obs-integration.md Phase 3) — 'ecosystem'
+                // for this ecosystem's own chat gets no tag at all, so
+                // existing streams look exactly as they did before this
+                // shipped; only relayed Twitch/YouTube messages get one,
+                // since a merged feed is unreadable without knowing which
+                // platform a name is coming from.
+                var tag = '';
+                if (m.source && m.source !== 'ecosystem') {
+                    row.classList.add('bhl-chat-message--' + m.source);
+                    tag = '<span class="bhl-chat-source-tag"></span> ';
+                }
+                row.innerHTML = tag + '<strong></strong> <span class="bhl-chat-text"></span>';
+                if (tag) row.querySelector('.bhl-chat-source-tag').textContent = m.source === 'twitch' ? 'Twitch' : 'YouTube';
                 row.querySelector('strong').textContent = m.display_name + ':';
-                row.querySelector('span').textContent = m.message;
+                row.querySelector('.bhl-chat-text').textContent = m.message;
                 log.appendChild(row);
                 lastId = Math.max(lastId, m.id);
             });

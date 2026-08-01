@@ -80,7 +80,7 @@ class BHF_Admin {
                . '<td>' . esc_html($r->post_title) . '</td>'
                . '<td>' . esc_html($author ? $author->user_login : '#' . $r->post_author) . '</td>'
                . '<td>' . esc_html(class_exists('BHF_Pricing') ? BHF_Pricing::label_for($tier) : $tier) . '</td>'
-               . '<td><span class="bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span></td>'
+               . '<td><span class="bh-badge bhf-badge bhf-badge-' . esc_attr($status) . '">' . esc_html(ucfirst($status)) . '</span></td>'
                . '<td>' . esc_html(get_the_date('M j, Y', $r)) . '</td>'
                . '</tr>';
         }

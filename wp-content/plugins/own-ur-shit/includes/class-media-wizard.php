@@ -212,7 +212,7 @@ class OUS_MediaWizard {
         }
 
         if ($has_advmo) {
-        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>Why this matters, especially for video:</strong> a single long, high-resolution video served straight from ordinary WordPress hosting can eat up your host\'s bandwidth allowance fast, or slow down for everyone else on shared hosting. Moving media to real object storage behind a CDN fixes both — your own server just stores a pointer, the CDN does the heavy lifting, and viewers get fast, reliable playback (including proper seeking/scrubbing) regardless of file size.</p>';
         echo '</div>';
 
@@ -292,7 +292,7 @@ class OUS_MediaWizard {
 
         echo '<hr style="max-width:760px;margin:32px 0;">';
         echo '<h2>Live Streaming</h2>';
-        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>Why this is separate from storage above:</strong> real-time live video (RTMP ingest, transcoding, low-latency delivery) genuinely can\'t run on ordinary shared WordPress hosting. Two real choices, opposite tradeoffs: <strong>Owncast</strong> is free and self-hosted, but needs its own server somewhere (deploy one below, or self-host it yourself); <strong>Cloudflare Stream Live</strong> is fully managed (no server at all to run), metered per minute, and video-only (no bundled chat).</p>';
         echo '</div>';
 
@@ -430,7 +430,7 @@ class OUS_MediaWizard {
         $result = get_transient('ous_media_wizard_workers_result');
         delete_transient('ous_media_wizard_workers_result');
 
-        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>Real-time chat via Cloudflare Workers:</strong> true WebSocket delivery (not a poll), deployed to your own Cloudflare account with one click below — but anonymous and unmoderated in this first version (no WordPress-login awareness yet), and typically requires Cloudflare\'s Workers Paid plan for Durable Objects. Reuses the Account ID/API Token entered above.</p>';
         echo '</div>';
 
@@ -480,7 +480,7 @@ class OUS_MediaWizard {
 
         echo '<hr style="max-width:760px;margin:32px 0;">';
         echo '<h2>Deploy a live server (optional)</h2>';
-        echo '<div class="bhy-alert" style="border-left:3px solid #2271b1;background:#f6f7f7;padding:14px;margin:16px 0;max-width:760px;">';
+        echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>' . esc_html($provider['name']) . ':</strong> ' . esc_html($provider['why']) . ' A one-time step this can\'t do for you: allocate a dedicated public IPv4 for RTMP (<code>fly ips allocate-v4 -a ' . esc_html($settings['app_name'] ?: '&lt;app-name&gt;') . '</code>) — Fly\'s API has no endpoint for that at all, only their CLI/GraphQL API.</p>';
         echo '</div>';
 

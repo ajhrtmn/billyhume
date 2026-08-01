@@ -88,7 +88,7 @@ These are ordinary CPT list-tables and dedicated admin pages, not style-surface 
 
 Already converted to a real `BH_Element`-backed surface (the reference pattern for Part 3). The People list (`admin.php?page=bh-crm-hub`) is a straightforward roster with tag filters, search, and CSV export; clicking a name opens the live-rendered profile detail view, editable from the Design Suite the same way any other real surface is. Known gap, not a GUI bug: bh-crm isn't wired to `bhcore_events` yet, so the Activity section on a profile doesn't include pre-signup event history — this is a data-completeness gap, not a rendering one, and is explicitly next on bh-crm's own list rather than an oversight.
 
-**Project Tracker — `admin.php?page=bh-crm-projects`.** A real kanban board system built entirely on `BH_Element`, listing every project across all people with a link into that person's actual board. Solid, no rendering pitfalls identified. Feature-completeness gap (documented elsewhere, not a bug): reusable checklists, timestamped fixes, a feedback log, stall analytics, and file-linking are all designed in `PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md` but not built — worth knowing before promising parity with a tool like TrackIt.
+**Project Tracker — `admin.php?page=bh-crm-projects`.** A real kanban board system built entirely on `BH_Element`, listing every project across all people with a link into that person's actual board. Solid, no rendering pitfalls identified. Reusable checklists (nested-kanban sub-tasks), timestamped fixes/a feedback log, stall analytics, Idea Drop, and separate scenes/boards are all shipped now (see `STATUS.md`) — the plan doc that originally scoped these was deleted once fully consumed.
 
 ## bh-courses — Lessons and Student Progress
 
