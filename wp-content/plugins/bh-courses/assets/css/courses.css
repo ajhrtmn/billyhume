@@ -344,8 +344,10 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
     box-sizing: border-box; /* required — the mobile breakpoint below sets width:100% on this element, and without border-box its own padding+border would push it past the container's edge instead of being absorbed into that 100% */
     flex: 0 0 240px; position: sticky; top: 20px;
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
-    padding: 16px;
+    padding: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
+.bhc-sidebar-lesson-list li a { display: block; border-radius: 4px; transition: background-color .15s ease; }
+.bhc-sidebar-lesson-list li:not(.bhc-lesson-current) a:hover { background: var(--bh-surface-2, rgba(0, 0, 0, .03)); }
 .bhc-sidebar-course-link {
     display: block; font-family: var(--bh-font-heading); font-weight: 600; font-size: 14px;
     color: var(--bh-text); margin-bottom: 10px;
@@ -448,7 +450,11 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    padding, the same "gap between blocks = padding within a block"
    rhythm .bhc-course-header/.bhc-orientation already use elsewhere in
    this file. */
-.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+/* Same resting-depth treatment as the catalog cards (.bhc-course-card)
+   — a faint shadow so the lesson-taking surface reads as a considered,
+   physical stack of content, not flat boxes with only a border to
+   separate them from the page background. */
+.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
 /* Scoped to the outer .bhc-step wrapper specifically — a text step's
    INNER content div is coincidentally also named .bhc-step-text (see
    render_step()'s own markup), so an unscoped rule here would double-
