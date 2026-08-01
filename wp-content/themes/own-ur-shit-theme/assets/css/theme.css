@@ -1,0 +1,578 @@
+/*
+ * Own Ur Shit theme chrome.
+ *
+ * Deliberately namespaced under .oust-* / oust- classes throughout —
+ * distinct from every plugin's own prefix (bh-, bhc-, bhy-, bhi-) — so
+ * theme and plugin CSS can never collide or accidentally override one
+ * another, even though both read the SAME --bh-* custom-property tokens
+ * (own-ur-shit/includes/class-style.php, printed via wp_head on every
+ * front-end page already). The theme intentionally invents zero new
+ * colors/spacing values of its own — every fallback below matches the
+ * ecosystem's own default "The Door" palette (class-style.php DEFAULTS
+ * / bh-contest/assets/css/player.css :root), so an install with no
+ * BHY_Style settings saved yet still looks correct, not just once a
+ * plugin's inline_css() has run.
+ *
+ * Reference implementations pulled from: bh-contest/assets/css/player.css
+ * (pill buttons, --bh-font-display for headings, --bh-accent-muted-bg,
+ * disc/bar depth language) and bh-courses/assets/css/courses.css
+ * (Streamline Moderne kicker+rule header, card grid depth/hover,
+ * gradient+SVG placeholder art). own-ur-shit/includes/class-user-bar.php
+ * already reserves bottom viewport space via body.bhi-has-user-bar
+ * (padding-bottom) — this stylesheet does not duplicate that.
+ */
+
+/* ---------------- Reset ---------------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+body {
+    margin: 0;
+    background: var(--bh-bg, #170807);
+    color: var(--bh-text, #EDDFCB);
+    font-family: var(--bh-font-body, 'Inter', 'Segoe UI', sans-serif);
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.oust-main { flex: 1 0 auto; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* Accessibility audit finding: --bh-accent (#C1503A in the default
+   preset) on --bh-bg is only 4.17:1 in "The Door — Night" and 3.92:1 in
+   "The Door — Day" — both fail WCAG AA (4.5:1) for normal-size text,
+   even though the two presets sit at opposite ends of the lightness
+   scale. Neither --bh-accent-soft nor --bh-accent-hover fix this
+   universally: they lighten/darken in one FIXED direction, so whichever
+   one helps a dark preset actively makes a light preset worse (checked:
+   --bh-accent-soft on Door Day's light bg is 1.53:1). Every accent-
+   colored TEXT use in this file (kickers, link color, "current page"
+   nav state, etc.) instead mixes toward --bh-text — which is always
+   independently tuned by whoever set up that preset for ~15:1 contrast
+   against bg — so the mix reliably lands >=4.5:1 in either direction
+   without this theme needing to know if a given preset is light or
+   dark. Verified against three real presets: Door Night 6.61:1, Door
+   Day 6.37:1, Neon Vinyl 8.71:1. Decorative, non-text accent uses
+   (rules, borders, button backgrounds with contrast-safe text on top)
+   are unaffected and still use plain --bh-accent. */
+a { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+a:hover { color: var(--bh-text, #EDDFCB); }
+h1, h2, h3, h4, h5, h6 { font-family: var(--bh-font-display, 'Space Grotesk', 'Segoe UI', sans-serif); font-weight: 700; line-height: 1.2; margin: 0 0 0.5em; }
+p { margin: 0 0 1em; }
+.screen-reader-text {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.screen-reader-text:focus {
+    position: fixed; top: 8px; left: 8px; width: auto; height: auto; padding: 10px 16px;
+    background: var(--bh-surface, #220C0A); color: var(--bh-text, #EDDFCB); z-index: 100000;
+    border-radius: 6px; clip: auto;
+}
+.oust-skip-link { z-index: 100000; }
+
+/* Explicit, high-contrast focus ring everywhere interactive — nav
+   links, buttons, cards, and pagination all sit on the dark surface
+   tokens where a default browser outline can be nearly invisible. */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
+.oust-card:focus-within, .oust-nav-toggle:focus-visible {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 3px; border-radius: 4px;
+}
+
+/* ---------------- Containers ---------------- */
+.oust-container { max-width: 1200px; margin: 0 auto; padding: 40px 24px 64px; box-sizing: border-box; }
+.oust-container-narrow { max-width: 800px; }
+@media (max-width: 600px) {
+    .oust-container { padding: 28px 16px 48px; }
+}
+
+/* ---------------- Site header / nav ----------------
+   Streamline Moderne cue: confident geometric brand type, a thin
+   accent underline standing in for the era's speed-line motif, pill
+   nav items matching the badge/button vocabulary the plugins already
+   use (border-radius:999px). */
+/* top:0 alone collides with wp-admin's own #wpadminbar (fixed,
+   z-index 99999, 32px tall desktop / 46px at the mobile breakpoint it
+   itself uses) whenever a logged-in user with the admin bar showing
+   views the front end — WP core adds these exact heights via
+   body.admin-bar's own margin-top, so reusing them here keeps the
+   sticky offset correct at both breakpoints without inventing a new
+   number. z-index kept well below 99999 so the admin bar always wins
+   the overlap on the rare frame where they still touch. */
+.oust-site-header {
+    position: sticky; top: 0; z-index: 400;
+    background: color-mix(in srgb, var(--bh-surface, #220C0A) 92%, transparent);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--bh-border, #3D1B14);
+}
+body.admin-bar .oust-site-header { top: 32px; }
+@media screen and (max-width: 782px) {
+    body.admin-bar .oust-site-header { top: 46px; }
+}
+.oust-site-header-inner {
+    max-width: 1200px; margin: 0 auto; padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    height: 72px;
+}
+.oust-site-brand {
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    text-decoration: none; min-width: 0;
+}
+.oust-site-brand:hover { color: var(--bh-text, #EDDFCB); }
+.oust-site-brand-kicker {
+    font-family: var(--bh-font-display, sans-serif); font-size: 10px; font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB));
+}
+.oust-site-brand-name {
+    font-family: var(--bh-font-display, sans-serif); font-size: 20px; font-weight: 700;
+    letter-spacing: -.01em; color: var(--bh-text, #EDDFCB);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;
+}
+.oust-site-brand .custom-logo { max-height: 44px; width: auto; display: block; }
+
+.oust-primary-nav { min-width: 0; }
+.oust-nav-list {
+    display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0;
+}
+.oust-nav-list li { position: relative; }
+.oust-nav-list a {
+    display: inline-flex; align-items: center; height: 38px; padding: 0 16px;
+    border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--bh-text-dim, #B99584);
+    text-decoration: none; white-space: nowrap;
+    transition: background-color .15s ease, color .15s ease;
+}
+.oust-nav-list a:hover { color: var(--bh-text, #EDDFCB); background: var(--bh-surface-2, #2C120E); }
+.oust-nav-list li.current-menu-item > a,
+.oust-nav-list li.current_page_item > a {
+    color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); background: var(--bh-accent-muted-bg, rgba(193,80,58,.18));
+}
+
+/* Sub-menus: a plain dropdown, matched to the surface/border/radius
+   vocabulary used everywhere else rather than a browser-default panel. */
+.oust-nav-list ul {
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+    min-width: 200px; list-style: none; margin: 0; padding: 6px;
+    background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: var(--bh-radius-sm, 8px); box-shadow: 0 16px 32px -12px rgba(0,0,0,.5);
+}
+.oust-nav-list li:hover > ul, .oust-nav-list li:focus-within > ul { display: block; }
+.oust-nav-list ul a { height: 34px; border-radius: 6px; width: 100%; }
+
+.oust-nav-toggle {
+    display: none; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
+    width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--bh-border, #3D1B14);
+    background: transparent; cursor: pointer; flex-shrink: 0;
+}
+.oust-nav-toggle-bar { width: 18px; height: 2px; background: var(--bh-text, #EDDFCB); border-radius: 2px; transition: transform .2s ease, opacity .2s ease; }
+.oust-mobile-nav-open .oust-nav-toggle-bar:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.oust-mobile-nav-open .oust-nav-toggle-bar:nth-child(2) { opacity: 0; }
+.oust-mobile-nav-open .oust-nav-toggle-bar:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.oust-mobile-nav {
+    display: none; max-height: 0; overflow: hidden;
+    background: var(--bh-surface, #220C0A); border-top: 1px solid var(--bh-border, #3D1B14);
+    transition: max-height .25s ease;
+}
+.oust-mobile-nav .oust-nav-list { flex-direction: column; align-items: stretch; gap: 2px; padding: 12px; }
+.oust-mobile-nav .oust-nav-list a { width: 100%; height: 44px; border-radius: 8px; }
+.oust-mobile-nav .oust-nav-list ul { position: static; display: block; box-shadow: none; border: none; padding-left: 12px; margin-top: 2px; }
+
+@media (max-width: 860px) {
+    .oust-primary-nav { display: none; }
+    .oust-nav-toggle { display: flex; }
+    .oust-mobile-nav { display: block; }
+    .oust-mobile-nav-open .oust-mobile-nav { max-height: 80vh; overflow-y: auto; }
+}
+@media (max-width: 480px) {
+    .oust-site-header-inner { height: 60px; padding: 0 16px; }
+    .oust-site-brand-name { font-size: 17px; max-width: 44vw; }
+}
+
+/* ---------------- Hero (front page) ----------------
+   North star: Googie/Streamline Moderne — atomic starburst, a boomerang
+   sweep, an upswept "roofline" edge — but decorative layers only:
+   aria-hidden, z-index'd behind copy, never touching text contrast or
+   layout, and never in the way of a screen reader/keyboard user, so the
+   period styling stays a flourish, not a barrier. */
+.oust-hero {
+    position: relative; overflow: hidden;
+    padding: 104px 24px 88px; text-align: center;
+    background:
+        radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--bh-accent, #C1503A) 16%, transparent) 0%, transparent 60%),
+        var(--bh-bg, #170807);
+    border-bottom: 1px solid var(--bh-border, #3D1B14);
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), 50% 100%, 0 calc(100% - 18px));
+}
+.oust-hero-starburst {
+    position: absolute; top: 50%; left: 50%; width: min(900px, 140vw); height: min(900px, 140vw);
+    transform: translate(-50%, -50%); z-index: 0; pointer-events: none;
+    background: repeating-conic-gradient(
+        from 0deg,
+        color-mix(in srgb, var(--bh-accent, #C1503A) 10%, transparent) 0deg 4deg,
+        transparent 4deg 18deg
+    );
+    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+    mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+}
+.oust-hero-boomerang {
+    position: absolute; z-index: 0; pointer-events: none; opacity: .5;
+    top: 18%; left: 8%; width: 120px; height: 60px;
+    border-top: 4px solid color-mix(in srgb, var(--bh-accent, #C1503A) 60%, transparent);
+    border-radius: 100% 0 0 0 / 100% 0 0 0;
+    transform: rotate(-18deg);
+}
+.oust-hero-boomerang.oust-hero-boomerang-2 {
+    top: auto; bottom: 14%; left: auto; right: 8%; transform: rotate(160deg); opacity: .35;
+}
+.oust-hero-inner { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+.oust-hero-kicker {
+    font-family: var(--bh-font-display, sans-serif); font-size: 12px; font-weight: 700;
+    letter-spacing: .2em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); margin-bottom: 12px;
+}
+.oust-hero-title {
+    font-size: clamp(32px, 5vw, 52px); font-weight: 700; letter-spacing: -.02em; margin: 0;
+    color: var(--bh-text, #EDDFCB);
+}
+.oust-hero-rule {
+    width: 80px; height: 3px; margin: 22px 0; border-radius: 2px;
+    background: linear-gradient(90deg, var(--bh-accent, #C1503A) 0%, color-mix(in srgb, var(--bh-accent, #C1503A) 25%, transparent) 100%);
+}
+.oust-hero-lede { font-size: 17px; color: var(--bh-text-dim, #B99584); max-width: 560px; margin: 0; }
+@media (max-width: 600px) {
+    .oust-hero { padding: 72px 16px 56px; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), 50% 100%, 0 calc(100% - 12px)); }
+    .oust-hero-boomerang { width: 80px; height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .oust-hero-starburst { animation: none; }
+}
+
+/* ---------------- Page header (archive/page/search/404/single) ----
+   Same shape as bh-courses's .bhc-archive-header — the whole point is
+   that a plugin catalog title and a plain theme page title read as
+   the same considered system, not two different levels of polish. */
+.oust-page-header { max-width: 1200px; margin: 0 auto 32px; }
+.oust-page-header-kicker {
+    display: block; font-family: var(--bh-font-display, sans-serif); font-size: 11px; font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); margin-bottom: 8px;
+}
+.oust-page-header-title {
+    margin: 0; font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -.01em;
+    color: var(--bh-text, #EDDFCB);
+    /* Long titles must not blow past the header's own measure — wraps
+       gracefully instead of overflowing the container. */
+    overflow-wrap: break-word;
+}
+.oust-page-header-rule {
+    width: 64px; height: 3px; margin-top: 18px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--bh-accent, #C1503A) 0%, color-mix(in srgb, var(--bh-accent, #C1503A) 25%, transparent) 100%);
+}
+.oust-page-header-lede { margin-top: 14px; font-size: 15px; color: var(--bh-text-dim, #B99584); max-width: 640px; }
+.oust-page-header-center { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.oust-page-header-rule-center { margin-left: auto; margin-right: auto; }
+
+.oust-section-header { display: flex; flex-direction: column; margin-bottom: 20px; }
+.oust-section-kicker {
+    font-family: var(--bh-font-display, sans-serif); font-size: 11px; font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); margin-bottom: 4px;
+}
+.oust-section-title { margin: 0; font-size: 22px; }
+
+/* ---------------- Card grid ----------------
+   Same fixes as bh-courses's .bhc-catalog: auto-fit (not auto-fill) so
+   a short result list doesn't leave a lonely card floating in dead
+   track space, and align-items:start so CSS Grid's default stretch
+   doesn't force every card in a row to match its tallest sibling. */
+/* minmax(260px, 340px) — not 1fr — caps how wide a single card can
+   grow: with a flexible 1fr max, one lone card (or the last odd one in
+   a row) stretched to fill the ENTIRE container width, which combined
+   with the fixed-ratio thumb below produced a 600px+ tall placeholder
+   slab. Capping the track max means auto-fit still collapses genuinely
+   empty tracks, but existing cards stop at a sane width instead of
+   ballooning to fill leftover space. */
+.oust-card-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
+    gap: 24px; align-items: start;
+}
+.oust-card {
+    background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: var(--bh-radius, 12px); overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 1px 2px rgba(0,0,0,.15);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.oust-card:hover {
+    transform: translateY(-4px); border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent, #C1503A) 35%, transparent), 0 4px 8px rgba(0,0,0,.2);
+}
+@media (prefers-reduced-motion: reduce) {
+    .oust-card { transition: none; }
+    .oust-card:hover { transform: none; }
+}
+/* Every card gets the same 16:9 thumb slot whether it holds a real
+   featured image or the placeholder, so a mix of illustrated/plain
+   posts never looks jagged. */
+.oust-card-thumb { position: relative; aspect-ratio: 16 / 9; max-height: 220px; overflow: hidden; background: var(--bh-surface-2, #2C120E); }
+.oust-card-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease; }
+.oust-card:hover .oust-card-thumb img { transform: scale(1.05); }
+/* Real placeholder art, not a flat tint — STYLE-SYSTEM.md's own rule
+   (see bh-courses's waveform mark). A small inline-SVG atomic
+   starburst/orbit motif (this theme's own Googie signature, echoing
+   .oust-hero-starburst) centered over the accent gradient, white at low
+   opacity so it reads correctly against whatever accent color a given
+   site is themed with. */
+.oust-card-thumb-placeholder {
+    width: 100%; height: 100%;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='white' stroke-opacity='0.4' stroke-width='2'%3E%3Ccircle cx='60' cy='60' r='10'/%3E%3Ccircle cx='60' cy='60' r='26'/%3E%3Ccircle cx='60' cy='60' r='42'/%3E%3C/g%3E%3Cg fill='white' fill-opacity='0.4'%3E%3Ccircle cx='60' cy='18' r='4'/%3E%3Ccircle cx='94' cy='78' r='3'/%3E%3Ccircle cx='26' cy='78' r='3'/%3E%3C/g%3E%3C/svg%3E"),
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.15) 0%, transparent 45%),
+        linear-gradient(135deg, color-mix(in srgb, var(--bh-accent, #C1503A) 26%, var(--bh-surface, #220C0A)) 0%, color-mix(in srgb, var(--bh-accent, #C1503A) 8%, var(--bh-surface, #220C0A)) 100%);
+    background-size: 96px auto, cover, cover;
+    background-position: center, center, center;
+    background-repeat: no-repeat, no-repeat, no-repeat;
+}
+.oust-card-body { padding: 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.oust-card-kicker {
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB));
+}
+.oust-card-title { margin: 0; font-size: 18px; line-height: 1.3; }
+.oust-card-title a { color: var(--bh-text, #EDDFCB); text-decoration: none; }
+.oust-card-title a:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+.oust-card-excerpt {
+    font-size: 13px; color: var(--bh-text-dim, #B99584); line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    min-height: 2.8em;
+}
+/* Reserves the same footer height whether a card has a real excerpt or
+   not — margin-top:auto keeps it pinned to the bottom of each card's
+   own flex column regardless of how tall the content above it is. */
+.oust-card-footer {
+    margin-top: auto; padding-top: 10px; border-top: 1px solid var(--bh-border, #3D1B14);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 12px; color: var(--bh-text-dim, #B99584);
+}
+.oust-card-readmore { font-weight: 600; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); text-decoration: none; white-space: nowrap; }
+.oust-card-readmore:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+
+/* ---------------- Buttons ---------------- */
+.oust-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--bh-font-body, inherit); font-weight: 600; font-size: 14px;
+    border-radius: 999px; padding: 11px 22px; border: none; cursor: pointer;
+    text-decoration: none; transition: transform .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.oust-btn:active { transform: scale(.97); }
+.oust-btn-primary { background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705); }
+.oust-btn-primary:hover { background: var(--bh-accent-hover, var(--bh-accent-soft, #E0A184)); color: var(--bh-accent-contrast, #150705); }
+.oust-btn-secondary { background: transparent; color: var(--bh-text, #EDDFCB); border: 1px solid var(--bh-border, #3D1B14); }
+.oust-btn-secondary:hover { border-color: var(--bh-text-dim, #B99584); }
+
+/* ---------------- Search form ---------------- */
+.oust-search-form { display: flex; gap: 10px; margin-bottom: 32px; flex-wrap: wrap; }
+.oust-search-form-center { justify-content: center; }
+.oust-search-input {
+    flex: 1 1 260px; background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 999px; padding: 11px 18px; font-size: 14px; color: var(--bh-text, #EDDFCB);
+    font-family: inherit; min-width: 0;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.oust-search-input:focus {
+    outline: none; border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent, #C1503A) 18%, transparent);
+}
+
+/* ---------------- Pagination ---------------- */
+.oust-pagination { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 40px; flex-wrap: wrap; }
+.oust-pagination .page-numbers {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px;
+    padding: 0 8px; border-radius: 8px; font-size: 13px; color: var(--bh-text-dim, #B99584); text-decoration: none;
+}
+.oust-pagination a.page-numbers:hover { background: var(--bh-surface, #220C0A); color: var(--bh-text, #EDDFCB); }
+.oust-pagination .page-numbers.current { background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705); font-weight: 700; }
+.oust-pagination .page-numbers.dots { color: var(--bh-text-dim, #B99584); }
+
+/* ---------------- Page/post content (prose) ---------------- */
+.oust-page-featured-image { margin: 0 0 28px; border-radius: var(--bh-radius, 12px); overflow: hidden; }
+.oust-page-featured-image img { width: 100%; }
+.oust-prose { font-size: 16px; line-height: 1.75; color: var(--bh-text, #EDDFCB); }
+.oust-prose > *:first-child { margin-top: 0; }
+.oust-prose h2 { font-size: 26px; margin-top: 1.4em; }
+.oust-prose h3 { font-size: 21px; margin-top: 1.3em; }
+.oust-prose a { text-decoration: underline; text-underline-offset: 2px; }
+.oust-prose ul, .oust-prose ol { margin: 0 0 1em; padding-left: 1.4em; }
+.oust-prose ul li, .oust-prose ol li { margin-bottom: .4em; list-style: revert; }
+.oust-prose blockquote {
+    margin: 1.4em 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--bh-accent, #C1503A);
+    color: var(--bh-text-dim, #B99584); font-style: italic;
+}
+.oust-prose img { border-radius: 8px; }
+.oust-prose pre {
+    background: var(--bh-surface-2, #2C120E); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px;
+}
+.oust-prose code { background: var(--bh-surface-2, #2C120E); border-radius: 4px; padding: .1em .35em; font-size: .9em; }
+.oust-prose table { width: 100%; border-collapse: collapse; margin: 1.4em 0; }
+.oust-prose th, .oust-prose td { border: 1px solid var(--bh-border, #3D1B14); padding: 8px 12px; text-align: left; }
+.oust-page-links { margin-top: 24px; font-size: 14px; color: var(--bh-text-dim, #B99584); }
+.oust-post-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.oust-tag {
+    font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+    background: var(--bh-surface-2, #2C120E); color: var(--bh-text-dim, #B99584); text-decoration: none;
+}
+.oust-tag:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+
+/* ---------------- Post prev/next nav ---------------- */
+.oust-post-nav {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 40px; padding-top: 28px;
+    border-top: 1px solid var(--bh-border, #3D1B14);
+}
+.oust-post-nav-next { text-align: right; }
+.oust-post-nav a {
+    display: flex; flex-direction: column; gap: 4px; text-decoration: none;
+    padding: 14px 16px; border-radius: var(--bh-radius-sm, 8px); border: 1px solid var(--bh-border, #3D1B14);
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.oust-post-nav a:hover { border-color: var(--bh-accent, #C1503A); background: var(--bh-surface, #220C0A); }
+.oust-post-nav-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+.oust-post-nav-title { font-size: 14px; font-weight: 600; color: var(--bh-text, #EDDFCB); }
+@media (max-width: 600px) {
+    .oust-post-nav { grid-template-columns: 1fr; }
+    .oust-post-nav-next { text-align: left; }
+}
+
+/* ---------------- Comments ---------------- */
+.oust-comments { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--bh-border, #3D1B14); }
+.oust-comments-title { font-size: 20px; margin-bottom: 20px; }
+.oust-comment-list, .oust-comment-list ul { list-style: none; margin: 0; padding: 0; }
+.oust-comment-list > li { margin-bottom: 20px; }
+.oust-comment-list ul { margin-top: 16px; padding-left: 28px; border-left: 2px solid var(--bh-border, #3D1B14); }
+.comment-body {
+    background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: var(--bh-radius-sm, 8px); padding: 16px;
+}
+.comment-author .avatar { border-radius: 50%; margin-right: 10px; vertical-align: middle; }
+.comment-author .fn { font-weight: 600; font-style: normal; font-size: 14px; }
+.comment-metadata { font-size: 12px; color: var(--bh-text-dim, #B99584); margin-bottom: 8px; }
+.comment-metadata a { color: inherit; text-decoration: none; }
+.comment-content p { margin-bottom: .6em; font-size: 14px; }
+.reply a { font-size: 12px; font-weight: 600; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); text-decoration: none; }
+.oust-comments-closed { color: var(--bh-text-dim, #B99584); font-size: 14px; }
+.comment-form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; margin-top: 24px; }
+.comment-form label { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block; }
+.comment-form input[type="text"], .comment-form input[type="email"], .comment-form input[type="url"], .comment-form textarea {
+    width: 100%; background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: var(--bh-radius-sm, 8px); padding: 10px 14px; color: var(--bh-text, #EDDFCB);
+    font-family: inherit; font-size: 15px; box-sizing: border-box;
+}
+.comment-form input:focus, .comment-form textarea:focus { outline: none; border-color: var(--bh-accent, #C1503A); }
+.comment-notes, .comment-form-cookies-consent { font-size: 12px; color: var(--bh-text-dim, #B99584); }
+#reply-title { font-size: 18px; margin-bottom: 8px; }
+
+/* ---------------- Empty state / zero-content ---------------- */
+.oust-empty-state {
+    text-align: center; padding: 72px 24px; max-width: 480px; margin: 0 auto;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.oust-empty-state-mark {
+    width: 64px; height: 64px; border-radius: 50%; margin-bottom: 8px;
+    background:
+        radial-gradient(circle at 50% 50%, var(--bh-bg, #170807) 0 22px, transparent 23px),
+        conic-gradient(from 200deg, var(--bh-accent, #C1503A), color-mix(in srgb, var(--bh-accent, #C1503A) 40%, var(--bh-surface, #220C0A)), var(--bh-accent, #C1503A));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.oust-empty-state-title { font-size: 20px; margin: 0; }
+.oust-empty-state-text { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; }
+
+/* ---------------- 404 ---------------- */
+.oust-404 { text-align: center; padding: 40px 0 24px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+.oust-404-code {
+    font-family: var(--bh-font-display, sans-serif); font-size: clamp(64px, 14vw, 120px); font-weight: 700;
+    line-height: 1; letter-spacing: -.03em;
+    background: linear-gradient(135deg, var(--bh-accent, #C1503A), color-mix(in srgb, var(--bh-accent, #C1503A) 30%, var(--bh-text, #EDDFCB)));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.oust-404-home { margin-top: 4px; }
+
+/* ---------------- Site footer ---------------- */
+.oust-site-footer { margin-top: auto; background: var(--bh-surface, #220C0A); border-top: 1px solid var(--bh-border, #3D1B14); }
+.oust-site-footer-rule {
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, var(--bh-accent, #C1503A) 50%, transparent 100%);
+    opacity: .6;
+}
+.oust-site-footer-inner {
+    max-width: 1200px; margin: 0 auto; padding: 48px 24px;
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px;
+}
+.oust-footer-col { min-width: 0; }
+.oust-footer-kicker {
+    display: block; font-family: var(--bh-font-display, sans-serif); font-size: 12px; font-weight: 700;
+    letter-spacing: .16em; text-transform: uppercase; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); margin-bottom: 8px;
+}
+.oust-footer-tagline { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; max-width: 320px; }
+.oust-footer-widget-title { font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bh-text-dim, #B99584); margin-bottom: 10px; }
+/* Generic core-widget coverage (search/recent-posts/categories/tag-cloud/
+   calendar/RSS/text/nav-menu) — the footer sidebar is a real,
+   admin-editable widget area (functions.php's register_sidebar()), and
+   without this, any widget other than the two used in this session's
+   testing (Archives, Categories — which happen to just be plain <ul><li>
+   and inherit the list reset below) would render with raw browser
+   defaults sitting right next to the considered brand/nav columns either
+   side of it. */
+.oust-footer-widgets .oust-footer-widget + .oust-footer-widget { margin-top: 28px; }
+.oust-footer-widgets ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.oust-footer-widgets li { font-size: 14px; color: var(--bh-text-dim, #B99584); }
+.oust-footer-widgets li ul { margin-top: 8px; padding-left: 14px; gap: 6px; }
+.oust-footer-widgets a { color: var(--bh-text-dim, #B99584); text-decoration: none; }
+.oust-footer-widgets a:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+.oust-footer-widgets p { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0 0 .8em; }
+.oust-footer-widgets select, .oust-footer-widgets input[type="text"], .oust-footer-widgets input[type="search"] {
+    background: var(--bh-surface-2, #2C120E); border: 1px solid var(--bh-border, #3D1B14); color: var(--bh-text, #EDDFCB);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; font-family: inherit; box-sizing: border-box;
+}
+/* Search widget: WP core's form markup wraps input+button in a label,
+   with no hook to reuse .oust-search-form's own flex row without a
+   template override — this is the minimal equivalent for the narrower
+   footer-column context. */
+.oust-footer-widgets .search-form { display: flex; gap: 8px; }
+.oust-footer-widgets .search-form input[type="search"] { flex: 1; min-width: 0; }
+.oust-footer-widgets .search-form input[type="submit"] {
+    background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705); border: none;
+    border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+/* Tag cloud — WP core renders tags as bare inline <a> tags with a
+   font-size gradient (its own "cloud" logic); wrapped in the same pill
+   shape as .oust-tag elsewhere so it doesn't read as a raw link dump. */
+.oust-footer-widgets .tagcloud { display: flex; flex-wrap: wrap; gap: 6px; }
+.oust-footer-widgets .tagcloud a {
+    display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--bh-surface-2, #2C120E);
+    font-size: 12px !important;
+}
+.oust-footer-widgets .tagcloud a:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
+/* Calendar widget */
+.oust-footer-widgets .wp-calendar-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.oust-footer-widgets .wp-calendar-table caption { color: var(--bh-text, #EDDFCB); font-weight: 600; margin-bottom: 6px; text-align: left; }
+.oust-footer-widgets .wp-calendar-table th, .oust-footer-widgets .wp-calendar-table td { padding: 4px; text-align: center; }
+.oust-footer-widgets .wp-calendar-table th { color: var(--bh-text-dim, #B99584); font-weight: 600; }
+.oust-footer-widgets .wp-calendar-table #today { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-radius: 4px; }
+.oust-footer-widgets .wp-calendar-nav { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; }
+.oust-footer-nav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.oust-footer-nav-list a { color: var(--bh-text-dim, #B99584); text-decoration: none; font-size: 14px; }
+.oust-footer-nav-list a:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
+.oust-site-footer-bottom {
+    border-top: 1px solid var(--bh-border, #3D1B14); padding: 18px 24px;
+    text-align: center; font-size: 12px; color: var(--bh-text-dim, #B99584);
+}
+.oust-site-footer-bottom p { margin: 0; }
+@media (max-width: 720px) {
+    .oust-site-footer-inner { grid-template-columns: 1fr; gap: 24px; padding: 36px 20px; }
+}
+
+/* No-sidebar container adjustment — kept for future widget-area use;
+   currently theme ships no sidebar template, this only affects the
+   footer widget area check in functions.php. */
+.oust-no-sidebar .oust-container { max-width: 1200px; }

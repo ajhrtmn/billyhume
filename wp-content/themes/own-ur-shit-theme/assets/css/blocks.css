@@ -1,0 +1,101 @@
+/*
+ * Front-end styling for core Gutenberg block markup rendered by
+ * the_content() on page.php/single.php — separate from theme.css's
+ * plain .oust-prose type rules since this file is specifically about
+ * block-editor output (alignment, buttons, columns, quote, gallery),
+ * not the theme's own hand-written templates.
+ */
+
+/* wide/full alignment — .oust-page-content's own container
+   (.oust-container-narrow, 800px) is deliberately narrow for reading
+   comfort, so a wide/full-aligned block needs to break out of it via
+   negative margins sized off the viewport rather than the container. */
+.oust-prose .alignwide {
+    max-width: 1100px; margin-left: 50%; margin-right: 50%;
+    transform: translateX(-50%);
+    width: 100vw; max-width: min(1100px, 100vw);
+}
+.oust-prose .alignfull {
+    margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw);
+    max-width: 100vw; width: 100vw;
+}
+.oust-prose .alignfull img { width: 100%; }
+
+.oust-prose .alignleft { float: left; margin: 4px 20px 12px 0; }
+.oust-prose .alignright { float: right; margin: 4px 0 12px 20px; }
+.oust-prose .aligncenter { margin-left: auto; margin-right: auto; }
+
+/* Buttons block — same pill language as .oust-btn, kept as its own
+   rule (not reusing the class) since block markup carries its own
+   wp-block-button__link class the editor controls, not ours. */
+.oust-prose .wp-block-button__link {
+    background: var(--bh-accent, #C1503A); color: var(--bh-accent-contrast, #150705);
+    border-radius: 999px; padding: 11px 22px; font-weight: 600; text-decoration: none;
+    display: inline-block; transition: background-color .15s ease;
+}
+.oust-prose .wp-block-button__link:hover { background: var(--bh-accent-hover, var(--bh-accent-soft, #E0A184)); }
+.oust-prose .is-style-outline .wp-block-button__link {
+    background: transparent; color: var(--bh-text, #EDDFCB); border: 1px solid var(--bh-border, #3D1B14);
+}
+
+/* Quote/pullquote — same accent-rule treatment as .oust-prose
+   blockquote in theme.css; block markup needs its own selector since
+   core/quote and core/pullquote carry different class names. */
+.oust-prose .wp-block-quote, .oust-prose .wp-block-pullquote blockquote {
+    border-left: 3px solid var(--bh-accent, #C1503A); padding: 4px 0 4px 20px;
+    color: var(--bh-text-dim, #B99584); font-style: italic; margin: 1.4em 0;
+}
+.oust-prose .wp-block-pullquote { border-top: 1px solid var(--bh-border, #3D1B14); border-bottom: 1px solid var(--bh-border, #3D1B14); padding: 24px 0; text-align: center; }
+.oust-prose .wp-block-quote cite, .oust-prose .wp-block-pullquote cite { color: var(--bh-text-dim, #B99584); font-size: 13px; }
+
+/* Columns/group/gallery — spacing + radius only; layout itself is
+   entirely core's own (wp-block-library.css, enqueued in
+   functions.php) doing the flex/grid work. */
+.oust-prose .wp-block-columns { gap: 24px; }
+.oust-prose .wp-block-group { padding: 20px; border-radius: var(--bh-radius, 12px); }
+.oust-prose .wp-block-group.has-background { background: var(--bh-surface, #220C0A) !important; }
+.oust-prose .wp-block-gallery figure img, .oust-prose .wp-block-image img { border-radius: 8px; }
+.oust-prose .wp-block-gallery figcaption, .oust-prose .wp-block-image figcaption {
+    color: var(--bh-text-dim, #B99584); font-size: 13px; text-align: center; margin-top: 6px;
+}
+
+/* Cover block — a common "hero within content" use; matches the
+   theme's own overlay/scrim language rather than core's flat default. */
+.oust-prose .wp-block-cover { border-radius: var(--bh-radius, 12px); overflow: hidden; }
+.oust-prose .wp-block-cover .wp-block-cover__inner-container { color: #fff; }
+
+/* Table block */
+.oust-prose .wp-block-table table { border-collapse: collapse; width: 100%; }
+.oust-prose .wp-block-table th, .oust-prose .wp-block-table td { border: 1px solid var(--bh-border, #3D1B14); padding: 8px 12px; }
+.oust-prose .wp-block-table.is-style-stripes tbody tr:nth-child(odd) { background: var(--bh-surface, #220C0A); }
+
+/* Embeds — responsive-embeds theme support handles the aspect-ratio
+   wrapper itself; this just matches corner radius to the rest of the
+   card/media language. */
+.oust-prose .wp-block-embed iframe { border-radius: 8px; }
+
+@media (max-width: 600px) {
+    .oust-prose .alignwide, .oust-prose .alignfull { margin-left: -16px; margin-right: -16px; transform: none; width: auto; max-width: none; }
+}
+
+/* core/search — deliberately NOT scoped to .oust-prose: block widgets
+   (functions.php's register_sidebar()) can carry this same block in the
+   footer widget area, not just page/post content, and it needs the same
+   pill-input + accent-button treatment either place it's used. Caught
+   live: WP core's own default button style is a flat near-black block
+   that doesn't pick up any theme color at all without this. */
+.wp-block-search__input {
+    background: var(--bh-surface-2, #2C120E) !important; border: 1px solid var(--bh-border, #3D1B14) !important;
+    border-radius: 999px 0 0 999px !important; color: var(--bh-text, #EDDFCB) !important; font-family: inherit !important;
+}
+.wp-block-search__button {
+    background: var(--bh-accent, #C1503A) !important; color: var(--bh-accent-contrast, #150705) !important;
+    border: none !important; border-radius: 0 999px 999px 0 !important; font-weight: 600 !important;
+}
+.wp-block-search__button:hover { background: var(--bh-accent-hover, var(--bh-accent-soft, #E0A184)) !important; }
+.wp-block-search__label { color: var(--bh-text-dim, #B99584); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+/* button-outside variant (no shared pill) — WP core adds its own gap
+   already, this just squares off both ends to full pills again since
+   they're no longer sharing one continuous pill shape. */
+.wp-block-search__button-outside .wp-block-search__input { border-radius: 999px !important; }
+.wp-block-search__button-outside .wp-block-search__button { border-radius: 999px !important; }
