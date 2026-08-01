@@ -234,8 +234,20 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 
 /* ---- course detail header (Section 2.7) ---- */
 .bhc-course-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.bhc-course-hero { position: relative; border-radius: 12px; overflow: hidden; }
+.bhc-course-hero { position: relative; border-radius: 12px; overflow: hidden; min-height: 320px; }
 .bhc-course-hero img { display: block; width: 100%; height: 320px; object-fit: cover; }
+/* Same waveform-over-gradient treatment as the catalog card placeholder
+   (.bhc-card-thumb-placeholder) — a course with no cover uploaded yet
+   gets the same considered hero every other course gets, not a
+   noticeably plainer page. */
+.bhc-course-hero-placeholder {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 169'%3E%3Cg fill='white' fill-opacity='0.38'%3E%3Crect x='40' y='74' width='10' height='21' rx='5'/%3E%3Crect x='58' y='60' width='10' height='49' rx='5'/%3E%3Crect x='76' y='40' width='10' height='89' rx='5'/%3E%3Crect x='94' y='55' width='10' height='59' rx='5'/%3E%3Crect x='112' y='70' width='10' height='29' rx='5'/%3E%3Crect x='130' y='35' width='10' height='99' rx='5'/%3E%3Crect x='148' y='50' width='10' height='69' rx='5'/%3E%3Crect x='166' y='65' width='10' height='39' rx='5'/%3E%3Crect x='184' y='45' width='10' height='79' rx='5'/%3E%3Crect x='202' y='72' width='10' height='25' rx='5'/%3E%3Crect x='220' y='58' width='10' height='53' rx='5'/%3E%3Crect x='238' y='68' width='10' height='33' rx='5'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, color-mix(in srgb, var(--bh-accent) 26%, var(--bh-surface)) 0%, color-mix(in srgb, var(--bh-accent) 8%, var(--bh-surface)) 100%);
+    background-size: 34% auto, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+}
 .bhc-course-hero-scrim { position: absolute; inset: 0; display: flex; align-items: flex-end; background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.25) 55%, transparent 100%); }
 .bhc-course-hero-content { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 24px; }
 .bhc-course-hero-content .bhc-course-title { color: #fff; margin: 0; }

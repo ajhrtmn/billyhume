@@ -31,22 +31,24 @@ class BHC_Render_Course {
 
         ob_start();
         echo '<div class="bhc-course-header">';
-        // A hero treatment only earns its keep when there's a real cover
-        // image to justify it (obvious-or-gone) — the title/badges move
-        // into an overlay on the image itself instead of stacking as
-        // plain text above it. No cover set falls back to the original
-        // plain stacked layout unchanged.
-        if ($has_cover) {
-            echo '<div class="bhc-course-hero">';
-            echo get_the_post_thumbnail($course_id, 'large');
-            echo '<div class="bhc-course-hero-scrim"><div class="bhc-course-hero-content">';
-            echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
-            if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
-            echo '</div></div>';
-            echo '</div>';
-        } else {
-            echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
-        }
+        // Real live-caught inconsistency (2026-08): this used to skip the
+        // hero entirely with no cover set ("obvious-or-gone"), falling
+        // back to plain stacked text — but that meant the exact same
+        // course looked like two different products depending on
+        // whether an image happened to be uploaded yet, and a course
+        // with no cover got a visibly less finished page than the
+        // catalog card that led here (which always gets a hero image
+        // slot as of the same pass — see .bhc-card-thumb-placeholder).
+        // Every course page now gets the hero treatment; a missing cover
+        // gets the same gradient+waveform placeholder the catalog uses
+        // instead of silently degrading to a plainer layout.
+        echo '<div class="bhc-course-hero' . ($has_cover ? '' : ' bhc-course-hero-placeholder') . '">';
+        if ($has_cover) echo get_the_post_thumbnail($course_id, 'large');
+        echo '<div class="bhc-course-hero-scrim"><div class="bhc-course-hero-content">';
+        echo '<h1 class="bhc-course-title">' . esc_html(get_the_title($course_id)) . '</h1>';
+        if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
+        echo '</div></div>';
+        echo '</div>';
 
         // Instructor presence pulled forward into its own row (a real
         // "who's teaching you this" moment) instead of one more compact
@@ -56,8 +58,10 @@ class BHC_Render_Course {
             echo '<div class="bhc-course-instructor-row">' . get_avatar($instructor->ID, 48) . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div></div>';
         }
 
+        // Difficulty badge now always lives in the hero overlay above
+        // (every course gets a hero, real cover or placeholder), so it's
+        // no longer duplicated here for the no-cover case.
         echo '<div class="bhc-course-meta">';
-        if (!$has_cover && $difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course_id)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span>' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
         if ($duration) echo '<span>' . esc_html($duration) . '</span>';
         if (class_exists('BHC_Reviews')) {
