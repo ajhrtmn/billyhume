@@ -534,8 +534,29 @@ class OUS_Registry {
            . '<th>Plugin</th><th>Bundled zip version</th><th>Currently installed version</th><th>Status</th>'
            . '</tr></thead><tbody>';
         foreach ($rows as $row) {
+            // Real bug, caught live (a status pill wrapping onto two
+            // lines — "up to" / "date" — in a narrow table column):
+            // this table was hand-rolling inline background+padding+radius
+            // per status instead of using the shared .bhy-badge component
+            // (class-ui.php) every other admin status chip in this
+            // ecosystem already reuses — .bhy-badge already carries
+            // white-space:nowrap for exactly this reason. Neutral/success/
+            // danger here map onto that shared component's own semantic
+            // variants rather than one-off hex colors.
             if ($row['stale']) {
-                $status = '<span style="color:#fff;background:#d63638;padding:2px 8px;border-radius:3px;font-size:11px;">STALE</span>';
+                // Real bug, caught live: the badge and this button used
+                // to be concatenated directly with no whitespace between
+                // them in the markup, so the browser had NO line-break
+                // opportunity between the two — combined with the
+                // badge's own (correct) white-space:nowrap, that forced
+                // the ENTIRE table to grow to whatever width fit both
+                // side by side on one line (1400px+ on a 375px viewport,
+                // scrolling the whole table sideways for one cell).
+                // flex-wrap:wrap here gives the button its own real
+                // break point: it drops to its own line on a narrow
+                // screen instead of dragging the whole table wider.
+                $status = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;white-space:normal;">';
+                $status .= '<span class="bhy-badge bhy-badge-danger">STALE</span>';
                 // One-click fix, right next to the finding. Only rendered
                 // when the row actually matched a registry key with a
                 // real source directory to rebuild from.
@@ -544,12 +565,13 @@ class OUS_Registry {
                     OUS_Debug::button('bundled-zips', 'regenerate', 'Regenerate bundled zip', '<input type="hidden" name="bundle_key" value="' . esc_attr($row['key']) . '">', '', false);
                     $status .= ob_get_clean();
                 }
+                $status .= '</div>';
             } elseif (!$row['installed_version']) {
-                $status = '<span style="color:#666;">not currently installed — nothing to compare</span>';
+                $status = '<span class="bhy-badge bhy-badge-neutral">not currently installed — nothing to compare</span>';
             } elseif (!$row['bundled_version']) {
-                $status = '<span style="color:#666;">could not read bundled zip header</span>';
+                $status = '<span class="bhy-badge bhy-badge-neutral">could not read bundled zip header</span>';
             } else {
-                $status = '<span style="color:#fff;background:#00a32a;padding:2px 8px;border-radius:3px;font-size:11px;">up to date</span>';
+                $status = '<span class="bhy-badge bhy-badge-success">up to date</span>';
             }
             echo '<tr><td>' . esc_html($row['label']) . ' <span class="description">(' . esc_html($row['zip']) . ')</span></td>'
                . '<td>' . esc_html($row['bundled_version'] ?? '—') . '</td>'

@@ -739,6 +739,25 @@ class BHY_UI {
             .bhy-badge-success { background: var(--bhy-success-bg); color: var(--bhy-success); }
             .bhy-badge-warning { background: var(--bhy-warning-bg); color: var(--bhy-warning); }
             .bhy-badge-danger  { background: var(--bhy-danger-bg);  color: var(--bhy-danger); }
+            /* The white-space:nowrap on .bhy-badge above is correct for a
+               FIXED-vocabulary label ("up to date", "Approved") — no
+               length risk to guard against. A badge wrapping dynamic/
+               unbounded content (a user-entered tag, an artist-chosen
+               category) needs bounding too, or nowrap alone just blows
+               out the layout instead of wrapping ugly — add this
+               alongside .bhy-badge for that case. Pair with a real
+               title="..." attribute carrying the full text. */
+            .bhy-badge-truncate { overflow: hidden; text-overflow: ellipsis; max-width: 160px; vertical-align: bottom; }
+
+            /* Text-overflow utilities — the admin-side counterpart to
+               the front-end .bh-truncate/.bh-clamp-* in class-style.php
+               (see that own docblock for the full per-content-type
+               reasoning: single-line content truncates with an
+               ellipsis + title attr, multi-line content clamps at a
+               fixed line count). These are for everything else in an
+               admin table/list that is not a badge. */
+            .bhy-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .bhy-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
             /* Table wrapper — every wide admin table gets the same
                horizontal-scroll behavior, and (via container query) a

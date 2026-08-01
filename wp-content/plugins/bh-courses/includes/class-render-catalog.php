@@ -155,7 +155,13 @@ class BHC_Render_Catalog {
         ob_start();
         echo '<div class="bhc-course-card' . ($locked ? ' bhc-locked' : '') . '">';
         if (has_post_thumbnail($course->ID)) echo get_the_post_thumbnail($course->ID, 'medium');
-        echo '<h3><a href="' . esc_url(get_permalink($course->ID)) . '">' . esc_html(get_the_title($course->ID)) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
+        // bh-clamp-2 (own-ur-shit's shared front-end text-overflow
+        // utility, class-style.php) — a long course title previously
+        // either overflowed this fixed-width card or wrapped an
+        // unbounded number of lines, pushing every card in the same
+        // catalog row to a different height. Clamps to 2 lines with a
+        // real ellipsis instead.
+        echo '<h3 class="bh-clamp-2"><a href="' . esc_url(get_permalink($course->ID)) . '">' . esc_html(get_the_title($course->ID)) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
 
         echo '<div class="bhc-card-meta">';
         if ($difficulty_label) echo '<span class="bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course->ID)) . '">' . esc_html($difficulty_label) . '</span>';

@@ -46,6 +46,64 @@ class BHY_Style {
 
     public static function print_global_css() {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
+        echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
+    }
+
+    /**
+     * Shared front-end text-overflow utility classes — the client-side
+     * counterpart to class-ui.php's admin-only .bhy-badge/.bhy-truncate
+     * (that file's own doc comment already argues for "reuse instead of
+     * one-off inline overflow handling per call site"; this is the same
+     * argument for every plugin's own front-end stylesheet). Printed
+     * once, site-wide, via the same wp_head hook print_global_css()
+     * already uses for --bh-* tokens — any plugin's markup can reach for
+     * these instead of re-inventing nowrap/ellipsis/line-clamp per
+     * component. One rule per content shape:
+     *
+     *   .bh-nowrap         — a badge/pill with a short, FIXED-length
+     *                        label (a status word like "up to date",
+     *                        "Active", "Draft"). Never wraps onto a
+     *                        second line — a chip breaking mid-phrase
+     *                        (e.g. "up to" / "date") is always wrong,
+     *                        and a fixed-vocabulary label has no length
+     *                        risk to guard against, so plain nowrap is
+     *                        enough on its own.
+     *   .bh-badge-truncate — a badge/pill whose content is dynamic/
+     *                        unbounded (a user-entered tag, a username,
+     *                        an artist-chosen category name) — nowrap
+     *                        ALONE would just blow out the layout
+     *                        instead of wrapping ugly. Bounds the badge
+     *                        to a sane max-width and truncates with an
+     *                        ellipsis instead. Pair with title="..."
+     *                        carrying the full text, same reasoning as
+     *                        .bh-truncate below.
+     *   .bh-truncate       — single-line truncation for non-badge
+     *                        content (table cells, list titles, file
+     *                        names). Pair with a real title="..."
+     *                        attribute carrying the FULL text — this
+     *                        only hides content visually for a sighted
+     *                        mouse user, who needs some way to recover
+     *                        it; a screen reader already gets the
+     *                        untruncated DOM text regardless.
+     *   .bh-clamp-2 / .bh-clamp-3 — multi-line clamp (card titles/
+     *                    descriptions — a course/lesson card, a product
+     *                    card). Ends in a real ellipsis at a fixed line
+     *                    count instead of either overflowing the card's
+     *                    own layout or cutting off with no visual
+     *                    indicator that text is missing.
+     *
+     * Deliberately NOT a rule for long unbreakable tokens (URLs, hashes) —
+     * that's `overflow-wrap: break-word` on the specific element showing
+     * one, applied inline where it's needed rather than a reusable class,
+     * since (unlike the ones above) the goal there is showing the FULL
+     * string, just wrapped gracefully instead of truncated.
+     */
+    private static function text_overflow_utils_css() {
+        return '.bh-nowrap{white-space:nowrap;}'
+            . '.bh-badge-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;display:inline-block;vertical-align:bottom;}'
+            . '.bh-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
+            . '.bh-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}'
+            . '.bh-clamp-3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}';
     }
 
     public static function add_editor_iframe_styles($settings) {
