@@ -314,17 +314,61 @@ class BHM_Storefront {
         exit;
     }
 
+    // Real bug, caught live: plain get_header()/get_footer() only covers
+    // a CLASSIC theme, which ships real header.php/footer.php files —
+    // a block theme (Twenty Twenty-Five and every core theme since 5.9,
+    // and any future theme built for this ecosystem) ships none, so
+    // those calls silently fell through to WordPress core's own
+    // decades-old bare theme-compat stub with no nav, no real chrome,
+    // nothing this site actually looks like. Same failure mode
+    // bh-courses' own templates/archive-bh_course.php already hit and
+    // fixed (see that file's docblock) — block_header_area()/
+    // block_footer_area() are WordPress's own documented way to print
+    // whatever the active block theme's real header/footer template
+    // parts are, so this renders correctly regardless of which theme
+    // (classic or block, this ecosystem's own or a third-party one) is
+    // active. This is the concrete fix for a real architectural rule:
+    // plugin-owned pages must be theme-independent — never assume a
+    // specific theme's structure, never break silently when the active
+    // theme changes.
+    private static function print_header() {
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_header_area')) {
+            ?><!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+    <meta charset="<?php bloginfo('charset'); ?>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <?php wp_head(); ?>
+</head>
+<body <?php body_class(); ?>>
+<?php wp_body_open(); ?>
+<?php block_header_area();
+        } else {
+            get_header();
+        }
+    }
+
+    private static function print_footer() {
+        if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_footer_area')) {
+            block_footer_area();
+            wp_footer();
+            ?></body></html><?php
+        } else {
+            get_footer();
+        }
+    }
+
     private static function render_404() {
         status_header(404);
         nocache_headers();
-        get_header();
+        self::print_header();
         echo '<div class="bhm-storefront-wrap"><p>That collection doesn\'t exist.</p></div>';
-        get_footer();
+        self::print_footer();
         exit;
     }
 
     private static function render_collection_page($term) {
-        get_header();
+        self::print_header();
         echo '<div class="bhm-storefront-wrap">';
         echo '<h1 class="bhm-collection-title">' . esc_html($term->name) . '</h1>';
         if ($term->description) echo '<p class="bhm-collection-desc">' . esc_html($term->description) . '</p>';
@@ -336,7 +380,7 @@ class BHM_Storefront {
 
         echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true], '');
         echo '</div>';
-        get_footer();
+        self::print_footer();
     }
 
     /* ---------------- BH_Content block registration (server render) ---------------- */

@@ -68,6 +68,21 @@ Established during the 2026-08 catalog/course/lesson redesign pass. These are co
 - **Responsive means each breakpoint is independently optimized for its own viewing context** — not "mobile-first" in the progressive-enhancement sense. Design each significant breakpoint as its own considered layout, not a scaled-down version of the desktop one.
 - **Live-verify every change in the actual browser** (screenshot + computed-style checks via the DOM), not just by reading the CSS.
 
+## Plugin/theme independence — a hard architectural boundary, not a style preference
+
+AJ's own words: "Encapsulate and abstract. The plugin styles should be theme independent. And the theme shouldn't depend on the plugins."
+
+Found live: `BHM_Storefront::render_collection_page()`/`render_404()` called plain `get_header()`/`get_footer()` — correct only for a CLASSIC theme (real `header.php`/`footer.php` files). A block theme (Twenty Twenty-Five, or any future theme built for this ecosystem) ships neither, so those calls silently fell through to WordPress core's own bare theme-compat stub, or produced visibly wrong chrome. Confirmed as a **recurring** pattern, not a one-off — `bh-courses/templates/archive-bh_course.php` had already hit and fixed the identical failure earlier in the same session.
+
+**The rule:**
+- Any plugin-owned full-page render (a custom archive/landing page — not a shortcode/block embedded in ordinary post content) must detect and handle both classic and block themes, using the proven pattern already in this codebase: `wp_is_block_theme()` branching to `block_header_area()`/`block_footer_area()` (block theme) vs. `get_header()`/`get_footer()` (classic). Reuse the existing implementation (`archive-bh_course.php`, `BHM_Storefront::print_header()`/`print_footer()`) rather than reinventing it per plugin.
+- Plugin CSS must never assume theme-supplied structure (a specific container width, font, color) — build a complete, self-contained layout from this ecosystem's own `--bh-*`/`--bhy-*` tokens, same posture already established for `.bhc-catalog-wrap`, `.bhm-storefront-wrap`, `.bhr-app`.
+- The theme, in turn, must not depend on any plugin being active — its own templates/styles shouldn't break or look incomplete if a given ecosystem plugin is deactivated.
+
+**Check both theme types before considering a plugin full-page template done** — the failure mode is silent (wrong chrome, not an error), so "it worked when I tested it" doesn't generalize across themes.
+
+Also worth remembering: a custom `add_rewrite_rule()` does nothing until permalinks are flushed (Settings → Permalinks → Save, or `flush_rewrite_rules()` on activation) — an unflushed rule's URL silently falls through to normal site routing instead of hitting the plugin's `template_redirect` handler. Rule this out before assuming a routing bug is something deeper.
+
 ## Where this doc came from
 
 Written after the 2026-08 audit pass: 579 inline `style=` sites and 17 `.css` files read in full across all 10 ecosystem plugins, which found ~600 inline styles ecosystem-wide, several live "uneven card height" / "badge text wraps" bugs (same root cause: a shared component existed but wasn't used), and — the reason this doc exists — the same badge/pill shape independently hand-rolled in at least 8 different plugin stylesheets with no shared front-end primitive to point at. See `AUDIT-inline-styles-MASTER.md` and `AUDIT-css-files-MASTER.md` (same directory) for the full findings this doc is downstream of.
