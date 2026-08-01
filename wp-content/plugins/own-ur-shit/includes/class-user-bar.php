@@ -102,26 +102,20 @@ class OUS_UserBar {
                 box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
                 border-radius: 12px 12px 0 0;
             }
-            /* Frosted-glass dock instead of a flat opaque bar — this is
-               the one piece of chrome that appears on EVERY front-end
-               page regardless of that page\'s own color scheme (a light
-               course page, a dark contest player, a themed artist
-               profile), so a fixed opaque background was always going to
-               clash with something. Semi-transparent + blur lets
-               whatever\'s actually behind it (light or dark) show
-               through tinted instead of fighting it with a hard color
-               seam — reads as one continuous surface with the page, not
-               a bar bolted on top of it. Falls back to the original
-               solid background (already set above) on browsers without
-               backdrop-filter support, which is a fully fine bar on its
-               own, just not translucent. */
-            @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-                .bhi-user-bar {
-                    background: color-mix(in srgb, var(--bh-surface, #fff) 72%, transparent);
-                    -webkit-backdrop-filter: blur(16px) saturate(160%);
-                    backdrop-filter: blur(16px) saturate(160%);
-                }
-            }
+            /* Tried a frosted-glass (backdrop-filter blur) treatment
+               here to dodge the color clash against bh-contest\'s dark
+               player bar — live-checked and reverted: it revealed
+               blurred page content bleeding through (noisy, not
+               "magical"), and once this bar was translucent while the
+               still-opaque player bar sat right above it, the mismatch
+               became a MATERIAL clash (glass vs. flat) instead of just
+               a color one. This bar is global site chrome that shows up
+               on every front-end page regardless of that page\'s own
+               theme — an opaque, consistent identity of its own is the
+               right call here, same as a browser\'s or OS\'s own chrome
+               doesn\'t try to blend into every page it sits above. The
+               real fix for the stacking case is the corner-flattening
+               rule below, not disguising this bar as part of the page. */
             .bhi-user-bar-inner {
                 max-width: 960px; margin: 0 auto; padding: 8px 16px;
                 display: flex; align-items: center; gap: 14px; overflow-x: auto;
