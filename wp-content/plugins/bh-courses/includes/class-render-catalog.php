@@ -154,14 +154,36 @@ class BHC_Render_Catalog {
 
         ob_start();
         echo '<div class="bhc-course-card' . ($locked ? ' bhc-locked' : '') . '">';
-        if (has_post_thumbnail($course->ID)) echo get_the_post_thumbnail($course->ID, 'medium');
+        // Real live-caught issue: only some courses have a featured
+        // image, so cards with one and cards without one had a visibly
+        // different internal skeleton — even with align-items:start
+        // (each card sizing to its own content, not stretched to match
+        // its tallest row sibling) the row still read as jagged/uneven
+        // rather than elegant, because the cards themselves weren't the
+        // same *shape*. Every card now gets the same fixed-aspect-ratio
+        // image slot — the real thumbnail if one exists, otherwise a
+        // gradient built from the site's own --bh-accent tokens (no new
+        // color invented) so a course with no artwork yet still reads
+        // as a deliberate, finished-looking card instead of a gap.
         // bh-clamp-2 (own-ur-shit's shared front-end text-overflow
         // utility, class-style.php) — a long course title previously
         // either overflowed this fixed-width card or wrapped an
         // unbounded number of lines, pushing every card in the same
         // catalog row to a different height. Clamps to 2 lines with a
         // real ellipsis instead.
-        echo '<h3 class="bh-clamp-2"><a href="' . esc_url(get_permalink($course->ID)) . '">' . esc_html(get_the_title($course->ID)) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
+        $title_html = '<h3 class="bh-clamp-2 bhc-card-thumb-title"><a href="' . esc_url(get_permalink($course->ID)) . '">' . esc_html(get_the_title($course->ID)) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
+
+        // Title now overlays the thumbnail itself (poster-card style)
+        // instead of sitting in plain text below it — the scrim div is
+        // a bottom-anchored gradient purely for text legibility over
+        // whatever's in the image, real or placeholder.
+        if (has_post_thumbnail($course->ID)) {
+            echo '<div class="bhc-card-thumb">' . get_the_post_thumbnail($course->ID, 'medium')
+                . '<div class="bhc-card-thumb-scrim" aria-hidden="true"></div>' . $title_html . '</div>';
+        } else {
+            echo '<div class="bhc-card-thumb bhc-card-thumb-placeholder">'
+                . '<div class="bhc-card-thumb-scrim" aria-hidden="true"></div>' . $title_html . '</div>';
+        }
 
         echo '<div class="bhc-card-meta">';
         if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course->ID)) . '">' . esc_html($difficulty_label) . '</span>';
@@ -177,10 +199,21 @@ class BHC_Render_Catalog {
         if ($instructor) echo '<div class="bhc-card-instructor">' . get_avatar($instructor->ID, 20) . ' <span>' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div>';
 
         echo '<div class="bhc-excerpt">' . wp_kses_post(get_the_excerpt($course->ID)) . '</div>';
+        // Real live-caught issue: cards without a logged-in progress
+        // footer (no $uid, or locked) or without an excerpt were still
+        // visibly shorter than their siblings even after the image/
+        // clamp fixes, because the excerpt collapses to zero height
+        // when empty and this footer simply doesn't render at all —
+        // pushing bhc-footer-spacer's margin-top:auto (below) pins
+        // whatever footer content DOES exist to the bottom of the card
+        // consistently, and .bhc-excerpt's min-height (courses.css)
+        // keeps a short/empty excerpt from collapsing the gap above it.
+        echo '<div class="bhc-footer-spacer">';
         if ($uid && !$locked) {
             echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
             echo BHC_Render_Course::render_continue_cta($uid, $course->ID, $percent);
         }
+        echo '</div>';
         echo '</div>';
         return ob_get_clean();
     }

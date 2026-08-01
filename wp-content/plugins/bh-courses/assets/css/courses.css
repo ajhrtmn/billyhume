@@ -34,23 +34,100 @@
    columns with no card in them, leaving a single lonely card floating
    in a mostly-blank row. auto-fit collapses those empty tracks so real
    cards expand to actually fill the row instead. */
-.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+/* Real bug, caught live: CSS Grid's default align-items:stretch was
+   forcing every card in a row to match the row's TALLEST card (e.g. one
+   with a cover image + description + button stretches its shorter
+   siblings into mostly-empty boxes) instead of each card sizing to its
+   own content. align-items:start opts every card out of that stretch. */
+.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: start; }
+/* Depth + hover lift — derived entirely from --bh-accent/--bh-border
+   (no new colors invented) rather than a flat, static card. Rest state
+   gets a faint shadow so the grid reads as a stack of physical cards,
+   not a flat table; hovering lifts the card and swaps the border for a
+   soft accent-tinted glow, giving the browsing moment some life without
+   touching layout (translateY, not a scale, so nothing shifts its
+   neighbors or triggers reflow). */
 .bhc-course-card {
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
-/* Real bug: this was un-scoped and also matched the instructor avatar
-   nested inside .bhc-card-instructor further down the card, stretching
-   a 20x20 get_avatar() image to the full card width while its height
-   stayed fixed. Direct-child selector targets only the cover thumbnail
-   (get_the_post_thumbnail()'s own unwrapped <img>, echoed straight
-   into .bhc-course-card in class-render-catalog.php). */
-.bhc-course-card > img { width: 100%; border-radius: 6px; object-fit: cover; }
+.bhc-course-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--bh-accent);
+    box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent) 35%, transparent), 0 4px 8px rgba(0, 0, 0, .06);
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-course-card { transition: none; }
+    .bhc-course-card:hover { transform: none; }
+}
+/* Every card gets the same shape now — a fixed 16:9 slot, whether it
+   holds a real thumbnail or the gradient placeholder below — instead of
+   only some cards having an image block and others skipping straight to
+   the title, which was the actual cause of the row looking jagged even
+   once cards stopped being stretched to match their tallest sibling. */
+.bhc-card-thumb {
+    position: relative; margin: -16px -16px 0; border-radius: 10px 10px 0 0; aspect-ratio: 16 / 9;
+    overflow: hidden; display: flex; align-items: flex-end;
+}
+.bhc-card-thumb img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform .3s ease;
+}
+.bhc-course-card:hover .bhc-card-thumb img { transform: scale(1.05); }
+/* Gradient built from the site's own accent tokens (color-mix, no new
+   color invented) plus a faint centered mark so an un-illustrated
+   course still reads as a considered card, not a hole in the grid. */
+/* Real image, not just a flat color block — an inline SVG waveform
+   (fitting content: these are audio/production courses) layered over
+   the accent gradient. White shapes at low opacity so the illustration
+   reads correctly over whatever accent color a given site is themed
+   with, rather than baking in a fixed color the gradient can't match. */
+.bhc-card-thumb-placeholder {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 169'%3E%3Cg fill='white' fill-opacity='0.38'%3E%3Crect x='40' y='74' width='10' height='21' rx='5'/%3E%3Crect x='58' y='60' width='10' height='49' rx='5'/%3E%3Crect x='76' y='40' width='10' height='89' rx='5'/%3E%3Crect x='94' y='55' width='10' height='59' rx='5'/%3E%3Crect x='112' y='70' width='10' height='29' rx='5'/%3E%3Crect x='130' y='35' width='10' height='99' rx='5'/%3E%3Crect x='148' y='50' width='10' height='69' rx='5'/%3E%3Crect x='166' y='65' width='10' height='39' rx='5'/%3E%3Crect x='184' y='45' width='10' height='79' rx='5'/%3E%3Crect x='202' y='72' width='10' height='25' rx='5'/%3E%3Crect x='220' y='58' width='10' height='53' rx='5'/%3E%3Crect x='238' y='68' width='10' height='33' rx='5'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, color-mix(in srgb, var(--bh-accent) 26%, var(--bh-surface)) 0%, color-mix(in srgb, var(--bh-accent) 8%, var(--bh-surface)) 100%);
+    background-size: 60% auto, cover;
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+}
+/* Bottom-anchored scrim purely for text legibility — dark enough near
+   the title to guarantee contrast against any photo, fully transparent
+   by the top of the image so it never looks like a flat dark bar. */
+.bhc-card-thumb-scrim {
+    position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(to top, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, transparent 85%);
+}
+.bhc-card-thumb-title {
+    position: relative; z-index: 2; margin: 0; padding: 14px 14px 12px; width: 100%; box-sizing: border-box;
+}
+.bhc-card-thumb-title a { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.bhc-card-thumb-title a:hover { text-decoration: underline; }
+.bhc-card-thumb-title .bhc-lock { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+/* font-family/size only — this h3 now always lives inside the thumb
+   overlay (the only h3 left in this card), so its hover COLOR is owned
+   entirely by .bhc-card-thumb-title above (always white for contrast
+   against the dark scrim); an accent-color hover here would silently
+   fail legibility over a photo. */
 .bhc-course-card h3 { font-family: var(--bh-font-heading); font-size: 17px; }
-.bhc-course-card h3 a:hover { color: var(--bh-accent); }
 .bhc-course-card.bhc-locked { opacity: 0.7; }
 .bhc-lock { font-size: 13px; }
-.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* min-height reserves the same vertical space a 2-line excerpt would
+   take even when a course has none yet, so a card with no description
+   doesn't visually collapse against its siblings that have one — part
+   of the same "every card reads as the same considered shape" fix as
+   .bhc-card-thumb/.bhc-footer-spacer above/below. */
+.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.8em; }
+/* margin-top:auto alone does nothing here — .bhc-course-card is an
+   auto-height flex column (align-items:start on the parent grid means
+   it's never stretched taller than its own content), so there's no
+   leftover space for auto margins to consume. The min-height below is
+   what actually keeps a card with no progress/CTA footer (logged-out
+   view, or a locked course) from just stopping short of its siblings
+   that do have one — roughly the real footer block's own height
+   (6px bar + label + button) reserved either way. */
+.bhc-footer-spacer { margin-top: auto; min-height: 54px; }
 
 .bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
 /* Width changes (a step/lesson completing) used to jump instantly —
@@ -99,17 +176,22 @@
 }
 
 /* ---- catalog: card badges/meta (Part 2 catalog rebuild) ---- */
-.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; }
-/* Real bug, caught live: this wrapper never had its own horizontal
-   padding at any width, relying entirely on the theme's own content
-   margin — fine on desktop where that margin is generous, but on a
-   narrow/mobile viewport the theme's own margin can be zero, leaving
-   every card, the search bar, and the filter row flush against the
-   screen edge with no breathing room at all. 16px matches this file's
-   own mobile-breakpoint scale (see .bhc-step/.bhc-lesson-next padding
-   in the 480px breakpoint below) rather than inventing a new value. */
+/* Real bug, caught live TWICE: the original fix here (max-width:600px
+   padding only) assumed the theme's own content margin covered every
+   width above that — checked live with getComputedStyle() and that
+   assumption was false. This archive template's ancestor chain
+   (.bhc-archive-main -> body -> html) has ZERO horizontal padding or
+   margin at any width; the theme supplies none for this custom archive
+   at all, mobile or desktop. Cards, search bar, and filter row were
+   flush against the browser edge at every viewport, not just narrow
+   ones. Fixed by giving this wrapper its own max-width+centered-margin
+   +padding unconditionally, matching the pattern bh-registry's .bhr-app
+   and bh-monetization-woo's .bhm-storefront-wrap already use for the
+   same "this template owns its own width, don't trust the theme"
+   reason — not a new invented value. */
+.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
 @media (max-width: 600px) {
-    .bhc-catalog-wrap { padding: 0 16px; }
+    .bhc-catalog-wrap { padding: 20px 16px; }
 }
 /* Shape (padding/radius/font-size/nowrap) now comes from the shared
    .bh-badge component (class-style.php) — markup carries both classes;
