@@ -90,7 +90,34 @@ class BHM_Storefront {
         // already rendered, so an explicitly-placed bhm/related-products
         // block inside the description has already set the
         // "don't double-render" flag by the time this checks it.
+        //
+        // Real bug, caught live: WooCommerce core hooks its OWN default
+        // related-products output (woocommerce_output_related_products)
+        // to this exact same action at this exact same priority — since
+        // both land on the same hook+priority, WordPress runs them in
+        // registration order and BOTH rendered, showing the same
+        // recommended product twice on every single-product page in two
+        // different visual treatments (this plugin's styled "You may
+        // also like" grid, then WooCommerce's own plain list right below
+        // it). Removing the core callback so this plugin's version is
+        // the only one shown — same content, one considered
+        // presentation instead of a redundant duplicate.
+        remove_action('woocommerce_after_single_product_summary', 'woocommerce_output_related_products', 20);
         add_action('woocommerce_after_single_product_summary', ['BHM_Recommendations', 'auto_render_related'], 20);
+        // The remove_action above only covers a CLASSIC theme's
+        // template-hook based related-products output — live-checked on
+        // this (block theme) install and the actual duplicate was
+        // coming from a completely different source: the current
+        // active theme's single-product block TEMPLATE itself ships a
+        // woocommerce/product-collection block hardcoded to the
+        // "related" collection (data-collection=
+        // "woocommerce/product-collection/related", confirmed via the
+        // rendered block's own attributes) — an entirely separate
+        // rendering path the classic remove_action can't reach.
+        // Suppressing it at render time so whichever theme/template this
+        // runs under, only this plugin's own styled related-products
+        // section shows, not a duplicate.
+        add_filter('render_block', [self::class, 'suppress_core_related_products_block'], 10, 2);
 
         if (class_exists('BH_Studio')) {
             add_filter('bh_studio_block_types', [self::class, 'register_studio_block_types']);
@@ -518,5 +545,18 @@ class BHM_Storefront {
         $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
         $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Related Products'];
         return $types;
+    }
+
+    // See the add_filter('render_block', ...) call above for why this
+    // exists — only ever matches the one specific WooCommerce core
+    // block/collection combination (identified the same way the browser
+    // itself reports it: block name + the 'related' collection id),
+    // never any other product-collection block a site owner might
+    // deliberately place elsewhere (a "featured products" or manually
+    // curated collection block is left completely alone).
+    public static function suppress_core_related_products_block($block_content, $block) {
+        if (($block['blockName'] ?? '') !== 'woocommerce/product-collection') return $block_content;
+        if (($block['attrs']['collection'] ?? '') !== 'woocommerce/product-collection/related') return $block_content;
+        return '';
     }
 }
