@@ -85,7 +85,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types', 'privacy'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -164,6 +164,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_StyleSurface', 'init']);
     add_action('init',          ['BHS_CRMIntegration', 'init']);
     add_action('init',          ['BHS_Stats', 'init']);
+    add_action('init',          ['BHS_Privacy', 'init']);
     add_action('init',          ['BHS_Chapters', 'init']);
     add_action('init',          ['BHS_VideoPostTypes', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHS_TestSuite', 'init']);

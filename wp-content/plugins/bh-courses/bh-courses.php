@@ -196,7 +196,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews', 'privacy'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -219,6 +219,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHC_Blocks', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Achievements', 'init']);
+    add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
