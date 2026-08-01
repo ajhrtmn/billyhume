@@ -618,11 +618,11 @@
 .bh-archive-controls input { flex: 1; min-width: 200px; }
 .bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
 .bh-archive-card { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius); padding: calc(16px * var(--bh-space-scale)); }
-.bh-archive-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); }
-.bh-archive-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: 2px; }
-.bh-archive-contest { color: var(--bh-text-dim); font-size: calc(11px * var(--bh-font-scale)); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; }
+.bh-archive-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.bh-archive-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-archive-contest { color: var(--bh-text-dim); font-size: calc(11px * var(--bh-font-scale)); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bh-archive-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: calc(6px * var(--bh-space-scale)); }
-.bh-archive-badge { font-size: calc(11px * var(--bh-font-scale)); background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 999px; padding: 2px 8px; }
+.bh-archive-badge { font-size: calc(11px * var(--bh-font-scale)); background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
 .bh-archive-audio { width: 100%; margin-top: calc(10px * var(--bh-space-scale)); }
 
 /* ---------------- Results Reveal ---------------- */

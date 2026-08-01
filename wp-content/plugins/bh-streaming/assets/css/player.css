@@ -100,10 +100,10 @@
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 8px 0 0 8px; padding: 14px;
 }
 .bhs-queue-panel h3 { font-size: 13px; text-transform: uppercase; color: var(--bh-text-dim); margin: 0 0 10px; }
-.bhs-queue-item { padding: 8px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; }
+.bhs-queue-item { padding: 8px 6px; font-size: 13px; cursor: pointer; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bhs-queue-item:hover { background: var(--bh-surface-2); }
 .bhs-queue-item.active { color: var(--bh-accent); }
-.bhs-queue-artist { color: var(--bh-text-dim); font-size: 11px; }
+.bhs-queue-artist { color: var(--bh-text-dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- playlist picker modal ---- */
 .bhs-playlist-picker { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -189,5 +189,5 @@
 
 /* Long-form audio chapter markers — ROADMAP-streaming-media-scope-and-blockchain.md Part 5 */
 .bhs-np-chapters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.bhs-chapter-marker { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: inherit; cursor: pointer; }
+.bhs-chapter-marker { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
 .bhs-chapter-marker:hover { background: rgba(255,255,255,0.1); }

@@ -304,11 +304,11 @@ class BHSO_Admin {
             echo '<p><em>No stats pulled yet.</em></p>';
             return;
         }
-        echo '<table class="widefat striped" style="max-width:480px;"><thead><tr><th>Metric</th><th>Value</th><th>As of</th></tr></thead><tbody>';
+        echo '<div class="bhy-table-wrap" style="max-width:480px;"><table class="widefat striped"><thead><tr><th>Metric</th><th>Value</th><th>As of</th></tr></thead><tbody>';
         foreach ($stats as $key => $row) {
             echo '<tr><td>' . esc_html(ucwords(str_replace('_', ' ', $key))) . '</td><td>' . esc_html(number_format_i18n($row['value'])) . '</td><td>' . esc_html($row['recorded_at']) . '</td></tr>';
         }
-        echo '</tbody></table>';
+        echo '</tbody></table></div>';
     }
 
     private static function render_youtube_section() {

@@ -31,5 +31,5 @@
     font-size:11px; text-transform:uppercase; letter-spacing:.04em; font-weight:600;
     color:var(--bh-accent, #2271b1);
 }
-.ous-search-item-title { font-size:14px; font-weight:600; color:var(--bh-text, inherit); }
+.ous-search-item-title { font-size:14px; font-weight:600; color:var(--bh-text, inherit); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .ous-search-item-excerpt { font-size:12px; color:var(--bh-text-dim, #646970); }

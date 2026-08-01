@@ -38,14 +38,14 @@ class BH_AdminListTables {
             $sub = BH_Helpers::submission_status($post_id);
             $sub_map   = ['open' => '#1DB954', 'unscheduled' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e'];
             $sub_label = ['open' => 'Open', 'unscheduled' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed'];
-            echo '<div style="margin-bottom:4px;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Submit</span> '
-               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $sub_map[$sub] . ';color:#fff;font-size:11px;font-weight:600;">' . esc_html($sub_label[$sub]) . '</span></div>';
+            echo '<div style="margin-bottom:4px;white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Submit</span> '
+               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $sub_map[$sub] . ';color:#fff;font-size:11px;font-weight:600;white-space:nowrap;">' . esc_html($sub_label[$sub]) . '</span></div>';
 
             $s = BH_Helpers::contest_status($post_id);
             $map   = ['open' => '#1DB954', 'upcoming' => '#8a8a8a', 'closed' => '#b3261e', 'unscheduled' => '#8a8a8a'];
             $label = ['open' => 'Open', 'upcoming' => 'Upcoming', 'closed' => 'Closed', 'unscheduled' => 'Not scheduled'];
-            echo '<div><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Vote</span> '
-               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;">' . esc_html($label[$s]) . '</span>';
+            echo '<div style="white-space:nowrap;"><span style="display:inline-block;width:62px;font-size:10px;color:#787c82;text-transform:uppercase;">Vote</span> '
+               . '<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:' . $map[$s] . ';color:#fff;font-size:11px;font-weight:600;white-space:nowrap;">' . esc_html($label[$s]) . '</span>';
 
             // One-click override so switching a contest's phase doesn't
             // require opening the edit screen and hand-editing date pickers.
