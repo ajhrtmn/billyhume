@@ -132,6 +132,15 @@ class BHC_ContentBridge {
             defined('BHC_VER') ? BHC_VER : null,
             true
         );
+        // OSS-integration master plan Phase 6 follow-up — the video
+        // step's Cloudflare Stream source option only appears in the
+        // block editor's SelectControl when Tier B was actually turned
+        // on in Media & CDN Setup (own-ur-shit's OUS_MediaWizard), so an
+        // install that never opted into Tier B never even sees the
+        // option, let alone can accidentally pick it.
+        wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaTierB', [
+            'enabled' => class_exists('OUS_MediaWizard') && OUS_MediaWizard::tier_b_enabled(),
+        ]);
     }
 
     // Real bug, caught live: bhc/quiz-question's own edit view renders
@@ -234,6 +243,14 @@ class BHC_ContentBridge {
             'source' => ['type' => 'string', 'default' => 'upload'],
             'attachment_id' => ['type' => 'int', 'default' => 0],
             'video_url' => ['type' => 'url', 'default' => ''],
+            // OSS-integration master plan Phase 6 follow-up — round-trips
+            // the Cloudflare Stream video UID through the tree<->legacy-
+            // steps conversion the same way every other schema key here
+            // already does; the real authoritative validation/rendering
+            // is class-steps.php/class-render-lesson.php, not this
+            // generic BH_Content preview path (see this array's own
+            // 'annotations' comment for why).
+            'stream_uid' => ['type' => 'string', 'default' => ''],
             'caption' => ['type' => 'string', 'default' => ''],
             'watch_threshold' => ['type' => 'int', 'default' => 0],
             // ROADMAP-lms-v3.md Section 1 — timestamped overlay
@@ -248,7 +265,9 @@ class BHC_ContentBridge {
             'annotations' => ['type' => 'array', 'default' => []],
         ], function ($attrs) {
             $out = '<div class="bhc-step bhc-step-video">';
-            if ($attrs['source'] === 'url' && $attrs['video_url']) {
+            if ($attrs['source'] === 'cloudflare_stream' && $attrs['stream_uid']) {
+                $out .= '<iframe src="https://iframe.videodelivery.net/' . esc_attr(preg_replace('/[^a-f0-9]/', '', $attrs['stream_uid'])) . '" style="border:none;" allowfullscreen></iframe>';
+            } elseif ($attrs['source'] === 'url' && $attrs['video_url']) {
                 $out .= wp_oembed_get($attrs['video_url']) ?: ('<a href="' . esc_url($attrs['video_url']) . '">' . esc_html($attrs['video_url']) . '</a>');
             } elseif ($attrs['attachment_id']) {
                 $out .= wp_video_shortcode(['src' => wp_get_attachment_url((int) $attrs['attachment_id'])]);

@@ -210,6 +210,11 @@
             source: { type: 'string', default: 'upload' },
             attachment_id: { type: 'number', default: 0 },
             video_url: { type: 'string', default: '' },
+            // OSS-integration master plan Phase 6 follow-up — a
+            // Cloudflare Stream video UID, pasted in after the admin
+            // uploads to Stream themselves (see class-steps.php's own
+            // comment: no in-plugin upload-to-Stream flow yet).
+            stream_uid: { type: 'string', default: '' },
             caption: { type: 'string', default: '' },
             // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b — 0
             // means "any playback marks it complete" (the pre-existing
@@ -332,7 +337,13 @@
                     el(wp.components.SelectControl, {
                         label: __('Source'),
                         value: attrs.source,
-                        options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }],
+                        // Cloudflare Stream only appears as an option when
+                        // Tier B is actually enabled (own-ur-shit's Media &
+                        // CDN Setup, OUS_MediaWizard::tier_b_enabled(),
+                        // localized as window.bhcMediaTierB) — an install
+                        // that never opted in never sees it.
+                        options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }]
+                            .concat((window.bhcMediaTierB && window.bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : []),
                         onChange: function (v) { setAttrs({ source: v }); },
                     })
                 ),
@@ -354,6 +365,13 @@
                 el('div', blockProps,
                 attrs.source === 'url'
                     ? el(wp.components.TextControl, { label: __('Video URL'), value: attrs.video_url, onChange: function (v) { setAttrs({ video_url: v }); } })
+                    : attrs.source === 'cloudflare_stream'
+                    ? el(wp.components.TextControl, {
+                        label: __('Cloudflare Stream video UID'),
+                        help: __('Upload the video to Cloudflare Stream yourself first, then paste the resulting UID here — a 32-character code from its dashboard/API response.'),
+                        value: attrs.stream_uid,
+                        onChange: function (v) { setAttrs({ stream_uid: v.trim().toLowerCase() }); },
+                    })
                     : el(wp.blockEditor.MediaUploadCheck, {},
                         el(wp.blockEditor.MediaUpload, {
                             allowedTypes: ['video'],

@@ -295,6 +295,24 @@ class BHC_Render_Lesson {
                 } else {
                     echo '<p class="bhc-empty">Video file not found.</p>';
                 }
+            } elseif ($step['source'] === 'cloudflare_stream') {
+                // OSS-integration master plan Phase 6 follow-up: Tier B
+                // wired into a real content type. Cloudflare Stream's own
+                // iframe embed (https://iframe.videodelivery.net/{uid}) —
+                // deliberately the simple, zero-extra-JS first cut over an
+                // hls.js-backed <video>, matching this session's "ship
+                // the simple thing first" precedent; an hls.js path
+                // (OUS_MediaWizard::enqueue_hls_js(), already available)
+                // can follow once this is proven. Not trackable the same
+                // way an upload/direct-URL <video> is — same cross-origin-
+                // iframe constraint watch_threshold/annotations already
+                // document above, so neither is emitted here.
+                $stream_uid = preg_replace('/[^a-f0-9]/', '', (string) ($step['stream_uid'] ?? ''));
+                if ($stream_uid) {
+                    echo '<iframe class="bhc-step-video-embed" src="https://iframe.videodelivery.net/' . esc_attr($stream_uid) . '" style="border:none;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen></iframe>';
+                } else {
+                    echo '<p class="bhc-empty">Cloudflare Stream video UID missing.</p>';
+                }
             } else {
                 // A plain external URL — Cloudflare Stream/Bunny Stream
                 // iframe embeds and most other "give me embed code"
