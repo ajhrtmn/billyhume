@@ -2,11 +2,32 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.13
+ * Version:     2.4.14
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.14 — BHCRM_Segments::register_campaign_segments() (class-segments.php)
+// now bridges every saved CRM list, plus a built-in "everyone active in the
+// CRM" segment, into own-ur-shit's OUS_Campaigns via the existing
+// 'bhcore_campaign_segments' filter. Direct motivation: CLAUDE.md's new
+// standing rule ("critical infrastructure always ships with a minimal,
+// self-hosted, built-in default — a third-party integration is an
+// enhancement, never the only implementation"), applied concretely.
+// OUS_Campaigns is already a complete, working broadcast tool on top of
+// BH_Mail/wp_mail() alone — no MailPoet or any other third party required —
+// but until this change, its only real audience option was the built-in
+// "everyone with an account" segment; every saved bh-crm list (tag/date/
+// project conditions, already fully built) was invisible to it. No new UI,
+// no new data: this reuses BHCRM_Segments::apply()/BHCRM_People::
+// active_user_ids() exactly as the CRM's own list page and live-preview
+// already call them, so a genuinely targeted broadcast never requires
+// installing anything beyond own-ur-shit + bh-crm. Harmless if OUS_Campaigns
+// is never active — an add_filter() on a filter nobody applies just sits
+// unused, same posture every other optional cross-plugin filter here takes.
+// NOT runtime-verified against a live WordPress+MySQL install this session;
+// `php -l` clean on class-segments.php and bh-crm.php.
 
 // 2.4.0 — mobile-responsive kanban layout (782px breakpoint), auto-mark-done
 // when a card is dropped in the last ("done") column (one-directional — moving
@@ -99,7 +120,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.13');
+define('BHCRM_VER',  '2.4.14');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only
@@ -278,6 +299,13 @@ add_action('plugins_loaded', function () {
     BHCRM_Notes::init();
     BHCRM_Tags::init();
     BHCRM_Segments::init();
+    // Feeds every saved CRM list into OUS_Campaigns' own audience picker
+    // — see class-segments.php's docblock. This is a contribution to the
+    // 'email_broadcast' OUS_Integration contract (registered in
+    // own-ur-shit.php, which actually owns OUS_Campaigns), not a
+    // registration of that contract itself — bh-crm doesn't own the
+    // built-in default, it just makes it more useful once active.
+    add_filter('bhcore_campaign_segments', ['BHCRM_Segments', 'register_campaign_segments']);
     BHCRM_Debug::init();
     if (class_exists('OUS_TestRunner')) BHCRM_TestSuite::init();
 
