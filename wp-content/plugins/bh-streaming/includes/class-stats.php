@@ -136,18 +136,25 @@ class BHS_Stats {
              WHERE metric = 'play' AND stat_date >= %s GROUP BY referrer_bucket ORDER BY plays DESC", $since
         ));
 
+        // Real D3 charts (vendored, assets/js/vendor/d3.min.js) replace
+        // what used to be a hand-rolled inline-CSS div bar chart here and
+        // plain tables for region/referrer below — same server-aggregated
+        // rows as before, just JSON-encoded for stats-charts.js to render
+        // instead of looped into `echo` calls. wp_enqueue_script() is
+        // safe to call directly inside this admin-page render method
+        // (same pattern several other admin screens in this ecosystem
+        // already use for a page-specific asset).
+        wp_enqueue_script('bhs-d3', BHS_URL . 'assets/js/vendor/d3.min.js', [], '7.9.0', true);
+        wp_enqueue_script('bhs-stats-charts', BHS_URL . 'assets/js/stats-charts.js', ['bhs-d3'], BHS_VER, true);
+
         echo '<div class="wrap"><h1>Metrics</h1><p class="description">Last ' . (int) $days . ' days. All figures below are aggregate counts — no per-listener data is collected or shown anywhere here.</p>';
 
         echo '<h2>Plays per day</h2>';
-        if (!$by_day) { echo '<p>No plays recorded yet in this window.</p>'; }
-        else {
-            $max = max(array_map(fn($r) => (int) $r->plays, $by_day)) ?: 1;
-            echo '<div style="display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid #ccc;padding-bottom:4px;">';
-            foreach ($by_day as $row) {
-                $h = max(2, round(((int) $row->plays / $max) * 110));
-                echo '<div title="' . esc_attr($row->stat_date . ': ' . $row->plays . ' plays') . '" style="width:8px;height:' . (int) $h . 'px;background:#C1503A;"></div>';
-            }
-            echo '</div>';
+        if (!$by_day) {
+            echo '<p>No plays recorded yet in this window.</p>';
+        } else {
+            $chart_days = array_map(fn($r) => ['date' => $r->stat_date, 'value' => (int) $r->plays], $by_day);
+            echo '<div id="bhs-chart-plays-per-day" data-chart="' . esc_attr(wp_json_encode($chart_days)) . '" style="max-width:760px;"></div>';
         }
 
         echo '<h2>Top tracks</h2><div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Track</th><th>Plays</th></tr></thead><tbody>';
@@ -166,19 +173,22 @@ class BHS_Stats {
         if (!$skips) echo '<tr><td colspan="2">No Jam vote-skips recorded yet.</td></tr>';
         echo '</tbody></table></div>';
 
-        echo '<h2>Listener region (approximate — from browser language, not true GeoIP)</h2><div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Region</th><th>Plays</th></tr></thead><tbody>';
-        foreach ($by_country as $row) {
-            echo '<tr><td>' . esc_html($row->country) . '</td><td>' . (int) $row->plays . '</td></tr>';
+        echo '<h2>Listener region (approximate — from browser language, not true GeoIP)</h2>';
+        if (!$by_country) {
+            echo '<p>No data yet.</p>';
+        } else {
+            $chart_region = array_map(fn($r) => ['country' => $r->country, 'plays' => (int) $r->plays], $by_country);
+            echo '<div id="bhs-chart-region" data-chart="' . esc_attr(wp_json_encode($chart_region)) . '" style="max-width:760px;"></div>';
         }
-        if (!$by_country) echo '<tr><td colspan="2">No data yet.</td></tr>';
-        echo '</tbody></table></div>';
 
-        echo '<h2>How listeners got here</h2><div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Source</th><th>Plays</th></tr></thead><tbody>';
+        echo '<h2>How listeners got here</h2>';
         $labels = ['shared_playlist' => 'Shared playlist link', 'jam' => 'Jam invite', 'on_site' => 'This site', 'external' => 'Another site', 'direct' => 'Direct / no referrer', 'unknown' => 'Unknown'];
-        foreach ($by_referrer as $row) {
-            echo '<tr><td>' . esc_html($labels[$row->referrer_bucket] ?? $row->referrer_bucket) . '</td><td>' . (int) $row->plays . '</td></tr>';
+        if (!$by_referrer) {
+            echo '<p>No data yet.</p>';
+        } else {
+            $chart_referrer = array_map(fn($r) => ['label' => $labels[$r->referrer_bucket] ?? $r->referrer_bucket, 'plays' => (int) $r->plays], $by_referrer);
+            echo '<div id="bhs-chart-referrer" data-chart="' . esc_attr(wp_json_encode($chart_referrer)) . '" style="max-width:760px;"></div>';
         }
-        if (!$by_referrer) echo '<tr><td colspan="2">No data yet.</td></tr>';
-        echo '</tbody></table></div></div>';
+        echo '</div>';
     }
 }

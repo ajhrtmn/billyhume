@@ -2,11 +2,44 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.66
+ * Version:     0.4.67
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.67 — OSS-integration master plan Phase 6 follow-up: Cloudflare
+// Stream wired into the video step as a real third source alongside
+// upload/url (class-steps.php's own comments had already named this as
+// the intended use case for the 'url' branch — this gives it a real,
+// separate source value instead, since a Stream video UID and a raw
+// embed URL are different enough shapes to validate/render distinctly).
+// A step gains 'cloudflare_stream'/'stream_uid' (class-steps.php,
+// validated as a real 32-char hex UID, never trusted free text);
+// class-render-lesson.php renders Cloudflare Stream's own iframe embed
+// (the simple, zero-extra-JS first cut — an hls.js-backed <video> via
+// OUS_MediaWizard::enqueue_hls_js() can follow once this is proven);
+// courses-studio-blocks.js's Source picker only offers the option when
+// Tier B is actually enabled (OUS_MediaWizard::tier_b_enabled(),
+// localized via class-content-bridge.php's new wp_localize_script()
+// call as window.bhcMediaTierB) — an install that never opted into
+// Tier B never sees it. class-content-bridge.php's bhc/video schema
+// gained the matching 'stream_uid' key so it round-trips through the
+// block-tree<->legacy-steps conversion.
+// Explicitly NOT built this pass: an in-plugin "upload straight to
+// Cloudflare Stream" flow — v1 requires pasting back a UID from a
+// manual upload via Cloudflare's own dashboard/API. A real upload flow
+// (Stream's TUS-resumable-upload protocol, progress UI) is a separate,
+// bigger piece, flagged honestly rather than attempted here.
+// bh-video and bh-streaming remain explicitly out of scope for this
+// pass too (see ROADMAP-hyperpress-migration.md's sibling plan doc /
+// this session's own research: bh-courses was the only plugin with an
+// existing source-discriminator concept to extend; the other two would
+// each need that introduced from scratch).
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session, and specifically never tested against a real Cloudflare
+// Stream account/UID. `php -l` clean; `node -c` clean on
+// courses-studio-blocks.js.
 
 // 0.4.66 — Phase 5 of the OSS-integration master plan: 1:1 session
 // scheduling, the "smallest real version" from ROADMAP-lms-instructor-
@@ -142,7 +175,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.66');
+define('BHC_VER',  '0.4.67');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

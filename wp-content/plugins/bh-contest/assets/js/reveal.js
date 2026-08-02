@@ -58,6 +58,47 @@
             html = '<div class="bh-reveal-intro"><h1>Thanks for watching!</h1></div>';
         }
         stage.innerHTML = html;
+        animateReveal(data.type);
+    }
+
+    // anime.js v4 (vendored, assets/js/vendor/anime.min.js) takes over
+    // the actual motion on a leaderboard reveal — the sequencing/pacing
+    // clock (poll()/catchUp() below) is unchanged, this only replaces
+    // the single blunt CSS keyframe (.bh-reveal-entry-new's old
+    // 'bh-reveal-pop' animation, player.css) that used to be the only
+    // animation on a fresh innerHTML swap. Staggered entry + a bigger
+    // flourish on the winner specifically. v4's API uses shorthand
+    // property names (x/y, not translateX/translateY) and an 'ease'
+    // param rather than v3's 'easing' — confirmed against the real
+    // v4.5.0 source/README before use; the exact easing string name and
+    // whether 'opacity'/'scale' are literally valid property names in
+    // v4 were NOT independently doc-verified beyond reasonable inference
+    // from one confirmed README example — worth a real-browser check
+    // before relying on this.
+    function animateReveal(type) {
+        if (typeof anime === 'undefined') return;
+        if (type !== 'category_reveal' && type !== 'overall_reveal') return;
+
+        var entries = stage.querySelectorAll('.bh-reveal-entry');
+        if (!entries.length) return;
+
+        anime.animate(entries, {
+            opacity: [0, 1],
+            y: [16, 0],
+            delay: anime.stagger(90),
+            duration: 450,
+            ease: 'outCubic',
+        });
+
+        var winner = stage.querySelector('.bh-reveal-entry-winner');
+        if (winner) {
+            anime.animate(winner, {
+                scale: [1, 1.08, 1],
+                duration: 700,
+                delay: 450, // after the staggered entries have settled
+                ease: 'inOutQuad',
+            });
+        }
     }
 
     var stepping = false; // true while walking through a catch-up sequence — pauses regular polling so it can't overlap and race
