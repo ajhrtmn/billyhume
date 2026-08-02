@@ -166,12 +166,39 @@ class BHC_Render_Catalog {
         // color invented) so a course with no artwork yet still reads
         // as a deliberate, finished-looking card instead of a gap.
         // bh-clamp-2 (own-ur-shit's shared front-end text-overflow
-        // utility, class-style.php) — a long course title previously
-        // either overflowed this fixed-width card or wrapped an
-        // unbounded number of lines, pushing every card in the same
-        // catalog row to a different height. Clamps to 2 lines with a
-        // real ellipsis instead.
-        $title_html = '<h3 class="bh-clamp-2 bhc-card-thumb-title"><a href="' . esc_url(get_permalink($course->ID)) . '">' . esc_html(get_the_title($course->ID)) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
+        // utility, class-style.php) handles the common case, but live
+        // testing against a deliberately extreme title (100+ characters)
+        // found -webkit-line-clamp's CSS-only truncation unreliable in
+        // this exact overlay context — the box's own computed geometry
+        // measured correctly clipped (confirmed via getBoundingClientRect
+        // + getComputedStyle), yet overflow text still visibly painted
+        // past that boundary. Rather than keep chasing what may be a
+        // browser-specific paint quirk with no reliable local repro tool,
+        // this adds a guaranteed server-side backstop: the raw TEXT
+        // itself is capped at a fixed character count (word-boundary
+        // aware) before it ever reaches the DOM, so no CSS technique's
+        // reliability is load-bearing for correctness — .bh-clamp-2
+        // still applies too, for the normal case where wrapping alone
+        // (not truncation) is all that's needed.
+        // 45 chars is deliberately conservative — confirmed live that
+        // even after a first truncation attempt at 70 chars, a partial
+        // 3rd line was STILL visibly painted past the clip boundary
+        // (same failure, just less of it), meaning the CSS clip cannot
+        // be trusted to reliably prevent overflow in this environment
+        // at all, not just for unusually long titles. 45 chars keeps
+        // real-world titles ("Mastering for Bedroom Producers") fully
+        // untouched while guaranteeing even a maximally long line at
+        // this card's ~17px bold font physically fits within 2 lines
+        // regardless of whether the CSS-level clip engages.
+        $course_title = get_the_title($course->ID);
+        $title_display = $course_title;
+        if (mb_strlen($course_title) > 45) {
+            $title_display = mb_substr($course_title, 0, 45);
+            $last_space = mb_strrpos($title_display, ' ');
+            if ($last_space !== false) $title_display = mb_substr($title_display, 0, $last_space);
+            $title_display .= '…';
+        }
+        $title_html = '<h3 class="bh-clamp-2 bhc-card-thumb-title"><a href="' . esc_url(get_permalink($course->ID)) . '" title="' . esc_attr($course_title) . '">' . esc_html($title_display) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
 
         // Title now overlays the thumbnail itself (poster-card style)
         // instead of sitting in plain text below it — the scrim div is

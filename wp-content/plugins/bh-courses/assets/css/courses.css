@@ -102,7 +102,7 @@
    once cards stopped being stretched to match their tallest sibling. */
 .bhc-card-thumb {
     position: relative; margin: -16px -16px 0; border-radius: 10px 10px 0 0; aspect-ratio: 16 / 9;
-    overflow: hidden; display: flex; align-items: flex-end;
+    overflow: hidden;
 }
 .bhc-card-thumb img {
     position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
@@ -132,8 +132,22 @@
     position: absolute; inset: 0; z-index: 1;
     background: linear-gradient(to top, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, transparent 85%);
 }
+/* Real bug, caught live: this used to be a flex child of .bhc-card-thumb
+   (align-items:flex-end) — the -webkit-line-clamp box (.bh-clamp-2) DID
+   clip its own reported height correctly, but the <a> inside it, as a
+   flex-flow child, could still render/hit-test beyond that clipped
+   height (flex containers don't clip overflowing children just because
+   a SIBLING has overflow:hidden — only the flex item's own overflow
+   matters, and confirmed live that a 3rd line's worth of the title was
+   genuinely reaching pixels below the intended 2-line box on a long
+   title). Absolute-positioning this at the thumb's own bottom edge
+   (the same technique .bhc-card-thumb-scrim and the <img> already use)
+   removes it from flex flow entirely, so the parent's own
+   overflow:hidden is what actually bounds it — no ambiguity left for
+   the browser to get wrong. */
 .bhc-card-thumb-title {
-    position: relative; z-index: 2; margin: 0; padding: 14px 14px 12px; width: 100%; box-sizing: border-box;
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; margin: 0; padding: 14px 14px 12px; box-sizing: border-box;
+    line-height: 1.25; max-height: calc(1.25em * 2 + 26px); overflow: hidden;
 }
 .bhc-card-thumb-title a { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
 .bhc-card-thumb-title a:hover { text-decoration: underline; }
