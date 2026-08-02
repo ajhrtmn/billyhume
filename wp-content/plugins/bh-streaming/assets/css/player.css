@@ -64,11 +64,20 @@
    way than bordered catalog-style cards would) but still needs the same
    baseline depth every card in this ecosystem gets — a subtle resting
    shadow plus a real hover lift, not just a background-color swap. */
+/* Real bug, caught live: with few real tracks in the grid (as few as
+   one), auto-fit collapses the OTHER empty tracks to 0 and hands their
+   space to the real card(s) — a single track balloons edge-to-edge,
+   over 1000px wide with a wildly distorted, oversized art thumbnail.
+   Same root cause bh-monetization-woo's .bhm-product-card already
+   fixed (see that file's own comment) — max-width + justify-self:center
+   keeps auto-fit's "no dead empty tracks" benefit while stopping an
+   individual card from stretching into an unusable, oversized shape. */
 .bhs-card {
     background: var(--bh-surface); border: none; border-radius: 8px; padding: 10px; text-align: left; cursor: pointer;
     color: var(--bh-text); font-family: inherit; position: relative;
     box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
     transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease;
+    max-width: 220px; justify-self: center; width: 100%;
 }
 .bhs-card:hover {
     background: var(--bh-surface-2);
