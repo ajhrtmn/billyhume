@@ -2,10 +2,158 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.9.8
+ * Version:     3.10.4
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.4 — Phase 6 (final phase) of the OSS-integration master plan:
+// Tier B, Cloudflare Stream, added to the existing Media & CDN Setup
+// wizard (class-media-wizard.php's new render_tier_b_section()) —
+// strictly opt-in, Tier A (object storage + CDN via Advanced Media
+// Offloader) stays the default recommendation. Real, live-tested
+// connection (a GET against the account's own Stream endpoint, same
+// "validate in real time" posture Tier A's ADVMO checkConnection() call
+// already takes), not a format-only credential check.
+// Fixed a real bug surfaced while adding this: the wizard page
+// (add_menu()) was only ever registered when Advanced Media Offloader
+// OR bh-live's engine registry was active — Tier B doesn't depend on
+// either, so on an install with neither, the whole page (Tier B
+// included) would have been unreachable. Now always registered.
+// Deliberately scoped to settings + a real connection test only, NOT
+// the per-video "upload to Cloudflare Stream, swap the player" wiring
+// into bh-video/bh-courses/bh-streaming's own separate upload flows —
+// see render_tier_b_section()'s own docblock for why that's a real,
+// separate follow-up rather than attempted here. New public accessors
+// (tier_b_enabled(), cloudflare_stream_credentials(), enqueue_hls_js())
+// are what that follow-up would build on.
+// New vendored dependency: hls.js v1.6.16 (Apache-2.0 — NOT MIT, a
+// claim made and then verified wrong earlier this session before
+// vendoring; corrected here — real bytes from its official GitHub
+// release, assets/js/vendor/hls.min.js), ready for whichever plugin's
+// Tier B integration needs HLS playback outside Safari.
+// No OUS_Wizard framework built for this pass — this is still a single
+// settings form, not a genuine multi-step interview yet; matches this
+// plan's own "build the concrete thing first, extract a framework
+// after" precedent (OUS_Integration).
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session — the Cloudflare API call shape was reasoned from Cloudflare's
+// own public API docs, not exercised against a real account. `php -l`
+// clean; a real brace-mismatch bug was caught and fixed via `php -l`
+// during this same edit (see class-media-wizard.php's own history).
+
+// 3.10.3 — Phase 3 of the OSS-integration master plan: new
+// 'bhcore_manage_tickets' capability (class-roles.php DEFAULT_CAPS),
+// granted to administrator/editor/bhcore_studio_manager — same trusted-
+// staff tier as bhcore_manage_crm/bhcore_design_site. Backs the new
+// bh-tickets peer plugin's admin page and portal-panel gating.
+// OUS_Roles::init() already re-applies DEFAULT_CAPS idempotently on
+// every 'init', so this takes effect on existing installs with no
+// separate migration step. NOT runtime-verified this session.
+
+// 3.10.2 — Phase 4 of the OSS-integration master plan: new
+// OUS_GithubUpdates (class-github-updates.php) — self-hosted "check
+// GitHub for a newer version, install it in one click" for this
+// ecosystem's own plugins (and, since the mechanism is fully generic,
+// any plugin or theme). Explicitly NOT built on the third-party
+// plugin-update-checker library after investigating it directly: that
+// library's real download path fetches a zipball of the WHOLE repo
+// (GitHub's zipball API can't scope to a subdirectory), which would
+// have silently tried to install this entire monorepo as one plugin.
+// Instead: download the repo archive at the configured branch, extract
+// just the configured subdirectory, rebuild a clean single-plugin zip
+// (same ZipArchive-from-a-directory approach OUS_Registry::
+// regenerate_bundled_zip() already uses locally), then install it via
+// WP core's own Plugin_Upgrader/Theme_Upgrader with 'overwrite_package'
+// => true — confirmed by reading wp-admin/includes/class-wp-upgrader.php
+// directly that download_package() accepts an already-local file path
+// unchanged, and that both upgraders support 'overwrite_package' (the
+// same mechanism core itself uses to let a plugin be reinstalled over
+// its own files) — this is real, current WP-core behavior, verified
+// against this install's own wp-admin/ source, not assumed.
+// Every source is {type, label, file/stylesheet, repo, branch, path} —
+// every ecosystem plugin already in OUS_Registry auto-registers
+// (repo/branch default to a filterable pair, 'ajhrtmn/billyhume'/'dev'
+// on this install), and a completely separate plugin or theme, from any
+// repo, registers itself via the 'ous_github_updates_register' action —
+// not hardcoded to this install's own repo shape. Daily self-
+// rescheduling OUS_Jobs check (same pattern as bh-courses'
+// BHC_DripNudges); Debug Tools section shows installed-vs-remote
+// version per source with a real "Update now" button once one's behind.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session — the WP-core upgrader behavior this depends on was confirmed
+// by reading the actual installed wp-admin/ source directly (not
+// guessed), but the full download-extract-rezip-install flow has never
+// been exercised against a real GitHub repo end-to-end. `php -l` clean.
+
+// 3.10.1 — Phase 2 of the OSS-integration master plan: Datastar (v1.0.2,
+// MIT, real bytes downloaded directly from its official jsDelivr release
+// bundle — not hand-written) vendored at assets/js/vendor/datastar.js,
+// wired up by new OUS_Hypermedia (class-hypermedia.php). This becomes
+// the new DEFAULT tool for interactive admin/editor UI going forward —
+// CLAUDE.md's "no build step, vanilla JS everywhere" rule is unchanged,
+// this just names which no-build tool new work should reach for first;
+// wp.element.createElement stays valid for anything simple enough not
+// to need server-driven reactivity (a plain form, a static settings
+// screen). Deliberately NOT a dependency on the separate HyperPress
+// WordPress plugin — confirmed by reading its actual repo structure
+// that it's a full standalone plugin/Composer library (its own admin
+// page, HyperFields/HyperBlocks systems, a whole REST namespace), a
+// materially bigger dependency than this ecosystem needs just to get
+// Datastar itself running; HyperPress's approach informed
+// OUS_Hypermedia's shape but isn't installed or required by it.
+// OUS_Hypermedia::enqueue() loads the vendored script (with the
+// required type="module" tag, added via a script_loader_tag filter
+// scoped to this one handle); ::sse_headers()/::patch_elements()/
+// ::patch_signals() write the exact wire-protocol SSE events Datastar's
+// own reference documents (event: datastar-patch-elements / datastar-
+// patch-signals, data: lines, blank-line terminator) — the one
+// genuinely reusable low-level primitive every future consumer would
+// otherwise reimplement, kept deliberately minimal rather than building
+// a speculative framework around it before real consumers exist.
+// See ROADMAP-hyperpress-migration.md (new) for the inventory of
+// existing wp.element-based admin/editor screens and which are actually
+// worth converting — that migration happens as separate, later,
+// individually-scoped passes, not as part of this change.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session — the vendored datastar.js is real, verified bytes from its
+// official CDN, but OUS_Hypermedia's own PHP (enqueue/SSE headers/event
+// formatting) has only been reasoned through and `php -l`-checked, never
+// exercised against a real browser actually consuming an SSE response.
+
+// 3.10.0 — New OUS_Integration (class-integration.php), Phase 1 of the
+// OSS-integration master plan: a light registry for CLAUDE.md's new
+// standing rule ("critical infrastructure always ships a minimal,
+// self-hosted, built-in default; a third-party integration is an
+// enhancement, never the only implementation"). OUS_Integration::
+// register($key, $args) records a {builtin_class, enhancer_class}
+// pair; active_implementation($key) reports which one is actually live
+// right now (enhancer if its class_exists(), builtin otherwise) — pure
+// visibility, no auto-switching or enforcement. New Debug Tools section
+// ("Integration Contracts") lists every registered pair.
+// Deliberately thin and retrofitted from real, already-shipped examples
+// rather than designed blind, matching how BH_Content/BH_Commerce
+// themselves got built: this plugin registers the first contract here
+// (bh_mail -> BH_Mail, no enhancer yet); bh-crm 2.4.14's campaign-
+// segments bridge and bh-mailpoet's MailPoet sync become the second and
+// third registrations in their own respective changelogs.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session; `php -l` clean on class-integration.php and this file.
+
+// 3.9.9 — BH_Event::emit() (class-event.php) now fires a real
+// do_action('bh_event_emitted', $type, $job_args, $args) synchronously,
+// alongside its existing async OUS_Jobs ingest enqueue. Every event this
+// ecosystem already emits (bh/vote, bh/submission_created, bhc/enroll,
+// bhc/course_completed, bhm/wallet_credit, bhm/referral_credited,
+// bhcrm/tags_saved, etc.) is now something a peer plugin can react to in
+// real time, not just read back later via for_user()/the Debug Tools
+// metrics view. Direct motivation: the new bh-mailpoet plugin needs to
+// sync a contact to MailPoet the moment they enroll in a course or get
+// a wallet credit, not on a once-daily poll. No behavior change for any
+// existing emit() caller — this only adds a hook nobody was listening to
+// before. NOT runtime-verified against a live WordPress+MySQL install
+// this session; reasoned through against the existing emit()/OUS_Jobs
+// code, and `php -l` clean on class-event.php.
 
 // 3.9.3 — OUS_Badge (class-badge.php): a small reusable status-badge
 // helper for flagging a specific FEATURE (not a whole plugin) as
@@ -605,7 +753,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.9.8');
+define('OUS_VER', '3.10.4');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -959,7 +1107,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1019,6 +1167,38 @@ OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
 add_action('init',          ['OUS_RoleAssignment', 'init']);
 add_action('init',          ['OUS_Campaigns', 'init']);
+add_action('init',          ['OUS_Integration', 'init']);
+add_action('init',          ['OUS_Hypermedia', 'init']);
+add_action('init',          ['OUS_GithubUpdates', 'init']);
+// The first registration — BH_Mail as the always-works transactional-
+// email default, no enhancer registered yet (a real ESP swap point
+// exists inside BH_Mail::deliver() itself, but nothing implements it
+// today). Priority 20: after both OUS_Integration and BH_Mail have
+// loaded, same "register after both sides exist" reasoning as every
+// other cross-class registration on this hook.
+add_action('init', function () {
+    if (class_exists('OUS_Integration')) {
+        OUS_Integration::register('bh_mail', [
+            'label' => 'Transactional email',
+            'description' => 'One-to-one/event-triggered email (notifications, receipts, confirmations).',
+            'builtin_class' => 'BH_Mail',
+        ]);
+        // OUS_Campaigns lives here in core, so core is the natural owner
+        // of this contract's builtin_class registration — bh-crm only
+        // ever CONTRIBUTES segments to it (class-segments.php), and
+        // bh-mailpoet (if active) merges in the enhancer_class from its
+        // own bootstrap via the same key, without needing to repeat
+        // label/description/builtin_class. This callback is added at
+        // file-parse time, before plugins_loaded even fires, so it's
+        // guaranteed to run before any peer plugin's own nested 'init'
+        // registration — the enhancer-only merge always lands second.
+        OUS_Integration::register('email_broadcast', [
+            'label' => 'Email broadcast / marketing',
+            'description' => 'Reach a live-queried audience (a bh-crm segment, or everyone) with a one-off or list-driven email.',
+            'builtin_class' => 'OUS_Campaigns',
+        ]);
+    }
+}, 20);
 add_action('init',          ['OUS_PageSurface', 'init']);
 add_action('init',          ['OUS_UserBar', 'init']);
 add_action('init',          ['OUS_Audit', 'init']);

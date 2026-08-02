@@ -138,9 +138,14 @@ class OUS_MediaWizard {
         if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')) {
             add_action('admin_post_ous_media_wizard_save', [self::class, 'handle_save']);
         }
-        if (class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory') || class_exists('BHL_EngineRegistry')) {
-            add_action('admin_menu', [self::class, 'add_menu']);
-        }
+        // Tier B (Cloudflare Stream, class-media-wizard.php's own
+        // render_tier_b_section()) doesn't depend on either ADVMO or
+        // bh-live's engine registry, so this page is now always
+        // registered — previously gated on one of those two being
+        // active, which would have hidden Tier B entirely on an install
+        // with neither.
+        add_action('admin_menu', [self::class, 'add_menu']);
+        add_action('admin_post_ous_media_wizard_save_cloudflare_stream', [self::class, 'handle_save_cloudflare_stream']);
         if (class_exists('BHL_EngineRegistry')) {
             add_action('admin_post_ous_media_wizard_save_engine_choice', [self::class, 'handle_save_engine_choice']);
             add_action('admin_post_ous_media_wizard_save_chat_choice', [self::class, 'handle_save_chat_choice']);
@@ -521,7 +526,130 @@ class OUS_MediaWizard {
             echo '<input type="hidden" name="action" value="ous_media_wizard_deploy_host">';
             echo '<button type="submit" class="button button-primary">Deploy Owncast to ' . esc_html($provider['name']) . '</button>';
             echo '</form>';
+        } // end if ($has_live)
+
+        self::render_tier_b_section();
+    }
+
+    /**
+     * Tier B — Cloudflare Stream, adaptive-bitrate on-demand video.
+     * Phase 6 of the OSS-integration master plan. Confirmed in scope
+     * (AJ, this session) but strictly opt-in — Tier A above stays the
+     * default recommendation for most artists; this is a real, ongoing
+     * per-minute cost an admin explicitly chooses, never silently
+     * enabled.
+     *
+     * Deliberately scoped to settings + a real, live-tested connection
+     * only — NOT the per-video "upload this attachment to Cloudflare
+     * Stream and swap the player" wiring into bh-video/bh-courses/
+     * bh-streaming's own upload flows. That's a real, separate
+     * integration per plugin (three different media-upload code paths),
+     * and wiring only one of them while leaving the others untouched
+     * would be a misleading half-finished feature — worse than a
+     * clearly-stated boundary. What ships here: the credential/toggle
+     * plumbing (OUS_MediaWizard::tier_b_enabled()/
+     * cloudflare_stream_credentials(), the two public accessors a real
+     * per-plugin integration would need) and hls.js (vendored,
+     * assets/js/vendor/hls.js) ready for whichever plugin picks this up
+     * next. No OUS_Wizard framework built for this — matches this
+     * plan's own "build the concrete thing first, extract a reusable
+     * framework after, same as OUS_Integration" recommendation, since
+     * this is still a single, simple settings form, not a genuine
+     * multi-step interview yet.
+     */
+    private static function render_tier_b_section() {
+        $enabled = (bool) get_option('ous_cf_stream_enabled', false);
+        $creds = get_option('ous_cf_stream_credentials', []);
+        $test_result = get_transient('ous_cf_stream_test_result');
+        delete_transient('ous_cf_stream_test_result');
+
+        echo '<hr style="max-width:760px;margin:32px 0;">';
+        echo '<h2>Tier B: Cloudflare Stream (optional, adaptive-bitrate video)</h2>';
+        echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
+        echo '<p><strong>What this adds over Tier A:</strong> automatic transcoding and real adaptive bitrate — a viewer on a slow connection automatically gets a lower-quality rendition instead of buffering. <strong>What it costs:</strong> roughly $5 per 1,000 minutes stored and $1 per 1,000 minutes delivered (Cloudflare\'s own current pricing — verify before relying on this exact figure, pricing changes). Tier A (above) already gives you fast, reliable playback via CDN + object storage at no extra per-minute cost — only turn this on if long/high-resolution video specifically needs adaptive bitrate.</p>';
+        echo '</div>';
+
+        if ($test_result) {
+            $class = $test_result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($test_result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($test_result['message']) . '</p></div>';
         }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:760px;">';
+        wp_nonce_field('ous_media_wizard_save_cloudflare_stream', 'ous_media_wizard_cf_stream_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_save_cloudflare_stream">';
+
+        echo '<p><label><input type="checkbox" name="cf_stream_enabled" value="1"' . checked($enabled, true, false) . '> Enable Cloudflare Stream as an available option for video-heavy plugins (opt-in per plugin/upload — this switch alone doesn\'t move anything).</label></p>';
+
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Cloudflare Account ID<br>';
+        echo '<input type="text" name="cf_account_id" value="' . esc_attr($creds['account_id'] ?? '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">API Token (Stream:Edit permission)<br>';
+        echo '<input type="password" name="cf_api_token" value="" placeholder="' . (!empty($creds['api_token']) ? 'Already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+
+        echo '<p><button type="submit" class="button button-primary">Save &amp; test connection</button></p>';
+        echo '</form>';
+    }
+
+    /** Public accessor for a future per-plugin Cloudflare Stream integration — see render_tier_b_section()'s own docblock for what is and isn't built yet. */
+    public static function tier_b_enabled() {
+        return (bool) get_option('ous_cf_stream_enabled', false);
+    }
+
+    /** @return array{account_id:string, api_token:string} */
+    public static function cloudflare_stream_credentials() {
+        return get_option('ous_cf_stream_credentials', ['account_id' => '', 'api_token' => '']);
+    }
+
+    /**
+     * Vendored hls.js (v1.6.16, Apache-2.0, real bytes from its official
+     * GitHub release — assets/js/vendor/hls.min.js), for whichever
+     * plugin's own Tier B integration picks this up first: native HLS
+     * playback exists in Safari only, everywhere else needs this to
+     * play a Cloudflare Stream manifest URL in a plain <video> tag.
+     */
+    public static function enqueue_hls_js() {
+        wp_enqueue_script('ous-hls-js', OUS_URL . 'assets/js/vendor/hls.min.js', [], '1.6.16', true);
+    }
+
+    public static function handle_save_cloudflare_stream() {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_stream_nonce'] ?? '', 'ous_media_wizard_save_cloudflare_stream')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+
+        $enabled = !empty($_POST['cf_stream_enabled']);
+        $account_id = sanitize_text_field(wp_unslash($_POST['cf_account_id'] ?? ''));
+        $existing = get_option('ous_cf_stream_credentials', []);
+        $api_token = wp_unslash($_POST['cf_api_token'] ?? '');
+        $api_token = $api_token !== '' ? $api_token : ($existing['api_token'] ?? '');
+
+        update_option('ous_cf_stream_enabled', $enabled);
+        update_option('ous_cf_stream_credentials', ['account_id' => $account_id, 'api_token' => $api_token]);
+
+        // Real, live validation — VISION.md's "validate in real time" rule,
+        // same posture Tier A's ADVMO checkConnection() calls already take.
+        // A plain GET against the account's own Stream endpoint is enough
+        // to prove the token/account pair actually works — no video needs
+        // to exist yet for this call to succeed or fail meaningfully.
+        $result = ['success' => false, 'message' => 'Enter both an Account ID and an API Token to test the connection.'];
+        if ($account_id && $api_token) {
+            $response = wp_remote_get(
+                'https://api.cloudflare.com/client/v4/accounts/' . rawurlencode($account_id) . '/stream?per_page=1',
+                ['headers' => ['Authorization' => 'Bearer ' . $api_token], 'timeout' => 10]
+            );
+            if (is_wp_error($response)) {
+                $result = ['success' => false, 'message' => 'Connection failed: ' . $response->get_error_message()];
+            } else {
+                $code = wp_remote_retrieve_response_code($response);
+                $body = json_decode(wp_remote_retrieve_body($response), true);
+                $result = ($code === 200 && !empty($body['success']))
+                    ? ['success' => true, 'message' => 'Connected to Cloudflare Stream successfully.']
+                    : ['success' => false, 'message' => 'Cloudflare rejected the request (HTTP ' . $code . ') — check the Account ID and API Token.'];
+            }
+        }
+        set_transient('ous_cf_stream_test_result', $result, 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
     }
 
     public static function handle_save() {

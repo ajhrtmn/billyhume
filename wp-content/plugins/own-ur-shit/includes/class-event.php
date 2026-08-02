@@ -1,6 +1,28 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
+// OUS_VER 3.9.9 — emit() now also fires a real WordPress action,
+// do_action('bh_event_emitted', $type, $job_args, $args), right
+// alongside the existing OUS_Jobs enqueue. Every prior consumer of this
+// class only had two options: read-only aggregate queries (for_user(),
+// the Debug Tools metrics view) or poll bhcore_events directly — there
+// was no way for a peer plugin to react to another plugin's event in
+// real time. bh-mailpoet (new) needs exactly that: sync a contact to
+// MailPoet the moment bhc/enroll, bhm/wallet_credit, bh/vote, etc. fire,
+// not once a day. Fired synchronously on the SAME request emit() was
+// called from — deliberately not deferred into the OUS_Jobs ingest job,
+// since a listener that itself needs to defer (e.g. an API call) can
+// enqueue its own job; forcing every listener through the ingest job's
+// timing would be the tail wagging the dog. $job_args is the fully
+// normalized envelope (user_id/subject_type/subject_id/payload/etc.,
+// same shape that lands in bhcore_events); $args is the raw, un-
+// normalized array the caller originally passed to emit(), handed over
+// too since a listener may want a field emit() doesn't normalize
+// (nothing currently strips fields, but the raw args aren't guaranteed
+// stable across future emit() changes the way $job_args's schema is).
+// No new dependency for any existing emit() caller — an add_action()
+// on a hook nobody was firing before this just now starts firing.
+
 // OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
 // OUS_Debug::GROUP_MONITORING (Debug Tools reorganization pass — see
 // class-debug.php's own docblock), filing this under "Monitoring &
@@ -96,6 +118,11 @@ class BH_Event {
         ];
 
         OUS_Jobs::enqueue(self::JOB_HOOK, $job_args);
+
+        // Real-time pub/sub for listeners that can't wait for the async
+        // ingest job — see the OUS_VER 3.9.9 changelog note above.
+        do_action('bh_event_emitted', $type, $job_args, $args);
+
         return true;
     }
 

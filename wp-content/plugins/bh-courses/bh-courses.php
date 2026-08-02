@@ -2,11 +2,44 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.65
+ * Version:     0.4.66
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.66 — Phase 5 of the OSS-integration master plan: 1:1 session
+// scheduling, the "smallest real version" from ROADMAP-lms-instructor-
+// student-depth.md §1 — an instructor publishes open time slots
+// (class-sessions-admin.php, new "Sessions" submenu under Courses), a
+// student books one from a new "Sessions" portal panel (class-sessions-
+// portal.php). New bhc_sessions table (class-sessions.php,
+// BHC_Sessions::activate()/maybe_upgrade()) — a slot's lifecycle
+// (open -> booked -> completed/cancelled) is its own small state
+// machine, same "a table when it doesn't fit post/meta" convention
+// bh-crm's bhcrm_notes/bhcrm_projects already established. Booking uses
+// the exact same one-row-conditional-UPDATE claim idiom as bh-feedback's
+// BHF_Queue::claim() — status flips open -> booked only if it's STILL
+// open right then, so two students can't double-book the same slot.
+// Decisions locked in this session (AJ): single-instructor v1
+// (instructor_id defaults to whoever holds bhcore_manage_students, no
+// picker UI); real OUS_Notifications on booking AND cancellation; a
+// slot CAN be tied to a course (optional picker in the admin create-
+// slot form, per the roadmap doc's data model); student self-cancel is
+// allowed but blocked within a configurable cutoff (default 24h,
+// 'bhc_session_cancel_cutoff_hours' filter) — staff cancellation has no
+// such restriction.
+// New vendored dependency: FullCalendar v7.0.2 (MIT, real bytes from its
+// official GitHub release, assets/js/vendor/fullcalendar.global.js) —
+// the free Standard tier's all-in-one global bundle only, deliberately
+// no resource/timeline views (those need a paid Premium license, and
+// aren't needed for a single-instructor calendar). Renders a read-only
+// month view on the Sessions admin screen from server-rendered JSON —
+// plain vanilla JS (assets/js/sessions-admin.js), not Datastar, since
+// there's no live server round-trip involved in that render.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session. `php -l` clean on every touched/new PHP file; the vendored
+// FullCalendar bundle's JS syntax was checked with `node -c`.
 
 // 0.4.38 — ecosystem depth-pass Tier 1c: BHC_PortalPanel registers the
 // first real bhi_user_bar_links contributor (own-ur-shit's new
@@ -109,7 +142,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.65');
+define('BHC_VER',  '0.4.66');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
@@ -196,12 +229,14 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews', 'privacy'] as $f) {
+foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
 register_activation_hook(__FILE__, ['BHC_Activator', 'activate']);
+register_activation_hook(__FILE__, ['BHC_Sessions', 'activate']);
 add_action('plugins_loaded', ['BHC_Activator', 'maybe_upgrade']);
+add_action('plugins_loaded', ['BHC_Sessions', 'maybe_upgrade']);
 
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
@@ -247,6 +282,13 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_ShareCards', 'init']);
     add_action('init', ['BHC_Reviews', 'init']);
     add_action('init', ['BHC_Gate', 'init']);
+    add_action('init', ['BHC_SessionsAdmin', 'init']);
+    add_action('init', ['BHC_SessionsPortal', 'init']);
+    add_action('init', function () {
+        if (class_exists('BH_Event')) {
+            BH_Event::register_event_type('bhc/session_booked', ['starts_at' => 'string', 'instructor_id' => 'int']);
+        }
+    }, 20);
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());

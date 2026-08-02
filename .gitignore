@@ -70,6 +70,8 @@ wp-content/plugins/*/tests/.phpunit.result.cache
 !/wp-content/plugins/bh-video/
 !/wp-content/plugins/bh-live/
 !/wp-content/plugins/bh-social/
+!/wp-content/plugins/bh-mailpoet/
+!/wp-content/plugins/bh-tickets/
 !/wp-content/plugins/*.md
 !/wp-content/plugins/LICENSE
 !/wp-content/plugins/index.php

@@ -57,6 +57,12 @@ class OUS_Roles {
         // a one-off $user->add_cap() call.
         'bhcore_design_site' => ['administrator', 'editor', self::MANAGER_ROLE],
         'bhcore_manage_crm'  => ['administrator', 'editor', self::MANAGER_ROLE],
+        // bh-tickets (Phase 3 of the OSS-integration master plan) — same
+        // trusted-staff tier as bhcore_manage_crm/bhcore_design_site,
+        // not administrator-only, since ticket triage is exactly the
+        // kind of day-to-day work a non-admin manager account should be
+        // able to do without full admin rights.
+        'bhcore_manage_tickets' => ['administrator', 'editor', self::MANAGER_ROLE],
         // A placement's config.custom_js (class-element.php's
         // wrap_placement_html()) is raw JavaScript that runs on the
         // live site for every visitor — a materially different trust
