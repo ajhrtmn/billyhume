@@ -2,10 +2,33 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.4
+ * Version:     3.10.5
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.5 — First real Datastar consumer (ROADMAP-hyperpress-migration.md
+// §1a's recommended target): the account portal's notification badge and
+// wallet-balance chip (class-portal.php, render_shell()) are now
+// Datastar-bound signals, kept current by a periodic poll
+// (data-on-interval__duration.30s -> new wp_ajax_ous_portal_live_status
+// handler, BHI_Portal::ajax_live_status()) instead of only updating on a
+// full page reload. Deliberately a bounded, request-per-poll GET every
+// 30s rather than a held-open SSE stream — this ecosystem targets
+// ordinary shared hosting, where holding a connection open per visitor
+// tab is a real resource-exhaustion risk on a small PHP-FPM worker pool;
+// a short poll is the honest tradeoff given that constraint, not an
+// oversight. Both the initial page-load values and every subsequent
+// poll compute through the exact same two calls (OUS_Notifications::
+// unread_count()/BHM_Wallet::balance_cents()), so a poll can never show
+// a different number than a fresh reload would. class_exists()-guarded
+// throughout — BHM_Wallet absent (bh-monetization-woo inactive) just
+// means the walletBalance signal is never set, no error.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session; `data-on-interval`/`data-signals`/`data-text`/`data-show`
+// syntax was verified against Datastar's own reference docs before use
+// (not guessed) — actual browser behavior still unconfirmed. `php -l`
+// clean.
 
 // 3.10.4 — Phase 6 (final phase) of the OSS-integration master plan:
 // Tier B, Cloudflare Stream, added to the existing Media & CDN Setup
@@ -753,7 +776,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.4');
+define('OUS_VER', '3.10.5');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
