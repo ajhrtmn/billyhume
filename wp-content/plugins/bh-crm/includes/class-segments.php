@@ -205,6 +205,47 @@ class BHCRM_Segments {
         exit;
     }
 
+    /**
+     * Bridges every saved segment into OUS_Campaigns' own
+     * 'bhcore_campaign_segments' filter — CLAUDE.md's "critical
+     * infrastructure always ships with a minimal, self-hosted, built-in
+     * default" rule, applied concretely: OUS_Campaigns is the always-
+     * working broadcast tool (BH_Mail/wp_mail() underneath, no third
+     * party required), and until this existed, its ONLY real audience
+     * option was the built-in "everyone with an account" segment — every
+     * saved bh-crm list (tag/date/project conditions, already fully
+     * built in this file) was invisible to it. This is the fix: zero new
+     * UI, zero new data, just handing OUS_Campaigns the same
+     * conditions/apply() pair the CRM's own list page and live-preview
+     * already use, so a genuinely targeted broadcast never requires
+     * installing anything beyond own-ur-shit + bh-crm.
+     *
+     * Harmless to register even if OUS_Campaigns is never active — an
+     * add_filter() on a filter nobody applies just sits unused, same
+     * posture every other optional cross-plugin filter in this
+     * ecosystem takes.
+     */
+    public static function register_campaign_segments($segments) {
+        if (class_exists('BHCRM_People')) {
+            $segments['bhcrm_active'] = [
+                'label' => 'CRM: everyone active in the CRM',
+                'user_ids' => ['BHCRM_People', 'active_user_ids'],
+            ];
+        }
+
+        foreach (self::all() as $row) {
+            $conditions = $row['conditions'];
+            $segments['bhcrm_segment_' . $row['id']] = [
+                'label' => 'CRM list: ' . $row['name'],
+                'user_ids' => function () use ($conditions) {
+                    $base = class_exists('BHCRM_People') ? BHCRM_People::active_user_ids() : [];
+                    return self::apply($base, $conditions);
+                },
+            ];
+        }
+        return $segments;
+    }
+
     public static function handle_delete() {
         if (!check_admin_referer('bhcrm_delete_segment')) wp_die('Bad nonce.');
         if (class_exists('OUS_Audit')) {
