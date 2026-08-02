@@ -2,11 +2,31 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.15
+ * Version:     3.7.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.16 — anime.js (vendored, assets/js/vendor/anime.min.js v4.5.0,
+// MIT, real bytes downloaded from its official GitHub release, UMD
+// bundle — confirmed via ecosystem survey this session as the clearest
+// anime.js fit anywhere in the ecosystem) now drives the live Reveal
+// Party's actual motion (reveal.js's new animateReveal()) — a staggered
+// entry animation per leaderboard row plus a bigger flourish on
+// .bh-reveal-entry-winner, replacing the single blunt CSS keyframe
+// (bh-reveal-pop) that was the only animation on what used to be a
+// plain innerHTML swap. The sequencing/pacing clock (poll()/catchUp(),
+// unchanged) already had real timing logic to hand off to — this only
+// replaces the motion itself. v4's shorthand property API (x/y instead
+// of translateX/translateY, 'ease' instead of 'easing') was confirmed
+// against the real v4.5.0 source/README before use; the exact easing
+// string name and whether 'opacity'/'scale' are literally valid v4
+// property names were inferred from one confirmed README example, not
+// independently doc-verified — flagging honestly, worth a real-browser
+// check before relying on this.
+// NOT runtime-verified against a live install this session. `php -l`
+// clean; `node -c` clean on the vendored bundle and reveal.js.
 
 // 3.6.4 — Added missing 'edit_item'/'add_new_item' labels to
 // bh_contest/bh_submission post type registrations (class-post-types.php).
@@ -108,7 +128,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.15');
+define('BH_VER',        '3.7.16');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible
@@ -384,7 +404,8 @@ add_action('plugins_loaded', function () {
 
         if ($has_reveal) {
             wp_enqueue_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
-            wp_enqueue_script('bh-reveal', BH_URL . 'assets/js/reveal.js', ['bh-common'], BH_VER, true);
+            wp_enqueue_script('bh-anime', BH_URL . 'assets/js/vendor/anime.min.js', [], '4.5.0', true);
+            wp_enqueue_script('bh-reveal', BH_URL . 'assets/js/reveal.js', ['bh-common', 'bh-anime'], BH_VER, true);
             wp_localize_script('bh-reveal', 'BHData', [
                 'rest' => esc_url_raw(rest_url('bh/v1/')),
             ]);

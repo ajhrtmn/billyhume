@@ -2,18 +2,39 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.18
+ * Version:     0.5.19
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.19 — Real D3 charts (vendored, assets/js/vendor/d3.min.js v7.9.0,
+// ISC — a permissive license close to MIT, real bytes downloaded and
+// verified against its own LICENSE file before vendoring) on the
+// Metrics dashboard (class-stats.php), replacing what was a hand-rolled
+// inline-CSS div bar chart for plays-per-day and plain HTML tables for
+// listener region/referrer. Confirmed via an ecosystem-wide survey this
+// session as the single best "real, artist-facing, already-BUILT, but
+// plain-rendered" screen for D3 — no invented need. New
+// assets/js/stats-charts.js (generic renderTimeSeries()/renderBarChart()
+// helpers); class-stats.php's render() is otherwise unchanged — same
+// SQL, same aggregation, just JSON-encoded into each chart container's
+// data-chart attribute instead of looped into echo calls. Top Tracks and
+// Most Skipped stay plain tables (title+count lists aren't naturally
+// chart-shaped). D3 vendored plugin-local, not shared core — first real
+// consumer in this ecosystem, matching the "don't build shared
+// infrastructure before a second real need exists" call already applied
+// to OUS_Integration.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session. `php -l` clean; `node -c` clean on both the vendored D3
+// bundle and stats-charts.js.
 
 // 0.5.1 — logging depth pass: BHS_Feeds::check_external_track_health()
 // previously updated a track's health status with zero log trace — the only way
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.18');
+define('BHS_VER',  '0.5.19');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

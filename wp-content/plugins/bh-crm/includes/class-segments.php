@@ -57,6 +57,18 @@ class BHCRM_Segments {
      * the EXACT same sanitize_conditions()/apply() pair the real save
      * path uses (never a second, parallel filtering implementation
      * that could quietly drift from what actually gets saved).
+     *
+     * Responds as a Datastar 'datastar-patch-signals' SSE event
+     * (OUS_Hypermedia::patch_signals()) when own-ur-shit 3.10+ is
+     * active — class-people.php's render_segments_panel() only emits
+     * the Datastar-driven markup in that case, so this is the matching
+     * response shape. Falls back to the original wp_send_json_success()
+     * shape on an older core (segment-builder.js's own fallback path
+     * consumes that instead) — check_ajax_referer()'s nonce field name
+     * ('nonce') is unchanged either way, since render_segments_panel()
+     * puts a real hidden 'nonce' field in the enclosing form for
+     * Datastar's {contentType:'form'} to pick up, same field name the
+     * old wp_localize_script()-based JS always posted under.
      */
     public static function ajax_preview() {
         check_ajax_referer('bhcrm_preview_segment', 'nonce');
@@ -65,8 +77,16 @@ class BHCRM_Segments {
         $conditions = self::sanitize_conditions(wp_unslash($_POST['conditions'] ?? []));
         $ids = apply_filters('bh_crm_active_user_ids', []);
         $matched = $conditions ? self::apply(array_values(array_unique($ids)), $conditions) : [];
+        $count = count($matched);
+        $total = count(array_unique($ids));
 
-        wp_send_json_success(['count' => count($matched), 'total' => count(array_unique($ids))]);
+        if (class_exists('OUS_Hypermedia')) {
+            OUS_Hypermedia::sse_headers();
+            OUS_Hypermedia::patch_signals(['previewCount' => $count, 'previewTotal' => $total]);
+            exit;
+        }
+
+        wp_send_json_success(['count' => $count, 'total' => $total]);
     }
 
     private static function table() {
