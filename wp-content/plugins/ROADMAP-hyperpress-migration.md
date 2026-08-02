@@ -55,4 +55,6 @@ None of this section is started — it's AJ's direction captured for the next pa
 
 ## 3. Status
 
-**NOT STARTED.** This doc is the inventory and prioritization only — no conversion work has happened yet. Each conversion should be its own separate, small, individually-verified pass (own changelog entry, own `php -l` + real-browser check against a live install), not bundled into a larger unrelated change.
+**Portal (§1a) — DONE, own-ur-shit 3.10.5.** The notification badge and wallet-balance chip in the account portal nav (class-portal.php) are now live Datastar signals, polled every 30s via a new `wp_ajax_ous_portal_live_status` handler rather than only updating on a full reload. NOT runtime-verified against a live install — `php -l` clean, and the Datastar attribute syntax used was checked against its own reference docs, but no browser has actually exercised this yet.
+
+**Everything else — NOT STARTED.** `segment-builder.js`'s live preview (§2's original smallest-first recommendation) has not been converted yet — the portal was picked up first instead, per direction given this session. Every other conversion should still be its own separate, small, individually-verified pass (own changelog entry, own `php -l` + real-browser check against a live install), not bundled into a larger unrelated change.

@@ -58,6 +58,7 @@ class BHI_Portal {
         add_action('init', [self::class, 'add_rewrite'], 20);
         add_filter('query_vars', [self::class, 'add_query_var']);
         add_action('template_redirect', [self::class, 'maybe_render']);
+        add_action('wp_ajax_ous_portal_live_status', [self::class, 'ajax_live_status']);
 
         // Without an overview tab, the portal landed a visitor on a bare
         // "upload an avatar" form (Profile) with zero sense of where they
@@ -515,10 +516,50 @@ class BHI_Portal {
         exit;
     }
 
+    /**
+     * The Datastar polling target render_shell() points
+     * data-on-interval__duration.30s at — see that method's own comment
+     * for why this is a bounded per-poll GET (not a held-open SSE
+     * stream). Recomputes the exact same two values render_shell()
+     * seeds signals with at page load, so a poll and a fresh page load
+     * can never show different numbers for the same underlying state.
+     */
+    public static function ajax_live_status() {
+        if (!is_user_logged_in()) wp_die('', '', ['response' => 403]);
+
+        $user_id = get_current_user_id();
+        $signals = [
+            'unreadCount' => class_exists('OUS_Notifications') ? (int) OUS_Notifications::unread_count($user_id) : 0,
+        ];
+        if (class_exists('BHM_Wallet')) {
+            $signals['walletBalance'] = number_format(BHM_Wallet::balance_cents($user_id) / 100, 2);
+        }
+
+        if (class_exists('OUS_Hypermedia')) {
+            OUS_Hypermedia::sse_headers();
+            OUS_Hypermedia::patch_signals($signals);
+        }
+        exit;
+    }
+
     private static function render_shell() {
         $panels = self::get_panels();
         $requested = sanitize_key(get_query_var('panel'));
         $active = $requested && self::get_panel($requested) ? $requested : ($panels[0]['id'] ?? '');
+
+        // Live nav indicators (Phase 2 follow-up, this session): the
+        // notification badge and wallet chip below are Datastar-bound to
+        // signals seeded here with the real page-load values, then kept
+        // current by a periodic poll (ajax_live_status()) — a bounded,
+        // request-per-poll GET every 30s, not a held-open SSE connection,
+        // deliberately, since this ecosystem targets ordinary shared
+        // hosting where holding a connection open per visitor tab is a
+        // real resource-exhaustion risk on a small PHP-FPM worker pool.
+        // OUS_Hypermedia::enqueue() is safe to call unconditionally here
+        // (own-ur-shit core, always present when this class runs at all).
+        if (class_exists('OUS_Hypermedia')) OUS_Hypermedia::enqueue();
+        $unread_count = class_exists('OUS_Notifications') ? (int) OUS_Notifications::unread_count(get_current_user_id()) : 0;
+        $wallet_balance_display = class_exists('BHM_Wallet') ? number_format(BHM_Wallet::balance_cents(get_current_user_id()) / 100, 2) : '';
 
         // The portal gets its own front-end design treatment (explicitly
         // meant to look nothing like default WordPress, per the roadmap
@@ -644,6 +685,7 @@ class BHI_Portal {
   .bhi-tier-chip-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
   .bhi-tier-chip { display:flex; flex-direction:column; gap:4px; }
   .bhi-wallet-balance { display:flex; align-items:baseline; gap:8px; }
+  .bhi-portal-notif-badge { display:inline-block; min-width:16px; padding:1px 5px; margin-left:4px; border-radius:999px; background:#d63638; color:#fff; font-size:11px; line-height:16px; text-align:center; }
   .bhi-wallet-balance-amount { font-family:var(--bh-font-display, inherit); font-size:28px; font-weight:700; }
   .bhi-ledger-credit { color:#2e7d32; font-weight:600; }
   .bhi-ledger-debit { color:var(--bh-text-dim, #6b7280); }
@@ -689,7 +731,10 @@ class BHI_Portal {
 </style>
 </head>
 <body class="bhi-portal">
-<div class="bhi-portal-shell">
+<div class="bhi-portal-shell"<?php if (class_exists('OUS_Hypermedia')): ?>
+  data-signals="{unreadCount: <?php echo (int) $unread_count; ?>, walletBalance: '<?php echo esc_js($wallet_balance_display); ?>'}"
+  data-on-interval__duration.30s="@get('<?php echo esc_url(admin_url('admin-ajax.php?action=ous_portal_live_status')); ?>')"
+<?php endif; ?>>
   <nav class="bhi-portal-nav">
     <div class="bhi-portal-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
     <?php if (class_exists('BHM_Wallet')):
@@ -699,11 +744,13 @@ class BHI_Portal {
         // could easily lose track of their own balance anywhere else in
         // the portal. One persistent line in the nav, always in view
         // regardless of which panel is open, links straight to the full
-        // panel for topping up/reviewing the ledger.
-        $wallet_balance = BHM_Wallet::balance_cents(get_current_user_id());
+        // panel for topping up/reviewing the ledger. The amount itself is
+        // Datastar-bound (data-text) to the walletBalance signal seeded
+        // above, so a purchase/tip/topup made in another tab shows up
+        // here within one poll interval instead of only on next reload.
     ?>
       <a class="bhi-portal-wallet-chip" href="<?php echo esc_url(home_url('/' . self::REWRITE_SLUG . '/membership/')); ?>">
-        <span class="dashicons dashicons-money-alt"></span> $<?php echo esc_html(number_format($wallet_balance / 100, 2)); ?>
+        <span class="dashicons dashicons-money-alt"></span> $<span data-text="$walletBalance"><?php echo esc_html($wallet_balance_display); ?></span>
       </a>
     <?php endif; ?>
     <?php foreach ($panels as $panel): ?>
@@ -711,6 +758,9 @@ class BHI_Portal {
          class="<?php echo $panel['id'] === $active ? 'is-active' : ''; ?>">
         <span class="dashicons <?php echo esc_attr($panel['icon'] ?? 'dashicons-admin-generic'); ?>"></span>
         <?php echo esc_html($panel['label']); ?>
+        <?php if ($panel['id'] === 'notifications'): ?>
+          <span class="bhi-portal-notif-badge" data-show="$unreadCount > 0" data-text="$unreadCount"<?php echo $unread_count > 0 ? '' : ' style="display:none;"'; ?>><?php echo (int) $unread_count; ?></span>
+        <?php endif; ?>
       </a>
     <?php endforeach; ?>
     <a href="<?php echo esc_url(wp_logout_url(home_url('/'))); ?>">
