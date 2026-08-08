@@ -656,11 +656,15 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-reveal-subtext { color: var(--bh-text-dim); font-size: calc(15px * var(--bh-font-scale)); margin-top: calc(8px * var(--bh-space-scale)); }
 .bh-reveal-board { width: 100%; max-width: 640px; }
 .bh-reveal-entries { display: flex; flex-direction: column; gap: calc(10px * var(--bh-space-scale)); margin-top: calc(10px * var(--bh-space-scale)); }
+/* Same resting-depth baseline as .bh-judge-entry / every other surface
+   this session — a non-interactive results row still shouldn't read
+   flatter than everything else on the same page. */
 .bh-reveal-entry {
     display: flex; align-items: center; gap: calc(16px * var(--bh-space-scale));
     background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
     padding: calc(16px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale));
     text-align: left;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
 .bh-reveal-medal { font-size: calc(28px * var(--bh-font-scale)); flex: 0 0 auto; }
 .bh-reveal-entry-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }

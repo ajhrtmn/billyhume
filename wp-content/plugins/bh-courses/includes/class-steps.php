@@ -98,8 +98,26 @@ class BHC_Steps {
                 $ids = array_map('intval', (array) ($step['attachment_ids'] ?? []));
                 $clean[] = ['type' => 'image', 'attachment_ids' => array_filter($ids), 'caption' => sanitize_text_field($step['caption'] ?? '')];
             } elseif ($type === 'video') {
-                $source = ($step['source'] ?? '') === 'url' ? 'url' : 'upload';
-                if ($source === 'url') {
+                $source = in_array($step['source'] ?? '', ['url', 'cloudflare_stream'], true) ? $step['source'] : 'upload';
+                if ($source === 'cloudflare_stream') {
+                    // OSS-integration master plan Phase 6 follow-up — a
+                    // third video source alongside upload/url, gated in
+                    // the UI (courses-studio-blocks.js) behind
+                    // OUS_MediaWizard::tier_b_enabled() so it never shows
+                    // up as an option unless Tier B was actually turned
+                    // on in Media & CDN Setup. v1 requires the admin to
+                    // have already uploaded to Cloudflare Stream
+                    // themselves and pasted back the resulting video UID
+                    // — a real in-plugin "upload straight to Stream" flow
+                    // (Stream's own TUS-resumable-upload protocol) is a
+                    // separate, bigger piece, not attempted here.
+                    // Cloudflare Stream UIDs are 32-character lowercase
+                    // hex strings — reject anything that doesn't match
+                    // rather than trusting free text into an iframe src.
+                    $uid = strtolower(trim((string) ($step['stream_uid'] ?? '')));
+                    if (!$uid || !preg_match('/^[a-f0-9]{32}$/', $uid)) continue;
+                    $clean[] = ['type' => 'video', 'source' => 'cloudflare_stream', 'stream_uid' => $uid, 'caption' => sanitize_text_field($step['caption'] ?? '')];
+                } elseif ($source === 'url') {
                     // esc_url_raw() only SANITIZES characters (strips
                     // disallowed ones, encodes the rest) — it does not
                     // reject a string that was never a real URL to begin

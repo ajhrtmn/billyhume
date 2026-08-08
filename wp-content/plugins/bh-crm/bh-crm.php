@@ -2,11 +2,31 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.14
+ * Version:     2.4.15
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.15 — Saved-segment builder's live "N of M people match" preview
+// (class-people.php's render_segments_panel(), class-segments.php's
+// ajax_preview()) is now Datastar-driven on own-ur-shit 3.10+ — the
+// recommended first real conversion from ROADMAP-hyperpress-migration.md
+// §2. The condition-row add/remove JS (segment-builder.js) is completely
+// unchanged; only the preview trigger/response mechanism moved. Uses
+// Datastar's {contentType:'form'} option (serializes the closest
+// enclosing <form>'s real named fields — confirmed against Datastar's
+// own reference docs before use) so the existing conditions[i][field]/
+// conditions[i][value] form inputs needed no restructuring into a
+// signals array. Falls back cleanly to the original fetch()/JSON path
+// on an own-ur-shit core older than 3.10 (no OUS_Hypermedia) — both
+// render_segments_panel() and segment-builder.js branch on that.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session — the Datastar attribute syntax (data-signals/data-on:input/
+// data-on:change/data-show/data-text, the __debounce modifier, and
+// {contentType:'form'}'s exact serialization behavior) was each checked
+// against Datastar's own reference documentation before use, not
+// guessed, but no browser has actually exercised this. `php -l` clean.
 
 // 2.4.14 — BHCRM_Segments::register_campaign_segments() (class-segments.php)
 // now bridges every saved CRM list, plus a built-in "everyone active in the
@@ -120,7 +140,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.14');
+define('BHCRM_VER',  '2.4.15');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

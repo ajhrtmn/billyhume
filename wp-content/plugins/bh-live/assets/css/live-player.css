@@ -37,7 +37,11 @@
     font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-bottom: 10px;
 }
 .bhl-live-badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #fff; }
-.bhl-offline-notice { background: var(--bh-surface); border-radius: 8px; padding: 30px; text-align: center; color: var(--bh-text-dim); }
+/* Same resting-depth baseline as every other status/content panel this
+   session (.bh-judge-entry, .bh-reveal-entry, .bhc-step) — a
+   non-interactive status message still shouldn't read flatter than
+   everything else on the page. */
+.bhl-offline-notice { background: var(--bh-surface); border-radius: 8px; padding: 30px; text-align: center; color: var(--bh-text-dim); box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
 
 .bhl-replays-heading { font-size: 18px; margin-bottom: 12px; }
 .bhl-replay-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }

@@ -23,12 +23,18 @@
 }
 .bh-judge-category:first-of-type { margin-top: 0; }
 
+/* Same resting-depth baseline every panel/card in this ecosystem gets
+   (.bhc-step, .bhr-card, etc.) — no hover lift here, unlike browsable
+   cards, since this is a form panel a judge works IN, not a link they
+   click ON; the shadow is purely about not reading flatter than
+   everything else on the same page. */
 .bh-judge-entry {
     background: var(--bh-surface);
     border: 1px solid var(--bh-border);
     border-radius: var(--bh-radius);
     padding: calc(18px * var(--bh-space-scale));
     margin-bottom: calc(14px * var(--bh-space-scale));
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
 .bh-judge-entry-submitted { border-color: var(--bh-accent); }
 

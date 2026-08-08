@@ -277,14 +277,47 @@ class BHCRM_People {
         // Collapsible builder — a <details> element needs zero JS for
         // the open/close behavior itself; segment-builder.js only
         // handles the repeatable condition rows inside it.
-        echo '<details id="bhcrm-segment-builder">';
+        // Datastar-driven live preview (own-ur-shit 3.10+, OUS_Hypermedia)
+        // — the condition rows below still live inside this SAVE form
+        // (untouched), but the "N of M people match" count now updates
+        // via a real Datastar round trip instead of hand-rolled fetch()/
+        // textContent JS. data-signals declares the two reactive values;
+        // data-on:input/data-on:change on the conditions container fire
+        // (via ordinary event bubbling — no per-row wiring needed, so
+        // segment-builder.js's row add/remove JS is completely
+        // unaffected) a debounced @post() to the preview endpoint using
+        // {contentType:'form'} — Datastar's own documented behavior for
+        // that option is "serialize the closest enclosing <form>'s real
+        // named fields," which is exactly this form's existing
+        // conditions[i][field]/conditions[i][value] inputs, so no
+        // restructuring into a signals-array was needed. The extra
+        // segment_name/_wpnonce/action fields also in this form ride
+        // along harmless — BHCRM_Segments::ajax_preview() only ever
+        // reads 'conditions' and 'nonce'.
+        $has_datastar = class_exists('OUS_Hypermedia');
+        $preview_nonce = wp_create_nonce('bhcrm_preview_segment');
+        $preview_url = admin_url('admin-ajax.php?action=bhcrm_preview_segment');
+
+        echo '<details id="bhcrm-segment-builder"' . ($has_datastar ? ' data-signals="{previewCount: null, previewTotal: null}"' : '') . '>';
         echo '<summary style="cursor:pointer;color:var(--bhy-accent,#c1503a);font-size:var(--bhy-text-sm,12px);">+ Build a new list</summary>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:var(--bhy-space-3,12px);">';
         wp_nonce_field('bhcrm_save_segment');
         echo '<input type="hidden" name="action" value="bhcrm_save_segment">';
+        if ($has_datastar) echo '<input type="hidden" name="nonce" value="' . esc_attr($preview_nonce) . '">';
         echo '<p><input type="text" name="segment_name" placeholder="Name this list…" style="max-width:280px;"></p>';
-        echo '<div id="bhcrm-segment-conditions"></div>';
-        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button> <span id="bhcrm-segment-preview" class="description" style="margin-left:8px;"></span></p>';
+        echo '<div id="bhcrm-segment-conditions"'
+            . ($has_datastar ? ' data-on:input__debounce.350ms="@post(\'' . esc_js($preview_url) . '\', {contentType: \'form\'})" data-on:change__debounce.350ms="@post(\'' . esc_js($preview_url) . '\', {contentType: \'form\'})"' : '')
+            . '></div>';
+        echo '<p><button type="button" class="button" id="bhcrm-add-condition">+ Add condition</button> ';
+        if ($has_datastar) {
+            echo '<span class="description" style="margin-left:8px;" data-show="$previewCount !== null" data-text="$previewCount + \' of \' + $previewTotal + \' people match\'"></span>';
+        } else {
+            // Older own-ur-shit core (pre-3.10, no OUS_Hypermedia) — the
+            // plain fetch()/JSON path in segment-builder.js still works
+            // unchanged against this same span by id.
+            echo '<span id="bhcrm-segment-preview" class="description" style="margin-left:8px;"></span>';
+        }
+        echo '</p>';
         echo '<p><button type="submit" class="button button-primary">Save list</button></p>';
         echo '</form>';
         echo '</details>';
@@ -292,7 +325,11 @@ class BHCRM_People {
 
         wp_enqueue_script('bhcrm-segment-builder', BHCRM_URL . 'assets/js/segment-builder.js', [], BHCRM_VER, true);
         wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentFields', BHCRM_Segments::FIELDS);
-        wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentPreview', ['nonce' => wp_create_nonce('bhcrm_preview_segment')]);
+        if ($has_datastar) {
+            OUS_Hypermedia::enqueue();
+        } else {
+            wp_localize_script('bhcrm-segment-builder', 'bhcrmSegmentPreview', ['nonce' => wp_create_nonce('bhcrm_preview_segment')]);
+        }
     }
 
     // Real name / platform handles / consent flags, admin-only. Never

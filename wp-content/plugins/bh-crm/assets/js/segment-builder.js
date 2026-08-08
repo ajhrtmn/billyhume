@@ -7,6 +7,17 @@
  * bhcrmSegmentFields (wp_localize_script) is BHCRM_Segments::FIELDS —
  * the same closed condition-type list the PHP side validates against,
  * so the picker can never offer something the server would reject.
+ *
+ * The live "N of M people match" preview (own-ur-shit 3.10+) is now
+ * handled declaratively by Datastar attributes on #bhcrm-segment-
+ * conditions (data-on:input/data-on:change, class-people.php's
+ * render_segments_panel()) — this file only builds/removes condition
+ * rows. Datastar's own event listeners pick up newly-inserted rows via
+ * ordinary event bubbling, so addRow() needs no Datastar-specific code
+ * at all. render_segments_panel() falls back to the OLD plain-fetch
+ * preview markup (#bhcrm-segment-preview) on an own-ur-shit core older
+ * than 3.10 (no OUS_Hypermedia) — that fallback is handled below by
+ * simply checking whether that element exists.
  */
 (function () {
     'use strict';
@@ -18,19 +29,11 @@
 
         var fields = window.bhcrmSegmentFields || {};
         var rowIndex = 0;
-        var previewEl = document.getElementById('bhcrm-segment-preview');
+        var previewEl = document.getElementById('bhcrm-segment-preview'); // only present on the pre-Datastar fallback markup
 
-        // Live match-count preview — wizard-opportunity survey's own
-        // finding: conditions previously went in completely blind, with
-        // no way to see who'd actually match until AFTER saving and
-        // opening the resulting list. Debounced so typing a tag name
-        // doesn't fire a request per keystroke; uses the exact same
-        // sanitize_conditions()/apply() pair the real save path uses
-        // (BHCRM_Segments::ajax_preview()), never a second client-side
-        // guess at the filtering logic.
         var previewTimer = null;
         function schedulePreview() {
-            if (!previewEl) return;
+            if (!previewEl) return; // Datastar markup: nothing to do, its own data-on attributes already fire on the same bubbled events
             clearTimeout(previewTimer);
             previewTimer = setTimeout(runPreview, 350);
         }
