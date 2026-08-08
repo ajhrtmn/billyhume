@@ -1,0 +1,24 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 5
+    paths:
+        - wp-content/plugins/own-ur-shit
+        - wp-content/plugins/bh-contest
+        - wp-content/plugins/bh-courses
+        - wp-content/plugins/bh-crm
+        - wp-content/plugins/bh-monetization-woo
+        - wp-content/plugins/bh-registry
+        - wp-content/plugins/bh-streaming
+    excludePaths:
+        - */vendor/*
+        - */tests/*
+        - */bundled/*
+    scanDirectories:
+        - wp-content/plugins/own-ur-shit
+    # WooCommerce/WordPress globals PHPStan can't otherwise resolve without
+    # those plugins' own stub packages installed — bumping to level 6+ later
+    # will likely need woocommerce/action-scheduler-job-framework-style
+    # stubs or a hand-rolled stub file for $wpdb-adjacent WooCommerce classes.
+    reportUnmatchedIgnoredErrors: false

@@ -1,0 +1,12 @@
+{
+  "name": "own-ur-shit-dev-tooling",
+  "private": true,
+  "description": "Dev-only tooling for this repo's TypeScript sources (wp-content/plugins/*/assets/ts/). Not a runtime dependency — every plugin still enqueues plain, pre-compiled .js from assets/js/ via wp_enqueue_script(), same as before. TypeScript exists purely as a dev-time authoring/type-checking layer; there is no bundler and no change to how scripts are loaded on the live site. node_modules/ is gitignored (regenerated via `npm install`), same posture as vendor/ for composer.json.",
+  "scripts": {
+    "build:own-ur-shit": "tsc -p wp-content/plugins/own-ur-shit/tsconfig.json",
+    "watch:own-ur-shit": "tsc -p wp-content/plugins/own-ur-shit/tsconfig.json --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

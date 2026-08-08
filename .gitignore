@@ -36,6 +36,13 @@ wp-config.php
 /vendor/
 wp-content/plugins/*/tests/.phpunit.result.cache
 
+# node_modules/ is dev-only tooling too (TypeScript compiler for the
+# assets/ts/ pilot — see package.json), same posture as /vendor/ above:
+# never deployed, regenerated locally via `npm install`. package-lock.json
+# IS committed (same reasoning as composer.lock: Wasmer's build step may
+# run `npm install` against a committed lockfile).
+/node_modules/
+
 # macOS Finder metadata — never something a WordPress install needs
 # tracked, in any directory
 .DS_Store
