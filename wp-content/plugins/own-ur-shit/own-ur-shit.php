@@ -2,10 +2,31 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.5
+ * Version:     3.10.6
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.6 — Three more files converted to the TypeScript pilot started in
+// 3.10.5: toast.ts (BHCoreToast + the cross-plugin modal scroll-lock),
+// element-live.ts (Design Suite runtime re-resolution poller), and
+// page-content-block.ts (the bh/page-content Gutenberg block). The first
+// two are plain vanilla scripts, same shape as search.ts. The third is
+// this pilot's first wp.element/Gutenberg-registration file — rather than
+// pull in an @types/wordpress__* package (a new npm dependency this
+// ecosystem doesn't otherwise need), it declares a small hand-written
+// `WpGlobal` interface covering only the wp.blocks/wp.element/
+// wp.blockEditor/wp.i18n surface this one file actually calls. Widen
+// that interface (or introduce a shared ambient .d.ts if a third
+// wp.element file gets converted) rather than reaching for a full
+// WordPress type package by default. All four compiled outputs
+// (assets/js/{toast,element-live,page-content-block,search}.js) were
+// verified free of CommonJS module artifacts (grepped for `exports`/
+// `require(`) before committing — the same class of bug 3.10.5 caught
+// and fixed in tsconfig.json. Remaining assets/js/ files (studio.js,
+// element-prefab-block.js, block-style-panel.js) are heavier
+// wp.element/Gutenberg-editor files left for later, separately-scoped
+// passes — not converted in this pass.
 
 // 3.10.5 — Type-safety tooling pass, AJ's own ask ("make the PHP type safe,
 // switch to TypeScript, dev-only build step is fine now"). Two separate,
@@ -793,7 +814,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.5');
+define('OUS_VER', '3.10.6');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

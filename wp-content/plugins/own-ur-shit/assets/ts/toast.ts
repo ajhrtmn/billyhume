@@ -1,4 +1,3 @@
-"use strict";
 /**
  * BHCoreToast — a minimal, dependency-free toast/notification renderer,
  * shared by the whole ecosystem (own-ur-shit core + every bh-* plugin) on
@@ -27,19 +26,32 @@
  * notes") and confirm a toast actually appears before treating this as
  * proven.
  */
-(function (window, document) {
+
+type BHCoreToastType = 'success' | 'error' | 'info' | 'warning';
+
+interface BHCoreToastApi {
+    show(message: unknown, type?: string, durationMs?: number): HTMLElement | null;
+}
+
+interface BHCoreToastWindow extends Window {
+    BHCoreToast: BHCoreToastApi;
+}
+
+(function (window: Window, document: Document) {
     'use strict';
+
     var REGION_ID = 'bhcore-toast-region';
-    var VALID_TYPES = ['success', 'error', 'info', 'warning'];
-    var region = null;
+    var VALID_TYPES: BHCoreToastType[] = ['success', 'error', 'info', 'warning'];
+
+    var region: HTMLElement | null = null;
+
     /**
      * Lazily creates (once) the fixed-position, top-right toast stack —
      * a single live region so a screen reader announces each new toast
      * without re-announcing ones already on screen.
      */
-    function ensureRegion() {
-        if (region && document.body.contains(region))
-            return region;
+    function ensureRegion(): HTMLElement {
+        if (region && document.body.contains(region)) return region;
         var found = document.getElementById(REGION_ID);
         if (!found) {
             found = document.createElement('div');
@@ -57,53 +69,57 @@
         region = found;
         return found;
     }
-    var BHCoreToast = {
+
+    var BHCoreToast: BHCoreToastApi = {
         /**
          * Shows one toast. type is coerced to 'info' if not one of the
          * four recognized values, so a typo'd/unexpected type never throws
          * or silently fails to render — same "harmless degrade" posture as
          * the rest of this ecosystem's shared utilities.
          */
-        show: function (message, type, durationMs) {
-            if (!message)
-                return null;
-            var resolvedType = (VALID_TYPES.indexOf(type) !== -1
-                ? type
+        show: function (message: unknown, type?: string, durationMs?: number): HTMLElement | null {
+            if (!message) return null;
+            var resolvedType: BHCoreToastType = (VALID_TYPES.indexOf(type as BHCoreToastType) !== -1
+                ? (type as BHCoreToastType)
                 : 'info');
             var resolvedDuration = typeof durationMs === 'number' ? durationMs : 5000;
+
             var toastRegion = ensureRegion();
+
             var toast = document.createElement('div');
             toast.className = 'bhcore-toast bhcore-toast-' + resolvedType;
+
             var msg = document.createElement('span');
             msg.className = 'bhcore-toast-msg';
             msg.textContent = String(message);
             toast.appendChild(msg);
+
             var closeBtn = document.createElement('button');
             closeBtn.type = 'button';
             closeBtn.className = 'bhcore-toast-close';
             closeBtn.setAttribute('aria-label', 'Dismiss notification');
             closeBtn.innerHTML = '&times;';
             toast.appendChild(closeBtn);
+
             var dismissed = false;
-            var timer = null;
+            var timer: ReturnType<typeof setTimeout> | null = null;
             var dismiss = function () {
-                if (dismissed)
-                    return;
+                if (dismissed) return;
                 dismissed = true;
-                if (timer)
-                    clearTimeout(timer);
+                if (timer) clearTimeout(timer);
                 toast.classList.remove('bhcore-toast-in');
                 toast.classList.add('bhcore-toast-out');
                 // Matches the CSS transition duration in toast.css — the
                 // node is removed only after the fade/slide-out actually
                 // finishes, not instantly, so the animation is visible.
                 setTimeout(function () {
-                    if (toast.parentNode)
-                        toast.parentNode.removeChild(toast);
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
                 }, 220);
             };
             closeBtn.addEventListener('click', dismiss);
+
             toastRegion.appendChild(toast);
+
             // Applied on the next frame (not immediately) so the browser
             // registers the initial (offscreen/transparent) state first —
             // otherwise the CSS transition to bhcore-toast-in has nothing
@@ -111,13 +127,17 @@
             window.requestAnimationFrame(function () {
                 toast.classList.add('bhcore-toast-in');
             });
+
             if (resolvedDuration > 0) {
                 timer = setTimeout(dismiss, resolvedDuration);
             }
+
             return toast;
         }
     };
-    window.BHCoreToast = BHCoreToast;
+
+    (window as BHCoreToastWindow).BHCoreToast = BHCoreToast;
+
     /**
      * Body scroll-lock while any ecosystem modal is open. Every real modal
      * across bh-contest/bh-streaming/bh-registry is shown/hidden by toggling
@@ -132,25 +152,27 @@
      */
     var MODAL_SELECTOR = '.bh-modal, .bhs-auth-modal, .bhs-import-modal, .bhs-jam-modal, .bhs-playlist-picker, .bhr-submit-modal';
     var LOCK_CLASS = 'bhcore-scroll-locked';
-    function isVisible(el) {
-        if (el.hasAttribute('hidden'))
-            return false;
+
+    function isVisible(el: HTMLElement): boolean {
+        if (el.hasAttribute('hidden')) return false;
         var display = el.style.display || window.getComputedStyle(el).display;
         return display !== 'none';
     }
-    function anyModalOpen() {
-        var els = document.querySelectorAll(MODAL_SELECTOR);
+
+    function anyModalOpen(): boolean {
+        var els = document.querySelectorAll<HTMLElement>(MODAL_SELECTOR);
         for (var i = 0; i < els.length; i++) {
             var current = els[i];
-            if (current && isVisible(current))
-                return true;
+            if (current && isVisible(current)) return true;
         }
         return false;
     }
-    function syncScrollLock() {
+
+    function syncScrollLock(): void {
         document.documentElement.classList.toggle(LOCK_CLASS, anyModalOpen());
     }
-    function initScrollLock() {
+
+    function initScrollLock(): void {
         syncScrollLock();
         var observer = new MutationObserver(syncScrollLock);
         observer.observe(document.body || document.documentElement, {
@@ -159,10 +181,10 @@
             subtree: true
         });
     }
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initScrollLock);
-    }
-    else {
+    } else {
         initScrollLock();
     }
 })(window, document);
