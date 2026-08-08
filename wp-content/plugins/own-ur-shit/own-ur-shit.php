@@ -2,10 +2,33 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.6
+ * Version:     3.10.7
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.7 — TypeScript pilot completed for the whole of assets/js/: the
+// three remaining files (element-prefab-block.ts, block-style-panel.ts,
+// studio.ts — the heaviest wp.element/Gutenberg-editor files, deferred
+// out of 3.10.6) are now converted, plus a new shared assets/ts/wp-
+// globals.d.ts ambient-types file so each file no longer redeclares its
+// own WpGlobal interface (page-content-block.ts was refactored to use it
+// too). Types are loose by design (Record<string, unknown>/unknown for
+// most Gutenberg component props) — the goal is catching mistakes in
+// THIS ecosystem's own code (wrong wp.* member name, wrong argument
+// shape, wrong local variable type), not fully modeling core's React
+// tree; a real @wordpress/* type package was deliberately not installed
+// (see wp-globals.d.ts's own docblock). block-style-panel.ts needed two
+// explicit `as (...args: unknown[]) => unknown` casts where
+// createHigherOrderComponent's return value feeds addFilter() — a real,
+// if narrow, gap in how loosely compose/hooks are typed here; noted in
+// case a tighter WpComposeApi/WpHooksApi signature is worth writing
+// later. All seven compiled outputs (assets/js/*.js) reverified this
+// pass: `node --check` (syntax) plus a grep for CommonJS `exports`/
+// `require(` artifacts (the exact bug class 3.10.5 caught in
+// tsconfig.json) on every file, not just the three new ones. This
+// closes out the "no mass rewrite, one file at a time" pilot noted in
+// 3.10.5/3.10.6 — assets/js/ in this plugin is now entirely TS-sourced.
 
 // 3.10.6 — Three more files converted to the TypeScript pilot started in
 // 3.10.5: toast.ts (BHCoreToast + the cross-plugin modal scroll-lock),
@@ -814,7 +837,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.6');
+define('OUS_VER', '3.10.7');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

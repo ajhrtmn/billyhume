@@ -16,15 +16,8 @@
  * "under the hood," not a second rendering path.
  *
  * TypeScript pilot, compiled with plain `tsc` to assets/js/page-content-
- * block.js. The `WpGlobal` interface below is a deliberately minimal,
- * hand-written shape covering only the wp.* surface this file actually
- * touches — NOT a full @wordpress/* type package (none is installed;
- * see search.ts's docblock for why this ecosystem's TS pilot stays on
- * plain `tsc` with no additional npm dependencies beyond typescript
- * itself). Widen this interface if a future edit here needs more of
- * wp.blockEditor/wp.components — don't reach for @types/wordpress__*
- * without a deliberate decision, same posture as the "no bundler"
- * convention.
+ * block.js. wp.* types come from the shared wp-globals.d.ts (see that
+ * file's own docblock) rather than a per-file interface.
  */
 
 interface WpBlockEditProps<A> {
@@ -34,23 +27,6 @@ interface WpBlockEditProps<A> {
 
 interface WpPageContentAttributes {
     content: string;
-}
-
-interface WpGlobal {
-    blocks?: {
-        registerBlockType(name: string, settings: Record<string, unknown>): void;
-    };
-    element?: {
-        createElement(type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): unknown;
-    };
-    blockEditor?: {
-        useBlockProps(props?: Record<string, unknown>): Record<string, unknown>;
-        RichText: unknown;
-    };
-    components?: unknown;
-    i18n?: {
-        __(text: string): string;
-    };
 }
 
 (function (wp: WpGlobal | undefined) {
@@ -82,7 +58,7 @@ interface WpGlobal {
                     onChange: function (v: string) { setAttrs({ content: v }); },
                     placeholder: __('Write this section’s content…'),
                     multiline: 'p',
-                } as unknown as Record<string, unknown>)
+                })
             );
         },
         // Dynamic block — save() persists only the attribute (for the
@@ -91,4 +67,4 @@ interface WpGlobal {
         // CURRENT placement state via render_slot(), not this saved value.
         save: function () { return null; },
     });
-})((window as unknown as { wp?: WpGlobal }).wp);
+})(window.wp);

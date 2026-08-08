@@ -17,15 +17,8 @@
  * "under the hood," not a second rendering path.
  *
  * TypeScript pilot, compiled with plain `tsc` to assets/js/page-content-
- * block.js. The `WpGlobal` interface below is a deliberately minimal,
- * hand-written shape covering only the wp.* surface this file actually
- * touches — NOT a full @wordpress/* type package (none is installed;
- * see search.ts's docblock for why this ecosystem's TS pilot stays on
- * plain `tsc` with no additional npm dependencies beyond typescript
- * itself). Widen this interface if a future edit here needs more of
- * wp.blockEditor/wp.components — don't reach for @types/wordpress__*
- * without a deliberate decision, same posture as the "no bundler"
- * convention.
+ * block.js. wp.* types come from the shared wp-globals.d.ts (see that
+ * file's own docblock) rather than a per-file interface.
  */
 (function (wp) {
     'use strict';

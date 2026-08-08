@@ -1,4 +1,3 @@
-"use strict";
 /**
  * "Advanced Styles" — a generic InspectorControls panel added to EVERY
  * block in the native editor, not a bespoke block or a bespoke canvas.
@@ -22,10 +21,39 @@
  * bhyBlockStyleSchema shape below is this file's own, since it's not a
  * wp.* API.
  */
+
+type BhyPropertyKind =
+    | 'space' | 'size' | 'scale' | 'enum-scale' | 'enum'
+    | 'percent-0-100' | 'custom-or-number' | 'custom-only' | 'token-only';
+
+interface BhyPropertyDef {
+    key: string;
+    css: string;
+    kind: BhyPropertyKind;
+    options?: Record<string, string>;
+    allowCustom?: boolean;
+}
+
+interface BhyStyleGroup {
+    label: string;
+    properties: Record<string, BhyPropertyDef>;
+}
+
+interface BhyBlockStyleSchema {
+    groups: Record<string, BhyStyleGroup>;
+    colorTokens: Record<string, string>;
+}
+
+interface BhyWindow extends Window {
+    bhyBlockStyleSchema?: BhyBlockStyleSchema;
+}
+
+type BhStyleMap = Record<string, string>;
+
 (function () {
     var wp = window.wp;
-    if (!wp || !wp.blockEditor || !wp.element || !wp.components || !wp.compose || !wp.hooks)
-        return;
+    if (!wp || !wp.blockEditor || !wp.element || !wp.components || !wp.compose || !wp.hooks) return;
+
     var el = wp.element.createElement;
     var Fragment = wp.element.Fragment;
     var InspectorControls = wp.blockEditor.InspectorControls;
@@ -34,22 +62,25 @@
     var TextControl = wp.components.TextControl;
     var createHigherOrderComponent = wp.compose.createHigherOrderComponent;
     var addFilter = wp.hooks.addFilter;
-    var __ = (wp.i18n && wp.i18n.__) ? wp.i18n.__ : function (s) { return s; };
-    var schema = window.bhyBlockStyleSchema || { groups: {}, colorTokens: {} };
+    var __ = (wp.i18n && wp.i18n.__) ? wp.i18n.__ : function (s: string) { return s; };
+
+    var schema: BhyBlockStyleSchema = (window as BhyWindow).bhyBlockStyleSchema || { groups: {}, colorTokens: {} };
     var NONE = '';
     var CUSTOM_SENTINEL = '__bhy_custom__';
+
     // Flat "group.property" => prop-definition lookup, built once from
     // the same schema the panel itself renders from — the one place a
     // stored bhStyle key gets resolved back to its PROPERTY_MAP entry
     // for the live-preview resolver below.
-    var propsByKey = {};
+    var propsByKey: Record<string, BhyPropertyDef> = {};
     Object.keys(schema.groups || {}).forEach(function (gk) {
-        var props = schema.groups[gk].properties || {};
+        var props = schema.groups[gk]!.properties || {};
         Object.keys(props).forEach(function (pk) {
-            var prop = props[pk];
+            var prop = props[pk]!;
             propsByKey[prop.key] = prop;
         });
     });
+
     /**
      * Client-side mirror of BHY_Style::resolve_style_value()
      * (class-style.php) — resolves ONE stored bhStyle value against its
@@ -63,19 +94,18 @@
      * rendered from the same stored bhStyle map through the real PHP
      * resolver, is unaffected.
      */
-    function resolvePreviewValue(raw, prop) {
+    function resolvePreviewValue(raw: unknown, prop: BhyPropertyDef): string | null {
         var rawStr = String(raw || '');
-        if (rawStr === '')
-            return null;
+        if (rawStr === '') return null;
+
         if (rawStr.indexOf('@token:') === 0) {
-            if (prop.kind !== 'token-only')
-                return null;
+            if (prop.kind !== 'token-only') return null;
             var cssVar = (schema.colorTokens || {})[rawStr.slice(7)];
             return cssVar ? 'var(' + cssVar + ')' : null;
         }
+
         if (rawStr.indexOf('custom:') === 0) {
-            if (prop.kind === 'token-only')
-                return null;
+            if (prop.kind === 'token-only') return null;
             var val = rawStr.slice(7);
             if (prop.kind === 'percent-0-100') {
                 var pct = parseFloat(val);
@@ -83,12 +113,13 @@
             }
             return val; // unsanitized preview value — see docblock above
         }
+
         switch (prop.kind) {
             case 'space':
             case 'size':
             case 'scale':
             case 'enum-scale':
-                return (prop.options && prop.options[rawStr] !== undefined) ? prop.options[rawStr] : null;
+                return (prop.options && prop.options[rawStr] !== undefined) ? prop.options[rawStr]! : null;
             case 'enum':
                 return (prop.options && prop.options[rawStr] !== undefined) ? rawStr : null;
             case 'percent-0-100': {
@@ -103,25 +134,32 @@
                 return null; // token-only/custom-only kinds only accept the @token:/custom: forms above
         }
     }
+
     /** kebab-case CSS property name -> camelCase, for a React inline `style` object (`background-color` -> `backgroundColor`). */
-    function toCamelCase(cssProp) {
-        return cssProp.replace(/-([a-z])/g, function (_, c) { return c.toUpperCase(); });
+    function toCamelCase(cssProp: string): string {
+        return cssProp.replace(/-([a-z])/g, function (_, c: string) { return c.toUpperCase(); });
     }
+
     /** A block's bhStyle map -> a React inline `style` object for the editor canvas — the live-preview counterpart of BHY_Style::scoped_inline_style()'s decl-string output. */
-    function bhStyleToPreviewStyle(bhStyle) {
-        var style = null;
+    function bhStyleToPreviewStyle(bhStyle: BhStyleMap): Record<string, string> | null {
+        var style: Record<string, string> | null = null;
         Object.keys(bhStyle || {}).forEach(function (key) {
             var prop = propsByKey[key];
-            if (!prop)
-                return;
+            if (!prop) return;
             var cssValue = resolvePreviewValue(bhStyle[key], prop);
-            if (cssValue === null)
-                return;
+            if (cssValue === null) return;
             style = style || {};
             style[toCamelCase(prop.css)] = cssValue;
         });
         return style;
     }
+
+    interface PropertyRowProps {
+        prop: BhyPropertyDef;
+        value?: string;
+        onChange: (value: string) => void;
+    }
+
     /**
      * One property row. `value` is always the raw stored string this
      * block's bhStyle[prop.key] currently holds (or '' if unset) — the
@@ -129,10 +167,11 @@
      * server-side, so there is never a second, JS-only value shape to
      * keep in sync with PHP.
      */
-    function PropertyRow(props) {
+    function PropertyRow(props: PropertyRowProps) {
         var prop = props.prop;
         var value = props.value || '';
         var onChange = props.onChange;
+
         // Token-only (colors): the value is ALWAYS "@token:<field>" or
         // unset — never a raw hex, never a custom escape. Mirrors
         // resolve_style_value()'s own "colors are always token refs"
@@ -149,6 +188,7 @@
                 onChange: onChange,
             });
         }
+
         // A property with a real preset table (space/size/scale/enum/
         // enum-scale kinds) — a dropdown of every preset step, plus a
         // "Custom…" escape hatch when the property allows one.
@@ -160,19 +200,16 @@
             Object.keys(stepOptions).forEach(function (step) {
                 options.push({ label: step + ' (' + stepOptions[step] + ')', value: step });
             });
-            if (prop.allowCustom)
-                options.push({ label: __('Custom…', 'own-ur-shit'), value: CUSTOM_SENTINEL });
+            if (prop.allowCustom) options.push({ label: __('Custom…', 'own-ur-shit'), value: CUSTOM_SENTINEL });
+
             var children = [
                 el(SelectControl, {
                     key: 'select',
                     label: prop.css,
                     value: selectValue,
                     options: options,
-                    onChange: function (v) {
-                        if (v === CUSTOM_SENTINEL) {
-                            onChange('custom:');
-                            return;
-                        }
+                    onChange: function (v: string) {
+                        if (v === CUSTOM_SENTINEL) { onChange('custom:'); return; }
                         onChange(v);
                     },
                 }),
@@ -183,11 +220,12 @@
                     label: __('Custom value', 'own-ur-shit'),
                     value: value.slice(7),
                     placeholder: 'e.g. 2rem, calc(100% - 20px)',
-                    onChange: function (v) { onChange('custom:' + v); },
+                    onChange: function (v: string) { onChange('custom:' + v); },
                 }));
             }
             return el(Fragment, {}, children);
         }
+
         // No preset table at all — custom-only / custom-or-number /
         // percent-0-100. One free-text field; custom-only kinds are
         // silently prefixed with 'custom:' on write (that's the only
@@ -201,57 +239,64 @@
             label: prop.css + (prop.kind === 'percent-0-100' ? ' (0–100)' : ''),
             value: displayValue,
             type: (prop.kind === 'percent-0-100' || prop.kind === 'custom-or-number') ? 'number' : 'text',
-            onChange: function (v) {
-                if (v === '') {
-                    onChange('');
-                    return;
-                }
+            onChange: function (v: string) {
+                if (v === '') { onChange(''); return; }
                 onChange(isCustomOnly ? 'custom:' + v : v);
             },
         });
     }
-    function AdvancedStylesPanels(props) {
+
+    interface AdvancedStylesPanelsProps {
+        attributes?: { bhStyle?: BhStyleMap };
+        setAttributes: (next: { bhStyle: BhStyleMap }) => void;
+    }
+
+    function AdvancedStylesPanels(props: AdvancedStylesPanelsProps) {
         var attributes = props.attributes || {};
         var bhStyle = attributes.bhStyle || {};
         var setAttributes = props.setAttributes;
-        function setValue(key, value) {
-            var next = {};
-            Object.keys(bhStyle).forEach(function (k) { next[k] = bhStyle[k]; });
-            if (!value || value === 'custom:') {
-                delete next[key];
-            }
-            else {
-                next[key] = value;
-            }
+
+        function setValue(key: string, value: string) {
+            var next: BhStyleMap = {};
+            Object.keys(bhStyle).forEach(function (k) { next[k] = bhStyle[k]!; });
+            if (!value || value === 'custom:') { delete next[key]; } else { next[key] = value; }
             setAttributes({ bhStyle: next });
         }
+
         var groupKeys = Object.keys(schema.groups || {});
-        if (!groupKeys.length)
-            return null;
+        if (!groupKeys.length) return null;
+
         return el(Fragment, {}, groupKeys.map(function (gk) {
-            var group = schema.groups[gk];
+            var group = schema.groups[gk]!;
             var propKeys = Object.keys(group.properties);
             var rows = propKeys.map(function (pk) {
-                var prop = group.properties[pk];
-                return el(PropertyRow, {
+                var prop = group.properties[pk]!;
+                return el(PropertyRow as unknown as WpComponentType, {
                     key: prop.key,
                     prop: prop,
                     value: bhStyle[prop.key] || '',
-                    onChange: function (v) { setValue(prop.key, v); },
+                    onChange: function (v: string) { setValue(prop.key, v); },
                 });
             });
             return el(PanelBody, { key: gk, title: __('Style', 'own-ur-shit') + ': ' + group.label, initialOpen: false }, rows);
         }));
     }
-    var withAdvancedStyles = createHigherOrderComponent(function (BlockEdit) {
-        return function (ownProps) {
+
+    interface BlockEditHocProps {
+        isSelected?: boolean;
+        [key: string]: unknown;
+    }
+
+    var withAdvancedStyles = createHigherOrderComponent(function (BlockEdit: unknown) {
+        return function (ownProps: BlockEditHocProps) {
             var edit = el(BlockEdit, ownProps);
-            if (!ownProps.isSelected)
-                return edit;
-            return el(Fragment, {}, edit, el(InspectorControls, {}, el(AdvancedStylesPanels, ownProps)));
+            if (!ownProps.isSelected) return edit;
+            return el(Fragment, {}, edit, el(InspectorControls, {}, el(AdvancedStylesPanels as unknown as WpComponentType, ownProps)));
         };
     }, 'withAdvancedStyles');
-    addFilter('editor.BlockEdit', 'bhy/advanced-styles', withAdvancedStyles);
+
+    addFilter('editor.BlockEdit', 'bhy/advanced-styles', withAdvancedStyles as (...args: unknown[]) => unknown);
+
     // Server-side register_block_type_args (class-block-style.php) only
     // reserves `bhStyle` for REST/render-time validation — it has no
     // effect on the client's own block type registry, which is what
@@ -261,14 +306,21 @@
     // dropped on save because the client-side block type never declared
     // the attribute. Must match the PHP side's shape exactly (type
     // object, default {}).
-    addFilter('blocks.registerBlockType', 'bhy/advanced-styles-attribute', function (settingsArg) {
-        var settings = settingsArg;
+    addFilter('blocks.registerBlockType', 'bhy/advanced-styles-attribute', function (settingsArg: unknown) {
+        var settings = settingsArg as { attributes?: Record<string, unknown> };
         settings.attributes = settings.attributes || {};
         if (!settings.attributes.bhStyle) {
             settings.attributes.bhStyle = { type: 'object', default: {} };
         }
         return settings;
     });
+
+    interface BlockListBlockProps {
+        block?: { attributes?: { bhStyle?: BhStyleMap } };
+        wrapperProps?: { style?: Record<string, unknown>; [key: string]: unknown };
+        [key: string]: unknown;
+    }
+
     // The panel + the render_block/serialization fix above only ever
     // made bhStyle round-trip correctly and render on the real front
     // end — the editor canvas itself stayed unstyled, so a value that
@@ -293,17 +345,16 @@
     // on the public export silently no-opped this entire feature; an
     // earlier version of this file did exactly that and the filter
     // never fired.
-    var withStylePreview = createHigherOrderComponent(function (OriginalBlockListBlock) {
-        return function (props) {
+    var withStylePreview = createHigherOrderComponent(function (OriginalBlockListBlock: unknown) {
+        return function (props: BlockListBlockProps) {
             var bhStyle = props.block && props.block.attributes && props.block.attributes.bhStyle;
             var previewStyle = bhStyle ? bhStyleToPreviewStyle(bhStyle) : null;
-            if (!previewStyle)
-                return el(OriginalBlockListBlock, props);
+            if (!previewStyle) return el(OriginalBlockListBlock, props);
             var wrapperProps = Object.assign({}, props.wrapperProps, {
                 style: Object.assign({}, (props.wrapperProps && props.wrapperProps.style) || {}, previewStyle),
             });
             return el(OriginalBlockListBlock, Object.assign({}, props, { wrapperProps: wrapperProps }));
         };
     }, 'withStylePreview');
-    addFilter('editor.BlockListBlock', 'bhy/advanced-styles-preview', withStylePreview);
+    addFilter('editor.BlockListBlock', 'bhy/advanced-styles-preview', withStylePreview as (...args: unknown[]) => unknown);
 })();
