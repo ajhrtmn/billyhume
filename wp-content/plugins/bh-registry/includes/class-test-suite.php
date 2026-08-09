@@ -45,7 +45,7 @@ class BHR_TestSuite {
 
         // Exact-line token match, HTTP 200 — the success path.
         $filter = function () { return ['response' => ['code' => 200], 'body' => "some\nOTHERTOKEN123\nmore"]; };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_true(
             $check->invoke(null, 'https://example.test/feed', 'OTHERTOKEN123'),
             'check_domain_ownership(): token present as its own line in the challenge file passes'
@@ -58,7 +58,7 @@ class BHR_TestSuite {
         // CONTAINING the token (e.g. embedded in unrelated text) count
         // as proof of control.
         $filter = function () { return ['response' => ['code' => 200], 'body' => 'prefix-OTHERTOKEN123-suffix']; };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
             $check->invoke(null, 'https://example.test/feed', 'OTHERTOKEN123'),
             'check_domain_ownership(): token only as a SUBSTRING of a line (not its own line) correctly fails'
@@ -67,7 +67,7 @@ class BHR_TestSuite {
 
         // Right domain, wrong token — must fail, not just "any 200 passes".
         $filter = function () { return ['response' => ['code' => 200], 'body' => 'WRONGTOKEN']; };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
             $check->invoke(null, 'https://example.test/feed', 'OTHERTOKEN123'),
             'check_domain_ownership(): a 200 response with the WRONG token correctly fails'
@@ -78,7 +78,7 @@ class BHR_TestSuite {
         // to an error page) must fail even if the body happens to be
         // empty rather than throwing.
         $filter = function () { return ['response' => ['code' => 404], 'body' => '']; };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
             $check->invoke(null, 'https://example.test/feed', 'OTHERTOKEN123'),
             'check_domain_ownership(): a 404 (challenge file never published) correctly fails, not just an empty-body pass'
@@ -87,7 +87,7 @@ class BHR_TestSuite {
 
         // A WP_Error (DNS failure, timeout) must fail cleanly, not throw.
         $filter = function () { return new WP_Error('http_request_failed', 'Could not resolve host'); };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
             $check->invoke(null, 'https://example.test/feed', 'OTHERTOKEN123'),
             'check_domain_ownership(): a WP_Error (DNS/timeout) correctly fails without throwing'
@@ -116,7 +116,7 @@ class BHR_TestSuite {
                 'type' => 'Person', 'name' => 'Test Artist', 'outbox' => 'https://example.test/outbox',
             ])];
         };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $result = $check->invoke(null, 'https://example.test/actor');
         remove_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_true(
@@ -134,7 +134,7 @@ class BHR_TestSuite {
         $filter = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['type' => 'Person', 'name' => 'No Outbox'])];
         };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $result = $check->invoke(null, 'https://example.test/actor');
         remove_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -148,7 +148,7 @@ class BHR_TestSuite {
         $filter = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['type' => 'NotAnActorType', 'outbox' => 'https://example.test/outbox'])];
         };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $result = $check->invoke(null, 'https://example.test/actor');
         remove_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(
@@ -158,7 +158,7 @@ class BHR_TestSuite {
 
         // Non-JSON / arbitrary body must fail without throwing.
         $filter = function () { return ['response' => ['code' => 200], 'body' => '<html>not json</html>']; };
-        add_filter('pre_http_request', $filter, 10, 3);
+        add_filter('pre_http_request', $filter, 10);
         $result = $check->invoke(null, 'https://example.test/actor');
         remove_filter('pre_http_request', $filter, 10);
         $rows[] = OUS_TestRunner::assert_false(

@@ -2,11 +2,20 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.23
+ * Version:     0.5.24
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.24 — PHPStan round 2, two small real fixes surfaced late (this
+// plugin was already at 2 errors — the deliberate COOKIEPATH/
+// COOKIE_DOMAIN exception — before this pass, unaffected by it): two
+// get_posts() calls (class-api.php's get_releases(), class-video-
+// post-types.php) passed a bare int as 'meta_value' where WP's own
+// signature expects a string. Cast both.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 0.5.23 — Real bugs found by a proper `composer install && vendor/bin/
 // phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
@@ -59,7 +68,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.23');
+define('BHS_VER',  '0.5.24');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

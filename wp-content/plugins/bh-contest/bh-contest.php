@@ -2,11 +2,31 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.20
+ * Version:     3.7.21
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.21 — PHPStan round 2 (this plugin went from 19 errors to 2, both
+// the deliberately-unstubbed COOKIEPATH/COOKIE_DOMAIN constants). Real
+// fixes: get_userdata() needs an int (three call sites were passing a
+// WP_Post's post_author/post_author-adjacent property directly, which
+// the stub types as string); get_posts()'s meta_value needs a string
+// (three call sites passed a bare int contest ID); esc_attr() needs a
+// string, not the numeric $pct it was given directly. Also removed a
+// genuinely redundant class_exists('BH_ShareCard') re-check in
+// class-share-cards.php — an earlier wp_die() a few lines above already
+// guarantees it. Two findings were confirmed real PHPStan/stub false
+// positives, not bugs, and scoped-ignored instead: add_option()'s 4th
+// arg accepting the legacy 'no'/'yes' string convention (confirmed real
+// WP-core behavior by reading wp_determine_option_autoload_value()'s
+// actual source, just stricter-typed in the stub than reality), and a
+// deliberately forward-looking pluralization ternary that's only
+// "always true" because BH_VOTE_BASE happens to be defined as the
+// literal 1 today.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 3.7.20 — Real bugs found by a proper `composer install && vendor/bin/
 // phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
@@ -156,7 +176,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.20');
+define('BH_VER',        '3.7.21');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

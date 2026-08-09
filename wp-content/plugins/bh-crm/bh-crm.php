@@ -2,11 +2,28 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.16
+ * Version:     2.4.17
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.17 — PHPStan round 2 (this plugin went from 12 errors to 0).
+// Real bug fixed: BHCRM_Projects::progress_percent()'s @return
+// array{0:int,1:int} docblock had ended up misattached above the wrong
+// method — the intervening "Audit fix" comment block broke the natural
+// docblock-immediately-precedes-function association, so it ended up
+// documenting progress_percent() (which genuinely returns a plain int)
+// instead of rollup_counts() (whose actual return shape it describes).
+// PHPStan trusted the wrong type and propagated it to every real call
+// site. Not a runtime bug (the real code was always correct — $pct was
+// always a plain int at runtime), but a real documentation error, now
+// moved to its correct place above rollup_counts(). Every other finding
+// (class-test-suite.php's ReflectionMethod::invokeArgs(null, [&$tree])
+// mutation tests) was confirmed as a well-known PHPStan by-reference-
+// mutation limitation — see phpstan.neon's own comment — not a bug.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 2.4.16 — segment-builder.js converted to TypeScript (assets/ts/
 // segment-builder.ts), this plugin's first TS-pilot file, following
@@ -152,7 +169,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.16');
+define('BHCRM_VER',  '2.4.17');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

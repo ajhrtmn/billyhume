@@ -797,17 +797,18 @@ class BHCRM_Projects {
         });
     }
 
-    /**
-     * Recursively counts 'bhcrm/sub-card' nodes in a raw (un-rendered)
-     * BH_Content tree — the render-time roll-up this class's docblock
-     * documents. Any OTHER registered content block type mixed into the
-     * tree (shouldn't normally happen, since only 'bhcrm/sub-card' is
-     * ever inserted by this class's own UI, but a hand-crafted REST call
-     * could add one) is silently skipped for counting purposes, same
-     * graceful-degrade posture as BH_Content::render() itself.
-     *
-     * @return array{0:int,1:int} [$done_count, $total_count]
-     */
+    // PHPStan-caught real bug: this method's @return docblock had ended
+    // up misattached to progress_percent() below instead of
+    // rollup_counts() (the method it actually describes) — the
+    // intervening "Audit fix" comment block broke the natural
+    // docblock-immediately-precedes-function association. PHPStan
+    // trusted the wrong (array{0:int,1:int}) return type for
+    // progress_percent() (which genuinely returns a plain int), and
+    // propagated that bad type to every real call site — not a runtime
+    // bug (the actual code was always correct), but a real
+    // documentation error worth fixing on its own. Moved to its correct
+    // place, immediately above rollup_counts().
+    //
     // Audit fix (2026-07-25): $done_count/$total_count -> percent was
     // duplicated between this file's own bh/sticky-card render callback
     // and BHCRM_Subtasks::render_progress_bar() — sharing THIS
@@ -821,6 +822,17 @@ class BHCRM_Projects {
         return $total > 0 ? (int) round(($done / $total) * 100) : 0;
     }
 
+    /**
+     * Recursively counts 'bhcrm/sub-card' nodes in a raw (un-rendered)
+     * BH_Content tree — the render-time roll-up this class's docblock
+     * documents. Any OTHER registered content block type mixed into the
+     * tree (shouldn't normally happen, since only 'bhcrm/sub-card' is
+     * ever inserted by this class's own UI, but a hand-crafted REST call
+     * could add one) is silently skipped for counting purposes, same
+     * graceful-degrade posture as BH_Content::render() itself.
+     *
+     * @return array{0:int,1:int} [$done_count, $total_count]
+     */
     public static function rollup_counts(array $tree) {
         $done = 0;
         $total = 0;

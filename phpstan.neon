@@ -47,12 +47,65 @@ parameters:
         # this codebase actually references.
         - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
         - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+        # FPDF — a real, vendored (not composer-installed) library at
+        # own-ur-shit/vendor/fpdf/fpdf.php, used by bh-courses'
+        # certificate-of-completion PDF generation. excludePaths' */vendor/*
+        # rule only governs the `paths`/scanDirectories walk, not explicit
+        # scanFiles entries, so this is safe to add directly — lets
+        # PHPStan actually type-check real FPDF method calls instead of
+        # reporting the whole class as unknown.
+        - wp-content/plugins/own-ur-shit/vendor/fpdf/fpdf.php
     # WooCommerce is now stubbed for real (scanFiles above) — bumping to
     # level 6+ later will likely still need an Action Scheduler stub
     # (as_schedule_single_action() etc., used by OUS_Jobs) for full
     # coverage of that one remaining unstubbed dependency.
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
+        # $wpdb->last_error has no property type declared anywhere in
+        # php-stubs/wordpress-stubs (confirmed by grepping the stub file
+        # directly) — PHPStan infers its type purely from the first
+        # assignment IT sees in whatever file it's analysing (almost
+        # always `$wpdb->last_error = '';`, a reset-before-a-query
+        # convention used throughout this codebase), not from WP core's
+        # real internal behavior (which reassigns it to actual error
+        # strings on every query, in files this analysis doesn't scan).
+        # Ecosystem-wide, not file-scoped, since this exact
+        # reset-then-check-!==''-after-a-raw-query pattern recurs across
+        # multiple plugins, not just the one it happened to surface in
+        # first.
+        -
+            message: "#Strict comparison using !== between '' and '' will always evaluate to false#"
+        # add_option()'s 4th arg ($autoload) — the stub types this
+        # strictly as bool|null, but WP core's real implementation
+        # (wp_determine_option_autoload_value(), wp-includes/option.php)
+        # explicitly handles the legacy 'yes'/'no' string convention too
+        # — confirmed by reading that function's real source directly,
+        # not assumed. Passing 'no' is genuine, correct, WP-native
+        # behavior, just stricter-typed in the stub than reality.
+        -
+            message: '#Parameter \#4 \$autoload of function add_option expects bool\|null, string given#'
+            path: wp-content/plugins/bh-contest/includes/class-api.php
+        # BH_VOTE_BASE is define()'d as the literal int 1
+        # (bh-contest.php) — PHPStan can correctly prove the "add an s"
+        # pluralization branch here is unreachable AS THE CONSTANT IS
+        # TODAY, but the ternary is deliberately forward-looking (correct
+        # grammar if that constant is ever changed to anything else) —
+        # not dead code worth removing, since removing it would silently
+        # break pluralization the moment BH_VOTE_BASE ever changes.
+        -
+            message: '#Else branch is unreachable because ternary operator condition is always true#'
+            path: wp-content/plugins/bh-contest/includes/class-contest-wizard.php
+        # Same well-known PHPStan by-reference-mutation limitation as the
+        # own-ur-shit rules further down this file, this time via
+        # ReflectionMethod::invokeArgs(null, [&$tree]) rather than a
+        # WordPress hook — PHPStan sees $tree's pre-call type (all blank
+        # '' uids in the test fixture) and never tracks the mutation the
+        # reflected private method actually performs, making the later
+        # real assertions (checking the blanks WERE backfilled) look like
+        # dead/always-false code. The test logic itself is correct.
+        -
+            message: '#(Result of && is always false|will always evaluate to false)#'
+            path: wp-content/plugins/bh-crm/includes/class-test-suite.php
         # bh-mailpoet's class-sync.php calls MailPoet's own API
         # (MailPoet\API\MP\v1\API) behind class_exists('\MailPoet\API\API')
         # guards at every call site — a real, correct optional-dependency

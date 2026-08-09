@@ -67,14 +67,17 @@ class BH_ShareCards {
         $contest = $contest_id ? get_post($contest_id) : null;
         $artist = (string) get_post_meta($submission_id, '_bh_artist_name', true);
         if ($artist === '') {
-            $author = get_userdata($submission->post_author);
+            $author = get_userdata((int) $submission->post_author);
             $artist = $author ? ($author->display_name ?: $author->user_login) : 'An artist';
         }
 
         if (!class_exists('BH_ShareCard')) wp_die('Share cards are unavailable right now.', '', ['response' => 501, 'back_link' => true]);
 
         $stored_style = $contest_id ? get_post_meta($contest_id, '_bh_share_card_style', true) : '';
-        $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
+        // PHPStan-confirmed redundant: the wp_die() a few lines above
+        // already guarantees class_exists('BH_ShareCard') is true by
+        // this point.
+        $style = BH_ShareCard::is_valid_style($stored_style) ? $stored_style : 'brand';
         $subtitle = $contest ? ('"' . $submission->post_title . '" — ' . $contest->post_title) : $submission->post_title;
 
         BH_ShareCard::output_png([

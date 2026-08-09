@@ -248,7 +248,7 @@ class BHS_API {
             $art = (int) get_post_meta($r->ID, '_bhs_release_artwork_id', true);
             $tracks = get_posts([
                 'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
-                'meta_key' => '_bhs_release_id', 'meta_value' => $r->ID, 'orderby' => 'menu_order', 'order' => 'ASC',
+                'meta_key' => '_bhs_release_id', 'meta_value' => (string) $r->ID, 'orderby' => 'menu_order', 'order' => 'ASC',
             ]);
             $out[] = [
                 'id' => $r->ID, 'title' => $r->post_title,

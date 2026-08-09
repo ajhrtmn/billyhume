@@ -80,7 +80,7 @@ class BH_ElementSurface {
                 if ($cid <= 0) return null;
                 $count = get_posts([
                     'post_type' => 'bh_submission', 'post_status' => 'publish',
-                    'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+                    'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
                     'posts_per_page' => -1, 'fields' => 'ids',
                 ]);
                 return count($count);

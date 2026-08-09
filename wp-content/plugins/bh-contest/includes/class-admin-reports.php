@@ -44,11 +44,11 @@ class BH_AdminReports {
             fputcsv($out, ['Submission ID', 'Title', 'Artist', 'Author', 'Email', 'Status', 'Submitted']);
             $subs = get_posts([
                 'post_type' => 'bh_submission', 'post_status' => 'any',
-                'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+                'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
                 'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'ASC',
             ]);
             foreach ($subs as $p) {
-                $author = get_userdata($p->post_author);
+                $author = get_userdata((int) $p->post_author);
                 fputcsv($out, array_map([self::class, 'csv_safe'], [
                     $p->ID, $p->post_title, BH_Helpers::artist_for($p),
                     $author ? $author->user_login : '', $author ? $author->user_email : '',
@@ -441,7 +441,7 @@ class BH_AdminReports {
                . $cat_cell
                . '<td>' . $votes . '</td><td>' . $plays . '</td>'
                . '<td><div style="background:#e0e0e0;width:100%;height:20px;border-radius:3px;">'
-               . '<div style="background:#1DB954;width:' . esc_attr($pct) . '%;height:100%;border-radius:3px;"></div></div></td>'
+               . '<div style="background:#1DB954;width:' . esc_attr((string) $pct) . '%;height:100%;border-radius:3px;"></div></div></td>'
                . '</tr>';
         }
     }

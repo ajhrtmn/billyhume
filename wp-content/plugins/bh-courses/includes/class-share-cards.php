@@ -44,7 +44,9 @@ class BHC_ShareCards {
         $user = get_userdata($user_id);
         $name = $user ? ($user->display_name ?: $user->user_login) : 'A student';
         $stored_style = get_post_meta($course_id, '_bhc_share_card_style', true);
-        $style = (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($stored_style)) ? $stored_style : 'brand';
+        // PHPStan-confirmed redundant: the wp_die() a few lines above
+        // already guarantees class_exists('BH_ShareCard') is true here.
+        $style = BH_ShareCard::is_valid_style($stored_style) ? $stored_style : 'brand';
 
         BH_ShareCard::output_png([
             'style' => $style,

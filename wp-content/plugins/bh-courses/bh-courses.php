@@ -2,11 +2,25 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.68
+ * Version:     0.4.69
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.69 — PHPStan round 2 (this plugin went from 38 errors to 0). 37 of
+// the 38 were the same one cause: FPDF (own-ur-shit/vendor/fpdf/fpdf.php,
+// used by class-certificates.php for certificate-of-completion PDFs) is
+// a real, vendored library, just not composer-installed, so PHPStan
+// couldn't resolve it at all — added to phpstan.neon's scanFiles so it's
+// now actually type-checked instead of reported as one giant unknown-
+// class block. The other two: a redundant `?? []` on WP_Query::$posts
+// (non-nullable per the stub) in class-render-catalog.php, and the same
+// redundant class_exists('BH_ShareCard') re-check pattern already fixed
+// in bh-contest this same pass — an earlier wp_die() a few lines above
+// already guarantees the class exists.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 0.4.68 — Real bugs found by a proper `composer install && vendor/bin/
 // phpstan analyse` run (repo-root phpstan.neon, level 5 — this codebase's
@@ -195,7 +209,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.68');
+define('BHC_VER',  '0.4.69');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

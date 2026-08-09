@@ -40,7 +40,7 @@ class BH_Archive {
             $placements = self::compute_placements($cid);
             $subs = get_posts([
                 'post_type' => 'bh_submission', 'post_status' => 'publish',
-                'meta_key' => '_bh_contest_id', 'meta_value' => $cid, 'posts_per_page' => -1,
+                'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid, 'posts_per_page' => -1,
             ]);
             foreach ($subs as $p) {
                 $aid = (int) get_post_meta($p->ID, '_bh_audio_id', true);

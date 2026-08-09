@@ -94,7 +94,7 @@ class BHC_Render_Catalog {
                     'url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged', 'bhc_sort']),
                     'itemListElement' => array_values(array_filter(array_map(function ($course) {
                         return get_post_type($course->ID) === 'bh_course' ? get_permalink($course->ID) : null;
-                    }, $query->posts ?? []))),
+                    }, $query->posts))),
                 ],
             ]);
         }

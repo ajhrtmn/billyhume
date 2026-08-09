@@ -127,7 +127,7 @@ class BHS_VideoPostTypes {
         // save) rather than creating a duplicate CPT post every save.
         $existing = get_posts([
             'post_type' => 'bhs_video', 'posts_per_page' => 1, 'fields' => 'ids',
-            'meta_key' => '_bhs_video_id', 'meta_value' => $attachment_id,
+            'meta_key' => '_bhs_video_id', 'meta_value' => (string) $attachment_id,
         ]);
         $video_id = $existing ? (int) $existing[0] : 0;
 

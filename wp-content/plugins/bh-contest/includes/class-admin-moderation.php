@@ -156,7 +156,7 @@ class BH_AdminModeration {
         update_post_meta($pid, '_bh_rejection_note', $note);
         wp_update_post(['ID' => $pid, 'post_status' => 'rejected']);
 
-        $author = get_userdata($post->post_author);
+        $author = get_userdata((int) $post->post_author);
         $cid = (int) get_post_meta($pid, '_bh_contest_id', true);
         if ($author && $author->user_email) {
             $contest_title = $cid ? get_the_title($cid) : 'the contest';

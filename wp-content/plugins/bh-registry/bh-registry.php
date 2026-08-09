@@ -2,12 +2,24 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.9
+ * Version:     0.1.10
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.10 — PHPStan round 2 (this plugin went from 9 errors to 0): all
+// 9 findings were the same real, if harmless, mismatch in
+// class-test-suite.php — add_filter('pre_http_request', $filter, 10, 3)
+// declared 3 accepted args for mock closures that only ever declared
+// zero (function () { return [...]; }), since they return a fixed
+// canned response regardless of the request. Dropped the unnecessary
+// accepted_args count on the 9 closures that genuinely never use their
+// args; the 2 closures elsewhere in the same file that DO use
+// ($preempt, $args, $url) were left untouched.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 0.1.2 — All three remote-verification checks (domain ownership challenge,
 // open-feed fetch, ActivityPub actor fetch) now surface the actual failure
@@ -20,7 +32,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.9');
+define('BHR_VER',  '0.1.10');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 
