@@ -2,11 +2,36 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.21
+ * Version:     0.5.23
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.23 — Real bugs found by a proper `composer install && vendor/bin/
+// phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
+// original sandbox had no GitHub access to actually run this).
+// class-admin.php: six esc_attr()/esc_html() call sites across the
+// track/release/quality-file metaboxes and the Plays admin column passed
+// an int directly where both functions expect a string (PHP 8.1+
+// deprecation) — added explicit (string) casts. `php -l` clean.
+// Runtime-verified live against localhost:10008: the Tracks admin list
+// (Plays column) and a real track's Edit screen (Track Details, Quality
+// Encodes metaboxes) both render cleanly with real IDs in the hidden
+// fields.
+
+// 0.5.22 — stats-charts.js converted to TypeScript (assets/ts/
+// stats-charts.ts), this plugin's first TS-pilot file, following
+// own-ur-shit's established pattern (plain `tsc`, module: none,
+// compiled output committed since the live site runs no build step —
+// new bh-streaming/tsconfig.json, `npm run build:bh-streaming`). `d3` is
+// declared as a loose `any` global rather than pulling in a real
+// @types/d3 package — precise D3 typings are a much heavier dependency
+// than this pilot's "catch typos in our own code" goal calls for.
+// Compiled assets/js/stats-charts.js verified with `node --check` and
+// grepped for CommonJS `exports`/`require(` artifacts — clean. Purely a
+// type-safety/authoring-layer change; no runtime behavior was touched.
+// NOT runtime-verified against a live browser this session.
 
 // 0.5.21 — Real D3 charts (vendored, assets/js/vendor/d3.min.js v7.9.0,
 // ISC — a permissive license close to MIT, real bytes downloaded and
@@ -34,7 +59,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.21');
+define('BHS_VER',  '0.5.23');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

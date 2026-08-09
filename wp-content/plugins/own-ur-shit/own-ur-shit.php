@@ -2,10 +2,53 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.8
+ * Version:     3.10.9
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.9 — First real `composer install && vendor/bin/phpstan analyse`
+// run against this repo (repo-root phpstan.neon/composer.lock; the
+// PHPStan/TS pilot bootstrap in 3.10.5 was written in a sandbox with no
+// GitHub access, so it had never actually been run until now). Two
+// structural fixes plus several real bugs it surfaced:
+// (1) Memory: a plain `vendor/bin/phpstan analyse` was crashing every
+// parallel worker past a 128M/1G PHP memory limit. Root cause was
+// unrelated to the codebase's actual size — no code change needed there,
+// just `composer.json`'s new `phpstan` script running the same command
+// with `--memory-limit=2G`, which completes cleanly.
+// (2) Constant-resolution noise: PHPStan couldn't see each plugin's own
+// _URL/_PATH/_VER constants (defined via plugin_dir_url()/
+// plugin_dir_path() in each plugin's real main file) when analysing
+// includes/*.php in isolation, flooding the report with ~80 false-
+// positive "Constant X not found" errors. Fixed via a new
+// phpstan-bootstrap.php (repo root, referenced by phpstan.neon's
+// bootstrapFiles) with dummy define()'d values for every analysed
+// plugin's constants — NOT by including each plugin's real main file as
+// a bootstrap, which would have actually executed it against undefined
+// WP functions and fataled.
+// (3) Real bugs, this plugin's files: class-role-assignment.php/
+// class-campaigns.php/class-banner.php called
+// check_admin_referer($action, $query_arg, false) — that function only
+// takes 2 params and, unlike check_ajax_referer(), has no non-dying
+// mode; an invalid nonce always hard wp_die()s regardless of the
+// (silently ignored) third argument. class-role-assignment.php and
+// class-campaigns.php clearly wanted a graceful "just don't apply this
+// POST" fallback (their surrounding if/elseif structure only makes sense
+// if the nonce check can return false without dying) — switched both to
+// wp_verify_nonce(). class-banner.php's dismiss handler DOES want a hard
+// die on an invalid nonce, so that one just lost its dead third
+// argument. class-portal.php's maybe_redirect_login() had a redundant
+// `|| is_wp_error($user)` after an `instanceof \WP_User` check that
+// already excludes WP_Error — removed (dead code, not a behavior change).
+// class-setup-wizard.php/class-style-gallery.php had one esc_attr() call
+// each passing an attachment ID (int) directly where esc_attr() expects
+// a string (PHP 8.1+ deprecation) — added explicit (string) casts.
+// `php -l` clean on every touched file. Runtime-verified live against
+// localhost:10008: Roles page save now shows "Updated 1 capability
+// grant(s)" instead of a hard nonce-failure die. Peer plugins bh-contest/
+// bh-courses/bh-monetization-woo/bh-streaming got their own matching
+// version bumps for the same PHPStan pass's findings in their own files.
 
 // 3.10.8 — Merged the `dev` branch (portal live-status Datastar work,
 // bh-courses/bh-crm/bh-streaming/bh-contest feature commits, the OSS-
@@ -876,7 +919,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.8');
+define('OUS_VER', '3.10.9');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

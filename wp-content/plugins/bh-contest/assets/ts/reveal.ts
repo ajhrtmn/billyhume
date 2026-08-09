@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Results Reveal — public display. Polls its own state from the server
  * rather than sharing a page/tab with the admin controller, so this can
@@ -13,24 +12,61 @@
  * anime.min.js) are untyped external globals, declared loosely below —
  * not worth a real type package for either.
  */
+
+declare function bhEsc(value: unknown): string;
+
+interface AnimeStagger {
+    (value: number): unknown;
+}
+
+interface AnimeApi {
+    animate(targets: unknown, params: Record<string, unknown>): unknown;
+    stagger: AnimeStagger;
+}
+
+interface BHRevealWindow extends Window {
+    BHData?: { rest?: string };
+    anime?: AnimeApi;
+}
+
+interface BHRevealEntry {
+    rank: number;
+    title: string;
+    artist: string;
+    votes: unknown;
+}
+
+interface BHRevealState {
+    type: string;
+    title?: string;
+    category?: string;
+    entry_count?: number;
+    entries?: BHRevealEntry[];
+    just_revealed_rank?: number;
+    source?: string;
+    authoritative_index?: number;
+}
+
 (function () {
     var stage = document.getElementById('bh-reveal-stage');
-    if (!stage)
-        return;
+    if (!stage) return;
+
     var cid = stage.dataset.contest || '';
-    var win = window;
+    var win = window as BHRevealWindow;
     var rest = (win.BHData && win.BHData.rest) || '';
-    var lastIndex = null;
-    function medalIcon(rank) {
+    var lastIndex: number | null = null;
+
+    function medalIcon(rank: number): string {
         return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank;
     }
+
     // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a: a judges-
     // sourced step's 'votes' field is actually a normalized 0-100 score
     // (see BH_Judging::judge_results()'s own docblock for why it's kept
     // under the same key rather than a new one) — labeled "score" here
     // purely for display so a judged leaderboard doesn't misleadingly
     // read as "42 votes".
-    function renderEntries(entries, justRevealedRank, source) {
+    function renderEntries(entries: BHRevealEntry[], justRevealedRank?: number, source?: string): string {
         var unit = source === 'judges' ? ' score' : ' votes';
         return entries.map(function (e) {
             var isNew = e.rank === justRevealedRank;
@@ -43,39 +79,34 @@
                 + '</div>';
         }).join('');
     }
-    function render(data) {
+
+    function render(data: BHRevealState): void {
         var html = '';
         if (data.type === 'none') {
             html = '<div class="bh-reveal-loading">No contest ready to reveal yet.</div>';
-        }
-        else if (data.type === 'intro') {
+        } else if (data.type === 'intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Results</div><h1>' + bhEsc(data.title) + '</h1></div>';
-        }
-        else if (data.type === 'pass_intro') {
+        } else if (data.type === 'pass_intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Now Revealing</div><h1>' + bhEsc(data.title) + '</h1></div>';
-        }
-        else if (data.type === 'category_intro') {
+        } else if (data.type === 'category_intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Category</div><h1>' + bhEsc(data.category) + '</h1>'
                 + '<p class="bh-reveal-subtext">' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
-        }
-        else if (data.type === 'overall_intro') {
+        } else if (data.type === 'overall_intro') {
             html = '<div class="bh-reveal-intro"><div class="bh-reveal-kicker">Grand Finale</div><h1>Overall</h1>'
                 + '<p class="bh-reveal-subtext">Across all categories &mdash; ' + bhEsc(data.entry_count) + (data.entry_count === 1 ? ' entry' : ' entries') + '</p></div>';
-        }
-        else if (data.type === 'category_reveal') {
+        } else if (data.type === 'category_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">' + bhEsc(data.category) + '</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries || [], data.just_revealed_rank, data.source) + '</div></div>';
-        }
-        else if (data.type === 'overall_reveal') {
+        } else if (data.type === 'overall_reveal') {
             html = '<div class="bh-reveal-board"><div class="bh-reveal-kicker">Overall</div>'
                 + '<div class="bh-reveal-entries">' + renderEntries(data.entries || [], data.just_revealed_rank) + '</div></div>';
-        }
-        else if (data.type === 'end') {
+        } else if (data.type === 'end') {
             html = '<div class="bh-reveal-intro"><h1>Thanks for watching!</h1></div>';
         }
-        stage.innerHTML = html;
+        (stage as HTMLElement).innerHTML = html;
         animateReveal(data.type);
     }
+
     // anime.js v4 (vendored, assets/js/vendor/anime.min.js) takes over
     // the actual motion on a leaderboard reveal — the sequencing/pacing
     // clock (poll()/catchUp() below) is unchanged, this only replaces
@@ -90,15 +121,14 @@
     // v4 were NOT independently doc-verified beyond reasonable inference
     // from one confirmed README example — worth a real-browser check
     // before relying on this.
-    function animateReveal(type) {
+    function animateReveal(type: string): void {
         var anime = win.anime;
-        if (typeof anime === 'undefined')
-            return;
-        if (type !== 'category_reveal' && type !== 'overall_reveal')
-            return;
-        var entries = stage.querySelectorAll('.bh-reveal-entry');
-        if (!entries.length)
-            return;
+        if (typeof anime === 'undefined') return;
+        if (type !== 'category_reveal' && type !== 'overall_reveal') return;
+
+        var entries = (stage as HTMLElement).querySelectorAll('.bh-reveal-entry');
+        if (!entries.length) return;
+
         anime.animate(entries, {
             opacity: [0, 1],
             y: [16, 0],
@@ -106,7 +136,8 @@
             duration: 450,
             ease: 'outCubic',
         });
-        var winner = stage.querySelector('.bh-reveal-entry-winner');
+
+        var winner = (stage as HTMLElement).querySelector('.bh-reveal-entry-winner');
         if (winner) {
             anime.animate(winner, {
                 scale: [1, 1.08, 1],
@@ -116,15 +147,16 @@
             });
         }
     }
+
     var stepping = false; // true while walking through a catch-up sequence — pauses regular polling so it can't overlap and race
-    function poll() {
-        if (stepping)
-            return;
+
+    function poll(): void {
+        if (stepping) return;
         var url = rest + 'reveal/state' + (cid ? '?contest=' + encodeURIComponent(cid) : '');
-        fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+        fetch(url).then(function (r) { return r.json(); }).then(function (data: BHRevealState) {
             var target = data.authoritative_index;
-            if (target === lastIndex)
-                return; // nothing changed
+            if (target === lastIndex) return; // nothing changed
+
             // First load, a single-step advance, or a rewind (Previous /
             // Reset) — nothing to catch up on, just show it directly.
             if (lastIndex === null || (typeof target === 'number' && target <= lastIndex + 1)) {
@@ -132,6 +164,7 @@
                 render(data);
                 return;
             }
+
             // The admin advanced by more than one step since the last
             // poll (a fast double-click, or just unlucky timing against
             // the poll interval) — walk through each skipped step in
@@ -141,19 +174,16 @@
             if (typeof target === 'number') {
                 catchUp(lastIndex + 1, target);
             }
-        }).catch(function () { });
+        }).catch(function () { /* transient network hiccup — next poll will catch up */ });
     }
-    function catchUp(from, to) {
+
+    function catchUp(from: number, to: number): void {
         stepping = true;
         var i = from;
-        function next() {
-            if (i > to) {
-                stepping = false;
-                lastIndex = to;
-                return;
-            }
+        function next(): void {
+            if (i > to) { stepping = false; lastIndex = to; return; }
             var url = rest + 'reveal/state?index=' + i + (cid ? '&contest=' + encodeURIComponent(cid) : '');
-            fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+            fetch(url).then(function (r) { return r.json(); }).then(function (data: BHRevealState) {
                 render(data);
                 i++;
                 setTimeout(next, 1800); // same pacing a human clicking through would produce
@@ -161,6 +191,7 @@
         }
         next();
     }
+
     poll();
     setInterval(poll, 2500);
 })();

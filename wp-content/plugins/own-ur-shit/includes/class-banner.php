@@ -43,7 +43,7 @@ class OUS_Banner {
     }
 
     public static function handle_dismiss() {
-        if (!is_user_logged_in() || !check_admin_referer('ous_dismiss_banner', '_wpnonce', false)) {
+        if (!is_user_logged_in() || !check_admin_referer('ous_dismiss_banner', '_wpnonce')) {
             wp_die('Not allowed.');
         }
         update_user_meta(get_current_user_id(), self::DISMISS_META, self::active_signature());

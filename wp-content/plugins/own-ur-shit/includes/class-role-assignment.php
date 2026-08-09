@@ -123,11 +123,11 @@ class OUS_RoleAssignment {
         if (!current_user_can('manage_options')) return;
 
         $message = '';
-        if (isset($_POST['ous_roles_action']) && check_admin_referer('ous_roles_save', 'ous_roles_nonce', false)) {
+        if (isset($_POST['ous_roles_action']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ous_roles_nonce'] ?? '')), 'ous_roles_save')) {
             $message = self::handle_save();
         }
         $advanced_message = '';
-        if (isset($_POST['ous_roles_advanced_action']) && check_admin_referer('ous_roles_advanced', 'ous_roles_advanced_nonce', false)) {
+        if (isset($_POST['ous_roles_advanced_action']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ous_roles_advanced_nonce'] ?? '')), 'ous_roles_advanced')) {
             $advanced_message = self::handle_advanced_save();
         }
 

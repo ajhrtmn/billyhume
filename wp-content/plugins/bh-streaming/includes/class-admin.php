@@ -180,19 +180,19 @@ class BHS_Admin {
         echo '<p><strong>Release</strong> <span class="description">(optional — groups this track into an album/EP)</span></p>';
         echo '<select name="bhs_release_id"><option value="">— None —</option>';
         foreach (get_posts(['post_type' => 'bhs_release', 'post_status' => 'publish', 'posts_per_page' => -1]) as $r) {
-            echo '<option value="' . esc_attr($r->ID) . '" ' . selected($release_id, $r->ID, false) . '>' . esc_html($r->post_title) . '</option>';
+            echo '<option value="' . esc_attr((string) $r->ID) . '" ' . selected($release_id, $r->ID, false) . '>' . esc_html($r->post_title) . '</option>';
         }
         echo '</select>';
 
         if (!$is_external) {
             echo '<p style="margin-top:14px;"><strong>Audio file</strong></p>';
-            echo '<input type="hidden" id="bhs_audio_id" name="bhs_audio_id" value="' . esc_attr($aid) . '">';
+            echo '<input type="hidden" id="bhs_audio_id" name="bhs_audio_id" value="' . esc_attr((string) $aid) . '">';
             echo '<div id="bhs_audio_preview">' . ($aurl ? "<audio controls src='" . esc_url($aurl) . "' style='width:100%;'></audio>" : '<p><em>No audio attached.</em></p>') . '</div>';
             echo '<p><button type="button" class="button" id="bhs_audio_upload">Choose audio…</button></p>';
         }
 
         echo '<p><strong>Artwork</strong> <span class="description">(falls back to the release\'s artwork, or a generated placeholder)</span></p>';
-        echo '<input type="hidden" id="bhs_artwork_id" name="bhs_artwork_id" value="' . esc_attr($art_id) . '">';
+        echo '<input type="hidden" id="bhs_artwork_id" name="bhs_artwork_id" value="' . esc_attr((string) $art_id) . '">';
         echo '<div id="bhs_artwork_preview" style="width:120px;height:120px;background:#f0f0f0;border-radius:6px;overflow:hidden;">' . ($art_url ? '<img src="' . esc_url($art_url) . '" style="width:100%;height:100%;object-fit:cover;">' : '') . '</div>';
         echo '<p><button type="button" class="button" id="bhs_artwork_upload">Choose artwork…</button></p>';
 
@@ -216,7 +216,7 @@ class BHS_Admin {
             $aurl = $aid ? wp_get_attachment_url($aid) : '';
             echo '<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #dcdcde;">';
             echo '<p><strong>' . esc_html($label) . '</strong></p>';
-            echo '<input type="hidden" id="bhs_quality_' . esc_attr($key) . '" name="bhs_quality[' . esc_attr($key) . ']" value="' . esc_attr($aid) . '">';
+            echo '<input type="hidden" id="bhs_quality_' . esc_attr($key) . '" name="bhs_quality[' . esc_attr($key) . ']" value="' . esc_attr((string) $aid) . '">';
             echo '<div id="bhs_quality_' . esc_attr($key) . '_preview">' . ($aurl ? "<audio controls src='" . esc_url($aurl) . "' style='width:100%;'></audio>" : '<p><em>Not set — falls back to the main audio file above.</em></p>') . '</div>';
             echo '<p><button type="button" class="button bhs-quality-upload" data-key="' . esc_attr($key) . '">Choose file…</button> '
                . '<button type="button" class="button-link bhs-quality-clear" data-key="' . esc_attr($key) . '" style="color:#b3261e;">Remove</button></p>';
@@ -282,7 +282,7 @@ class BHS_Admin {
 
         echo '<p><label><strong>Artist</strong><br><input type="text" name="bhs_release_artist" value="' . esc_attr($artist) . '" style="width:100%;"></label></p>';
         echo '<p><strong>Artwork</strong></p>';
-        echo '<input type="hidden" id="bhs_artwork_id" name="bhs_release_artwork_id" value="' . esc_attr($art_id) . '">';
+        echo '<input type="hidden" id="bhs_artwork_id" name="bhs_release_artwork_id" value="' . esc_attr((string) $art_id) . '">';
         echo '<div id="bhs_artwork_preview" style="width:160px;height:160px;background:#f0f0f0;border-radius:6px;overflow:hidden;">' . ($art_url ? '<img src="' . esc_url($art_url) . '" style="width:100%;height:100%;object-fit:cover;">' : '') . '</div>';
         echo '<p><button type="button" class="button" id="bhs_artwork_upload">Choose artwork…</button></p>';
 
@@ -408,7 +408,7 @@ class BHS_Admin {
             $has_audio = (bool) BHS_API::audio_url_for($post_id);
             echo $has_audio ? '<span style="color:#1DB954;">&#10003; attached</span>' : '<span style="color:#b3261e;">missing</span>';
         }
-        if ($col === 'bhs_plays') echo esc_html((int) get_post_meta($post_id, '_bhs_play_count', true));
+        if ($col === 'bhs_plays') echo esc_html((string) (int) get_post_meta($post_id, '_bhs_play_count', true));
         if ($col === 'bhs_flags' && class_exists('BHS_AudioHash')) echo BHS_AudioHash::flag_notice_html($post_id);
     }
 }

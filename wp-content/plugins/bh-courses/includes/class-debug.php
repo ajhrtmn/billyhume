@@ -100,12 +100,12 @@ class BHC_Debug {
             'post_title' => $title, 'post_type' => 'bh_course', 'post_status' => 'publish',
             'post_content' => 'A seeded test course — safe to delete, or use "Wipe" above.',
         ]);
-        if (is_wp_error($course_id)) return 0;
+        if (!$course_id) return 0;
         update_post_meta($course_id, '_bhc_seed_tag', self::SEED_TAG);
 
         if ($gated && class_exists('BHM_Tiers')) {
             $tier_id = wp_insert_post(['post_title' => 'Course Access ' . self::SEED_TAG, 'post_type' => BHM_Tiers::CPT, 'post_status' => 'publish']);
-            if (!is_wp_error($tier_id)) {
+            if ($tier_id) {
                 update_post_meta($tier_id, '_bhm_price_cents', 500);
                 update_post_meta($tier_id, '_bhm_benefits', 'Test tier — safe to delete.');
                 update_post_meta($course_id, '_bhm_required_tier', $tier_id);
@@ -133,7 +133,7 @@ class BHC_Debug {
 
     private static function seed_lesson($course_id, $title, $steps) {
         $lesson_id = wp_insert_post(['post_title' => $title, 'post_type' => 'bh_lesson', 'post_status' => 'publish']);
-        if (is_wp_error($lesson_id)) return 0;
+        if (!$lesson_id) return 0;
         update_post_meta($lesson_id, '_bhc_course_id', $course_id);
         update_post_meta($lesson_id, '_bhc_seed_tag', self::SEED_TAG);
         BHC_Steps::save($lesson_id, $steps);

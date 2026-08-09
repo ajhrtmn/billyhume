@@ -549,7 +549,7 @@ class BH_AdminMetaboxes {
             echo '<span id="bh_contest_logo_empty" style="font-size:11px;color:#888;' . ($logo_url ? 'display:none;' : '') . '">No logo</span>';
             echo '</div>';
             echo '<div>';
-            echo '<input type="hidden" id="bh_contest_logo_id" name="bh_style_logo_id" value="' . esc_attr($logo_id) . '">';
+            echo '<input type="hidden" id="bh_contest_logo_id" name="bh_style_logo_id" value="' . esc_attr((string) $logo_id) . '">';
             echo '<button type="button" class="button" id="bh_contest_logo_upload">Upload logo…</button> ';
             echo '<button type="button" class="button" id="bh_contest_logo_remove" style="' . ($logo_url ? '' : 'display:none;') . '">Remove</button>';
             echo '</div></div>';

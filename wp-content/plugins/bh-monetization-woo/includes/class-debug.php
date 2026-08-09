@@ -42,7 +42,7 @@ class BHM_Debug {
 
     public static function render_section() {
         $uid = get_current_user_id();
-        echo '<p>Simulate every money-tied code path without a real WooCommerce checkout. All actions apply to <strong>your own current account</strong> (user #' . esc_html($uid) . ') unless noted.</p>';
+        echo '<p>Simulate every money-tied code path without a real WooCommerce checkout. All actions apply to <strong>your own current account</strong> (user #' . esc_html((string) $uid) . ') unless noted.</p>';
 
         echo '<h4>Tiers</h4>';
         echo OUS_Debug::button('bh-monetization-woo', 'seed_tiers', 'Create 2 test tiers ($3/mo, $8/mo)');
@@ -146,7 +146,7 @@ class BHM_Debug {
                     ['Supporter ' . self::SEED_TAG, 800, ['streaming', 'downloads', 'merch_discount']],
                 ] as $t) {
                     $id = wp_insert_post(['post_title' => $t[0], 'post_type' => BHM_Tiers::CPT, 'post_status' => 'publish']);
-                    if (!is_wp_error($id)) {
+                    if ($id) {
                         update_post_meta($id, '_bhm_price_cents', $t[1]);
                         update_post_meta($id, '_bhm_benefits', 'Test tier — safe to delete.');
                         update_post_meta($id, '_bhm_benefit_keys', $t[2]);
@@ -160,7 +160,7 @@ class BHM_Debug {
                 $term = wp_insert_term('Test Collection ' . self::SEED_TAG, BHM_Storefront::TAXONOMY);
                 if (is_wp_error($term)) return 'Could not create test collection: ' . $term->get_error_message();
                 $product_id = wp_insert_post(['post_title' => 'Test Product ' . self::SEED_TAG, 'post_type' => 'product', 'post_status' => 'publish']);
-                if (!is_wp_error($product_id)) {
+                if ($product_id) {
                     wp_set_object_terms($product_id, [$term['term_id']], BHM_Storefront::TAXONOMY);
                     if (function_exists('wc_get_product')) {
                         $p = wc_get_product($product_id);

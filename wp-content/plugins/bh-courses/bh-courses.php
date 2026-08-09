@@ -2,11 +2,31 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.67
+ * Version:     0.4.68
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.68 — Real bugs found by a proper `composer install && vendor/bin/
+// phpstan analyse` run (repo-root phpstan.neon, level 5 — this codebase's
+// PHPStan/TS pilot bootstrap was written in a sandbox with no GitHub
+// access to actually run it; this is the first real run). (1) class-
+// content-bridge.php's Debug Tools "rebuild lesson content" action called
+// `check_admin_referer($action, $query_arg, false)` — that function only
+// takes 2 params and, unlike check_ajax_referer(), has no non-dying mode:
+// an invalid nonce always hard wp_die()s regardless of the (silently
+// ignored) third argument. Switched to wp_verify_nonce() so an invalid/
+// missing nonce is a graceful no-op instead of a hard site error. (2)
+// class-debug.php's three seed helpers (seed_course/seed_lesson and the
+// tier-seeding branch) checked `is_wp_error($id)` on wp_insert_post()'s
+// return value — wp_insert_post() only returns WP_Error when called with
+// $wp_error=true (4th arg), which none of these calls do; it actually
+// returns 0 on failure, so the error branch could never fire. Changed to
+// a falsy check. `php -l` clean on both files. Runtime-verified live
+// against localhost:10008: the Debug Tools "populate lesson content
+// from steps" action now shows "Rebuilt 7 lesson(s)" instead of a hard
+// nonce-failure die.
 
 // 0.4.67 — OSS-integration master plan Phase 6 follow-up: Cloudflare
 // Stream wired into the video step as a real third source alongside
@@ -175,7 +195,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.67');
+define('BHC_VER',  '0.4.68');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

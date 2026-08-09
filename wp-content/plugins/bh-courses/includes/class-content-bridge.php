@@ -506,7 +506,7 @@ class BHC_ContentBridge {
             // same as several existing seed/reset sections that don't
             // need the redirect-with-message round trip.
             'render' => function () {
-                if (isset($_POST['bhc_content_bridge_action']) && check_admin_referer('bhc_content_bridge', 'bhc_content_bridge_nonce', false)) {
+                if (isset($_POST['bhc_content_bridge_action']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['bhc_content_bridge_nonce'] ?? '')), 'bhc_content_bridge')) {
                     $lessons = get_posts(['post_type' => 'bh_lesson', 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids']);
                     foreach ($lessons as $lesson_id) {
                         self::migrate_lesson($lesson_id);

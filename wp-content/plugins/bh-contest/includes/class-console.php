@@ -138,7 +138,7 @@ class BH_Console {
                 ? '<span class="bhy-badge bhy-badge-success">Approved</span>'
                 : '<span class="bhy-badge bhy-badge-danger">Pending</span>') . '</td>';
             echo '<td>' . self::identity_cell($profile) . '</td>';
-            echo '<td style="font-weight:600;">' . esc_html($votes) . '</td>';
+            echo '<td style="font-weight:600;">' . esc_html((string) $votes) . '</td>';
             echo '</tr>';
         }
 

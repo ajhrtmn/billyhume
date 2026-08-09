@@ -176,7 +176,7 @@ class OUS_Campaigns {
         if (!current_user_can('manage_options')) return;
 
         $message = '';
-        if (isset($_POST['ous_campaign_action']) && check_admin_referer('ous_campaign_save', 'ous_campaign_nonce', false)) {
+        if (isset($_POST['ous_campaign_action']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ous_campaign_nonce'] ?? '')), 'ous_campaign_save')) {
             $subject = wp_unslash($_POST['subject'] ?? '');
             $body = wp_unslash($_POST['body'] ?? '');
             $segment_key = wp_unslash($_POST['segment_key'] ?? '');
@@ -192,7 +192,7 @@ class OUS_Campaigns {
                     $message = is_wp_error($result) ? $result->get_error_message() : 'Campaign is sending now.';
                 }
             }
-        } elseif (isset($_POST['ous_campaign_send_id']) && check_admin_referer('ous_campaign_send', 'ous_campaign_send_nonce', false)) {
+        } elseif (isset($_POST['ous_campaign_send_id']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['ous_campaign_send_nonce'] ?? '')), 'ous_campaign_send')) {
             $result = self::send_now((int) $_POST['ous_campaign_send_id']);
             $message = is_wp_error($result) ? $result->get_error_message() : 'Campaign is sending now.';
         }

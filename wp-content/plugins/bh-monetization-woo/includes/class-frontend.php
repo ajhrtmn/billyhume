@@ -394,10 +394,10 @@ class BHM_Frontend {
                  replace it. -->
             <div class="bhm-amount-chips" role="group" aria-label="Suggested tip amounts">
                 <?php foreach ([5, 10, 25, 50] as $amt): ?>
-                    <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr($amt); ?>">$<?php echo esc_html($amt); ?></button>
+                    <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr((string) $amt); ?>">$<?php echo esc_html((string) $amt); ?></button>
                 <?php endforeach; ?>
             </div>
-            <label>Send a tip: $<input type="number" step="1" min="<?php echo esc_attr(self::TIP_MIN_CENTS / 100); ?>" max="<?php echo esc_attr(self::TIP_MAX_CENTS / 100); ?>" name="bhm_tip_amount" value="5" class="bhm-amount-input"></label>
+            <label>Send a tip: $<input type="number" step="1" min="<?php echo esc_attr((string) (self::TIP_MIN_CENTS / 100)); ?>" max="<?php echo esc_attr((string) (self::TIP_MAX_CENTS / 100)); ?>" name="bhm_tip_amount" value="5" class="bhm-amount-input"></label>
             <button type="submit" class="bhm-btn">Send Tip</button>
         </form>
         <?php
@@ -503,14 +503,14 @@ class BHM_Frontend {
             }, [1, 1.5, 2, 3]));
             ?>
             <form class="bhm-buy-form" method="get" action="<?php echo esc_url(wc_get_cart_url()); ?>">
-                <input type="hidden" name="add-to-cart" value="<?php echo esc_attr($product_id); ?>">
+                <input type="hidden" name="add-to-cart" value="<?php echo esc_attr((string) $product_id); ?>">
                 <div class="bhm-amount-chips" role="group" aria-label="Suggested purchase amounts">
                     <?php foreach ($suggested as $amt): ?>
-                        <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr($amt); ?>">$<?php echo esc_html($amt); ?></button>
+                        <button type="button" class="bhm-amount-chip" data-amount="<?php echo esc_attr((string) $amt); ?>">$<?php echo esc_html((string) $amt); ?></button>
                     <?php endforeach; ?>
                 </div>
                 <label>Name your price (min $<?php echo esc_html(BHM_Money::display($price_cents)); ?>): $
-                    <input type="number" step="1" min="<?php echo esc_attr($price_cents / 100); ?>" max="<?php echo esc_attr(self::PURCHASE_MAX_CENTS / 100); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr($price_cents / 100); ?>" class="bhm-amount-input">
+                    <input type="number" step="1" min="<?php echo esc_attr((string) ($price_cents / 100)); ?>" max="<?php echo esc_attr((string) (self::PURCHASE_MAX_CENTS / 100)); ?>" name="bhm_purchase_amount" value="<?php echo esc_attr((string) ($price_cents / 100)); ?>" class="bhm-amount-input">
                 </label>
                 <button type="submit" class="bhm-btn">Buy</button>
             </form>

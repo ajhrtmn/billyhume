@@ -306,7 +306,7 @@ class BHM_Storefront {
         if (!$slug) return;
 
         $term = get_term_by('slug', sanitize_title($slug), self::TAXONOMY);
-        if (!$term || is_wp_error($term)) { self::render_404(); return; }
+        if (!$term) { self::render_404(); return; }
 
         status_header(200);
         nocache_headers();

@@ -216,7 +216,7 @@ class BHI_Portal {
     }
 
     public static function maybe_redirect_login($redirect_to, $requested_redirect_to, $user) {
-        if (!($user instanceof \WP_User) || is_wp_error($user)) return $redirect_to;
+        if (!($user instanceof \WP_User)) return $redirect_to;
         if (!self::user_is_excluded($user)) return $redirect_to;
         // A requested_redirect_to pointing somewhere on the front end
         // (not wp-admin) is respected — e.g. "log in to vote" links that

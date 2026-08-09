@@ -2,11 +2,39 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.18
+ * Version:     3.7.20
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.20 — Real bugs found by a proper `composer install && vendor/bin/
+// phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
+// original sandbox had no GitHub access to actually run this).
+// class-debug.php's live-reveal test-submission seeder checked
+// `is_wp_error($pid)` on wp_insert_post()'s return — that function only
+// returns WP_Error with $wp_error=true (4th arg, not passed here); it
+// returns 0 on failure, changed to a falsy check. Two esc_attr()/
+// esc_html() call sites (class-admin-metaboxes.php's logo-ID hidden
+// field, class-console.php's vote-count cell) passed an int directly
+// where both functions expect a string (PHP 8.1+ deprecation) — added
+// explicit (string) casts. `php -l` clean on all three files. Runtime-
+// verified indirectly against localhost:10008 as part of the same
+// verification pass that ran the other plugins' Debug Tools actions
+// live — this plugin's own admin-metaboxes/console pages weren't
+// separately exercised this session.
+
+// 3.7.19 — reveal.js converted to TypeScript (assets/ts/reveal.ts), this
+// plugin's first TS-pilot file, following own-ur-shit's established
+// pattern (plain `tsc`, module: none, compiled output committed since
+// the live site runs no build step — new bh-contest/tsconfig.json,
+// `npm run build:bh-contest`). bhEsc (bh-common.js) and anime (vendored)
+// are declared as loose untyped globals rather than pulling in real type
+// packages for either. Compiled assets/js/reveal.js verified with
+// `node --check` and grepped for CommonJS `exports`/`require(` artifacts
+// (the class of bug 3.10.5's own-ur-shit pilot caught) — clean. Purely a
+// type-safety/authoring-layer change; no runtime behavior was touched.
+// NOT runtime-verified against a live browser this session.
 
 // 3.7.18 — anime.js (vendored, assets/js/vendor/anime.min.js v4.5.0,
 // MIT, real bytes downloaded from its official GitHub release, UMD
@@ -128,7 +156,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.18');
+define('BH_VER',        '3.7.20');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

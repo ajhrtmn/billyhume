@@ -153,7 +153,7 @@ class OUS_SetupWizard {
         echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Logo <span class="description">(optional)</span></label>';
         echo '<div style="display:flex;align-items:center;gap:12px;">';
         echo '<div id="ous-wizard-logo-preview" style="width:64px;height:64px;border:1px solid var(--bhy-border,#dcdcde);border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;">' . ($logo_url ? '<img src="' . esc_url($logo_url) . '" style="width:100%;height:100%;object-fit:contain;">' : '<span class="description" style="font-size:11px;">None</span>') . '</div>';
-        echo '<input type="hidden" id="ous_wizard_brand_logo_id" name="brand_logo_id" value="' . esc_attr($logo_id) . '">';
+        echo '<input type="hidden" id="ous_wizard_brand_logo_id" name="brand_logo_id" value="' . esc_attr((string) $logo_id) . '">';
         echo '<button type="button" class="button" id="ous-wizard-logo-upload">' . ($logo_id ? 'Change logo' : 'Upload logo') . '</button>';
         echo '</div></p>';
 

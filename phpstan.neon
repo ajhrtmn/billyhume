@@ -15,6 +15,15 @@ parameters:
         - */vendor/*
         - */tests/*
         - */bundled/*
+    bootstrapFiles:
+        # Dummy values for each plugin's own _URL/_PATH/_VER constants
+        # (define()'d via plugin_dir_url()/plugin_dir_path() in each
+        # plugin's real main file, which aren't real functions under
+        # static analysis) plus a few WP core constants — see the
+        # bootstrap file's own docblock. Loading each plugin's REAL main
+        # file instead would actually execute it against undefined WP
+        # functions and fatal; this hand-written stub avoids that.
+        - phpstan-bootstrap.php
     scanDirectories:
         - wp-content/plugins/own-ur-shit
     # WooCommerce/WordPress globals PHPStan can't otherwise resolve without

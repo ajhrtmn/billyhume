@@ -203,7 +203,7 @@ class BH_Debug {
                 'post_status' => 'publish',
                 'post_author' => $author_id,
             ]);
-            if (is_wp_error($pid)) continue;
+            if (!$pid) continue;
 
             update_post_meta($pid, '_bh_is_test', '1');
             update_post_meta($pid, '_bh_contest_id', $cid);

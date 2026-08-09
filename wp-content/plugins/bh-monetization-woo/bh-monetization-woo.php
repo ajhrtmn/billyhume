@@ -2,12 +2,32 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.11
+ * Version:     0.5.12
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.12 — Real bugs found by a proper `composer install && vendor/bin/
+// phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
+// original sandbox had no GitHub access to actually run this). (1)
+// class-debug.php: two Debug Tools seed helpers (tier seeding, storefront
+// test-product seeding) checked `is_wp_error($id)`/`is_wp_error(
+// $product_id)` on wp_insert_post()'s return — that function only
+// returns WP_Error when called with $wp_error=true (4th arg, not passed
+// here); it returns 0 on failure, so the error branch could never fire.
+// Changed both to a falsy check. (2) class-storefront.php's
+// maybe_render_collection() checked `is_wp_error($term)` after
+// get_term_by(), which only ever returns WP_Term|false, never WP_Error —
+// dead code, removed. (3) esc_attr()/esc_html() type-safety: several
+// call sites in class-debug.php/class-frontend.php/class-tiers.php
+// passed ints/floats directly where both functions expect a string
+// (PHP 8.1+ deprecation, not yet a hard error) — added explicit (string)
+// casts. `php -l` clean on all four files. Runtime-verified live against
+// localhost:10008: Debug Tools' "Create 1 test collection + 1 test
+// product" storefront-seeding action created a real product/collection
+// and the resulting /shop-collection/.../ landing page rendered cleanly.
 
 // 0.4.17 — BHM_Tiers::save() now logs a before/after diff of price_cents/
 // annual_price_cents on every tier save, and tier deletion logs the tier's
@@ -136,7 +156,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.11');
+define('BHM_VER',  '0.5.12');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

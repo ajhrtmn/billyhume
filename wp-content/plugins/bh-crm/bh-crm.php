@@ -2,11 +2,23 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.15
+ * Version:     2.4.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.16 — segment-builder.js converted to TypeScript (assets/ts/
+// segment-builder.ts), this plugin's first TS-pilot file, following
+// own-ur-shit's established pattern (plain `tsc`, module: none,
+// compiled output committed since the live site runs no build step —
+// new bh-crm/tsconfig.json, `npm run build:bh-crm`). Needed one real
+// null-narrowing fix strict mode caught (the condition-container element
+// lookup) that plain JS let pass silently. Compiled assets/js/
+// segment-builder.js verified with `node --check` and grepped for
+// CommonJS `exports`/`require(` artifacts — clean. Purely a type-safety/
+// authoring-layer change; no runtime behavior was touched. NOT
+// runtime-verified against a live browser this session.
 
 // 2.4.15 — Saved-segment builder's live "N of M people match" preview
 // (class-people.php's render_segments_panel(), class-segments.php's
@@ -140,7 +152,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.15');
+define('BHCRM_VER',  '2.4.16');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

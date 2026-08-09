@@ -161,7 +161,7 @@ class BHM_Tiers {
         // bhm/tier-cover block).
         echo '<p><strong>Cover image</strong><br>';
         echo '<img id="bhm-tier-cover-preview" src="' . esc_url($cover_image_id ? (wp_get_attachment_image_url($cover_image_id, 'medium') ?: '') : '') . '" style="max-width:200px;max-height:120px;display:' . ($cover_image_id ? 'block' : 'none') . ';margin-bottom:6px;">';
-        echo '<input type="hidden" id="bhm_cover_image_id" name="bhm_cover_image_id" value="' . esc_attr($cover_image_id) . '">';
+        echo '<input type="hidden" id="bhm_cover_image_id" name="bhm_cover_image_id" value="' . esc_attr((string) $cover_image_id) . '">';
         echo '<button type="button" class="button" id="bhm-tier-cover-choose">' . ($cover_image_id ? 'Change image' : 'Choose image') . '</button> ';
         echo '<button type="button" class="button" id="bhm-tier-cover-remove" style="display:' . ($cover_image_id ? 'inline-block' : 'none') . ';">Remove</button></p>';
 
@@ -188,7 +188,7 @@ class BHM_Tiers {
         // for, and any week/month/year trial is exactly representable as
         // a day count.
         $trial_days = (int) get_post_meta($post->ID, '_bhm_trial_days', true);
-        echo '<p><label><strong>Free trial (days, optional)</strong> <span class="description">— 0 = no trial</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="' . esc_attr($trial_days) . '" style="width:100px;"></label>';
+        echo '<p><label><strong>Free trial (days, optional)</strong> <span class="description">— 0 = no trial</span><br><input type="number" step="1" min="0" name="bhm_trial_days" value="' . esc_attr((string) $trial_days) . '" style="width:100px;"></label>';
         if (!$has_subs) {
             echo '<br><span class="description">Requires WooCommerce Subscriptions to actually delay the first charge — without it this stores the value but the one-time fallback purchase still charges immediately.</span>';
         }
