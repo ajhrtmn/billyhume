@@ -3,19 +3,20 @@ if (!defined('ABSPATH')) exit;
 
 /** BHT_Replies — a flat, append-only thread per ticket. The opening message (BHT_Tickets::create()) is reply #1. */
 class BHT_Replies {
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhtickets_replies';
     }
 
-    public static function add($ticket_id, $user_id, $body, $is_staff = false) {
+    /** @return int|\WP_Error */
+    public static function add(int $ticket_id, int $user_id, string $body, bool $is_staff = false) {
         global $wpdb;
         $body = wp_kses_post($body);
         if (trim(wp_strip_all_tags($body)) === '') return new WP_Error('empty', 'A reply needs a body.');
 
         $wpdb->insert(self::table(), [
-            'ticket_id' => (int) $ticket_id,
-            'user_id' => (int) $user_id,
+            'ticket_id' => $ticket_id,
+            'user_id' => $user_id,
             'is_staff' => $is_staff ? 1 : 0,
             'body' => $body,
             'created_at' => current_time('mysql'),
@@ -27,8 +28,8 @@ class BHT_Replies {
 
         if (class_exists('BH_Event')) {
             BH_Event::emit('bht/reply_added', [
-                'user_id' => (int) $user_id, 'subject_type' => 'bht_ticket', 'subject_id' => (int) $ticket_id,
-                'payload' => ['is_staff' => (bool) $is_staff],
+                'user_id' => $user_id, 'subject_type' => 'bht_ticket', 'subject_id' => $ticket_id,
+                'payload' => ['is_staff' => $is_staff],
             ]);
         }
 
@@ -37,10 +38,11 @@ class BHT_Replies {
         return $reply_id;
     }
 
-    public static function for_ticket($ticket_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_ticket(int $ticket_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . self::table() . ' WHERE ticket_id = %d ORDER BY created_at ASC, id ASC', (int) $ticket_id
+            'SELECT * FROM ' . self::table() . ' WHERE ticket_id = %d ORDER BY created_at ASC, id ASC', $ticket_id
         ), ARRAY_A);
     }
 
@@ -52,7 +54,7 @@ class BHT_Replies {
      * ticket-manager role/list beyond the bhcore_manage_tickets
      * capability, which could match several accounts or none).
      */
-    private static function maybe_notify($ticket_id, $actor_id, $is_staff) {
+    private static function maybe_notify(int $ticket_id, int $actor_id, bool $is_staff): void {
         if (!class_exists('OUS_Notifications') || !class_exists('BHT_Tickets')) return;
         $ticket = BHT_Tickets::get($ticket_id);
         if (!$ticket) return;

@@ -12,18 +12,18 @@ if (!defined('ABSPATH')) exit;
  * incident.
  */
 class BHT_Admin {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bht_reply', [self::class, 'handle_reply']);
         add_action('admin_post_bht_set_status', [self::class, 'handle_set_status']);
         add_action('admin_post_bht_assign', [self::class, 'handle_assign']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_menu_page('Support Tickets', 'Tickets', 'bhcore_manage_tickets', 'bh-tickets', [self::class, 'render'], 'dashicons-sos', 30);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('bhcore_manage_tickets')) wp_die('Not allowed.');
 
         $ticket_id = isset($_GET['ticket_id']) ? (int) $_GET['ticket_id'] : 0;
@@ -36,7 +36,7 @@ class BHT_Admin {
         BHY_UI::shell_close();
     }
 
-    private static function render_list() {
+    private static function render_list(): void {
         $status = sanitize_key($_GET['status'] ?? '');
         $tickets = BHT_Tickets::all($status);
 
@@ -71,7 +71,7 @@ class BHT_Admin {
         echo '</tbody></table></div>';
     }
 
-    private static function render_detail($ticket_id) {
+    private static function render_detail(int $ticket_id): void {
         $ticket = BHT_Tickets::get($ticket_id);
         if (!$ticket) {
             echo '<p>Ticket not found.</p>';
@@ -127,7 +127,7 @@ class BHT_Admin {
         echo '</form>';
     }
 
-    public static function handle_reply() {
+    public static function handle_reply(): void {
         $ticket_id = (int) ($_POST['ticket_id'] ?? 0);
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_reply_' . $ticket_id)) wp_die('Not allowed.');
 
@@ -137,7 +137,7 @@ class BHT_Admin {
         exit;
     }
 
-    public static function handle_set_status() {
+    public static function handle_set_status(): void {
         $ticket_id = (int) ($_POST['ticket_id'] ?? 0);
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_set_status_' . $ticket_id)) wp_die('Not allowed.');
 
@@ -146,7 +146,7 @@ class BHT_Admin {
         exit;
     }
 
-    public static function handle_assign() {
+    public static function handle_assign(): void {
         $ticket_id = (int) ($_POST['ticket_id'] ?? 0);
         if (!current_user_can('bhcore_manage_tickets') || !check_admin_referer('bht_assign_' . $ticket_id)) wp_die('Not allowed.');
 

@@ -9,13 +9,17 @@ if (!defined('ABSPATH')) exit;
  * plugin still works fine through wp-admin alone (BHT_Admin).
  */
 class BHT_Portal {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
         add_action('admin_post_bht_portal_new_ticket', [self::class, 'handle_new_ticket']);
         add_action('admin_post_bht_portal_reply', [self::class, 'handle_reply']);
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel(array $panels): array {
         $panels[] = [
             'id' => 'tickets',
             'label' => 'Support',
@@ -26,7 +30,7 @@ class BHT_Portal {
         return $panels;
     }
 
-    public static function render() {
+    public static function render(): void {
         $user_id = get_current_user_id();
         if (!$user_id) return;
 
@@ -41,7 +45,7 @@ class BHT_Portal {
         $ticket ? self::render_detail($ticket) : self::render_list($user_id);
     }
 
-    private static function render_list($user_id) {
+    private static function render_list(int $user_id): void {
         $tickets = BHT_Tickets::for_user($user_id);
 
         echo '<h3>New ticket</h3>';
@@ -68,7 +72,8 @@ class BHT_Portal {
         echo '</table>';
     }
 
-    private static function render_detail($ticket) {
+    /** @param array<string, mixed> $ticket */
+    private static function render_detail(array $ticket): void {
         $ticket_id = (int) $ticket['id'];
         echo '<p><a href="' . esc_url(add_query_arg(['panel' => 'tickets', 'ticket_id' => false])) . '">&larr; Your tickets</a></p>';
         echo '<h3>' . esc_html($ticket['subject']) . '</h3>';
@@ -94,7 +99,7 @@ class BHT_Portal {
         }
     }
 
-    public static function handle_new_ticket() {
+    public static function handle_new_ticket(): void {
         if (!is_user_logged_in() || !check_admin_referer('bht_portal_new_ticket')) wp_die('Not allowed.');
         $result = BHT_Tickets::create(
             get_current_user_id(),
@@ -106,7 +111,7 @@ class BHT_Portal {
         exit;
     }
 
-    public static function handle_reply() {
+    public static function handle_reply(): void {
         $ticket_id = (int) ($_POST['ticket_id'] ?? 0);
         if (!is_user_logged_in() || !check_admin_referer('bht_portal_reply_' . $ticket_id)) wp_die('Not allowed.');
 

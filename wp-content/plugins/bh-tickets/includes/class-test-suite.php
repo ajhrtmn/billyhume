@@ -3,16 +3,21 @@ if (!defined('ABSPATH')) exit;
 
 /** OUS_TestRunner suite, registered via bhcore_test_suites — same convention as OUS_Campaigns::run_tests()/bh-crm's own suite. */
 class BHT_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-tickets'] = ['label' => 'BH Tickets', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 
-    public static function run_tests() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run_tests(): array {
         if (!class_exists('OUS_Debug') || !class_exists('OUS_TestRunner')) {
             return [['name' => 'OUS_Debug/OUS_TestRunner not loaded', 'pass' => false, 'message' => 'Skipped.']];
         }

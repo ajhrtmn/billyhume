@@ -3,11 +3,15 @@ if (!defined('ABSPATH')) exit;
 
 /** Dev-only seed/reset, registered into the shared Debug Tools page — same convention every peer plugin's own class-debug.php follows. */
 class BHT_Debug {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);
     }
 
-    public static function register($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register(array $tools): array {
         $tools['bh-tickets'] = [
             'label' => 'BH Tickets',
             'render' => [self::class, 'render_section'],
@@ -18,21 +22,22 @@ class BHT_Debug {
         return $tools;
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         global $wpdb;
         $count = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . $wpdb->prefix . 'bhtickets_tickets WHERE user_id IN (SELECT user_id FROM ' . $wpdb->usermeta . " WHERE meta_key = 'bhcore_is_test')");
         echo '<p>' . $count . ' test ticket(s) on file.</p>';
         OUS_Debug::button('bh-tickets', 'seed', 'Seed a test ticket');
     }
 
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, array $post): string {
         if ($action !== 'seed') return 'Unknown action.';
         $user_id = OUS_Debug::get_or_create_test_user('bh_tickets_requester');
         $result = BHT_Tickets::create($user_id, 'Test ticket: cannot log in', 'This is a seeded test ticket for QA.', 'account', 'normal');
         return is_wp_error($result) ? 'Seed failed: ' . $result->get_error_message() : 'Seeded ticket #' . $result . '.';
     }
 
-    public static function reset() {
+    public static function reset(): string {
         global $wpdb;
         $test_ids = $wpdb->get_col("SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = 'bhcore_is_test'");
         if (!$test_ids) return 'Nothing to reset.';

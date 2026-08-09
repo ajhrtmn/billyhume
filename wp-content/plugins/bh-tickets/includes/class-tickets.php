@@ -15,14 +15,14 @@ class BHT_Tickets {
     const STATUSES = ['open' => 'Open', 'pending' => 'Pending', 'resolved' => 'Resolved', 'closed' => 'Closed'];
     const PRIORITIES = ['low' => 'Low', 'normal' => 'Normal', 'high' => 'High'];
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhtickets_tickets';
     }
 
-    public static function create($user_id, $subject, $body, $category = '', $priority = 'normal') {
+    /** @return int|\WP_Error */
+    public static function create(int $user_id, string $subject, string $body, string $category = '', string $priority = 'normal') {
         global $wpdb;
-        $user_id = (int) $user_id;
         $subject = sanitize_text_field($subject);
         if (!$user_id || $subject === '') return new WP_Error('invalid', 'A ticket needs a real account and a subject.');
 
@@ -60,21 +60,28 @@ class BHT_Tickets {
         return $ticket_id;
     }
 
-    public static function get($ticket_id) {
+    /** @return array<string, mixed>|null */
+    public static function get(int $ticket_id): ?array {
         global $wpdb;
-        return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', (int) $ticket_id), ARRAY_A);
+        return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', $ticket_id), ARRAY_A);
     }
 
-    /** Every ticket a given user opened, newest first. */
-    public static function for_user($user_id) {
+    /**
+     * Every ticket a given user opened, newest first.
+     * @return array<int, array<string, mixed>>
+     */
+    public static function for_user(int $user_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY updated_at DESC', (int) $user_id
+            'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY updated_at DESC', $user_id
         ), ARRAY_A);
     }
 
-    /** The staff-facing list — optionally filtered by status. */
-    public static function all($status = '') {
+    /**
+     * The staff-facing list — optionally filtered by status.
+     * @return array<int, array<string, mixed>>
+     */
+    public static function all(string $status = ''): array {
         global $wpdb;
         if ($status && isset(self::STATUSES[$status])) {
             return $wpdb->get_results($wpdb->prepare(
@@ -84,41 +91,43 @@ class BHT_Tickets {
         return $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY updated_at DESC', ARRAY_A);
     }
 
-    public static function set_status($ticket_id, $status) {
+    public static function set_status(int $ticket_id, string $status): bool {
         global $wpdb;
         if (!isset(self::STATUSES[$status])) return false;
         $ticket = self::get($ticket_id);
         if (!$ticket) return false;
 
-        $wpdb->update(self::table(), ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => (int) $ticket_id]);
+        $wpdb->update(self::table(), ['status' => $status, 'updated_at' => current_time('mysql')], ['id' => $ticket_id]);
 
         if (class_exists('BH_Event')) {
             BH_Event::emit('bht/status_changed', [
-                'user_id' => (int) $ticket['user_id'], 'subject_type' => 'bht_ticket', 'subject_id' => (int) $ticket_id,
+                'user_id' => (int) $ticket['user_id'], 'subject_type' => 'bht_ticket', 'subject_id' => $ticket_id,
                 'payload' => ['status' => $status],
             ]);
         }
         return true;
     }
 
-    public static function assign($ticket_id, $staff_user_id) {
+    public static function assign(int $ticket_id, int $staff_user_id): bool {
         global $wpdb;
         return $wpdb->update(self::table(), [
-            'assigned_to' => (int) $staff_user_id, 'updated_at' => current_time('mysql'),
-        ], ['id' => (int) $ticket_id]) !== false;
+            'assigned_to' => $staff_user_id, 'updated_at' => current_time('mysql'),
+        ], ['id' => $ticket_id]) !== false;
     }
 
-    public static function touch($ticket_id) {
+    public static function touch(int $ticket_id): void {
         global $wpdb;
-        $wpdb->update(self::table(), ['updated_at' => current_time('mysql')], ['id' => (int) $ticket_id]);
+        $wpdb->update(self::table(), ['updated_at' => current_time('mysql')], ['id' => $ticket_id]);
     }
 
     /**
      * Optional enrichment of bh-crm's person view — same
      * bh_crm_activity_summary contract every other peer plugin uses,
      * harmless to register even if bh-crm is never active.
+     * @param array<int, array<string, mixed>> $sections
+     * @return array<int, array<string, mixed>>
      */
-    public static function register_crm_activity($sections, $user_id) {
+    public static function register_crm_activity(array $sections, int $user_id): array {
         $tickets = self::for_user($user_id);
         if (!$tickets) return $sections;
         $open = count(array_filter($tickets, fn($t) => in_array($t['status'], ['open', 'pending'], true)));
