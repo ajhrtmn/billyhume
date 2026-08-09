@@ -73,7 +73,7 @@ class BHF_Admin {
            . '<th>Track</th><th>Submitter</th><th>Tier</th><th>Status</th><th>Submitted</th>'
            . '</tr></thead><tbody>';
         foreach ($requests as $r) {
-            $author = get_userdata($r->post_author);
+            $author = get_userdata((int) $r->post_author);
             $status = get_post_meta($r->ID, '_bhf_status', true);
             $tier = get_post_meta($r->ID, '_bhf_tier', true);
             echo '<tr>'

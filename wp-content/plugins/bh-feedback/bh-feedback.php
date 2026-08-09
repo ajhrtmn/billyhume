@@ -2,11 +2,18 @@
 /**
  * Plugin Name: BH Feedback
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on Own Ur Shit's shared identity/wallet.
- * Version:     0.1.3
+ * Version:     0.1.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.4 — This plugin's first PHPStan pass (newly added to
+// phpstan.neon's scanned paths this round). One finding: get_userdata()
+// needed an int, not the string post_author property it was given
+// directly (class-admin.php).
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 0.1.0 — first build. Ecosystem depth-pass Tier 1d, per
 // ROADMAP-feedback-and-courses-v2.md's own scoping: v1 ships quick-take
@@ -27,7 +34,7 @@ if (!defined('ABSPATH')) exit;
 // separately.
 define('BHF_PATH', plugin_dir_path(__FILE__));
 define('BHF_URL',  plugin_dir_url(__FILE__));
-define('BHF_VER',  '0.1.3');
+define('BHF_VER',  '0.1.4');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo

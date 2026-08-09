@@ -2,11 +2,22 @@
 /**
  * Plugin Name: BH Social
  * Description: Social/marketing platform integrations — organic cross-posting + stats (YouTube, Twitch, Meta/Instagram, TikTok) behind a BH_SocialPlatform interface, plus paid ad-campaign draft-capture (Roku, Spotify, Amazon DSP, Samsung, Vizio) behind a separate BH_AdsPlatform interface. Depends only on Own Ur Shit's shared identity and job queue.
- * Version:     0.3.2
+ * Version:     0.3.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.3.3 — This plugin's first PHPStan pass (newly added to
+// phpstan.neon's scanned paths this round). One finding, confirmed as a
+// real stub gap rather than a bug and scoped-ignored: $wpdb->last_error
+// has no property type declared anywhere in php-stubs/wordpress-stubs,
+// so a plain `if ($wpdb->last_error)` truthy check after an earlier
+// reset in the same file gets misread as permanently false — same root
+// cause as the ecosystem-wide `!== ''` ignore rule already in
+// phpstan.neon, this is the plain-truthy-check variant of it.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run. `php -l` clean.
 
 // 0.1.0 — scaffold (2026-08-01): YouTube decided as the first platform
 // specifically because it has no app-review gate (unlike Meta/TikTok) —
@@ -44,7 +55,7 @@ if (!defined('ABSPATH')) exit;
 // avoids implying.
 define('BHSO_PATH', plugin_dir_path(__FILE__));
 define('BHSO_URL',  plugin_dir_url(__FILE__));
-define('BHSO_VER',  '0.3.2');
+define('BHSO_VER',  '0.3.3');
 
 foreach ([
     'activator',

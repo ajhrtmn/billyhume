@@ -267,7 +267,7 @@ class BHL_Admin {
         $vurl = $vid ? wp_get_attachment_url($vid) : '';
         echo '<p class="description">Owncast writes its recording to its own server — download the finished file from there and upload it here to make it the public replay.</p>';
         echo '<div id="bhl_replay_preview" style="max-width:480px;margin-bottom:8px;">' . ($vurl ? '<video controls src="' . esc_url($vurl) . '" style="width:100%;"></video>' : '<em>No replay uploaded yet.</em>') . '</div>';
-        echo '<input type="hidden" id="bhl_replay_id" name="bhl_replay_id" value="' . esc_attr($vid) . '">';
+        echo '<input type="hidden" id="bhl_replay_id" name="bhl_replay_id" value="' . esc_attr((string) $vid) . '">';
         echo '<button type="button" class="button" id="bhl_replay_upload">' . ($vurl ? 'Replace replay' : 'Upload replay') . '</button></p>';
         echo '<script>
         (function () {

@@ -173,7 +173,7 @@ class BHL_TestSuite {
         // Error path — Fly rejecting the request (bad token, etc.)
         add_filter('pre_http_request', $error_intercept = function () {
             return ['response' => ['code' => 401], 'body' => wp_json_encode(['error' => 'invalid token'])];
-        }, 10, 3);
+        }, 10);
         $result2 = $p->provision();
         $rows[] = OUS_TestRunner::assert_true(is_wp_error($result2), 'provision(): a rejected request (401) returns a WP_Error, never a fatal');
         remove_filter('pre_http_request', $error_intercept, 10);
@@ -222,14 +222,14 @@ class BHL_TestSuite {
         // status mapping — 'connected' is the only value that means online
         add_filter('pre_http_request', $status_intercept = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => ['status' => 'connected']])];
-        }, 10, 3);
+        }, 10);
         $status = $engine->get_status();
         $rows[] = OUS_TestRunner::assert_true($status['online'], 'get_status(): status "connected" maps to online = true');
         remove_filter('pre_http_request', $status_intercept, 10);
 
         add_filter('pre_http_request', $status_intercept2 = function () {
             return ['response' => ['code' => 200], 'body' => wp_json_encode(['success' => true, 'result' => ['status' => 'reconnecting']])];
-        }, 10, 3);
+        }, 10);
         $status2 = $engine->get_status();
         $rows[] = OUS_TestRunner::assert_false($status2['online'], 'get_status(): any status OTHER than "connected" maps to online = false');
         remove_filter('pre_http_request', $status_intercept2, 10);

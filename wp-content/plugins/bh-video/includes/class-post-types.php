@@ -37,9 +37,22 @@ class BHV_PostTypes {
             'menu_icon' => 'dashicons-video-alt3', 'supports' => ['title'], 'capability_type' => 'post',
         ]);
 
+        // PHPStan-caught real (if minor) bug: register_taxonomy()'s
+        // 'show_in_menu' is a plain bool for taxonomies, unlike post
+        // types — confirmed by reading wp-admin/menu.php's real
+        // consumption of it directly (`! $taxonomy->show_in_menu`, no
+        // string-parent-slug handling at all, unlike post types' own
+        // `true !== $post_type_obj->show_in_menu` special-case a few
+        // lines away in that same file). Passing self::MENU_PARENT here
+        // just evaluated truthy — harmless in that it didn't break
+        // anything, but not doing what it looked like it was doing.
+        // WP's real, documented behavior already nests a taxonomy under
+        // its associated post type's own menu automatically when
+        // show_in_menu is true, given the 'bhv_video' association above
+        // — true achieves the exact same real placement, correctly.
         register_taxonomy('bhv_genre', 'bhv_video', [
             'labels' => ['name' => 'Genres', 'singular_name' => 'Genre'],
-            'public' => false, 'show_ui' => true, 'show_in_menu' => self::MENU_PARENT,
+            'public' => false, 'show_ui' => true, 'show_in_menu' => true,
             'hierarchical' => false, 'show_in_rest' => true,
         ]);
     }

@@ -13,6 +13,10 @@ parameters:
         - wp-content/plugins/bh-streaming
         - wp-content/plugins/bh-mailpoet
         - wp-content/plugins/bh-tickets
+        - wp-content/plugins/bh-video
+        - wp-content/plugins/bh-live
+        - wp-content/plugins/bh-feedback
+        - wp-content/plugins/bh-social
     excludePaths:
         - */vendor/*
         - */tests/*
@@ -75,6 +79,15 @@ parameters:
         # first.
         -
             message: "#Strict comparison using !== between '' and '' will always evaluate to false#"
+        # Same $wpdb->last_error stub gap as above, the plain-truthy-check
+        # variant (`if ($wpdb->last_error)` rather than `!== ''`) — scoped
+        # to this one file/line rather than the generic "If condition is
+        # always false" message ecosystem-wide, since that phrasing is
+        # common enough to risk masking a genuinely different dead-code
+        # bug elsewhere.
+        -
+            message: '#If condition is always false#'
+            path: wp-content/plugins/bh-social/includes/class-activator.php
         # add_option()'s 4th arg ($autoload) — the stub types this
         # strictly as bool|null, but WP core's real implementation
         # (wp_determine_option_autoload_value(), wp-includes/option.php)

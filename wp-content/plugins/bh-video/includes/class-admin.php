@@ -50,7 +50,7 @@ class BHV_Admin {
 
         echo '<p><strong>Video file</strong></p>';
         echo '<div id="bhv_video_preview" style="max-width:480px;margin-bottom:8px;">' . ($vurl ? '<video controls src="' . esc_url($vurl) . '" style="width:100%;"></video>' : '<em>No video uploaded yet.</em>') . '</div>';
-        echo '<input type="hidden" id="bhv_video_id" name="bhv_video_id" value="' . esc_attr($vid) . '">';
+        echo '<input type="hidden" id="bhv_video_id" name="bhv_video_id" value="' . esc_attr((string) $vid) . '">';
         echo '<button type="button" class="button" id="bhv_video_upload">' . ($vurl ? 'Replace video' : 'Upload video') . '</button></p>';
 
         // Optional link back to a bhs_track — nullable by design (AJ's

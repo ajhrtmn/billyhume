@@ -2,11 +2,25 @@
 /**
  * Plugin Name: BH Video
  * Description: A standalone video catalog and player — its own CPT, taxonomy, and browse/playback SPA, independent of bh-streaming's audio catalog. Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.4.0
+ * Version:     0.4.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.1 — This plugin's first PHPStan pass (newly added to phpstan.neon's
+// scanned paths this round). Two findings: esc_attr() needed a string,
+// not the int $vid it was given directly. Real, if minor, bug in
+// class-post-types.php: register_taxonomy()'s 'show_in_menu' is a plain
+// bool for taxonomies (unlike post types, which do support a string
+// parent-slug) — confirmed by reading wp-admin/menu.php's real
+// consumption of it directly. Passing self::MENU_PARENT there just
+// evaluated truthy; changed to `true`, which achieves the exact same
+// real placement (WP already nests a taxonomy under its associated post
+// type's own menu automatically), correctly this time.
+// NOT runtime-verified against a live install — confirmed via a real
+// `vendor/bin/phpstan analyse` run and by reading WP core source
+// directly. `php -l` clean.
 
 // 0.1.0 — scaffold. Video/live-streaming scoping pass (2026-07-26): a
 // standalone video platform, not tied to a track/release the way
@@ -19,7 +33,7 @@ if (!defined('ABSPATH')) exit;
 // reference.
 define('BHV_PATH', plugin_dir_path(__FILE__));
 define('BHV_URL',  plugin_dir_url(__FILE__));
-define('BHV_VER',  '0.4.0');
+define('BHV_VER',  '0.4.1');
 
 /**
  * A genuine PEER to bh-streaming/bh-courses/bh-feedback — depends only
