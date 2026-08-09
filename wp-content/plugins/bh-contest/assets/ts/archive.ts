@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Archive/Library — fetches the full catalog once, then filters
  * client-side (search + contest dropdown) rather than re-fetching per
@@ -11,29 +10,56 @@
  * already-converted bh-common.ts, loaded first — see bh-contest.php's
  * enqueue order).
  */
+
+declare function bhEsc(value: unknown): string;
+
+interface BHArchiveTrack {
+    contest_id: number | string;
+    title: string;
+    artist: string;
+    contest_title: string;
+    placements?: string[];
+    url?: string;
+}
+
+interface BHArchiveContest {
+    id: number | string;
+    title: string;
+}
+
+interface BHArchiveLibraryResponse {
+    tracks?: BHArchiveTrack[];
+    contests?: BHArchiveContest[];
+}
+
+interface BHArchiveWindow extends Window {
+    BHData?: { rest?: string };
+}
+
 (function () {
     const root = document.getElementById('bh-archive-root');
-    if (!root)
-        return;
-    const rest = (window.BHData && window.BHData.rest) || '';
-    const grid = document.getElementById('bh-archive-grid');
-    const search = document.getElementById('bh-archive-search');
-    const filter = document.getElementById('bh-archive-filter');
-    let allTracks = [];
+    if (!root) return;
+
+    const rest = ((window as BHArchiveWindow).BHData && (window as BHArchiveWindow).BHData!.rest) || '';
+    const grid = document.getElementById('bh-archive-grid') as HTMLElement;
+    const search = document.getElementById('bh-archive-search') as HTMLInputElement;
+    const filter = document.getElementById('bh-archive-filter') as HTMLSelectElement;
+    let allTracks: BHArchiveTrack[] = [];
+
     function render() {
         const q = search.value.trim().toLowerCase();
         const cid = filter.value;
         const tracks = allTracks.filter((t) => {
-            if (cid && String(t.contest_id) !== cid)
-                return false;
-            if (q && t.title.toLowerCase().indexOf(q) === -1 && t.artist.toLowerCase().indexOf(q) === -1)
-                return false;
+            if (cid && String(t.contest_id) !== cid) return false;
+            if (q && t.title.toLowerCase().indexOf(q) === -1 && t.artist.toLowerCase().indexOf(q) === -1) return false;
             return true;
         });
+
         if (!tracks.length) {
             grid.innerHTML = '<p class="bh-empty">No tracks match.</p>';
             return;
         }
+
         grid.innerHTML = tracks.map((t) => {
             const badges = (t.placements || []).map((p) => '<span class="bh-archive-badge">' + bhEsc(p) + '</span>').join('');
             const audio = t.url ? '<audio controls preload="none" src="' + bhEsc(t.url) + '" class="bh-archive-audio"></audio>' : '';
@@ -45,31 +71,33 @@
                 + audio
                 + '</div>';
         }).join('');
+
         // Only one track plays at a time.
         grid.querySelectorAll('.bh-archive-audio').forEach((audioEl) => {
             audioEl.addEventListener('play', () => {
                 grid.querySelectorAll('.bh-archive-audio').forEach((other) => {
-                    if (other !== audioEl)
-                        other.pause();
+                    if (other !== audioEl) (other as HTMLAudioElement).pause();
                 });
             });
         });
     }
+
     fetch(rest + 'library')
-        .then((r) => r.json())
+        .then((r) => r.json() as Promise<BHArchiveLibraryResponse>)
         .then((data) => {
-        allTracks = data.tracks || [];
-        (data.contests || []).forEach((c) => {
-            const opt = document.createElement('option');
-            opt.value = String(c.id);
-            opt.textContent = c.title;
-            filter.appendChild(opt);
-        });
-        render();
-    })
+            allTracks = data.tracks || [];
+            (data.contests || []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = String(c.id);
+                opt.textContent = c.title;
+                filter.appendChild(opt);
+            });
+            render();
+        })
         .catch(() => {
-        grid.innerHTML = '<p class="bh-empty">Could not load the archive right now.</p>';
-    });
+            grid.innerHTML = '<p class="bh-empty">Could not load the archive right now.</p>';
+        });
+
     search.addEventListener('input', render);
     filter.addEventListener('change', render);
 })();

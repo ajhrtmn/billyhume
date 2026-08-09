@@ -2,12 +2,20 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.17
+ * Version:     2.4.18
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 2.4.18 — TypeScript pilot, continued: converted bulk-select.ts,
+// tag-chips.ts, and subtasks.ts (Sortable drag/drop + inline editing +
+// arm/disarm delete). Same posture as every other plugin's TS pilot
+// entry this session: plain `tsc`, no bundler, compiled .js committed,
+// `npm run build:bh-crm` after editing. kanban-board.js (492 lines)
+// deliberately NOT converted this pass — flagged for a dedicated future
+// pass with real browser verification, not attempted blind.
+// NOT runtime-verified against a live browser this session.
 // 2.4.17 — PHPStan round 2 (this plugin went from 12 errors to 0).
 // Real bug fixed: BHCRM_Projects::progress_percent()'s @return
 // array{0:int,1:int} docblock had ended up misattached above the wrong
@@ -169,7 +177,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.17');
+define('BHCRM_VER',  '2.4.18');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

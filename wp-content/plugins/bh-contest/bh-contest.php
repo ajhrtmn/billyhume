@@ -2,11 +2,28 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.21
+ * Version:     3.7.22
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.22 — TypeScript pilot, continued: converted this plugin's five
+// remaining plain-JS files (bh-common.ts, archive.ts, bh-judging.ts,
+// portal-submissions.ts, bh-contest-blocks.ts) — every file in this
+// plugin's assets/js/ is now tsc-compiled (reveal.ts was the first,
+// last pass). Same posture throughout: plain `tsc`, no bundler,
+// compiled output committed, `npm run build:bh-contest` after editing.
+// Purely a type-safety/authoring-layer change — every compiled .js file
+// was diffed against its original for identical runtime shape, verified
+// with `node --check`, and grepped for CommonJS exports/require()
+// artifacts (all clean). No runtime behavior was touched.
+// player.js (1107 lines) deliberately NOT converted this pass — a real,
+// safety-critical audio player engine with no live-browser verification
+// available in this session; converting it blind is a real risk for no
+// verifiable benefit. Flagged for a dedicated future pass with real
+// browser testing, not attempted here.
+// NOT runtime-verified against a live browser this session.
 
 // 3.7.21 — PHPStan round 2 (this plugin went from 19 errors to 2, both
 // the deliberately-unstubbed COOKIEPATH/COOKIE_DOMAIN constants). Real
@@ -176,7 +193,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.21');
+define('BH_VER',        '3.7.22');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

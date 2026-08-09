@@ -2,12 +2,20 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.24
+ * Version:     0.5.25
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.5.25 — TypeScript pilot, continued: converted bhs-blocks.ts
+// (bhs/player Gutenberg block registration). Same posture as every
+// other plugin's TS pilot entry this session: plain `tsc`, no bundler,
+// compiled .js committed, `npm run build:bh-streaming` after editing.
+// player.js (1754 lines, the biggest single file in the ecosystem)
+// deliberately NOT converted this pass — flagged for a dedicated future
+// pass with real browser verification, not attempted blind.
+// NOT runtime-verified against a live browser this session.
 // 0.5.24 — PHPStan round 2, two small real fixes surfaced late (this
 // plugin was already at 2 errors — the deliberate COOKIEPATH/
 // COOKIE_DOMAIN exception — before this pass, unaffected by it): two
@@ -68,7 +76,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.24');
+define('BHS_VER',  '0.5.25');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

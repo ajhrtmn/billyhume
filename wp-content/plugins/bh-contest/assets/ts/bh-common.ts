@@ -1,4 +1,3 @@
-"use strict";
 // Tiny shared utility, loaded wherever untrusted text (submission titles,
 // category names — both ultimately sourced from public, unauthenticated
 // input) needs to go into innerHTML. Was previously copy-pasted
@@ -9,7 +8,7 @@
 // no bundler, compiled assets/js/bh-common.js is committed). Declared
 // as a plain global function (not exported) since module: "none" and
 // every consumer references bhEsc as a bare global, same as before.
-function bhEsc(s) {
-    const escapeMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => { var _a; return (_a = escapeMap[c]) !== null && _a !== void 0 ? _a : c; });
+function bhEsc(s: unknown): string {
+    const escapeMap: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => escapeMap[c] ?? c);
 }

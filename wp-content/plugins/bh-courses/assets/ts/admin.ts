@@ -1,4 +1,3 @@
-"use strict";
 /**
  * admin.js — course lesson-order drag-reorder (class-admin.php's
  * render_course_metabox()). Vanilla JS + vendored SortableJS, no
@@ -19,17 +18,36 @@
  * script added alongside). Sortable (vendored assets/js/vendor/
  * sortable.min.js) is an untyped external global.
  */
+
+interface SortableOptions {
+    handle?: string;
+    animation?: number;
+    ghostClass?: string;
+    chosenClass?: string;
+    forceFallback?: boolean;
+    onEnd?: () => void;
+}
+
+interface SortableApi {
+    create(el: Element, options: SortableOptions): unknown;
+}
+
+declare const Sortable: SortableApi | undefined;
+
 (function () {
     'use strict';
+
     document.addEventListener('DOMContentLoaded', function () {
         const list = document.getElementById('bhc-lesson-order-list');
-        if (!list || typeof Sortable === 'undefined')
-            return;
-        const hidden = document.getElementById('bhc_lesson_order');
+        if (!list || typeof Sortable === 'undefined') return;
+
+        const hidden = document.getElementById('bhc_lesson_order') as HTMLInputElement | null;
+
         function syncOrder() {
-            const ids = Array.prototype.map.call(list.querySelectorAll('.bhc-order-item'), (li) => li.dataset.id);
-            hidden.value = ids.join(',');
+            const ids = Array.prototype.map.call(list!.querySelectorAll('.bhc-order-item'), (li: HTMLElement) => li.dataset.id);
+            hidden!.value = ids.join(',');
         }
+
         Sortable.create(list, {
             handle: '.bhc-order-drag-handle',
             animation: 150,
@@ -43,6 +61,7 @@
             forceFallback: true,
             onEnd: syncOrder,
         });
+
         syncOrder(); // capture the server-rendered order as the hidden field's initial value, same as before
     });
 })();

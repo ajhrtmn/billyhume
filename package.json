@@ -10,7 +10,9 @@
     "build:bh-crm": "tsc -p wp-content/plugins/bh-crm/tsconfig.json",
     "watch:bh-crm": "tsc -p wp-content/plugins/bh-crm/tsconfig.json --watch",
     "build:bh-streaming": "tsc -p wp-content/plugins/bh-streaming/tsconfig.json",
-    "watch:bh-streaming": "tsc -p wp-content/plugins/bh-streaming/tsconfig.json --watch"
+    "watch:bh-streaming": "tsc -p wp-content/plugins/bh-streaming/tsconfig.json --watch",
+    "build:bh-courses": "tsc -p wp-content/plugins/bh-courses/tsconfig.json",
+    "watch:bh-courses": "tsc -p wp-content/plugins/bh-courses/tsconfig.json --watch"
   },
   "devDependencies": {
     "typescript": "^5.6.0"

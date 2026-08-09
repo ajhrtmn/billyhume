@@ -2,12 +2,28 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.69
+ * Version:     0.4.70
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.4.70 — TypeScript pilot: this plugin's FIRST pass (no assets/ts/
+// existed before this pass) — added tsconfig.json (identical shape to
+// every other plugin's) and build:bh-courses/watch:bh-courses npm
+// scripts in the repo-root package.json, then converted admin.ts
+// (lesson-order drag-reorder — also deleted ~220 lines of dead legacy
+// multistep lesson-builder code that self-guarded on a container that's
+// been absent since lesson authoring moved to the real Gutenberg block
+// editor), sessions-admin.ts (FullCalendar month-view render), and
+// bhc-blocks.ts (bhc/catalog, bhc/course block registration). Same
+// posture as every other plugin's TS pilot entry this session: plain
+// `tsc`, no bundler, compiled .js committed, run
+// `npm run build:bh-courses` after editing any .ts file.
+// courses.js (755 lines) and courses-studio-blocks.js (708 lines)
+// deliberately NOT converted this pass — flagged for a dedicated future
+// pass with real browser verification, not attempted blind.
+// NOT runtime-verified against a live browser this session.
 // 0.4.69 — PHPStan round 2 (this plugin went from 38 errors to 0). 37 of
 // the 38 were the same one cause: FPDF (own-ur-shit/vendor/fpdf/fpdf.php,
 // used by class-certificates.php for certificate-of-completion PDFs) is
@@ -209,7 +225,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.69');
+define('BHC_VER',  '0.4.70');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

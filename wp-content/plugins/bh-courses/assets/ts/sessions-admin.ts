@@ -1,4 +1,3 @@
-"use strict";
 /**
  * Renders the Sessions admin screen's month-view calendar from the
  * events JSON already server-rendered into #bhc-sessions-calendar's own
@@ -12,17 +11,28 @@
  * worth a real @types/... package for this ecosystem's "catch typos in
  * our own code" goal.
  */
+
+interface FullCalendarInstance {
+    render(): void;
+}
+
+interface FullCalendarApi {
+    Calendar: new (el: HTMLElement, options: Record<string, unknown>) => FullCalendarInstance;
+}
+
+declare const FullCalendar: FullCalendarApi | undefined;
+
 document.addEventListener('DOMContentLoaded', function () {
     const el = document.getElementById('bhc-sessions-calendar');
-    if (!el || typeof FullCalendar === 'undefined')
-        return;
-    let events = [];
+    if (!el || typeof FullCalendar === 'undefined') return;
+
+    let events: unknown[] = [];
     try {
         events = JSON.parse(el.getAttribute('data-events') || '[]');
-    }
-    catch (e) {
+    } catch (e) {
         return;
     }
+
     const calendar = new FullCalendar.Calendar(el, {
         initialView: 'dayGridMonth',
         height: 'auto',
