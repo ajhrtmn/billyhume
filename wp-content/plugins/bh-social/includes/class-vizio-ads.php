@@ -18,15 +18,19 @@ if (!defined('ABSPATH')) exit;
 class BHSO_VizioAds implements BH_AdsPlatform {
     const MANAGER_URL = 'https://platformplus.vizio.com/ad-solutions';
 
-    public function is_configured() {
+    public function is_configured(): bool {
         return true;
     }
 
-    public function get_status() {
+    public function get_status(): string {
         return 'manual_handoff';
     }
 
-    public function save_campaign_draft($args) {
+    /**
+     * @param array<string, mixed> $args
+     * @return int|\WP_Error
+     */
+    public function save_campaign_draft(array $args) {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
 
@@ -48,7 +52,8 @@ class BHSO_VizioAds implements BH_AdsPlatform {
         return $inserted ? (int) $wpdb->insert_id : new WP_Error('db_error', 'Could not save the draft — ' . $wpdb->last_error);
     }
 
-    public function list_campaign_drafts() {
+    /** @return array<int, array<string, mixed>> */
+    public function list_campaign_drafts(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
         return $wpdb->get_results($wpdb->prepare(
@@ -56,13 +61,13 @@ class BHSO_VizioAds implements BH_AdsPlatform {
         ), ARRAY_A);
     }
 
-    public function delete_campaign_draft($id) {
+    public function delete_campaign_draft(int $id): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
         return (bool) $wpdb->delete($table, ['id' => (int) $id, 'platform' => 'vizio']);
     }
 
-    public function manager_url() {
+    public function manager_url(): string {
         return self::MANAGER_URL;
     }
 }

@@ -2,12 +2,23 @@
 /**
  * Plugin Name: BH Social
  * Description: Social/marketing platform integrations — organic cross-posting + stats (YouTube, Twitch, Meta/Instagram, TikTok) behind a BH_SocialPlatform interface, plus paid ad-campaign draft-capture (Roku, Spotify, Amazon DSP, Samsung, Vizio) behind a separate BH_AdsPlatform interface. Depends only on Own Ur Shit's shared identity and job queue.
- * Version:     0.3.3
+ * Version:     0.3.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.3.4 — Ecosystem quality Phase 2, brick 7/13: added native return/
+// parameter types across all 16 includes files (233 findings, both
+// mechanical level-6 categories) — the most repetitive brick so far.
+// Both interfaces (BH_SocialPlatform, BH_AdsPlatform) got typed method
+// contracts; all 9 implementing classes (YouTube/Twitch/Meta/TikTok,
+// Roku/Spotify/Amazon-DSP/Samsung/Vizio) matched to them via the same
+// mechanical signature pattern, since all 4 organic platforms and all
+// 5 ad platforms genuinely share one shape each. Purely additive
+// typing, no behavior change. This plugin is now clean at PHPStan
+// level 6 in isolation.
+// NOT runtime-verified against a live install.
 // 0.3.3 — This plugin's first PHPStan pass (newly added to
 // phpstan.neon's scanned paths this round). One finding, confirmed as a
 // real stub gap rather than a bug and scoped-ignored: $wpdb->last_error
@@ -55,7 +66,7 @@ if (!defined('ABSPATH')) exit;
 // avoids implying.
 define('BHSO_PATH', plugin_dir_path(__FILE__));
 define('BHSO_URL',  plugin_dir_url(__FILE__));
-define('BHSO_VER',  '0.3.3');
+define('BHSO_VER',  '0.3.4');
 
 foreach ([
     'activator',

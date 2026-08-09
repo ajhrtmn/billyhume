@@ -48,7 +48,7 @@ class BHSO_Meta implements BH_SocialPlatform {
     const CONTAINER_POLL_ATTEMPTS = 10;
     const CONTAINER_POLL_DELAY_SECONDS = 3;
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'maybe_schedule_stats_cron']);
         add_action(self::STATS_CRON_HOOK, function () {
             if (class_exists('OUS_Jobs')) {
@@ -70,19 +70,20 @@ class BHSO_Meta implements BH_SocialPlatform {
         }
     }
 
-    public static function maybe_schedule_stats_cron() {
+    public static function maybe_schedule_stats_cron(): void {
         if (!wp_next_scheduled(self::STATS_CRON_HOOK)) {
             wp_schedule_event(time(), 'twicedaily', self::STATS_CRON_HOOK);
         }
     }
 
-    private static function graph_url($path) {
+    private static function graph_url(string $path): string {
         return self::GRAPH_URL_BASE . '/' . self::GRAPH_VERSION . $path;
     }
 
     /* ---------------- settings / tokens ---------------- */
 
-    public static function settings() {
+    /** @return array<string, mixed> */
+    public static function settings(): array {
         return get_option('bhso_meta_settings', [
             'app_id' => '', 'app_secret' => '',
             'page_access_token' => '', 'token_expires_at' => 0,
@@ -91,7 +92,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         ]);
     }
 
-    public static function save_credentials($app_id, $app_secret) {
+    public static function save_credentials(string $app_id, string $app_secret): void {
         $existing = self::settings();
         update_option('bhso_meta_settings', array_merge($existing, [
             'app_id'     => sanitize_text_field($app_id),
@@ -99,7 +100,8 @@ class BHSO_Meta implements BH_SocialPlatform {
         ]));
     }
 
-    private static function save_connection($page_access_token, $expires_in, $page_id, $page_name, $ig_user_id, $ig_username) {
+    /** @param int|string $expires_in */
+    private static function save_connection(string $page_access_token, $expires_in, string $page_id, string $page_name, string $ig_user_id, string $ig_username): void {
         $existing = self::settings();
         update_option('bhso_meta_settings', array_merge($existing, [
             'page_access_token' => $page_access_token,
@@ -111,17 +113,17 @@ class BHSO_Meta implements BH_SocialPlatform {
         ]));
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['app_id']) && !empty($s['app_secret']);
     }
 
-    public function is_connected() {
+    public function is_connected(): bool {
         $s = self::settings();
         return !empty($s['page_access_token']) && !empty($s['ig_user_id']);
     }
 
-    public function get_status() {
+    public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
         // Page access tokens obtained via a long-lived user token don't
@@ -134,7 +136,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         return 'connected';
     }
 
-    public function disconnect() {
+    public function disconnect(): bool {
         $s = self::settings();
         update_option('bhso_meta_settings', array_merge($s, [
             'page_access_token' => '', 'token_expires_at' => 0,
@@ -145,10 +147,11 @@ class BHSO_Meta implements BH_SocialPlatform {
 
     /* ---------------- OAuth flow ---------------- */
 
-    private static function redirect_uri() {
+    private static function redirect_uri(): string {
         return admin_url('admin-post.php?action=bhso_meta_oauth_callback');
     }
 
+    /** @return string|\WP_Error */
     public static function authorize_url() {
         $s = self::settings();
         if (empty($s['app_id'])) return new WP_Error('not_configured', 'Enter an App ID and App Secret first.');
@@ -165,7 +168,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         ]);
     }
 
-    public static function handle_oauth_callback() {
+    public static function handle_oauth_callback(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         $state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : '';
@@ -261,11 +264,12 @@ class BHSO_Meta implements BH_SocialPlatform {
         self::redirect_with_notice('Meta connected successfully.');
     }
 
-    private static function extract_error($data) {
+    /** @param mixed $data */
+    private static function extract_error($data): string {
         return is_array($data) && !empty($data['error']['message']) ? $data['error']['message'] : '';
     }
 
-    private static function redirect_with_notice($msg) {
+    private static function redirect_with_notice(string $msg): void {
         if (class_exists('OUS_Toast')) {
             $is_failure = stripos($msg, 'fail') !== false || stripos($msg, 'cancel') !== false;
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
@@ -274,7 +278,11 @@ class BHSO_Meta implements BH_SocialPlatform {
         exit;
     }
 
-    private function graph_request($method, $path, $body_params = []) {
+    /**
+     * @param array<string, mixed> $body_params
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function graph_request(string $method, string $path, array $body_params = []) {
         $s = self::settings();
         if (empty($s['page_access_token'])) return new WP_Error('not_connected', 'Meta isn\'t connected yet.');
 
@@ -305,6 +313,7 @@ class BHSO_Meta implements BH_SocialPlatform {
      * accepting an uploaded body, so a private/local-only attachment
      * URL will fail on Meta's end with a fetch error, not a bug here.
      */
+    /** @param array<string, mixed> $args */
     public function cross_post($args) {
         $s = self::settings();
         if (empty($s['ig_user_id'])) return new WP_Error('not_connected', 'Meta isn\'t connected yet.');
@@ -336,7 +345,8 @@ class BHSO_Meta implements BH_SocialPlatform {
         return true;
     }
 
-    private function poll_container_ready($container_id) {
+    /** @return true|\WP_Error */
+    private function poll_container_ready(string $container_id) {
         for ($i = 0; $i < self::CONTAINER_POLL_ATTEMPTS; $i++) {
             $status = $this->graph_request('GET', '/' . $container_id, ['fields' => 'status_code']);
             if (is_wp_error($status)) return $status;
@@ -350,7 +360,8 @@ class BHSO_Meta implements BH_SocialPlatform {
         return new WP_Error('container_timeout', 'Meta is still processing this media after ' . (self::CONTAINER_POLL_ATTEMPTS * self::CONTAINER_POLL_DELAY_SECONDS) . 's — try publishing again shortly.');
     }
 
-    public static function enqueue_cross_post($attachment_id, $caption = '') {
+    /** @return true|\WP_Error|int|false */
+    public static function enqueue_cross_post(int $attachment_id, string $caption = '') {
         $args = ['attachment_id' => (int) $attachment_id, 'caption' => $caption];
         if (class_exists('OUS_Jobs')) {
             return OUS_Jobs::enqueue(self::CROSS_POST_JOB, $args);
@@ -377,7 +388,8 @@ class BHSO_Meta implements BH_SocialPlatform {
         return true;
     }
 
-    public static function latest_stats() {
+    /** @return array<string, array<string, mixed>> */
+    public static function latest_stats(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_platform_stats';
         $rows = $wpdb->get_results($wpdb->prepare(

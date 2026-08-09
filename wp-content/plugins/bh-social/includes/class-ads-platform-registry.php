@@ -16,15 +16,14 @@ class BHSO_AdsPlatformRegistry {
         'vizio'      => ['label' => 'Vizio Ads', 'class' => 'BHSO_VizioAds'],
     ];
 
-    /** @return BH_AdsPlatform|null */
-    public static function get($key) {
+    public static function get(string $key): ?\BH_AdsPlatform {
         if (!isset(self::PLATFORMS[$key])) return null;
         $class = self::PLATFORMS[$key]['class'];
         return class_exists($class) ? new $class() : null;
     }
 
-    /** @return BH_AdsPlatform[] keyed by platform key */
-    public static function all() {
+    /** @return array<string, \BH_AdsPlatform> keyed by platform key */
+    public static function all(): array {
         $out = [];
         foreach (self::PLATFORMS as $key => $meta) {
             $instance = self::get($key);

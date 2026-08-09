@@ -15,15 +15,14 @@ class BHSO_PlatformRegistry {
         'tiktok'  => ['label' => 'TikTok', 'class' => 'BHSO_TikTok'],
     ];
 
-    /** @return BH_SocialPlatform|null */
-    public static function get($key) {
+    public static function get(string $key): ?\BH_SocialPlatform {
         if (!isset(self::PLATFORMS[$key])) return null;
         $class = self::PLATFORMS[$key]['class'];
         return class_exists($class) ? new $class() : null;
     }
 
-    /** @return BH_SocialPlatform[] keyed by platform key */
-    public static function all() {
+    /** @return array<string, \BH_SocialPlatform> keyed by platform key */
+    public static function all(): array {
         $out = [];
         foreach (self::PLATFORMS as $key => $meta) {
             $instance = self::get($key);

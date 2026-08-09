@@ -33,7 +33,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
     // over their own channel for these scopes).
     const SCOPE = 'channel:read:stream_key moderator:read:followers moderator:manage:announcements';
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'maybe_schedule_stats_cron']);
         add_action(self::STATS_CRON_HOOK, function () {
             if (class_exists('OUS_Jobs')) {
@@ -55,7 +55,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         }
     }
 
-    public static function maybe_schedule_stats_cron() {
+    public static function maybe_schedule_stats_cron(): void {
         if (!wp_next_scheduled(self::STATS_CRON_HOOK)) {
             wp_schedule_event(time(), 'twicedaily', self::STATS_CRON_HOOK);
         }
@@ -63,7 +63,8 @@ class BHSO_Twitch implements BH_SocialPlatform {
 
     /* ---------------- settings / tokens ---------------- */
 
-    public static function settings() {
+    /** @return array<string, mixed> */
+    public static function settings(): array {
         return get_option('bhso_twitch_settings', [
             'client_id' => '', 'client_secret' => '',
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0,
@@ -71,7 +72,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         ]);
     }
 
-    public static function save_credentials($client_id, $client_secret) {
+    public static function save_credentials(string $client_id, string $client_secret): void {
         $existing = self::settings();
         update_option('bhso_twitch_settings', array_merge($existing, [
             'client_id'     => sanitize_text_field($client_id),
@@ -79,7 +80,8 @@ class BHSO_Twitch implements BH_SocialPlatform {
         ]));
     }
 
-    private static function save_tokens($access_token, $refresh_token, $expires_in, $broadcaster_id = null, $broadcaster_login = null) {
+    /** @param int|string $expires_in seconds until expiry, as returned by the token endpoint (int or numeric string depending on response) */
+    private static function save_tokens(string $access_token, string $refresh_token, $expires_in, ?string $broadcaster_id = null, ?string $broadcaster_login = null): void {
         $existing = self::settings();
         $update = ['access_token' => $access_token, 'expires_at' => time() + (int) $expires_in];
         if (!empty($refresh_token)) $update['refresh_token'] = $refresh_token;
@@ -88,23 +90,23 @@ class BHSO_Twitch implements BH_SocialPlatform {
         update_option('bhso_twitch_settings', array_merge($existing, $update));
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['client_id']) && !empty($s['client_secret']);
     }
 
-    public function is_connected() {
+    public function is_connected(): bool {
         $s = self::settings();
         return !empty($s['refresh_token']);
     }
 
-    public function get_status() {
+    public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
         return 'connected';
     }
 
-    public function disconnect() {
+    public function disconnect(): bool {
         $s = self::settings();
         update_option('bhso_twitch_settings', array_merge($s, [
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0,
@@ -115,10 +117,11 @@ class BHSO_Twitch implements BH_SocialPlatform {
 
     /* ---------------- OAuth flow ---------------- */
 
-    private static function redirect_uri() {
+    private static function redirect_uri(): string {
         return admin_url('admin-post.php?action=bhso_twitch_oauth_callback');
     }
 
+    /** @return string|\WP_Error */
     public static function authorize_url() {
         $s = self::settings();
         if (empty($s['client_id'])) return new WP_Error('not_configured', 'Enter a Client ID and Client Secret first.');
@@ -135,7 +138,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         ]);
     }
 
-    public static function handle_oauth_callback() {
+    public static function handle_oauth_callback(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         $state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : '';
@@ -196,7 +199,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         self::redirect_with_notice('Twitch connected successfully.');
     }
 
-    private static function redirect_with_notice($msg) {
+    private static function redirect_with_notice(string $msg): void {
         if (class_exists('OUS_Toast')) {
             $is_failure = stripos($msg, 'fail') !== false || stripos($msg, 'cancel') !== false;
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
@@ -205,7 +208,8 @@ class BHSO_Twitch implements BH_SocialPlatform {
         exit;
     }
 
-    private function validate_token($token) {
+    /** @return array<string, mixed>|\WP_Error */
+    private function validate_token(string $token) {
         $response = wp_remote_get(self::VALIDATE_URL, [
             'timeout' => 15,
             'headers' => ['Authorization' => 'OAuth ' . $token],
@@ -217,6 +221,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         return is_array($data) ? $data : [];
     }
 
+    /** @return string|\WP_Error */
     private function ensure_fresh_token() {
         $s = self::settings();
         if (empty($s['refresh_token'])) return new WP_Error('not_connected', 'Twitch isn\'t connected yet.');
@@ -243,7 +248,11 @@ class BHSO_Twitch implements BH_SocialPlatform {
         return $data['access_token'];
     }
 
-    private function helix_request($method, $path, $body = null) {
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function helix_request(string $method, string $path, ?array $body = null) {
         $token = $this->ensure_fresh_token();
         if (is_wp_error($token)) return $token;
         $s = self::settings();
@@ -283,6 +292,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
      * channel, usable for "new track is out" / "going live in 10" type
      * announcements.
      */
+    /** @param array<string, mixed> $args */
     public function cross_post($args) {
         $s = self::settings();
         if (empty($s['broadcaster_id'])) return new WP_Error('not_connected', 'Twitch isn\'t connected yet.');
@@ -301,7 +311,8 @@ class BHSO_Twitch implements BH_SocialPlatform {
         return is_wp_error($result) ? $result : true;
     }
 
-    public static function enqueue_cross_post($message, $color = 'primary') {
+    /** @return true|\WP_Error|int|false */
+    public static function enqueue_cross_post(string $message, string $color = 'primary') {
         $args = ['message' => $message, 'color' => $color];
         if (class_exists('OUS_Jobs')) {
             return OUS_Jobs::enqueue(self::CROSS_POST_JOB, $args);
@@ -336,7 +347,8 @@ class BHSO_Twitch implements BH_SocialPlatform {
         return true;
     }
 
-    public static function latest_stats() {
+    /** @return array<string, array<string, mixed>> */
+    public static function latest_stats(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_platform_stats';
         $rows = $wpdb->get_results($wpdb->prepare(

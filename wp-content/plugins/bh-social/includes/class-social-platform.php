@@ -9,13 +9,13 @@ if (!defined('ABSPATH')) exit;
  */
 interface BH_SocialPlatform {
     /** True once enough settings exist to attempt API calls (does not guarantee tokens are still valid). */
-    public function is_configured();
+    public function is_configured(): bool;
 
     /** Human-readable connection status for the settings screen — e.g. connected/disconnected/needs-reauth. */
-    public function get_status();
+    public function get_status(): string;
 
     /** Disconnects — clears stored tokens without touching client_id/client_secret. */
-    public function disconnect();
+    public function disconnect(): bool;
 
     /**
      * Publishes $args (platform-specific shape — e.g. attachment_id,
@@ -24,15 +24,16 @@ interface BH_SocialPlatform {
      * or failing third-party API must not block the request that
      * triggered it.
      *
-     * @return true|WP_Error
+     * @param array<string, mixed> $args
+     * @return true|\WP_Error
      */
-    public function cross_post($args);
+    public function cross_post(array $args);
 
     /**
      * Pulls current stats from the platform and writes them into
      * bhso_platform_stats. Called from a background job.
      *
-     * @return true|WP_Error
+     * @return true|\WP_Error
      */
     public function pull_stats();
 }

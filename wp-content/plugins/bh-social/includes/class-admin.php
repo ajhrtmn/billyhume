@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
  * platform-key-driven handler instead of five near-duplicates.
  */
 class BHSO_Admin {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_assets']);
@@ -44,7 +44,11 @@ class BHSO_Admin {
         add_action('admin_post_bhso_delete_ad_draft', [self::class, 'handle_delete_ad_draft']);
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register(array $plugins): array {
         $plugins['bh-social'] = [
             'label'          => 'BH Social',
             'file'           => 'bh-social/bh-social.php',
@@ -57,7 +61,7 @@ class BHSO_Admin {
         return $plugins;
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_menu_page('BH Social', 'BH Social', 'manage_options', 'bh-social', [self::class, 'render'], 'dashicons-share', 58);
     }
 
@@ -65,14 +69,14 @@ class BHSO_Admin {
     // class-dashboard.php only enqueues it on its OWN pages) — this
     // page needs the same stylesheet for OUS_Badge::render() below to
     // actually render styled, not just as plain unstyled text.
-    public static function enqueue_assets($hook) {
+    public static function enqueue_assets(string $hook): void {
         if (strpos($hook, 'bh-social') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
     }
 
     /* ---------------- YouTube handlers ---------------- */
 
-    public static function handle_save_youtube_credentials() {
+    public static function handle_save_youtube_credentials(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_save_youtube_credentials');
 
@@ -86,7 +90,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_disconnect_youtube() {
+    public static function handle_disconnect_youtube(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_disconnect_youtube');
         (new BHSO_YouTube())->disconnect();
@@ -95,7 +99,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_pull_youtube_stats_now() {
+    public static function handle_pull_youtube_stats_now(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_pull_youtube_stats_now');
         $result = (new BHSO_YouTube())->pull_stats();
@@ -107,7 +111,7 @@ class BHSO_Admin {
 
     /* ---------------- Twitch handlers ---------------- */
 
-    public static function handle_save_twitch_credentials() {
+    public static function handle_save_twitch_credentials(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_save_twitch_credentials');
 
@@ -121,7 +125,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_disconnect_twitch() {
+    public static function handle_disconnect_twitch(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_disconnect_twitch');
         (new BHSO_Twitch())->disconnect();
@@ -130,7 +134,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_pull_twitch_stats_now() {
+    public static function handle_pull_twitch_stats_now(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_pull_twitch_stats_now');
         $result = (new BHSO_Twitch())->pull_stats();
@@ -140,7 +144,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_twitch_announce() {
+    public static function handle_twitch_announce(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_twitch_announce');
 
@@ -155,7 +159,7 @@ class BHSO_Admin {
 
     /* ---------------- Meta handlers ---------------- */
 
-    public static function handle_save_meta_credentials() {
+    public static function handle_save_meta_credentials(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_save_meta_credentials');
 
@@ -169,7 +173,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_disconnect_meta() {
+    public static function handle_disconnect_meta(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_disconnect_meta');
         (new BHSO_Meta())->disconnect();
@@ -178,7 +182,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_pull_meta_stats_now() {
+    public static function handle_pull_meta_stats_now(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_pull_meta_stats_now');
         $result = (new BHSO_Meta())->pull_stats();
@@ -190,7 +194,7 @@ class BHSO_Admin {
 
     /* ---------------- TikTok handlers ---------------- */
 
-    public static function handle_save_tiktok_credentials() {
+    public static function handle_save_tiktok_credentials(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_save_tiktok_credentials');
 
@@ -204,7 +208,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_disconnect_tiktok() {
+    public static function handle_disconnect_tiktok(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_disconnect_tiktok');
         (new BHSO_TikTok())->disconnect();
@@ -213,7 +217,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_pull_tiktok_stats_now() {
+    public static function handle_pull_tiktok_stats_now(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_pull_tiktok_stats_now');
         $result = (new BHSO_TikTok())->pull_stats();
@@ -225,7 +229,7 @@ class BHSO_Admin {
 
     /* ---------------- Ads (generic, all 5 platforms share this shape) ---------------- */
 
-    public static function handle_save_ad_draft() {
+    public static function handle_save_ad_draft(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_save_ad_draft');
 
@@ -258,7 +262,7 @@ class BHSO_Admin {
         exit;
     }
 
-    public static function handle_delete_ad_draft() {
+    public static function handle_delete_ad_draft(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhso_delete_ad_draft');
 
@@ -275,7 +279,7 @@ class BHSO_Admin {
 
     /* ---------------- render ---------------- */
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         echo '<div class="wrap"><h1>BH Social ' . (class_exists('OUS_Badge') ? OUS_Badge::render('alpha', null, 'This whole plugin is new and, while code-correct against each platform\'s documented API, none of the four organic integrations have been exercised against a real connected account yet — connect one and watch it closely the first few times.') : '') . '</h1>';
@@ -299,7 +303,8 @@ class BHSO_Admin {
         echo '</div>';
     }
 
-    private static function render_stats_table($stats) {
+    /** @param array<string, array<string, mixed>> $stats */
+    private static function render_stats_table(array $stats): void {
         if (!$stats) {
             echo '<p><em>No stats pulled yet.</em></p>';
             return;
@@ -311,7 +316,7 @@ class BHSO_Admin {
         echo '</tbody></table></div>';
     }
 
-    private static function render_youtube_section() {
+    private static function render_youtube_section(): void {
         $yt = new BHSO_YouTube();
         $s = BHSO_YouTube::settings();
         $status = $yt->get_status();
@@ -348,7 +353,7 @@ class BHSO_Admin {
         }
     }
 
-    private static function render_twitch_section() {
+    private static function render_twitch_section(): void {
         $tw = new BHSO_Twitch();
         $s = BHSO_Twitch::settings();
         $status = $tw->get_status();
@@ -394,7 +399,7 @@ class BHSO_Admin {
         }
     }
 
-    private static function render_meta_section() {
+    private static function render_meta_section(): void {
         $meta = new BHSO_Meta();
         $s = BHSO_Meta::settings();
         $status = $meta->get_status();
@@ -434,7 +439,7 @@ class BHSO_Admin {
         }
     }
 
-    private static function render_tiktok_section() {
+    private static function render_tiktok_section(): void {
         $tt = new BHSO_TikTok();
         $s = BHSO_TikTok::settings();
         $status = $tt->get_status();
@@ -472,7 +477,7 @@ class BHSO_Admin {
         }
     }
 
-    private static function render_ads_section($key, $instance) {
+    private static function render_ads_section(string $key, \BH_AdsPlatform $instance): void {
         $label = BHSO_AdsPlatformRegistry::PLATFORMS[$key]['label'];
         echo '<h3>' . esc_html($label) . '</h3>';
 

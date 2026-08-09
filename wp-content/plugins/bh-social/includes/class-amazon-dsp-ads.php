@@ -28,15 +28,19 @@ class BHSO_AmazonDSP implements BH_AdsPlatform {
     // docblock cites.
     const PRACTICAL_MINIMUM_CENTS = 500000; // $5,000
 
-    public function is_configured() {
+    public function is_configured(): bool {
         return true;
     }
 
-    public function get_status() {
+    public function get_status(): string {
         return 'manual_handoff';
     }
 
-    public function save_campaign_draft($args) {
+    /**
+     * @param array<string, mixed> $args
+     * @return int|\WP_Error
+     */
+    public function save_campaign_draft(array $args) {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
 
@@ -67,7 +71,8 @@ class BHSO_AmazonDSP implements BH_AdsPlatform {
         return $id;
     }
 
-    public function list_campaign_drafts() {
+    /** @return array<int, array<string, mixed>> */
+    public function list_campaign_drafts(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
         return $wpdb->get_results($wpdb->prepare(
@@ -75,13 +80,13 @@ class BHSO_AmazonDSP implements BH_AdsPlatform {
         ), ARRAY_A);
     }
 
-    public function delete_campaign_draft($id) {
+    public function delete_campaign_draft(int $id): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_ad_campaigns';
         return (bool) $wpdb->delete($table, ['id' => (int) $id, 'platform' => 'amazon_dsp']);
     }
 
-    public function manager_url() {
+    public function manager_url(): string {
         return self::MANAGER_URL;
     }
 }

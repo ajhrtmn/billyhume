@@ -2,16 +2,21 @@
 if (!defined('ABSPATH')) exit;
 
 class BHSO_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-social'] = ['label' => 'BH Social', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHSO_YouTube')) {
             return [['name' => 'BHSO_YouTube not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -26,7 +31,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_youtube_settings_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_youtube_settings_tests(): array {
         $rows = [];
         $original = get_option('bhso_youtube_settings');
 
@@ -58,7 +64,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_twitch_settings_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_twitch_settings_tests(): array {
         $rows = [];
         $original = get_option('bhso_twitch_settings');
 
@@ -87,7 +94,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_meta_settings_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_meta_settings_tests(): array {
         $rows = [];
         $original = get_option('bhso_meta_settings');
 
@@ -116,7 +124,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_tiktok_settings_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_tiktok_settings_tests(): array {
         $rows = [];
         $original = get_option('bhso_tiktok_settings');
 
@@ -154,7 +163,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_platform_registry_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_platform_registry_tests(): array {
         $rows = [];
         foreach (['youtube', 'twitch', 'meta', 'tiktok'] as $key) {
             $rows[] = OUS_TestRunner::assert_true(
@@ -174,7 +184,8 @@ class BHSO_TestSuite {
         return $rows;
     }
 
-    private static function run_ads_platform_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_ads_platform_tests(): array {
         $rows = [];
 
         foreach (['roku', 'spotify', 'amazon_dsp', 'samsung', 'vizio'] as $key) {

@@ -31,7 +31,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
 
     const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'maybe_schedule_stats_cron']);
         add_action(self::STATS_CRON_HOOK, function () {
             if (class_exists('OUS_Jobs')) {
@@ -53,7 +53,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         }
     }
 
-    public static function maybe_schedule_stats_cron() {
+    public static function maybe_schedule_stats_cron(): void {
         if (!wp_next_scheduled(self::STATS_CRON_HOOK)) {
             wp_schedule_event(time(), 'twicedaily', self::STATS_CRON_HOOK);
         }
@@ -61,7 +61,8 @@ class BHSO_YouTube implements BH_SocialPlatform {
 
     /* ---------------- settings / tokens (wp_options, same shape as BHL_FlyProvisioner) ---------------- */
 
-    public static function settings() {
+    /** @return array<string, mixed> */
+    public static function settings(): array {
         return get_option('bhso_youtube_settings', [
             'client_id' => '', 'client_secret' => '',
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0,
@@ -69,7 +70,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         ]);
     }
 
-    public static function save_credentials($client_id, $client_secret) {
+    public static function save_credentials(string $client_id, string $client_secret): void {
         $existing = self::settings();
         update_option('bhso_youtube_settings', array_merge($existing, [
             'client_id'     => sanitize_text_field($client_id),
@@ -79,7 +80,8 @@ class BHSO_YouTube implements BH_SocialPlatform {
         ]));
     }
 
-    private static function save_tokens($access_token, $refresh_token, $expires_in, $channel_title = null) {
+    /** @param int|string $expires_in */
+    private static function save_tokens(string $access_token, string $refresh_token, $expires_in, ?string $channel_title = null): void {
         $existing = self::settings();
         $update = [
             'access_token' => $access_token,
@@ -94,23 +96,23 @@ class BHSO_YouTube implements BH_SocialPlatform {
         update_option('bhso_youtube_settings', array_merge($existing, $update));
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['client_id']) && !empty($s['client_secret']);
     }
 
-    public function is_connected() {
+    public function is_connected(): bool {
         $s = self::settings();
         return !empty($s['refresh_token']);
     }
 
-    public function get_status() {
+    public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
         return 'connected';
     }
 
-    public function disconnect() {
+    public function disconnect(): bool {
         $s = self::settings();
         update_option('bhso_youtube_settings', array_merge($s, [
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0, 'channel_title' => '',
@@ -120,7 +122,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
 
     /* ---------------- OAuth flow ---------------- */
 
-    private static function redirect_uri() {
+    private static function redirect_uri(): string {
         return admin_url('admin-post.php?action=bhso_youtube_oauth_callback');
     }
 
@@ -128,6 +130,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
     // Google itself round-trips the "state" param, so a transient
     // keyed to the current admin user stands in for a nonce, checked
     // on the way back in handle_oauth_callback().
+    /** @return string|\WP_Error */
     public static function authorize_url() {
         $s = self::settings();
         if (empty($s['client_id'])) return new WP_Error('not_configured', 'Enter a Client ID and Client Secret first.');
@@ -146,7 +149,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         ]);
     }
 
-    public static function handle_oauth_callback() {
+    public static function handle_oauth_callback(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         $state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : '';
@@ -207,7 +210,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         self::redirect_with_notice('YouTube connected successfully.');
     }
 
-    private static function redirect_with_notice($msg) {
+    private static function redirect_with_notice(string $msg): void {
         if (class_exists('OUS_Toast')) {
             $is_failure = stripos($msg, 'fail') !== false || stripos($msg, 'cancel') !== false;
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
@@ -220,6 +223,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
     // using the stored refresh_token — called before every API request
     // rather than trusting a caller to check first, same
     // "self-healing" posture BHL_FlyProvisioner's request() takes.
+    /** @return string|\WP_Error */
     private function ensure_fresh_token() {
         $s = self::settings();
         if (empty($s['refresh_token'])) return new WP_Error('not_connected', 'YouTube isn\'t connected yet.');
@@ -246,7 +250,8 @@ class BHSO_YouTube implements BH_SocialPlatform {
         return $data['access_token'];
     }
 
-    private function api_get($url) {
+    /** @return array<string, mixed>|\WP_Error */
+    private function api_get(string $url) {
         $token = $this->ensure_fresh_token();
         if (is_wp_error($token)) return $token;
 
@@ -273,6 +278,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
      * (bh-video's own upload metabox, or any other plugin's video
      * attachment) — this class never fetches remote files.
      */
+    /** @param array<string, mixed> $args */
     public function cross_post($args) {
         $token = $this->ensure_fresh_token();
         if (is_wp_error($token)) return $token;
@@ -334,7 +340,8 @@ class BHSO_YouTube implements BH_SocialPlatform {
         return true;
     }
 
-    public static function enqueue_cross_post($attachment_id, $title = '', $description = '', $privacy = 'unlisted') {
+    /** @return true|\WP_Error|int|false */
+    public static function enqueue_cross_post(int $attachment_id, string $title = '', string $description = '', string $privacy = 'unlisted') {
         $args = ['attachment_id' => (int) $attachment_id, 'title' => $title, 'description' => $description, 'privacy' => $privacy];
         if (class_exists('OUS_Jobs')) {
             return OUS_Jobs::enqueue(self::CROSS_POST_JOB, $args);
@@ -366,7 +373,8 @@ class BHSO_YouTube implements BH_SocialPlatform {
         return true;
     }
 
-    public static function latest_stats() {
+    /** @return array<string, array<string, mixed>> */
+    public static function latest_stats(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_platform_stats';
         $rows = $wpdb->get_results($wpdb->prepare(

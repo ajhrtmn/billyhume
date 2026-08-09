@@ -44,7 +44,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
     const PUBLISH_POLL_ATTEMPTS = 10;
     const PUBLISH_POLL_DELAY_SECONDS = 3;
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'maybe_schedule_stats_cron']);
         add_action(self::STATS_CRON_HOOK, function () {
             if (class_exists('OUS_Jobs')) {
@@ -66,7 +66,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
         }
     }
 
-    public static function maybe_schedule_stats_cron() {
+    public static function maybe_schedule_stats_cron(): void {
         if (!wp_next_scheduled(self::STATS_CRON_HOOK)) {
             wp_schedule_event(time(), 'twicedaily', self::STATS_CRON_HOOK);
         }
@@ -74,7 +74,8 @@ class BHSO_TikTok implements BH_SocialPlatform {
 
     /* ---------------- settings / tokens ---------------- */
 
-    public static function settings() {
+    /** @return array<string, mixed> */
+    public static function settings(): array {
         return get_option('bhso_tiktok_settings', [
             'client_key' => '', 'client_secret' => '',
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0,
@@ -82,7 +83,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
         ]);
     }
 
-    public static function save_credentials($client_key, $client_secret) {
+    public static function save_credentials(string $client_key, string $client_secret): void {
         $existing = self::settings();
         update_option('bhso_tiktok_settings', array_merge($existing, [
             'client_key'    => sanitize_text_field($client_key),
@@ -90,7 +91,8 @@ class BHSO_TikTok implements BH_SocialPlatform {
         ]));
     }
 
-    private static function save_tokens($access_token, $refresh_token, $expires_in, $display_name = null) {
+    /** @param int|string $expires_in */
+    private static function save_tokens(string $access_token, string $refresh_token, $expires_in, ?string $display_name = null): void {
         $existing = self::settings();
         $update = ['access_token' => $access_token, 'expires_at' => time() + (int) $expires_in];
         if (!empty($refresh_token)) $update['refresh_token'] = $refresh_token;
@@ -98,23 +100,23 @@ class BHSO_TikTok implements BH_SocialPlatform {
         update_option('bhso_tiktok_settings', array_merge($existing, $update));
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['client_key']) && !empty($s['client_secret']);
     }
 
-    public function is_connected() {
+    public function is_connected(): bool {
         $s = self::settings();
         return !empty($s['refresh_token']);
     }
 
-    public function get_status() {
+    public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
         return 'connected';
     }
 
-    public function disconnect() {
+    public function disconnect(): bool {
         $s = self::settings();
         update_option('bhso_tiktok_settings', array_merge($s, [
             'access_token' => '', 'refresh_token' => '', 'expires_at' => 0, 'display_name' => '',
@@ -124,10 +126,11 @@ class BHSO_TikTok implements BH_SocialPlatform {
 
     /* ---------------- OAuth flow ---------------- */
 
-    private static function redirect_uri() {
+    private static function redirect_uri(): string {
         return admin_url('admin-post.php?action=bhso_tiktok_oauth_callback');
     }
 
+    /** @return string|\WP_Error */
     public static function authorize_url() {
         $s = self::settings();
         if (empty($s['client_key'])) return new WP_Error('not_configured', 'Enter a Client Key and Client Secret first.');
@@ -149,7 +152,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
         ]);
     }
 
-    public static function handle_oauth_callback() {
+    public static function handle_oauth_callback(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         $state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : '';
@@ -208,7 +211,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
         self::redirect_with_notice('TikTok connected successfully.');
     }
 
-    private static function redirect_with_notice($msg) {
+    private static function redirect_with_notice(string $msg): void {
         if (class_exists('OUS_Toast')) {
             $is_failure = stripos($msg, 'fail') !== false || stripos($msg, 'cancel') !== false;
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
@@ -217,6 +220,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
         exit;
     }
 
+    /** @return string|\WP_Error */
     private function ensure_fresh_token() {
         $s = self::settings();
         if (empty($s['refresh_token'])) return new WP_Error('not_connected', 'TikTok isn\'t connected yet.');
@@ -244,7 +248,11 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return $data['access_token'];
     }
 
-    private function api_get($path, $query = []) {
+    /**
+     * @param array<string, mixed> $query
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function api_get(string $path, array $query = []) {
         $token = $this->ensure_fresh_token();
         if (is_wp_error($token)) return $token;
 
@@ -255,7 +263,11 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return $this->parse_response($response);
     }
 
-    private function api_post_json($path, $body) {
+    /**
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function api_post_json(string $path, array $body) {
         $token = $this->ensure_fresh_token();
         if (is_wp_error($token)) return $token;
 
@@ -267,6 +279,10 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return $this->parse_response($response);
     }
 
+    /**
+     * @param array<string, mixed>|\WP_Error $response
+     * @return array<string, mixed>|\WP_Error
+     */
     private function parse_response($response) {
         if (is_wp_error($response)) return $response;
         $code = wp_remote_retrieve_response_code($response);
@@ -286,6 +302,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
      * apps are permitted to use; pass a wider value only once real app
      * review has actually completed for this app.
      */
+    /** @param array<string, mixed> $args */
     public function cross_post($args) {
         $attachment_id = (int) ($args['attachment_id'] ?? 0);
         $file_path = $attachment_id ? get_attached_file($attachment_id) : false;
@@ -337,7 +354,8 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return true;
     }
 
-    private function poll_publish_status($publish_id) {
+    /** @return true|\WP_Error */
+    private function poll_publish_status(string $publish_id) {
         for ($i = 0; $i < self::PUBLISH_POLL_ATTEMPTS; $i++) {
             $result = $this->api_post_json('/post/publish/status/fetch/', ['publish_id' => $publish_id]);
             if (is_wp_error($result)) return $result;
@@ -354,7 +372,8 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return new WP_Error('publish_timeout', 'TikTok is still processing this video after ' . (self::PUBLISH_POLL_ATTEMPTS * self::PUBLISH_POLL_DELAY_SECONDS) . 's — check status manually or try again shortly.');
     }
 
-    public static function enqueue_cross_post($attachment_id, $title = '', $privacy_level = 'SELF_ONLY') {
+    /** @return true|\WP_Error|int|false */
+    public static function enqueue_cross_post(int $attachment_id, string $title = '', string $privacy_level = 'SELF_ONLY') {
         $args = ['attachment_id' => (int) $attachment_id, 'title' => $title, 'privacy_level' => $privacy_level];
         if (class_exists('OUS_Jobs')) {
             return OUS_Jobs::enqueue(self::CROSS_POST_JOB, $args);
@@ -381,7 +400,8 @@ class BHSO_TikTok implements BH_SocialPlatform {
         return true;
     }
 
-    public static function latest_stats() {
+    /** @return array<string, array<string, mixed>> */
+    public static function latest_stats(): array {
         global $wpdb;
         $table = $wpdb->prefix . 'bhso_platform_stats';
         $rows = $wpdb->get_results($wpdb->prepare(
