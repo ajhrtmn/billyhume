@@ -21,8 +21,9 @@ if (!defined('ABSPATH')) exit;
  * chat widget's own JS init function against it.
  */
 interface BHL_Chat {
-    public function is_configured();
-    public function render($stream_id); // -> ['type' => 'iframe'|'native', 'html' => string]
+    public function is_configured(): bool;
+    /** @return array{type:string, html:string} */
+    public function render(int $stream_id): array;
 }
 
 /**
@@ -32,7 +33,7 @@ interface BHL_Chat {
  * feature get_embed_html() for video already leans on.
  */
 class BHL_OwncastChat implements BHL_Chat {
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = BHL_OwncastEngine::settings();
         return !empty($s['server_url']);
     }
@@ -43,7 +44,8 @@ class BHL_OwncastChat implements BHL_Chat {
     // itself, so nothing further is needed here to make posting work.
     // $stream_id is unused — Owncast has exactly one chat room, tied to
     // the server itself, not per-bhl_stream-post.
-    public function render($stream_id) {
+    /** @return array{type:string, html:string} */
+    public function render(int $stream_id): array {
         $s = BHL_OwncastEngine::settings();
         if (empty($s['server_url'])) return ['type' => 'iframe', 'html' => ''];
         $src = esc_url($s['server_url'] . '/embed/chat');

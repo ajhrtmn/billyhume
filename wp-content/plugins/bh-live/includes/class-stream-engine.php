@@ -17,10 +17,12 @@ if (!defined('ABSPATH')) exit;
  * omission but an honest reflection of how RTMP ingest actually works.
  */
 interface BHL_StreamEngine {
-    public function get_status();     // -> ['online' => bool, 'viewer_count' => int, 'stream_title' => string] or WP_Error
-    public function get_embed_html(); // -> string (an <iframe>-based embed), '' if not configured
-    public function disconnect();     // -> true|WP_Error — force-end the current broadcast, if the engine supports it
-    public function is_configured();  // -> bool
+    /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
+    public function get_status();
+    public function get_embed_html(): string; // -> an <iframe>-based embed, '' if not configured
+    /** @return bool|\WP_Error true on success, WP_Error if unsupported/failed */
+    public function disconnect();
+    public function is_configured(): bool;
 }
 
 /**
@@ -45,27 +47,29 @@ interface BHL_StreamEngine {
  * admin action, not a public one.
  */
 class BHL_OwncastEngine implements BHL_StreamEngine {
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['server_url']);
     }
 
-    public static function settings() {
+    /** @return array{server_url:string, access_token:string} */
+    public static function settings(): array {
         return get_option('bhl_owncast_settings', ['server_url' => '', 'access_token' => '']);
     }
 
-    public static function save_settings($server_url, $access_token = null) {
+    public static function save_settings(string $server_url, ?string $access_token = null): void {
         $existing = self::settings();
         $clean = ['server_url' => untrailingslashit(esc_url_raw($server_url))];
         // A blank token field means "keep what's already saved" — the
         // settings screen never re-displays a saved token, same rule
         // OUS_MediaWizard's own credential fields already use.
-        $clean['access_token'] = ($access_token === null || $access_token === '') ? ($existing['access_token'] ?? '') : sanitize_text_field($access_token);
+        $clean['access_token'] = ($access_token === null || $access_token === '') ? $existing['access_token'] : sanitize_text_field($access_token);
         update_option('bhl_owncast_settings', $clean);
     }
 
     // Owncast's own real, public, no-auth-required status endpoint —
     // documented at owncast.online/docs/api/#get-current-broadcast-status.
+    /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
     public function get_status() {
         $s = self::settings();
         if (empty($s['server_url'])) return new WP_Error('not_configured', 'No Owncast server URL is set yet.');
@@ -90,13 +94,14 @@ class BHL_OwncastEngine implements BHL_StreamEngine {
     // here. video-only embed; the bundled chat has its own /embed/chat
     // route, left for bh-live's future chat-abstraction work rather
     // than wired in this scaffold.
-    public function get_embed_html() {
+    public function get_embed_html(): string {
         $s = self::settings();
         if (empty($s['server_url'])) return '';
         $src = esc_url($s['server_url'] . '/embed/video');
         return '<iframe src="' . $src . '" style="width:100%;aspect-ratio:16/9;border:0;" allowfullscreen></iframe>';
     }
 
+    /** @return bool|\WP_Error */
     public function disconnect() {
         $s = self::settings();
         if (empty($s['server_url'])) return new WP_Error('not_configured', 'No Owncast server URL is set yet.');

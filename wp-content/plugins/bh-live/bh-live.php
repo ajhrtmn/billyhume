@@ -2,12 +2,27 @@
 /**
  * Plugin Name: BH Live
  * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.9.3
+ * Version:     0.9.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.9.4 — Ecosystem quality Phase 2, brick 6/13: added native return/
+// parameter types across all 20 includes files (211 findings, both
+// mechanical level-6 categories) — the largest brick so far. Two real
+// interfaces (BHL_StreamEngine, BHL_HostProvisioner, BHL_Chat) got
+// typed method contracts, with every implementing class (Owncast/
+// Cloudflare engines, Fly provisioner, polling/workers/Owncast chat)
+// matched to them. One deliberate exception: BHL_FlyProvisioner::
+// settings()'s return type is `array<string, string>`, not a precise
+// shape — own-ur-shit's class-media-wizard.php also reads this
+// method's return value with its own `?? ''` fallbacks, and a precise
+// shape there made those fallbacks flag as "always exists," a
+// cross-plugin false positive a same-plugin fix can't clean up
+// without touching own-ur-shit (a separate, later brick). Purely
+// additive typing otherwise, no behavior change.
+// NOT runtime-verified against a live install.
 // 0.9.3 — This plugin's first PHPStan pass (newly added to
 // phpstan.neon's scanned paths this round — own-ur-shit's own
 // class-media-wizard.php interaction with this plugin's BHL_* classes
@@ -44,7 +59,7 @@ if (!defined('ABSPATH')) exit;
 // does and doesn't do.
 define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
-define('BHL_VER',  '0.9.3');
+define('BHL_VER',  '0.9.4');
 
 foreach (['activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'workers-chat', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'overlay', 'automation', 'live-player', 'test-suite', 'privacy'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";

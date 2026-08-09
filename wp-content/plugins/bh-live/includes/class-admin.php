@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * flow to discover.
  */
 class BHL_Admin {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         add_action('save_post_bhl_stream', [self::class, 'save_replay']);
@@ -23,11 +23,11 @@ class BHL_Admin {
     // setup" call (see class docblock above) covers engine/host/chat
     // choice, not a per-user OBS connection + rule list a broadcaster
     // will come back and edit repeatedly.
-    public static function add_automation_page() {
+    public static function add_automation_page(): void {
         add_submenu_page('edit.php?post_type=bhl_stream', 'OBS Automation', 'OBS Automation', 'edit_posts', 'bhl-obs-automation', [self::class, 'render_automation_page']);
     }
 
-    public static function render_automation_page() {
+    public static function render_automation_page(): void {
         $rest = esc_url_raw(rest_url('bhl/v1/'));
         $nonce = wp_create_nonce('wp_rest');
         echo '<div class="wrap"><h1>OBS Automation</h1>
@@ -164,13 +164,13 @@ class BHL_Admin {
         </script>';
     }
 
-    public static function enqueue_media($hook) {
+    public static function enqueue_media(string $hook): void {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         if (get_post_type() !== 'bhl_stream') return;
         wp_enqueue_media();
     }
 
-    public static function add_meta_boxes() {
+    public static function add_meta_boxes(): void {
         add_meta_box('bhl_stream_details', 'Stream Details', [self::class, 'render_details_metabox'], 'bhl_stream', 'normal', 'high');
         add_meta_box('bhl_stream_overlays', 'OBS Overlays', [self::class, 'render_overlays_metabox'], 'bhl_stream', 'normal', 'default');
         add_meta_box('bhl_stream_replay', 'Replay', [self::class, 'render_replay_metabox'], 'bhl_stream', 'normal', 'default');
@@ -186,7 +186,7 @@ class BHL_Admin {
      * a plain input rather than a new meta field for a v1 that may
      * never need one.
      */
-    public static function render_overlays_metabox($post) {
+    public static function render_overlays_metabox(\WP_Post $post): void {
         $chat_url = rest_url('bhl/v1/overlay/' . $post->ID . '/chat');
         $health_url = rest_url('bhl/v1/overlay/' . $post->ID . '/health');
         echo '<p><label><strong>Chat overlay URL</strong><br>'
@@ -232,7 +232,7 @@ class BHL_Admin {
         </script>';
     }
 
-    public static function render_details_metabox($post) {
+    public static function render_details_metabox(\WP_Post $post): void {
         $status = get_post_meta($post->ID, '_bhl_status', true) ?: BHL_PostTypes::STATUS_LIVE;
         $started = get_post_meta($post->ID, '_bhl_started_at', true);
         $ended = get_post_meta($post->ID, '_bhl_ended_at', true);
@@ -256,7 +256,7 @@ class BHL_Admin {
      * picker bh-video's own admin metabox already uses, so at least
      * the WordPress-side half of this is exactly as easy as it can be.
      */
-    public static function render_replay_metabox($post) {
+    public static function render_replay_metabox(\WP_Post $post): void {
         wp_nonce_field('bhl_save_replay', 'bhl_replay_nonce');
         $status = get_post_meta($post->ID, '_bhl_status', true);
         if ($status === BHL_PostTypes::STATUS_LIVE) {
@@ -290,7 +290,7 @@ class BHL_Admin {
         </script>';
     }
 
-    public static function save_replay($post_id) {
+    public static function save_replay(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhl_replay_nonce']) || !wp_verify_nonce($_POST['bhl_replay_nonce'], 'bhl_save_replay')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -299,7 +299,11 @@ class BHL_Admin {
         }
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register(array $plugins): array {
         $plugins['bh-live'] = [
             'label'          => 'BH Live',
             'file'           => 'bh-live/bh-live.php',

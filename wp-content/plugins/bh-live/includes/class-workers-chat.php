@@ -36,20 +36,21 @@ class BHL_WorkersChat implements BHL_Chat {
     const DO_CLASS_NAME = 'ChatRoom';
     const DO_BINDING_NAME = 'CHAT_ROOM';
 
-    public static function settings() {
+    /** @return array{script_name:string, workers_subdomain:string, deployed:bool} */
+    public static function settings(): array {
         return get_option('bhl_workers_settings', ['script_name' => 'bh-live-chat', 'workers_subdomain' => '', 'deployed' => false]);
     }
 
-    public static function save_settings($script_name, $workers_subdomain) {
+    public static function save_settings(string $script_name, string $workers_subdomain): void {
         $existing = self::settings();
         $existing['script_name'] = sanitize_key($script_name ?: 'bh-live-chat');
         $existing['workers_subdomain'] = sanitize_text_field($workers_subdomain);
         update_option('bhl_workers_settings', $existing);
     }
 
-    private static function set_deployed($deployed) {
+    private static function set_deployed(bool $deployed): void {
         $existing = self::settings();
-        $existing['deployed'] = (bool) $deployed;
+        $existing['deployed'] = $deployed;
         update_option('bhl_workers_settings', $existing);
     }
 
@@ -59,17 +60,23 @@ class BHL_WorkersChat implements BHL_Chat {
     // BHL_WorkersChat has a soft dependency on that class existing,
     // same as anything else in this plugin that reads another class's
     // settings() directly.
-    private static function cloudflare_credentials() {
+    /** @return array<string, mixed> */
+    private static function cloudflare_credentials(): array {
         return class_exists('BHL_CloudflareStreamEngine') ? BHL_CloudflareStreamEngine::settings() : ['account_id' => '', 'api_token' => ''];
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $cf = self::cloudflare_credentials();
         $s = self::settings();
         return !empty($cf['account_id']) && !empty($cf['api_token']) && !empty($s['workers_subdomain']) && !empty($s['deployed']);
     }
 
-    private function request($method, $path, $body = null, $extra_headers = []) {
+    /**
+     * @param string|null $body
+     * @param array<string, string> $extra_headers
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function request(string $method, string $path, $body = null, array $extra_headers = []) {
         $cf = self::cloudflare_credentials();
         $args = [
             'method'  => $method,
@@ -98,7 +105,8 @@ class BHL_WorkersChat implements BHL_Chat {
      * 'metadata' JSON part plus one part named exactly like
      * main_module, containing the script.
      */
-    private static function build_multipart_body($boundary, $metadata, $script) {
+    /** @param array<string, mixed> $metadata */
+    private static function build_multipart_body(string $boundary, array $metadata, string $script): string {
         $body = '';
         $body .= '--' . $boundary . "\r\n";
         $body .= "Content-Disposition: form-data; name=\"metadata\"\r\n";
@@ -124,6 +132,7 @@ class BHL_WorkersChat implements BHL_Chat {
      * script (a "redeploy" action), same shape a version-bump would
      * naturally want anyway.
      */
+    /** @return array{url:string}|\WP_Error */
     public function deploy() {
         $cf = self::cloudflare_credentials();
         $s = self::settings();
@@ -166,14 +175,15 @@ class BHL_WorkersChat implements BHL_Chat {
         return ['url' => $this->base_url()];
     }
 
-    private function base_url() {
+    private function base_url(): string {
         $s = self::settings();
         return 'https://' . $s['script_name'] . '.' . $s['workers_subdomain'] . '.workers.dev';
     }
 
-    public function render($stream_id) {
+    /** @return array{type:string, html:string} */
+    public function render(int $stream_id): array {
         if (!$this->is_configured()) return ['type' => 'iframe', 'html' => ''];
-        $src = esc_url($this->base_url() . '/?stream=' . (int) $stream_id);
+        $src = esc_url($this->base_url() . '/?stream=' . $stream_id);
         return ['type' => 'iframe', 'html' => '<iframe src="' . $src . '" style="width:100%;height:100%;min-height:400px;border:0;"></iframe>'];
     }
 }

@@ -33,7 +33,7 @@ class BHL_PostTypes {
     const STATUS_LIVE = 'live';
     const STATUS_ENDED = 'ended-with-replay';
 
-    public static function register() {
+    public static function register(): void {
         register_post_type('bhl_stream', [
             'labels' => [
                 'name' => 'Streams', 'menu_name' => 'Live', 'singular_name' => 'Stream',

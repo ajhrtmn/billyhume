@@ -15,16 +15,21 @@ if (!defined('ABSPATH')) exit;
  * this pass.
  */
 class BHL_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-live'] = ['label' => 'BH Live', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHL_Streams')) {
             return [['name' => 'BHL_Streams not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -42,7 +47,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_Streams::current_live_stream() ---------- */
 
-    private static function run_stream_lifecycle_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_stream_lifecycle_tests(): array {
         $rows = [];
 
         $rows[] = OUS_TestRunner::assert_true(BHL_Streams::current_live_stream() === null, 'current_live_stream(): null when no bhl_stream is marked live (baseline, before this suite creates any fixture)');
@@ -69,7 +75,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_OwncastEngine settings ---------- */
 
-    private static function run_engine_settings_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_engine_settings_tests(): array {
         if (!class_exists('BHL_OwncastEngine')) return [];
         $rows = [];
         $original = BHL_OwncastEngine::settings(); // restored at the end — this suite must not leave a real connection's settings clobbered
@@ -100,7 +107,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_API payload shape ---------- */
 
-    private static function run_api_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_api_tests(): array {
         if (!class_exists('BHL_API')) return [];
         $rows = [];
 
@@ -131,7 +139,8 @@ class BHL_TestSuite {
     // the real network — same principle as the rest of this ecosystem's
     // "grounded, not guessed" testing discipline, just applied to an
     // external API's request shape instead of this codebase's own logic.
-    private static function run_fly_provisioner_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_fly_provisioner_tests(): array {
         if (!class_exists('BHL_FlyProvisioner')) return [];
         $rows = [];
         $original = get_option('bhl_fly_settings');
@@ -188,7 +197,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_CloudflareStreamEngine: real request shape, mocked network ---------- */
 
-    private static function run_cloudflare_engine_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_cloudflare_engine_tests(): array {
         if (!class_exists('BHL_CloudflareStreamEngine')) return [];
         $rows = [];
         $original = get_option('bhl_cloudflare_settings');
@@ -246,7 +256,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_EngineRegistry ---------- */
 
-    private static function run_engine_registry_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_engine_registry_tests(): array {
         if (!class_exists('BHL_EngineRegistry')) return [];
         $rows = [];
         $original = get_option('bhl_active_engine');
@@ -291,7 +302,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_PollingChat ---------- */
 
-    private static function run_polling_chat_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_polling_chat_tests(): array {
         if (!class_exists('BHL_PollingChat')) return [];
         $rows = [];
 
@@ -360,7 +372,8 @@ class BHL_TestSuite {
 
     /* ---------- BHL_WorkersChat: real request shape, mocked network ---------- */
 
-    private static function run_workers_chat_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_workers_chat_tests(): array {
         if (!class_exists('BHL_WorkersChat') || !class_exists('BHL_CloudflareStreamEngine')) return [];
         $rows = [];
         $original_cf = get_option('bhl_cloudflare_settings');

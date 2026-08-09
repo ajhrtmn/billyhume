@@ -19,14 +19,14 @@ if (!defined('ABSPATH')) exit;
 class BHL_Streams {
     const CRON_HOOK = 'bhl_poll_status';
 
-    public static function init() {
+    public static function init(): void {
         add_action(self::CRON_HOOK, [self::class, 'poll_status']);
         if (!wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time(), 'bhcore_every_minute', self::CRON_HOOK);
         }
     }
 
-    public static function current_live_stream() {
+    public static function current_live_stream(): ?\WP_Post {
         $posts = get_posts([
             'post_type' => 'bhl_stream', 'post_status' => 'publish', 'posts_per_page' => 1,
             'meta_query' => [['key' => '_bhl_status', 'value' => BHL_PostTypes::STATUS_LIVE]],
@@ -34,7 +34,7 @@ class BHL_Streams {
         return $posts ? $posts[0] : null;
     }
 
-    public static function poll_status() {
+    public static function poll_status(): void {
         if (!class_exists('BHL_EngineRegistry')) return;
         $engine = BHL_EngineRegistry::active();
         if (!$engine || !$engine->is_configured()) return;

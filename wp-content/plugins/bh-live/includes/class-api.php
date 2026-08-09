@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
  * replay file attached). Mirrors BHS_API/BHV_API's shape.
  */
 class BHL_API {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhl/v1', '/status', [
             'methods' => 'GET', 'callback' => [self::class, 'get_status'], 'permission_callback' => '__return_true',
         ]);
@@ -25,7 +25,7 @@ class BHL_API {
     // already use. Which engine is "active" (Owncast vs Cloudflare
     // Stream Live) only matters for get_embed_html()/chat below — the
     // bhl_stream record itself is engine-agnostic.
-    public static function get_status() {
+    public static function get_status(): \WP_REST_Response {
         $current = class_exists('BHL_Streams') ? BHL_Streams::current_live_stream() : null;
         if (!$current) {
             return new WP_REST_Response(['success' => true, 'online' => false, 'embed_html' => ''], 200);
@@ -49,7 +49,7 @@ class BHL_API {
         ], 200);
     }
 
-    public static function get_replays() {
+    public static function get_replays(): \WP_REST_Response {
         $posts = get_posts([
             'post_type' => 'bhl_stream', 'post_status' => 'publish', 'posts_per_page' => -1,
             'orderby' => 'date', 'order' => 'DESC',

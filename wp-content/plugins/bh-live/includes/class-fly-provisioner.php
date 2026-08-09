@@ -32,36 +32,46 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
     const RTMP_PORT = 1935;
     const OWNCAST_HTTP_PORT = 8080;
 
-    public static function settings() {
+    /**
+     * @return array<string, string> keys: api_token, app_name, org_slug,
+     *     region, active_machine_id — not a precise shape type since
+     *     own-ur-shit's class-media-wizard.php also reads this method's
+     *     return value with its own defensive `?? ''` fallbacks.
+     */
+    public static function settings(): array {
         return get_option('bhl_fly_settings', ['api_token' => '', 'app_name' => '', 'org_slug' => 'personal', 'region' => 'iad', 'active_machine_id' => '']);
     }
 
-    public static function save_settings($api_token, $app_name, $org_slug, $region) {
+    public static function save_settings(string $api_token, string $app_name, string $org_slug, string $region): void {
         $existing = self::settings();
         update_option('bhl_fly_settings', [
             // A blank token field means "keep what's already saved" —
             // same convention every other credential field in this
             // ecosystem's wizards already uses.
-            'api_token'          => ($api_token === '') ? ($existing['api_token'] ?? '') : sanitize_text_field($api_token),
+            'api_token'          => ($api_token === '') ? $existing['api_token'] : sanitize_text_field($api_token),
             'app_name'           => sanitize_key($app_name),
             'org_slug'           => sanitize_key($org_slug ?: 'personal'),
             'region'             => sanitize_key($region ?: 'iad'),
-            'active_machine_id'  => $existing['active_machine_id'] ?? '',
+            'active_machine_id'  => $existing['active_machine_id'],
         ]);
     }
 
-    private static function set_active_machine_id($id) {
+    private static function set_active_machine_id(string $id): void {
         $s = self::settings();
         $s['active_machine_id'] = $id;
         update_option('bhl_fly_settings', $s);
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['api_token']) && !empty($s['app_name']);
     }
 
-    private function request($method, $path, $body = null) {
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function request(string $method, string $path, ?array $body = null) {
         $s = self::settings();
         $args = [
             'method'  => $method,
@@ -90,6 +100,7 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
     // ecosystem already uses elsewhere (BHY_RewriteHealer's own
     // reference pattern) rather than a separate one-time setup step
     // a user could forget to run.
+    /** @return bool|\WP_Error */
     private function ensure_app_exists() {
         $s = self::settings();
         $existing = $this->request('GET', '/apps/' . $s['app_name']);
@@ -102,6 +113,7 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
         return is_wp_error($created) ? $created : true;
     }
 
+    /** @return array{host_id:string, public_url:string}|\WP_Error */
     public function provision() {
         if (!$this->is_configured()) return new WP_Error('not_configured', 'Fly.io isn\'t configured yet — enter an API token and app name first.');
 
@@ -149,7 +161,8 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
     // 2026-07-26: created, starting, started, stopping, stopped,
     // suspended, destroying, destroyed) down to the three states
     // anything calling this actually needs to act on.
-    public function get_status($host_id) {
+    /** @return array{state:string, raw_state?:string}|\WP_Error */
+    public function get_status(string $host_id) {
         $s = self::settings();
         if (empty($host_id)) return new WP_Error('no_host', 'No machine has been provisioned yet.');
 
@@ -166,7 +179,8 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
         return ['state' => $map[$raw] ?? 'unknown', 'raw_state' => $raw];
     }
 
-    public function destroy($host_id) {
+    /** @return bool|\WP_Error */
+    public function destroy(string $host_id) {
         $s = self::settings();
         if (empty($host_id)) return new WP_Error('no_host', 'No machine to destroy.');
 

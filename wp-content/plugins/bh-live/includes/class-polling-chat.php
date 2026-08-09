@@ -22,19 +22,20 @@ if (!defined('ABSPATH')) exit;
 class BHL_PollingChat implements BHL_Chat {
     const MUTE_SECONDS = 600; // 10 minutes, same order of magnitude as Jam's KICK_REJOIN_BLOCK_SECONDS
 
-    public static function init() {
+    public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         return true; // no external account/credentials needed at all
     }
 
-    public function render($stream_id) {
-        return ['type' => 'native', 'html' => '<div class="bhl-native-chat" data-stream-id="' . (int) $stream_id . '"></div>'];
+    /** @return array{type:string, html:string} */
+    public function render(int $stream_id): array {
+        return ['type' => 'native', 'html' => '<div class="bhl-native-chat" data-stream-id="' . $stream_id . '"></div>'];
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhl/v1', '/chat/(?P<stream_id>\d+)/messages', [
             'methods' => 'GET', 'callback' => [self::class, 'get_messages'], 'permission_callback' => '__return_true',
         ]);
@@ -58,12 +59,12 @@ class BHL_PollingChat implements BHL_Chat {
         ]);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhl_chat_messages';
     }
 
-    private static function rate_limited($action, $limit = 20, $window = 60) {
+    private static function rate_limited(string $action, int $limit = 20, int $window = 60): bool {
         $key = 'bhl_chat_rl_' . $action . '_' . get_current_user_id();
         $count = (int) get_transient($key);
         if ($count >= $limit) return true;
@@ -71,7 +72,7 @@ class BHL_PollingChat implements BHL_Chat {
         return false;
     }
 
-    public static function get_messages($req) {
+    public static function get_messages(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
         $stream_id = (int) $req->get_param('stream_id');
         $after_id = (int) $req->get_param('after_id');
@@ -99,7 +100,8 @@ class BHL_PollingChat implements BHL_Chat {
         return new WP_REST_Response(['success' => true, 'messages' => $out], 200);
     }
 
-    public static function post_message($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function post_message(\WP_REST_Request $req) {
         $stream_id = (int) $req->get_param('stream_id');
         if (get_post_type($stream_id) !== 'bhl_stream') {
             return new WP_Error('not_found', 'Stream not found.', ['status' => 404]);
@@ -129,7 +131,8 @@ class BHL_PollingChat implements BHL_Chat {
     // Same transient-based block Jam's own kick() uses (class-jam.php)
     // rather than a permanent ban record — cheap, good-enough, and
     // self-expiring, matching Jam's own reasoning exactly.
-    public static function mute_user($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function mute_user(\WP_REST_Request $req) {
         $target = (int) $req->get_param('target_user_id');
         if (!$target) return new WP_Error('missing_target', 'No user specified.', ['status' => 400]);
         set_transient('bhl_chat_muted_' . $target, 1, self::MUTE_SECONDS);
@@ -146,7 +149,8 @@ class BHL_PollingChat implements BHL_Chat {
     // ceiling instead — bounds worst-case abuse if a bridge page/token
     // is ever compromised, without needing per-external-user identity
     // this ecosystem has no way to verify anyway.
-    public static function relay_message($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function relay_message(\WP_REST_Request $req) {
         $stream_id = (int) $req->get_param('stream_id');
         if (get_post_type($stream_id) !== 'bhl_stream') {
             return new WP_Error('not_found', 'Stream not found.', ['status' => 404]);

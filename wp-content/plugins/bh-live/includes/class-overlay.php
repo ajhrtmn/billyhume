@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) exit;
  * active rather than fataling.
  */
 class BHL_Overlay {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhl/v1', '/overlay/(?P<stream_id>\d+)/chat', [
             'methods' => 'GET', 'callback' => [self::class, 'render_chat'], 'permission_callback' => '__return_true',
         ]);
@@ -48,21 +48,21 @@ class BHL_Overlay {
     // pages bypass the REST response cycle entirely instead, matching
     // the one honest way to serve arbitrary HTML from within a
     // register_rest_route callback.
-    private static function output_html($html) {
+    private static function output_html(string $html): void {
         status_header(200);
         header('Content-Type: text/html; charset=utf-8');
         echo $html;
         exit;
     }
 
-    private static function page_shell($title, $body_html, $extra_css = '') {
+    private static function page_shell(string $title, string $body_html, string $extra_css = ''): string {
         $css = class_exists('BHY_Style') ? BHY_Style::inline_css() : '';
         return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . esc_html($title) . '</title>'
             . '<style>html,body{margin:0;padding:0;background:transparent;overflow:hidden;}' . $css . $extra_css . '</style>'
             . '</head><body>' . $body_html . '</body></html>';
     }
 
-    public static function render_chat($req) {
+    public static function render_chat(\WP_REST_Request $req): void {
         $stream_id = (int) $req->get_param('stream_id');
         if (get_post_type($stream_id) !== 'bhl_stream') {
             self::output_html(self::page_shell('Stream not found', '<p style="color:#f88;font-family:sans-serif;">Stream not found.</p>'));
@@ -89,7 +89,7 @@ class BHL_Overlay {
         self::output_html(self::page_shell('Stream chat', $body . $scripts, $extra_css));
     }
 
-    public static function render_votes($req) {
+    public static function render_votes(\WP_REST_Request $req): void {
         if (!class_exists('BH_API')) {
             self::output_html(self::page_shell('Contest votes', '<p style="color:#f88;font-family:sans-serif;">bh-contest is not active.</p>'));
         }
@@ -130,7 +130,7 @@ class BHL_Overlay {
     // broadcaster's own local OBS WebSocket and polls
     // BHL_Automation::get_events() for triggers — see that class's
     // docblock for why this is token-gated rather than session-gated.
-    public static function render_automation_bridge($req) {
+    public static function render_automation_bridge(\WP_REST_Request $req): void {
         $token = (string) $req->get_param('token');
         $user_id = class_exists('BHL_Automation') ? BHL_Automation::user_for_token($token) : 0;
         if (!$user_id) {
@@ -166,7 +166,7 @@ class BHL_Overlay {
         self::output_html(self::page_shell('OBS Automation', $body . $scripts));
     }
 
-    public static function health($req) {
+    public static function health(\WP_REST_Request $req): \WP_REST_Response {
         $stream_id = (int) $req->get_param('stream_id');
         $stream_exists = get_post_type($stream_id) === 'bhl_stream';
         $chat_configured = false;

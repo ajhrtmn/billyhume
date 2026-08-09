@@ -28,11 +28,12 @@ if (!defined('ABSPATH')) exit;
 class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
     const API_BASE = 'https://api.cloudflare.com/client/v4';
 
-    public static function settings() {
+    /** @return array{account_id:string, api_token:string, customer_code:string, live_input_uid:string, rtmps_url:string, stream_key:string} */
+    public static function settings(): array {
         return get_option('bhl_cloudflare_settings', ['account_id' => '', 'api_token' => '', 'customer_code' => '', 'live_input_uid' => '', 'rtmps_url' => '', 'stream_key' => '']);
     }
 
-    public static function save_connection_settings($account_id, $api_token, $customer_code) {
+    public static function save_connection_settings(string $account_id, string $api_token, string $customer_code): void {
         $existing = self::settings();
         $existing['account_id'] = sanitize_text_field($account_id);
         // Blank token keeps the existing saved one — same convention
@@ -42,7 +43,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         update_option('bhl_cloudflare_settings', $existing);
     }
 
-    private static function save_live_input($uid, $rtmps_url, $stream_key) {
+    private static function save_live_input(string $uid, string $rtmps_url, string $stream_key): void {
         $existing = self::settings();
         $existing['live_input_uid'] = $uid;
         $existing['rtmps_url'] = $rtmps_url;
@@ -50,12 +51,16 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         update_option('bhl_cloudflare_settings', $existing);
     }
 
-    public function is_configured() {
+    public function is_configured(): bool {
         $s = self::settings();
         return !empty($s['account_id']) && !empty($s['api_token']) && !empty($s['customer_code']);
     }
 
-    private function request($method, $path, $body = null) {
+    /**
+     * @param array<string, mixed>|null $body
+     * @return array<string, mixed>|\WP_Error
+     */
+    private function request(string $method, string $path, ?array $body = null) {
         $s = self::settings();
         $args = [
             'method'  => $method,
@@ -84,6 +89,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
      * a broadcaster plugs into OBS, same role Owncast's own stream key
      * plays, just issued by Cloudflare instead of self-hosted.
      */
+    /** @return array{uid:string, rtmps_url:string, stream_key:string}|\WP_Error */
     public function create_live_input() {
         if (!$this->is_configured()) return new WP_Error('not_configured', 'Cloudflare Stream isn\'t configured yet — enter an account ID, API token, and customer code first.');
 
@@ -109,6 +115,7 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
     // viewer-count field exists here the way Owncast's /api/status
     // provides one, so get_status() honestly can't report viewers for
     // this engine.
+    /** @return array{online:bool, viewer_count:int, stream_title:string}|\WP_Error */
     public function get_status() {
         $s = self::settings();
         if (empty($s['live_input_uid'])) return new WP_Error('not_configured', 'No live input has been created yet.');
@@ -124,13 +131,14 @@ class BHL_CloudflareStreamEngine implements BHL_StreamEngine {
         ];
     }
 
-    public function get_embed_html() {
+    public function get_embed_html(): string {
         $s = self::settings();
         if (empty($s['live_input_uid']) || empty($s['customer_code'])) return '';
         $src = esc_url('https://customer-' . $s['customer_code'] . '.cloudflarestream.com/' . $s['live_input_uid'] . '/iframe');
         return '<iframe src="' . $src . '" style="width:100%;aspect-ratio:16/9;border:0;" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
     }
 
+    /** @return bool|\WP_Error */
     public function disconnect() {
         return new WP_Error('not_supported', 'Cloudflare Stream Live has no API to force-disconnect a broadcaster — this has to be stopped from the broadcasting software\'s own end (OBS, etc.).');
     }

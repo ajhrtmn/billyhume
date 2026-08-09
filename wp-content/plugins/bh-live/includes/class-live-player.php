@@ -7,12 +7,12 @@ if (!defined('ABSPATH')) exit;
  * own player CSS, same --bh-* design tokens.
  */
 class BHL_Player {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_live', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
         if (!$post || !has_shortcode($post->post_content, 'bh_live')) return;
@@ -34,7 +34,8 @@ class BHL_Player {
         ]);
     }
 
-    public static function render($atts = []) {
+    /** @param array<string, mixed> $atts */
+    public static function render($atts = []): string {
         return '
         <div class="bhl-app" id="bhl-app">
             <div class="bhl-live-row">

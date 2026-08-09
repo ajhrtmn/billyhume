@@ -15,16 +15,16 @@ class BHL_EngineRegistry {
         'cloudflare' => ['label' => 'Cloudflare Stream Live (managed, metered)', 'class' => 'BHL_CloudflareStreamEngine'],
     ];
 
-    public static function active_key() {
+    public static function active_key(): string {
         $key = get_option('bhl_active_engine', 'owncast');
         return isset(self::ENGINES[$key]) ? $key : 'owncast';
     }
 
-    public static function save_active_key($key) {
+    public static function save_active_key(string $key): void {
         if (isset(self::ENGINES[$key])) update_option('bhl_active_engine', $key);
     }
 
-    public static function active() {
+    public static function active(): ?\BHL_StreamEngine {
         $key = self::active_key();
         $class = self::ENGINES[$key]['class'];
         return class_exists($class) ? new $class() : null;
@@ -45,7 +45,7 @@ class BHL_EngineRegistry {
         'workers' => ['label' => 'Cloudflare Workers real-time chat (instant, requires Workers Paid plan)', 'class' => 'BHL_WorkersChat', 'engines' => ['cloudflare']],
     ];
 
-    private static function chat_compatible($chat_key, $engine_key) {
+    private static function chat_compatible(string $chat_key, string $engine_key): bool {
         $engines = self::CHAT_OPTIONS[$chat_key]['engines'] ?? [];
         return empty($engines) || in_array($engine_key, $engines, true);
     }
@@ -54,11 +54,11 @@ class BHL_EngineRegistry {
     // chosen yet — Owncast's own bundled chat needs no setup at all,
     // so it stays the default there; polling is the free, zero-setup
     // default for every other engine.
-    private static function default_chat_key_for($engine_key) {
+    private static function default_chat_key_for(string $engine_key): string {
         return $engine_key === 'owncast' ? 'owncast_bundled' : 'polling';
     }
 
-    public static function active_chat_key() {
+    public static function active_chat_key(): string {
         $engine_key = self::active_key();
         $stored = get_option('bhl_active_chat', '');
         if ($stored && isset(self::CHAT_OPTIONS[$stored]) && self::chat_compatible($stored, $engine_key)) {
@@ -67,7 +67,7 @@ class BHL_EngineRegistry {
         return self::default_chat_key_for($engine_key);
     }
 
-    public static function save_active_chat_key($key) {
+    public static function save_active_chat_key(string $key): void {
         if (isset(self::CHAT_OPTIONS[$key])) update_option('bhl_active_chat', $key);
     }
 
@@ -78,7 +78,8 @@ class BHL_EngineRegistry {
     // implementation, built or not yet — this keeps the wizard from
     // ever offering a choice that would silently resolve to nothing
     // if a future entry is added here before its class exists.
-    public static function available_chat_options() {
+    /** @return array<string, array<string, mixed>> */
+    public static function available_chat_options(): array {
         $engine_key = self::active_key();
         return array_filter(
             self::CHAT_OPTIONS,
@@ -87,7 +88,7 @@ class BHL_EngineRegistry {
         );
     }
 
-    public static function active_chat() {
+    public static function active_chat(): ?\BHL_Chat {
         $class = self::CHAT_OPTIONS[self::active_chat_key()]['class'] ?? null;
         return ($class && class_exists($class)) ? new $class() : null;
     }

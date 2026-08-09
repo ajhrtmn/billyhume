@@ -42,11 +42,11 @@ class BHL_Automation {
 
     const ACTIONS = ['switch_scene' => 'Switch to scene', 'toggle_source' => 'Enable a source (Scene:Source)'];
 
-    public static function init() {
+    public static function init(): void {
         add_action('bh_contest_round_advanced', [self::class, 'log_round_advanced'], 10, 2);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhl/v1', '/automation/rules', [
             'methods' => 'GET', 'callback' => [self::class, 'get_rules'], 'permission_callback' => 'is_user_logged_in',
         ]);
@@ -79,21 +79,23 @@ class BHL_Automation {
         ]);
     }
 
-    private static function log_table() {
+    private static function log_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhl_automation_log';
     }
 
-    public static function log_round_advanced($cid, $round) {
+    /** @param mixed $round unused — signature matches the do_action('bh_contest_round_advanced', $cid, $round) call site */
+    public static function log_round_advanced(int $cid, $round): void {
         global $wpdb;
         $wpdb->insert(self::log_table(), [
-            'type' => 'bh_contest_round_advanced', 'subject_id' => (int) $cid,
+            'type' => 'bh_contest_round_advanced', 'subject_id' => $cid,
         ]);
     }
 
     /* ---------------- per-broadcaster storage ---------------- */
 
-    private static function rules($user_id) {
+    /** @return array<int, array<string, mixed>> */
+    private static function rules(int $user_id): array {
         $r = get_user_meta($user_id, 'bhl_obs_rules', true);
         return is_array($r) ? $r : [];
     }
@@ -104,7 +106,8 @@ class BHL_Automation {
     // for their own API credentials (get_option(), no encryption layer
     // exists anywhere in this ecosystem to lean on) — not a new,
     // inconsistent security bar for this one feature to invent.
-    public static function settings($user_id) {
+    /** @return array<string, mixed> */
+    public static function settings(int $user_id): array {
         $s = get_user_meta($user_id, 'bhl_obs_settings', true);
         $s = is_array($s) ? $s : [];
         $s = wp_parse_args($s, ['host' => '127.0.0.1', 'port' => 4455, 'password' => '', 'token' => '']);
@@ -118,11 +121,11 @@ class BHL_Automation {
     // Public wrapper — class-overlay.php's automation-bridge page needs
     // this same token→broadcaster resolution to know whose OBS
     // host/port/password to hand the client-side JS.
-    public static function user_for_token($token) {
+    public static function user_for_token(string $token): int {
         return self::resolve_user_by_token($token);
     }
 
-    private static function resolve_user_by_token($token) {
+    private static function resolve_user_by_token(string $token): int {
         if (!$token) return 0;
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -139,11 +142,12 @@ class BHL_Automation {
 
     /* ---------------- rules REST ---------------- */
 
-    public static function get_rules() {
+    public static function get_rules(): \WP_REST_Response {
         return new WP_REST_Response(['success' => true, 'rules' => self::rules(get_current_user_id()), 'event_types' => self::EVENT_TYPES, 'actions' => self::ACTIONS], 200);
     }
 
-    public static function save_rule($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function save_rule(\WP_REST_Request $req) {
         $user_id = get_current_user_id();
         $event_type = sanitize_text_field((string) $req->get_param('event_type'));
         if (!isset(self::EVENT_TYPES[$event_type])) return new WP_Error('bad_event', 'Unknown event type.', ['status' => 400]);
@@ -158,7 +162,7 @@ class BHL_Automation {
         return new WP_REST_Response(['success' => true, 'rules' => $rules], 200);
     }
 
-    public static function delete_rule($req) {
+    public static function delete_rule(\WP_REST_Request $req): \WP_REST_Response {
         $user_id = get_current_user_id();
         $rid = sanitize_text_field((string) $req->get_param('rule_id'));
         $rules = array_values(array_filter(self::rules($user_id), fn($r) => $r['id'] !== $rid));
@@ -168,13 +172,13 @@ class BHL_Automation {
 
     /* ---------------- settings REST ---------------- */
 
-    public static function get_settings() {
+    public static function get_settings(): \WP_REST_Response {
         $s = self::settings(get_current_user_id());
         unset($s['password']); // never echo the OBS password back over REST — write-only from the admin form
         return new WP_REST_Response(['success' => true, 'settings' => $s], 200);
     }
 
-    public static function save_settings($req) {
+    public static function save_settings(\WP_REST_Request $req): \WP_REST_Response {
         $user_id = get_current_user_id();
         $existing = self::settings($user_id);
         $host = sanitize_text_field((string) $req->get_param('host'));
@@ -196,13 +200,14 @@ class BHL_Automation {
     // 'twitch_channel' alone is enough to enable that source. YouTube
     // read-only chat needs a plain API key (no OAuth — that's only
     // required to POST to chat) plus the live video's own ID.
-    public static function chat_sources($user_id) {
+    /** @return array<string, mixed> */
+    public static function chat_sources(int $user_id): array {
         $s = get_user_meta($user_id, 'bhl_chat_sources', true);
         $s = is_array($s) ? $s : [];
         return wp_parse_args($s, ['twitch_channel' => '', 'youtube_api_key' => '', 'youtube_video_id' => '']);
     }
 
-    public static function get_chat_sources() {
+    public static function get_chat_sources(): \WP_REST_Response {
         $s = self::chat_sources(get_current_user_id());
         $out = $s;
         unset($out['youtube_api_key']); // write-only from the admin form, same posture as the OBS password
@@ -210,7 +215,7 @@ class BHL_Automation {
         return new WP_REST_Response(['success' => true, 'sources' => $out], 200);
     }
 
-    public static function save_chat_sources($req) {
+    public static function save_chat_sources(\WP_REST_Request $req): \WP_REST_Response {
         $user_id = get_current_user_id();
         $existing = self::chat_sources($user_id);
         $api_key = (string) $req->get_param('youtube_api_key'); // empty = "leave unchanged"
@@ -224,7 +229,8 @@ class BHL_Automation {
 
     /* ---------------- events REST (token-gated) ---------------- */
 
-    public static function get_events($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_events(\WP_REST_Request $req) {
         $user_id = self::resolve_user_by_token((string) $req->get_param('token'));
         if (!$user_id) return new WP_Error('bad_token', 'Invalid or missing token.', ['status' => 403]);
 

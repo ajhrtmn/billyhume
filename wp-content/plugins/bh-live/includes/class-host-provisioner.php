@@ -15,8 +15,11 @@ if (!defined('ABSPATH')) exit;
  * job once the box is up and its URL is in bhl_owncast_settings.
  */
 interface BHL_HostProvisioner {
-    public function is_configured();
-    public function provision();       // -> ['host_id' => string, 'public_url' => string] or WP_Error
-    public function get_status($host_id); // -> ['state' => 'starting'|'running'|'stopped'|'unknown'] or WP_Error
-    public function destroy($host_id); // -> true or WP_Error
+    public function is_configured(): bool;
+    /** @return array{host_id:string, public_url:string}|\WP_Error */
+    public function provision();
+    /** @return array{state:string}|\WP_Error */
+    public function get_status(string $host_id);
+    /** @return bool|\WP_Error */
+    public function destroy(string $host_id);
 }
