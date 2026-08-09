@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * manual "Sync now" button.
  */
 class BHMP_Debug {
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('OUS_Debug')) return;
         OUS_Debug::register(
             'bh-mailpoet', 'BH MailPoet',
@@ -20,7 +20,7 @@ class BHMP_Debug {
         );
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         $mailpoet_active = class_exists('\MailPoet\API\API');
         $last_sync_at    = (int) get_option('bhmp_last_sync_at', 0);
         $last_counts     = get_option('bhmp_last_sync_counts', ['synced' => 0, 'failed' => 0]);
@@ -43,7 +43,8 @@ class BHMP_Debug {
         OUS_Debug::button('bh-mailpoet', 'sync_now', 'Sync now');
     }
 
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, array $post): string {
         if ($action !== 'sync_now') return 'Unknown action.';
         $result = BHMP_Sync::sync_all();
         if ($result['skipped_no_mailpoet']) return 'MailPoet isn\'t installed — nothing to sync.';

@@ -2,12 +2,31 @@
 /**
  * Plugin Name: BH MailPoet
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.1.0
+ * Version:     1.1.1
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 1.1.1 — Ecosystem quality Phase 2, brick 1 of 13 (this plugin had the
+// fewest PHPStan level-6 findings of all 12, so it's the first): added
+// native return types and parameter types to every method that was
+// missing one (class-debug.php, class-instant-sync.php,
+// class-scheduled-sync.php, class-sync.php — 32 findings total, all
+// the two purely mechanical categories: "no return type specified" and
+// "parameter with no type specified"). Hook-callback parameters whose
+// real value comes from WordPress/WooCommerce (sync_from_user_id,
+// sync_from_order, sync_from_entitlement, sync_from_event) are typed
+// `mixed` at the boundary and cast internally, same as the existing
+// (int) casts those methods already did — no behavior change, purely
+// additive type declarations. This plugin is now clean at PHPStan
+// level 6 in isolation; phpstan.neon itself stays at level 5
+// ecosystem-wide until all 12 plugins are done (see phpstan.neon's own
+// comment once that flip happens) so Phase 1's CI gate doesn't break
+// mid-effort.
+// NOT runtime-verified against a live MailPoet install (same
+// disclosure as this plugin's original build — nothing here changes
+// behavior, only adds compile-time type declarations).
 // 1.1.0 — Registers this plugin as the enhancer for own-ur-shit 3.10.0's
 // new 'email_broadcast' OUS_Integration contract (OUS_Integration::
 // register('email_broadcast', ['enhancer_class' => 'BHMP_Sync'])) —
@@ -49,7 +68,7 @@ if (!defined('ABSPATH')) exit;
 // its own developer docs) before relying on this in production; `php -l`
 // is clean on every file here, but that only proves valid PHP syntax,
 // not that these calls match MailPoet's real method signatures.
-define('BHMP_VER',  '1.1.0');
+define('BHMP_VER',  '1.1.1');
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
 

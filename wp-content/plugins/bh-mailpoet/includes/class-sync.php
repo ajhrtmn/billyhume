@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) exit;
  * in production.
  */
 class BHMP_Sync {
-    public static function init() {
+    public static function init(): void {
         // Pure API class, no hooks of its own — mirrors BHM_Wallet's own
         // init() reasoning in bh-monetization-woo.
     }
@@ -40,9 +40,11 @@ class BHMP_Sync {
      * pass mapping bh-crm segments to distinct lists doesn't need this
      * method to change shape, just what it's called with.
      */
+    /** @var array<string, int|string> */
     private static $list_id_cache = [];
 
-    public static function get_or_create_list_id($name = null) {
+    /** @return int|string|null MailPoet's own list id shape (varies by version) */
+    public static function get_or_create_list_id(?string $name = null) {
         $api = self::api();
         if (!$api) return null;
 
@@ -71,7 +73,7 @@ class BHMP_Sync {
      * first space — a real name field, not separate first/last columns,
      * so this is a best-effort split, not authoritative).
      */
-    public static function sync_contact($user_id) {
+    public static function sync_contact(int $user_id): bool {
         $api = self::api();
         if (!$api) return false;
 
@@ -143,7 +145,7 @@ class BHMP_Sync {
     }
 
     /** Account deletion / explicit "stop syncing this person" path. */
-    public static function remove_contact($user_id) {
+    public static function remove_contact(int $user_id): bool {
         $api = self::api();
         if (!$api) return false;
 
@@ -161,7 +163,8 @@ class BHMP_Sync {
         }
     }
 
-    private static function log($level, $message, $context = []) {
+    /** @param array<string, mixed> $context */
+    private static function log(string $level, string $message, array $context = []): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log($level, $message, $context, 'BH MailPoet');
         }

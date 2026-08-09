@@ -11,13 +11,13 @@ if (!defined('ABSPATH')) exit;
 class BHMP_ScheduledSync {
     const JOB_HOOK = 'bhmp_daily_resync';
 
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('OUS_Jobs')) return; // no queue infra, no job — same guard every other OUS_Jobs consumer in this ecosystem uses
         OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run']);
         add_action('init', [self::class, 'maybe_schedule_first_run']);
     }
 
-    public static function maybe_schedule_first_run() {
+    public static function maybe_schedule_first_run(): void {
         if (get_option('bhmp_resync_job_scheduled')) return;
         update_option('bhmp_resync_job_scheduled', time());
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::interval());
@@ -25,11 +25,12 @@ class BHMP_ScheduledSync {
 
     // Filterable so this can be tightened (or loosened) without a
     // redeploy — default daily, per the approved plan.
-    private static function interval() {
+    private static function interval(): int {
         return (int) apply_filters('bhmp_sync_interval', DAY_IN_SECONDS);
     }
 
-    public static function run($args = []) {
+    /** @param array<string, mixed> $args */
+    public static function run($args = []): void {
         // Reschedule first — a fatal partway through sync_all() shouldn't
         // silently kill the recurring job forever, same reasoning as
         // BHC_DripNudges::run()'s own comment.

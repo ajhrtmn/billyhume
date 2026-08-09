@@ -34,7 +34,8 @@ class BHMP_InstantSync {
     // and not contact-relevant wouldn't be worth adding here. Filterable
     // so a future plugin's own event type can opt in without editing
     // this file.
-    private static function watched_event_types() {
+    /** @return string[] */
+    private static function watched_event_types(): array {
         return apply_filters('bhmp_watched_event_types', [
             'bh/vote',
             'bh/submission_created',
@@ -46,7 +47,7 @@ class BHMP_InstantSync {
         ]);
     }
 
-    public static function init() {
+    public static function init(): void {
         add_action('user_register', [self::class, 'sync_from_user_id']);
         add_action('profile_update', [self::class, 'sync_from_user_id']);
         add_action('woocommerce_order_status_completed', [self::class, 'sync_from_order']);
@@ -54,11 +55,13 @@ class BHMP_InstantSync {
         add_action('bh_event_emitted', [self::class, 'sync_from_event'], 10, 3);
     }
 
-    public static function sync_from_user_id($user_id) {
+    /** @param mixed $user_id hook-supplied — always cast before use, never trusted as already-int */
+    public static function sync_from_user_id($user_id): void {
         if ($user_id) BHMP_Sync::sync_contact((int) $user_id);
     }
 
-    public static function sync_from_order($order_id) {
+    /** @param mixed $order_id hook-supplied order ID */
+    public static function sync_from_order($order_id): void {
         if (!function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order) return;
@@ -66,13 +69,21 @@ class BHMP_InstantSync {
         if ($user_id) BHMP_Sync::sync_contact((int) $user_id); // guest checkouts (customer_id 0) have no account to sync
     }
 
-    /** bhm_entitlement_granted($user_id, $type, $scope, $object_id) — only the first arg is needed here. */
-    public static function sync_from_entitlement($user_id) {
+    /**
+     * bhm_entitlement_granted($user_id, $type, $scope, $object_id) — only the first arg is needed here.
+     * @param mixed $user_id hook-supplied
+     */
+    public static function sync_from_entitlement($user_id): void {
         if ($user_id) BHMP_Sync::sync_contact((int) $user_id);
     }
 
-    /** bh_event_emitted($type, $job_args, $args) — see own-ur-shit's class-event.php. */
-    public static function sync_from_event($type, $job_args, $args) {
+    /**
+     * bh_event_emitted($type, $job_args, $args) — see own-ur-shit's class-event.php.
+     * @param mixed $type
+     * @param array<string, mixed> $job_args
+     * @param mixed $args
+     */
+    public static function sync_from_event($type, $job_args, $args): void {
         if (!in_array($type, self::watched_event_types(), true)) return;
         $user_id = (int) ($job_args['user_id'] ?? 0);
         if ($user_id) BHMP_Sync::sync_contact($user_id);
