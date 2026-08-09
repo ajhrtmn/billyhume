@@ -687,7 +687,10 @@ class BHY_Style {
         $params = [];
         foreach (['display', 'body'] as $slot) {
             $picked = $s['font_' . $slot];
-            if (isset(self::FONT_OPTIONS[$picked]) && self::FONT_OPTIONS[$picked]) {
+            // PHPStan-confirmed redundant: FONT_OPTIONS' values are all
+            // non-empty string constants, so once isset() confirms the
+            // key exists the value is always truthy already.
+            if (isset(self::FONT_OPTIONS[$picked])) {
                 $params[self::FONT_OPTIONS[$picked]] = true;
             }
         }

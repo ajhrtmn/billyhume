@@ -133,20 +133,11 @@ class BHM_Entitlements {
         }
     }
 
-    // Only reached if BH_Commerce itself isn't loaded (an old core) —
-    // the exact same direct-WooCommerce shape this migration removed
-    // from the main path, kept as a single explicit fallback rather
-    // than silently no-op'ing order fulfillment on an old core.
-    private static function legacy_get_order_array($order_id) {
-        if (!function_exists('wc_get_order')) return null;
-        $order = wc_get_order($order_id);
-        if (!$order) return null;
-        $items = [];
-        foreach ($order->get_items() as $item) {
-            $items[] = ['product_id' => $item->get_product_id(), 'quantity' => $item->get_quantity(), 'gift_email' => (string) $item->get_meta('_bhm_gift_email')];
-        }
-        return ['id' => $order->get_id(), 'customer_id' => $order->get_customer_id(), 'items' => $items];
-    }
+    // legacy_get_order_array() removed — PHPStan-confirmed genuinely
+    // dead code (no call site anywhere in this plugin). Its own comment
+    // described it as a fallback for "BH_Commerce itself isn't loaded,"
+    // but whatever was meant to call it never did, or was removed
+    // separately without cleaning this up.
 
     // The reversal counterpart to on_order_completed() — a refunded or
     // cancelled order takes back whatever it granted. Wallet top-ups are

@@ -355,7 +355,7 @@ class BHI_TwoFactor {
     public static function render_settings_page() {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $enabled = self::site_enabled();
-        $enrolled_count = (int) (new WP_User_Query(['meta_key' => self::ENABLED_META_KEY, 'meta_value' => 1, 'fields' => 'ID', 'number' => 0, 'count_total' => true]))->get_total();
+        $enrolled_count = (int) (new WP_User_Query(['meta_key' => self::ENABLED_META_KEY, 'meta_value' => '1', 'fields' => 'ID', 'number' => 0, 'count_total' => true]))->get_total();
 
         echo '<div class="wrap"><h1>Security</h1>';
         echo '<h2>Two-Factor Authentication</h2>';

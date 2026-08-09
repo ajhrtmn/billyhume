@@ -11,10 +11,19 @@ parameters:
         - wp-content/plugins/bh-monetization-woo
         - wp-content/plugins/bh-registry
         - wp-content/plugins/bh-streaming
+        - wp-content/plugins/bh-mailpoet
+        - wp-content/plugins/bh-tickets
     excludePaths:
         - */vendor/*
         - */tests/*
         - */bundled/*
+        # Query Monitor integration — see the docblock at the top of this
+        # file for why (both real classes it extends aren't installed/
+        # stubbed anywhere, and no public PHPStan stub package exists for
+        # Query Monitor). A whole-file exclude is more honest here than
+        # chasing several different error identifiers (constructor/
+        # property/method) that all trace back to the same one gap.
+        - wp-content/plugins/own-ur-shit/includes/class-qm-integration.php
     bootstrapFiles:
         # Dummy values for each plugin's own _URL/_PATH/_VER constants
         # (define()'d via plugin_dir_url()/plugin_dir_path() in each
@@ -26,8 +35,117 @@ parameters:
         - phpstan-bootstrap.php
     scanDirectories:
         - wp-content/plugins/own-ur-shit
-    # WooCommerce/WordPress globals PHPStan can't otherwise resolve without
-    # those plugins' own stub packages installed — bumping to level 6+ later
-    # will likely need woocommerce/action-scheduler-job-framework-style
-    # stubs or a hand-rolled stub file for $wpdb-adjacent WooCommerce classes.
+    scanFiles:
+        # Real WooCommerce stub package (php-stubs/woocommerce-stubs) —
+        # eliminates the large "Function wc_get_product not found"/"Class
+        # WC_Product_Simple not found" false-positive class that was
+        # previously the single biggest source of noise in own-ur-shit's
+        # and bh-monetization-woo's error counts, now that a real stub
+        # exists instead of each WC_* symbol being individually ignored.
+        # woocommerce-packages-stubs.php additionally covers WC
+        # Subscriptions/Blocks-adjacent classes (e.g. WC_Product_Subscription)
+        # this codebase actually references.
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+        - vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+    # WooCommerce is now stubbed for real (scanFiles above) — bumping to
+    # level 6+ later will likely still need an Action Scheduler stub
+    # (as_schedule_single_action() etc., used by OUS_Jobs) for full
+    # coverage of that one remaining unstubbed dependency.
     reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        # bh-mailpoet's class-sync.php calls MailPoet's own API
+        # (MailPoet\API\MP\v1\API) behind class_exists('\MailPoet\API\API')
+        # guards at every call site — a real, correct optional-dependency
+        # pattern, not a bug. MailPoet itself isn't installed in this
+        # analysis environment (same reasoning already applied to the
+        # WC_Log_Handler_Interface/BHL_*/Advanced_Media_Offloader unknown-
+        # class noise elsewhere in this config), so PHPStan can't resolve
+        # the class at all. Scoped to that one namespace, not a blanket
+        # "ignore unknown classes" rule.
+        -
+            message: '#(MailPoet\\|Call to method \w+\(\) on an unknown class MailPoet\\)#'
+            path: wp-content/plugins/bh-mailpoet/includes/class-sync.php
+        # class-media-wizard.php's bh-live integration (BHL_EngineRegistry,
+        # BHL_OwncastEngine, BHL_CloudflareStreamEngine, BHL_FlyProvisioner,
+        # BHL_WorkersChat) and Advanced Media Offloader integration are both
+        # real, correct optional-dependency patterns — every call site is
+        # guarded by class_exists() at call time (this ecosystem's own
+        # standing convention, see CLAUDE.md). Neither bh-live nor Advanced
+        # Media Offloader is in phpstan.neon's scanned `paths` (bh-live
+        # isn't part of this repo's own plugin set the way bh-contest/
+        # bh-crm/etc. are, and Advanced Media Offloader is a genuine
+        # third-party WordPress.org plugin, not authored here), so PHPStan
+        # can't resolve either — same class of noise as the MailPoet rule
+        # above, not real bugs.
+        -
+            message: '#(unknown class BHL_\w+|BHL_\w+ not found|Advanced_Media_Offloader)#'
+            path: wp-content/plugins/own-ur-shit/includes/class-media-wizard.php
+        # WC_Product_Subscription is a WooCommerce Subscriptions class (a
+        # separate paid extension, not core WooCommerce) — class-commerce.php
+        # only reaches this branch after a WC_Subscriptions-active check
+        # elsewhere in the same method. php-stubs/woocommerce-stubs only
+        # covers WooCommerce core, not the Subscriptions extension.
+        -
+            message: '#WC_Product_Subscription#'
+            path: wp-content/plugins/own-ur-shit/includes/class-commerce.php
+        -
+            message: '#WC_Product_Subscription#'
+            path: wp-content/plugins/bh-monetization-woo/includes/class-product-sync.php
+        # register_block_type()'s 'api_version' arg — WordPress core's OWN
+        # docblock types this as `string` (confirmed: php-stubs/wordpress-
+        # stubs just reproduces that docblock verbatim), but the real
+        # property default (WP_Block_Type::$api_version = 1) and every
+        # real-world usage — every block.json's "apiVersion" field, every
+        # core Gutenberg block registration — is a bare integer (1, 2, 3).
+        # This is a known inaccuracy in WP core's own docs, not a bug
+        # here; passing a string would be the actually-wrong choice.
+        -
+            message: '#api_version#'
+            path: wp-content/plugins/bh-monetization-woo/includes/class-storefront.php
+        # A well-documented PHPStan limitation, not a real bug: a variable
+        # captured by-reference into a closure (use (&$var)) and mutated
+        # only when WordPress's hook system later CALLS that closure
+        # indirectly (add_filter()/do_action()) is invisible to PHPStan's
+        # flow analysis — it sees the variable's state at the point the
+        # closure was DEFINED, never the mutation from the later indirect
+        # call, and reports the pre-mutation state as though it were
+        # permanent. Confirmed in both files below by tracing the actual
+        # closure wiring before ignoring: class-codebase-docs.php's
+        # $flush_paragraph is called repeatedly across a real loop that
+        # populates $paragraph first (line 177); class-core-test-suite.php's
+        # $captured is set by a closure registered via
+        # add_filter('pre_wp_mail', ...) and only read after the
+        # BH_Mail::send() call that triggers it.
+        -
+            message: '#(Negated boolean expression is always true|Unreachable statement)#'
+            path: wp-content/plugins/own-ur-shit/includes/class-codebase-docs.php
+        -
+            message: '#(Offset .(to|headers). on null on left side of \?\? does not exist|will always evaluate to false)#'
+            path: wp-content/plugins/own-ur-shit/includes/class-core-test-suite.php
+        # add_submenu_page(null, ...) — a deliberate, documented pattern
+        # (CLAUDE.md's own "New dev/admin-only pages" section, and each
+        # call site's own surrounding comment): registering a hidden page
+        # with NO parent at all, specifically to sidestep a real,
+        # previously-hit WordPress page-hook-resolution bug this install
+        # documented after multiple sessions of debugging. WP core's own
+        # add_submenu_page() docblock types $parent_slug as plain string
+        # (not ?string), but the real function body has no type
+        # declaration to actually enforce that — null is accepted at
+        # runtime. Not changing working, deliberately-chosen behavior on
+        # a docblock-only type mismatch without the ability to verify a
+        # change against a live install.
+        -
+            message: '#Parameter \#1 \$parent_slug of function add_submenu_page expects string, null given#'
+            paths:
+                - wp-content/plugins/own-ur-shit/includes/class-studio.php
+                - wp-content/plugins/own-ur-shit/includes/class-style-gallery.php
+        # BH_Element_Prefab was deleted along with ~6,700 lines of the
+        # custom page-builder (see CLAUDE.md's "page-builder saga" and
+        # this exact file's own line-45 comment: "BH_Element_Prefab
+        # doesn't currently exist, but this stays correct") — every call
+        # site is already behind class_exists('BH_Element_Prefab'), a
+        # deliberately-preserved optional-integration seam for if that
+        # class is ever reintroduced, not a broken reference.
+        -
+            message: '#unknown class BH_Element_Prefab#'
+            path: wp-content/plugins/own-ur-shit/includes/class-gutenberg-block.php

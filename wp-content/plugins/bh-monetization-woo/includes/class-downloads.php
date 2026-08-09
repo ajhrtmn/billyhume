@@ -47,7 +47,13 @@ class BHM_Downloads {
         $order = wc_get_order($order_id);
         if (!$order) return;
 
+        // get_items() with no type filter returns WC's default
+        // 'line_item' type only, which in practice is always
+        // WC_Order_Item_Product — but the base WC_Order_Item type it's
+        // typed to return has no get_product_id(). Guarding with
+        // instanceof makes that guarantee explicit (PHPStan-caught).
         foreach ($order->get_items() as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
             try {
                 self::attach_for_item($item);
             } catch (\Throwable $e) {

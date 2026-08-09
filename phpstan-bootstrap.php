@@ -47,6 +47,17 @@ define('BHS_VER', '0.0.0');
 define('BHS_PATH', __DIR__ . '/wp-content/plugins/bh-streaming/');
 define('BHS_URL', 'http://example.test/wp-content/plugins/bh-streaming/');
 
+// bh-mailpoet
+define('BHMP_VER', '0.0.0');
+define('BHMP_PATH', __DIR__ . '/wp-content/plugins/bh-mailpoet/');
+define('BHMP_URL', 'http://example.test/wp-content/plugins/bh-mailpoet/');
+define('BHMP_DEFAULT_LIST_NAME', 'test-list');
+
+// bh-tickets
+define('BHT_VER', '0.0.0');
+define('BHT_PATH', __DIR__ . '/wp-content/plugins/bh-tickets/');
+define('BHT_URL', 'http://example.test/wp-content/plugins/bh-tickets/');
+
 // WordPress core constants a handful of includes/*.php files reference
 // directly that the WordPress stub package doesn't define values for.
 // Deliberately NOT defining COOKIEPATH/COOKIE_DOMAIN here even though a

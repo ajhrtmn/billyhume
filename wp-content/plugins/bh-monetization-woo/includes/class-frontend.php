@@ -85,7 +85,12 @@ class BHM_Frontend {
         $order = wc_get_order($order_id);
         if (!$order) return;
 
+        // Same instanceof guard as class-downloads.php — get_items()
+        // with no type filter is always WC_Order_Item_Product in
+        // practice, but its base WC_Order_Item type has no
+        // get_product_id() (PHPStan-caught).
         foreach ($order->get_items() as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
             $product_id = $item->get_product_id();
             $tier_id = (int) get_post_meta($product_id, '_bhm_tier_id', true);
             if (!$tier_id) continue;

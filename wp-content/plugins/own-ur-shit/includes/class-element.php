@@ -397,8 +397,14 @@ class BH_Element {
         $surfaces = $args['surfaces'] ?? [];
         if ($surfaces !== '*' && !is_array($surfaces)) $surfaces = [];
 
+        // PHPStan-confirmed dead code: both ternary branches above always
+        // produce a non-empty array (the false branch is a literal
+        // ['div']; the true branch only runs when $args['tags'] is
+        // already non-empty, and array_map()/array_values() preserve
+        // that count) — the "never allow empty" guard this used to have
+        // here could never actually trigger. Removed rather than kept as
+        // defensive dead code.
         $tags = (!empty($args['tags']) && is_array($args['tags'])) ? array_values(array_map('sanitize_key', $args['tags'])) : ['div'];
-        if (!$tags) $tags = ['div']; // never allow an empty tag list to collapse resolve_tag() to nothing
 
         self::$types[$slug] = [
             'label'     => (string) ($args['label'] ?? $slug),

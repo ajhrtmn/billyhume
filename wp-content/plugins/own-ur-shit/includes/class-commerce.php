@@ -155,8 +155,17 @@ class BH_Commerce {
         $order = wc_get_order((int) $order_id);
         if (!$order) return null;
 
+        // Real gap PHPStan surfaced: get_items() with no type filter
+        // returns WC's default 'line_item' type only, which in practice
+        // is always WC_Order_Item_Product — but the base WC_Order_Item
+        // type get_items() is typed to return has no get_product_id().
+        // Guarding with instanceof makes that guarantee explicit rather
+        // than implicit, so a future type filter added here can't
+        // silently start calling get_product_id() on a shipping/fee/
+        // coupon line item and fatal.
         $items = [];
         foreach ($order->get_items() as $item) {
+            if (!$item instanceof WC_Order_Item_Product) continue;
             $items[] = [
                 'product_id' => $item->get_product_id(),
                 'quantity' => $item->get_quantity(),

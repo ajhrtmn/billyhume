@@ -378,7 +378,10 @@ class BHM_Storefront {
             if ($hero_tree) echo BH_Content::render($hero_tree);
         }
 
-        echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true], '');
+        // PHPStan caught a stray second argument — render_product_grid_block()
+        // only ever took one ($attrs); the '' was leftover cruft (harmless
+        // at runtime, PHP silently ignores an extra arg, but not correct).
+        echo self::render_product_grid_block(['collection' => $term->slug, 'columns' => 4, 'limit' => 24, 'showFilters' => true]);
         echo '</div>';
         self::print_footer();
     }

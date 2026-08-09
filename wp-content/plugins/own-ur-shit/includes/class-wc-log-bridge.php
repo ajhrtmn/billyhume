@@ -41,10 +41,12 @@ class OUS_WCLogBridge implements WC_Log_Handler_Interface {
 
     // WC_Log_Handler_Interface's one required method.
     public function handle($timestamp, $level, $message, $context) {
+        // WC_Log_Handler_Interface::handle()'s own docblock types $context
+        // as always array — the is_array()/[] fallback here was dead code.
         OUS_DebugLog::log(
             self::LEVEL_MAP[$level] ?? 'info',
             (string) $message,
-            is_array($context) ? $context : [],
+            $context,
             'WooCommerce'
         );
         return true; // "handled" — doesn't stop WC's own file handler from also running (each registered handler runs independently, see WC_Logger::log()'s own foreach).

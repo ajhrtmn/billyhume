@@ -70,7 +70,7 @@ class OUS_Installer {
         $main_file = $slug . '/' . $slug . '.php'; // this ecosystem's own convention — a plugin's bootstrap file is always named after its folder
         $installed_path = WP_PLUGIN_DIR . '/' . $main_file;
         if (file_exists($installed_path)) {
-            $installed_version = get_plugin_data($installed_path, false, false)['Version'] ?? '';
+            $installed_version = get_plugin_data($installed_path, false, false)['Version'];
             $bundled_version = class_exists('OUS_Registry') ? OUS_Registry::read_zip_plugin_version($zip_path) : null;
             if ($installed_version && $bundled_version && version_compare($bundled_version, $installed_version, '<')) {
                 self::$last_error = 'bundle_stale';
@@ -84,7 +84,10 @@ class OUS_Installer {
         // resolves to the 'direct' method transparently with no prompt,
         // since that's the same access level normal plugin uploads
         // already rely on.
-        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, false, null);
+        // Real bug PHPStan caught: the 4th positional arg is $context
+        // (string, default '') — this was passing false where WP core's
+        // real signature (wp-admin/includes/file.php) expects a string.
+        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 
         $result = unzip_file($zip_path, WP_PLUGIN_DIR);
@@ -100,7 +103,10 @@ class OUS_Installer {
         $api = plugins_api('plugin_information', ['slug' => $slug, 'fields' => ['sections' => false]]);
         if (is_wp_error($api) || empty($api->download_link)) return false;
 
-        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, false, null);
+        // Real bug PHPStan caught: the 4th positional arg is $context
+        // (string, default '') — this was passing false where WP core's
+        // real signature (wp-admin/includes/file.php) expects a string.
+        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 
         $upgrader = new Plugin_Upgrader(new Automatic_Upgrader_Skin());

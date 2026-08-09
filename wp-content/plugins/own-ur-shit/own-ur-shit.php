@@ -2,10 +2,76 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.9
+ * Version:     3.10.10
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.10 — PHPStan pass, continued: expanded phpstan.neon's scanned
+// `paths` to include bh-mailpoet and bh-tickets (both built earlier this
+// session with zero static analysis ever run against them — bh-tickets
+// came back completely clean, bh-mailpoet's 8 findings were all real
+// class_exists()-guarded MailPoet API calls, now a scoped ignore rather
+// than noise). Installed the real php-stubs/woocommerce-stubs package
+// (composer.json) and wired it in via phpstan.neon's new `scanFiles` —
+// this alone dropped the ecosystem-wide error count by 25 with zero
+// manual fixes, replacing the old ad-hoc "WC_* not found" noise with
+// actual type checking against WooCommerce's real API.
+// Net result for this plugin: 68 errors -> 2 (both the deliberately-
+// unstubbed COOKIEPATH/COOKIE_DOMAIN constants, unchanged from
+// 3.10.9's own documented reasoning). Real bugs fixed, not just noise
+// suppressed:
+// - class-github-updates.php's update(): $skin->get_errors() was
+//   calling a method that doesn't exist on Automatic_Upgrader_Skin (or
+//   its parent WP_Upgrader_Skin) at all — confirmed by reading both
+//   classes' real source directly (wp-admin/includes/class-{wp-
+//   upgrader-skin,automatic-upgrader-skin}.php). This would have
+//   fataled with "Call to undefined method" on every single real
+//   update attempt, success or failure. Fixed to use $result (which
+//   WP_Upgrader::run() already returns as a real WP_Error on failure)
+//   directly instead.
+// - class-installer.php: request_filesystem_credentials()'s real
+//   signature (wp-admin/includes/file.php) types its 4th positional arg
+//   ($context) as string — both call sites were passing false. Fixed to
+//   '' (empty string, the function's own documented default).
+// - class-commerce.php: get_order()'s foreach over $order->get_items()
+//   called get_product_id() on the base WC_Order_Item type, which
+//   doesn't have that method (it's WC_Order_Item_Product-specific) —
+//   harmless in practice today (get_items() with no type filter
+//   defaults to 'line_item', always Product in practice), but now
+//   guarded with a real instanceof check so a future type-filter change
+//   here can't silently start calling it on a shipping/fee/coupon line
+//   item and fatal.
+// Several other findings across this plugin were confirmed genuine
+// PHPStan false positives, not bugs, and scoped-ignored with an
+// explanation rather than "fixed" — see phpstan.neon's own comments:
+// a well-known PHPStan limitation with by-reference closures mutated
+// only via WordPress's indirect hook-call mechanism (class-codebase-
+// docs.php, class-core-test-suite.php); bh-live's BHL_* classes and
+// Advanced Media Offloader (neither in this repo's own scanned paths,
+// both real class_exists()-guarded optional integrations per this
+// ecosystem's own standing convention); BH_Element_Prefab (deliberately
+// deleted along with the rest of the old page-builder, per CLAUDE.md's
+// "page-builder saga" — this file's own pre-existing comment already
+// said so); add_submenu_page(null, ...)'s deliberate, CLAUDE.md-
+// documented hidden-page pattern (WP core's own function has no real
+// type enforcement on this param despite its docblock, and this is
+// proven-working, deliberately-chosen behavior, not something to change
+// on a docblock mismatch alone without live-install verification);
+// Query Monitor's own base classes (no public stub package exists for
+// QM the way it does for WordPress/WooCommerce, and every class this
+// integration defines is itself wrapped in class_exists() so it can
+// never even be declared without QM actually installed) — whole-file
+// excluded rather than several narrow ignores chasing the same root
+// cause.
+// Runtime-verified: none of this — no live WordPress+MySQL install in
+// this session. Every fix above was reasoned through by reading the
+// real, actual source of the WordPress core files/stub packages
+// involved (not guessed), and confirmed via a REAL phpstan analyse run
+// (this session finally has working composer/PHPStan, unlike most of
+// this repo's prior history) — that's a meaningfully stronger
+// verification bar than most of this session's other work, but it is
+// still not the same as exercising this code in a browser.
 
 // 3.10.9 — First real `composer install && vendor/bin/phpstan analyse`
 // run against this repo (repo-root phpstan.neon/composer.lock; the
@@ -919,7 +985,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.9');
+define('OUS_VER', '3.10.10');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

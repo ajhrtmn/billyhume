@@ -190,7 +190,7 @@ class OUS_GithubUpdates {
         $path = WP_PLUGIN_DIR . '/' . ($source['file'] ?? '');
         if (!file_exists($path)) return null;
         $data = get_plugin_data($path, false, false);
-        return $data['Version'] ?? null;
+        return $data['Version'];
     }
 
     private static function remote_main_file_path($source) {
@@ -329,7 +329,17 @@ class OUS_GithubUpdates {
         $result = $upgrader->install($rebuilt_zip, ['overwrite_package' => true]);
         @unlink($rebuilt_zip);
 
-        if (is_wp_error($skin->get_errors())) return $skin->get_errors();
+        // Real bug caught by a real PHPStan run: Automatic_Upgrader_Skin
+        // (and its parent WP_Upgrader_Skin) has no get_errors() method or
+        // $errors property at all — that call would have fataled with
+        // "Call to undefined method" on every single real update attempt,
+        // success or failure, confirmed by reading both classes' actual
+        // source directly (wp-admin/includes/class-{wp-upgrader-skin,
+        // automatic-upgrader-skin}.php). WP_Upgrader::run() (which
+        // install() calls internally) already returns the real WP_Error
+        // directly as $result on failure — that's the actual, correct
+        // source of truth this needed, not a nonexistent skin method.
+        if (is_wp_error($result)) return $result;
         if (!$result) return new WP_Error('install_failed', 'The upgrader reported failure with no specific error — check debug.log.');
 
         self::check_one($key); // refresh status immediately so the UI doesn't still show "update available" right after a successful update

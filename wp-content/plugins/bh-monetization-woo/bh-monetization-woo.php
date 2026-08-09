@@ -2,12 +2,48 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.12
+ * Version:     0.5.13
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.13 — Real bugs surfaced by the repo-root PHPStan pass, now
+// actually running with a real php-stubs/woocommerce-stubs package
+// installed (own-ur-shit 3.10.10) instead of WC_* symbols just being
+// unresolved noise: 56 -> 28 errors from the stub alone, then 28 -> 0
+// (plus the two deliberately-unstubbed COOKIEPATH/COOKIE_DOMAIN
+// constants) from these fixes.
+// - class-downloads.php, class-frontend.php: foreach ($order->
+//   get_items() as $item) called $item->get_product_id(), which only
+//   exists on WC_Order_Item_Product, not the base WC_Order_Item type
+//   get_items() is typed to return. Harmless in practice today (no type
+//   filter passed = WC's own 'line_item' default = always Product in
+//   practice), but now guarded with a real instanceof check so a future
+//   type-filter change can't silently fatal on a shipping/fee/coupon
+//   line item.
+// - class-entitlements.php: removed legacy_get_order_array() —
+//   PHPStan-confirmed genuinely dead code, zero call sites anywhere in
+//   this plugin despite its own comment describing it as a fallback
+//   path; whatever was meant to call it never did.
+// - class-storefront.php: a stray, meaningless second argument on a
+//   render_product_grid_block() call (harmless at runtime — PHP
+//   silently ignores an extra arg — but not correct) removed.
+// class-product-sync.php's WC_Product_Subscription findings and
+// class-storefront.php's register_block_type() api_version int-vs-
+// string findings are confirmed NOT bugs — see own-ur-shit 3.10.10's
+// own changelog and phpstan.neon's inline comments for the reasoning
+// (a real, separate paid WooCommerce extension not covered by the core
+// stub package; a known inaccuracy in WordPress core's own docblock,
+// respectively) — scoped-ignored, not fixed, since the code itself is
+// already correct.
+// NOT runtime-verified against a live WordPress+MySQL install this
+// session — every fix here was confirmed via a real `vendor/bin/phpstan
+// analyse` run (this session has working composer/PHPStan) and by
+// reading WooCommerce's real stub definitions directly, a meaningfully
+// stronger bar than most of this session's other work, but still not
+// the same as exercising a real checkout/download flow in a browser.
 
 // 0.5.12 — Real bugs found by a proper `composer install && vendor/bin/
 // phpstan analyse` run (repo-root phpstan.neon, level 5; the pilot's
@@ -156,7 +192,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.12');
+define('BHM_VER',  '0.5.13');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::
