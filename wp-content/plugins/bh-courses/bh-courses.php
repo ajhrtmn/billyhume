@@ -2,12 +2,30 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.70
+ * Version:     0.4.71
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.4.71 — TypeScript pilot: converted the two remaining large/risky
+// files that were deliberately deferred in the previous round —
+// courses-studio-blocks.js (Gutenberg block registration for the
+// lesson-authoring block types; `wp` typed loosely as `any` given the
+// size of the wp.components/blockEditor surface it touches, real types
+// everywhere else) and courses.js (the full lesson stepper: step
+// navigation, video watch-progress, interactive video annotations,
+// quiz submission — real types throughout, no @ts-nocheck escape
+// hatch, since a build-time check that doesn't actually check
+// anything defeats the point of doing this). Added "DOM.Iterable" to
+// this plugin's tsconfig.json lib list (needed for `for...of
+// formData.entries()`, a real gap the previous tsconfig didn't need
+// until this file). Every compiled .js diff was reviewed line-by-line
+// against the original — the only behavioral deltas are type-safety
+// shims (`?? fallback` on dataset reads, explicit String() coercion
+// into URLSearchParams, which already stringified those values at
+// runtime either way) — no logic changed.
+// NOT runtime-verified against a live browser this session.
 // 0.4.70 — TypeScript pilot: this plugin's FIRST pass (no assets/ts/
 // existed before this pass) — added tsconfig.json (identical shape to
 // every other plugin's) and build:bh-courses/watch:bh-courses npm
@@ -225,7 +243,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.70');
+define('BHC_VER',  '0.4.71');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

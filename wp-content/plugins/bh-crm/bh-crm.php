@@ -2,12 +2,20 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.18
+ * Version:     2.4.19
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 2.4.19 — TypeScript pilot: converted kanban-board.js (the project
+// board — SortableJS multi-column drag/drop, full-slot placement
+// upsert via the BH_Element REST bridge), the last deferred large/risky
+// file in this plugin. Real types throughout (BHPlacement/
+// BHCrmKanbanConfig interfaces), no @ts-nocheck. Shares subtasks.ts's
+// SortableApi/BHCoreToast global declarations (same tsc program, same
+// global scope) rather than redeclaring them.
+// NOT runtime-verified against a live browser this session.
 // 2.4.18 — TypeScript pilot, continued: converted bulk-select.ts,
 // tag-chips.ts, and subtasks.ts (Sortable drag/drop + inline editing +
 // arm/disarm delete). Same posture as every other plugin's TS pilot
@@ -177,7 +185,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.18');
+define('BHCRM_VER',  '2.4.19');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only
