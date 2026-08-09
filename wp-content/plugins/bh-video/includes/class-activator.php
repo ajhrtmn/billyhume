@@ -13,11 +13,11 @@ if (!defined('ABSPATH')) exit;
 class BHV_Activator {
     const DB_VERSION = '1.0';
 
-    public static function activate() {
+    public static function activate(): void {
         update_option('bhv_db_version', self::DB_VERSION);
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhv_db_version', '0'), self::DB_VERSION, '>=')) return;
         update_option('bhv_db_version', self::DB_VERSION);
     }

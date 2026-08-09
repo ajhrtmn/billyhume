@@ -27,7 +27,7 @@ if (!defined('ABSPATH')) exit;
 class BHV_PostTypes {
     const MENU_PARENT = 'edit.php?post_type=bhv_video';
 
-    public static function register() {
+    public static function register(): void {
         register_post_type('bhv_video', [
             'labels' => [
                 'name' => 'Videos', 'menu_name' => 'Video', 'singular_name' => 'Video',

@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * gating story, following bhs_track_access_allowed's exact shape.
  */
 class BHV_API {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhv/v1', '/videos', [
             'methods' => 'GET', 'callback' => [self::class, 'get_videos'], 'permission_callback' => '__return_true',
         ]);
@@ -20,12 +20,13 @@ class BHV_API {
         ]);
     }
 
-    public static function video_url_for($post_id) {
+    public static function video_url_for(int $post_id): string {
         $aid = (int) get_post_meta($post_id, '_bhv_attachment_id', true);
-        return $aid ? wp_get_attachment_url($aid) : '';
+        return $aid ? (wp_get_attachment_url($aid) ?: '') : '';
     }
 
-    public static function video_payload($post) {
+    /** @return array<string, mixed> */
+    public static function video_payload(\WP_Post $post): array {
         $track_id = (int) get_post_meta($post->ID, '_bhv_track_id', true);
         $genres = wp_get_post_terms($post->ID, 'bhv_genre', ['fields' => 'names']);
 
@@ -40,7 +41,7 @@ class BHV_API {
         ];
     }
 
-    public static function get_videos() {
+    public static function get_videos(): \WP_REST_Response {
         $posts = get_posts(['post_type' => 'bhv_video', 'post_status' => 'publish', 'posts_per_page' => -1, 'orderby' => 'menu_order date', 'order' => 'ASC']);
         $out = [];
         foreach ($posts as $p) {
@@ -51,14 +52,15 @@ class BHV_API {
         return new WP_REST_Response(['success' => true, 'videos' => $out], 200);
     }
 
-    private static function find_video($id) {
-        $post = get_post((int) $id);
+    private static function find_video(int $id): ?\WP_Post {
+        $post = get_post($id);
         if (!$post || $post->post_type !== 'bhv_video' || $post->post_status !== 'publish') return null;
         return $post;
     }
 
-    public static function get_video($req) {
-        $post = self::find_video($req->get_param('id'));
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_video(\WP_REST_Request $req) {
+        $post = self::find_video((int) $req->get_param('id'));
         if (!$post) return new WP_Error('not_found', 'Video not found.', ['status' => 404]);
         return new WP_REST_Response(['success' => true, 'video' => self::video_payload($post)], 200);
     }

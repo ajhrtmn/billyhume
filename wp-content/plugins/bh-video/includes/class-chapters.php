@@ -17,17 +17,17 @@ if (!defined('ABSPATH')) exit;
  * specific viewer's own history.
  */
 class BHV_Chapters {
-    public static function init() {
+    public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('save_post_bhv_video', [self::class, 'save']);
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function add_meta_box() {
+    public static function add_meta_box(): void {
         add_meta_box('bhv_video_chapters', 'Chapters (for long-form video)', [self::class, 'render_metabox'], 'bhv_video', 'normal', 'default');
     }
 
-    public static function render_metabox($post) {
+    public static function render_metabox(\WP_Post $post): void {
         wp_nonce_field('bhv_save_chapters', 'bhv_chapters_nonce');
         $chapters = self::get($post->ID);
         echo '<p class="description">Optional — one chapter per line, format <code>mm:ss Label text</code>. Leave empty for a short video; only worth filling in for a long-form upload.</p>';
@@ -35,7 +35,7 @@ class BHV_Chapters {
         echo '<textarea name="bhv_chapters_raw" rows="6" style="width:100%;font-family:monospace;" placeholder="00:00 Introduction' . "\n" . '03:45 Chapter One">' . esc_textarea(implode("\n", $lines)) . '</textarea>';
     }
 
-    public static function save($post_id) {
+    public static function save(int $post_id): void {
         if (!isset($_POST['bhv_chapters_nonce']) || !wp_verify_nonce($_POST['bhv_chapters_nonce'], 'bhv_save_chapters')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
@@ -51,17 +51,18 @@ class BHV_Chapters {
         update_post_meta($post_id, '_bhv_chapters', wp_json_encode($chapters));
     }
 
-    public static function get($video_id) {
+    /** @return array<int, array{time:int, label:string}> */
+    public static function get(int $video_id): array {
         $raw = (string) get_post_meta($video_id, '_bhv_chapters', true);
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
     }
 
-    public static function resume_position($video_id, $user_id) {
-        return (int) get_user_meta($user_id, '_bhv_resume_' . (int) $video_id, true);
+    public static function resume_position(int $video_id, int $user_id): int {
+        return (int) get_user_meta($user_id, '_bhv_resume_' . $video_id, true);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhv/v1', '/videos/(?P<id>\d+)/resume', [
             'methods' => 'POST',
             'callback' => [self::class, 'save_resume_position'],
@@ -74,7 +75,8 @@ class BHV_Chapters {
     // (throttled client-side, see video-player.js) -- a convenience,
     // not an authoritative play record, so a bad $seconds value just
     // means an odd next-resume seek, not a security issue.
-    public static function save_resume_position($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function save_resume_position(\WP_REST_Request $req) {
         $video_id = (int) $req->get_param('id');
         $seconds = max(0, (int) $req->get_param('seconds'));
         if (get_post_type($video_id) !== 'bhv_video') {

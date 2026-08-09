@@ -9,16 +9,21 @@ if (!defined('ABSPATH')) exit;
  * BHV_API's payload/list-filtering logic against real fixture posts.
  */
 class BHV_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-video'] = ['label' => 'BH Video', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHV_API')) {
             return [['name' => 'BHV_API not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -30,7 +35,8 @@ class BHV_TestSuite {
 
     /* ---------- BHV_Chapters: line parsing, sorting, resume position ---------- */
 
-    private static function run_chapters_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_chapters_tests(): array {
         if (!class_exists('BHV_Chapters')) return [];
         $rows = [];
 
@@ -77,7 +83,8 @@ class BHV_TestSuite {
 
     /* ---------- BHV_API: payload shape + list filtering ---------- */
 
-    private static function run_api_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_api_tests(): array {
         $rows = [];
 
         $with_video_id = wp_insert_post(['post_type' => 'bhv_video', 'post_status' => 'publish', 'post_title' => 'BHV Suite Video With File'], true);

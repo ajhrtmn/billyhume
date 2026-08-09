@@ -9,14 +9,18 @@ if (!defined('ABSPATH')) exit;
  * labor bh-streaming's own class-admin.php uses.
  */
 class BHV_Admin {
-    public static function init() {
+    public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         add_action('save_post_bhv_video', [self::class, 'save_video']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
         add_filter('ous_registered_plugins', [self::class, 'register']);
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register(array $plugins): array {
         $plugins['bh-video'] = [
             'label'          => 'BH Video',
             'file'           => 'bh-video/bh-video.php',
@@ -32,17 +36,17 @@ class BHV_Admin {
         return $plugins;
     }
 
-    public static function enqueue_media($hook) {
+    public static function enqueue_media(string $hook): void {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         if (get_post_type() !== 'bhv_video') return;
         wp_enqueue_media();
     }
 
-    public static function add_meta_boxes() {
+    public static function add_meta_boxes(): void {
         add_meta_box('bhv_video_details', 'Video Details', [self::class, 'render_video_metabox'], 'bhv_video', 'normal', 'high');
     }
 
-    public static function render_video_metabox($post) {
+    public static function render_video_metabox(\WP_Post $post): void {
         wp_nonce_field('bhv_save_video', 'bhv_video_nonce');
         $vid    = (int) get_post_meta($post->ID, '_bhv_attachment_id', true);
         $vurl   = $vid ? wp_get_attachment_url($vid) : '';
@@ -71,7 +75,7 @@ class BHV_Admin {
         self::render_media_picker_script();
     }
 
-    private static function render_media_picker_script() {
+    private static function render_media_picker_script(): void {
         ?>
         <script>
         (function () {
@@ -95,7 +99,7 @@ class BHV_Admin {
         <?php
     }
 
-    public static function save_video($post_id) {
+    public static function save_video(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhv_video_nonce']) || !wp_verify_nonce($_POST['bhv_video_nonce'], 'bhv_save_video')) return;
         if (!current_user_can('edit_post', $post_id)) return;

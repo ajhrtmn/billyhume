@@ -11,12 +11,12 @@ if (!defined('ABSPATH')) exit;
  * the exact same theme-isolation reasoning as player.css.
  */
 class BHV_Player {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_video', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
         if (!$post || !has_shortcode($post->post_content, 'bh_video')) return;
@@ -31,7 +31,8 @@ class BHV_Player {
         ]);
     }
 
-    public static function render($atts = []) {
+    /** @param array<string, mixed> $atts */
+    public static function render($atts = []): string {
         return '
         <div class="bhv-app" id="bhv-app">
             <div class="bhv-topbar">

@@ -2,12 +2,25 @@
 /**
  * Plugin Name: BH Video
  * Description: A standalone video catalog and player — its own CPT, taxonomy, and browse/playback SPA, independent of bh-streaming's audio catalog. Depends only on Own Ur Shit's shared identity and style tokens.
- * Version:     0.4.1
+ * Version:     0.4.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.4.2 — Ecosystem quality Phase 2, brick 2/13: added native return
+// types and parameter types across all 7 includes files (class-
+// activator, class-admin, class-api, class-chapters, class-post-types,
+// class-test-suite, class-video-player — 48 findings, all the two
+// mechanical PHPStan level-6 categories). One small real fix surfaced
+// along the way: BHV_API::video_url_for() declared a `string` return
+// but wp_get_attachment_url() can return `false` for a missing
+// attachment — added a `?: ''` fallback so the declared type is
+// actually honest, not just asserted. Everything else is purely
+// additive typing, no behavior change. This plugin is now clean at
+// PHPStan level 6 in isolation; phpstan.neon itself stays at level 5
+// ecosystem-wide until all 13 bricks land.
+// NOT runtime-verified against a live install.
 // 0.4.1 — This plugin's first PHPStan pass (newly added to phpstan.neon's
 // scanned paths this round). Two findings: esc_attr() needed a string,
 // not the int $vid it was given directly. Real, if minor, bug in
@@ -33,7 +46,7 @@ if (!defined('ABSPATH')) exit;
 // reference.
 define('BHV_PATH', plugin_dir_path(__FILE__));
 define('BHV_URL',  plugin_dir_url(__FILE__));
-define('BHV_VER',  '0.4.1');
+define('BHV_VER',  '0.4.2');
 
 /**
  * A genuine PEER to bh-streaming/bh-courses/bh-feedback — depends only
