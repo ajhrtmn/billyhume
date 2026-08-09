@@ -10,11 +10,15 @@ if (!defined('ABSPATH')) exit;
  * capability-gated section in this ecosystem's portal).
  */
 class BHF_PortalPanel {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel(array $panels): array {
         $panels[] = [
             'id' => 'feedback',
             'label' => 'Feedback',
@@ -25,7 +29,7 @@ class BHF_PortalPanel {
         return $panels;
     }
 
-    public static function render() {
+    public static function render(): void {
         echo '<h1>Feedback</h1>';
 
         if (isset($_GET['bhf_error'])) {
@@ -43,7 +47,7 @@ class BHF_PortalPanel {
         }
     }
 
-    private static function render_my_requests() {
+    private static function render_my_requests(): void {
         $user_id = get_current_user_id();
         $requests = get_posts(['post_type' => 'bh_feedback_request', 'author' => $user_id, 'posts_per_page' => 20, 'post_status' => 'publish']);
 
@@ -79,7 +83,7 @@ class BHF_PortalPanel {
         echo '</div>';
     }
 
-    private static function render_reviewer_queue() {
+    private static function render_reviewer_queue(): void {
         $reviewer_id = get_current_user_id();
         $open = BHF_Queue::open_requests();
         $mine = BHF_Queue::claimed_by($reviewer_id);

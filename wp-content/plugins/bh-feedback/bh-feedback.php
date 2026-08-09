@@ -2,12 +2,21 @@
 /**
  * Plugin Name: BH Feedback
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on Own Ur Shit's shared identity/wallet.
- * Version:     0.1.4
+ * Version:     0.1.5
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.1.5 — Ecosystem quality Phase 2, brick 3/13: added native return
+// types and parameter types across all 9 includes files (60 findings,
+// both mechanical level-6 categories). One small real fix: render_
+// shortcode()'s `ob_get_clean()` can return `false` (empty output
+// buffer stack); cast to `(string)` so the declared `: string` return
+// type is actually honest rather than just asserted. Everything else
+// purely additive typing, no behavior change. This plugin is now
+// clean at PHPStan level 6 in isolation.
+// NOT runtime-verified against a live install.
 // 0.1.4 — This plugin's first PHPStan pass (newly added to
 // phpstan.neon's scanned paths this round). One finding: get_userdata()
 // needed an int, not the string post_author property it was given
@@ -34,7 +43,7 @@ if (!defined('ABSPATH')) exit;
 // separately.
 define('BHF_PATH', plugin_dir_path(__FILE__));
 define('BHF_URL',  plugin_dir_url(__FILE__));
-define('BHF_VER',  '0.1.4');
+define('BHF_VER',  '0.1.5');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo

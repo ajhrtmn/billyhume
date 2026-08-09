@@ -15,7 +15,7 @@ class BHF_Pricing {
         'detailed' => ['label' => 'Detailed review', 'description' => 'A full written breakdown — structure, mix, what\'s working and what isn\'t.', 'cents' => 1500, 'turnaround_days' => 7],
     ];
 
-    public static function label_for($tier) {
+    public static function label_for(string $tier): string {
         return self::TIERS[$tier]['label'] ?? $tier;
     }
 
@@ -25,17 +25,17 @@ class BHF_Pricing {
     // ballpark rather than an SLA guarantee — this plugin has no queue-
     // depth-aware estimator, so promising anything more precise would be
     // its own "accept-and-hope" problem.
-    public static function turnaround_days_for($tier) {
+    public static function turnaround_days_for(string $tier): int {
         $days = self::TIERS[$tier]['turnaround_days'] ?? 5;
         return (int) apply_filters('bhf_tier_turnaround_days', $days, $tier);
     }
 
-    public static function cents_for($tier) {
+    public static function cents_for(string $tier): int {
         $cents = self::TIERS[$tier]['cents'] ?? 0;
         return (int) apply_filters('bhf_tier_price_cents', $cents, $tier);
     }
 
-    public static function is_valid_tier($tier) {
+    public static function is_valid_tier(string $tier): bool {
         return isset(self::TIERS[$tier]);
     }
 }

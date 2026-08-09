@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * class never calls add_submenu_page itself.
  */
 class BHF_Admin {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue']);
     }
@@ -19,12 +19,16 @@ class BHF_Admin {
     // The .bhf-badge-* classes used in render() below only get enqueued
     // on the front end (BHF_Requests::maybe_enqueue()) — this screen
     // needs the same stylesheet in wp-admin context.
-    public static function enqueue($hook) {
-        if ($hook !== 'own-ur-shit_page_bh-feedback-requests' && strpos((string) $hook, 'bh-feedback') === false) return;
+    public static function enqueue(string $hook): void {
+        if ($hook !== 'own-ur-shit_page_bh-feedback-requests' && strpos($hook, 'bh-feedback') === false) return;
         wp_enqueue_style('bhf-feedback', BHF_URL . 'assets/css/feedback.css', [], BHF_VER);
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register(array $plugins): array {
         $plugins['bh-feedback'] = [
             'label'          => 'BH Feedback',
             'file'           => 'bh-feedback/bh-feedback.php',
@@ -54,7 +58,7 @@ class BHF_Admin {
     // volume/status without opening the Reviewer Queue portal panel as
     // if they were a reviewer themselves — read-only, no claim/complete
     // actions here (those stay in the portal panel, reviewer-scoped).
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         echo '<div class="wrap"><h1>Feedback Requests</h1>';

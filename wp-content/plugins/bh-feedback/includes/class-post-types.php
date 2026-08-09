@@ -26,7 +26,7 @@ class BHF_PostTypes {
     const STATUS_CLAIMED = 'claimed';
     const STATUS_COMPLETED = 'completed';
 
-    public static function register() {
+    public static function register(): void {
         register_post_type('bh_feedback_request', [
             'labels' => [
                 'name' => 'Feedback Requests',

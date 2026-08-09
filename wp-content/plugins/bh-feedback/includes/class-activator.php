@@ -14,20 +14,20 @@ if (!defined('ABSPATH')) exit;
 class BHF_Activator {
     const DB_VERSION = '1.0';
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhf_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhf_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhf_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';

@@ -8,16 +8,21 @@ if (!defined('ABSPATH')) exit;
  * Runs against real, tagged fixture users/posts, cleaned up afterward.
  */
 class BHF_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-feedback'] = ['label' => 'BH Feedback', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_Debug')) return [['name' => 'OUS_Debug not loaded', 'pass' => false, 'message' => 'Skipped.']];
         global $wpdb;
         $rows = [];

@@ -16,13 +16,14 @@ if (!defined('ABSPATH')) exit;
  * read-then-update would be vulnerable to).
  */
 class BHF_Queue {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_bhf_claim_request', [self::class, 'handle_claim']);
         add_action('admin_post_bhf_release_request', [self::class, 'handle_release']);
         add_action('admin_post_bhf_complete_review', [self::class, 'handle_complete']);
     }
 
-    public static function open_requests() {
+    /** @return \WP_Post[] */
+    public static function open_requests(): array {
         return get_posts([
             'post_type' => 'bh_feedback_request', 'post_status' => 'publish', 'posts_per_page' => 50,
             'orderby' => 'date', 'order' => 'ASC',
@@ -30,7 +31,8 @@ class BHF_Queue {
         ]);
     }
 
-    public static function claimed_by($reviewer_id) {
+    /** @return \WP_Post[] */
+    public static function claimed_by(int $reviewer_id): array {
         return get_posts([
             'post_type' => 'bh_feedback_request', 'post_status' => 'publish', 'posts_per_page' => 50,
             'meta_query' => [
@@ -53,7 +55,7 @@ class BHF_Queue {
     // post's cache as a side effect), but complete() had no such
     // incidental call and returned success while get_post_meta()
     // silently kept reporting the OLD status.
-    public static function claim($request_id, $reviewer_id) {
+    public static function claim(int $request_id, int $reviewer_id): bool {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "UPDATE {$wpdb->postmeta} SET meta_value = %s WHERE post_id = %d AND meta_key = '_bhf_status' AND meta_value = %s",
@@ -69,7 +71,7 @@ class BHF_Queue {
     // Only the reviewer who actually holds the claim can release it —
     // guarded in the SAME atomic statement (not a separate check-then-
     // act), so a stale/forged request can't release someone else's claim.
-    public static function release($request_id, $reviewer_id) {
+    public static function release(int $request_id, int $reviewer_id): bool {
         global $wpdb;
         $current_reviewer = (int) get_post_meta($request_id, '_bhf_reviewer_id', true);
         if ($current_reviewer !== (int) $reviewer_id) return false;
@@ -83,7 +85,7 @@ class BHF_Queue {
         return true;
     }
 
-    public static function complete($request_id, $reviewer_id, $body) {
+    public static function complete(int $request_id, int $reviewer_id, string $body): bool {
         global $wpdb;
         $current_reviewer = (int) get_post_meta($request_id, '_bhf_reviewer_id', true);
         if ($current_reviewer !== (int) $reviewer_id) return false;
@@ -118,14 +120,15 @@ class BHF_Queue {
         return true;
     }
 
-    public static function review_for($request_id) {
+    /** @return array<string, mixed>|null */
+    public static function review_for(int $request_id): ?array {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}bh_feedback_reviews WHERE request_id = %d", $request_id
         ), ARRAY_A);
     }
 
-    public static function handle_claim() {
+    public static function handle_claim(): void {
         if (!current_user_can('bhcore_review_submissions')) wp_die('Not authorized.');
         if (!isset($_POST['bhf_queue_nonce']) || !wp_verify_nonce($_POST['bhf_queue_nonce'], 'bhf_queue_action')) wp_die('Security check failed.');
         self::claim((int) $_POST['request_id'], get_current_user_id());
@@ -133,7 +136,7 @@ class BHF_Queue {
         exit;
     }
 
-    public static function handle_release() {
+    public static function handle_release(): void {
         if (!current_user_can('bhcore_review_submissions')) wp_die('Not authorized.');
         if (!isset($_POST['bhf_queue_nonce']) || !wp_verify_nonce($_POST['bhf_queue_nonce'], 'bhf_queue_action')) wp_die('Security check failed.');
         self::release((int) $_POST['request_id'], get_current_user_id());
@@ -141,7 +144,7 @@ class BHF_Queue {
         exit;
     }
 
-    public static function handle_complete() {
+    public static function handle_complete(): void {
         if (!current_user_can('bhcore_review_submissions')) wp_die('Not authorized.');
         if (!isset($_POST['bhf_queue_nonce']) || !wp_verify_nonce($_POST['bhf_queue_nonce'], 'bhf_queue_action')) wp_die('Security check failed.');
         $body = isset($_POST['review_body']) ? wp_unslash($_POST['review_body']) : '';

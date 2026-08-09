@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  * BHS_AudioHash pioneered, applied to a different table.
  */
 class BHF_Requests {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bhf_submit', [self::class, 'render_shortcode']);
         add_action('admin_post_bhf_submit_request', [self::class, 'handle_submit']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
@@ -29,11 +29,11 @@ class BHF_Requests {
     // JS) — same low-cost-of-always-loading posture own-ur-shit's
     // public-profile CSS takes, rather than trying to detect every
     // possible page this shortcode/the portal panel might render on.
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         wp_enqueue_style('bhf-feedback', BHF_URL . 'assets/css/feedback.css', [], BHF_VER);
     }
 
-    public static function render_shortcode() {
+    public static function render_shortcode(): string {
         if (!is_user_logged_in()) {
             return '<p class="bhf-notice">' . esc_html__('Log in to submit a track for feedback.', 'bh-feedback') . '</p>';
         }
@@ -85,10 +85,10 @@ class BHF_Requests {
             </form>
         </div>
         <?php
-        return ob_get_clean();
+        return (string) ob_get_clean();
     }
 
-    public static function handle_submit() {
+    public static function handle_submit(): void {
         if (!is_user_logged_in()) wp_die('Not logged in.');
         if (!isset($_POST['bhf_nonce']) || !wp_verify_nonce($_POST['bhf_nonce'], 'bhf_submit_request')) {
             wp_die('Security check failed.');
@@ -152,7 +152,7 @@ class BHF_Requests {
         exit;
     }
 
-    private static function redirect_error($referer, $message) {
+    private static function redirect_error(string $referer, string $message): void {
         wp_safe_redirect(add_query_arg('bhf_error', rawurlencode($message), $referer));
         exit;
     }
@@ -163,7 +163,8 @@ class BHF_Requests {
     // (which submitting a feedback request should work for) doesn't
     // have upload_files by default — grant it for the duration of this
     // one call only, never persisted to the user's real role/caps.
-    private static function handle_audio_upload($field, $user_id) {
+    /** @return int|\WP_Error */
+    private static function handle_audio_upload(string $field, int $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -194,7 +195,7 @@ class BHF_Requests {
     // request's post ID if a same-file match is found, else 0. Doesn't
     // block submission either way — this is a surfaced signal for the
     // reviewer (see class-queue.php's render of it), never an auto-reject.
-    public static function check_duplicate($request_id, $attachment_id) {
+    public static function check_duplicate(int $request_id, int $attachment_id): int {
         $path = get_attached_file($attachment_id);
         if (!$path || !file_exists($path)) return 0;
         $hash = sha1_file($path);
