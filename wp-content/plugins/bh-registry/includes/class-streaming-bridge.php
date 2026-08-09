@@ -16,12 +16,12 @@ if (!defined('ABSPATH')) exit;
  * search, submission, verification) is completely unaffected.
  */
 class BHR_StreamingBridge {
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('BHS_Player')) return;
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
     }
 
-    public static function add_meta_box() {
+    public static function add_meta_box(): void {
         add_meta_box(
             'bhr_feature_from_registry',
             'Feature an artist from the Registry',
@@ -31,7 +31,7 @@ class BHR_StreamingBridge {
         );
     }
 
-    public static function render($post) {
+    public static function render(\WP_Post $post): void {
         $url = get_post_meta($post->ID, '_bhs_feed_url', true);
         echo '<p class="description">Search the global BH Registry for an artist and pull in their verified feed URL automatically.</p>';
         echo '<input type="text" id="bhr-bridge-search" placeholder="Search registry…" style="width:100%;">';

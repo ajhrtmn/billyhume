@@ -8,11 +8,15 @@ if (!defined('ABSPATH')) exit;
  * independently-installable plugin.
  */
 class BHR_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register(array $surfaces): array {
         $surfaces['bh-registry-browse'] = [
             'group'  => 'Registry',
             'label'  => 'Browse & Search',
@@ -21,7 +25,8 @@ class BHR_StyleSurface {
         return $surfaces;
     }
 
-    public static function preview() {
+    /** @return array{css_url:string, html:string} */
+    public static function preview(): array {
         ob_start();
         ?>
 <div class="bhr-app">
@@ -51,6 +56,6 @@ class BHR_StyleSurface {
     </div>
 </div>
         <?php
-        return ['css_url' => BHR_URL . 'assets/css/registry.css', 'html' => ob_get_clean()];
+        return ['css_url' => BHR_URL . 'assets/css/registry.css', 'html' => (string) ob_get_clean()];
     }
 }

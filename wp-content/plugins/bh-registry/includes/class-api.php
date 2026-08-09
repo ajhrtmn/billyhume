@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) exit;
  * public contract.
  */
 class BHR_API {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhr/v1', '/artists', [
             'methods' => 'GET', 'callback' => [self::class, 'list_artists'], 'permission_callback' => '__return_true',
         ]);
@@ -50,7 +50,7 @@ class BHR_API {
     // unlike enabling CORS on an authenticated endpoint, there's nothing
     // here a malicious third-party page could trick a logged-in
     // visitor's browser into doing on their behalf.
-    public static function add_cors_headers() {
+    public static function add_cors_headers(): void {
         add_filter('rest_pre_serve_request', function ($served, $result, $request) {
             if (strpos($request->get_route(), '/bhr/v1/') === 0) {
                 header('Access-Control-Allow-Origin: *');
@@ -63,7 +63,11 @@ class BHR_API {
 
     /* ---------- payload shaping ---------- */
 
-    private static function artist_payload($artist, $links) {
+    /**
+     * @param \stdClass[] $links
+     * @return array<string, mixed>
+     */
+    private static function artist_payload(\stdClass $artist, array $links): array {
         return [
             'id'           => (int) $artist->id,
             'display_name' => $artist->display_name,
@@ -74,7 +78,8 @@ class BHR_API {
         ];
     }
 
-    private static function link_payload($link) {
+    /** @return array<string, mixed> */
+    private static function link_payload(\stdClass $link): array {
         $meta = json_decode((string) $link->metadata, true);
         return [
             'id'                  => (int) $link->id,
@@ -88,7 +93,7 @@ class BHR_API {
 
     /* ---------- browse / search ---------- */
 
-    public static function list_artists($req) {
+    public static function list_artists(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
         $artists_t = $wpdb->prefix . 'bhr_artists';
         $links_t   = $wpdb->prefix . 'bhr_links';
@@ -134,7 +139,8 @@ class BHR_API {
         return new WP_REST_Response(['success' => true, 'artists' => $out], 200);
     }
 
-    public static function get_artist($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_artist(\WP_REST_Request $req) {
         global $wpdb;
         $artist_id = (int) $req->get_param('id');
         $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_artists WHERE id = %d AND status = 'active'", $artist_id));
@@ -146,7 +152,8 @@ class BHR_API {
         return new WP_REST_Response(['success' => true, 'artist' => self::artist_payload($artist, $links)], 200);
     }
 
-    public static function get_feed_url($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_feed_url(\WP_REST_Request $req) {
         global $wpdb;
         $artist_id = (int) $req->get_param('id');
         $link = $wpdb->get_row($wpdb->prepare(
@@ -168,7 +175,8 @@ class BHR_API {
     // real trust mechanism is verification (class-verification.php);
     // this just keeps the submission queue from being flooded before a
     // human or the daily re-check ever looks at it.
-    public static function create_submission($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function create_submission(\WP_REST_Request $req) {
         $display_name = sanitize_text_field((string) $req->get_param('display_name'));
         $bio          = sanitize_textarea_field((string) $req->get_param('bio'));
         $email        = sanitize_email((string) $req->get_param('contact_email'));
@@ -261,7 +269,8 @@ class BHR_API {
     // points at, so an unthrottled public POST here is both a DoS
     // vector against this site and an amplification vector against
     // arbitrary third-party hosts.
-    public static function trigger_verify($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function trigger_verify(\WP_REST_Request $req) {
         $ip = self::client_ip();
         $rl_key = 'bhr_verify_' . md5($ip);
         if (get_transient($rl_key)) {
@@ -283,7 +292,7 @@ class BHR_API {
         ], 200);
     }
 
-    private static function client_ip() {
+    private static function client_ip(): string {
         return sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
     }
 }

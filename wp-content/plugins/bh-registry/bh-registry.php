@@ -2,13 +2,22 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.10
+ * Version:     0.1.11
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.1.11 — Ecosystem quality Phase 2, brick 5/13: added native return
+// types and parameter types across all 11 includes files (94 findings,
+// both mechanical level-6 categories). $wpdb->get_row()/get_results()
+// rows are typed \stdClass (their real default object shape) rather
+// than array — matches how every method in this plugin actually reads
+// them (->id, ->url, etc., not ['id']). Purely additive typing, no
+// behavior change. This plugin is now clean at PHPStan level 6 in
+// isolation.
+// NOT runtime-verified against a live install.
 // 0.1.10 — PHPStan round 2 (this plugin went from 9 errors to 0): all
 // 9 findings were the same real, if harmless, mismatch in
 // class-test-suite.php — add_filter('pre_http_request', $filter, 10, 3)
@@ -32,7 +41,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.10');
+define('BHR_VER',  '0.1.11');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

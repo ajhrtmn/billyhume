@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * second page to submit their own link.
  */
 class BHR_Frontend {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_registry', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         // Same auto-detect pattern bh-monetization-woo already uses for
@@ -27,19 +27,24 @@ class BHR_Frontend {
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
     }
 
-    public static function maybe_remember_registry_page($post_id) {
+    public static function maybe_remember_registry_page(int $post_id): void {
         $post = get_post($post_id);
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bh_registry')) {
             update_option('bhr_registry_page_id', $post_id);
         }
     }
 
-    public static function register_search_provider($providers) {
+    /**
+     * @param array<string, mixed> $providers
+     * @return array<string, mixed>
+     */
+    public static function register_search_provider(array $providers): array {
         $providers['artists'] = [self::class, 'search_artists'];
         return $providers;
     }
 
-    public static function search_artists($query, $limit) {
+    /** @return array<int, array<string, mixed>> */
+    public static function search_artists(string $query, int $limit): array {
         global $wpdb;
         $page_id = (int) get_option('bhr_registry_page_id', 0);
         if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
@@ -73,7 +78,7 @@ class BHR_Frontend {
         return $out;
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
         if (!$post || !has_shortcode($post->post_content, 'bh_registry')) return;
@@ -106,7 +111,7 @@ class BHR_Frontend {
         ]);
     }
 
-    public static function render() {
+    public static function render(): string {
         // Ecosystem depth-pass Tier 2 — SEO coverage. The grid itself is
         // client-rendered (no server-side artist list to enumerate into
         // an ItemList, unlike bh-courses' catalog), so this is page-level

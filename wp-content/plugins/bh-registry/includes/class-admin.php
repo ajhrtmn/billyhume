@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  * spam/abuse even if its links happen to verify.
  */
 class BHR_Admin {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('admin_post_bhr_admin_action', [self::class, 'handle_action']);
         add_filter('bhi_report_target_label', [self::class, 'report_target_label'], 10, 3);
@@ -28,14 +28,18 @@ class BHR_Admin {
     // Turns a bare "registry_artist #12" in own-ur-shit's shared Reports
     // queue into something an admin can actually act on without leaving
     // that page to go look the artist up first.
-    public static function report_target_label($label, $type, $id) {
+    public static function report_target_label(string $label, string $type, int $id): string {
         if ($type !== 'registry_artist') return $label;
         global $wpdb;
         $name = $wpdb->get_var($wpdb->prepare("SELECT display_name FROM {$wpdb->prefix}bhr_artists WHERE id = %d", $id));
         return $name ? 'Registry artist: ' . $name . ' (#' . $id . ')' : 'Registry artist #' . $id . ' (not found — may already be removed)';
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register(array $plugins): array {
         $plugins['bh-registry'] = [
             'label'        => 'BH Registry',
             'file'         => 'bh-registry/bh-registry.php',
@@ -61,7 +65,7 @@ class BHR_Admin {
 
     /* ---------- rendering ---------- */
 
-    public static function render() {
+    public static function render(): void {
         global $wpdb;
         $artists_t = $wpdb->prefix . 'bhr_artists';
         $links_t   = $wpdb->prefix . 'bhr_links';
@@ -109,13 +113,13 @@ class BHR_Admin {
     // own-ur-shit's BHY_UI already prints a shared .bhy-badge-* system
     // globally on every admin screen (BHY_UI::init_shared_admin_assets()),
     // this just uses it instead of a one-off style attribute.
-    private static function status_badge($status) {
+    private static function status_badge(string $status): string {
         $variants = ['active' => 'success', 'verified' => 'success', 'pending' => 'warning', 'failed' => 'danger', 'rejected' => 'danger'];
         $variant = $variants[$status] ?? 'neutral';
         return '<span class="bhy-badge bhy-badge-' . esc_attr($variant) . '">' . esc_html($status) . '</span>';
     }
 
-    private static function action_link($artist_id, $action, $label, $link_id = null, $confirm = '') {
+    private static function action_link(int $artist_id, string $action, string $label, ?int $link_id = null, string $confirm = ''): string {
         $url = wp_nonce_url(
             admin_url('admin-post.php?action=bhr_admin_action&do=' . $action . '&artist_id=' . $artist_id . ($link_id ? '&link_id=' . $link_id : '')),
             'bhr_admin_action'
@@ -126,7 +130,7 @@ class BHR_Admin {
 
     /* ---------- actions ---------- */
 
-    public static function handle_action() {
+    public static function handle_action(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhr_admin_action')) {
             wp_die('Not allowed.');
         }

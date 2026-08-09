@@ -17,16 +17,21 @@ if (!defined('ABSPATH')) exit;
 class BHR_TestSuite {
     const SEED_TAG = 'bhr_test_suite';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-registry'] = ['label' => 'BH Registry', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHR_Verification')) {
             return [['name' => 'BHR_Verification not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -39,7 +44,8 @@ class BHR_TestSuite {
 
     /* ---------- check_domain_ownership() — private, via Reflection ---------- */
 
-    private static function run_domain_ownership_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_domain_ownership_tests(): array {
         $rows = [];
         $check = new ReflectionMethod('BHR_Verification', 'check_domain_ownership');
 
@@ -106,7 +112,8 @@ class BHR_TestSuite {
 
     /* ---------- check_activitypub_actor() — private, via Reflection ---------- */
 
-    private static function run_activitypub_actor_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_activitypub_actor_tests(): array {
         $rows = [];
         $check = new ReflectionMethod('BHR_Verification', 'check_activitypub_actor');
 
@@ -171,7 +178,8 @@ class BHR_TestSuite {
 
     /* ---------- verify_link() end-to-end, real fixture row + DB ---------- */
 
-    private static function run_verify_link_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_verify_link_tests(): array {
         $rows = [];
         global $wpdb;
         $artists_table = $wpdb->prefix . 'bhr_artists';

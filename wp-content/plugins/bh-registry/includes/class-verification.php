@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
 class BHR_Verification {
     const TOKEN_LENGTH = 32;
 
-    public static function generate_token() {
+    public static function generate_token(): string {
         return wp_generate_password(self::TOKEN_LENGTH, false, false);
     }
 
@@ -45,7 +45,7 @@ class BHR_Verification {
      * ->url, ->protocol, ->verification_token) and persists the result.
      * Returns true if the link is now verified, false otherwise.
      */
-    public static function verify_link($link) {
+    public static function verify_link(\stdClass $link): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'bhr_links';
 
@@ -93,7 +93,7 @@ class BHR_Verification {
     // browse/search," not an admin approval step (this registry is
     // self-serve by design; admin review exists for abuse handling, not
     // as a required gate — see class-admin.php).
-    private static function maybe_activate_artist($artist_id) {
+    private static function maybe_activate_artist(int $artist_id): void {
         global $wpdb;
         $artists = $wpdb->prefix . 'bhr_artists';
         $links   = $wpdb->prefix . 'bhr_links';
@@ -111,7 +111,7 @@ class BHR_Verification {
 
     /* ---------- ownership ---------- */
 
-    private static function check_domain_ownership($url, $token) {
+    private static function check_domain_ownership(string $url, string $token): bool {
         $host = wp_parse_url($url, PHP_URL_HOST);
         if (!$host) return false;
 
@@ -148,7 +148,8 @@ class BHR_Verification {
     // exactly: requires at least one item with a real enclosure, using
     // fetch_feed() (WordPress core's own SimplePie-based parser) rather
     // than custom XML parsing.
-    private static function check_open_feed($url) {
+    /** @return array{valid:bool, metadata:array<string, mixed>} */
+    private static function check_open_feed(string $url): array {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
         if (is_wp_error($feed)) {
@@ -183,7 +184,8 @@ class BHR_Verification {
     // JSON blob. This is protocol-open by construction: any server
     // returning a spec-shaped actor document passes identically,
     // Funkwhale included but never assumed.
-    private static function check_activitypub_actor($url) {
+    /** @return array{valid:bool, metadata:array<string, mixed>} */
+    private static function check_activitypub_actor(string $url): array {
         $res = wp_remote_get($url, [
             'timeout' => 8, 'redirection' => 2,
             'headers' => ['Accept' => 'application/activity+json, application/ld+json'],
@@ -219,7 +221,7 @@ class BHR_Verification {
     // restores a previously-rejected artist (see class-admin.php), so
     // restoring doesn't just flip a flag without re-confirming the
     // underlying links are still actually valid.
-    public static function recheck_artist($artist_id) {
+    public static function recheck_artist(int $artist_id): void {
         global $wpdb;
         $links = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}bhr_links WHERE artist_id = %d", $artist_id
@@ -247,7 +249,7 @@ class BHR_Verification {
     // any particular optional feature inside it, so this degrades
     // gracefully on an older core the same way every other optional
     // integration in this ecosystem does.
-    public static function recheck_all() {
+    public static function recheck_all(): void {
         global $wpdb;
         $table = $wpdb->prefix . 'bhr_links';
         $links = $wpdb->get_results(
@@ -271,7 +273,8 @@ class BHR_Verification {
     // a handler in bh-registry.php's own bootstrap, guarded by the same
     // class_exists() check, so this method existing costs nothing on a
     // core version without the job queue.
-    public static function recheck_one($args) {
+    /** @param array<string, mixed> $args */
+    public static function recheck_one(array $args): void {
         $link_id = (int) ($args['link_id'] ?? 0);
         if (!$link_id) return;
         $link = BHR_Links::find($link_id);

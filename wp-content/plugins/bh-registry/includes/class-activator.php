@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) exit;
 class BHR_Activator {
     const DB_VERSION = '1.0';
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhr_db_version', self::DB_VERSION);
         }
@@ -25,7 +25,7 @@ class BHR_Activator {
         flush_rewrite_rules();
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhr_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhr_db_version', self::DB_VERSION);
@@ -41,7 +41,7 @@ class BHR_Activator {
     // front-end request should pay a check for.
     const PAGES_VERSION = '1';
 
-    public static function maybe_create_default_pages() {
+    public static function maybe_create_default_pages(): void {
         if (get_option('bhr_pages_version') === self::PAGES_VERSION) return;
 
         if (!(int) get_option('bhr_registry_page_id', 0)) {
@@ -57,7 +57,7 @@ class BHR_Activator {
         update_option('bhr_pages_version', self::PAGES_VERSION);
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';

@@ -19,11 +19,15 @@ if (!defined('ABSPATH')) exit;
 class BHR_Debug {
     const SEED_TAG = '__bhr_seed__';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);
     }
 
-    public static function register($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register(array $tools): array {
         $tools['bh-registry'] = [
             'label'  => 'BH Registry',
             'render' => [self::class, 'render_section'],
@@ -34,18 +38,19 @@ class BHR_Debug {
         return $tools;
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         echo '<p>Seed a few fake, pre-verified artists/links so browse/search and the review queue have something to show.</p>';
         echo OUS_Debug::button('bh-registry', 'seed', 'Seed 5 fake artists');
     }
 
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, array $post): string {
         if ($action !== 'seed') return '';
         self::seed(5);
         return '5 fake artists seeded into BH Registry.';
     }
 
-    private static function seed($count) {
+    private static function seed(int $count): void {
         global $wpdb;
         $artists_t = $wpdb->prefix . 'bhr_artists';
         $links_t   = $wpdb->prefix . 'bhr_links';
@@ -73,7 +78,7 @@ class BHR_Debug {
         }
     }
 
-    public static function reset() {
+    public static function reset(): string {
         global $wpdb;
         $artists_t = $wpdb->prefix . 'bhr_artists';
         $links_t   = $wpdb->prefix . 'bhr_links';

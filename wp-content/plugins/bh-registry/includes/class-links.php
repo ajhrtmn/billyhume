@@ -17,12 +17,12 @@ if (!defined('ABSPATH')) exit;
  * reference instead of re-typing the literal string.
  */
 class BHR_Links {
-    public static function table() {
+    public static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhr_links';
     }
 
-    public static function find($link_id) {
+    public static function find(int $link_id): ?\stdClass {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', $link_id));
     }
