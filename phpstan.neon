@@ -65,6 +65,23 @@ parameters:
     # coverage of that one remaining unstubbed dependency.
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
+        # COOKIEPATH/COOKIE_DOMAIN are real WordPress core constants —
+        # defined in wp-settings.php at runtime, not in
+        # php-stubs/wordpress-stubs (confirmed by grepping the stub
+        # package directly: neither constant is declared anywhere in
+        # it). PHPStan has no way to know they exist without a real WP
+        # bootstrap, which this static analysis deliberately doesn't
+        # run. The two real call sites (own-ur-shit's class-toast.php,
+        # bh-monetization-woo's class-fraud.php) both use them the
+        # ordinary way any WP plugin sets a cookie — this was flagged
+        # as a known, deliberate exception in earlier PHPStan rounds
+        # this session but never actually silenced, which meant a new
+        # CI gate (Phase 1 of the ecosystem-wide quality pass) would
+        # have failed on a clean checkout with zero real errors to fix.
+        -
+            message: "#Constant COOKIEPATH not found#"
+        -
+            message: "#Constant COOKIE_DOMAIN not found#"
         # $wpdb->last_error has no property type declared anywhere in
         # php-stubs/wordpress-stubs (confirmed by grepping the stub file
         # directly) — PHPStan infers its type purely from the first

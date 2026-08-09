@@ -13,6 +13,10 @@
         }
     },
     "scripts": {
-        "phpstan": "phpstan analyse --memory-limit=2G"
+        "phpstan": "phpstan analyse --memory-limit=2G",
+        "test": [
+            "phpunit -c wp-content/plugins/own-ur-shit/tests/phpunit.xml",
+            "phpunit -c wp-content/plugins/bh-courses/tests/phpunit.xml"
+        ]
     }
 }

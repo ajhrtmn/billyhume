@@ -1,0 +1,73 @@
+name: Checks (PHPStan, PHPUnit, TypeScript)
+
+# Fires on every push/PR against dev and master — the two branches real
+# work lands on. Deliberately NOT on `stable` (deploy-ftp.yml already
+# owns that branch, and by the time something reaches `stable` it's
+# already been checked here on dev/master first).
+#
+# Before this workflow existed, every check in this file (composer
+# phpstan, composer test, tsc per plugin) only ever ran because a
+# session happened to remember to run it by hand — a real gap between
+# "we have the tooling" and "the tooling actually protects anything."
+# This closes that gap: a failing PHPStan/PHPUnit/tsc run now fails the
+# GitHub check on the PR/push itself, same as any other CI gate.
+on:
+  push:
+    branches:
+      - dev
+      - master
+  pull_request:
+    branches:
+      - dev
+      - master
+
+jobs:
+  phpstan-and-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - name: Composer install
+        run: composer install --no-interaction --prefer-dist
+
+      - name: PHPStan (all 12 plugins)
+        run: composer phpstan
+
+      - name: PHPUnit (pure-logic suites)
+        run: composer test
+
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm install
+        run: npm ci
+
+      # One tsc invocation per plugin that currently has a TypeScript
+      # pilot (own-ur-shit/tsconfig.json etc.) — matches this repo's own
+      # per-plugin build:<plugin>/watch:<plugin> npm scripts exactly, no
+      # separate CI-only script to fall out of sync with package.json.
+      - name: Build own-ur-shit
+        run: npm run build:own-ur-shit
+      - name: Build bh-contest
+        run: npm run build:bh-contest
+      - name: Build bh-crm
+        run: npm run build:bh-crm
+      - name: Build bh-streaming
+        run: npm run build:bh-streaming
+      - name: Build bh-courses
+        run: npm run build:bh-courses
