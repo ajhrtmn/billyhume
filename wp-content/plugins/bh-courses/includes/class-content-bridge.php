@@ -434,7 +434,7 @@ class BHC_ContentBridge {
      */
     public static function migrate_lesson(int $lesson_id): bool {
         $tree = self::steps_to_tree(BHC_Steps::get($lesson_id));
-        return BH_Content::save(self::CONTEXT, $lesson_id, $tree);
+        return (bool) BH_Content::save(self::CONTEXT, $lesson_id, $tree);
     }
 
     /**

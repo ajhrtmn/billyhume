@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) exit;
  *                           without hand-building the URL scheme.
  */
 class BHI_PublicProfile {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_profile', [__CLASS__, 'render_shortcode']);
         add_shortcode('bh_profile_link', [__CLASS__, 'render_link_shortcode']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'maybe_enqueue']);
@@ -34,7 +34,11 @@ class BHI_PublicProfile {
         add_filter('bhi_portal_panels', [__CLASS__, 'register_portal_panel']);
     }
 
-    public static function register_portal_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_portal_panel($panels): array {
         $panels[] = [
             'id' => 'profile',
             'label' => __('Profile', 'own-ur-shit'),
@@ -48,17 +52,18 @@ class BHI_PublicProfile {
     // Thin wrapper around the private render_edit_form() — same form and
     // handle_save()/handle_delete() handlers, just echoed into the portal
     // shell's <main> instead of a standalone shortcode-rendered page.
-    public static function render_portal_panel() {
+    public static function render_portal_panel(): void {
         echo self::render_edit_form(get_current_user_id());
     }
 
-    public static function report_target_label($label, $type, $id) {
+    /** @param mixed $label */
+    public static function report_target_label($label, string $type, int $id): string {
         if ($type !== 'profile') return $label;
         $user = get_userdata($id);
         return 'Profile: ' . ($user ? $user->display_name . ' (' . $user->user_email . ')' : 'User #' . $id);
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         global $post;
         // The portal's Profile panel renders this same edit form via
         // render_portal_panel(), but the portal is a custom rewrite-driven
@@ -98,13 +103,14 @@ class BHI_PublicProfile {
         ');
     }
 
-    public static function profile_url($user_id) {
+    public static function profile_url(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
         $key = $data['profile_slug'] ?: $user_id;
         return add_query_arg('bh_user', $key, home_url('/'));
     }
 
-    public static function render_link_shortcode($atts) {
+    /** @param array<string, mixed>|string $atts */
+    public static function render_link_shortcode($atts): string {
         $atts = shortcode_atts(['user_id' => 0, 'label' => ''], $atts);
         $user_id = (int) $atts['user_id'];
         if (!$user_id) return '';
@@ -112,7 +118,7 @@ class BHI_PublicProfile {
         return '<a class="bhi-profile-link" href="' . esc_url(self::profile_url($user_id)) . '">' . esc_html($label) . '</a>';
     }
 
-    public static function render_shortcode() {
+    public static function render_shortcode(): string {
         $key = isset($_GET['bh_user']) ? sanitize_text_field(wp_unslash($_GET['bh_user'])) : '';
 
         if ($key === '') {
@@ -140,7 +146,7 @@ class BHI_PublicProfile {
         return self::render_public_view($user_id);
     }
 
-    private static function render_public_view($user_id) {
+    private static function render_public_view(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
         $user = get_userdata($user_id);
         $badges = BHI_Profiles::badges_for($user_id);
@@ -233,7 +239,7 @@ class BHI_PublicProfile {
         return ob_get_clean();
     }
 
-    private static function render_edit_form($user_id) {
+    private static function render_edit_form(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
         $notice = isset($_GET['bhi_saved']) ? '<p class="bhi-profile-notice bhi-profile-notice--ok">' . esc_html__('Profile saved.', 'own-ur-shit') . '</p>' : '';
         if (isset($_GET['bhi_deleted'])) {
@@ -328,7 +334,7 @@ class BHI_PublicProfile {
         return ob_get_clean();
     }
 
-    public static function handle_delete() {
+    public static function handle_delete(): void {
         if (!is_user_logged_in()) wp_die('Not logged in.');
         if (!isset($_POST['bhi_delete_nonce']) || !wp_verify_nonce($_POST['bhi_delete_nonce'], 'bhi_delete_profile_data')) {
             wp_die('Security check failed.');
@@ -339,7 +345,7 @@ class BHI_PublicProfile {
         exit;
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!is_user_logged_in()) wp_die('Not logged in.');
         if (!isset($_POST['bhi_profile_nonce']) || !wp_verify_nonce($_POST['bhi_profile_nonce'], 'bhi_save_profile')) {
             wp_die('Security check failed.');
@@ -411,7 +417,8 @@ class BHI_PublicProfile {
     // grant upload_files for the duration of this one call only (never
     // persisted, never touches the user's real role/caps) on top of the
     // existing image-mimetype/size/author-attribution validation.
-    private static function handle_image_upload($field, $user_id) {
+    /** @return int|\WP_Error */
+    private static function handle_image_upload(string $field, int $user_id) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';

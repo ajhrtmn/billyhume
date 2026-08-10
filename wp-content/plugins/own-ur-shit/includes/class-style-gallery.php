@@ -64,14 +64,14 @@ if (!defined('ABSPATH')) exit;
  * pre-builder-era shape.
  */
 class BHY_Gallery {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhy_save_settings', [self::class, 'save']);
         add_action('admin_post_bhy_restore_style_revision', [self::class, 'handle_restore_revision']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
     }
 
-    public static function enqueue_media($hook) {
+    public static function enqueue_media(string $hook): void {
         // Widened (DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1) to also match
         // the 'bh-design' top-level hook — BH_Design_Suite::add_menu()
         // reuses this same render() callback as the Design Suite landing
@@ -107,7 +107,7 @@ class BHY_Gallery {
     // intended callback (BH_Design_Suite::add_menu() is the one real,
     // visible top-level entry; this hidden page is what it actually
     // renders).
-    public static function add_menu() {
+    public static function add_menu(): void {
         $hook = add_submenu_page(null, 'Designer', 'Designer', 'bhcore_design_site', 'bh-style', [self::class, 'render']);
         // Only the failure case is worth a log row — this used to fire
         // an INFO row for every successful registration too, throttled
@@ -122,7 +122,7 @@ class BHY_Gallery {
 
     /* ---------- saving (unchanged shape from the original settings page) ---------- */
 
-    public static function save() {
+    public static function save(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('bhy_save_settings');
 
@@ -147,7 +147,7 @@ class BHY_Gallery {
     // direct-restore reasoning bh_contest's own restore handler uses
     // (the snapshot IS already the target shape, no need to re-simulate
     // a fake $_POST through save() itself).
-    public static function handle_restore_revision() {
+    public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $version = (int) ($_GET['version'] ?? 0);
         if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhy_restore_style')) {
@@ -172,7 +172,7 @@ class BHY_Gallery {
 
     /* ---------- the gallery page ---------- */
 
-    public static function render() {
+    public static function render(): void {
         $s = BHY_Style::get();
         // Flatten registered custom-slider values onto $s under
         // 'custom_<key>' so render_controls() can hand them straight to
@@ -198,7 +198,8 @@ class BHY_Gallery {
         self::render_script($surfaces, $s);
     }
 
-    private static function render_sidebar($grouped) {
+    /** @param array<string, array<string, mixed>> $grouped */
+    private static function render_sidebar($grouped): void {
         echo '<div class="bhy-sidebar">';
         if (!$grouped) {
             echo BHY_Style::empty_state_html([
@@ -222,7 +223,11 @@ class BHY_Gallery {
     // than a real same-origin <iframe>, so this emits a plain <div> with
     // the whole preview document base64-encoded into a data attribute,
     // not an <iframe src="...">.
-    private static function render_canvas($surfaces, $s) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @param array<string, mixed> $s
+     */
+    private static function render_canvas($surfaces, $s): void {
         echo '<div class="bhy-canvas">';
         $first = true;
         foreach ($surfaces as $key => $surface) {
@@ -240,7 +245,11 @@ class BHY_Gallery {
     // One real HTML document per surface — the surface's own stylesheet,
     // the current tokens as CSS vars (with a stable id so the live-edit
     // JS can rewrite just that tag), and the surface's real markup.
-    private static function preview_doc($payload, $s) {
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $s
+     */
+    private static function preview_doc($payload, $s): string {
         $font_url = BHY_Style::preview_all_fonts_url();
         return '<!doctype html><html><head><meta charset="utf-8">'
             . ($font_url ? '<link rel="stylesheet" href="' . esc_url($font_url) . '">' : '')
@@ -263,7 +272,8 @@ class BHY_Gallery {
     // to visibly use every token at once (e.g. the default Player surface
     // never shows --bh-radius without opening a modal) — this gives every
     // slider instant, surface-independent feedback instead.
-    private static function render_token_preview($s) {
+    /** @param array<string, mixed> $s */
+    private static function render_token_preview($s): void {
         echo '<div class="bhy-token-preview" id="bhy-token-preview">';
         echo '<div class="bhy-token-chip bhy-token-chip-radius">Card <span>radius</span></div>';
         echo '<div class="bhy-token-chip bhy-token-chip-radius-sm">Chip <span>radius_sm</span></div>';
@@ -279,7 +289,8 @@ class BHY_Gallery {
     // disclosure (CSS ported into class-ui.php's shared admin_page_css()
     // as part of this file's builder-era cleanup — see this file's own
     // top docblock). Color swatches render through BHY_UI::swatch_field().
-    private static function render_controls($s, $default_group = 'brand') {
+    /** @param array<string, mixed> $s */
+    private static function render_controls($s, string $default_group = 'brand'): void {
         echo '<div class="bhy-controls" id="bhy-controls-panel">';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="bhy-form">';
         wp_nonce_field('bhy_save_settings');
@@ -431,7 +442,11 @@ class BHY_Gallery {
         echo '</form></div>';
     }
 
-    private static function render_script($surfaces, $s) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @param array<string, mixed> $s
+     */
+    private static function render_script($surfaces, $s): void {
         ?>
         <style><?php echo BHY_UI::admin_page_css(); ?></style>
         <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css()); ?></style>

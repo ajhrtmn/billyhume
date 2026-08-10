@@ -40,10 +40,10 @@ if (!defined('ABSPATH')) exit;
  * Gutenberg block under the identical name later without a rename.
  */
 class BH_Content {
-    /** @var array<string, array{schema: array, renderer: callable}> */
+    /** @var array<string, array{schema: array<string, mixed>, renderer: callable}> */
     private static $types = [];
 
-    public static function init() {
+    public static function init(): void {
         // Nothing to hook yet — registration happens via
         // register_block_type(), called by consumers on their own
         // 'init' (after this class's file has loaded, guaranteed by
@@ -58,15 +58,17 @@ class BH_Content {
      *                           validate/coerce the shapes this ecosystem actually needs.
      * @param callable $renderer function(array $attrs, array $rendered_children, array $block): string
      */
-    public static function register_block_type($type, array $schema, callable $renderer) {
+    /** @param array<string, mixed> $schema */
+    public static function register_block_type(string $type, array $schema, callable $renderer): void {
         self::$types[$type] = ['schema' => $schema, 'renderer' => $renderer];
     }
 
-    public static function is_registered($type) {
+    public static function is_registered(string $type): bool {
         return isset(self::$types[$type]);
     }
 
-    public static function get_registered_types() {
+    /** @return array<int, string> */
+    public static function get_registered_types(): array {
         return array_keys(self::$types);
     }
 
@@ -78,7 +80,11 @@ class BH_Content {
      * render" rather than breaking the whole document, matching this
      * ecosystem's existing class_exists()-guarded-degrade convention.
      */
-    public static function validate(array $tree) {
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @return array<int, array<string, mixed>>
+     */
+    public static function validate(array $tree): array {
         $clean = [];
         foreach ($tree as $block) {
             $type = $block['type'] ?? '';
@@ -97,7 +103,11 @@ class BH_Content {
         return $clean;
     }
 
-    private static function coerce($value, $type) {
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private static function coerce($value, string $type) {
         switch ($type) {
             case 'int':    return (int) $value;
             case 'bool':   return (bool) $value;
@@ -109,7 +119,8 @@ class BH_Content {
     }
 
     /** Render a validated tree to HTML, depth-first (children before parent). */
-    public static function render(array $tree) {
+    /** @param array<int, array<string, mixed>> $tree */
+    public static function render(array $tree): string {
         $out = '';
         foreach ($tree as $block) {
             $type = $block['type'] ?? '';
@@ -131,7 +142,8 @@ class BH_Content {
      * @param int    $context_id   A post ID (context_type === 'post') or whatever
      *                              ID makes sense within that context namespace.
      */
-    public static function get($context_type, $context_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function get(string $context_type, int $context_id): array {
         if ($context_type === 'post') {
             $post = get_post((int) $context_id);
             if (!$post) return [];
@@ -149,7 +161,11 @@ class BH_Content {
         return is_array($tree) ? $tree : [];
     }
 
-    public static function save($context_type, $context_id, array $tree) {
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @return array<int, array<string, mixed>>
+     */
+    public static function save(string $context_type, int $context_id, array $tree): array {
         $clean = self::validate($tree);
 
         if ($context_type === 'post') {
@@ -199,7 +215,11 @@ class BH_Content {
     // parse_blocks()'s own shape (blockName/attrs/innerBlocks/innerHTML)
     // maps almost directly onto ours (type/attrs/children) — this is
     // the whole reason storing straight into post_content costs nothing.
-    private static function gutenberg_blocks_to_tree(array $blocks) {
+    /**
+     * @param array<int, array<string, mixed>> $blocks
+     * @return array<int, array<string, mixed>>
+     */
+    private static function gutenberg_blocks_to_tree(array $blocks): array {
         $tree = [];
         foreach ($blocks as $block) {
             if (empty($block['blockName'])) continue; // freeform/classic HTML between blocks — not part of our typed tree
@@ -212,7 +232,11 @@ class BH_Content {
         return $tree;
     }
 
-    private static function tree_to_gutenberg_blocks(array $tree) {
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @return array<int, array<string, mixed>>
+     */
+    private static function tree_to_gutenberg_blocks(array $tree): array {
         $blocks = [];
         foreach ($tree as $node) {
             $inner_blocks = self::tree_to_gutenberg_blocks($node['children'] ?? []);

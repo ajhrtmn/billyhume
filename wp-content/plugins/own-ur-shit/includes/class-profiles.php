@@ -27,7 +27,7 @@ class BHI_Profiles {
     const INT_COLS = ['avatar_id', 'banner_id'];
     const PLATFORMS = ['youtube', 'twitch'];
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhi_profiles';
     }
@@ -35,13 +35,15 @@ class BHI_Profiles {
     // Shared lookup so bh-crm's class-people.php and class-export.php
     // don't each run this raw SQL independently against a table this
     // class owns. Same query, same return shape (array of int user IDs).
-    public static function user_ids_with_profile_data() {
+    /** @return array<int, int> */
+    public static function user_ids_with_profile_data(): array {
         global $wpdb;
         $ids = $wpdb->get_col("SELECT user_id FROM " . self::table() . " WHERE real_name != '' OR discord_name != '' OR twitch_name != '' OR youtube_name != ''");
         return array_map('intval', $ids);
     }
 
-    public static function get($user_id) {
+    /** @return array<string, mixed> */
+    public static function get(int $user_id): array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE user_id = %d", $user_id), ARRAY_A);
         $defaults = array_fill_keys(self::TEXT_COLS, '');
@@ -64,13 +66,18 @@ class BHI_Profiles {
     // Capped at 8 — a bio button list, not a link directory.
     const MAX_LINKS = 8;
 
-    private static function decode_links($raw) {
+    /** @return array<int, mixed> */
+    private static function decode_links(?string $raw): array {
         if ($raw === '' || $raw === null) return [];
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
     }
 
-    private static function sanitize_links($links) {
+    /**
+     * @param mixed $links
+     * @return array<int, array<string, string>>
+     */
+    private static function sanitize_links($links): array {
         if (!is_array($links)) return [];
         $out = [];
         foreach ($links as $link) {
@@ -88,7 +95,7 @@ class BHI_Profiles {
     // routes on. Only ever returns a profile with profile_public = 1;
     // a slug existing at all doesn't mean the profile behind it is
     // meant to be publicly viewable.
-    public static function get_by_slug($slug) {
+    public static function get_by_slug(string $slug): int {
         global $wpdb;
         $user_id = $wpdb->get_var($wpdb->prepare(
             "SELECT user_id FROM " . self::table() . " WHERE profile_slug = %s AND profile_public = 1", $slug
@@ -99,7 +106,11 @@ class BHI_Profiles {
     // Merge-save: only writes fields actually present in $data, so a
     // partial update (e.g. bh-streaming only ever touching real_name)
     // never clobbers fields another plugin already collected.
-    public static function save($user_id, $data) {
+    /**
+     * @param array<string, mixed> $data
+     * @return \WP_Error|void
+     */
+    public static function save(int $user_id, array $data) {
         global $wpdb;
         $row = ['user_id' => $user_id];
         $formats = ['%d'];
@@ -171,7 +182,11 @@ class BHI_Profiles {
     // Pulls whichever profile fields are present in a REST request —
     // shared by any plugin's registration/submission form so the exact
     // same field-parsing logic isn't reimplemented per plugin.
-    public static function from_request($req) {
+    /**
+     * @param \WP_REST_Request $req
+     * @return array<string, mixed>
+     */
+    public static function from_request($req): array {
         $out = [];
         foreach (self::TEXT_COLS as $col) {
             $val = $req->get_param($col);
@@ -208,7 +223,7 @@ class BHI_Profiles {
     // core's own "erase personal data" privacy-request flow, extended
     // per-plugin) is real, separate scope from "let someone clear the
     // profile page they can see and control themselves right now."
-    public static function delete_personal_data($user_id) {
+    public static function delete_personal_data(int $user_id): void {
         global $wpdb;
         $wpdb->delete(self::table(), ['user_id' => $user_id]);
     }
@@ -227,7 +242,8 @@ class BHI_Profiles {
      *         return $badges;
      *     }, 10, 2);
      */
-    public static function badges_for($user_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function badges_for(int $user_id): array {
         return apply_filters('bhi_profile_badges', [], $user_id);
     }
 }

@@ -59,10 +59,10 @@ if (!defined('ABSPATH')) exit;
 class OUS_GithubUpdates {
     const JOB_HOOK = 'ous_github_update_check';
 
-    /** @var array<string, array> */
+    /** @var array<string, array<string, mixed>> */
     private static $sources = [];
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'load_sources'], 30); // after OUS_Registry's own data is definitely populated
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_post_ous_github_update_now', [self::class, 'handle_update_now']);
@@ -73,17 +73,18 @@ class OUS_GithubUpdates {
         }
     }
 
-    public static function maybe_schedule_first_run() {
+    public static function maybe_schedule_first_run(): void {
         if (get_option('ous_github_updates_job_scheduled')) return;
         update_option('ous_github_updates_job_scheduled', time());
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::interval());
     }
 
-    private static function interval() {
+    private static function interval(): int {
         return (int) apply_filters('ous_github_updates_check_interval', DAY_IN_SECONDS);
     }
 
-    public static function run_check($args = []) {
+    /** @param array<string, mixed> $args */
+    public static function run_check($args = []): void {
         // Reschedule first — same "a fatal mid-sweep shouldn't kill the
         // recurring job forever" reasoning as every other self-
         // rescheduling OUS_Jobs consumer in this ecosystem.
@@ -103,14 +104,16 @@ class OUS_GithubUpdates {
      *   @type string $path       Subdirectory INSIDE that repo containing this plugin/theme's own root (e.g. 'wp-content/plugins/bh-crm'). Empty string if the repo root IS the plugin/theme root.
      * }
      */
-    public static function register($key, array $args) {
+    /** @param array<string, mixed> $args */
+    public static function register(string $key, array $args): void {
         $key = sanitize_key($key);
         if (empty($args['type']) || empty($args['repo'])) return;
         $existing = self::$sources[$key] ?? ['label' => $key, 'branch' => 'main', 'path' => ''];
         self::$sources[$key] = array_merge($existing, $args);
     }
 
-    public static function all() {
+    /** @return array<string, array<string, mixed>> */
+    public static function all(): array {
         return self::$sources;
     }
 
@@ -125,7 +128,7 @@ class OUS_GithubUpdates {
      * action hook — zero-central-registration, same shape as
      * ous_registered_plugins/ous_debug_tools.
      */
-    public static function load_sources() {
+    public static function load_sources(): void {
         if (class_exists('OUS_Registry')) {
             $default_repo = apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
             $default_branch = apply_filters('ous_github_updates_default_branch', 'dev');
@@ -147,7 +150,7 @@ class OUS_GithubUpdates {
 
     /* ---------------- checking ---------------- */
 
-    public static function check_all() {
+    public static function check_all(): void {
         foreach (array_keys(self::$sources) as $key) {
             self::check_one($key);
         }
@@ -160,7 +163,8 @@ class OUS_GithubUpdates {
      * this ecosystem has a small, bounded number of them, no need for
      * per-source options).
      */
-    public static function check_one($key) {
+    /** @return array<string, mixed>|null */
+    public static function check_one(string $key): ?array {
         $source = self::$sources[$key] ?? null;
         if (!$source) return null;
 
@@ -181,7 +185,8 @@ class OUS_GithubUpdates {
         return $status[$key];
     }
 
-    private static function local_version($source) {
+    /** @param array<string, mixed> $source */
+    private static function local_version($source): ?string {
         if ($source['type'] === 'theme') {
             $theme = wp_get_theme($source['stylesheet'] ?? '');
             return $theme->exists() ? $theme->get('Version') : null;
@@ -193,7 +198,8 @@ class OUS_GithubUpdates {
         return $data['Version'];
     }
 
-    private static function remote_main_file_path($source) {
+    /** @param array<string, mixed> $source */
+    private static function remote_main_file_path($source): string {
         $subdir = trim($source['path'] ?? '', '/');
         if ($source['type'] === 'theme') {
             $basename = 'style.css';
@@ -203,7 +209,8 @@ class OUS_GithubUpdates {
         return ($subdir ? $subdir . '/' : '') . $basename;
     }
 
-    private static function fetch_remote_version($source) {
+    /** @param array<string, mixed> $source */
+    private static function fetch_remote_version($source): ?string {
         $path = self::remote_main_file_path($source);
         $url = sprintf(
             'https://raw.githubusercontent.com/%s/%s/%s',
@@ -226,7 +233,7 @@ class OUS_GithubUpdates {
 
     /* ---------------- the real update: download, re-zip, install ---------------- */
 
-    public static function handle_update_now() {
+    public static function handle_update_now(): void {
         if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
         check_admin_referer('ous_github_update_now');
 
@@ -251,7 +258,8 @@ class OUS_GithubUpdates {
      *
      * @return true|WP_Error
      */
-    public static function update($key) {
+    /** @return true|\WP_Error */
+    public static function update(string $key) {
         $source = self::$sources[$key] ?? null;
         if (!$source) return new WP_Error('unknown_source', 'Not a registered update source.');
         if (!class_exists('ZipArchive')) return new WP_Error('no_ziparchive', 'ZipArchive isn\'t available on this server.');
@@ -346,7 +354,7 @@ class OUS_GithubUpdates {
         return true;
     }
 
-    private static function cleanup_dir($dir) {
+    private static function cleanup_dir(string $dir): void {
         if (!is_dir($dir)) return;
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -360,7 +368,11 @@ class OUS_GithubUpdates {
 
     /* ---------------- Debug Tools ---------------- */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         // No 'handle' key — the real action rides its own admin-post.php
         // hook (handle_update_now), not the shared Debug Tools button
         // dispatcher, since it needs update_plugins/update_themes
@@ -377,7 +389,7 @@ class OUS_GithubUpdates {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         if (!self::$sources) {
             echo '<p class="description">No GitHub update sources registered.</p>';
             return;

@@ -46,7 +46,7 @@ if (!defined('ABSPATH') ) exit;
  *   single-track page — a real follow-up, not done here.
  */
 class OUS_Search {
-    public static function init() {
+    public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_shortcode('ous_search', [self::class, 'render_shortcode']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
@@ -59,7 +59,11 @@ class OUS_Search {
         add_filter('ous_search_providers', [self::class, 'maybe_register_courses_provider']);
     }
 
-    public static function maybe_register_courses_provider($providers) {
+    /**
+     * @param array<string, mixed> $providers
+     * @return array<string, mixed>
+     */
+    public static function maybe_register_courses_provider($providers): array {
         if (post_type_exists('bh_course')) {
             $providers['courses'] = [self::class, 'search_courses'];
         }
@@ -69,7 +73,8 @@ class OUS_Search {
     // A plain WP_Query 's' search, since bh_course is already a real
     // public, indexed post type — no bespoke LIKE query needed for this
     // one provider specifically.
-    public static function search_courses($query, $limit) {
+    /** @return array<int, array<string, mixed>> */
+    public static function search_courses(string $query, int $limit): array {
         $posts = get_posts([
             'post_type' => 'bh_course', 'post_status' => 'publish',
             's' => $query, 'posts_per_page' => $limit,
@@ -94,7 +99,8 @@ class OUS_Search {
      * per-item try/catch posture BHM_Products::on_order_completed()
      * already uses for exactly this reason.
      */
-    public static function run($query, $limit_per_type = 5) {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(string $query, int $limit_per_type = 5): array {
         $query = trim((string) $query);
         if ($query === '' || strlen($query) < 2) return [];
 
@@ -113,7 +119,7 @@ class OUS_Search {
         return $results;
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('ous/v1', '/search', [
             'methods' => 'GET',
             'permission_callback' => '__return_true', // public site search, same openness as WooCommerce's own shop browsing
@@ -121,7 +127,7 @@ class OUS_Search {
         ]);
     }
 
-    public static function rest_search(\WP_REST_Request $req) {
+    public static function rest_search(\WP_REST_Request $req): \WP_REST_Response {
         $q = (string) $req->get_param('q');
         $results = self::run($q);
         return new \WP_REST_Response(['results' => $results, 'count' => count($results)], 200);
@@ -129,7 +135,7 @@ class OUS_Search {
 
     /* ---------------- front-end UI ---------------- */
 
-    public static function render_shortcode() {
+    public static function render_shortcode(): string {
         ob_start();
         ?>
         <div class="ous-search">
@@ -140,7 +146,7 @@ class OUS_Search {
         return ob_get_clean();
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         global $post;
         if (!$post || !has_shortcode($post->post_content, 'ous_search')) return;
         wp_enqueue_style('ous-search', OUS_URL . 'assets/css/search.css', [], OUS_VER);

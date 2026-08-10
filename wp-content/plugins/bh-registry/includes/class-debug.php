@@ -40,7 +40,7 @@ class BHR_Debug {
 
     public static function render_section(): void {
         echo '<p>Seed a few fake, pre-verified artists/links so browse/search and the review queue have something to show.</p>';
-        echo OUS_Debug::button('bh-registry', 'seed', 'Seed 5 fake artists');
+        OUS_Debug::button('bh-registry', 'seed', 'Seed 5 fake artists');
     }
 
     /** @param array<string, mixed> $post */

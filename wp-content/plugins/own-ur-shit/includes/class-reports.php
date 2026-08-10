@@ -46,7 +46,7 @@ class BHI_Reports {
     const RATE_LIMIT = 5;   // max reports per user per hour — a real moderation signal, not a way to bury someone in noise
     const RATE_WINDOW = HOUR_IN_SECONDS;
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_bhi_submit_report', [self::class, 'handle_submit']);
         add_action('admin_menu', [self::class, 'add_admin_page']);
         // Ecosystem-wide "report a technical difficulty" widget.
@@ -59,7 +59,7 @@ class BHI_Reports {
         add_action('wp_footer', [self::class, 'render_technical_report_widget']);
     }
 
-    public static function render_technical_report_widget() {
+    public static function render_technical_report_widget(): void {
         if (!is_user_logged_in() || is_admin()) return;
         $nonce = wp_create_nonce('wp_rest');
         ?>
@@ -308,13 +308,14 @@ class BHI_Reports {
     // there's no server-rendered card to embed the admin-post <form>
     // into). Same rate limit, same validation, same table — just a
     // different transport for the same action.
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhi/v1', '/reports', [
             'methods' => 'POST', 'callback' => [self::class, 'rest_submit'], 'permission_callback' => 'is_user_logged_in',
         ]);
     }
 
-    public static function rest_submit($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function rest_submit(\WP_REST_Request $req) {
         $target_type = sanitize_key((string) $req->get_param('target_type'));
         $target_id = (int) $req->get_param('target_id');
         // A technical-difficulty report has no piece of content to
@@ -345,7 +346,7 @@ class BHI_Reports {
 
     /* ---------- the button any plugin embeds ---------- */
 
-    public static function report_button_html($target_type, $target_id) {
+    public static function report_button_html(string $target_type, int $target_id): string {
         if (!is_user_logged_in()) {
             return '<span class="bhi-report-login-note">Log in to report this.</span>';
         }
@@ -356,7 +357,7 @@ class BHI_Reports {
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="bhi_submit_report" />
                 <input type="hidden" name="target_type" value="<?php echo esc_attr($target_type); ?>" />
-                <input type="hidden" name="target_id" value="<?php echo esc_attr($target_id); ?>" />
+                <input type="hidden" name="target_id" value="<?php echo esc_attr((string) $target_id); ?>" />
                 <input type="hidden" name="bhi_report_nonce" value="<?php echo esc_attr($nonce); ?>" />
                 <input type="hidden" name="_wp_http_referer" value="<?php echo esc_url(remove_query_arg('bhi_reported')); ?>" />
                 <select name="category">
@@ -374,7 +375,7 @@ class BHI_Reports {
 
     /* ---------- submission ---------- */
 
-    public static function handle_submit() {
+    public static function handle_submit(): void {
         if (!is_user_logged_in()) wp_die('Log in to report content.');
 
         $target_type = sanitize_key($_POST['target_type'] ?? '');
@@ -409,13 +410,13 @@ class BHI_Reports {
 
     /* ---------- admin queue ---------- */
 
-    public static function add_admin_page() {
+    public static function add_admin_page(): void {
         add_submenu_page(
             'own-ur-shit', 'Reports', 'Reports', 'manage_options', 'ous-reports', [self::class, 'render_admin_page']
         );
     }
 
-    public static function render_admin_page() {
+    public static function render_admin_page(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         if (isset($_GET['resolve']) && isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'bhi_resolve_report')) {
@@ -477,7 +478,7 @@ class BHI_Reports {
         echo '</tbody></table></div></div>';
     }
 
-    private static function resolve($id, $status) {
+    private static function resolve(int $id, string $status): void {
         if (!in_array($status, ['resolved', 'dismissed'], true)) return;
         global $wpdb;
         $wpdb->update($wpdb->prefix . 'bhi_reports', [

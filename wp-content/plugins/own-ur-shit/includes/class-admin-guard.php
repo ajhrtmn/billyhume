@@ -21,7 +21,8 @@ if (!defined('ABSPATH')) exit;
  * isset() check first.
  */
 class OUS_AdminGuard {
-    public static function verify_nonce_and_cap($capability, $nonce_value, $nonce_action) {
+    /** @param mixed $nonce_value */
+    public static function verify_nonce_and_cap(string $capability, $nonce_value, string $nonce_action): bool {
         return current_user_can($capability) && wp_verify_nonce((string) $nonce_value, $nonce_action);
     }
 }

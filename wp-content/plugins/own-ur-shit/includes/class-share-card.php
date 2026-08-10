@@ -37,11 +37,11 @@ class BH_ShareCard {
         'poster-block' => 'Poster — Color Block',
     ];
 
-    public static function is_valid_style($style) {
+    public static function is_valid_style(string $style): bool {
         return isset(self::STYLES[$style]);
     }
 
-    private static function font($name) {
+    private static function font(string $name): string {
         return OUS_PATH . 'assets/fonts/' . $name;
     }
 
@@ -50,7 +50,11 @@ class BH_ShareCard {
     // alpha byte — GD's alpha model (0-127, inverted) doesn't map
     // cleanly onto a straight hex alpha byte, and every call site here
     // wants a solid fill, never a translucent one.
-    private static function gd_color($im, $hex) {
+    /**
+     * @param \GdImage $im
+     * @return int|false
+     */
+    private static function gd_color($im, string $hex) {
         $hex = ltrim($hex, '#');
         if (strlen($hex) >= 6) {
             $r = hexdec(substr($hex, 0, 2));
@@ -65,7 +69,8 @@ class BH_ShareCard {
     // (not a fixed char-count guess, which a variable-width font like
     // Work Sans would make look wrong) — good enough for the short
     // titles/labels these cards render, not a general typesetting engine.
-    private static function wrap_text($text, $font_path, $size, $max_width) {
+    /** @return array<int, string> */
+    private static function wrap_text(string $text, string $font_path, int $size, int $max_width): array {
         $words = preg_split('/\s+/', trim($text));
         $lines = [];
         $current = '';
@@ -94,6 +99,10 @@ class BH_ShareCard {
      * Returns a GdImage (PHP 8) / gd resource, caller's responsibility
      * to imagepng()/imagedestroy() it.
      */
+    /**
+     * @param array<string, mixed> $args
+     * @return \GdImage
+     */
     public static function generate(array $args) {
         $style = self::is_valid_style($args['style'] ?? '') ? $args['style'] : 'brand';
         $eyebrow = (string) ($args['eyebrow'] ?? '');
@@ -114,7 +123,11 @@ class BH_ShareCard {
        whatever theme/preset is actually active (dark by default, but
        BH_Style has 10+ presets an admin can be running) — never a
        hardcoded color set that could drift from the real site. */
-    private static function render_brand($eyebrow, $title, $subtitle, $entity_id) {
+    /**
+     * @param mixed $entity_id
+     * @return \GdImage
+     */
+    private static function render_brand(string $eyebrow, string $title, string $subtitle, $entity_id) {
         $s = class_exists('BH_Style') ? BH_Style::get($entity_id) : [];
         $bg = $s['color_bg'] ?? '#170807';
         $accent = $s['color_accent'] ?? '#C1503A';
@@ -177,7 +190,8 @@ class BH_ShareCard {
        fixed high-contrast pair rather than BH_Style's palette so this
        style always looks the same regardless of which of BH_Style's
        10+ presets happens to be active. */
-    private static function render_poster($eyebrow, $title, $subtitle) {
+    /** @return \GdImage */
+    private static function render_poster(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
         imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, self::gd_color($im, '#0B0B0E'));
 
@@ -239,7 +253,8 @@ class BH_ShareCard {
        cream-on-near-black vs. white-on-near-black), not a recolor of
        the same layout. Corner tick marks are the one decorative flourish,
        echoing a printed poster's own registration/crop marks. */
-    private static function render_poster_frame($eyebrow, $title, $subtitle) {
+    /** @return \GdImage */
+    private static function render_poster_frame(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
         $bg = self::gd_color($im, '#161311');
         $cream = self::gd_color($im, '#F3E9DC');
@@ -302,7 +317,8 @@ class BH_ShareCard {
        dominant visual weight, rather than a line/border doing the work
        'poster'/'poster-frame' use. Left-aligned throughout, unlike
        poster-frame's centered layout. */
-    private static function render_poster_block($eyebrow, $title, $subtitle) {
+    /** @return \GdImage */
+    private static function render_poster_block(string $eyebrow, string $title, string $subtitle) {
         $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
         $dark = self::gd_color($im, '#0E1116');
         $block = self::gd_color($im, '#3D5AFE');
@@ -354,7 +370,8 @@ class BH_ShareCard {
     // certificate download endpoint), so neither plugin needs to
     // duplicate cache-header/content-type/imagepng-then-exit
     // boilerplate.
-    public static function output_png(array $args, $filename = 'share-card.png') {
+    /** @param array<string, mixed> $args */
+    public static function output_png(array $args, string $filename = 'share-card.png'): void {
         $im = self::generate($args);
         header('Content-Type: image/png');
         header('Content-Disposition: inline; filename="' . sanitize_file_name($filename) . '"');

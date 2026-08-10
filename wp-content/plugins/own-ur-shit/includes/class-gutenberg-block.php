@@ -44,11 +44,11 @@ class OUS_Gutenberg_Block {
     // for the same pattern). register_block() itself no-ops today since
     // BH_Element_Prefab doesn't currently exist, but this stays correct
     // for if/when it comes back.
-    public static function init() {
+    public static function init(): void {
         self::register_block();
     }
 
-    public static function register_block() {
+    public static function register_block(): void {
         if (!function_exists('register_block_type') || !class_exists('BH_Element_Prefab')) return; // WP too old, or the prefab class isn't loaded — harmless no-op, same posture every other optional integration in this ecosystem uses
 
         wp_register_script(
@@ -83,7 +83,8 @@ class OUS_Gutenberg_Block {
      * admin's — a bound attribute inside an embedded prefab should
      * reflect whoever is actually looking at it.
      */
-    public static function render($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render($attributes): string {
         $prefab_id = (int) ($attributes['prefabId'] ?? 0);
         if ($prefab_id <= 0) {
             // No prefab chosen yet — render nothing on the front end

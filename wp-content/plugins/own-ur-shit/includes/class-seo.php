@@ -21,9 +21,10 @@ if (!defined('ABSPATH')) exit;
  * piece of code already set, not as the primary registration path.
  */
 class BH_SEO {
+    /** @var array<string, mixed>|null */
     private static $page_data = null;
 
-    public static function init() {
+    public static function init(): void {
         add_action('wp_head', [self::class, 'render_head_tags'], 1);
         add_action('template_redirect', [self::class, 'maybe_serve_llms_txt']);
     }
@@ -39,7 +40,8 @@ class BH_SEO {
      *                 ['@context' => 'https://schema.org', '@type' => 'Person', 'name' => ..., ...]
      *                 Rendered verbatim via wp_json_encode() — caller's responsibility to shape it correctly.
      */
-    public static function set_page_data(array $data) {
+    /** @param array<string, mixed> $data */
+    public static function set_page_data(array $data): void {
         self::$page_data = apply_filters('bh_seo_page_data', $data);
         // WordPress core renders its own rel=canonical (pointing at the
         // literal page permalink) via WP_Head's rel_canonical() hook.
@@ -50,7 +52,7 @@ class BH_SEO {
         remove_action('wp_head', 'rel_canonical');
     }
 
-    public static function render_head_tags() {
+    public static function render_head_tags(): void {
         if (!self::$page_data) return;
         $d = self::$page_data;
 
@@ -98,7 +100,7 @@ class BH_SEO {
      * here automatically rather than needing this file edited by hand
      * every time a new surface ships.
      */
-    public static function maybe_serve_llms_txt() {
+    public static function maybe_serve_llms_txt(): void {
         if (trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/') !== 'llms.txt') return;
 
         header('Content-Type: text/plain; charset=utf-8');

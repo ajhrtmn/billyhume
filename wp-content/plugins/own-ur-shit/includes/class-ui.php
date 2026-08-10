@@ -54,7 +54,8 @@ class BHY_UI {
      * first fragment's <style> tag along with everything else that was
      * inside that container, silently losing all the CSS with no error.
      */
-    public static function empty_state_html(array $args) {
+    /** @param array<string, mixed> $args */
+    public static function empty_state_html(array $args): string {
         $reason = $args['reason'] ?? 'zero';
         $title = (string) ($args['title'] ?? ($reason === 'filtered' ? 'Nothing matches your filters' : 'Nothing here yet'));
         $description = (string) ($args['description'] ?? '');
@@ -95,7 +96,7 @@ class BHY_UI {
         return $out;
     }
 
-    public static function swatch_css() {
+    public static function swatch_css(): string {
         return '
             .bhy-swatch-card {
                 border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px);
@@ -132,7 +133,7 @@ class BHY_UI {
         ';
     }
 
-    public static function swatch_field($id, $name, $label, $value, $placeholder = '') {
+    public static function swatch_field(string $id, string $name, string $label, string $value, string $placeholder = ''): void {
         $display = $value !== '' ? $value : $placeholder;
         ?>
         <div class="bhy-swatch-card">
@@ -168,7 +169,7 @@ class BHY_UI {
     // preview + color-picker dropper. $on_sync_js runs after every sync
     // (e.g. bh-style's gallery uses it to push the new value into every
     // registered surface's live preview, not just repaint the swatch).
-    public static function swatch_js($on_sync_js = '') {
+    public static function swatch_js(string $on_sync_js = ''): string {
         return "
         (function () {
             function isValidCssColor(v) {
@@ -268,7 +269,8 @@ class BHY_UI {
         ";
     }
 
-    public static function font_field($key, $label, $s) {
+    /** @param array<string, mixed> $s */
+    public static function font_field(string $key, string $label, $s): void {
         $picked = $s[$key];
         $is_custom = !array_key_exists($picked, BHY_Style::FONT_OPTIONS);
         ?>
@@ -301,7 +303,13 @@ class BHY_UI {
         <?php
     }
 
-    public static function slider_row($key, $label, $s, $min, $max, $step, $unit) {
+    /**
+     * @param array<string, mixed> $s
+     * @param mixed $min
+     * @param mixed $max
+     * @param mixed $step
+     */
+    public static function slider_row(string $key, string $label, $s, $min, $max, $step, string $unit): void {
         ?>
         <div class="bhy-slider-row">
             <label for="<?php echo esc_attr($key); ?>">
@@ -315,7 +323,7 @@ class BHY_UI {
         <?php
     }
 
-    public static function admin_page_css() {
+    public static function admin_page_css(): string {
         return '
             * { box-sizing: border-box; }
             /* Controls column widened from 320px to 380px, and the swatch
@@ -553,7 +561,7 @@ class BHY_UI {
      * Debug Tools, and People/CRM can all opt in just by using these
      * class names — no per-plugin stylesheet to keep in sync.
      * --------------------------------------------------------------- */
-    public static function init_shared_admin_assets() {
+    public static function init_shared_admin_assets(): void {
         add_action('admin_head', [self::class, 'print_design_system_css']);
         add_action('admin_footer', [self::class, 'print_design_system_js']);
     }
@@ -577,7 +585,7 @@ class BHY_UI {
      * existing convention (see OUS_Notifications' admin-bar bell for the
      * same "own script handle, no assumed dependency" shape).
      */
-    public static function print_design_system_js() {
+    public static function print_design_system_js(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         $id = $screen ? $screen->id : '';
         // Broadened from a literal 'bh-' substring match: real screen ids
@@ -654,7 +662,7 @@ class BHY_UI {
         <?php
     }
 
-    public static function print_design_system_css() {
+    public static function print_design_system_css(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         $id = $screen ? $screen->id : '';
         // Only print on the ecosystem's own screens (own-ur-shit / bh-*
@@ -674,7 +682,7 @@ class BHY_UI {
         echo '<style>' . self::design_system_css() . '</style>';
     }
 
-    public static function design_system_css() {
+    public static function design_system_css(): string {
         return '
             /* ============================================================
                LAYER 1 — TOKENS. Custom properties only, no selectors.
@@ -877,7 +885,7 @@ class BHY_UI {
     // in sync with its value so the filled-track gradient above tracks
     // the thumb, and is safe to call multiple times on a page (each
     // range wires itself once via a data attribute guard).
-    public static function range_fill_js() {
+    public static function range_fill_js(): string {
         return "
         document.querySelectorAll('input.bhy-range').forEach(function (input) {
             if (input.dataset.bhyRangeWired) return;
@@ -899,12 +907,12 @@ class BHY_UI {
     // $title may include small inline markup (e.g. a live-status dot
     // span) — callers pass plain text through esc_html themselves first
     // if they don't need that; wp_kses_post keeps this safe either way.
-    public static function shell_open($title, $description = '') {
+    public static function shell_open(string $title, string $description = ''): void {
         echo '<div class="wrap bhy-shell"><h1>' . wp_kses_post($title) . '</h1>';
         if ($description) echo '<p class="description">' . wp_kses_post($description) . '</p>';
     }
 
-    public static function shell_close() {
+    public static function shell_close(): void {
         echo '</div>';
     }
 
@@ -919,14 +927,15 @@ class BHY_UI {
      * removes, or relocates a page across parents, so it's safe to run
      * regardless of which plugins are active.
      * --------------------------------------------------------------- */
-    public static function pin_hidden_submenus_to_bottom() {
+    public static function pin_hidden_submenus_to_bottom(): void {
         add_action('admin_menu', [self::class, 'reorder_hidden_submenus'], 1000);
     }
 
     // Slugs any ecosystem plugin considers a "utility" page rather than
     // a primary destination — filterable so a future plugin (its own
     // debug/maintenance page) can opt in without touching this file.
-    public static function hidden_submenu_slugs() {
+    /** @return array<int, string> */
+    public static function hidden_submenu_slugs(): array {
         // 'ous-debug' itself used to live here too, back when Debug Tools
         // was a submenu under the main "Own Ur Shit" hub — it's now its
         // own top-level "OUS Debug" menu (see class-debug.php), so
@@ -937,7 +946,7 @@ class BHY_UI {
         return apply_filters('bhy_hidden_submenu_slugs', ['ous-api-docs']);
     }
 
-    public static function reorder_hidden_submenus() {
+    public static function reorder_hidden_submenus(): void {
         global $submenu;
         $hidden = self::hidden_submenu_slugs();
         if (!$hidden || !is_array($submenu)) return;

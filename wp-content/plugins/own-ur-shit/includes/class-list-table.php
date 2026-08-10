@@ -39,7 +39,11 @@ class OUS_ListTable {
      *                              shape bhm_tier's own price-sort already
      *                              used.
      */
-    public static function register($post_type, array $columns, callable $render, array $sortable = []) {
+    /**
+     * @param array<string, string> $columns
+     * @param array<string, mixed> $sortable
+     */
+    public static function register(string $post_type, array $columns, callable $render, array $sortable = []): void {
         add_filter("manage_{$post_type}_posts_columns", function ($cols) use ($columns) {
             $new = [];
             foreach ($cols as $key => $label) {

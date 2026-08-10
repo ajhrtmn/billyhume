@@ -47,7 +47,7 @@ if (!defined('ABSPATH')) exit;
  * before relying on it in production.
  */
 class BH_Element_Data {
-    /** @var array<string, array> slug => manifest (including the 'resolve' callable) */
+    /** @var array<string, array<string, mixed>> slug => manifest (including the 'resolve' callable) */
     private static $sources = [];
 
     /**
@@ -67,7 +67,7 @@ class BH_Element_Data {
 
     const VALID_KINDS = ['scalar', 'list', 'richtext', 'url', 'series'];
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         self::register_default_sources();
         self::register_default_formatters();
@@ -84,7 +84,7 @@ class BH_Element_Data {
      * @return bool true if accepted, false if rejected (empty slug or non-callable) —
      *              same "rejections never throw" posture as register_source().
      */
-    public static function register_formatter($slug, callable $fn) {
+    public static function register_formatter(string $slug, callable $fn): bool {
         $slug = trim((string) $slug);
         if ($slug === '' || !is_callable($fn)) return false;
         self::$formatters[$slug] = $fn;
@@ -92,7 +92,8 @@ class BH_Element_Data {
     }
 
     /** Slugs only — this is what the inspector's future "format" dropdown (§3.3) would list; no per-formatter metadata exists yet since none has been needed by a real consumer. */
-    public static function registered_formatters() {
+    /** @return array<int, string> */
+    public static function registered_formatters(): array {
         return array_keys(self::$formatters);
     }
 
@@ -104,7 +105,7 @@ class BH_Element_Data {
      * "quality over breadth, no speculative unused surface area" reason
      * register_default_sources() gives for shipping only one source.
      */
-    private static function register_default_formatters() {
+    private static function register_default_formatters(): void {
         self::register_formatter('compact_number', function ($value) {
             if (!is_numeric($value)) return $value; // not a number — nothing this formatter can do, pass through unchanged rather than erroring
             $n = (float) $value;
@@ -115,7 +116,8 @@ class BH_Element_Data {
         });
     }
 
-    private static function trim_trailing_zero($n) {
+    /** @param mixed $n */
+    private static function trim_trailing_zero($n): string {
         // 1.0 -> "1", 1.2 -> "1.2" — rtrim on a string avoids float-
         // formatting surprises (e.g. sprintf('%.1f', 1.0) === '1.0').
         $s = rtrim(rtrim(number_format((float) $n, 1, '.', ''), '0'), '.');
@@ -139,7 +141,7 @@ class BH_Element_Data {
      * builder files; a future pass could promote this into a real
      * BH_Event::count_for_user() helper other callers reuse.
      */
-    private static function register_default_sources() {
+    private static function register_default_sources(): void {
         self::register_source('bhcore_events.count', [
             'label'    => 'Event count (bhcore_events)',
             'kind'     => 'scalar',
@@ -202,7 +204,8 @@ class BH_Element_Data {
      * }
      * @return bool true if the registration was accepted, false if rejected (malformed — missing resolve/kind). Rejections never throw: a plugin author gets a debug-log entry and a false return, not a fatal, matching this ecosystem's class_exists()-guarded-degrade posture applied one level deeper (bad registration degrades the same way an absent registration does).
      */
-    public static function register_source($slug, array $args) {
+    /** @param array<string, mixed> $args */
+    public static function register_source(string $slug, array $args): bool {
         // Deliberately NOT run through sanitize_key() (which strips '.') —
         // slugs here are namespaced with dots ('bhcore_events.count') the
         // same way BH_Event/BH_Content namespace with a slash, and are
@@ -233,12 +236,13 @@ class BH_Element_Data {
         return true;
     }
 
-    public static function is_registered($slug) {
+    public static function is_registered(string $slug): bool {
         return isset(self::$sources[(string) $slug]);
     }
 
     /** slug => manifest MINUS the callable — safe to hand to the GUI/REST layer (§3.4 `GET elements/sources`). */
-    public static function registered_sources() {
+    /** @return array<string, array<string, mixed>> */
+    public static function registered_sources(): array {
         $out = [];
         foreach (self::$sources as $slug => $manifest) {
             $out[$slug] = [
@@ -252,7 +256,8 @@ class BH_Element_Data {
     }
 
     /** Sources whose declared 'kind' matches a target attribute's kind — powers the inspector's source dropdown (§4). */
-    public static function sources_for_kind($kind) {
+    /** @return array<string, array<string, mixed>> */
+    public static function sources_for_kind(string $kind): array {
         return array_filter(self::registered_sources(), function ($m) use ($kind) {
             return $m['kind'] === $kind;
         });
@@ -280,6 +285,12 @@ class BH_Element_Data {
      *               this method has no idea whether the value lands in a text node, an href,
      *               or a data-attribute, so escaping here would either be wrong for some call
      *               sites or would double-escape for others.
+     */
+    /**
+     * @param array<string, mixed> $attr_value
+     * @param array<string, mixed> $ctx
+     * @param mixed $default
+     * @return mixed
      */
     public static function resolve(array $attr_value, array $ctx = [], $default = '') {
         // Explicit literal always wins if present, even if a 'bind' key also
@@ -395,7 +406,12 @@ class BH_Element_Data {
     // "context." as a substring elsewhere are left alone (not partial-
     // interpolated) to keep the contract simple and predictable for
     // future element authors.
-    private static function resolve_args(array $args, array $ctx) {
+    /**
+     * @param array<string, mixed> $args
+     * @param array<string, mixed> $ctx
+     * @return array<string, mixed>
+     */
+    private static function resolve_args(array $args, array $ctx): array {
         $out = [];
         foreach ($args as $key => $value) {
             $out[$key] = is_string($value) ? self::resolve_token($value, $ctx) : $value;
@@ -403,6 +419,11 @@ class BH_Element_Data {
         return $out;
     }
 
+    /**
+     * @param mixed $value
+     * @param array<string, mixed> $ctx
+     * @return mixed
+     */
     private static function resolve_token($value, array $ctx) {
         if (is_string($value) && strpos($value, 'context.') === 0) {
             $key = substr($value, strlen('context.'));
@@ -413,13 +434,13 @@ class BH_Element_Data {
 
     /* ---------------- quiet operational logging (never fatal, never surfaced to the visitor) ---------------- */
 
-    private static function log_registration_problem($slug, $message) {
+    private static function log_registration_problem(string $slug, string $message): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('warning', "register_source($slug): $message", [], 'bh-element-data');
         }
     }
 
-    private static function log_resolution_error($slug, $message) {
+    private static function log_resolution_error(string $slug, string $message): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error', "resolve() failed for source '$slug': $message", [], 'bh-element-data');
         }
@@ -427,7 +448,11 @@ class BH_Element_Data {
 
     /* ---------------- Debug Tools: registered-sources inspector ---------------- */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-element-data'] = [
             'label'  => 'Element Data Sources',
             'render' => [self::class, 'render_debug_section'],
@@ -436,7 +461,7 @@ class BH_Element_Data {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         echo '<p class="description">Registered data-binding sources (<code>BH_Element_Data::register_source()</code>) this request — what a bound element attribute can point at, and the "kind" the GUI\'s inspector matches against an attribute\'s own declared kind.</p>';
 
         $sources = self::registered_sources();

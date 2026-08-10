@@ -2,11 +2,21 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.20
+ * Version:     2.4.21
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 2.4.21 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+// level 6 brick (typing OUS_Debug::button() with a real `: void`
+// return): class-debug.php here was calling it as `echo
+// OUS_Debug::button(...)`, double-printing that debug-tools button on
+// this plugin's own Debug Tools section — button() already echoes its
+// own markup internally, the wrapping `echo` was pure extraneous
+// output. Fixed by dropping the `echo`. NOT runtime-verified against a
+// live install; smoke-test the Debug Tools page to confirm the button
+// renders once, not twice.
 
 // 2.4.20 — Ecosystem quality Phase 2, brick 9/13: bh-crm is now clean at
 // PHPStan level 6 (native return/parameter types + precise array-shape
@@ -203,7 +213,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.20');
+define('BHCRM_VER',  '2.4.21');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

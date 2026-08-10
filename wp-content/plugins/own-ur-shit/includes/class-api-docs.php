@@ -31,7 +31,7 @@ if (!defined('ABSPATH')) exit;
 class OUS_ApiDocs {
     const RELEVANT_PREFIXES = ['ous/', 'bhi/', 'bh'];
 
-    public static function init() {
+    public static function init(): void {
         // add_menu() (standalone admin.php?page=ous-api-docs page) is
         // deliberately not hooked anymore — WordPress's own page-hook
         // resolution fails for this specific standalone page
@@ -52,7 +52,11 @@ class OUS_ApiDocs {
     // family as BHI_Portal's rewrite-rule issue) is distinguishable
     // from "never registered at all" (an is_locked() problem) without
     // needing to click through to the 404 first.
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['api-docs'] = ['label' => 'API Docs', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
@@ -65,7 +69,7 @@ class OUS_ApiDocs {
     // never fully root-caused even with registration and capability
     // both confirmed correct — so this section, not that page, is
     // what to actually use and link to.
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         self::render_content();
     }
 
@@ -78,7 +82,7 @@ class OUS_ApiDocs {
     // facing feature — no reason for it to clutter a real site's admin
     // menu, or to be reachable at all once "which routes exist" isn't a
     // question anyone actively developing against this install is asking.
-    public static function add_menu() {
+    public static function add_menu(): void {
         // The is_locked() gate that used to wrap this call is removed —
         // API Docs and Codebase Docs were the only two pages in the
         // ecosystem that conditionally skipped their own
@@ -102,7 +106,7 @@ class OUS_ApiDocs {
         }
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('ous/v1', '/openapi.json', [
             'methods' => 'GET',
             'permission_callback' => '__return_true', // gated below by is_locked(), not by an auth check — same "dev tooling, not user data" reasoning as the admin menu above
@@ -120,7 +124,7 @@ class OUS_ApiDocs {
         ]);
     }
 
-    private static function is_relevant($namespace) {
+    private static function is_relevant(string $namespace): bool {
         foreach (self::RELEVANT_PREFIXES as $prefix) {
             if (strpos($namespace, $prefix) === 0) return true;
         }
@@ -133,7 +137,8 @@ class OUS_ApiDocs {
      * anywhere in the ecosystem (present or future) shows up here
      * automatically, with zero separate documentation-maintenance step.
      */
-    public static function generate_spec() {
+    /** @return array<string, mixed> */
+    public static function generate_spec(): array {
         $server = rest_get_server();
         $routes = $server->get_routes();
         $paths = [];
@@ -182,7 +187,7 @@ class OUS_ApiDocs {
         ];
     }
 
-    private static function route_namespace($route, $server) {
+    private static function route_namespace(string $route, \WP_REST_Server $server): string {
         // WordPress doesn't expose a route's namespace directly on the
         // route table itself — it's derivable from the registered
         // namespace index, which get_namespaces() does expose.
@@ -196,13 +201,13 @@ class OUS_ApiDocs {
     // good enough for a docs viewer's readability even though it drops
     // the actual validation regex (the "parameters" schema type above
     // is where real type info still lives).
-    private static function to_openapi_path($route) {
+    private static function to_openapi_path(string $route): string {
         return preg_replace('/\(\?P<([^>]+)>[^)]*\)/', '{$1}', $route);
     }
 
     /* ---------------- in-admin viewer (no external JS/CDN) ---------------- */
 
-    public static function render() {
+    public static function render(): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'OUS_ApiDocs::render() was entered — the page callback is actually running.', [], 'API Docs');
         }
@@ -214,7 +219,7 @@ class OUS_ApiDocs {
     // The actual body content, shared by both the standalone page
     // (render()) and the Debug Tools section (render_debug_section(),
     // the reliable primary path — see that method's own comment).
-    private static function render_content() {
+    private static function render_content(): void {
         $spec = self::generate_spec();
 
         echo '<p class="description" id="bhy-openapi-url-line">Generated live from this site\'s own registered REST routes — always in sync with the actual code, never hand-maintained separately. '

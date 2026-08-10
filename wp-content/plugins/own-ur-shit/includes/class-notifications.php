@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) exit;
  * That's the entire contract. No filter to hook, no class to extend.
  */
 class OUS_Notifications {
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'register_shortcode']);
         add_action('admin_bar_menu', [self::class, 'admin_bar'], 90);
         add_action('wp_ajax_bhcore_mark_notification_read', [self::class, 'ajax_mark_read']);
@@ -55,7 +55,7 @@ class OUS_Notifications {
         });
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_notifications';
     }
@@ -66,7 +66,7 @@ class OUS_Notifications {
     // writes, no separate cron job needed to keep it bounded.
     const MAX_ROWS = 20000;
 
-    private static function maybe_trim() {
+    private static function maybe_trim(): void {
         if (wp_rand(1, 50) !== 1) return;
         global $wpdb;
         $table = self::table();
@@ -85,7 +85,7 @@ class OUS_Notifications {
      * purely cosmetic — never used to gate or route anything, so a
      * typo'd source string can't break another plugin's notifications.
      */
-    public static function notify($user_id, $type, $title, $body = '', $url = '', $source = '', $email = true) {
+    public static function notify(int $user_id, string $type, string $title, string $body = '', string $url = '', string $source = '', bool $email = true): int {
         if (!$user_id) return 0;
         global $wpdb;
         $inserted = $wpdb->insert(self::table(), [
@@ -127,7 +127,7 @@ class OUS_Notifications {
     // type_wants_email() below. Existing call sites needed zero changes;
     // this filter's own signature already carried $type before this,
     // it just wasn't consulted per-type until now.
-    public static function user_wants_email($user_id, $type) {
+    public static function user_wants_email(int $user_id, string $type): bool {
         $opt_out = get_user_meta($user_id, 'bhcore_notifications_email_optout', true);
         $wants = $opt_out ? false : self::type_wants_email($user_id, $type);
         return apply_filters('bhcore_notification_should_email', $wants, $user_id, $type);
@@ -138,7 +138,7 @@ class OUS_Notifications {
     // "on" — a user who has never touched the preferences UI keeps
     // getting exactly the emails they always did, same as before this
     // existed.
-    public static function type_wants_email($user_id, $type) {
+    public static function type_wants_email(int $user_id, string $type): bool {
         $prefs = get_user_meta($user_id, 'bhcore_notification_email_prefs', true);
         if (!is_array($prefs) || !array_key_exists($type, $prefs)) return true;
         return (bool) $prefs[$type];
@@ -152,14 +152,15 @@ class OUS_Notifications {
     // filter (type => label); an unregistered type falls back to a
     // humanized version of its own raw string rather than requiring
     // every emitter to register just to be readable here.
-    public static function distinct_types_for_user($user_id) {
+    /** @return array<int, string> */
+    public static function distinct_types_for_user(int $user_id): array {
         global $wpdb;
         return $wpdb->get_col($wpdb->prepare(
             "SELECT DISTINCT type FROM " . self::table() . " WHERE user_id = %d ORDER BY type ASC", $user_id
         ));
     }
 
-    public static function type_label($type) {
+    public static function type_label(string $type): string {
         $labels = apply_filters('bhcore_notification_type_labels', []);
         if (isset($labels[$type])) return $labels[$type];
         return ucfirst(str_replace(['_', '-'], ' ', $type));
@@ -173,7 +174,8 @@ class OUS_Notifications {
     // atomically before mailing; a call with no notification_id (an old
     // queued job predating this fix) just sends once with no dedup,
     // same as before.
-    public static function send_queued_email($args) {
+    /** @param array<string, mixed> $args */
+    public static function send_queued_email($args): void {
         $notification_id = (int) ($args['notification_id'] ?? 0);
         if ($notification_id) {
             global $wpdb;
@@ -186,7 +188,7 @@ class OUS_Notifications {
         self::send_email_now((int) ($args['user_id'] ?? 0), $args['title'] ?? '', $args['body'] ?? '', $args['url'] ?? '');
     }
 
-    private static function send_email_now($user_id, $title, $body, $url) {
+    private static function send_email_now(int $user_id, string $title, string $body, string $url): void {
         $message = wp_strip_all_tags($body);
         if ($url) $message .= "\n\n" . $url;
 
@@ -214,26 +216,27 @@ class OUS_Notifications {
 
     /* ---------------- reading ---------------- */
 
-    public static function unread_count($user_id) {
+    public static function unread_count(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d AND read_at IS NULL", $user_id
         ));
     }
 
-    public static function for_user($user_id, $limit = 20) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_user(int $user_id, int $limit = 20): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE user_id = %d ORDER BY created_at DESC LIMIT %d", $user_id, $limit
         ), ARRAY_A);
     }
 
-    public static function mark_read($user_id, $notification_id) {
+    public static function mark_read(int $user_id, int $notification_id): void {
         global $wpdb;
         $wpdb->update(self::table(), ['read_at' => current_time('mysql')], ['id' => $notification_id, 'user_id' => $user_id]);
     }
 
-    public static function mark_all_read($user_id) {
+    public static function mark_all_read(int $user_id): void {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "UPDATE " . self::table() . " SET read_at = %s WHERE user_id = %d AND read_at IS NULL", current_time('mysql'), $user_id
@@ -242,7 +245,7 @@ class OUS_Notifications {
 
     /* ---------------- UI: admin bar bell (works in wp-admin AND front end) ---------------- */
 
-    public static function admin_bar($wp_admin_bar) {
+    public static function admin_bar(\WP_Admin_Bar $wp_admin_bar): void {
         if (!is_user_logged_in()) return;
         $user_id = get_current_user_id();
         $count = self::unread_count($user_id);
@@ -269,11 +272,15 @@ class OUS_Notifications {
 
     /* ---------------- UI: front-end shortcode ---------------- */
 
-    public static function register_shortcode() {
+    public static function register_shortcode(): void {
         add_shortcode('bh_notifications', [self::class, 'render_shortcode']);
     }
 
-    public static function register_portal_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_portal_panel($panels): array {
         $panels[] = [
             'id' => 'notifications',
             'label' => 'Notifications',
@@ -284,7 +291,7 @@ class OUS_Notifications {
         return $panels;
     }
 
-    public static function render_portal_panel() {
+    public static function render_portal_panel(): void {
         echo '<h1>Notifications</h1>';
         echo self::render_shortcode(); // phpcs:ignore -- render_shortcode() already returns fully-escaped markup, same output the [bh_notifications] shortcode itself echoes on the front end
     }
@@ -297,7 +304,7 @@ class OUS_Notifications {
     // Nothing renders here at all if this user has never received any
     // notification yet — obvious-or-gone, never an empty preferences
     // panel for a brand-new account with nothing to configure.
-    private static function render_email_prefs($user_id) {
+    private static function render_email_prefs(int $user_id): string {
         $types = self::distinct_types_for_user($user_id);
         if (!$types) return '';
 
@@ -318,7 +325,7 @@ class OUS_Notifications {
         return ob_get_clean();
     }
 
-    public static function render_shortcode() {
+    public static function render_shortcode(): string {
         if (!is_user_logged_in()) return '<p class="bhcore-notif-empty">Log in to see your notifications.</p>';
         $user_id = get_current_user_id();
         $items = self::for_user($user_id, 30);
@@ -351,7 +358,7 @@ class OUS_Notifications {
     // nothing for exactly the visitors who disabled the admin bar —
     // this way the bell (which DOES live in the admin bar) and the
     // shortcode (which doesn't) both work regardless of that setting.
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_user_logged_in()) return;
 
         wp_register_style('bhcore-notifications', false);
@@ -437,7 +444,7 @@ class OUS_Notifications {
         ');
     }
 
-    public static function ajax_mark_read() {
+    public static function ajax_mark_read(): void {
         check_ajax_referer('bhcore_notifications', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error([], 401);
@@ -445,7 +452,7 @@ class OUS_Notifications {
         wp_send_json_success();
     }
 
-    public static function ajax_mark_all_read() {
+    public static function ajax_mark_all_read(): void {
         check_ajax_referer('bhcore_notifications', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error([], 401);
@@ -457,7 +464,7 @@ class OUS_Notifications {
     // existing prefs map first rather than replacing it wholesale, so
     // toggling one type in a fresh page load can't accidentally clobber
     // a preference set from a different browser tab/session.
-    public static function ajax_save_pref() {
+    public static function ajax_save_pref(): void {
         check_ajax_referer('bhcore_notifications', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error([], 401);
@@ -474,7 +481,11 @@ class OUS_Notifications {
         wp_send_json_success();
     }
 
-    public static function register_test_suite($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register_test_suite($suites): array {
         $suites['own-ur-shit-notifications'] = ['label' => 'Own Ur Shit (Notifications)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
@@ -484,7 +495,8 @@ class OUS_Notifications {
     // toggle respected once set, and the full opt-out overriding
     // everything regardless of any per-type preference. Runs against a
     // real, tagged fixture user, cleaned up afterward.
-    public static function run_tests() {
+    /** @return array<int, mixed> */
+    public static function run_tests(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('OUS_Debug')) return [];
         $rows = [];
 

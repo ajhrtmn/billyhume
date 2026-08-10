@@ -13,20 +13,20 @@ class BHI_Activator {
     // 1.16 bhcore_dmca_notices — structured DMCA takedown-notice intake/tracking (class-dmca-notices.php), distinct from bhi_reports: a copyright claim needs claimant identity, sworn-statement attestation, and a counter-notice timeline, none of which fit bhi_reports' generic reason/category shape.
     const DB_VERSION = '1.16';
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhi_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhi_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhi_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         $table   = $wpdb->prefix . 'bhi_profiles';

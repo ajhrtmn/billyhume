@@ -30,13 +30,13 @@ if (!defined('ABSPATH')) exit;
  * later, not just a one-time gate.
  */
 class OUS_SetupWizard {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_wizard_activate_all', [self::class, 'handle_activate_all']);
         add_action('admin_post_ous_wizard_save_brand', [self::class, 'handle_save_brand']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // A real submenu item (not just a dashboard link) so it's
         // findable again later — revisiting brand basics should work,
         // not just a first-run gate that vanishes.
@@ -45,7 +45,7 @@ class OUS_SetupWizard {
 
     /* ---------------- step detection ---------------- */
 
-    private static function ecosystem_fully_active() {
+    private static function ecosystem_fully_active(): bool {
         foreach (array_keys(OUS_Registry::all()) as $key) {
             if (OUS_Registry::status($key) !== 'active') return false;
         }
@@ -56,14 +56,14 @@ class OUS_SetupWizard {
     // "Your"/"Brand" defaults (BHY_Style::DEFAULTS) only if nobody has
     // ever saved anything different — the same test a human would use
     // ("does this still say the placeholder text").
-    private static function brand_still_default() {
+    private static function brand_still_default(): bool {
         $s = class_exists('BHY_Style') ? BHY_Style::get() : [];
         return ($s['brand_part1'] ?? '') === BHY_Style::DEFAULTS['brand_part1']
             && ($s['brand_part2'] ?? '') === BHY_Style::DEFAULTS['brand_part2']
             && empty($s['brand_logo_id']);
     }
 
-    private static function current_step() {
+    private static function current_step(): int {
         $requested = isset($_GET['step']) ? max(1, min(4, (int) $_GET['step'])) : 0;
         if ($requested) return $requested; // explicit navigation (Back/Next) always wins over auto-detection
 
@@ -74,7 +74,7 @@ class OUS_SetupWizard {
 
     /* ---------------- rendering ---------------- */
 
-    public static function render() {
+    public static function render(): void {
         $step = self::current_step();
         echo '<div class="wrap ous-setup-wizard">';
         echo '<h1>Guided Setup</h1>';
@@ -97,7 +97,7 @@ class OUS_SetupWizard {
         echo '</div>';
     }
 
-    private static function step_nav($current) {
+    private static function step_nav(int $current): void {
         echo '<p class="description" style="margin-top:24px;">Step ' . (int) $current . ' of 4';
         if ($current > 1) {
             echo ' — <a href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard&step=' . ($current - 1))) . '">Back</a>';
@@ -105,13 +105,13 @@ class OUS_SetupWizard {
         echo '</p>';
     }
 
-    private static function render_step_welcome() {
+    private static function render_step_welcome(): void {
         echo '<h2>Welcome</h2>';
         echo '<p>This walks you through getting the whole Own Ur Shit ecosystem running on a fresh install: activating every piece, setting your brand basics, and confirming you\'re ready to get paid. Takes a few minutes — nothing here is a one-way door, you can change any of it later from the main dashboard or Design Suite.</p>';
         echo '<p><a class="button button-primary button-hero" href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard&step=2')) . '">Get started</a></p>';
     }
 
-    private static function render_step_activate() {
+    private static function render_step_activate(): void {
         $registry = OUS_Registry::visible_cards();
         $active = 0;
         $total = count($registry);
@@ -132,7 +132,7 @@ class OUS_SetupWizard {
         self::step_nav(2);
     }
 
-    private static function render_step_brand() {
+    private static function render_step_brand(): void {
         $s = class_exists('BHY_Style') ? BHY_Style::get() : BHY_Style::DEFAULTS;
         $logo_id = (int) ($s['brand_logo_id'] ?? 0);
         $logo_url = $logo_id ? wp_get_attachment_image_url($logo_id, 'medium') : '';
@@ -191,7 +191,7 @@ class OUS_SetupWizard {
         <?php
     }
 
-    private static function render_step_done() {
+    private static function render_step_done(): void {
         echo '<h2>You\'re set up</h2>';
         echo '<p>The ecosystem is active and your brand basics are in. A few places worth a look next:</p>';
         echo '<ul style="list-style:disc;margin-left:20px;">';
@@ -219,7 +219,7 @@ class OUS_SetupWizard {
     // rather than reused directly since the two need to redirect to
     // genuinely different places (back to this wizard vs. the plain
     // dashboard), and the loop itself is only a few lines.
-    public static function handle_activate_all() {
+    public static function handle_activate_all(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_wizard_activate_all')) {
             wp_safe_redirect(admin_url('admin.php?page=ous-setup-wizard&step=2&ous_wizard_error=1'));
@@ -238,7 +238,7 @@ class OUS_SetupWizard {
         exit;
     }
 
-    public static function handle_save_brand() {
+    public static function handle_save_brand(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('ous_wizard_save_brand')) {
             wp_die('Not allowed.');
         }

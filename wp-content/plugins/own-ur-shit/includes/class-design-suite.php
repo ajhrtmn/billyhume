@@ -48,7 +48,7 @@ if (!defined('ABSPATH')) exit;
 class BH_Design_Suite {
     const CAP = 'bhcore_design_site';
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         $hook = add_menu_page('Design Suite', 'Design Suite', self::CAP, 'bh-design', ['BHY_Gallery', 'render'], OUS_MenuIcons::design_suite(), 4);
         self::log_result('bh-design (top-level)', $hook);
 
@@ -60,7 +60,8 @@ class BH_Design_Suite {
 
     // Only the failure case is worth a log row — avoids an INFO row on
     // every successful registration, every admin page load.
-    private static function log_result($what, $hook) {
+    /** @param string|false $hook */
+    private static function log_result(string $what, $hook): void {
         if ($hook !== false || !class_exists('OUS_DebugLog')) return;
         OUS_DebugLog::log('error',
             'add_menu_page()/add_submenu_page() for ' . $what . ' FAILED (returned false).',

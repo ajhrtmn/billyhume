@@ -26,14 +26,14 @@ if (!defined('ABSPATH')) exit;
 class OUS_Banner {
     const DISMISS_META = 'ous_banner_dismissed_signature';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_ous_dismiss_banner', [self::class, 'handle_dismiss']);
     }
 
     // A stable fingerprint of exactly which ecosystem plugins are
     // currently active — order-independent, so activating the same set
     // in a different order never falsely reopens the banner.
-    private static function active_signature() {
+    private static function active_signature(): string {
         $active = [];
         foreach (OUS_Registry::all() as $key => $info) {
             if ($info['check_class'] && class_exists($info['check_class'])) $active[] = $key;
@@ -42,7 +42,7 @@ class OUS_Banner {
         return md5(implode(',', $active));
     }
 
-    public static function handle_dismiss() {
+    public static function handle_dismiss(): void {
         if (!is_user_logged_in() || !check_admin_referer('ous_dismiss_banner', '_wpnonce')) {
             wp_die('Not allowed.');
         }
@@ -51,7 +51,7 @@ class OUS_Banner {
         exit;
     }
 
-    public static function maybe_print() {
+    public static function maybe_print(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen) return;
         if (strpos($screen->id, 'own-ur-shit') !== false) return; // don't banner our own page

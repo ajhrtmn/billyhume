@@ -49,22 +49,22 @@ class BHM_Debug {
         echo '<p>Simulate every money-tied code path without a real WooCommerce checkout. All actions apply to <strong>your own current account</strong> (user #' . esc_html((string) $uid) . ') unless noted.</p>';
 
         echo '<h4>Tiers</h4>';
-        echo OUS_Debug::button('bh-monetization-woo', 'seed_tiers', 'Create 2 test tiers ($3/mo, $8/mo)');
+        OUS_Debug::button('bh-monetization-woo', 'seed_tiers', 'Create 2 test tiers ($3/mo, $8/mo)');
 
         echo '<h4>Entitlements (simulated purchases)</h4>';
-        echo OUS_Debug::button('bh-monetization-woo', 'grant_top_tier', 'Grant yourself the top tier (30 days)');
-        echo OUS_Debug::button('bh-monetization-woo', 'revoke_all_tiers', 'Revoke all your tier entitlements');
-        echo OUS_Debug::button('bh-monetization-woo', 'simulate_track_purchase', 'Simulate buying the first monetized track you own the rights to test with', '<input type="number" name="track_id" placeholder="Track ID" style="width:100px;">');
+        OUS_Debug::button('bh-monetization-woo', 'grant_top_tier', 'Grant yourself the top tier (30 days)');
+        OUS_Debug::button('bh-monetization-woo', 'revoke_all_tiers', 'Revoke all your tier entitlements');
+        OUS_Debug::button('bh-monetization-woo', 'simulate_track_purchase', 'Simulate buying the first monetized track you own the rights to test with', '<input type="number" name="track_id" placeholder="Track ID" style="width:100px;">');
 
         echo '<h4>Wallet (pay-per-play)</h4>';
-        echo OUS_Debug::button('bh-monetization-woo', 'credit_wallet', 'Credit your wallet $10.00 (no real charge)');
-        echo OUS_Debug::button('bh-monetization-woo', 'zero_wallet', 'Zero out your wallet balance');
+        OUS_Debug::button('bh-monetization-woo', 'credit_wallet', 'Credit your wallet $10.00 (no real charge)');
+        OUS_Debug::button('bh-monetization-woo', 'zero_wallet', 'Zero out your wallet balance');
         $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($uid) : 0;
         echo '<p class="description">Current wallet balance: $' . esc_html(BHM_Money::display($balance)) . '</p>';
 
         echo '<h4>Refund/fraud-path simulation</h4>';
         echo '<p class="description">Exercises the SAME revocation code path a real chargeback/refund triggers (class-products.php\'s on_order_reversed()) — confirms an entitlement or wallet credit actually gets taken back, not just granted.</p>';
-        echo OUS_Debug::button('bh-monetization-woo', 'simulate_refund_last_grant', 'Simulate a refund of your most recent test grant', '', 'This will revoke your most recently granted test entitlement or wallet credit — continue?');
+        OUS_Debug::button('bh-monetization-woo', 'simulate_refund_last_grant', 'Simulate a refund of your most recent test grant', '', 'This will revoke your most recently granted test entitlement or wallet credit — continue?');
 
         // Real gap this closes: on_subscription_active()/on_subscription_ended()/
         // on_subscription_paused() (class-products.php), and the front-end
@@ -82,27 +82,27 @@ class BHM_Debug {
             echo '<p class="description">WooCommerce Subscriptions is actually installed — testing against the real extension directly, mock mode not needed here.</p>';
         } elseif ($mock_enabled) {
             echo '<p class="description">Mock mode is <strong>ON</strong> — BH_Commerce::has_subscriptions() reports true and the pause/resume UI on the tier picker is now reachable for testing.</p>';
-            echo OUS_Debug::button('bh-monetization-woo', 'mock_disable', 'Turn mock mode off');
+            OUS_Debug::button('bh-monetization-woo', 'mock_disable', 'Turn mock mode off');
             $mock_sub_id = self::user_mock_subscription_id($uid);
             if ($mock_sub_id) {
                 $data = BHM_MockCommerce::get($mock_sub_id);
                 echo '<p class="description">Your fake subscription #' . esc_html((string) $mock_sub_id) . ' is currently: <strong>' . esc_html($data['status'] ?? 'unknown') . '</strong></p>';
-                echo OUS_Debug::button('bh-monetization-woo', 'mock_pause', 'Pause it (fires the real on_subscription_paused())');
-                echo OUS_Debug::button('bh-monetization-woo', 'mock_resume', 'Resume it (fires the real on_subscription_active())');
-                echo OUS_Debug::button('bh-monetization-woo', 'mock_cancel', 'Cancel/end it (fires the real on_subscription_ended())');
+                OUS_Debug::button('bh-monetization-woo', 'mock_pause', 'Pause it (fires the real on_subscription_paused())');
+                OUS_Debug::button('bh-monetization-woo', 'mock_resume', 'Resume it (fires the real on_subscription_active())');
+                OUS_Debug::button('bh-monetization-woo', 'mock_cancel', 'Cancel/end it (fires the real on_subscription_ended())');
             } else {
-                echo OUS_Debug::button('bh-monetization-woo', 'mock_activate', 'Create a fake active subscription for the top test tier (fires the real on_subscription_active())');
+                OUS_Debug::button('bh-monetization-woo', 'mock_activate', 'Create a fake active subscription for the top test tier (fires the real on_subscription_active())');
             }
         } else {
             echo '<p class="description">Turns on a real, working stand-in for WooCommerce Subscriptions so the subscription pause/resume UI and its lifecycle handlers can be tested without installing the paid extension. Off by default — real behavior on this site (the "one-time purchase = 30 days" fallback) is completely unaffected until you turn this on.</p>';
-            echo OUS_Debug::button('bh-monetization-woo', 'mock_enable', 'Turn mock mode on');
+            OUS_Debug::button('bh-monetization-woo', 'mock_enable', 'Turn mock mode on');
         }
 
         echo '<h4>WooCommerce order simulation</h4>';
         if (BH_Commerce::available()) {
-            echo OUS_Debug::button('bh-monetization-woo', 'simulate_tier_order', 'Create + complete a real WC order for the top test tier (drives the actual on_order_completed() path, not a shortcut around it)');
+            OUS_Debug::button('bh-monetization-woo', 'simulate_tier_order', 'Create + complete a real WC order for the top test tier (drives the actual on_order_completed() path, not a shortcut around it)');
             if (class_exists('BHM_Gifts')) {
-                echo OUS_Debug::button('bh-monetization-woo', 'simulate_gift_order', 'Create + complete a real WC gift order for the top test tier (drives BHM_Gifts::create_redemption(), not a shortcut around it)', '<input type="email" name="gift_email" placeholder="Recipient email" style="width:200px;">');
+                OUS_Debug::button('bh-monetization-woo', 'simulate_gift_order', 'Create + complete a real WC gift order for the top test tier (drives BHM_Gifts::create_redemption(), not a shortcut around it)', '<input type="email" name="gift_email" placeholder="Recipient email" style="width:200px;">');
             }
         } else {
             echo '<p class="description">Install WooCommerce to test the real order-completion path — until then, the buttons above exercise entitlement/wallet logic directly, which covers most of what actually matters for gating.</p>';
@@ -126,7 +126,7 @@ class BHM_Debug {
 
         if (class_exists('BHM_Storefront')) {
             echo '<h4>Storefront</h4>';
-            echo OUS_Debug::button('bh-monetization-woo', 'seed_storefront_collection', 'Create 1 test collection + 1 test product');
+            OUS_Debug::button('bh-monetization-woo', 'seed_storefront_collection', 'Create 1 test collection + 1 test product');
         }
     }
 

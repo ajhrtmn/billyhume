@@ -36,14 +36,14 @@ if (!defined('ABSPATH')) exit;
  * patterns, content-type affinity) — a Phase 2, not a same-day add.
  */
 class OUS_Metrics {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
     }
 
     // Same proven-safe parent as OUS_MediaWizard/BHI_Reports — see
     // class-media-wizard.php's own docblock for why 'own-ur-shit' is
     // used instead of 'ous-debug' on this specific install.
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('own-ur-shit', 'Metrics', 'Metrics', 'manage_options', 'ous-metrics', [self::class, 'render']);
     }
 
@@ -54,7 +54,7 @@ class OUS_Metrics {
      * different version of the same COUNT(*)...WHERE type=...AND
      * occurred_at >= ... query.
      */
-    public static function count_events($type, $days = 30) {
+    public static function count_events(string $type, int $days = 30): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->prefix}bhcore_events WHERE type = %s AND occurred_at >= %s",
@@ -68,7 +68,8 @@ class OUS_Metrics {
      * sparkline/bar-chart renderer needs without doing its own gap-
      * filling. Returns ['Y-m-d' => count, ...] in chronological order.
      */
-    public static function event_trend($type, $days = 30) {
+    /** @return array<string, int> */
+    public static function event_trend(string $type, int $days = 30): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT DATE(occurred_at) as d, COUNT(*) as c FROM {$wpdb->prefix}bhcore_events
@@ -94,7 +95,8 @@ class OUS_Metrics {
      * event_trend(). Returns ['Y-m' => count, ...] in chronological
      * order.
      */
-    public static function event_trend_monthly($type, $months = 12) {
+    /** @return array<string, int> */
+    public static function event_trend_monthly(string $type, int $months = 12): array {
         global $wpdb;
         $since = gmdate('Y-m-01 00:00:00', strtotime("-$months months"));
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -119,7 +121,8 @@ class OUS_Metrics {
     // instinct applied earlier). Good enough for "is this trending up
     // or down at a glance," not meant to replace a real charting tool
     // for deeper analysis later.
-    public static function sparkline_svg($trend, $color = '#2271b1') {
+    /** @param array<string, int> $trend */
+    public static function sparkline_svg($trend, string $color = '#2271b1'): string {
         $values = array_values($trend);
         $max = max(1, max($values));
         $count = count($values);
@@ -135,7 +138,7 @@ class OUS_Metrics {
             . '<polyline points="' . esc_attr(implode(' ', $points)) . '" fill="none" stroke="' . esc_attr($color) . '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>';
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
         echo '<div class="wrap"><h1>Metrics</h1>';
@@ -172,7 +175,11 @@ class OUS_Metrics {
     // reuse — one consistent look (big number, trend sparkline,
     // sub-label) instead of six plugins each hand-rolling the same
     // card markup slightly differently.
-    public static function render_card($title, $value, $sub = '', $trend = null) {
+    /**
+     * @param mixed $value
+     * @param array<string, int>|null $trend
+     */
+    public static function render_card(string $title, $value, string $sub = '', $trend = null): void {
         echo '<h3>' . esc_html($title) . '</h3>';
         echo '<div class="ous-metrics-value">' . esc_html($value) . '</div>';
         if ($sub) echo '<div class="ous-metrics-sub">' . esc_html($sub) . '</div>';

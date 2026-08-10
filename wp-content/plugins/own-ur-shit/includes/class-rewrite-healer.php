@@ -48,7 +48,7 @@ class BHY_RewriteHealer {
      * @param int    $throttle_seconds  How long to sit out between real
      *                                  flush attempts once one has failed.
      */
-    public static function maybe_heal($check_pattern, $throttle_option, $log_context, $throttle_seconds = self::DEFAULT_THROTTLE_SECONDS) {
+    public static function maybe_heal(string $check_pattern, string $throttle_option, string $log_context, int $throttle_seconds = self::DEFAULT_THROTTLE_SECONDS): bool {
         if (self::rule_persisted($check_pattern)) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log_throttled('info', $throttle_option . '_pass', 300,
@@ -80,7 +80,7 @@ class BHY_RewriteHealer {
     // option can't fool this check (the original bug this whole
     // mechanism exists to catch: a flush that reported success while
     // never actually persisting).
-    public static function rule_persisted($check_pattern) {
+    public static function rule_persisted(string $check_pattern): bool {
         global $wpdb;
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'rewrite_rules'));
         if (!$raw) return false;
@@ -93,7 +93,7 @@ class BHY_RewriteHealer {
     // can read as "already attempted" forever if that cache is stuck,
     // silently skipping the self-heal with nothing logged. A direct,
     // cache-bypassing DB read/write avoids that failure mode.
-    private static function not_recently_attempted($throttle_option, $throttle_seconds) {
+    private static function not_recently_attempted(string $throttle_option, int $throttle_seconds): bool {
         global $wpdb;
         $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", $throttle_option));
         if ($last && (time() - (int) $last) < $throttle_seconds) return false;
@@ -107,7 +107,7 @@ class BHY_RewriteHealer {
         return true;
     }
 
-    private static function force_flush_and_verify($check_pattern, $log_context) {
+    private static function force_flush_and_verify(string $check_pattern, string $log_context): bool {
         flush_rewrite_rules();
         wp_cache_delete('rewrite_rules', 'options');
         wp_cache_delete('alloptions', 'options');

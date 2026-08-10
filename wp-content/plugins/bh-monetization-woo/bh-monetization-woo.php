@@ -2,12 +2,23 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.14
+ * Version:     0.5.15
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.15 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+// level 6 brick (typing OUS_Debug::button() with a real `: void`
+// return): class-debug.php here was calling it as `echo
+// OUS_Debug::button(...)` at 16 call sites — the most of any plugin in
+// the ecosystem — double-printing every debug-tools button on this
+// plugin's own Debug Tools section. button() already echoes its own
+// markup internally, the wrapping `echo` was pure extraneous output.
+// Fixed by dropping the `echo` at every site. NOT runtime-verified
+// against a live install; smoke-test the Debug Tools page to confirm
+// buttons render once, not twice.
 
 // 0.5.14 — Ecosystem quality Phase 2, brick 11/13: bh-monetization-woo is
 // now clean at PHPStan level 6 (native return/parameter types + precise
@@ -213,7 +224,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.14');
+define('BHM_VER',  '0.5.15');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

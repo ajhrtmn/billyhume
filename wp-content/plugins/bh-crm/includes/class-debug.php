@@ -38,7 +38,7 @@ class BHCRM_Debug {
 
     public static function render_section(): void {
         echo '<p>Seed one demo project (a fake commission) with a few sticky cards spread across its kanban columns, one of them carrying nested sub-task cards, so the project tracker board has something real to open and debug into immediately.</p>';
-        echo OUS_Debug::button('bh-crm-projects', 'seed', 'Seed Project Tracker Demo Data');
+        OUS_Debug::button('bh-crm-projects', 'seed', 'Seed Project Tracker Demo Data');
     }
 
     /**

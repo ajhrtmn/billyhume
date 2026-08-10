@@ -18,7 +18,11 @@ class OUS_Dashboard {
      * the current viewer's user_id, since Phase 2's demo binding
      * ('bhcore_events.count') needs a subject to count for.
      */
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         $surfaces['dashboard'] = [
             'group'       => 'Core',
             'label'       => 'Dashboard',
@@ -31,7 +35,7 @@ class OUS_Dashboard {
         return $surfaces;
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Custom icon (OUS_MenuIcons::hub()) instead of the generic
         // dashicons-admin-multisite — the shared rounded-square badge
         // frame every OUS-owned top-level menu now carries (see
@@ -47,7 +51,7 @@ class OUS_Dashboard {
         add_submenu_page('own-ur-shit', 'Own Ur Shit', 'Dashboard', 'manage_options', 'own-ur-shit', [self::class, 'render']);
     }
 
-    public static function enqueue_assets($hook) {
+    public static function enqueue_assets(string $hook): void {
         if (strpos($hook, 'own-ur-shit') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
 
@@ -68,7 +72,7 @@ class OUS_Dashboard {
         ]);
     }
 
-    private static function ecosystem_fully_active_for_banner() {
+    private static function ecosystem_fully_active_for_banner(): bool {
         foreach (array_keys(OUS_Registry::all()) as $key) {
             if (OUS_Registry::status($key) !== 'active') return false;
         }
@@ -77,7 +81,7 @@ class OUS_Dashboard {
 
     /* ---------- rendering ---------- */
 
-    public static function render() {
+    public static function render(): void {
         echo '<div class="wrap ous-dashboard">';
         echo '<h1>Own Ur Shit</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
@@ -142,7 +146,7 @@ class OUS_Dashboard {
     // core, always active) and Query Monitor is deliberately left as an
     // optional, user-chosen third-party dev tool (not bundled, not
     // auto-installed) rather than folded into OUS_Registry.
-    private static function render_status_block() {
+    private static function render_status_block(): void {
         echo '<h2 style="margin-top:32px;">System status</h2>';
         echo '<div class="ous-cards">';
 
@@ -191,7 +195,7 @@ class OUS_Dashboard {
     // dashboard card/status block above is untouched; this renders
     // BELOW them and is empty (no heading, no markup at all) when no
     // placements exist yet, so a fresh install looks unchanged.
-    private static function render_element_slot() {
+    private static function render_element_slot(): void {
         if (!class_exists('BH_Element')) return; // element-builder files didn't load for some reason — degrade silently, same posture as every other class_exists() guard in this ecosystem
 
         $ctx = ['user_id' => get_current_user_id()];
@@ -212,7 +216,8 @@ class OUS_Dashboard {
         echo $html; // BH_Element::render_slot()'s own output is already escaped per-attribute by BH_Element::render_placement()/each type's own 'render' callable — see class-element.php and class-element-data.php's docblocks for the escaping contract this depends on.
     }
 
-    private static function render_card($key, $info) {
+    /** @param array<string, mixed> $info */
+    private static function render_card(string $key, $info): void {
         $status = OUS_Registry::status($key);
         $badge = ['missing' => 'Not installed', 'inactive' => 'Installed, inactive', 'active' => 'Active'][$status];
         $badge_class = ['missing' => 'ous-badge-missing', 'inactive' => 'ous-badge-inactive', 'active' => 'ous-badge-active'][$status];
@@ -247,7 +252,8 @@ class OUS_Dashboard {
         echo '</div>';
     }
 
-    private static function render_minimal_card($file, $info) {
+    /** @param array<string, mixed> $info */
+    private static function render_minimal_card(string $file, $info): void {
         $status = OUS_Registry::status_by_file($file);
         echo '<div class="ous-card">';
         echo '<div class="ous-card-header"><strong>' . esc_html($info['label']) . '</strong> <span class="ous-badge ' . ($status === 'active' ? 'ous-badge-active' : 'ous-badge-inactive') . '">' . ($status === 'active' ? 'Active' : 'Installed, inactive') . '</span></div>';
@@ -258,7 +264,7 @@ class OUS_Dashboard {
         echo '</div>';
     }
 
-    private static function error_message($code) {
+    private static function error_message(string $code): string {
         $messages = [
             'missing' => 'That plugin isn\'t installed yet — upload it to Plugins first.',
             'not_allowed' => 'You don\'t have permission to do that.',
@@ -270,7 +276,7 @@ class OUS_Dashboard {
 
     /* ---------- admin-post handlers — permission/nonce/redirect only, delegate the real work ---------- */
 
-    public static function handle_install() {
+    public static function handle_install(): void {
         $key = sanitize_key($_GET['plugin'] ?? '');
         if (!OUS_AdminGuard::verify_nonce_and_cap('install_plugins', $_GET['_wpnonce'] ?? '', 'ous_install_' . $key)) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
@@ -291,7 +297,7 @@ class OUS_Dashboard {
         exit;
     }
 
-    public static function handle_activate() {
+    public static function handle_activate(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_' . ($_GET['plugin'] ?? ''))) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
@@ -309,7 +315,7 @@ class OUS_Dashboard {
     // The "Install & Activate Everything" button — runs the exact same
     // per-plugin logic as a single Activate click, just looped across
     // every registered plugin that isn't already active.
-    public static function handle_activate_all() {
+    public static function handle_activate_all(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_all')) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
@@ -328,7 +334,7 @@ class OUS_Dashboard {
         exit;
     }
 
-    public static function handle_activate_file() {
+    public static function handle_activate_file(): void {
         $file = sanitize_text_field(wp_unslash($_GET['file'] ?? ''));
         if (!OUS_AdminGuard::verify_nonce_and_cap('activate_plugins', $_GET['_wpnonce'] ?? '', 'ous_activate_file_' . $file)) {
             wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));

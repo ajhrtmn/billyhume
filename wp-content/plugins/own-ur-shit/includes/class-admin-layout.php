@@ -48,16 +48,17 @@ class OUS_AdminLayout {
     // call; everything wider now gets the masonry treatment.
     const BREAKPOINT = 782; // px — below this, WordPress's own default layout is left untouched
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_head-post.php', [self::class, 'maybe_print_css']);
         add_action('admin_head-post-new.php', [self::class, 'maybe_print_css']);
     }
 
-    private static function default_post_types() {
+    /** @return array<int, string> */
+    private static function default_post_types(): array {
         return ['bh_contest', 'bh_submission', 'bhm_tier', 'bh_course'];
     }
 
-    public static function maybe_print_css() {
+    public static function maybe_print_css(): void {
         $screen = get_current_screen();
         if (!$screen || $screen->base !== 'post') return;
         $post_types = apply_filters('ous_wide_admin_layout_post_types', self::default_post_types());

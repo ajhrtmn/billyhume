@@ -56,7 +56,7 @@ class OUS_Toast {
     const COOKIE = 'bhcore_toast_sid';
     const DEFAULT_TTL = 60; // seconds — only needs to survive one redirect round-trip, not sit around
 
-    public static function init() {
+    public static function init(): void {
         // Priority 1: run early enough that a guest's cookie is available
         // (via $_COOKIE, set on THIS request for use on the very next one)
         // before anything later on 'init' might call queue() this same
@@ -84,7 +84,7 @@ class OUS_Toast {
      * enough to always load" posture OUS_Notifications' admin-bar bell
      * already established.
      */
-    public static function enqueue_assets() {
+    public static function enqueue_assets(): void {
         wp_enqueue_style('bhcore-toast', OUS_URL . 'assets/css/toast.css', [], OUS_VER);
         wp_enqueue_script('bhcore-toast', OUS_URL . 'assets/js/toast.js', [], OUS_VER, true);
     }
@@ -108,7 +108,7 @@ class OUS_Toast {
      * "every extension point fails quietly" convention (OUS_Jobs,
      * OUS_Notifications, etc.).
      */
-    public static function queue($message, $type = 'info', $ttl_seconds = self::DEFAULT_TTL) {
+    public static function queue(string $message, string $type = 'info', int $ttl_seconds = self::DEFAULT_TTL): bool {
         if (!class_exists('OUS_ReliableStore')) return false;
 
         $key = self::store_key();
@@ -122,7 +122,8 @@ class OUS_Toast {
         return true;
     }
 
-    private static function sanitize_type($type) {
+    /** @param mixed $type */
+    private static function sanitize_type($type): string {
         return in_array($type, ['success', 'error', 'info', 'warning'], true) ? $type : 'info';
     }
 
@@ -137,7 +138,7 @@ class OUS_Toast {
      * to — NOT relying on IP address, which is shared/unreliable behind
      * NAT or a proxy.
      */
-    private static function store_key() {
+    private static function store_key(): string {
         $uid = get_current_user_id();
         if ($uid) return 'toast_u' . $uid;
 
@@ -153,7 +154,7 @@ class OUS_Toast {
      * can already resolve a store_key() without waiting for the cookie to
      * round-trip to the browser and back.
      */
-    public static function maybe_set_guest_cookie() {
+    public static function maybe_set_guest_cookie(): void {
         if (is_user_logged_in() || headers_sent()) return;
         if (isset($_COOKIE[self::COOKIE]) && $_COOKIE[self::COOKIE] !== '') return;
 
@@ -173,7 +174,7 @@ class OUS_Toast {
      * every subsequent refresh — same "delete first, so a stuck value
      * can't repeat forever" shape as a one-shot flag should have.
      */
-    public static function print_and_consume() {
+    public static function print_and_consume(): void {
         if (!class_exists('OUS_ReliableStore')) return;
 
         $key = self::store_key();

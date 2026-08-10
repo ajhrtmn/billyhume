@@ -48,9 +48,10 @@ class BH_Mail {
      *   @type string $source       Human-readable label for the OUS_DebugLog entry and BH_Event payload — e.g. 'BH Auth', 'BH Contest Submission'. Defaults to 'BH Mail'.
      *   @type array  $log_context  Extra key/value pairs merged into the failure log (e.g. ['submission_id' => $id]) — whatever detail helps trace WHICH send failed.
      * }
+     * @param array<string, mixed> $args
      * @return bool Same as wp_mail()'s own return value.
      */
-    public static function send(array $args) {
+    public static function send(array $args): bool {
         $subject = (string) ($args['subject'] ?? '');
         $body = (string) ($args['body'] ?? '');
         $user_id = (int) ($args['user_id'] ?? 0);
@@ -91,7 +92,8 @@ class BH_Mail {
     }
 
     /** The one seam a real ESP integration replaces later — see class docblock. */
-    private static function deliver($to, $subject, $body, array $headers) {
+    /** @param array<int, string> $headers */
+    private static function deliver(string $to, string $subject, string $body, array $headers): bool {
         return wp_mail($to, $subject, $body, $headers);
     }
 }

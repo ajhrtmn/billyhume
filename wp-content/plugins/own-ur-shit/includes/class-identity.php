@@ -25,9 +25,10 @@ class BH_Identity {
     const COOKIE = 'bh_cid';
     const COOKIE_TTL = YEAR_IN_SECONDS * 2;
 
+    /** @var string|null */
     private static $client_id = null;
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'maybe_issue_cookie'], 1);
         add_action('wp_login', [self::class, 'on_known'], 10, 2);
         add_action('user_register', [self::class, 'on_registered']);
@@ -37,7 +38,7 @@ class BH_Identity {
     // point tagging wp-admin/REST-only traffic with a visitor cookie).
     // Runs at init priority 1 so the client_id is available to anything
     // else hooking 'init' at normal priority (BH_Event consumers, etc).
-    public static function maybe_issue_cookie() {
+    public static function maybe_issue_cookie(): void {
         if (is_admin() || wp_doing_ajax() || wp_doing_cron()) return;
         $existing = self::cookie_value();
         if ($existing !== '') {
@@ -61,7 +62,7 @@ class BH_Identity {
     // 'init') and as a fallback read directly off $_COOKIE for callers
     // that fire before/without that hook (e.g. a REST request that
     // never goes through the front-end 'init' flow in the same way).
-    public static function client_id() {
+    public static function client_id(): string {
         if (self::$client_id !== null) return self::$client_id;
         return self::cookie_value();
     }
@@ -69,22 +70,22 @@ class BH_Identity {
     // Audit fix (2026-07-25): the read+sanitize idiom below was
     // duplicated between maybe_issue_cookie() and client_id() — one
     // shared helper instead.
-    private static function cookie_value() {
+    private static function cookie_value(): string {
         if (empty($_COOKIE[self::COOKIE])) return '';
         return sanitize_text_field(wp_unslash($_COOKIE[self::COOKIE]));
     }
 
     /* ---------------- stitching ---------------- */
 
-    public static function on_known($user_login, $user) {
+    public static function on_known(string $user_login, \WP_User $user): void {
         self::stitch((int) $user->ID);
     }
 
-    public static function on_registered($user_id) {
+    public static function on_registered(int $user_id): void {
         self::stitch((int) $user_id);
     }
 
-    private static function stitch($user_id) {
+    private static function stitch(int $user_id): void {
         $cid = self::client_id();
         if (!$cid || !$user_id) return;
         if (class_exists('BH_Event')) {
@@ -108,7 +109,8 @@ class BH_Identity {
     // in bh-crm, which queries that way directly rather than going
     // through this method. Returns an array of distinct, non-empty
     // client_id strings; empty array if none or if $user_id is falsy.
-    public static function client_ids_for_user($user_id) {
+    /** @return array<int, string> */
+    public static function client_ids_for_user(int $user_id): array {
         $user_id = (int) $user_id;
         if (!$user_id) return [];
         if (!class_exists('BH_Event')) return [];

@@ -12,22 +12,31 @@ if (!defined('ABSPATH')) exit;
 class OUS_CoreTestSuite {
     const RFC_TEST_SECRET_B32 = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['own-ur-shit'] = ['label' => 'Own Ur Shit (core)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    private static function call_private($method, ...$args) {
+    /**
+     * @param mixed ...$args
+     * @return mixed
+     */
+    private static function call_private(string $method, ...$args) {
         $ref = new \ReflectionMethod('BHI_TwoFactor', $method);
         $ref->setAccessible(true);
         return $ref->invoke(null, ...$args);
     }
 
-    public static function run() {
+    /** @return array<int, mixed> */
+    public static function run(): array {
         if (!class_exists('BHI_TwoFactor')) {
             return [['name' => 'BHI_TwoFactor not loaded', 'pass' => false, 'message' => 'Skipped — core 2FA class not found.']];
         }
@@ -105,7 +114,8 @@ class OUS_CoreTestSuite {
      * WOULD have been sent correctly, without spamming a real inbox
      * every time this suite runs.
      */
-    private static function run_mail_tests() {
+    /** @return array<int, mixed> */
+    private static function run_mail_tests(): array {
         $rows = [];
 
         $rows[] = OUS_TestRunner::assert_false(BH_Mail::send(['subject' => 'x', 'body' => 'y']), 'send() rejects when neither to nor a resolvable user_id is given');
@@ -148,7 +158,8 @@ class OUS_CoreTestSuite {
         return $rows;
     }
 
-    private static function run_profile_links_tests() {
+    /** @return array<int, mixed> */
+    private static function run_profile_links_tests(): array {
         $rows = [];
         $user_id = OUS_Debug::get_or_create_test_user('bhi-profile-links');
 

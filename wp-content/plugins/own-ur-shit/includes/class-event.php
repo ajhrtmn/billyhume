@@ -63,10 +63,10 @@ if (!defined('ABSPATH')) exit;
 class BH_Event {
     const JOB_HOOK = 'bhcore_ingest_event';
 
-    /** @var array<string, array{v:int, schema:array}> */
+    /** @var array<string, array{v:int, schema:array<string, mixed>}> */
     private static $types = [];
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', function () {
             if (class_exists('OUS_Jobs')) {
                 OUS_Jobs::register(self::JOB_HOOK, [self::class, 'handle_ingest_job']);
@@ -82,11 +82,13 @@ class BH_Event {
     // coerced at ingest time; a real validate-against-schema pass is a
     // reasonable future addition, not required to make emit()/read
     // useful now.
-    public static function register_event_type($type, array $schema = [], $v = 1) {
+    /** @param array<string, mixed> $schema */
+    public static function register_event_type(string $type, array $schema = [], int $v = 1): void {
         self::$types[$type] = ['v' => (int) $v, 'schema' => $schema];
     }
 
-    public static function registered_types() {
+    /** @return array<string, array{v:int, schema:array<string, mixed>}> */
+    public static function registered_types(): array {
         return self::$types;
     }
 
@@ -99,7 +101,8 @@ class BH_Event {
     // string like "course_completed:{$user_id}:{$course_id}" for
     // once-only events; leave null for append-only events like plays/
     // votes).
-    public static function emit($type, array $args = []) {
+    /** @param array<string, mixed> $args */
+    public static function emit(string $type, array $args = []): bool {
         if (!class_exists('OUS_Jobs')) return false; // harmless no-op, same convention as every other OUS_Jobs consumer
 
         $registered = self::$types[$type] ?? null;
@@ -132,7 +135,8 @@ class BH_Event {
     // minimal here rather than reusing BHS_Stats' methods directly
     // since this class must not hard-depend on bh-streaming being
     // active.
-    private static function default_context() {
+    /** @return array<string, string> */
+    private static function default_context(): array {
         return [
             'url'      => isset($_SERVER['REQUEST_URI']) ? esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'])) : '',
             'referrer' => isset($_SERVER['HTTP_REFERER']) ? esc_url_raw(wp_unslash($_SERVER['HTTP_REFERER'])) : '',
@@ -145,7 +149,7 @@ class BH_Event {
     // Public (audit fix, 2026-07-25) so BH_Identity's debug-only reverse
     // lookup can reuse this instead of hardcoding the table name itself —
     // this class is the one owner of this table's schema.
-    public static function table() {
+    public static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_events';
     }
@@ -155,7 +159,8 @@ class BH_Event {
     // near-simultaneous emits racing for the same once-only key is
     // expected, not an error) — same posture record_play()'s own
     // docblock already documents for refresh-spam duplicates.
-    public static function handle_ingest_job($args) {
+    /** @param array<string, mixed> $args */
+    public static function handle_ingest_job($args): void {
         global $wpdb;
 
         $data = [
@@ -223,7 +228,7 @@ class BH_Event {
     // (login/registration) — backfills user_id onto already-stored rows
     // for that client_id so pre-signup activity joins to the account
     // retroactively, per EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 3.
-    public static function backfill_user_id($client_id, $user_id) {
+    public static function backfill_user_id(string $client_id, int $user_id): void {
         global $wpdb;
         if (!$client_id || !$user_id) return;
         $wpdb->query($wpdb->prepare(
@@ -243,7 +248,8 @@ class BH_Event {
      * history. payload/context are returned already json_decode()'d
      * for convenience.
      */
-    public static function for_user($user_id, $limit = 50) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_user(int $user_id, int $limit = 50): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY occurred_at DESC, id DESC LIMIT %d',
@@ -260,7 +266,11 @@ class BH_Event {
 
     /* ---------------- Debug Tools: minimal metrics view (MVP dashboard) ---------------- */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-events'] = [
             'label'  => 'Event Tracking',
             'render' => [self::class, 'render_debug_section'],
@@ -269,7 +279,7 @@ class BH_Event {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         global $wpdb;
         echo '<p>Recent event activity, last 7 days — see <code>' . esc_html(self::table()) . '</code>. Registered types this request: <code>' . esc_html(implode(', ', array_keys(self::$types)) ?: '(none registered yet)') . '</code></p>';
 
@@ -302,7 +312,7 @@ class BH_Event {
     // or dynamic SQL column list. Bounded to a fixed 7-day window and
     // whatever distinct types actually appear in it, so this stays a
     // small admin debug table, not something that needs pagination.
-    private static function render_debug_daily_breakdown($since) {
+    private static function render_debug_daily_breakdown(string $since): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT DATE(occurred_at) as d, type, COUNT(*) as c FROM " . self::table() . "
@@ -339,7 +349,7 @@ class BH_Event {
     // user), not a real engagement-scoring model. Excludes user_id = 0
     // (anonymous/unstitched rows) since "most active anonymous visitor"
     // isn't a meaningful thing to rank by client_id here.
-    private static function render_debug_top_users($since) {
+    private static function render_debug_top_users(string $since): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT user_id, COUNT(*) as c FROM " . self::table() . "

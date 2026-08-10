@@ -13,16 +13,21 @@ if (!defined('ABSPATH')) exit;
  * cleaned up at the end of run(), win or lose.
  */
 class OUS_ReliabilityTestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['own-ur-shit-reliability'] = ['label' => 'Own Ur Shit — reliability (OUS_ReliableStore / log_throttled)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, mixed> */
+    public static function run(): array {
         $rows = [];
         if (!class_exists('OUS_ReliableStore')) {
             return [['name' => 'OUS_ReliableStore not loaded', 'pass' => false, 'message' => 'Skipped.']];
@@ -37,7 +42,8 @@ class OUS_ReliabilityTestSuite {
         return $rows;
     }
 
-    private static function run_reliable_store_tests() {
+    /** @return array<int, mixed> */
+    private static function run_reliable_store_tests(): array {
         $rows = [];
         $key = 'test_' . wp_generate_password(8, false); // unique per run, avoids collision with a real concurrent request
 
@@ -83,7 +89,8 @@ class OUS_ReliabilityTestSuite {
         return $rows;
     }
 
-    private static function run_log_throttled_tests() {
+    /** @return array<int, mixed> */
+    private static function run_log_throttled_tests(): array {
         $rows = [];
         $key = 'test_' . wp_generate_password(8, false);
         $table = self::log_table();
@@ -125,7 +132,7 @@ class OUS_ReliabilityTestSuite {
         return $rows;
     }
 
-    private static function log_table() {
+    private static function log_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_debug_log';
     }

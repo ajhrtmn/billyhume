@@ -31,7 +31,7 @@ class OUS_CodebaseDocs {
     // matter what a crafted request asks for.
     const ALLOWED_EXTENSIONS = ['php', 'md'];
 
-    public static function init() {
+    public static function init(): void {
         // add_menu() (standalone admin.php?page=ous-codebase-docs page)
         // is deliberately not hooked anymore — WordPress's own page-hook
         // resolution fails for this specific standalone page
@@ -46,16 +46,20 @@ class OUS_CodebaseDocs {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['codebase-docs'] = ['label' => 'Codebase Docs', 'render' => [self::class, 'render_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         self::render_content();
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Diagnostic: add_submenu_page() returns a real hook_suffix even
         // when the current user lacks the registered capability — WP's
         // actual access gate for that case is a separate internal check
@@ -85,16 +89,16 @@ class OUS_CodebaseDocs {
         }
     }
 
-    private static function plugins_root() {
+    private static function plugins_root(): string|false {
         // own-ur-shit/includes/class-codebase-docs.php -> .../plugins
         return realpath(OUS_PATH . '../');
     }
 
-    private static function walkthrough_path() {
+    private static function walkthrough_path(): string {
         return self::plugins_root() . '/CODEBASE-WALKTHROUGH.md';
     }
 
-    public static function render() {
+    public static function render(): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'OUS_CodebaseDocs::render() entered.', [], 'Codebase Docs');
         }
@@ -106,7 +110,7 @@ class OUS_CodebaseDocs {
     // The actual body content, shared by both the standalone page (render())
     // and the Debug Tools section (render_section()) — factored out so
     // neither wraps the other in a second, nested page shell.
-    private static function render_content() {
+    private static function render_content(): void {
         echo '<p class="description">Looking for endpoint-by-endpoint API reference instead? <a href="#ous-section-api-docs">Open API Docs</a> (the section further down this page) — generated live from this site\'s own registered REST routes.</p>';
 
         $path = self::walkthrough_path();
@@ -135,7 +139,7 @@ class OUS_CodebaseDocs {
      * the doc's own shape is simple and stable enough that a ~40-line
      * renderer is the right amount of machinery, not an under-build.
      */
-    private static function render_markdown($md) {
+    private static function render_markdown(string $md): string {
         $lines = explode("\n", $md);
         $html = '';
         $in_code = false;
@@ -196,7 +200,7 @@ class OUS_CodebaseDocs {
         return $html;
     }
 
-    private static function inline_markdown($text) {
+    private static function inline_markdown(string $text): string {
         $text = esc_html($text);
         $text = preg_replace('/`([^`]+)`/', '<code>$1</code>', $text);
         $text = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $text);
@@ -204,7 +208,7 @@ class OUS_CodebaseDocs {
         return $text;
     }
 
-    private static function render_snippet_toggle($ref, $line_hint) {
+    private static function render_snippet_toggle(string $ref, int $line_hint): string {
         $id = 'ous-snip-' . substr(md5($ref . $line_hint), 0, 10);
         $nonce = wp_create_nonce('ous_codebase_docs_snippet');
         $out = '<div class="bhy-card" style="margin:6px 0 12px;padding:8px 12px;">';
@@ -219,14 +223,14 @@ class OUS_CodebaseDocs {
 
     /* ---------------- live snippet fetch (AJAX) ---------------- */
 
-    private static function path_is_safe($rel) {
+    private static function path_is_safe(string $rel): bool {
         foreach (self::ALLOWED_EXTENSIONS as $ext) {
             if (substr($rel, -strlen($ext) - 1) === '.' . $ext) return true;
         }
         return false;
     }
 
-    public static function ajax_snippet() {
+    public static function ajax_snippet(): void {
         check_ajax_referer('ous_codebase_docs_snippet', 'nonce');
         if (!current_user_can('manage_options')) wp_send_json_error(['message' => 'Not allowed.'], 403);
 
@@ -282,7 +286,7 @@ class OUS_CodebaseDocs {
         ]);
     }
 
-    private static function render_assets() {
+    private static function render_assets(): void {
         $ajax_url = esc_url(admin_url('admin-ajax.php'));
         ?>
         <style>

@@ -24,16 +24,21 @@ if (!defined('ABSPATH')) exit;
  * present built-in primitives (bh/note etc., 3.4.50).
  */
 class BH_Element_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['own-ur-shit-elements'] = ['label' => 'Own Ur Shit (Design Suite / elements)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, mixed> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BH_Element')) return [];
         $rows = [];
 
@@ -47,7 +52,8 @@ class BH_Element_TestSuite {
 
     /* ---------- DESIGN-SUITE-PAGE-MANAGER-PLAN.md Phase 5: delete_context() ---------- */
 
-    private static function run_delete_context_tests() {
+    /** @return array<int, mixed> */
+    private static function run_delete_context_tests(): array {
         $rows = [];
         $surface = 'bh_element_suite_delete_context_test';
         $context_id = 999003;
@@ -95,7 +101,8 @@ class BH_Element_TestSuite {
      * unregistered surface slug still has zero placements, which is
      * exactly the empty-slot case being tested.
      */
-    private static function run_empty_slot_tests() {
+    /** @return array<int, mixed> */
+    private static function run_empty_slot_tests(): array {
         $rows = [];
         $surface = 'bh-element-test-suite-nonexistent-surface';
         $context_id = 999999001; // astronomically unlikely to collide with any real placement's context id
@@ -120,7 +127,8 @@ class BH_Element_TestSuite {
      * or stale key should produce an obvious empty result, not broken
      * output.
      */
-    private static function run_surface_preview_tests() {
+    /** @return array<int, mixed> */
+    private static function run_surface_preview_tests(): array {
         $rows = [];
         $html = BH_Element::render_surface_preview('bh-element-test-suite-nonexistent-surface');
         $rows[] = OUS_TestRunner::assert_same('', $html, 'render_surface_preview() on an unregistered surface slug returns an empty string, not a fatal or a broken partial render');
@@ -137,7 +145,8 @@ class BH_Element_TestSuite {
      * with no error anywhere. Asserts every value is a real CSS
      * custom-property reference (starts with '--'), not just any string.
      */
-    private static function run_color_token_schema_tests() {
+    /** @return array<int, mixed> */
+    private static function run_color_token_schema_tests(): array {
         $rows = [];
         if (!class_exists('BHY_Style')) return $rows;
 

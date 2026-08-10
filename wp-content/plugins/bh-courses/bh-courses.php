@@ -2,11 +2,27 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.72
+ * Version:     0.4.73
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.73 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+// level 6 brick (typing OUS_Debug::button() with a real `: void`
+// return): class-debug.php here was calling it as `echo
+// OUS_Debug::button(...)` at 5 call sites, double-printing every debug-
+// tools button on this plugin's own Debug Tools section — button()
+// already echoes its own markup internally, the wrapping `echo` was
+// pure extraneous output. Fixed by dropping the `echo`. Also fixed:
+// class-content-bridge.php's migrate_lesson() was declared `: bool`
+// but returned BH_Content::save()'s real array result unchanged (a
+// dangling type mismatch from the bh-courses PHPStan brick, 0.4.72,
+// only surfaced once own-ur-shit's BH_Content::save() itself got a
+// precise array-shape return type) — cast to `(bool)` at the return,
+// matching its one caller's actual ignored-return-value usage. NOT
+// runtime-verified against a live install; smoke-test the Debug Tools
+// page to confirm buttons render once, not twice.
 
 // 0.4.72 — Ecosystem quality Phase 2, brick 12/13: bh-courses is now
 // clean at PHPStan level 6 (native return/parameter types + precise
@@ -271,7 +287,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.72');
+define('BHC_VER',  '0.4.73');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

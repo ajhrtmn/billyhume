@@ -33,6 +33,7 @@ class OUS_Jobs {
     const CRON_HOOK = 'bhcore_run_due_jobs';
     const AS_VERSION = '3.9.2';
     const AS_ZIP_URL = 'https://github.com/woocommerce/action-scheduler/archive/refs/tags/' . self::AS_VERSION . '.zip';
+    /** @var array<string, callable> */
     private static $handlers = [];
 
     /**
@@ -62,15 +63,15 @@ class OUS_Jobs {
      * primitives, with zero call-site changes required anywhere in the
      * ecosystem — the public API of this class is unchanged either way.
      */
-    private static function vendor_path() {
+    private static function vendor_path(): string {
         return OUS_PATH . 'includes/vendor/action-scheduler/action-scheduler.php';
     }
 
-    public static function library_available() {
+    public static function library_available(): bool {
         return file_exists(self::vendor_path());
     }
 
-    public static function init() {
+    public static function init(): void {
         // Must run before 'init' itself so Action Scheduler's own store/
         // migration classes are registered in time — this is the exact
         // hook timing Action Scheduler's own documentation specifies.
@@ -142,7 +143,7 @@ class OUS_Jobs {
      * extracted folder into place — no code is written by this method,
      * only real bytes fetched from GitHub's own release archive.
      */
-    public static function handle_install_action_scheduler() {
+    public static function handle_install_action_scheduler(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         check_admin_referer('ous_jobs_install_as');
 
@@ -240,14 +241,14 @@ class OUS_Jobs {
     // this text-sniff is good enough to pick success vs. error for a
     // purely supplementary toast, and a false positive here just means a
     // toast shows the wrong color, not the wrong message.
-    private static function notice_looks_like_failure($msg) {
+    private static function notice_looks_like_failure(string $msg): bool {
         foreach (['failed', 'Could not', 'did not', 'not allowed'] as $needle) {
             if (stripos($msg, $needle) !== false) return true;
         }
         return false;
     }
 
-    private static function redirect_with_notice($msg) {
+    private static function redirect_with_notice(string $msg): void {
         $is_failure = self::notice_looks_like_failure($msg);
         if (class_exists('OUS_Toast')) {
             OUS_Toast::queue($msg, $is_failure ? 'error' : 'success');
@@ -270,7 +271,11 @@ class OUS_Jobs {
     // operational visibility for whoever runs the site, not a feature
     // any end user ever sees, so it belongs with Debug Tools' existing
     // "seed/reset/inspect" role rather than a new top-level menu.
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-jobs'] = [
             'label' => 'Job Queue',
             'render' => [self::class, 'render_debug_section'],
@@ -281,7 +286,7 @@ class OUS_Jobs {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         if (self::library_available()) {
             echo '<p>&#9989; Running on <strong>Action Scheduler ' . esc_html(self::AS_VERSION) . '</strong> (vendored, real library — not the fallback table). Its own queue view: <a href="' . esc_url(admin_url('tools.php?page=action-scheduler')) . '">Tools → Scheduled Actions</a>.</p>';
         } else {
@@ -293,7 +298,7 @@ class OUS_Jobs {
 
         $counts = self::counts_by_status();
         echo '<p>Pending: <strong>' . $counts['pending'] . '</strong> &nbsp; Running: <strong>' . $counts['running'] . '</strong> &nbsp; Done: <strong>' . $counts['done'] . '</strong> &nbsp; Failed: <strong>' . $counts['failed'] . '</strong></p>';
-        echo OUS_Debug::button('bh-jobs', 'run_now', 'Run due jobs now (don\'t wait for cron)');
+        OUS_Debug::button('bh-jobs', 'run_now', 'Run due jobs now (don\'t wait for cron)');
 
         $failed = self::recent_failed(10);
         if ($failed) {
@@ -305,7 +310,7 @@ class OUS_Jobs {
         }
     }
 
-    public static function handle_debug_action($action) {
+    public static function handle_debug_action(string $action): string {
         if ($action === 'run_now') {
             self::run_due_jobs(100);
             return 'Ran up to 100 due jobs.';
@@ -313,14 +318,14 @@ class OUS_Jobs {
         return 'Unknown action.';
     }
 
-    public static function reset_debug() {
+    public static function reset_debug(): string {
         global $wpdb;
         $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . self::table() . " WHERE status IN ('done','failed')");
         $wpdb->query("DELETE FROM " . self::table() . " WHERE status IN ('done','failed')");
         return "Cleared $count finished/failed job row(s). Pending/running jobs are left alone.";
     }
 
-    public static function maybe_schedule_cron() {
+    public static function maybe_schedule_cron(): void {
         if (!wp_next_scheduled(self::CRON_HOOK)) {
             wp_schedule_event(time(), 'bhcore_every_minute', self::CRON_HOOK);
         }
@@ -329,12 +334,16 @@ class OUS_Jobs {
     // Registered separately from init() (add_filter runs regardless of
     // action-hook ordering) so "did I register cron_schedules before
     // WordPress needed it" isn't a load-order footgun.
-    public static function register_cron_schedule($schedules) {
+    /**
+     * @param array<string, mixed> $schedules
+     * @return array<string, mixed>
+     */
+    public static function register_cron_schedule($schedules): array {
         $schedules['bhcore_every_minute'] = ['interval' => 60, 'display' => 'Every Minute (BH Jobs)'];
         return $schedules;
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_jobs';
     }
@@ -346,7 +355,7 @@ class OUS_Jobs {
     // and only pays the COUNT+DELETE cost on roughly 1/50 completions.
     const MAX_FINISHED_ROWS = 5000;
 
-    private static function maybe_trim_finished() {
+    private static function maybe_trim_finished(): void {
         if (self::library_available()) return; // Action Scheduler owns its own table/cleanup when active.
         if (wp_rand(1, 50) !== 1) return;
         global $wpdb;
@@ -367,7 +376,7 @@ class OUS_Jobs {
     // should be namespaced by the registering plugin (bhr_, bhc_, etc.)
     // the same way WordPress action/filter names already are by
     // convention, so this is a non-issue in practice.
-    public static function register($hook, $callback) {
+    public static function register(string $hook, callable $callback): void {
         self::$handlers[$hook] = $callback;
 
         // Action Scheduler runs a due action via a plain do_action($hook,
@@ -383,7 +392,8 @@ class OUS_Jobs {
         }
     }
 
-    public static function enqueue($hook, $args = [], $delay_seconds = 0) {
+    /** @param array<mixed> $args */
+    public static function enqueue(string $hook, array $args = [], int $delay_seconds = 0): int {
         $hook = sanitize_key($hook);
         $delay_seconds = max(0, (int) $delay_seconds);
 
@@ -414,7 +424,7 @@ class OUS_Jobs {
     // conditionally unhooked, since an empty-table SELECT every minute
     // is negligible cost and this keeps the fallback path always ready
     // to resume seamlessly if Action Scheduler were ever removed.
-    public static function run_due_jobs($batch_size = 20) {
+    public static function run_due_jobs(int $batch_size = 20): void {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE status = 'pending' AND run_after <= %s ORDER BY run_after ASC LIMIT %d",
@@ -426,7 +436,8 @@ class OUS_Jobs {
         }
     }
 
-    private static function run_one($row) {
+    /** @param array<string, mixed> $row */
+    private static function run_one(array $row): void {
         global $wpdb;
         $id = (int) $row['id'];
 
@@ -461,7 +472,8 @@ class OUS_Jobs {
         }
     }
 
-    private static function mark_failed($id, $attempts_so_far, $error, $hook = '') {
+    /** @param mixed $attempts_so_far */
+    private static function mark_failed(int $id, $attempts_so_far, string $error, string $hook = ''): void {
         global $wpdb;
         $attempts = (int) $attempts_so_far + 1;
 
@@ -493,7 +505,8 @@ class OUS_Jobs {
 
     /* ---------------- admin visibility ---------------- */
 
-    public static function counts_by_status() {
+    /** @return array<string, int> */
+    public static function counts_by_status(): array {
         global $wpdb;
         $rows = $wpdb->get_results("SELECT status, COUNT(*) as c FROM " . self::table() . " GROUP BY status", ARRAY_A);
         $out = ['pending' => 0, 'running' => 0, 'done' => 0, 'failed' => 0];
@@ -501,7 +514,8 @@ class OUS_Jobs {
         return $out;
     }
 
-    public static function recent_failed($limit = 20) {
+    /** @return array<int, array<string, mixed>> */
+    public static function recent_failed(int $limit = 20): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE status = 'failed' ORDER BY updated_at DESC LIMIT %d", $limit

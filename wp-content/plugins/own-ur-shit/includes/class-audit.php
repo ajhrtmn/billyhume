@@ -53,26 +53,26 @@ class OUS_Audit {
     const DENY_THRESHOLD = 5;
     const DB_VERSION = '1.0';
 
-    public static function init() {
+    public static function init(): void {
         self::maybe_upgrade();
         add_action('set_user_role', [self::class, 'log_role_change'], 10, 3);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('ous_audit_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('ous_audit_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('ous_audit_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -97,7 +97,7 @@ class OUS_Audit {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_audit_log';
     }
@@ -107,7 +107,8 @@ class OUS_Audit {
      * ================================================================= */
 
     /** Plain action log, no diff — "X happened," e.g. a deletion or a reject. */
-    public static function log($action, $object_type = '', $object_id = 0, array $meta = [], $actor_user_id = null) {
+    /** @param array<string, mixed> $meta */
+    public static function log(string $action, string $object_type = '', int $object_id = 0, array $meta = [], ?int $actor_user_id = null): void {
         self::write($action, $object_type, $object_id, null, $meta, $actor_user_id);
     }
 
@@ -118,7 +119,12 @@ class OUS_Audit {
      * (nothing actually different) still creates a record but with an
      * empty diff rather than a wall of unchanged fields.
      */
-    public static function log_diff($action, $object_type, $object_id, array $before, array $after, array $meta = [], $actor_user_id = null) {
+    /**
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     * @param array<string, mixed> $meta
+     */
+    public static function log_diff(string $action, string $object_type, int $object_id, array $before, array $after, array $meta = [], ?int $actor_user_id = null): void {
         $diff = [];
         foreach ($after as $key => $new_value) {
             $old_value = $before[$key] ?? null;
@@ -136,7 +142,11 @@ class OUS_Audit {
     // current_time('mysql') (site-local time) while BH_Event writes with
     // current_time('mysql', true) (UTC), so correlating an audit entry
     // to an event row by timestamp was silently off by the site's UTC offset.
-    private static function write($action, $object_type, $object_id, $diff, array $meta, $actor_user_id) {
+    /**
+     * @param array<string, mixed>|null $diff
+     * @param array<string, mixed> $meta
+     */
+    private static function write(string $action, string $object_type, int $object_id, ?array $diff, array $meta, ?int $actor_user_id): void {
         global $wpdb;
         $actor_user_id = $actor_user_id === null ? get_current_user_id() : (int) $actor_user_id;
         $wpdb->insert(self::table(), [
@@ -160,7 +170,7 @@ class OUS_Audit {
      * probing what they can't do) is not, on its own, worth an audit
      * row — a burst of them is.
      */
-    public static function require_cap($cap, $msg = 'Not allowed.') {
+    public static function require_cap(string $cap, string $msg = 'Not allowed.'): void {
         if (current_user_can($cap)) return;
 
         $uid = get_current_user_id();
@@ -188,7 +198,8 @@ class OUS_Audit {
     }
 
     /** WordPress's own role-change hook — covers granting/revoking any role (including the new Studio Manager) from the Users screen for free. */
-    public static function log_role_change($user_id, $new_role, $old_roles) {
+    /** @param array<int, string> $old_roles */
+    public static function log_role_change(int $user_id, string $new_role, array $old_roles): void {
         self::log('user_role_changed', 'user', $user_id, [
             'old_roles' => array_values($old_roles), 'new_role' => $new_role,
         ]);
@@ -197,9 +208,9 @@ class OUS_Audit {
     /* =================================================================
      * Pruning — row-count bound, not time bound (see class docblock)
      * ================================================================= */
-    private static $checked_this_request = false;
+    private static bool $checked_this_request = false;
 
-    private static function maybe_prune() {
+    private static function maybe_prune(): void {
         if (self::$checked_this_request) return;
         self::$checked_this_request = true;
         // Cheap additional throttle: only actually run the COUNT(*) at
@@ -225,7 +236,11 @@ class OUS_Audit {
      * Reading — admin-only Debug Tools section
      * ================================================================= */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['ous-audit-log'] = [
             'label'  => 'Audit Log',
             'render' => [self::class, 'render_debug_section'],
@@ -237,7 +252,7 @@ class OUS_Audit {
     // Debug Tools itself is already manage_options-only (own-ur-shit's
     // class-debug.php add_menu_page() gate) — this section rides on
     // that same admin-only surface rather than adding a second gate.
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY id DESC LIMIT 100', ARRAY_A);
 

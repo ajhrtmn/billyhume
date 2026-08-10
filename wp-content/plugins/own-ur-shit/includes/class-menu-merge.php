@@ -43,11 +43,11 @@ if (!defined('ABSPATH')) exit;
  * functioning registration that happens to render the same content.
  */
 class OUS_MenuMerge {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'merge'], 999);
     }
 
-    public static function merge() {
+    public static function merge(): void {
         foreach (OUS_Registry::all() as $key => $info) {
             if (empty($info['admin_menus'])) continue;
             if (OUS_Registry::status($key) !== 'active') continue;

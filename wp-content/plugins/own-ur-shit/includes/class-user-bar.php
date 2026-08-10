@@ -25,7 +25,7 @@ if (!defined('ABSPATH')) exit;
  * for someone not enrolled in anything.
  */
 class OUS_UserBar {
-    public static function init() {
+    public static function init(): void {
         add_action('wp_body_open', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_filter('bhi_user_bar_links', [self::class, 'register_own_links']);
@@ -34,13 +34,17 @@ class OUS_UserBar {
     // This plugin's own contribution — always-present Account/Log out,
     // the one pair of links that makes sense regardless of which peer
     // plugins are active.
-    public static function register_own_links($links) {
+    /**
+     * @param array<int, array<string, mixed>> $links
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_own_links($links): array {
         $links[] = ['label' => 'Account', 'url' => home_url('/account/')];
         $links[] = ['label' => 'Log out', 'url' => wp_logout_url(home_url())];
         return $links;
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!is_user_logged_in() || is_admin()) return;
         $user_id = get_current_user_id();
         $links = apply_filters('bhi_user_bar_links', []);
@@ -69,7 +73,7 @@ class OUS_UserBar {
         echo '</div></div>';
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_user_logged_in() || is_admin()) return;
 
         wp_register_style('bhi-user-bar', false);

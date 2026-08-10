@@ -34,7 +34,8 @@ class OUS_MenuSync {
      * An empty array removes the group's submenu entirely rather than
      * leaving a label with nothing under it.
      */
-    public static function sync_group($group_key, $label, array $items) {
+    /** @param array<int, array<string, mixed>> $items */
+    public static function sync_group(string $group_key, string $label, array $items): void {
         $navs = get_posts([
             'post_type'      => self::NAV_POST_TYPE,
             'post_status'    => 'any',

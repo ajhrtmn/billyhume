@@ -31,13 +31,13 @@ class BHC_Debug {
         echo '<p>Seed a fully working course (multiple lessons, text/image/quiz steps, a test student partway through it) — or wipe it all and start clean.</p>';
 
         echo '<h4>Seed</h4>';
-        echo OUS_Debug::button('bh-courses', 'seed_course', 'Seed a complete test course (2 lessons, text + image + quiz steps)');
+        OUS_Debug::button('bh-courses', 'seed_course', 'Seed a complete test course (2 lessons, text + image + quiz steps)');
         if (class_exists('BHM_Tiers')) {
-            echo OUS_Debug::button('bh-courses', 'seed_gated_course', 'Seed a second course gated behind a test supporter tier');
+            OUS_Debug::button('bh-courses', 'seed_gated_course', 'Seed a second course gated behind a test supporter tier');
         } else {
             echo '<p class="description"><em>Install &amp; activate BH Monetization to also seed a tier-gated course.</em></p>';
         }
-        echo OUS_Debug::button('bh-courses', 'seed_student_progress', 'Create a test student, partway through the seeded course (1 lesson done, mid-quiz on the next)');
+        OUS_Debug::button('bh-courses', 'seed_student_progress', 'Create a test student, partway through the seeded course (1 lesson done, mid-quiz on the next)');
 
         echo '<h4>Edge-case lessons</h4>';
         echo '<p class="description">Adds ONE lesson to the seeded course containing exactly the malformed/boundary step data BHC_Steps::save() is supposed to defend against — same cases the PHPUnit/Test Runner suites assert on, but visible/clickable in the real admin UI and front end instead of only asserted in code. Pick a preset, click seed, then open the lesson to see what actually got saved after sanitization.</p>';
@@ -55,8 +55,8 @@ class BHC_Debug {
         echo '</form>';
 
         echo '<h4>Wipe / reseed</h4>';
-        echo OUS_Debug::button('bh-courses', 'reseed', 'Wipe test data and reseed from scratch', '', '', false);
-        echo OUS_Debug::button('bh-courses', 'reset', 'Wipe all BH Courses test data (course, lessons, progress, test student)', '', 'Delete all BH Courses test data? This cannot be undone.', false);
+        OUS_Debug::button('bh-courses', 'reseed', 'Wipe test data and reseed from scratch', '', '', false);
+        OUS_Debug::button('bh-courses', 'reset', 'Wipe all BH Courses test data (course, lessons, progress, test student)', '', 'Delete all BH Courses test data? This cannot be undone.', false);
 
         $count = count(get_posts(['post_type' => 'bh_course', 'meta_key' => '_bhc_seed_tag', 'meta_value' => self::SEED_TAG, 'numberposts' => -1, 'fields' => 'ids']));
         echo '<p class="description">Currently seeded test courses: ' . (int) $count . '</p>';

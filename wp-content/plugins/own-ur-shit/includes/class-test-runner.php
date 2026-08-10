@@ -36,13 +36,18 @@ if (!defined('ABSPATH') ) exit;
  * rather than taking down the whole Debug Tools page.
  */
 class OUS_TestRunner {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
     /* ---------------- tiny assertion helpers any suite can use ---------------- */
 
-    public static function assert_same($expected, $actual, $label) {
+    /**
+     * @param mixed $expected
+     * @param mixed $actual
+     * @return array<string, mixed>
+     */
+    public static function assert_same($expected, $actual, string $label): array {
         $pass = $expected === $actual;
         return [
             'name' => $label,
@@ -51,15 +56,24 @@ class OUS_TestRunner {
         ];
     }
 
-    public static function assert_true($actual, $label) {
+    /**
+     * @param mixed $actual
+     * @return array<string, mixed>
+     */
+    public static function assert_true($actual, string $label): array {
         return self::assert_same(true, (bool) $actual, $label);
     }
 
-    public static function assert_false($actual, $label) {
+    /**
+     * @param mixed $actual
+     * @return array<string, mixed>
+     */
+    public static function assert_false($actual, string $label): array {
         return self::assert_same(false, (bool) $actual, $label);
     }
 
-    private static function describe($v) {
+    /** @param mixed $v */
+    private static function describe($v): string {
         if (is_array($v)) return wp_json_encode($v);
         if (is_bool($v)) return $v ? 'true' : 'false';
         if (is_null($v)) return 'null';
@@ -68,7 +82,8 @@ class OUS_TestRunner {
 
     /* ---------------- running every registered suite ---------------- */
 
-    public static function run_all() {
+    /** @return array<string, mixed> */
+    public static function run_all(): array {
         $suites = apply_filters('bhcore_test_suites', []);
         $report = [];
         foreach ($suites as $key => $suite) {
@@ -86,7 +101,11 @@ class OUS_TestRunner {
 
     /* ---------------- Debug Tools page section ---------------- */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-tests'] = [
             'label' => 'Test Runner',
             'render' => [self::class, 'render_debug_section'],
@@ -102,7 +121,7 @@ class OUS_TestRunner {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         $suites = apply_filters('bhcore_test_suites', []);
         if (!$suites) {
             echo '<p class="description">No plugin has registered any test suites yet.</p>';
@@ -168,7 +187,8 @@ class OUS_TestRunner {
      * and each suite's own "copy failures" button can't drift out of
      * sync with each other.
      */
-    private static function format_failures_text(array $report, $unused = null) {
+    /** @param array<string, mixed> $report */
+    private static function format_failures_text(array $report, ?string $unused = null): string {
         $lines = [];
         foreach ($report as $suite) {
             $fails = array_values(array_filter($suite['rows'], function ($r) { return empty($r['pass']); }));
@@ -187,7 +207,7 @@ class OUS_TestRunner {
     // exist — navigator.clipboard.writeText() with a textarea
     // select()/execCommand('copy') fallback for browsers/contexts (e.g.
     // non-HTTPS admin) where the async Clipboard API isn't available.
-    private static function print_copy_script_once() {
+    private static function print_copy_script_once(): void {
         static $printed = false;
         if ($printed) return;
         $printed = true;
@@ -225,7 +245,7 @@ class OUS_TestRunner {
         <?php
     }
 
-    public static function handle_debug_action($action) {
+    public static function handle_debug_action(string $action): string {
         if ($action === 'run_tests') {
             $report = self::run_all();
             self::store_report($report);
@@ -254,10 +274,12 @@ class OUS_TestRunner {
     // the consolidated version of the same direct-DB read/write pattern
     // this fix originally hand-rolled here — see that class's own
     // docblock for the full explanation of why and when to use it.
-    private static function store_report($report) {
+    /** @param array<string, mixed> $report */
+    private static function store_report($report): void {
         OUS_ReliableStore::set('test_report', $report, HOUR_IN_SECONDS);
     }
 
+    /** @return array<string, mixed>|null */
     private static function load_report() {
         return OUS_ReliableStore::get('test_report');
     }

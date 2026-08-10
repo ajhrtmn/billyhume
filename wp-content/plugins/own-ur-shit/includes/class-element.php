@@ -73,14 +73,16 @@ if (!defined('ABSPATH')) exit;
  */
 class BH_Element {
     /** @var array<string, array> slug => manifest (including the 'render' callable) */
+    /** @var array<string, array<string, mixed>> slug => manifest (including the 'render' callable) */
     private static $types = [];
 
     /** @var array<string, array> surface slug => ['group'=>,'label'=>,'slots'=>[...],'context'=>,'preview_ctx'=>callable] */
+    /** @var array<string, array<string, mixed>>|null surface slug => ['group'=>,'label'=>,'slots'=>[...],'context'=>,'preview_ctx'=>callable] */
     private static $surfaces_cache = null;
 
     const VALID_ATTR_KINDS = ['scalar', 'list', 'richtext', 'url', 'series'];
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_post_ous_element_debug_action', [self::class, 'handle_debug_post']);
         add_action('rest_api_init', [self::class, 'register_routes']);
@@ -108,7 +110,11 @@ class BH_Element {
      * registered surface, which the Structure tree always loads at a
      * fixed context_id of 0.
      */
-    public static function register_library_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_library_surface($surfaces): array {
         $surfaces['__library'] = [
             'group'    => 'Library',
             'label'    => 'Library (sandbox)',
@@ -126,7 +132,7 @@ class BH_Element {
      * this is deliberately not an exhaustive element library, just
      * enough to prove the spine end-to-end.
      */
-    private static function register_default_types() {
+    private static function register_default_types(): void {
         self::register_type('bh/note', [
             'label'    => 'Note',
             'category' => 'text',
@@ -272,7 +278,7 @@ class BH_Element {
      * once that's proven out further, per the design doc's own v2/v3
      * status notes.
      */
-    private static function register_generic_primitives() {
+    private static function register_generic_primitives(): void {
         self::register_type('bh/heading', [
             'label'    => 'Heading',
             'category' => 'text',
@@ -383,7 +389,8 @@ class BH_Element {
      * }
      * @return bool true if accepted, false if rejected (missing 'render' callable — logged, never fatal).
      */
-    public static function register_type($slug, array $args) {
+    /** @param array<string, mixed> $args */
+    public static function register_type(string $slug, array $args): bool {
         $slug = trim((string) $slug);
         if ($slug === '') return false;
 
@@ -465,7 +472,7 @@ class BH_Element {
      * "load states for this type" REST path) invoke this once, lazily,
      * the first time a type's states are actually asked for.
      */
-    public static function maybe_seed_default_states($slug) {
+    public static function maybe_seed_default_states(string $slug): void {
         if (!class_exists('BH_Element_State')) return;
         $type = self::get_type($slug);
         if (!$type || empty($type['states']) || !is_array($type['states'])) return;
@@ -484,21 +491,24 @@ class BH_Element {
         }
     }
 
-    public static function registered_types() {
+    /** @return array<string, array<string, mixed>> */
+    public static function registered_types(): array {
         return self::$types;
     }
 
-    public static function get_type($slug) {
+    /** @return array<string, mixed>|null */
+    public static function get_type(string $slug): ?array {
         return self::$types[(string) $slug] ?? null;
     }
 
-    public static function is_container($slug) {
+    public static function is_container(string $slug): bool {
         $type = self::get_type($slug);
         return $type ? $type['container'] : false;
     }
 
     /** Manifest-admitted types for a surface — the single source of truth the palette (and Phase-1's Debug Tools "add" form) reads. */
-    public static function types_for_surface($surface) {
+    /** @return array<string, array<string, mixed>> */
+    public static function types_for_surface(string $surface): array {
         $surface = (string) $surface;
         $out = [];
         foreach (self::$types as $slug => $type) {
@@ -515,7 +525,8 @@ class BH_Element {
      * ================================================================= */
 
     /** Surfaces self-register their own slots via this filter — same shape as bhy_style_surfaces/bhi_portal_panels. Cached per-request (the filter's registrants don't change mid-request). */
-    public static function registered_surfaces() {
+    /** @return array<string, array<string, mixed>> */
+    public static function registered_surfaces(): array {
         if (self::$surfaces_cache === null) {
             self::$surfaces_cache = apply_filters('bh_element_surfaces', []);
             if (!is_array(self::$surfaces_cache)) self::$surfaces_cache = [];
@@ -523,7 +534,8 @@ class BH_Element {
         return self::$surfaces_cache;
     }
 
-    public static function get_surface($surface) {
+    /** @return array<string, mixed>|null */
+    public static function get_surface(string $surface): ?array {
         $surfaces = self::registered_surfaces();
         return $surfaces[(string) $surface] ?? null;
     }
@@ -532,7 +544,7 @@ class BH_Element {
      * §2.1 — placement storage (thin wrappers over bhcore_element_placements)
      * ================================================================= */
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_element_placements';
     }
@@ -543,7 +555,8 @@ class BH_Element {
      * @param string|null $slot    Restrict to one slot, or null for every slot on this (surface, context).
      * @return array Ordered rows (position ASC), each with 'config' already json_decode()d to an array.
      */
-    public static function get_placements($surface, $context_id, $slot = null) {
+    /** @return array<int, array<string, mixed>> */
+    public static function get_placements(string $surface, int $context_id, ?string $slot = null): array {
         global $wpdb;
         $table = self::table();
         $context_id = (int) $context_id;
@@ -603,7 +616,8 @@ class BH_Element {
      * any future single-node lookup (e.g. resolving a right-click
      * "add child" target). Returns null on an unknown id.
      */
-    public static function get_placement($id) {
+    /** @return array<string, mixed>|null */
+    public static function get_placement(int $id): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE id = %d", (int) $id
@@ -630,7 +644,8 @@ class BH_Element {
      * @param int $id
      * @return array Root-first flat list of rows (each with 'config' decoded), or [] if $id is unknown.
      */
-    public static function get_subtree($id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function get_subtree(int $id): array {
         $root = self::get_placement($id);
         if (!$root) return [];
 
@@ -668,6 +683,10 @@ class BH_Element {
      * orchestrate itself.
      *
      * @return int|false the placement id, or false on failure.
+     */
+    /**
+     * @param array<string, mixed> $placement
+     * @return int|false
      */
     public static function save_placement(array $placement) {
         global $wpdb;
@@ -802,7 +821,7 @@ class BH_Element {
      * BEFORE the row itself is deleted, so a delete never leaves a
      * dangling parent_placement_id pointing at a now-nonexistent row.
      */
-    public static function delete_placement($id) {
+    public static function delete_placement(int $id): bool {
         global $wpdb;
         $id = (int) $id;
         $table = self::table();
@@ -820,7 +839,7 @@ class BH_Element {
     // deleted directly; delete_placement()'s own parent-promotion
     // logic isn't needed here since every row in this context is going
     // regardless of parent/child relationships.
-    public static function delete_context($surface, $context_id) {
+    public static function delete_context(string $surface, int $context_id): bool {
         global $wpdb;
         $table = self::table();
         return (bool) $wpdb->delete($table, [
@@ -839,7 +858,7 @@ class BH_Element {
      * cycle") on an unresolved/broken chain rather than refusing every
      * future parent assignment because of one bad row elsewhere.
      */
-    private static function would_create_cycle($placement_id, $proposed_parent_id) {
+    private static function would_create_cycle(int $placement_id, int $proposed_parent_id): bool {
         $placement_id = (int) $placement_id;
         $proposed_parent_id = (int) $proposed_parent_id;
         if ($placement_id <= 0 || $proposed_parent_id <= 0) return false;
@@ -861,7 +880,11 @@ class BH_Element {
     }
 
     /** Groups an already-fetched flat placement array by parent_placement_id (0 = root) — the in-memory map render_slot()/build_tree() build ONCE per call rather than re-querying per tree level. */
-    private static function group_by_parent(array $placements) {
+    /**
+     * @param array<int, array<string, mixed>> $placements
+     * @return array<int, array<int, array<string, mixed>>>
+     */
+    private static function group_by_parent(array $placements): array {
         $map = [];
         foreach ($placements as $p) {
             $parent = (int) ($p['parent_placement_id'] ?? 0);
@@ -878,7 +901,8 @@ class BH_Element {
      * parent never touches position values under a different parent. IDs
      * not in $ordered_ids are left untouched.
      */
-    public static function reorder($surface, $context_id, $slot, array $ordered_ids, $parent_id = 0) {
+    /** @param array<int, int> $ordered_ids */
+    public static function reorder(string $surface, int $context_id, string $slot, array $ordered_ids, int $parent_id = 0): bool {
         global $wpdb;
         $table = self::table();
         $surface = sanitize_key($surface);
@@ -918,7 +942,12 @@ class BH_Element {
      *                                  it just looks up its own id in the map and recurses into whatever it finds.
      * @return string HTML, or '' if the element_type isn't registered (graceful degrade — matches BH_Content::render() skipping unregistered block types) or the type's render callable itself throws.
      */
-    public static function render_placement(array $placement, array $ctx = [], array $children_by_parent = []) {
+    /**
+     * @param array<string, mixed> $placement
+     * @param array<string, mixed> $ctx
+     * @param array<int, array<int, array<string, mixed>>> $children_by_parent
+     */
+    public static function render_placement(array $placement, array $ctx = [], array $children_by_parent = []): string {
         // LIBRARY-STRUCTURE-HYBRID-DESIGN-PLAN.md Phase 4 — a linked
         // instance (library_component_id != 0) has NO structure of its
         // own to resolve here: its element_type/config are not a real
@@ -1052,7 +1081,11 @@ class BH_Element {
      * here so REST preview (rest_preview()) gets the identical wrapper
      * a real render_slot() call would produce.
      */
-    private static function wrap_placement_html(array $type, $type_slug, $placement_id, array $config, $inner) {
+    /**
+     * @param array<string, mixed> $type
+     * @param array<string, mixed> $config
+     */
+    private static function wrap_placement_html(array $type, string $type_slug, int $placement_id, array $config, string $inner): string {
         $style_map  = is_array($config['style'] ?? null) ? $config['style'] : [];
         $html_attrs = is_array($config['htmlAttrs'] ?? null) ? $config['htmlAttrs'] : [];
 
@@ -1192,7 +1225,8 @@ class BH_Element {
     // something an author can expand on their own the way a raw-JS field
     // could. Add more kinds by hand as real needs come up, not by making
     // this generic.
-    private static function build_actions_js(array $actions, $placement_id) {
+    /** @param array<int, array<string, mixed>> $actions */
+    private static function build_actions_js(array $actions, int $placement_id): string {
         $out = '';
         foreach ($actions as $action) {
             if (!is_array($action)) continue;
@@ -1247,7 +1281,11 @@ class BH_Element {
     }
 
     /** Validates a requested htmlAttrs.tag against the type's OWN declared 'tags' allowlist — never trusts an arbitrary client-supplied tag name. Falls back to the type's first (default) tag on no match/no request. */
-    private static function resolve_tag(array $type, array $html_attrs) {
+    /**
+     * @param array<string, mixed> $type
+     * @param array<string, mixed> $html_attrs
+     */
+    private static function resolve_tag(array $type, array $html_attrs): string {
         $tags = !empty($type['tags']) && is_array($type['tags']) ? array_values($type['tags']) : ['div'];
         $requested = isset($html_attrs['tag']) ? sanitize_key((string) $html_attrs['tag']) : '';
         return in_array($requested, $tags, true) ? $requested : $tags[0];
@@ -1264,7 +1302,12 @@ class BH_Element {
      * that IS emitted goes through esc_attr()/esc_url()/
      * sanitize_html_class() or an explicit enum check first.
      */
-    private static function build_html_attrs(array $type, array $html_attrs, $tag) {
+    /**
+     * @param array<string, mixed> $type
+     * @param array<string, mixed> $html_attrs
+     * @return array<int, string>
+     */
+    private static function build_html_attrs(array $type, array $html_attrs, string $tag): array {
         $schema = is_array($type['attrs'] ?? null) ? $type['attrs'] : [];
         $out = [];
 
@@ -1355,12 +1398,20 @@ class BH_Element {
     }
 
     /** Thin wrapper over BHY_Style::safe_enum() when available, degrading to a plain in_array() if class-style.php somehow hasn't loaded yet — this class never assumes BHY_Style's load order, same defensive posture as its other class_exists('BHY_Style') checks. */
-    private static function safe_enum_fallback($val, array $allowed) {
+    /**
+     * @param mixed $val
+     * @param array<int, string> $allowed
+     */
+    private static function safe_enum_fallback($val, array $allowed): ?string {
         if (class_exists('BHY_Style')) return BHY_Style::safe_enum($val, $allowed);
-        return in_array($val, $allowed, true) ? $val : null;
+        return in_array($val, $allowed, true) ? (string) $val : null;
     }
 
-    private static function coerce_attr($value, $type) {
+    /**
+     * @param mixed $value
+     * @return array<mixed>|bool|int|string
+     */
+    private static function coerce_attr($value, string $type) {
         switch ($type) {
             case 'int':   return (int) $value;
             case 'bool':  return (bool) $value;
@@ -1400,7 +1451,8 @@ class BH_Element {
      * always emitting the wrapper (harmless — an empty div — for a
      * still-empty slot) is safe with zero caller changes needed.
      */
-    public static function render_slot($surface, $context_id, $slot, array $ctx = []) {
+    /** @param array<string, mixed> $ctx */
+    public static function render_slot(string $surface, int $context_id, string $slot, array $ctx = []): string {
         $placements = self::get_placements($surface, $context_id, $slot);
 
         // 3.4.34 — ONE query (get_placements() above) for the whole slot,
@@ -1462,7 +1514,7 @@ class BH_Element {
      * collapse, but a future plugin could still declare more than one)
      * still reads sensibly.
      */
-    public static function render_surface_preview($surface_slug, $context_id = 0) {
+    public static function render_surface_preview(string $surface_slug, int $context_id = 0): string {
         $surface = self::get_surface($surface_slug);
         if (!$surface) return '';
         $ctx_callable = $surface['preview_ctx'] ?? null;
@@ -1496,7 +1548,7 @@ class BH_Element {
      * wiring a GUI to it.
      * ================================================================= */
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('ous/v1', '/elements/surfaces', [
             'methods'             => 'GET',
             'permission_callback' => function () { return current_user_can('manage_options'); },
@@ -1620,6 +1672,7 @@ class BH_Element {
      * attrs whose stored config actually has a 'bind' descriptor are
      * included; literal/unbound attrs are omitted (nothing to refresh).
      */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_resolve(\WP_REST_Request $req) {
         $id = (int) $req->get_param('placement_id');
         if ($id <= 0) {
@@ -1654,6 +1707,7 @@ class BH_Element {
     }
 
     /** DELETE /elements/placements/{id} — a true row delete (see register_routes()'s comment above this route). */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_delete_placement(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
         if ($id <= 0) {
@@ -1664,6 +1718,7 @@ class BH_Element {
     }
 
     /** GET /elements/surfaces — registered surfaces + slots (§3.4 bullet 1). */
+    /** @return \WP_REST_Response */
     public static function rest_get_surfaces(\WP_REST_Request $req) {
         $out = [];
         foreach (self::registered_surfaces() as $slug => $surface) {
@@ -1691,6 +1746,7 @@ class BH_Element {
     }
 
     /** GET /elements/types?surface= — types_for_surface(), the palette (§3.4 bullet 2). */
+    /** @return \WP_REST_Response */
     public static function rest_get_types(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $types = $surface !== '' ? self::types_for_surface($surface) : self::registered_types();
@@ -1718,6 +1774,7 @@ class BH_Element {
     }
 
     /** GET /elements/sources?kind= — bindable data sources for the inspector dropdown (§3.4 bullet 5). */
+    /** @return \WP_REST_Response */
     public static function rest_get_sources(\WP_REST_Request $req) {
         if (!class_exists('BH_Element_Data')) return new \WP_REST_Response([], 200);
         $kind = (string) $req->get_param('kind');
@@ -1726,12 +1783,14 @@ class BH_Element {
     }
 
     /** GET /elements/style-schema — §2.6 property-group preset tables for the inspector's Style section (BHY_Style::style_schema_for_js()). */
+    /** @return \WP_REST_Response */
     public static function rest_get_style_schema(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) return new \WP_REST_Response(['groups' => [], 'colorTokens' => []], 200);
         return new \WP_REST_Response(BHY_Style::style_schema_for_js(), 200);
     }
 
     /** GET /elements/site-tokens — the global BHY_Style option row, unfiltered by any entity override (BHY_Style::get() with no entity_id, the same call BHY_Gallery's own settings form makes). */
+    /** @return \WP_REST_Response */
     public static function rest_get_site_tokens(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) return new \WP_REST_Response([], 200);
         return new \WP_REST_Response(BHY_Style::get(), 200);
@@ -1747,6 +1806,7 @@ class BH_Element {
      * client sends) — this is a second, REST-shaped entry point to the
      * SAME option row and validation rules, not a parallel/looser one.
      */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save_site_tokens(\WP_REST_Request $req) {
         if (!class_exists('BHY_Style')) {
             return new \WP_Error('bh_element_style_unavailable', 'BHY_Style is not loaded.', ['status' => 500]);
@@ -1768,6 +1828,7 @@ class BH_Element {
     }
 
     /** GET /elements/placements/{surface}/{context_id} — all placements grouped by slot (§3.4 bullet 3). */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_get_placements(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $context_id = (int) $req->get_param('context_id');
@@ -1807,6 +1868,7 @@ class BH_Element {
      * keeps the wire format a single flat array (no client-side nested JSON
      * required) while still producing correct per-parent position values.
      */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save_placements(\WP_REST_Request $req) {
         $surface = (string) $req->get_param('surface');
         $context_id = (int) $req->get_param('context_id');
@@ -1861,6 +1923,7 @@ class BH_Element {
      * Deliberately renders an EPHEMERAL placement (never touches the DB) —
      * this is a preview of unsaved inspector edits, not a placement lookup.
      */
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_preview(\WP_REST_Request $req) {
         $body = json_decode($req->get_body(), true);
         $element_type = (string) ($body['element_type'] ?? '');
@@ -1887,7 +1950,11 @@ class BH_Element {
      * registered-types inspector the design doc calls mandatory (§3.1).
      * ================================================================= */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-element'] = [
             'label'  => 'Element Builder',
             'render' => [self::class, 'render_debug_section'],
@@ -1896,7 +1963,7 @@ class BH_Element {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         if (isset($_GET['ous_element_msg'])) {
             echo '<div class="notice notice-info inline"><p>' . esc_html(wp_unslash($_GET['ous_element_msg'])) . '</p></div>';
         }
@@ -1940,7 +2007,7 @@ class BH_Element {
     // rather than a typed literal — this is the end-to-end slice the
     // build pass is meant to demonstrate (a dashboard widget reading
     // live bhcore_events data through BH_Element_Data::resolve()).
-    private static function render_add_bound_demo_button() {
+    private static function render_add_bound_demo_button(): void {
         if (!self::get_type('bh/stat-card') || !class_exists('BH_Element_Data') || !BH_Element_Data::is_registered('bhcore_events.count')) {
             return; // stat-card type or its data source isn't registered this request — nothing sane to offer
         }
@@ -1953,7 +2020,7 @@ class BH_Element {
         echo '</form>';
     }
 
-    private static function count_placements_for_type($slug) {
+    private static function count_placements_for_type(string $slug): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE element_type = %s AND enabled = 1",
@@ -1965,7 +2032,7 @@ class BH_Element {
     // hand-copied 5-line "hidden action/op/id/nonce fields + one button"
     // form differing only in the op value, button label, and (for
     // delete) a confirm(). One shared builder instead.
-    private static function render_debug_op_form($op, $placement_id, $button_html, $style = '') {
+    private static function render_debug_op_form(string $op, int $placement_id, string $button_html, string $style = ''): string {
         $nonce = wp_create_nonce('ous_element_debug_' . $placement_id);
         $out = '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"' . ($style ? ' style="' . esc_attr($style) . '"' : '') . '>';
         $out .= '<input type="hidden" name="action" value="ous_element_debug_action">';
@@ -1977,7 +2044,7 @@ class BH_Element {
         return $out;
     }
 
-    private static function render_dashboard_placement_list() {
+    private static function render_dashboard_placement_list(): void {
         $placements = self::get_placements('dashboard', 0, 'main');
         if (!$placements) {
             echo '<p class="description">No placements in dashboard/main yet.</p>';
@@ -2000,7 +2067,7 @@ class BH_Element {
     // A bare "add" form scoped to whatever's registered for the
     // 'dashboard' surface — deliberately minimal (element_type dropdown
     // + one free-text "value literal" field), Phase 1's stated scope.
-    private static function render_add_placement_form() {
+    private static function render_add_placement_form(): void {
         $types = self::types_for_surface('dashboard');
         if (!$types) {
             echo '<p class="description">No element types registered for the dashboard surface yet.</p>';
@@ -2022,7 +2089,7 @@ class BH_Element {
         echo '</form>';
     }
 
-    public static function handle_debug_post() {
+    public static function handle_debug_post(): void {
         if (!current_user_can('manage_options')) {
             wp_die('Not allowed.');
         }
@@ -2126,7 +2193,7 @@ class BH_Element {
     // order on any slot that DOES have a tree in it (e.g. built via the
     // Design Suite GUI) if this admin-post action is ever invoked against
     // one.
-    private static function move_placement($surface, $context_id, $slot, $id, $direction) {
+    private static function move_placement(string $surface, int $context_id, string $slot, int $id, int $direction): bool {
         $placements = self::get_placements($surface, $context_id, $slot);
         $target = null;
         foreach ($placements as $p) {
@@ -2141,6 +2208,7 @@ class BH_Element {
         $ids = array_column($siblings, 'id');
         $index = array_search((int) $id, $ids, true);
         if ($index === false) return false;
+        $index = (int) $index;
 
         $swap_index = $index + $direction;
         if ($swap_index < 0 || $swap_index >= count($ids)) return false;

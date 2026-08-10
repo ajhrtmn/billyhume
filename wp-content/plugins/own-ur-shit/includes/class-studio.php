@@ -68,7 +68,8 @@ class BH_Studio {
     // Filterable so bh-courses/bh-monetization-woo/etc. can add their
     // own without touching this file — same zero-central-registration
     // shape as ous_debug_tools/ous_registered_plugins.
-    public static function block_types() {
+    /** @return array<string, mixed> */
+    public static function block_types(): array {
         return apply_filters('bh_studio_block_types', [
             'bh/container' => ['tag' => 'section', 'category' => 'layout', 'label' => 'Container'],
             'bh/heading'   => ['tag' => 'h2',      'category' => 'text',   'label' => 'Heading'],
@@ -78,7 +79,7 @@ class BH_Studio {
         ]);
     }
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
@@ -95,7 +96,11 @@ class BH_Studio {
      * bh-monetization-woo's bhm/product-grid), so "why doesn't my new
      * block type show up in the canvas" has a one-click answer.
      */
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-studio'] = [
             'label' => 'Content Studio',
             'render' => [self::class, 'render_debug_section'],
@@ -106,7 +111,7 @@ class BH_Studio {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         echo '<p><a class="button" href="' . esc_url(admin_url('admin.php?page=bh-studio')) . '">Open Content Studio</a></p>';
         echo '<h4>Registered block types</h4>';
         $studio_types = self::block_types();
@@ -131,7 +136,7 @@ class BH_Studio {
     // BH_Studio renders correctly through BH_Content::render() anywhere
     // else in the ecosystem that already calls it — the canvas is a new
     // AUTHORING surface, not a second content/rendering system.
-    private static function register_content_block_types() {
+    private static function register_content_block_types(): void {
         if (!class_exists('BH_Content')) return;
 
         BH_Content::register_block_type('bh/container', [
@@ -178,7 +183,7 @@ class BH_Studio {
     // rest of this ecosystem's admin surfaces — a real front-end-facing
     // "let a supporter design their own profile page" flow is a later,
     // deliberately separate capability decision, not assumed here.
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('ous/v1', '/studio/(?P<context_type>[\w-]+)/(?P<context_id>\d+)', [
             [
                 'methods' => 'GET',
@@ -193,12 +198,14 @@ class BH_Studio {
         ]);
     }
 
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_get(\WP_REST_Request $req) {
         if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', 'BH_Content is unavailable.', ['status' => 500]);
         $tree = BH_Content::get($req->get_param('context_type'), (int) $req->get_param('context_id'));
         return new \WP_REST_Response(['tree' => $tree, 'block_types' => self::block_types()], 200);
     }
 
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_save(\WP_REST_Request $req) {
         if (!class_exists('BH_Content')) return new \WP_Error('bh_studio_no_content', 'BH_Content is unavailable.', ['status' => 500]);
         $body = json_decode($req->get_body(), true);
@@ -229,7 +236,7 @@ class BH_Studio {
     // unregistered outright, because the modal iframe still needs a real,
     // capability-checked admin.php?page=bh-studio target to load — fully
     // unhooking add_menu() would 403 the iframe along with the menu item.
-    public static function add_menu() {
+    public static function add_menu(): void {
         $hook = add_submenu_page(null, 'Content Studio', 'Content Studio', 'bhcore_design_site', 'bh-studio', [self::class, 'render']);
         // Only the failure case is worth a log row — previously this
         // fired an INFO row for every successful registration too.
@@ -241,7 +248,7 @@ class BH_Studio {
         }
     }
 
-    public static function maybe_enqueue($hook) {
+    public static function maybe_enqueue(string $hook): void {
         if (strpos($hook, 'bh-studio') === false) return;
 
         // The exact package set the Site Editor itself depends on for
@@ -269,7 +276,7 @@ class BH_Studio {
         ]);
     }
 
-    public static function render() {
+    public static function render(): void {
         BHY_UI::shell_open('Content Studio', 'A direct-manipulation canvas over real BH_Content blocks — semantic output, no absolute-positioned div soup. Everything below the toolbar is rendered by studio.js.');
         echo '<div id="bh-studio-root" style="border:1px solid #dcdcde;background:#fff;min-height:600px;"></div>';
         BHY_UI::shell_close();

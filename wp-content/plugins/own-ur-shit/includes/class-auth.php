@@ -13,7 +13,7 @@ class BHI_Auth {
     const REG_THROTTLE = 5;       // max registrations per IP per hour
     const LOGIN_MAX_FAILS = 5;    // failed logins (per username+IP) before a 15-minute lockout
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_nopriv_bhi_verify_email', [self::class, 'verify_email_action']);
         add_action('admin_post_bhi_verify_email', [self::class, 'verify_email_action']);
         add_action('wp_footer', [self::class, 'maybe_print_verify_notice']);
@@ -26,7 +26,7 @@ class BHI_Auth {
     // (class-toast.php), so this just needs to notice the param and
     // clean the URL up afterward via history.replaceState so a page
     // refresh doesn't re-show it.
-    public static function maybe_print_verify_notice() {
+    public static function maybe_print_verify_notice(): void {
         if (!isset($_GET['bhi_verified'])) return;
         $ok = $_GET['bhi_verified'] === '1';
         $msg = $ok
@@ -44,7 +44,7 @@ class BHI_Auth {
         <?php
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         $open = ['permission_callback' => '__return_true'];
         $auth = ['permission_callback' => 'is_user_logged_in'];
         register_rest_route('bhi/v1', '/session',  ['methods' => 'GET',  'callback' => [self::class, 'session']]  + $open);
@@ -55,11 +55,11 @@ class BHI_Auth {
         register_rest_route('bhi/v1', '/resend-verification', ['methods' => 'POST', 'callback' => [self::class, 'resend_verification']] + $auth);
     }
 
-    private static function ip() {
+    private static function ip(): string {
         return sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
     }
 
-    public static function session() {
+    public static function session(): \WP_REST_Response {
         if (!is_user_logged_in()) return new WP_REST_Response(['success' => true, 'loggedIn' => false], 200);
         $user = wp_get_current_user();
         return new WP_REST_Response([
@@ -68,7 +68,8 @@ class BHI_Auth {
         ], 200);
     }
 
-    public static function login($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function login(\WP_REST_Request $req) {
         $username = (string) $req->get_param('username');
         $fail_key = 'bhi_login_fail_' . md5(strtolower($username) . '|' . self::ip());
 
@@ -113,7 +114,8 @@ class BHI_Auth {
         return new WP_REST_Response(['success' => true], 200);
     }
 
-    public static function register($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function register(\WP_REST_Request $req) {
         $throttle_key = 'bhi_reg_throttle_' . md5(self::ip());
         if ((int) OUS_ReliableStore::get($throttle_key, 0) >= self::REG_THROTTLE) {
             return new WP_Error('throttled', 'Too many registrations from this connection. Please try again later.', ['status' => 429]);
@@ -157,18 +159,18 @@ class BHI_Auth {
         return new WP_REST_Response(['success' => true], 200);
     }
 
-    public static function logout() {
+    public static function logout(): \WP_REST_Response {
         wp_logout();
         return new WP_REST_Response(['success' => true], 200);
     }
 
-    public static function profile() {
+    public static function profile(): \WP_REST_Response {
         return new WP_REST_Response(['success' => true, 'profile' => BHI_Profiles::get(get_current_user_id())], 200);
     }
 
     /* ---------- email verification ---------- */
 
-    public static function is_email_verified($uid) {
+    public static function is_email_verified(int $uid): bool {
         if (get_user_meta($uid, '_bhi_email_verified', true) === '1') return true;
         // Grandfather clause: an account that predates this system (or
         // was created directly in wp-admin, bypassing this flow
@@ -180,7 +182,7 @@ class BHI_Auth {
             && get_user_meta($uid, '_bhi_email_verify_sent', true) === '';
     }
 
-    private static function send_verification_email($uid, $email, $username) {
+    private static function send_verification_email(int $uid, string $email, string $username): void {
         $token = wp_generate_password(32, false, false);
         update_user_meta($uid, '_bhi_email_verify_token', wp_hash($token));
         update_user_meta($uid, '_bhi_email_verify_sent', time());
@@ -195,7 +197,7 @@ class BHI_Auth {
         }
     }
 
-    public static function verify_email_action() {
+    public static function verify_email_action(): void {
         $uid   = (int) ($_GET['uid'] ?? 0);
         $token = (string) ($_GET['token'] ?? '');
         $stored  = get_user_meta($uid, '_bhi_email_verify_token', true);
@@ -219,6 +221,7 @@ class BHI_Auth {
         exit;
     }
 
+    /** @return \WP_REST_Response|\WP_Error */
     public static function resend_verification() {
         $uid = get_current_user_id();
         if (self::is_email_verified($uid)) return new WP_REST_Response(['success' => true, 'already_verified' => true], 200);

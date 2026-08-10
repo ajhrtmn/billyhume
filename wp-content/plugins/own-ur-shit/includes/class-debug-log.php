@@ -39,7 +39,7 @@ if (!defined('ABSPATH')) exit;
 class OUS_DebugLog {
     const MAX_ROWS = 1000;
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue_js_capture']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue_js_capture']);
@@ -75,9 +75,10 @@ class OUS_DebugLog {
         register_shutdown_function([self::class, 'capture_fatal_on_shutdown']);
     }
 
+    /** @var callable|null */
     private static $previous_exception_handler = null;
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_debug_log';
     }
@@ -99,9 +100,10 @@ class OUS_DebugLog {
     // during this one request," not just "everything that happened
     // around this time," which is a materially different and more
     // useful question when triaging a real bug.
+    /** @var string|null */
     private static $request_id = null;
 
-    public static function request_id() {
+    public static function request_id(): string {
         if (self::$request_id === null) {
             self::$request_id = substr(wp_generate_uuid4(), 0, 8);
         }
@@ -112,9 +114,10 @@ class OUS_DebugLog {
     // guessed from DB_VERSION alone — an install stuck mid-migration or
     // on a manually-altered table should get the same safe degrade as
     // one that's cleanly on an old version).
+    /** @var bool|null */
     private static $has_request_id_column = null;
 
-    private static function has_request_id_column() {
+    private static function has_request_id_column(): bool {
         if (self::$has_request_id_column === null) {
             global $wpdb;
             $table = self::table();
@@ -136,7 +139,12 @@ class OUS_DebugLog {
      * as the row's headline location; $trace is the full call chain,
      * shown expanded.
      */
-    public static function log($level, $message, $context = [], $source = '', $file = '', $line = 0, $col = 0, $trace = null) {
+    /**
+     * @param mixed $message
+     * @param array<mixed> $context
+     * @param array<mixed>|null $trace
+     */
+    public static function log(string $level, $message, array $context = [], string $source = '', string $file = '', int $line = 0, int $col = 0, ?array $trace = null): void {
         global $wpdb;
         $row = [
             'level' => sanitize_key($level) ?: 'info',
@@ -196,11 +204,13 @@ class OUS_DebugLog {
         self::$request_buffer[] = $row;
     }
 
+    /** @var array<int, array<string, mixed>> */
     private static $request_buffer = [];
 
     /** Read-only accessor for class-qm-integration.php — never written
      * to from outside log() itself. */
-    public static function request_buffer() {
+    /** @return array<int, array<string, mixed>> */
+    public static function request_buffer(): array {
         return self::$request_buffer;
     }
 
@@ -225,7 +235,8 @@ class OUS_DebugLog {
     // persistent object cache (transients live IN that cache). A
     // throttle for "should I log a diagnostic about caching being
     // broken" cannot itself depend on the cache being trustworthy.
-    public static function log_throttled($level, $key, $seconds, $message, $context = [], $source = '') {
+    /** @param array<mixed> $context */
+    public static function log_throttled(string $level, string $key, int $seconds, string $message, array $context = [], string $source = ''): void {
         global $wpdb;
         $option_name = 'ous_log_throttle_' . sanitize_key($key);
         $last = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", $option_name));
@@ -243,7 +254,7 @@ class OUS_DebugLog {
     // Convenience wrapper — pulls file/line/trace straight off a real
     // Throwable rather than making every catch{} block hand-assemble
     // those three arguments itself.
-    public static function log_exception(\Throwable $e, $source = '', $level = 'error') {
+    public static function log_exception(\Throwable $e, string $source = '', string $level = 'error'): void {
         self::log(
             $level,
             get_class($e) . ': ' . $e->getMessage(),
@@ -256,19 +267,19 @@ class OUS_DebugLog {
         );
     }
 
-    public static function capture_uncaught_exception(\Throwable $e) {
+    public static function capture_uncaught_exception(\Throwable $e): void {
         try {
             self::log_exception($e, 'PHP (uncaught)');
         } catch (\Throwable $inner) {
             // Logging the exception must never become a second, more
             // confusing uncaught exception of its own.
         }
-        if (self::$previous_exception_handler && is_callable(self::$previous_exception_handler)) {
+        if (is_callable(self::$previous_exception_handler)) {
             call_user_func(self::$previous_exception_handler, $e);
         }
     }
 
-    private static function current_url() {
+    private static function current_url(): string {
         if (empty($_SERVER['HTTP_HOST']) || empty($_SERVER['REQUEST_URI'])) return '';
         $scheme = is_ssl() ? 'https' : 'http';
         return esc_url_raw($scheme . '://' . sanitize_text_field($_SERVER['HTTP_HOST']) . sanitize_text_field($_SERVER['REQUEST_URI']));
@@ -277,7 +288,7 @@ class OUS_DebugLog {
     // Opportunistic, not scheduled — every ~50th write pays the tiny
     // cost of a COUNT+DELETE so this table never needs its own cron job
     // just to stay bounded.
-    private static function maybe_trim() {
+    private static function maybe_trim(): void {
         if (wp_rand(1, 50) !== 1) return;
         global $wpdb;
         $table = self::table();
@@ -288,7 +299,7 @@ class OUS_DebugLog {
         }
     }
 
-    public static function capture_fatal_on_shutdown() {
+    public static function capture_fatal_on_shutdown(): void {
         $error = error_get_last();
         if (!$error) return;
         $fatal_types = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR];
@@ -316,7 +327,7 @@ class OUS_DebugLog {
     // real site visitor's browser quirks aren't this console's job, and
     // this avoids adding any JS payload or AJAX traffic to anonymous
     // front-end requests.
-    public static function maybe_enqueue_js_capture() {
+    public static function maybe_enqueue_js_capture(): void {
         if (!is_user_logged_in() || !current_user_can('manage_options')) return;
         $ajax_url = admin_url('admin-ajax.php');
         $nonce = wp_create_nonce('ous_log_js_error');
@@ -379,7 +390,7 @@ class OUS_DebugLog {
         wp_add_inline_script('ous-debug-log-js-capture', $js);
     }
 
-    public static function ajax_log_js_error() {
+    public static function ajax_log_js_error(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['_wpnonce'] ?? '', 'ous_log_js_error')) {
             wp_send_json_error('', 403);
         }
@@ -408,7 +419,11 @@ class OUS_DebugLog {
 
     /* ---------------- Debug Tools page section ---------------- */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bh-console'] = [
             'label' => 'Console & Logs',
             'render' => [self::class, 'render_debug_section'],
@@ -438,12 +453,13 @@ class OUS_DebugLog {
     // from the default view — so a real, still-recorded pattern doesn't
     // silently vanish from the underlying data, only from what's shown
     // by default.
-    private static function muted_signatures() {
+    /** @return array<string, mixed> */
+    private static function muted_signatures(): array {
         $muted = get_option('ous_debug_log_muted', []);
         return is_array($muted) ? $muted : [];
     }
 
-    private static function mute_signature($source, $message) {
+    private static function mute_signature(string $source, string $message): void {
         $muted = self::muted_signatures();
         $key = md5($source . '|' . $message);
         $muted[$key] = [
@@ -454,7 +470,7 @@ class OUS_DebugLog {
         update_option('ous_debug_log_muted', $muted, false);
     }
 
-    private static function unmute_signature($key) {
+    private static function unmute_signature(string $key): void {
         $muted = self::muted_signatures();
         unset($muted[$key]);
         update_option('ous_debug_log_muted', $muted, false);
@@ -463,7 +479,8 @@ class OUS_DebugLog {
     // Builds the WHERE clause + params for every filter this page
     // supports, shared between the row query and the "copy all
     // currently-filtered rows" dump so the two never drift apart.
-    private static function build_filters() {
+    /** @return array<string, mixed> */
+    private static function build_filters(): array {
         $where = [];
         $params = [];
 
@@ -519,7 +536,7 @@ class OUS_DebugLog {
     // or ran against a table some other process already altered), what's
     // the stored bhi_db_version option vs the code's current constant,
     // and any last recorded insert failure from log() itself above.
-    private static function health_check() {
+    private static function health_check(): void {
         global $wpdb;
         $table = self::table();
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
@@ -552,7 +569,7 @@ class OUS_DebugLog {
         echo '</div>';
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         global $wpdb;
         $table = self::table();
         self::health_check();
@@ -720,7 +737,7 @@ class OUS_DebugLog {
         echo '</p>';
     }
 
-    public static function handle_debug_action($action) {
+    public static function handle_debug_action(string $action): string {
         if ($action === 'clear_log') {
             global $wpdb;
             $wpdb->query("TRUNCATE TABLE " . self::table());
@@ -776,7 +793,7 @@ class OUS_DebugLog {
         return 'Unknown action.';
     }
 
-    public static function reset_debug() {
+    public static function reset_debug(): string {
         global $wpdb;
         $wpdb->query("TRUNCATE TABLE " . self::table());
         return 'Console/error log cleared.';
@@ -786,7 +803,7 @@ class OUS_DebugLog {
     // for its own "copy failures" buttons — guarded on the JS side
     // (typeof check) so whichever section renders first on the shared
     // Debug Tools page wins and the other is a no-op, not a redefinition.
-    private static function print_copy_script_once() {
+    private static function print_copy_script_once(): void {
         static $printed = false;
         if ($printed) return;
         $printed = true;
@@ -823,7 +840,7 @@ class OUS_DebugLog {
     // Toggles a log row's expandable detail row (trace/context/request)
     // — guarded the same way print_copy_script_once() is, one shared
     // definition regardless of section render order.
-    private static function print_expand_script_once() {
+    private static function print_expand_script_once(): void {
         static $printed = false;
         if ($printed) return;
         $printed = true;

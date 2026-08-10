@@ -34,10 +34,10 @@ if (!defined('ABSPATH')) exit;
  *   }, 20); // after both classes involved have had a chance to load
  */
 class OUS_Integration {
-    /** @var array<string, array> */
+    /** @var array<string, array<string, mixed>> */
     private static $contracts = [];
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
@@ -60,7 +60,8 @@ class OUS_Integration {
      * only needs to call register($same_key, ['enhancer_class' => '...'])
      * — it doesn't need to know or repeat the builtin side's details.
      */
-    public static function register($key, array $args) {
+    /** @param array<string, mixed> $args */
+    public static function register(string $key, array $args): void {
         $key = sanitize_key($key);
         $existing = self::$contracts[$key] ?? ['label' => $key, 'description' => '', 'builtin_class' => '', 'enhancer_class' => null];
         $merged = array_merge($existing, $args);
@@ -68,7 +69,8 @@ class OUS_Integration {
         self::$contracts[$key] = $merged;
     }
 
-    public static function all() {
+    /** @return array<string, array<string, mixed>> */
+    public static function all(): array {
         return self::$contracts;
     }
 
@@ -78,14 +80,18 @@ class OUS_Integration {
      * key was never registered at all. Call-time only — never cached
      * across requests, since which plugins are active can change.
      */
-    public static function active_implementation($key) {
+    public static function active_implementation(string $key): ?string {
         $contract = self::$contracts[sanitize_key($key)] ?? null;
         if (!$contract) return null;
         if (!empty($contract['enhancer_class']) && class_exists($contract['enhancer_class'])) return 'enhancer';
         return 'builtin';
     }
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['ous-integrations'] = [
             'label'  => 'Integration Contracts',
             'render' => [self::class, 'render_debug_section'],
@@ -98,7 +104,7 @@ class OUS_Integration {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         if (!self::$contracts) {
             echo '<p class="description">No integration contracts registered yet.</p>';
             return;

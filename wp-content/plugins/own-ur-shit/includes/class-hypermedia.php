@@ -45,7 +45,7 @@ if (!defined('ABSPATH')) exit;
 class OUS_Hypermedia {
     const ASSET_VERSION = '1.0.2'; // the exact Datastar release tag vendored below — bump both together
 
-    public static function init() {
+    public static function init(): void {
         // type="module" is REQUIRED for Datastar to execute (it's an ES
         // module, not a classic script) — WordPress's wp_enqueue_script()
         // has no built-in way to add that attribute pre-6.3, and this
@@ -56,7 +56,7 @@ class OUS_Hypermedia {
         add_filter('script_loader_tag', [self::class, 'add_module_type'], 10, 2);
     }
 
-    public static function enqueue() {
+    public static function enqueue(): void {
         wp_enqueue_script(
             'ous-datastar',
             OUS_URL . 'assets/js/vendor/datastar.js',
@@ -66,7 +66,7 @@ class OUS_Hypermedia {
         );
     }
 
-    public static function add_module_type($tag, $handle) {
+    public static function add_module_type(string $tag, string $handle): string {
         if ($handle !== 'ous-datastar') return $tag;
         if (strpos($tag, 'type=') !== false) return $tag; // already has a type attribute somehow, don't double up
         return str_replace(' src=', ' type="module" src=', $tag);
@@ -81,7 +81,7 @@ class OUS_Hypermedia {
      * response) since this ecosystem explicitly targets ordinary shared
      * hosting, not a curated server environment.
      */
-    public static function sse_headers() {
+    public static function sse_headers(): void {
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('X-Accel-Buffering: no'); // nginx-specific, harmless elsewhere — prevents nginx's own proxy buffering from doing the same thing PHP's own buffering would
@@ -101,7 +101,7 @@ class OUS_Hypermedia {
      * @param string|null $selector CSS selector — omit to let Datastar infer it from the element's own id.
      * @param string|null $mode 'outer'|'inner'|'replace'|'prepend'|'append'|'before'|'after'|'remove' — omit for the default (outer).
      */
-    public static function patch_elements($html, $selector = null, $mode = null) {
+    public static function patch_elements(string $html, ?string $selector = null, ?string $mode = null): void {
         echo "event: datastar-patch-elements\n";
         foreach (explode("\n", (string) $html) as $line) {
             echo 'data: elements ' . $line . "\n";
@@ -113,7 +113,8 @@ class OUS_Hypermedia {
     }
 
     /** Writes one 'datastar-patch-signals' event — $signals is encoded as JSON, matching the protocol's own example shape. */
-    public static function patch_signals(array $signals, $only_if_missing = false) {
+    /** @param array<string, mixed> $signals */
+    public static function patch_signals(array $signals, bool $only_if_missing = false): void {
         echo "event: datastar-patch-signals\n";
         echo 'data: signals ' . wp_json_encode($signals) . "\n";
         if ($only_if_missing) echo "data: onlyIfMissing true\n";

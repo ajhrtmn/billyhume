@@ -2,12 +2,22 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.11
+ * Version:     0.1.12
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.12 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+// level 6 brick (typing OUS_Debug::button() with a real `: void`
+// return): class-debug.php here was calling it as `echo
+// OUS_Debug::button(...)`, double-printing that debug-tools button on
+// this plugin's own Debug Tools section — button() already echoes its
+// own markup internally, the wrapping `echo` was pure extraneous
+// output. Fixed by dropping the `echo`. NOT runtime-verified against a
+// live install; smoke-test the Debug Tools page to confirm the button
+// renders once, not twice.
 
 // 0.1.11 — Ecosystem quality Phase 2, brick 5/13: added native return
 // types and parameter types across all 11 includes files (94 findings,
@@ -41,7 +51,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.11');
+define('BHR_VER',  '0.1.12');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

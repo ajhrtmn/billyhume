@@ -247,7 +247,8 @@ class OUS_Registry {
     // (defaulted to empty where a filter didn't provide them), so
     // rendering code never has to guard against a partial entry from a
     // plugin that only supplied the essentials.
-    public static function all() {
+    /** @return array<string, array<string, mixed>> */
+    public static function all(): array {
         $plugins = apply_filters('ous_registered_plugins', self::DEFAULTS);
         foreach ($plugins as $key => &$info) {
             $info = array_merge([
@@ -267,7 +268,8 @@ class OUS_Registry {
     // activation/dependency/menu-merge logic still uses all() so
     // installing or activating a hidden-in-prod plugin from another
     // route (direct URL, WP-CLI) keeps working exactly as it always has.
-    public static function visible_cards() {
+    /** @return array<string, array<string, mixed>> */
+    public static function visible_cards(): array {
         $plugins = self::all();
         if (class_exists('BHS_Env') && BHS_Env::hidden_in_production()) {
             unset($plugins['bh-streaming']);
@@ -280,7 +282,8 @@ class OUS_Registry {
     // shown as a minimal, lower-detail card so a genuinely
     // zero-configuration future plugin still gets noticed rather than
     // silently invisible.
-    public static function discover_unregistered() {
+    /** @return array<string, array<string, mixed>> */
+    public static function discover_unregistered(): array {
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
         $known_files = array_column(self::all(), 'file');
@@ -304,7 +307,7 @@ class OUS_Registry {
     // class_exists() would report 'missing' for a plugin that's
     // installed but simply hasn't loaded yet this request for unrelated
     // reasons, which isn't the same thing as not being installed.
-    public static function status($key) {
+    public static function status(string $key): string {
         // Guard the lookup with isset() instead of indexing directly —
         // an arbitrary/stale key (e.g. a leftover depends_on entry after
         // a registry filter change) should fail gracefully, not throw an
@@ -319,7 +322,7 @@ class OUS_Registry {
         return is_plugin_active($info['file']) ? 'active' : 'inactive';
     }
 
-    public static function version($key) {
+    public static function version(string $key): string {
         $registry = self::all();
         if (!isset($registry[$key])) return '';
         if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -331,7 +334,7 @@ class OUS_Registry {
     // Same idea as status() above, but for a plugin found only via
     // discover_unregistered() — identified by file path directly since
     // it has no registry key of its own.
-    public static function status_by_file($file) {
+    public static function status_by_file(string $file): string {
         return is_plugin_active($file) ? 'active' : 'inactive';
     }
 
@@ -350,7 +353,8 @@ class OUS_Registry {
      * plugin, so a stale bundle is a visible warning instead of a silent
      * trap.
      */
-    public static function bundled_zip_report() {
+    /** @return array<int, array<string, mixed>> */
+    public static function bundled_zip_report(): array {
         $bundled_dir = OUS_PATH . 'bundled/';
         $rows = [];
         if (!is_dir($bundled_dir)) return $rows;
@@ -399,7 +403,7 @@ class OUS_Registry {
     // the whole archive to disk — this only runs on-demand from the
     // debug page, not on every request, so the small per-call overhead
     // of opening the zip is a non-issue.
-    public static function read_zip_plugin_version($zip_path) {
+    public static function read_zip_plugin_version(string $zip_path): ?string {
         if (!class_exists('ZipArchive')) return null;
         $zip = new ZipArchive();
         if ($zip->open($zip_path) !== true) return null;
@@ -439,7 +443,8 @@ class OUS_Registry {
      * the real target on full success, so a failed write never leaves
      * orphaned temp files or a corrupt bundle behind.
      */
-    public static function regenerate_bundled_zip($key) {
+    /** @return true|\WP_Error */
+    public static function regenerate_bundled_zip(string $key) {
         if (!class_exists('ZipArchive')) return new WP_Error('no_ziparchive', 'ZipArchive isn\'t available on this server.');
 
         $info = self::all()[$key] ?? null;
@@ -494,7 +499,11 @@ class OUS_Registry {
         return true;
     }
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bundled-zips'] = [
             'label' => 'Bundled Zip Freshness',
             'render' => [self::class, 'render_debug_section'],
@@ -512,7 +521,8 @@ class OUS_Registry {
     }
 
     /** Wired as this section's 'handle' callback — receives ($action, $_POST) same as every other registered Debug Tools handler (OUS_Debug::button()'s own form contract); returns a plain message string, the shared redirect-with-notice dispatcher's own contract. */
-    public static function handle_regenerate($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_regenerate(string $action, $post): string {
         if ($action !== 'regenerate') return 'Unknown action.';
         $key = sanitize_key($post['bundle_key'] ?? '');
         $result = self::regenerate_bundled_zip($key);
@@ -521,7 +531,7 @@ class OUS_Registry {
             : "Regenerated the bundled zip for \"$key\" from the current source.";
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         $rows = self::bundled_zip_report();
         if (!$rows) {
             echo '<p class="description">No bundled/*.zip files found (or ZipArchive isn\'t available on this server).</p>';

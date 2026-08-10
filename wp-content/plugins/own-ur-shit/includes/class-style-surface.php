@@ -44,11 +44,15 @@ if (!defined('ABSPATH')) exit;
  * themeable brand surface" posture as the color fix above.
  */
 class OUS_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register($surfaces): array {
         $surfaces['ous-media-wizard'] = [
             'group' => 'Own Ur Shit',
             'label' => 'Media & CDN Setup wizard',
@@ -57,11 +61,12 @@ class OUS_StyleSurface {
         return $surfaces;
     }
 
-    private static function css_url() {
+    private static function css_url(): string {
         return admin_url('css/common.min.css');
     }
 
-    public static function media_wizard_preview() {
+    /** @return array<string, mixed> */
+    public static function media_wizard_preview(): array {
         ob_start();
         ?>
 <div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">

@@ -31,7 +31,7 @@ class OUS_Badge {
      * @param string $label optional override text (default: the level's own label)
      * @param string $title optional tooltip explaining WHY — always worth passing, since a bare badge with no reason is just an unexplained warning icon.
      */
-    public static function render($level, $label = null, $title = '') {
+    public static function render(string $level, ?string $label = null, string $title = ''): string {
         if (!isset(self::LEVELS[$level])) return '';
         $meta = self::LEVELS[$level];
         $text = $label !== null ? $label : $meta['label'];

@@ -10,16 +10,21 @@ if (!defined('ABSPATH')) exit;
  * BH_Studio save/render cycle uses without needing a live install.
  */
 class OUS_StudioTestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['bh-studio'] = ['label' => 'BH_Studio / BH_Content', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, mixed> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner')) return [];
         if (!class_exists('BH_Content') || !class_exists('BH_Studio')) {
             return [['name' => 'BH_Content/BH_Studio not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];

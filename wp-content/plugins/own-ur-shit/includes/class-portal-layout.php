@@ -23,13 +23,14 @@ if (!defined('ABSPATH')) exit;
 class OUS_PortalLayout {
     const OPTION = 'bhi_portal_layout';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhi_save_portal_layout', [self::class, 'handle_save']);
         add_action('admin_post_bhi_restore_portal_layout_revision', [self::class, 'handle_restore_revision']);
     }
 
-    public static function get() {
+    /** @return array<string, mixed> */
+    public static function get(): array {
         $saved = get_option(self::OPTION, []);
         return [
             'order'  => is_array($saved['order'] ?? null) ? $saved['order'] : [],
@@ -42,7 +43,11 @@ class OUS_PortalLayout {
      * filter-contributed panel list. Never called directly by a panel
      * provider — this is BHI_Portal's own concern, not theirs.
      */
-    public static function apply($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function apply($panels): array {
         $layout = self::get();
         if (!$layout['order'] && !$layout['hidden']) return $panels;
 
@@ -60,11 +65,11 @@ class OUS_PortalLayout {
         return array_values($panels);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('own-ur-shit', 'Portal Layout', 'Portal Layout', 'manage_options', 'ous-portal-layout', [self::class, 'render']);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) return;
 
         // Read raw filter output directly, not BHI_Portal::get_panels()
@@ -113,7 +118,7 @@ class OUS_PortalLayout {
         echo '</div>';
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhi_save_portal_layout', 'bhi_portal_layout_nonce')) {
             wp_die('Invalid request.');
         }
@@ -137,7 +142,7 @@ class OUS_PortalLayout {
         exit;
     }
 
-    public static function handle_restore_revision() {
+    public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhi_restore_portal_layout_revision', 'ous_revisions_nonce')) {
             wp_die('Invalid request.');
         }

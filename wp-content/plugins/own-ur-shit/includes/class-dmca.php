@@ -23,27 +23,28 @@ class OUS_DMCA {
     const OPTION = 'ous_dmca_agent';
     const FIELDS = ['agent_name', 'org_name', 'email', 'phone', 'address'];
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_save_dmca_agent', [self::class, 'handle_save']);
         add_shortcode('bh_dmca_notice', [self::class, 'render_shortcode']);
     }
 
-    public static function get() {
+    /** @return array<string, string> */
+    public static function get(): array {
         $saved = get_option(self::OPTION, []);
         return array_merge(array_fill_keys(self::FIELDS, ''), is_array($saved) ? $saved : []);
     }
 
-    public static function is_configured() {
+    public static function is_configured(): bool {
         $agent = self::get();
         return $agent['email'] !== '' && ($agent['agent_name'] !== '' || $agent['org_name'] !== '');
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('own-ur-shit', 'DMCA Agent', 'DMCA Agent', 'manage_options', 'ous-dmca-agent', [self::class, 'render']);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) return;
         $agent = self::get();
 
@@ -87,7 +88,7 @@ class OUS_DMCA {
         echo '</form></div>';
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('ous_save_dmca_agent', 'ous_dmca_agent_nonce')) {
             wp_die('Invalid request.');
         }
@@ -107,7 +108,7 @@ class OUS_DMCA {
         exit;
     }
 
-    public static function render_shortcode() {
+    public static function render_shortcode(): string {
         if (!self::is_configured()) {
             return current_user_can('manage_options')
                 ? '<p><em>DMCA agent info not yet configured — set it under Own Ur Shit &gt; DMCA Agent.</em></p>'

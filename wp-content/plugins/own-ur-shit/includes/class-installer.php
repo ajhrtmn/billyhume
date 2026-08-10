@@ -16,8 +16,8 @@ class OUS_Installer {
     // channel" shape several WP core APIs already use for the same
     // reason (a bool return that still needs a richer failure reason
     // available to whoever actually cares).
-    private static $last_error = '';
-    public static function last_error() { return self::$last_error; }
+    private static string $last_error = '';
+    public static function last_error(): string { return self::$last_error; }
 
     // Two genuinely different install sources, one shared entry point —
     // every caller uses this without needing to know or care which kind
@@ -34,7 +34,7 @@ class OUS_Installer {
     // that wp-admin's own "Install Now" button uses — not a custom
     // reimplementation, and it requires the server to actually reach
     // WordPress.org, unlike the bundled path.
-    public static function install($key) {
+    public static function install(string $key): bool {
         $info = OUS_Registry::all()[$key] ?? null;
         if (!$info) return false;
 
@@ -58,7 +58,7 @@ class OUS_Installer {
      * proceeds — bundling is the offline-install mechanism, and there's
      * nothing "stale" about the only copy that exists yet.
      */
-    private static function install_from_bundle($zip_filename) {
+    private static function install_from_bundle(string $zip_filename): bool {
         self::$last_error = '';
         $zip_path = OUS_PATH . 'bundled/' . $zip_filename;
         if (!file_exists($zip_path)) return false;
@@ -94,7 +94,7 @@ class OUS_Installer {
         return !is_wp_error($result);
     }
 
-    private static function install_from_wporg($slug) {
+    private static function install_from_wporg(string $slug): bool {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
         require_once ABSPATH . 'wp-admin/includes/plugin-install.php';

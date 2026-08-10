@@ -2,7 +2,7 @@ includes:
     - vendor/szepeviktor/phpstan-wordpress/extension.neon
 
 parameters:
-    level: 5
+    level: 6
     paths:
         - wp-content/plugins/own-ur-shit
         - wp-content/plugins/bh-contest

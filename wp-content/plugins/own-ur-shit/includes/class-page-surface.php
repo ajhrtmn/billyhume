@@ -51,7 +51,7 @@ class OUS_PageSurface {
     // own bottom-line recommendation #2 already calls for).
     const MANAGED_POST_TYPES = ['page', 'post'];
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_element_surfaces', [self::class, 'register_element_surface']);
         add_filter('the_content', [self::class, 'maybe_replace_content']);
 
@@ -73,13 +73,17 @@ class OUS_PageSurface {
     // MANAGED_POST_TYPES only, same as everything else in this class —
     // a plugin-owned CPT's own surface cleans up after itself
     // separately, not through this generic hook.
-    public static function handle_delete($post_id) {
+    public static function handle_delete(int $post_id): void {
         if (!in_array(get_post_type($post_id), self::MANAGED_POST_TYPES, true)) return;
         if (!class_exists('BH_Element')) return;
         BH_Element::delete_context('bh_page', $post_id);
     }
 
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         $surfaces['bh_page'] = [
             'group' => 'Site',
             'label' => 'Pages',
@@ -110,7 +114,7 @@ class OUS_PageSurface {
     // Design-Suite-managed page has no such pre-existing system to
     // preserve alongside; the node tree IS the page's content once
     // opted in, per the plan doc's §1.
-    public static function maybe_replace_content($content) {
+    public static function maybe_replace_content(string $content): string {
         if (!is_singular() || !in_the_loop() || !is_main_query()) return $content;
         $post_id = get_the_ID();
         if (!$post_id || get_post_meta($post_id, self::META_KEY, true) !== '1') return $content;
@@ -124,7 +128,7 @@ class OUS_PageSurface {
      * opt-in wrap + hiding the native editor once managed).
      * ================================================================= */
 
-    public static function add_meta_boxes($post_type, $post) {
+    public static function add_meta_boxes(string $post_type, \WP_Post $post): void {
         if (!in_array($post_type, self::MANAGED_POST_TYPES, true)) return;
 
         add_meta_box(
@@ -133,7 +137,7 @@ class OUS_PageSurface {
         );
     }
 
-    public static function render_metabox($post) {
+    public static function render_metabox(\WP_Post $post): void {
         wp_nonce_field('ous_design_suite_toggle', 'ous_design_suite_nonce');
         $managed = get_post_meta($post->ID, self::META_KEY, true) === '1';
 
@@ -168,7 +172,7 @@ class OUS_PageSurface {
         }
     }
 
-    public static function handle_save($post_id) {
+    public static function handle_save(int $post_id): void {
         if (!isset($_POST['ous_design_suite_nonce']) || !wp_verify_nonce($_POST['ous_design_suite_nonce'], 'ous_design_suite_toggle')) return;
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
@@ -233,7 +237,7 @@ class OUS_PageSurface {
      * simply wins when it's on (same "one clear owner" rule, not two
      * competing renderers).
      */
-    public static function register_page_content_block() {
+    public static function register_page_content_block(): void {
         register_block_type('bh/page-content', [
             'attributes' => [
                 'content' => ['type' => 'string', 'default' => ''],
@@ -242,7 +246,7 @@ class OUS_PageSurface {
         ]);
     }
 
-    public static function enqueue_block_editor_assets() {
+    public static function enqueue_block_editor_assets(): void {
         wp_enqueue_script(
             'ous-page-content-block',
             OUS_URL . 'assets/js/page-content-block.js',
@@ -257,7 +261,8 @@ class OUS_PageSurface {
     // attribute value, so a future direct edit to the placement (via
     // REST, Debug Tools, etc.) is reflected immediately without
     // needing this specific post re-saved.
-    public static function render_page_content_block($attrs) {
+    /** @param array<string, mixed> $attrs */
+    public static function render_page_content_block($attrs): string {
         $post_id = get_the_ID();
         if (!$post_id || !class_exists('BH_Element')) return '';
         return BH_Element::render_slot('bh_page', $post_id, 'root');
@@ -270,7 +275,7 @@ class OUS_PageSurface {
     // one is deliberately unsupported in this v1 (last one wins) —
     // multiple independent Design-Suite sections per ordinary page is
     // real, plausible future scope, not assumed needed yet.
-    private static function sync_page_content_block($post_id) {
+    private static function sync_page_content_block(int $post_id): void {
         if (!class_exists('BH_Element')) return;
         $post = get_post($post_id);
         if (!$post) return;

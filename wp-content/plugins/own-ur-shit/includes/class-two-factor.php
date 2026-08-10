@@ -34,7 +34,7 @@ class BHI_TwoFactor {
     const SITE_OPTION = 'bhcore_2fa_site_enabled';
     const PENDING_META_KEY = 'bhcore_2fa_pending_secret';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('authenticate', [self::class, 'gate_login'], 30, 3);
         add_action('login_form', [self::class, 'render_code_field']);
 
@@ -49,17 +49,17 @@ class BHI_TwoFactor {
         add_action('admin_post_bhcore_save_2fa_site_setting', [self::class, 'save_site_setting']);
     }
 
-    public static function site_enabled() {
+    public static function site_enabled(): bool {
         return (bool) get_option(self::SITE_OPTION, false);
     }
 
-    public static function user_has_2fa($user_id) {
+    public static function user_has_2fa(int $user_id): bool {
         return (bool) get_user_meta($user_id, self::ENABLED_META_KEY, true);
     }
 
     /* ---------------- TOTP core (RFC 6238 / RFC 4226) ---------------- */
 
-    private static function base32_encode($binary) {
+    private static function base32_encode(string $binary): string {
         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         $bits = '';
         foreach (str_split($binary) as $byte) $bits .= str_pad(decbin(ord($byte)), 8, '0', STR_PAD_LEFT);
@@ -71,7 +71,7 @@ class BHI_TwoFactor {
         return $output;
     }
 
-    private static function base32_decode($b32) {
+    private static function base32_decode(string $b32): string {
         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         $b32 = strtoupper(preg_replace('/[^A-Z2-7]/', '', $b32));
         $bits = '';
@@ -88,13 +88,13 @@ class BHI_TwoFactor {
         return $binary;
     }
 
-    public static function generate_secret() {
+    public static function generate_secret(): string {
         return self::base32_encode(random_bytes(20)); // 160-bit secret, standard for TOTP
     }
 
     // 30-second step, 6 digits, SHA-1 — the universal defaults every
     // authenticator app assumes without being told otherwise.
-    private static function totp_at($secret, $timeslice) {
+    private static function totp_at(string $secret, int $timeslice): string {
         $key = self::base32_decode($secret);
         $time_bin = str_pad(pack('N', 0) . pack('N', $timeslice), 8, "\0", STR_PAD_LEFT);
         $hash = hash_hmac('sha1', $time_bin, $key, true);
@@ -110,7 +110,8 @@ class BHI_TwoFactor {
     // a real, common allowance for clock drift between the server and
     // whatever phone the authenticator app is running on, without
     // opening the window so wide a code stays guessable for minutes.
-    public static function verify_code($user_id, $code, $secret = null) {
+    /** @param mixed $code */
+    public static function verify_code(int $user_id, $code, ?string $secret = null): bool {
         $secret = $secret ?: get_user_meta($user_id, self::SECRET_META_KEY, true);
         if (!$secret) return false;
         $code = preg_replace('/[^0-9]/', '', (string) $code);
@@ -123,7 +124,7 @@ class BHI_TwoFactor {
         return false;
     }
 
-    public static function otpauth_uri($secret, $user) {
+    public static function otpauth_uri(string $secret, \WP_User $user): string {
         $site = wp_parse_url(home_url(), PHP_URL_HOST) ?: 'site';
         $label = rawurlencode($site . ':' . $user->user_login);
         $issuer = rawurlencode($site);
@@ -135,7 +136,11 @@ class BHI_TwoFactor {
     // Runs at priority 30 — after WP core's own username/password check
     // (priority 20) has already turned $user into either a valid
     // WP_User or a WP_Error. Nothing here re-checks the password itself.
-    public static function gate_login($user, $username, $password) {
+    /**
+     * @param mixed $user
+     * @return mixed
+     */
+    public static function gate_login($user, string $username, string $password) {
         if (empty($username) || empty($password)) return $user; // blank initial page load, nothing to gate yet
         if (is_wp_error($user) || !($user instanceof WP_User)) return $user; // password already failed — not this class's problem
         if (!self::site_enabled() || !self::user_has_2fa($user->ID)) return $user;
@@ -168,7 +173,7 @@ class BHI_TwoFactor {
     // gate_login() never looks at, since user_has_2fa() is false for
     // them. Simpler than trying to know in advance, before a password is
     // even submitted, whether to show it.
-    public static function render_code_field() {
+    public static function render_code_field(): void {
         if (!self::site_enabled()) return;
         echo '<p><label for="bhcore_2fa_code">Authentication code <span class="description">(only if you have 2FA enabled on your account)</span><br>';
         echo '<input type="text" name="bhcore_2fa_code" id="bhcore_2fa_code" class="input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="width:100%;"></label></p>';
@@ -176,7 +181,7 @@ class BHI_TwoFactor {
 
     /* ---------------- per-user enrollment (WP profile screen) ---------------- */
 
-    public static function render_profile_fields($user) {
+    public static function render_profile_fields(\WP_User $user): void {
         if (!self::site_enabled()) {
             if (current_user_can('manage_options')) {
                 echo '<h2>Two-Factor Authentication</h2><p class="description">Disabled site-wide. Turn it on under <a href="' . esc_url(admin_url('admin.php?page=ous-security')) . '">Own Ur Shit → Security</a> before anyone can enroll.</p>';
@@ -214,7 +219,7 @@ class BHI_TwoFactor {
         self::enqueue_profile_script();
     }
 
-    private static function enqueue_profile_script() {
+    private static function enqueue_profile_script(): void {
         ?>
         <script>
         (function () {
@@ -288,7 +293,7 @@ class BHI_TwoFactor {
         <?php
     }
 
-    public static function ajax_start_enroll() {
+    public static function ajax_start_enroll(): void {
         check_ajax_referer('bhcore_2fa', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id || !self::site_enabled()) wp_send_json_error(['message' => 'Not available.'], 403);
@@ -308,7 +313,7 @@ class BHI_TwoFactor {
         ]);
     }
 
-    public static function ajax_confirm_enroll() {
+    public static function ajax_confirm_enroll(): void {
         check_ajax_referer('bhcore_2fa', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error([], 403);
@@ -327,7 +332,7 @@ class BHI_TwoFactor {
         wp_send_json_success();
     }
 
-    public static function ajax_disable() {
+    public static function ajax_disable(): void {
         check_ajax_referer('bhcore_2fa', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error([], 403);
@@ -348,11 +353,11 @@ class BHI_TwoFactor {
 
     /* ---------------- site-wide toggle ---------------- */
 
-    public static function add_settings_page() {
+    public static function add_settings_page(): void {
         add_submenu_page('own-ur-shit', 'Security', 'Security', 'manage_options', 'ous-security', [self::class, 'render_settings_page']);
     }
 
-    public static function render_settings_page() {
+    public static function render_settings_page(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $enabled = self::site_enabled();
         $enrolled_count = (int) (new WP_User_Query(['meta_key' => self::ENABLED_META_KEY, 'meta_value' => '1', 'fields' => 'ID', 'number' => 0, 'count_total' => true]))->get_total();
@@ -369,7 +374,7 @@ class BHI_TwoFactor {
         echo '</form></div>';
     }
 
-    public static function save_site_setting() {
+    public static function save_site_setting(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhcore_2fa_site_setting')) wp_die('Not allowed.');
         update_option(self::SITE_OPTION, !empty($_POST['bhcore_2fa_site_enabled']));
         wp_safe_redirect(admin_url('admin.php?page=ous-security&updated=1'));

@@ -15,12 +15,16 @@ if (!defined('ABSPATH')) exit;
  * ecosystem's existing "own only what you own" discipline.
  */
 class OUS_Privacy {
-    public static function init() {
+    public static function init(): void {
         add_filter('wp_privacy_personal_data_exporters', [self::class, 'register_exporter']);
         add_filter('wp_privacy_personal_data_erasers', [self::class, 'register_eraser']);
     }
 
-    public static function register_exporter($exporters) {
+    /**
+     * @param array<string, mixed> $exporters
+     * @return array<string, mixed>
+     */
+    public static function register_exporter($exporters): array {
         $exporters['own-ur-shit-profile'] = [
             'exporter_friendly_name' => __('Own Ur Shit — Profile', 'own-ur-shit'),
             'callback' => [self::class, 'export_profile'],
@@ -28,7 +32,11 @@ class OUS_Privacy {
         return $exporters;
     }
 
-    public static function register_eraser($erasers) {
+    /**
+     * @param array<string, mixed> $erasers
+     * @return array<string, mixed>
+     */
+    public static function register_eraser($erasers): array {
         $erasers['own-ur-shit-profile'] = [
             'eraser_friendly_name' => __('Own Ur Shit — Profile', 'own-ur-shit'),
             'callback' => [self::class, 'erase_profile'],
@@ -36,7 +44,8 @@ class OUS_Privacy {
         return $erasers;
     }
 
-    public static function export_profile($email, $page = 1) {
+    /** @return array<string, mixed> */
+    public static function export_profile(string $email, int $page = 1): array {
         $user = get_user_by('email', $email);
         if (!$user) {
             return ['data' => [], 'done' => true];
@@ -73,7 +82,8 @@ class OUS_Privacy {
         return ['data' => $data, 'done' => true];
     }
 
-    public static function erase_profile($email, $page = 1) {
+    /** @return array<string, mixed> */
+    public static function erase_profile(string $email, int $page = 1): array {
         $user = get_user_by('email', $email);
         if (!$user) {
             return ['items_removed' => false, 'items_retained' => false, 'messages' => [], 'done' => true];

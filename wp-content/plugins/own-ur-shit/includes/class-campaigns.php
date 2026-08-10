@@ -33,7 +33,7 @@ if (!defined('ABSPATH')) exit;
  * in bh-contest.
  */
 class OUS_Campaigns {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_filter('bhcore_campaign_segments', [self::class, 'register_builtin_segment']);
         add_filter('bhcore_test_suites', [self::class, 'register_test_suite']);
@@ -44,7 +44,11 @@ class OUS_Campaigns {
         });
     }
 
-    public static function register_builtin_segment($segments) {
+    /**
+     * @param array<string, mixed> $segments
+     * @return array<string, mixed>
+     */
+    public static function register_builtin_segment($segments): array {
         $segments['all_subscribers'] = [
             'label' => 'Everyone with an account',
             'user_ids' => function () {
@@ -54,16 +58,17 @@ class OUS_Campaigns {
         return $segments;
     }
 
-    public static function segments() {
+    /** @return array<string, mixed> */
+    public static function segments(): array {
         return apply_filters('bhcore_campaign_segments', []);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_campaigns';
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Same working parent ('own-ur-shit') the Roles/Metrics/Security
         // submenus already use without issue — VISION.md's own documented
         // get_plugin_page_hook() failure was isolated to submenus
@@ -71,7 +76,7 @@ class OUS_Campaigns {
         add_submenu_page('own-ur-shit', 'Campaigns', 'Campaigns', 'manage_options', 'ous-campaigns', [self::class, 'render']);
     }
 
-    private static function create($subject, $body, $segment_key, $created_by) {
+    private static function create(string $subject, string $body, string $segment_key, int $created_by): int {
         global $wpdb;
         $wpdb->insert(self::table(), [
             'subject' => sanitize_text_field($subject),
@@ -88,7 +93,8 @@ class OUS_Campaigns {
     // makes the segment a live query rather than a snapshot: rerunning
     // send_now() later (a different campaign, or a resend) would compute
     // a different, currently-accurate list.
-    public static function send_now($campaign_id) {
+    /** @return true|\WP_Error */
+    public static function send_now(int $campaign_id) {
         global $wpdb;
         $campaign = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $campaign_id), ARRAY_A);
         if (!$campaign || $campaign['status'] !== 'draft') return new WP_Error('bad_state', 'This campaign has already been sent or does not exist.');
@@ -129,7 +135,8 @@ class OUS_Campaigns {
     // Tier 1b's per-notification-type preferences already respect) is
     // honored here too — one "stop emailing me entirely" switch, not two
     // separate unsubscribe mechanisms a person has to find and use twice.
-    public static function send_one($args) {
+    /** @param array<string, mixed> $args */
+    public static function send_one($args): void {
         global $wpdb;
         $campaign_id = (int) ($args['campaign_id'] ?? 0);
         $user_id = (int) ($args['user_id'] ?? 0);
@@ -167,12 +174,13 @@ class OUS_Campaigns {
         }
     }
 
-    public static function all_campaigns() {
+    /** @return array<int, array<string, mixed>> */
+    public static function all_campaigns(): array {
         global $wpdb;
         return $wpdb->get_results("SELECT * FROM " . self::table() . " ORDER BY id DESC", ARRAY_A);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) return;
 
         $message = '';
@@ -246,12 +254,17 @@ class OUS_Campaigns {
         echo '</div>';
     }
 
-    public static function register_test_suite($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register_test_suite($suites): array {
         $suites['own-ur-shit-campaigns'] = ['label' => 'Own Ur Shit (Campaigns)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 
-    public static function run_tests() {
+    /** @return array<int, mixed> */
+    public static function run_tests(): array {
         if (!class_exists('OUS_Debug')) return [['name' => 'OUS_Debug not loaded', 'pass' => false, 'message' => 'Skipped.']];
         global $wpdb;
         $rows = [];

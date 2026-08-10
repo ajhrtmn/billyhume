@@ -91,7 +91,7 @@ class OUS_Roles {
     // WordPress's real activation hook. add_cap() is idempotent, so
     // re-running this on every 'init' costs one cheap in-memory check,
     // not a real migration.
-    public static function init() {
+    public static function init(): void {
         self::activate();
     }
 
@@ -99,7 +99,7 @@ class OUS_Roles {
     // own-ur-shit.php) for the immediate-effect case on a brand-new
     // install — both call sites are safe simultaneously since this is
     // fully idempotent.
-    public static function activate() {
+    public static function activate(): void {
         self::ensure_manager_role();
 
         $caps = apply_filters('bhcore_role_capabilities', self::DEFAULT_CAPS);
@@ -126,7 +126,7 @@ class OUS_Roles {
     // this role needs too. add_role() is a silent no-op if the role
     // already exists, so this can't clobber capabilities an admin has
     // since customized on this role — it only creates it once.
-    private static function ensure_manager_role() {
+    private static function ensure_manager_role(): void {
         if (get_role(self::MANAGER_ROLE)) return;
         $editor = get_role('editor');
         $caps = $editor ? $editor->capabilities : ['read' => true, 'edit_posts' => true, 'upload_files' => true];

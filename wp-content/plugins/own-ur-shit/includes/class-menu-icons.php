@@ -52,7 +52,7 @@ class OUS_MenuIcons {
               . '<path fill="' . self::COLOR . '" d="M1.57,18.59 L15.18,9.21 L13.82,7.47 L1.43,18.41 Z"/>'
               . '<path fill="' . self::COLOR . '" d="M1.54,18.61 L20.07,12.40 L19.09,9.99 L1.46,18.39 Z"/>';
 
-    private static function svg($glyph) {
+    private static function svg(string $glyph): string {
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">'
              . self::FAN
              . $glyph
@@ -63,7 +63,7 @@ class OUS_MenuIcons {
     // Own Ur Shit hub — a small waveform/audio-meter mark (three bars),
     // the one glyph in this set that represents the ecosystem itself
     // rather than one feature area within it.
-    public static function hub() {
+    public static function hub(): string {
         return self::svg(
             '<rect x="14" y="1.5" width="1.4" height="4" rx="0.7" fill="' . self::COLOR . '"/>'
           . '<rect x="16.3" y="0" width="1.4" height="6.5" rx="0.7" fill="' . self::COLOR . '"/>'
@@ -74,14 +74,14 @@ class OUS_MenuIcons {
     // A ring (evenodd donut — the one hollow shape in this set, real
     // path geometry so it survives WP's recolor) plus a solid center
     // dot — a swatch/target mark.
-    public static function design_suite() {
+    public static function design_suite(): string {
         return self::svg(
             '<path fill-rule="evenodd" fill="' . self::COLOR . '" d="M16,2.4 A2.6,2.6 0 1,1 16,7.6 A2.6,2.6 0 1,1 16,2.4 Z'
           . ' M16,3.9 A1.1,1.1 0 1,0 16,6.1 A1.1,1.1 0 1,0 16,3.9 Z"/>'
         );
     }
 
-    public static function contests() {
+    public static function contests(): string {
         return self::svg(
             '<path fill="' . self::COLOR . '" d="M16 0.8 L17 3.5 L19.8 4.5 L17 5.5 L16 8.2 L15 5.5 L12.2 4.5 L15 3.5 Z"/>'
         );
@@ -89,13 +89,13 @@ class OUS_MenuIcons {
 
     // A solid open-book silhouette (both "pages" filled) rather than an
     // outline — reads clearly at 20px and needs no stroke at all.
-    public static function courses() {
+    public static function courses(): string {
         return self::svg(
             '<path fill="' . self::COLOR . '" d="M16.5 2.9c-0.8-0.6-1.9-0.9-2.8-0.9v4.6c0.9 0 2 0.3 2.8 0.9c0.8-0.6 1.9-0.9 2.8-0.9v-4.6c-0.9 0-2 0.3-2.8 0.9z"/>'
         );
     }
 
-    public static function streaming() {
+    public static function streaming(): string {
         return self::svg(
             '<path fill="' . self::COLOR . '" d="M15 1.7 L19 4.2 L15 6.7 Z"/>'
         );
@@ -103,7 +103,7 @@ class OUS_MenuIcons {
 
     // Two solid overlapping circles — reads as "people/group" via the
     // wider merged silhouette rather than two separate ringed heads.
-    public static function people() {
+    public static function people(): string {
         return self::svg(
             '<circle cx="15" cy="4" r="1.9" fill="' . self::COLOR . '"/>'
           . '<circle cx="18.3" cy="4" r="1.9" fill="' . self::COLOR . '"/>'

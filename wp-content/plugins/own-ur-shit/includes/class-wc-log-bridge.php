@@ -29,18 +29,23 @@ class OUS_WCLogBridge implements WC_Log_Handler_Interface {
         'info' => 'info', 'debug' => 'info',
     ];
 
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('OUS_DebugLog')) return;
         add_filter('woocommerce_register_log_handlers', [self::class, 'register_handler']);
     }
 
-    public static function register_handler($handlers) {
+    /**
+     * @param array<int, mixed> $handlers
+     * @return array<int, mixed>
+     */
+    public static function register_handler($handlers): array {
         $handlers[] = new self();
         return $handlers;
     }
 
     // WC_Log_Handler_Interface's one required method.
-    public function handle($timestamp, $level, $message, $context) {
+    /** @param array<string, mixed> $context */
+    public function handle($timestamp, $level, $message, $context): bool {
         // WC_Log_Handler_Interface::handle()'s own docblock types $context
         // as always array — the is_array()/[] fallback here was dead code.
         OUS_DebugLog::log(

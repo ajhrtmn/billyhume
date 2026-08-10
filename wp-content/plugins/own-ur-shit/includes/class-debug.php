@@ -122,17 +122,17 @@ class OUS_Debug {
     // turning it on never exposes it to every other admin account.
     const DEV_MODE_META = 'ous_debug_dev_mode';
 
-    public static function is_dev_mode() {
+    public static function is_dev_mode(): bool {
         return (bool) get_user_meta(get_current_user_id(), self::DEV_MODE_META, true);
     }
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_debug_action', [self::class, 'handle']);
         add_action('admin_post_ous_debug_toggle_dev_mode', [self::class, 'handle_toggle_dev_mode']);
     }
 
-    public static function handle_toggle_dev_mode() {
+    public static function handle_toggle_dev_mode(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'ous_debug_toggle_dev_mode')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -149,7 +149,11 @@ class OUS_Debug {
     // follows GROUP_ORDER, with any group name a plugin invented that
     // isn't in that curated list appended alphabetically just before the
     // default bucket.
-    private static function group_tools(array $tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, array<string, mixed>>
+     */
+    private static function group_tools(array $tools): array {
         $buckets = [];
         foreach ($tools as $key => $tool) {
             $group = !empty($tool['group']) ? $tool['group'] : self::GROUP_DEFAULT;
@@ -201,7 +205,7 @@ class OUS_Debug {
      * 'group' at all — this parameter existing doesn't require every
      * caller of this wrapper to pass it.
      */
-    public static function register($key, $label, $render, $handle, $reset = null, $safe_in_production = false, $group = null) {
+    public static function register(string $key, string $label, callable $render, ?callable $handle, ?callable $reset = null, bool $safe_in_production = false, ?string $group = null): void {
         add_filter('ous_debug_tools', function ($tools) use ($key, $label, $render, $handle, $reset, $safe_in_production, $group) {
             $tools[$key] = [
                 'label' => $label, 'render' => $render, 'handle' => $handle, 'reset' => $reset,
@@ -219,7 +223,7 @@ class OUS_Debug {
      * define('OUS_DEBUG_TOOLS_FORCE', true) in wp-config.php if a live
      * site genuinely needs to seed data.
      */
-    public static function is_locked() {
+    public static function is_locked(): bool {
         if (defined('OUS_DEBUG_TOOLS_FORCE') && OUS_DEBUG_TOOLS_FORCE) return false;
         if (!function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production') {
             // wp_get_environment_type() defaults to 'production' unless
@@ -305,7 +309,7 @@ class OUS_Debug {
     // title — the add_submenu_page() call right after it, using the SAME
     // slug, is the standard WP trick to relabel that first item
     // "Debug Tools" instead of a redundant second "OUS Debug".
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Used to hide this whole page on production (is_locked()) —
         // loosened, because Console & Logs and the Test Runner (see
         // class-debug-log.php / class-test-runner.php) are genuinely
@@ -326,7 +330,7 @@ class OUS_Debug {
     // this page sees one coherent tool rather than a different look per
     // plugin. $extra_html can carry additional hidden/visible fields
     // (e.g. bh-contest's "count" input for how many fake submissions).
-    public static function button($plugin_key, $action, $label, $extra_html = '', $confirm = '', $primary = true) {
+    public static function button(string $plugin_key, string $action, string $label, string $extra_html = '', string $confirm = '', bool $primary = true): void {
         $nonce = wp_create_nonce('ous_debug_' . $plugin_key);
         $onclick = $confirm ? " onclick=\"return confirm('" . esc_js($confirm) . "')\"" : '';
         echo "<form method='post' action='" . esc_url(admin_url('admin-post.php')) . "' style='display:inline-block;margin:4px 8px 4px 0;'$onclick>";
@@ -344,7 +348,7 @@ class OUS_Debug {
     // one copy, one consistent tagging convention (bhcore_is_test user
     // meta) so a single Reset Everything can find every plugin's fake
     // accounts regardless of which plugin created them.
-    public static function get_or_create_test_user($tag, $reuse_odds = true) {
+    public static function get_or_create_test_user(string $tag, bool $reuse_odds = true): int {
         $pool = get_users(['meta_key' => 'bhcore_is_test', 'meta_value' => $tag, 'fields' => 'ID', 'number' => 20]);
         if ($pool && $reuse_odds && wp_rand(0, 1)) return $pool[array_rand($pool)];
 
@@ -362,7 +366,7 @@ class OUS_Debug {
 
     /* ---------------- the page ---------------- */
 
-    public static function render() {
+    public static function render(): void {
         $notice = isset($_GET['ous_msg']) ? sanitize_text_field(wp_unslash($_GET['ous_msg'])) : '';
         $env = function_exists('wp_get_environment_type') ? wp_get_environment_type() : 'unknown';
 
@@ -618,7 +622,7 @@ class OUS_Debug {
 
     /* ---------------- dispatch ---------------- */
 
-    public static function handle() {
+    public static function handle(): void {
         $plugin_key = sanitize_key($_POST['ous_plugin'] ?? '');
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['_wpnonce'] ?? '', 'ous_debug_' . $plugin_key)) {
             wp_die('Not allowed.');
@@ -675,7 +679,7 @@ class OUS_Debug {
         self::redirect($final_msg, $anchor);
     }
 
-    private static function redirect($msg, $anchor = '') {
+    private static function redirect(string $msg, string $anchor = ''): void {
         $url = add_query_arg('ous_msg', rawurlencode($msg), admin_url('admin.php?page=ous-debug'));
         if ($anchor) $url .= '#' . $anchor;
         wp_safe_redirect($url);

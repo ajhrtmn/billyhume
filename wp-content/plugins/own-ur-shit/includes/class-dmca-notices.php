@@ -27,22 +27,22 @@ class OUS_DMCA_Notices {
         'rejected'                => 'Rejected / no action',
     ];
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_ous_add_dmca_notice', [self::class, 'handle_add']);
         add_action('admin_post_ous_update_dmca_notice', [self::class, 'handle_update']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('own-ur-shit', 'DMCA Notices', 'DMCA Notices', 'manage_options', 'ous-dmca-notices', [self::class, 'render_admin_page']);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_dmca_notices';
     }
 
-    public static function render_admin_page() {
+    public static function render_admin_page(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
 
         global $wpdb;
@@ -94,7 +94,7 @@ class OUS_DMCA_Notices {
         echo '</tbody></table></div></div>';
     }
 
-    private static function render_add_form() {
+    private static function render_add_form(): void {
         echo '<h2>Log a New Notice</h2>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="ous_add_dmca_notice">';
@@ -114,7 +114,7 @@ class OUS_DMCA_Notices {
         echo '</form><hr>';
     }
 
-    private static function render_edit_form($id) {
+    private static function render_edit_form(int $id): void {
         global $wpdb;
         $n = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table() . " WHERE id = %d", $id));
         if (!$n) { echo '<p>Not found.</p>'; return; }
@@ -147,7 +147,7 @@ class OUS_DMCA_Notices {
         echo '</form><hr>';
     }
 
-    public static function handle_add() {
+    public static function handle_add(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('ous_add_dmca_notice', 'ous_dmca_notice_nonce')) {
             wp_die('Invalid request.');
         }
@@ -171,7 +171,7 @@ class OUS_DMCA_Notices {
         exit;
     }
 
-    public static function handle_update() {
+    public static function handle_update(): void {
         $id = (int) ($_POST['id'] ?? 0);
         if (!current_user_can('manage_options') || !check_admin_referer('ous_update_dmca_notice_' . $id, 'ous_dmca_notice_nonce')) {
             wp_die('Invalid request.');

@@ -39,7 +39,7 @@ class BHY_Style {
      * wins rule already handles that; this only adds the SITE DEFAULT
      * that was previously missing everywhere else.
      */
-    public static function init() {
+    public static function init(): void {
         add_action('wp_head', [self::class, 'print_global_css']);
         add_filter('block_editor_settings_all', [self::class, 'add_editor_iframe_styles']);
     }
@@ -63,7 +63,7 @@ class BHY_Style {
      * plugin's own .css file (LAYER 4), referencing these tokens/
      * utilities/components rather than re-declaring them.
      */
-    public static function print_global_css() {
+    public static function print_global_css(): void {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
         echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
         echo '<style id="bh-badge">' . self::badge_css() . '</style>';
@@ -118,7 +118,7 @@ class BHY_Style {
      * since (unlike the ones above) the goal there is showing the FULL
      * string, just wrapped gracefully instead of truncated.
      */
-    private static function text_overflow_utils_css() {
+    private static function text_overflow_utils_css(): string {
         return '.bh-nowrap{white-space:nowrap;}'
             . '.bh-badge-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;display:inline-block;vertical-align:bottom;}'
             . '.bh-truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
@@ -158,7 +158,7 @@ class BHY_Style {
      * different visual contexts (a WP-admin screen vs. a themed public
      * page) that happened to reach different colors independently.
      */
-    private static function badge_css() {
+    private static function badge_css(): string {
         return ':root{'
             . '--bh-success:#1DB954;--bh-success-bg:rgba(29,185,84,0.15);'
             . '--bh-warning:#8a5a00;--bh-warning-bg:#fef3e2;'
@@ -175,7 +175,11 @@ class BHY_Style {
         // rather than a third variant here.
     }
 
-    public static function add_editor_iframe_styles($settings) {
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    public static function add_editor_iframe_styles($settings): array {
         $settings['styles'][] = ['css' => self::inline_css()];
         return $settings;
     }
@@ -446,7 +450,8 @@ class BHY_Style {
     // entity's own overrides (if it has one enabled — see
     // entity_overrides()) on top of the global settings. Omit it for
     // the plain global settings, e.g. on the settings page itself.
-    public static function get($entity_id = null) {
+    /** @return array<string, mixed> */
+    public static function get(?int $entity_id = null): array {
         $saved = get_option(self::OPTION, []);
         $settings = array_merge(self::DEFAULTS, is_array($saved) ? $saved : []);
 
@@ -464,7 +469,8 @@ class BHY_Style {
     // Only fields actually present AND in OVERRIDABLE_FIELDS make it
     // through, so a stray/old key in stored JSON can't leak into a field
     // this version doesn't intend to let entities touch.
-    public static function entity_overrides($entity_id) {
+    /** @return array<string, mixed> */
+    public static function entity_overrides(int $entity_id): array {
         if (!get_post_meta($entity_id, '_bhy_style_override', true)) return [];
         $raw = get_post_meta($entity_id, '_bhy_style_json', true);
         $data = $raw ? json_decode($raw, true) : null;
@@ -472,7 +478,8 @@ class BHY_Style {
         return array_intersect_key($data, array_flip(self::OVERRIDABLE_FIELDS));
     }
 
-    public static function logo_url($settings) {
+    /** @param array<string, mixed> $settings */
+    public static function logo_url($settings): string {
         $id = (int) ($settings['brand_logo_id'] ?? 0);
         if (!$id) return '';
         $url = wp_get_attachment_image_url($id, 'medium');
@@ -484,7 +491,8 @@ class BHY_Style {
     // when the entity has no override enabled, so the caller can skip
     // the data attribute entirely — the common case of "no per-entity
     // override" adds zero extra markup or client-side work.
-    public static function entity_style_payload($entity_id) {
+    /** @return array<string, mixed>|null */
+    public static function entity_style_payload(int $entity_id): ?array {
         $overrides = self::entity_overrides($entity_id);
         if (!$overrides) return null;
 
@@ -523,7 +531,7 @@ class BHY_Style {
     // consuming plugin's own stylesheet already reads from — enqueued
     // after that stylesheet so it wins the cascade. The stylesheets
     // themselves never need to change per site; only this changes.
-    public static function inline_css($entity_id = null) {
+    public static function inline_css(?int $entity_id = null): string {
         $s = self::get($entity_id);
         $vars = [
             '--bh-bg' => $s['color_bg'], '--bh-surface' => $s['color_surface'], '--bh-surface-2' => $s['color_surface_2'],
@@ -608,7 +616,8 @@ class BHY_Style {
      * namespaced under 'custom' => [key => value] so it can never
      * collide with a real DEFAULTS key.
      */
-    public static function custom_sliders() {
+    /** @return array<string, mixed> */
+    public static function custom_sliders(): array {
         return apply_filters('bhy_style_custom_sliders', []);
     }
 
@@ -622,7 +631,11 @@ class BHY_Style {
      * is the one place the field list/sanitization rules live now — add a
      * new sanitized field here once, not in two places that can diverge again.
      */
-    public static function save_from_input(array $incoming) {
+    /**
+     * @param array<string, mixed> $incoming
+     * @return array<string, mixed>
+     */
+    public static function save_from_input(array $incoming): array {
         $data = [];
         $data['brand_part1'] = sanitize_text_field($incoming['brand_part1'] ?? self::DEFAULTS['brand_part1']);
         $data['brand_part2'] = sanitize_text_field($incoming['brand_part2'] ?? self::DEFAULTS['brand_part2']);
@@ -655,7 +668,8 @@ class BHY_Style {
         return $data;
     }
 
-    public static function font_family($s, $slot) {
+    /** @param array<string, mixed> $s */
+    public static function font_family($s, string $slot): string {
         $picked = $s['font_' . $slot];
         if ($picked === 'Custom' || !array_key_exists($picked, self::FONT_OPTIONS)) {
             $custom = trim((string) $s['font_' . $slot . '_custom']);
@@ -664,17 +678,26 @@ class BHY_Style {
         return $picked;
     }
 
-    public static function css_safe_string($val) {
+    /** @param mixed $val */
+    public static function css_safe_string($val): string {
         $val = preg_replace('/[";{}]/', '', (string) $val);
         return '"' . trim($val) . '"';
     }
 
+    /**
+     * @param mixed $val
+     * @param mixed $min
+     * @param mixed $max
+     * @param mixed $default
+     * @return float|mixed
+     */
     public static function safe_number($val, $min, $max, $default) {
         if (!is_numeric($val)) return $default;
         return max($min, min($max, (float) $val));
     }
 
-    public static function safe_color($val) {
+    /** @param mixed $val */
+    public static function safe_color($val): string {
         $val = trim((string) $val);
         if (strcasecmp($val, 'transparent') === 0) return 'transparent';
         if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $val)) return $val;
@@ -682,7 +705,8 @@ class BHY_Style {
         return '#000000';
     }
 
-    public static function google_fonts_url($s = null) {
+    /** @param array<string, mixed>|null $s */
+    public static function google_fonts_url($s = null): string {
         $s = $s ?: self::get();
         $params = [];
         foreach (['display', 'body'] as $slot) {
@@ -701,7 +725,7 @@ class BHY_Style {
     // Every curated font at once — only used inside the gallery preview,
     // which is never seen by a site visitor, so the extra weight is a
     // non-issue and buys instant switching in the font dropdown.
-    public static function preview_all_fonts_url() {
+    public static function preview_all_fonts_url(): string {
         $params = array_filter(self::FONT_OPTIONS);
         return 'https://fonts.googleapis.com/css2?' . implode('&', array_map(fn($p) => 'family=' . $p, array_values($params))) . '&display=swap';
     }
@@ -880,7 +904,8 @@ class BHY_Style {
     ];
 
     /** Bare-token key => --bh-* custom property name, the exact map entity_style_payload() already used for colors, extended here with the non-color overridable tokens (radius/radius_sm/space_scale/font_scale) so scoped_inline_style() can reuse one lookup for both. */
-    private static function style_var_map() {
+    /** @return array<string, string> */
+    private static function style_var_map(): array {
         $map = [
             'color_bg' => '--bh-bg', 'color_surface' => '--bh-surface', 'color_surface_2' => '--bh-surface-2',
             'color_border' => '--bh-border', 'color_text' => '--bh-text', 'color_text_dim' => '--bh-text-dim',
@@ -893,7 +918,8 @@ class BHY_Style {
     }
 
     /** Sanitizes a bare-token value by field name, reusing the EXISTING safe_color()/safe_number() validators — never a new sanitizer for the §2.3 mechanic. */
-    private static function safe_style_token_value($field, $value) {
+    /** @param mixed $value */
+    private static function safe_style_token_value(string $field, $value): ?string {
         if (strpos($field, 'color') !== false) return self::safe_color($value);
         if ($field === 'radius')      return self::safe_number($value, 0, 32, 12) . 'px';
         if ($field === 'radius_sm')   return self::safe_number($value, 0, 24, 8) . 'px';
@@ -909,16 +935,19 @@ class BHY_Style {
     // collapse to one generic lookup via constant(); a name that isn't a
     // real class constant fails safe to [] rather than a fatal, same as
     // the switches' own default branches did.
-    private static function const_table($name) {
+    /** @return array<mixed> */
+    private static function const_table(string $name): array {
         $fqcn = self::class . '::' . $name;
         return defined($fqcn) ? constant($fqcn) : [];
     }
 
-    private static function scale_table($name) { return self::const_table($name); }
-    private static function enum_table($name) { return self::const_table($name); }
+    /** @return array<mixed> */
+    private static function scale_table(string $name): array { return self::const_table($name); }
+    /** @return array<mixed> */
+    private static function enum_table(string $name): array { return self::const_table($name); }
 
     /** 'screen' means "the full viewport in whichever axis this property moves in" — height-shaped properties get 100vh, everything else gets 100vw. Every other step is a flat SIZE_STEPS lookup. */
-    private static function resolve_size_step($step, $css_prop) {
+    private static function resolve_size_step(string $step, string $css_prop): ?string {
         if ($step === 'screen') return (strpos($css_prop, 'height') !== false) ? '100vh' : '100vw';
         return self::SIZE_STEPS[$step] ?? null;
     }
@@ -938,7 +967,8 @@ class BHY_Style {
      * safe_color()'s own "unknown input -> safe fallback, never pass
      * through" posture.
      */
-    public static function safe_length($val) {
+    /** @param mixed $val */
+    public static function safe_length($val): ?string {
         $val = trim((string) $val);
         if ($val === '') return null;
         if (preg_match('/[;"\'<>{}]/', $val)) return null;
@@ -948,6 +978,11 @@ class BHY_Style {
     }
 
     /** Enum-membership validator — the other §2.6-promised new validator, alongside safe_length(). A thin, explicit wrapper (rather than inlining in_array() everywhere) so every enum check in this file goes through one named, greppable choke point. */
+    /**
+     * @param mixed $val
+     * @param array<int, mixed> $allowed
+     * @return mixed
+     */
     public static function safe_enum($val, array $allowed) {
         return in_array($val, $allowed, true) ? $val : null;
     }
@@ -959,7 +994,11 @@ class BHY_Style {
      * can't be resolved safely — the caller (scoped_inline_style())
      * simply omits that one declaration on null, never throwing.
      */
-    private static function resolve_style_value($raw, array $map) {
+    /**
+     * @param mixed $raw
+     * @param array<string, mixed> $map
+     */
+    private static function resolve_style_value($raw, array $map): ?string {
         $raw = (string) $raw;
         $kind = $map['kind'];
         $css  = $map['css'];
@@ -1017,7 +1056,8 @@ class BHY_Style {
      * fatal) rather than aborting the whole map — same fail-closed-per-
      * entry posture as render_placement()'s attr coercion loop.
      */
-    public static function scoped_inline_style(array $style_map) {
+    /** @param array<string, mixed> $style_map */
+    public static function scoped_inline_style(array $style_map): string {
         $decls = '';
         $var_map = self::style_var_map();
 
@@ -1061,7 +1101,8 @@ class BHY_Style {
      * never raw hex" rule exactly. Only reads/reshapes PROPERTY_MAP/
      * resolve_style_value() above — adds no new resolution behavior.
      */
-    public static function style_schema_for_js() {
+    /** @return array<string, mixed> */
+    public static function style_schema_for_js(): array {
         $group_labels = [
             'sizing'   => 'Sizing',
             'spacing'  => 'Spacing',
@@ -1178,7 +1219,8 @@ class BHY_Style {
     // delegate so the ~12 existing call sites across the ecosystem
     // don't all need updating in the same pass; new callers should
     // prefer BHY_UI::empty_state_html() directly.
-    public static function empty_state_html(array $args) {
+    /** @param array<string, mixed> $args */
+    public static function empty_state_html(array $args): string {
         return BHY_UI::empty_state_html($args);
     }
 }

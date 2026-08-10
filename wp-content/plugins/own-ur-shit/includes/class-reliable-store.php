@@ -26,12 +26,13 @@ if (!defined('ABSPATH')) exit;
  * nothing when it should have is a real bug, not just a cache miss.
  */
 class OUS_ReliableStore {
-    private static function option_name($key) {
+    private static function option_name(string $key): string {
         return 'ous_rs_' . sanitize_key($key);
     }
 
     // Raw JSON string + expiry, one option per key.
-    public static function set($key, $value, $ttl_seconds) {
+    /** @param mixed $value */
+    public static function set(string $key, $value, int $ttl_seconds): void {
         global $wpdb;
         $option = self::option_name($key);
         $payload = wp_json_encode(['value' => $value, 'expires_at' => time() + (int) $ttl_seconds]);
@@ -48,7 +49,11 @@ class OUS_ReliableStore {
     // point of this class. Returns $default if missing, malformed, or
     // expired (expiry is checked in PHP, not via a MySQL query, so this
     // stays a single simple SELECT).
-    public static function get($key, $default = null) {
+    /**
+     * @param mixed $default
+     * @return mixed
+     */
+    public static function get(string $key, $default = null) {
         global $wpdb;
         $raw = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", self::option_name($key)));
         if (!$raw) return $default;
@@ -58,7 +63,7 @@ class OUS_ReliableStore {
         return $decoded['value'];
     }
 
-    public static function delete($key) {
+    public static function delete(string $key): void {
         global $wpdb;
         $option = self::option_name($key);
         $wpdb->delete($wpdb->options, ['option_name' => $option]);
@@ -75,7 +80,7 @@ class OUS_ReliableStore {
     // not billing-grade counters; see BHM_Wallet's debit()/apply_delta()
     // for the atomic-UPDATE pattern used where undercounting would be a
     // real money problem.
-    public static function increment($key, $ttl_seconds) {
+    public static function increment(string $key, int $ttl_seconds): int {
         $value = (int) self::get($key, 0) + 1;
         self::set($key, $value, $ttl_seconds);
         return $value;

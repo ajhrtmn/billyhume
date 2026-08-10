@@ -2,10 +2,86 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.10
+ * Version:     3.10.11
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.11 — PHPStan level 6 pass, FINAL brick of the ecosystem-wide
+// Phase 2 effort: all 68 files under own-ur-shit/includes/ now carry
+// real native return/parameter types and precise array-shape PHPDoc —
+// no @ts-nocheck-equivalent shortcuts, no blanket `mixed`/`array`
+// where a real shape was knowable from the method body or its call
+// sites. The largest files (class-element.php, 107 findings;
+// class-style.php, 60; class-notifications.php, 54; class-debug-log.php,
+// 50) got the same file-by-file read-then-type treatment as every
+// smaller file — nothing was mechanically bulk-typed without checking
+// the real method body first.
+//
+// Real, non-annotation bugs found and fixed along the way (not just
+// type declarations):
+// - class-element.php: five methods (register_type(), delete_context(),
+//   reorder(), render_debug_op_form(), move_placement()) were briefly
+//   mistyped `: void` by an early bulk pass despite having real `return`
+//   statements deep in their bodies — caught immediately by `php -l`'s
+//   own "void method must not return a value" fatal, corrected to their
+//   real types (bool/bool/bool/string/bool).
+// - class-element.php's save_placement(): docblock widened from
+//   `@return int|\WP_Error` to the type that actually matches its real
+//   behavior, `@return int|false` — confirmed via `grep` that every
+//   real call site across own-ur-shit/bh-crm treats the return as a
+//   plain int/falsy check, never `is_wp_error()`; the method's own body
+//   never constructs a WP_Error anywhere.
+// - class-element.php's build_html_attrs(): return-type docblock
+//   corrected from `array<string,string>` to `array<int,string>` — the
+//   method builds a plain list via `$out[] = ...`, never string keys.
+// - class-element.php's safe_enum_fallback(): return type widened to
+//   `?string` (was bare `string`) — its own `in_array()` branch can
+//   genuinely return null, which PHPStan flagged as a
+//   guaranteed-false `=== null` comparison at every call site.
+// - class-element.php's move_placement(): `array_search()`'s return is
+//   `int|string|false`, not narrowed to `int` by the existing `=== false`
+//   guard — added an explicit `(int)` cast before the `$index + $direction`
+//   arithmetic PHPStan flagged as "Binary operation + between int and
+//   string".
+// - class-debug-log.php's capture_uncaught_exception(): simplified a
+//   redundant `self::$previous_exception_handler && is_callable(...)`
+//   check to just `is_callable(...)` once the property's own `@var
+//   callable|null` docblock made the left half of that check provably
+//   always-true whenever the right half is true.
+// - class-commerce.php/class-content.php/class-registry.php and others:
+//   several `int`-typed ID parameters needed the same `get_posts()`
+//   `meta_value`-string-vs-int and `esc_attr()`/`esc_html()`
+//   string-vs-scalar cast fixes that recurred throughout every earlier
+//   brick this session.
+//
+// Ecosystem-wide fallout this brick's own typing surfaced (fixed here,
+// not in those plugins' own version bumps, since the root cause is
+// this file): `OUS_Debug::button()` picked up a real `: void` return
+// type this pass (it already echoes its own output internally) — this
+// exposed that bh-courses/bh-crm/bh-monetization-woo/bh-registry's own
+// class-debug.php files had all been calling it as `echo
+// OUS_Debug::button(...)`, double-printing every debug-tools button on
+// their own Debug Tools sections the entire time. Fixed at every call
+// site (the `echo` was simply extraneous — button() never returns
+// anything to print). Also caught: bh-courses' class-content-bridge.php
+// migrate_lesson() was declared `: bool` but returned
+// `BH_Content::save()`'s real array result unchanged — cast to `(bool)`
+// at the one return statement, matching its only caller's actual
+// (ignored-return-value) usage.
+//
+// This is also the final commit of the whole Phase 2 (PHPStan level
+// 5→6) multi-session effort: phpstan.neon's `level:` key is now
+// PERMANENTLY 6 (not reverted, unlike every prior brick's own
+// changelog note) — the full 12-plugin, 279-file `composer phpstan`
+// run at level 6 comes back `[OK] No errors` ecosystem-wide.
+//
+// NOT runtime-verified against a live WordPress+MySQL install — no
+// PHP/MySQL/network access exists in this environment. Every touched
+// file passed `php -l` and the full-plugin/full-ecosystem PHPStan
+// scoped checks; the double-echo fix in particular should be smoke-
+// tested on a live Debug Tools page before assuming the visual output
+// is now correct (single button per row instead of a doubled one).
 
 // 3.10.10 — PHPStan pass, continued: expanded phpstan.neon's scanned
 // `paths` to include bh-mailpoet and bh-tickets (both built earlier this
@@ -985,7 +1061,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.10');
+define('OUS_VER', '3.10.11');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

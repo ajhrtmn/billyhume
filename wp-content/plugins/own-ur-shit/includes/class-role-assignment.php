@@ -48,12 +48,16 @@ class OUS_RoleAssignment {
         ],
     ];
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_filter('bhcore_test_suites', [self::class, 'register_test_suite']);
     }
 
-    public static function register_test_suite($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register_test_suite($suites): array {
         $suites['own-ur-shit-roles'] = ['label' => 'Own Ur Shit (Roles)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
@@ -64,7 +68,8 @@ class OUS_RoleAssignment {
     // interesting edge cases of their own. Runs against a real, tagged
     // fixture user (OUS_Debug::get_or_create_test_user), cleaned up
     // afterward.
-    public static function run_tests() {
+    /** @return array<int, mixed> */
+    public static function run_tests(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('OUS_Debug')) return [];
         $rows = [];
 
@@ -105,7 +110,7 @@ class OUS_RoleAssignment {
         return $rows;
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Same working parent ('own-ur-shit') the Metrics/Security/
         // Guided Setup submenus already use without issue — VISION.md's
         // own documented get_plugin_page_hook() failure was isolated to
@@ -119,7 +124,7 @@ class OUS_RoleAssignment {
         }
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) return;
 
         $message = '';
@@ -145,7 +150,7 @@ class OUS_RoleAssignment {
         echo '</div>';
     }
 
-    private static function render_search_form($search) {
+    private static function render_search_form(string $search): void {
         echo '<form method="get" style="margin:12px 0;">';
         echo '<input type="hidden" name="page" value="ous-roles">';
         echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Search by name or email">';
@@ -154,7 +159,8 @@ class OUS_RoleAssignment {
         echo '</form>';
     }
 
-    private static function eligible_users($search) {
+    /** @return array<int, \WP_User> */
+    private static function eligible_users(string $search): array {
         $args = [
             'role__not_in' => ['administrator'],
             'orderby' => 'display_name',
@@ -165,7 +171,7 @@ class OUS_RoleAssignment {
         return (new WP_User_Query($args))->get_results();
     }
 
-    private static function render_jobs_table($search) {
+    private static function render_jobs_table(string $search): void {
         $users = self::eligible_users($search);
 
         echo '<form method="post">';
@@ -208,7 +214,12 @@ class OUS_RoleAssignment {
     // (idempotent), and returns an empty diff entirely for an
     // administrator (every job's capability already rides on that role,
     // per OUS_Roles::DEFAULT_CAPS).
-    public static function compute_job_diff($user, array $desired_job_keys) {
+    /**
+     * @param \WP_User|false|null $user
+     * @param array<int, string> $desired_job_keys
+     * @return array{add: array<int, string>, remove: array<int, string>}
+     */
+    public static function compute_job_diff($user, array $desired_job_keys): array {
         $diff = ['add' => [], 'remove' => []];
         if (!$user || in_array('administrator', $user->roles, true)) return $diff;
 
@@ -224,7 +235,7 @@ class OUS_RoleAssignment {
         return $diff;
     }
 
-    private static function handle_save() {
+    private static function handle_save(): string {
         $user_ids = array_filter(array_map('intval', explode(',', (string) ($_POST['ous_rendered_user_ids'] ?? ''))));
         $grants = (array) ($_POST['ous_grant'] ?? []);
         $updated = 0;
@@ -255,12 +266,13 @@ class OUS_RoleAssignment {
     // (bhcore_author_custom_js, bhcore_view_crm_sensitive) and for
     // anything a future plugin registers via bhcore_role_capabilities
     // that this class has no curated Job entry for yet.
-    private static function all_registered_caps() {
+    /** @return array<int, string> */
+    private static function all_registered_caps(): array {
         $caps = array_keys(apply_filters('bhcore_role_capabilities', class_exists('OUS_Roles') ? OUS_Roles::DEFAULT_CAPS : []));
         return array_unique($caps);
     }
 
-    private static function render_advanced_section() {
+    private static function render_advanced_section(): void {
         $caps = self::all_registered_caps();
         if (!$caps) return;
 
@@ -280,7 +292,7 @@ class OUS_RoleAssignment {
         echo '</p></form>';
     }
 
-    private static function handle_advanced_save() {
+    private static function handle_advanced_save(): string {
         $user_id = (int) ($_POST['ous_advanced_user_id'] ?? 0);
         $cap = sanitize_key($_POST['ous_advanced_cap'] ?? '');
         $user = $user_id ? get_userdata($user_id) : null;

@@ -130,7 +130,7 @@ class OUS_MediaWizard {
         ],
     ];
 
-    public static function init() {
+    public static function init(): void {
         // The live-engine step (below) is independent of ADVMO — a
         // site running bh-live without ADVMO installed still gets that
         // one step, so the early-return only ever skips the
@@ -187,11 +187,11 @@ class OUS_MediaWizard {
         ],
     ];
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('own-ur-shit', 'Media & CDN Setup', 'Media & CDN Setup', 'manage_options', 'ous-media-setup', [self::class, 'render']);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
         $has_advmo = class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory');
@@ -292,7 +292,7 @@ class OUS_MediaWizard {
      * writer of that option, and only ever through save_settings()/
      * settings(), so this form is the one place the shape is defined.
      */
-    private static function render_live_section() {
+    private static function render_live_section(): void {
         $active_key = BHL_EngineRegistry::active_key();
 
         echo '<hr style="max-width:760px;margin:32px 0;">';
@@ -326,7 +326,7 @@ class OUS_MediaWizard {
      * option, and only ever through save_settings()/settings(), so
      * this form is the one place the shape is defined.
      */
-    private static function render_owncast_section() {
+    private static function render_owncast_section(): void {
         $s = BHL_OwncastEngine::settings();
         $status_result = get_transient('ous_media_wizard_live_test_result');
         delete_transient('ous_media_wizard_live_test_result');
@@ -357,7 +357,7 @@ class OUS_MediaWizard {
      * stream key to paste into OBS, same role a self-hosted Owncast
      * server's own stream key plays.
      */
-    private static function render_cloudflare_section() {
+    private static function render_cloudflare_section(): void {
         $s = BHL_CloudflareStreamEngine::settings();
         $result = get_transient('ous_media_wizard_cf_result');
         delete_transient('ous_media_wizard_cf_result');
@@ -402,7 +402,7 @@ class OUS_MediaWizard {
      * available_chat_options()) — Owncast's own bundled chat only ever
      * appears as a choice when Owncast itself is the active engine.
      */
-    private static function render_chat_choice_section() {
+    private static function render_chat_choice_section(): void {
         $options = BHL_EngineRegistry::available_chat_options();
         if (count($options) < 2) return; // nothing to choose between (e.g. Owncast's own bundled chat is the only option today unless bh-live's other chat classes are also active)
 
@@ -430,7 +430,7 @@ class OUS_MediaWizard {
      * only asking for the two things unique to Workers: a script name
      * and the account's workers.dev subdomain slug.
      */
-    private static function render_workers_chat_section() {
+    private static function render_workers_chat_section(): void {
         $s = BHL_WorkersChat::settings();
         $result = get_transient('ous_media_wizard_workers_result');
         delete_transient('ous_media_wizard_workers_result');
@@ -476,7 +476,7 @@ class OUS_MediaWizard {
      * all (confirmed against their own docs) — said plainly here
      * rather than implying full automation this API can't back up.
      */
-    private static function render_provisioner_section() {
+    private static function render_provisioner_section(): void {
         $provider_key = 'fly'; // the only entry in HOST_PROVISIONERS today
         $provider = self::HOST_PROVISIONERS[$provider_key];
         $settings = BHL_FlyProvisioner::settings();
@@ -557,7 +557,7 @@ class OUS_MediaWizard {
      * this is still a single, simple settings form, not a genuine
      * multi-step interview yet.
      */
-    private static function render_tier_b_section() {
+    private static function render_tier_b_section(): void {
         $enabled = (bool) get_option('ous_cf_stream_enabled', false);
         $creds = get_option('ous_cf_stream_credentials', []);
         $test_result = get_transient('ous_cf_stream_test_result');
@@ -591,12 +591,12 @@ class OUS_MediaWizard {
     }
 
     /** Public accessor for a future per-plugin Cloudflare Stream integration — see render_tier_b_section()'s own docblock for what is and isn't built yet. */
-    public static function tier_b_enabled() {
+    public static function tier_b_enabled(): bool {
         return (bool) get_option('ous_cf_stream_enabled', false);
     }
 
     /** @return array{account_id:string, api_token:string} */
-    public static function cloudflare_stream_credentials() {
+    public static function cloudflare_stream_credentials(): array {
         return get_option('ous_cf_stream_credentials', ['account_id' => '', 'api_token' => '']);
     }
 
@@ -607,11 +607,11 @@ class OUS_MediaWizard {
      * playback exists in Safari only, everywhere else needs this to
      * play a Cloudflare Stream manifest URL in a plain <video> tag.
      */
-    public static function enqueue_hls_js() {
+    public static function enqueue_hls_js(): void {
         wp_enqueue_script('ous-hls-js', OUS_URL . 'assets/js/vendor/hls.min.js', [], '1.6.16', true);
     }
 
-    public static function handle_save_cloudflare_stream() {
+    public static function handle_save_cloudflare_stream(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_stream_nonce'] ?? '', 'ous_media_wizard_save_cloudflare_stream')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -652,7 +652,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_nonce'] ?? '', 'ous_media_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -715,7 +715,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_live() {
+    public static function handle_save_live(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_live_nonce'] ?? '', 'ous_media_wizard_save_live')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -740,7 +740,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_provisioner() {
+    public static function handle_save_provisioner(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_provisioner_nonce'] ?? '', 'ous_media_wizard_save_provisioner')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -754,7 +754,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_deploy_host() {
+    public static function handle_deploy_host(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_deploy_nonce'] ?? '', 'ous_media_wizard_deploy_host')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -778,7 +778,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_destroy_host() {
+    public static function handle_destroy_host(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_destroy_nonce'] ?? '', 'ous_media_wizard_destroy_host')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -794,7 +794,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_engine_choice() {
+    public static function handle_save_engine_choice(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_engine_nonce'] ?? '', 'ous_media_wizard_save_engine_choice')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -803,7 +803,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_chat_choice() {
+    public static function handle_save_chat_choice(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_chat_nonce'] ?? '', 'ous_media_wizard_save_chat_choice')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -812,7 +812,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_cloudflare() {
+    public static function handle_save_cloudflare(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_nonce'] ?? '', 'ous_media_wizard_save_cloudflare')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -825,7 +825,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_create_cloudflare_input() {
+    public static function handle_create_cloudflare_input(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_input_nonce'] ?? '', 'ous_media_wizard_create_cf_input')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -839,7 +839,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_save_workers() {
+    public static function handle_save_workers(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_workers_nonce'] ?? '', 'ous_media_wizard_save_workers')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -851,7 +851,7 @@ class OUS_MediaWizard {
         exit;
     }
 
-    public static function handle_deploy_workers() {
+    public static function handle_deploy_workers(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_deploy_workers_nonce'] ?? '', 'ous_media_wizard_deploy_workers')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }

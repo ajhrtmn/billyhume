@@ -16,7 +16,7 @@ class OUS_ActivationManager {
     // (their one real dependency is this same plugin, already active by
     // definition if you're looking at this dashboard) — this exists for
     // whatever gets registered with a real one later.
-    public static function activate_with_dependencies($key) {
+    public static function activate_with_dependencies(string $key): bool {
         if (!isset(OUS_Registry::all()[$key])) return false;
 
         foreach (self::resolve_activation_order($key) as $dep_key) {
@@ -34,7 +34,8 @@ class OUS_ActivationManager {
     // Dependencies first, then $key itself — a flat list is enough here
     // since nothing in this ecosystem currently has a dependency more
     // than one level deep.
-    private static function resolve_activation_order($key) {
+    /** @return array<int, string> */
+    private static function resolve_activation_order(string $key): array {
         $order = OUS_Registry::all()[$key]['depends_on'];
         $order[] = $key;
         return array_unique($order);

@@ -37,7 +37,7 @@ if (!defined('ABSPATH')) exit;
  * backend looks like.
  */
 class BH_Commerce {
-    public static function available() {
+    public static function available(): bool {
         return class_exists('WooCommerce');
     }
 
@@ -49,7 +49,8 @@ class BH_Commerce {
     // shared wrapper here means one override point (filterable, same
     // mockable-not-hard-wired posture as has_subscriptions() above) and
     // one place to update if this ever needs to change.
-    public static function get_available_payment_gateways() {
+    /** @return array<string, mixed> */
+    public static function get_available_payment_gateways(): array {
         $gateways = class_exists('WC_Payment_Gateways') ? WC_Payment_Gateways::instance()->get_available_payment_gateways() : [];
         return apply_filters('bh_commerce_available_payment_gateways', $gateways);
     }
@@ -62,7 +63,7 @@ class BH_Commerce {
     // available" without the real paid WooCommerce Subscriptions
     // extension ever being installed — real production behavior is
     // completely unaffected unless something explicitly hooks this.
-    public static function has_subscriptions() {
+    public static function has_subscriptions(): bool {
         return (bool) apply_filters('bh_commerce_has_subscriptions', class_exists('WC_Subscriptions') && class_exists('WC_Product_Subscription'));
     }
 
@@ -80,7 +81,8 @@ class BH_Commerce {
      *   trial_length (int, default 0)          — free-trial length before the first real charge; 0 = no trial. Only meaningful with subscription => true and has_subscriptions().
      *   trial_period (string, default 'day')    — WC Subscriptions' own unit: day/week/month/year
      */
-    public static function upsert_product($existing_id, array $args) {
+    /** @param array<string, mixed> $args */
+    public static function upsert_product(int $existing_id, array $args): int {
         if (!self::available()) return 0;
 
         $name = (string) ($args['name'] ?? '');
@@ -126,7 +128,8 @@ class BH_Commerce {
         return $product->get_id();
     }
 
-    public static function get_product($product_id) {
+    /** @return array<string, mixed>|null */
+    public static function get_product(int $product_id): ?array {
         if (!self::available()) return null;
         $product = wc_get_product((int) $product_id);
         if (!$product) return null;
@@ -138,11 +141,11 @@ class BH_Commerce {
         ];
     }
 
-    public static function product_exists($product_id) {
+    public static function product_exists(int $product_id): bool {
         return self::available() && (bool) wc_get_product((int) $product_id);
     }
 
-    public static function get_edit_url($product_id) {
+    public static function get_edit_url(int $product_id): string {
         return self::available() ? (string) get_edit_post_link((int) $product_id) : '';
     }
 
@@ -150,7 +153,8 @@ class BH_Commerce {
      * Normalizes a WooCommerce order into a plain array so callers never
      * touch a WC_Order object directly. Returns null if unavailable/not found.
      */
-    public static function get_order($order_id) {
+    /** @return array<string, mixed>|null */
+    public static function get_order(int $order_id): ?array {
         if (!self::available() || !function_exists('wc_get_order')) return null;
         $order = wc_get_order((int) $order_id);
         if (!$order) return null;
@@ -188,7 +192,7 @@ class BH_Commerce {
         ];
     }
 
-    public static function is_subscription_active($subscription_id) {
+    public static function is_subscription_active(int $subscription_id): bool {
         if (!self::has_subscriptions() || !function_exists('wcs_get_subscription')) return false;
         $sub = wcs_get_subscription((int) $subscription_id);
         return $sub && $sub->has_status('active');
@@ -204,7 +208,7 @@ class BH_Commerce {
     // this interface too, not just product CRUD" treatment.
     // Same filterable-not-hard-wired treatment as has_subscriptions()
     // above.
-    public static function has_subscription_switching() {
+    public static function has_subscription_switching(): bool {
         return (bool) apply_filters('bh_commerce_has_subscription_switching', class_exists('WC_Subscriptions_Switcher'));
     }
 
@@ -217,7 +221,8 @@ class BH_Commerce {
     // below already accepts anything duck-typed correctly (method_exists()
     // checks, never instanceof WC_Subscription), so a fake object flows
     // through the exact same real code every consumer already uses.
-    public static function get_subscription($subscription_id) {
+    /** @return mixed */
+    public static function get_subscription(int $subscription_id) {
         $subscription = function_exists('wcs_get_subscription') ? wcs_get_subscription((int) $subscription_id) : null;
         return apply_filters('bh_commerce_get_subscription', $subscription, (int) $subscription_id);
     }
@@ -233,7 +238,11 @@ class BH_Commerce {
      * about not letting callers reach into the object's own methods
      * beyond this one conversion point.
      */
-    public static function normalize_subscription($subscription) {
+    /**
+     * @param mixed $subscription
+     * @return array<string, mixed>|null
+     */
+    public static function normalize_subscription($subscription): ?array {
         if (!$subscription || !is_object($subscription) || !method_exists($subscription, 'get_id')) return null;
 
         $items = [];

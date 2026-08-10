@@ -31,25 +31,25 @@ if (!defined('ABSPATH')) exit;
 class OUS_Revisions {
     const DB_VERSION = '1.0';
 
-    public static function init() {
+    public static function init(): void {
         self::maybe_upgrade();
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('ous_revisions_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('ous_revisions_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('ous_revisions_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -72,7 +72,7 @@ class OUS_Revisions {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_revisions';
     }
@@ -88,7 +88,8 @@ class OUS_Revisions {
      * full field set, a lesson's block tree). Auto-increments `version`
      * per (object_type, object_id). Returns the new version number.
      */
-    public static function snapshot($object_type, $object_id, array $full_state, $label = null, $user_id = null) {
+    /** @param array<string, mixed> $full_state */
+    public static function snapshot(string $object_type, int $object_id, array $full_state, ?string $label = null, ?int $user_id = null): int {
         global $wpdb;
         $object_type = sanitize_key($object_type);
         $object_id = (int) $object_id;
@@ -118,7 +119,8 @@ class OUS_Revisions {
      * ================================================================= */
 
     /** Past versions (newest first) for a "Version History" panel — metadata only, not the full stored data (see get_version() for that). */
-    public static function history($object_type, $object_id, $limit = 20) {
+    /** @return array<int, array<string, mixed>> */
+    public static function history(string $object_type, int $object_id, int $limit = 20): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT id, version, label, user_id, created_at FROM " . self::table() . "
@@ -129,7 +131,8 @@ class OUS_Revisions {
     }
 
     /** The full stored snapshot for one specific version, decoded back into an array. Null if that version doesn't exist. */
-    public static function get_version($object_type, $object_id, $version) {
+    /** @return array<string, mixed>|null */
+    public static function get_version(string $object_type, int $object_id, int $version): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE object_type = %s AND object_id = %d AND version = %d",
@@ -148,7 +151,8 @@ class OUS_Revisions {
      * that already knows its own save path can also just call this
      * directly without needing the action.
      */
-    public static function restore($object_type, $object_id, $version) {
+    /** @return mixed */
+    public static function restore(string $object_type, int $object_id, int $version) {
         $snapshot = self::get_version($object_type, $object_id, $version);
         if ($snapshot === null) return null;
         do_action('ous_revision_restore_requested', $object_type, $object_id, $snapshot['data'], $version);
@@ -185,7 +189,7 @@ class OUS_Revisions {
      * when there's room, with no JS or fixed breakpoints needed for
      * either metabox context.
      */
-    public static function render_history_panel($object_type, $object_id, $restore_action, $nonce_action) {
+    public static function render_history_panel(string $object_type, int $object_id, string $restore_action, string $nonce_action): void {
         $rows = self::history($object_type, $object_id);
         if (!$rows) {
             echo '<p class="description">No earlier versions yet — one gets saved automatically each time this is saved.</p>';
@@ -215,7 +219,11 @@ class OUS_Revisions {
      * in this ecosystem follows.
      * ================================================================= */
 
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['ous-revisions'] = [
             'label'  => 'Version History (revisions)',
             'render' => [self::class, 'render_debug_section'],
@@ -224,7 +232,7 @@ class OUS_Revisions {
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT object_type, object_id, COUNT(*) as versions, MAX(created_at) as last_saved FROM ' . self::table() . ' GROUP BY object_type, object_id ORDER BY last_saved DESC LIMIT 50', ARRAY_A);
 

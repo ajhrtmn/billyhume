@@ -36,7 +36,7 @@ if (!defined('ABSPATH') ) exit;
  * this one file plus its JS half (assets/js/block-style-panel.js).
  */
 class BHY_BlockStyle {
-    public static function init() {
+    public static function init(): void {
         // Reserves the attribute on every registered block type BEFORE
         // it's registered — the block-args filter WordPress itself
         // provides for exactly this ("add an attribute to every block
@@ -53,7 +53,12 @@ class BHY_BlockStyle {
         add_filter('render_block', [self::class, 'inject_style'], 10, 2);
     }
 
-    public static function add_attribute($args, $block_type) {
+    /**
+     * @param array<string, mixed> $args
+     * @param mixed $block_type
+     * @return array<string, mixed>
+     */
+    public static function add_attribute($args, $block_type): array {
         if (!isset($args['attributes']) || !is_array($args['attributes'])) $args['attributes'] = [];
         if (!isset($args['attributes']['bhStyle'])) {
             $args['attributes']['bhStyle'] = ['type' => 'object', 'default' => new stdClass()];
@@ -61,7 +66,7 @@ class BHY_BlockStyle {
         return $args;
     }
 
-    public static function enqueue_editor_assets() {
+    public static function enqueue_editor_assets(): void {
         if (!class_exists('BHY_Style')) return; // harmless no-op — same posture as every other cross-class touch in this ecosystem
         $handle = 'bhy-block-style-panel';
         wp_enqueue_script(
@@ -93,7 +98,8 @@ class BHY_BlockStyle {
      * HTML token boundaries, so it can't corrupt an existing style/class
      * attribute the way a naive string-replace could.
      */
-    public static function inject_style($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function inject_style(string $block_content, $block): string {
         $style_map = $block['attrs']['bhStyle'] ?? null;
         if (empty($style_map) || !is_array($style_map)) return $block_content;
         if (!class_exists('BHY_Style') || !class_exists('WP_HTML_Tag_Processor')) return $block_content;

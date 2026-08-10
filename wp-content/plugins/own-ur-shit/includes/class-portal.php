@@ -38,7 +38,7 @@ class BHI_Portal {
     const QUERY_VAR = 'bhi_portal';
     const REWRITE_SLUG = 'account';
 
-    public static function init() {
+    public static function init(): void {
         // add_rewrite() runs directly here rather than being re-hooked onto
         // 'init' from inside init() — self-hooking the currently-executing
         // action at an already-passed priority means WP_Hook's snapshot
@@ -112,7 +112,11 @@ class BHI_Portal {
      * 'preview_ctx' pair — not built here, since the design doc names
      * only "one new panel type" for this phase (§5.4).
      */
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         $surfaces['portal_panel'] = [
             'group'       => 'Portal',
             'label'       => 'Portal panel (element-composed)',
@@ -137,7 +141,11 @@ class BHI_Portal {
      * class_exists('BH_Element') guarded so this panel simply doesn't
      * register at all if the element-builder classes are ever absent.
      */
-    public static function register_elements_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_elements_panel($panels): array {
         if (!class_exists('BH_Element')) return $panels;
         $panels[] = [
             'id'       => 'elements',
@@ -149,7 +157,7 @@ class BHI_Portal {
         return $panels;
     }
 
-    public static function render_elements_panel() {
+    public static function render_elements_panel(): void {
         echo '<h2>Custom</h2>';
         if (!class_exists('BH_Element')) {
             echo '<p>Element Builder is unavailable.</p>';
@@ -172,12 +180,16 @@ class BHI_Portal {
     // "Why isn't my panel showing on the portal" gets a one-click answer
     // here instead of requiring a re-read of every contributing plugin's
     // own bootstrap file.
-    public static function register_debug_section($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_section($tools): array {
         $tools['bhi-portal'] = ['label' => 'Portal', 'render' => [self::class, 'render_debug_section'], 'handle' => null, 'reset' => null, 'group' => OUS_Debug::GROUP_REFERENCE];
         return $tools;
     }
 
-    public static function render_debug_section() {
+    public static function render_debug_section(): void {
         echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/')) . '" target="_blank">Open the portal</a></p>';
         echo '<h4>Registered panels</h4>';
         $panels = self::get_panels();
@@ -215,7 +227,8 @@ class BHI_Portal {
         }
     }
 
-    public static function maybe_redirect_login($redirect_to, $requested_redirect_to, $user) {
+    /** @param mixed $user */
+    public static function maybe_redirect_login(string $redirect_to, string $requested_redirect_to, $user): string {
         if (!($user instanceof \WP_User)) return $redirect_to;
         if (!self::user_is_excluded($user)) return $redirect_to;
         // A requested_redirect_to pointing somewhere on the front end
@@ -257,7 +270,7 @@ class BHI_Portal {
     // bug found in the Storefront copy while extracting it. Only the
     // rule registration below (this plugin's own slugs/query vars)
     // stays here; the verify/throttle/flush/log algorithm is shared.
-    public static function add_rewrite() {
+    public static function add_rewrite(): void {
         // Unconditional (but throttled) breadcrumb: if this never appears
         // in Console & Logs, the problem is upstream of this class
         // entirely (the 'init' hook never firing, or a fatal earlier in
@@ -277,7 +290,11 @@ class BHI_Portal {
         }
     }
 
-    public static function add_query_var($vars) {
+    /**
+     * @param array<int, string> $vars
+     * @return array<int, string>
+     */
+    public static function add_query_var($vars): array {
         $vars[] = self::QUERY_VAR;
         $vars[] = 'panel';
         return $vars;
@@ -291,16 +308,17 @@ class BHI_Portal {
      * supporters — never administrator/editor/author, so nobody who
      * genuinely needs wp-admin loses it.
      */
-    public static function excluded_roles() {
+    /** @return array<int, string> */
+    public static function excluded_roles(): array {
         return apply_filters('bhi_portal_excluded_roles', ['subscriber', 'customer']);
     }
 
-    private static function user_is_excluded($user) {
+    private static function user_is_excluded(?\WP_User $user): bool {
         if (!$user || !$user->exists()) return false;
         return (bool) array_intersect(self::excluded_roles(), (array) $user->roles);
     }
 
-    public static function maybe_redirect_from_wp_admin() {
+    public static function maybe_redirect_from_wp_admin(): void {
         if (wp_doing_ajax() || (defined('DOING_CRON') && DOING_CRON)) return;
         $user = wp_get_current_user();
         if (!self::user_is_excluded($user)) return;
@@ -308,7 +326,7 @@ class BHI_Portal {
         exit;
     }
 
-    public static function maybe_hide_admin_bar($show) {
+    public static function maybe_hide_admin_bar(bool $show): bool {
         $user = wp_get_current_user();
         if (self::user_is_excluded($user)) return false;
         return $show;
@@ -316,7 +334,8 @@ class BHI_Portal {
 
     /* ---------- panel registry ---------- */
 
-    public static function get_panels() {
+    /** @return array<int, array<string, mixed>> */
+    public static function get_panels(): array {
         $panels = apply_filters('bhi_portal_panels', []);
         $panels = array_filter($panels, function ($p) {
             return !empty($p['id']) && !empty($p['render']) && is_callable($p['render']);
@@ -339,7 +358,8 @@ class BHI_Portal {
         return $panels;
     }
 
-    public static function get_panel($id) {
+    /** @return array<string, mixed>|null */
+    public static function get_panel(string $id): ?array {
         foreach (self::get_panels() as $panel) {
             if ($panel['id'] === $id) return $panel;
         }
@@ -348,7 +368,11 @@ class BHI_Portal {
 
     /* ---------- rendering ---------- */
 
-    public static function register_overview_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_overview_panel($panels): array {
         $panels[] = [
             'id' => 'overview',
             'label' => 'Overview',
@@ -366,7 +390,7 @@ class BHI_Portal {
      * membership activity yet still gets a real page (a welcome +
      * catalog links), not a wall of empty sections.
      */
-    public static function render_overview_panel() {
+    public static function render_overview_panel(): void {
         $user_id = get_current_user_id();
         $user = wp_get_current_user();
 
@@ -502,7 +526,7 @@ class BHI_Portal {
         }
     }
 
-    public static function maybe_render() {
+    public static function maybe_render(): void {
         if (!get_query_var(self::QUERY_VAR)) return;
 
         if (!is_user_logged_in()) {
@@ -524,7 +548,7 @@ class BHI_Portal {
      * seeds signals with at page load, so a poll and a fresh page load
      * can never show different numbers for the same underlying state.
      */
-    public static function ajax_live_status() {
+    public static function ajax_live_status(): void {
         if (!is_user_logged_in()) wp_die('', '', ['response' => 403]);
 
         $user_id = get_current_user_id();
@@ -542,7 +566,7 @@ class BHI_Portal {
         exit;
     }
 
-    private static function render_shell() {
+    private static function render_shell(): void {
         $panels = self::get_panels();
         $requested = sanitize_key(get_query_var('panel'));
         $active = $requested && self::get_panel($requested) ? $requested : ($panels[0]['id'] ?? '');
