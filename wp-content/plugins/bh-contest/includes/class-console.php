@@ -21,11 +21,11 @@ if (!defined('ABSPATH')) exit;
  * it shows private contact info.
  */
 class BH_Console {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page(
             BH_PostTypes::MENU_PARENT,
             'Live Console', 'Live Console', 'manage_options', 'bh-console',
@@ -33,7 +33,7 @@ class BH_Console {
         );
     }
 
-    public static function render() {
+    public static function render(): void {
         $contests = BH_Helpers::all_contests();
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : BH_Reveal::default_contest();
 
@@ -53,7 +53,7 @@ class BH_Console {
         echo '<form method="get" style="margin:0 0 var(--bhy-space-4);"><input type="hidden" name="post_type" value="bh_contest"><input type="hidden" name="page" value="bh-console">';
         echo '<select name="contest_id" onchange="this.form.submit()">';
         foreach ($contests as $c) {
-            echo '<option value="' . esc_attr($c->ID) . '" ' . selected($cid, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
+            echo '<option value="' . esc_attr((string) $c->ID) . '" ' . selected($cid, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
         }
         echo '</select></form>';
 
@@ -107,7 +107,7 @@ class BH_Console {
 
         $subs = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'any',
-            'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+            'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
             'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'ASC',
         ]);
 
@@ -153,7 +153,8 @@ class BH_Console {
     // column and is always public by nature of being submitted; this is
     // specifically about which of their *personal* names/handles they
     // consented to have shared, which is a separate question entirely.
-    private static function identity_cell($p) {
+    /** @param array<string, mixed> $p */
+    private static function identity_cell($p): string {
         $fields = [
             ['real_name', 'real_name_public', ''],
             ['discord_name', 'discord_public', 'Discord: '],

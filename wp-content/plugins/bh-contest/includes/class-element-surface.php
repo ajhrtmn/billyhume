@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
 class BH_ElementSurface {
     const SURFACE = 'bh_contest_player';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_element_surfaces', [self::class, 'register_element_surface']);
         self::register_data_sources();
     }
@@ -51,7 +51,7 @@ class BH_ElementSurface {
     // way any other bound attribute works — no code, no file, no
     // deploy — while the actual query logic stays real, reviewed PHP
     // living in this file, not something typed into an admin textarea.
-    private static function register_data_sources() {
+    private static function register_data_sources(): void {
         if (!class_exists('BH_Element_Data')) return;
 
         BH_Element_Data::register_source('bh_contest.vote_count', [
@@ -111,7 +111,11 @@ class BH_ElementSurface {
     // bhy_style_surfaces mockup registrations (class-style-surfaces.php's
     // own register() a few files over) despite doing a completely
     // different job.
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         if (!class_exists('BH_Element')) return $surfaces; // same guard BHCRM_People::register_element_surface() uses — harmless to keep even if own-ur-shit's element classes are ever absent
         $surfaces[self::SURFACE] = [
             'label' => 'Contest Player — custom content',

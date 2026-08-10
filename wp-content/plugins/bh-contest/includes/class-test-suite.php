@@ -27,16 +27,21 @@ if (!defined('ABSPATH')) exit;
 class BH_TestSuite {
     const SEED_TAG = 'bh_test_suite';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['bh-contest'] = ['label' => 'BH Contest', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner')) return [];
         $rows = [];
 
@@ -55,7 +60,8 @@ class BH_TestSuite {
 
     /* ---------- BH_Reveal::medal_tier_count()/medal_slice() — pure logic, via reflection ---------- */
 
-    private static function run_medal_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_medal_tests(): array {
         $rows = [];
         $tier_count = new ReflectionMethod('BH_Reveal', 'medal_tier_count');
         $tier_count->setAccessible(true);
@@ -106,7 +112,8 @@ class BH_TestSuite {
 
     /* ---------- BH_Judging::save_score()/judge_results() — real DB fixtures ---------- */
 
-    private static function run_judging_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_judging_tests(): array {
         $rows = [];
         global $wpdb;
         $table = $wpdb->prefix . 'bh_judge_scores';
@@ -193,7 +200,8 @@ class BH_TestSuite {
 
     /* ---------- BH_Rounds::is_eligible()/advance_round() — real DB fixtures ---------- */
 
-    private static function run_rounds_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_rounds_tests(): array {
         $rows = [];
         global $wpdb;
 

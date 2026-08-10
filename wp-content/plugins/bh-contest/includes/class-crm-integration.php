@@ -12,19 +12,27 @@ if (!defined('ABSPATH')) exit;
  * second, contest-specific one.
  */
 class BH_CRMIntegration {
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_crm_active_user_ids', [self::class, 'active_user_ids']);
         add_filter('bh_crm_activity_summary', [self::class, 'activity_summary'], 10, 2);
     }
 
-    public static function active_user_ids($ids) {
+    /**
+     * @param array<int, int> $ids
+     * @return array<int, int>
+     */
+    public static function active_user_ids($ids): array {
         global $wpdb;
         $voters = $wpdb->get_col("SELECT DISTINCT user_id FROM " . BH_Helpers::table());
         $submitters = $wpdb->get_col("SELECT DISTINCT post_author FROM {$wpdb->posts} WHERE post_type = 'bh_submission' AND post_status != 'trash'");
         return array_merge($ids, $voters, $submitters);
     }
 
-    public static function activity_summary($sections, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $sections
+     * @return array<int, array<string, mixed>>
+     */
+    public static function activity_summary($sections, int $user_id): array {
         $votes = (int) BH_Helpers::user_total_votes($user_id);
         $sub_count = count(get_posts(['post_type' => 'bh_submission', 'author' => $user_id, 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids']));
         if (!$votes && !$sub_count) return $sections;
@@ -37,7 +45,7 @@ class BH_CRMIntegration {
         return $sections;
     }
 
-    private static function render_detail($uid) {
+    private static function render_detail(int $uid): void {
         $subs = get_posts(['post_type' => 'bh_submission', 'author' => $uid, 'post_status' => 'any', 'posts_per_page' => -1]);
         if ($subs) {
             echo '<div class="bhy-table-wrap">';

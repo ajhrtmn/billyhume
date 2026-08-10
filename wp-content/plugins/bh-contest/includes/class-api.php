@@ -7,13 +7,13 @@ class BH_API {
     // on every request, including the plain WP-Cron/Action-Scheduler tick
     // that later actually processes a queued job — rest_api_init doesn't
     // fire on that request. Hooked on plain 'init' in bh-contest.php.
-    public static function init() {
+    public static function init(): void {
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register('bh_contest_submission_confirmation_email', [self::class, 'send_submission_confirmation_email']);
         }
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         $pub    = ['permission_callback' => '__return_true'];
         $auth   = ['permission_callback' => 'is_user_logged_in'];
         $admin  = ['permission_callback' => function () { return current_user_can('manage_options'); }];
@@ -59,10 +59,13 @@ class BH_API {
         register_rest_route('bh/v1', '/admin/live', ['methods' => 'GET', 'callback' => [self::class, 'admin_live'], 'args' => $carg] + $admin);
     }
 
-    private static function ok($d = [])              { return new WP_REST_Response(['success' => true] + $d, 200); }
-    private static function err($c, $m, $s, $d = []) { return new WP_Error($c, $m, ['status' => $s] + $d); }
+    /** @param array<string, mixed> $d */
+    private static function ok($d = []): \WP_REST_Response { return new WP_REST_Response(['success' => true] + $d, 200); }
+    /** @param array<string, mixed> $d */
+    private static function err(string $c, string $m, int $s, array $d = []): \WP_Error { return new WP_Error($c, $m, ['status' => $s] + $d); }
 
-    public static function tracks($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function tracks(\WP_REST_Request $req) {
         $page = max(1, (int) $req->get_param('page'));
         $cid  = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
@@ -146,7 +149,7 @@ class BH_API {
 
     // Shared with vote() below — same validate-before-trust pattern this
     // endpoint already used for its own rate-limit key.
-    private static function client_ip() {
+    private static function client_ip(): string {
         return (isset($_SERVER['REMOTE_ADDR']) && filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP))
             ? $_SERVER['REMOTE_ADDR'] : '0.0.0.0';
     }
@@ -161,7 +164,7 @@ class BH_API {
     // DIFFERENT accounts from that IP is the real signal. Generated once
     // per browser, not per vote — set via a plain httponly cookie, never
     // read back into anything auth-related.
-    private static function voter_fingerprint() {
+    private static function voter_fingerprint(): string {
         if (!empty($_COOKIE['bh_vfp']) && preg_match('/^[a-f0-9]{32}$/', $_COOKIE['bh_vfp'])) {
             return $_COOKIE['bh_vfp'];
         }
@@ -178,7 +181,8 @@ class BH_API {
         return $fp;
     }
 
-    public static function play($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function play(\WP_REST_Request $req) {
         $sid = (int) $req->get_param('submission_id');
         if (get_post_type($sid) !== 'bh_submission') return self::err('bad', 'Invalid track.', 400);
 
@@ -192,7 +196,8 @@ class BH_API {
         return self::ok();
     }
 
-    public static function vote($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function vote(\WP_REST_Request $req) {
         $uid = get_current_user_id();
         if (!BHI_Auth::is_email_verified($uid)) {
             return self::err('unverified', 'Please confirm your email before voting — check your inbox for the verification link.', 403);
@@ -351,7 +356,8 @@ class BH_API {
         ]);
     }
 
-    public static function submit($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function submit(\WP_REST_Request $req) {
         $uid = get_current_user_id();
         if (!BHI_Auth::is_email_verified($uid)) {
             return self::err('unverified', 'Please confirm your email before submitting — check your inbox for the verification link.', 403);
@@ -513,7 +519,7 @@ class BH_API {
     // once real audio exists, so this is the one place both paths
     // converge to fire the CRM timeline event + confirmation email,
     // rather than maintaining two copies of the same notice text.
-    private static function notify_submission_complete($pid, $uid, $cid, $title) {
+    private static function notify_submission_complete(int $pid, int $uid, int $cid, string $title): void {
         if (class_exists('BH_Event')) {
             BH_Event::emit('bh/submission_created', [
                 'user_id' => $uid, 'subject_type' => 'bh_submission', 'subject_id' => $pid,
@@ -558,7 +564,8 @@ class BH_API {
     // OUS_Jobs handler, registered in init() above — the actual send now
     // happens off the original REST request, via Action Scheduler (or
     // the fallback cron queue).
-    public static function send_submission_confirmation_email($args) {
+    /** @param array<string, mixed> $args */
+    public static function send_submission_confirmation_email($args): void {
         $email = $args['email'] ?? '';
         $subject = $args['subject'] ?? '';
         $body = $args['body'] ?? '';
@@ -590,7 +597,8 @@ class BH_API {
      * review), the previous pending attachment is deleted and
      * replaced — only the newest ever needs review.
      */
-    public static function replace_audio($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function replace_audio(\WP_REST_Request $req) {
         $pid = (int) $req->get_param('submission_id');
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') {
@@ -671,7 +679,8 @@ class BH_API {
      * need the same "goes back to pending" treatment a new audio file
      * does, since nothing about the actual submitted work changed.
      */
-    public static function edit_details($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function edit_details(\WP_REST_Request $req) {
         $pid = (int) $req->get_param('submission_id');
         $post = get_post($pid);
         if (!$post || $post->post_type !== 'bh_submission') {
@@ -703,7 +712,8 @@ class BH_API {
     // Always returns a `categories` array — a contest with no named
     // categories gets a single entry (slug '') so the client can treat
     // both shapes uniformly and only render tabs when there's more than one.
-    public static function results($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function results(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid || get_post_meta($cid, '_bh_results_published', true) !== '1') {
             return self::err('hidden', 'Results have not been published yet.', 403);
@@ -744,7 +754,8 @@ class BH_API {
     // round," which is exactly today's unchanged behavior for a
     // single-round contest, since every one of its votes carries
     // round = 0 anyway.
-    public static function category_results($cid, $category, $round = null) {
+    /** @return array<int, array<string, mixed>> */
+    public static function category_results(int $cid, string $category, ?int $round = null): array {
         global $wpdb;
         $t    = BH_Helpers::table();
         $round_sql = $round !== null ? $wpdb->prepare('AND round = %d', (int) $round) : '';
@@ -785,7 +796,8 @@ class BH_API {
     // category=all returns every category's rows together (one row per
     // submission+category, with the category name attached) instead of a
     // single category's leaderboard.
-    public static function admin_live($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function admin_live(\WP_REST_Request $req) {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
 

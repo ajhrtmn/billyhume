@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
  * settings/metabox rendering or submission moderation here.
  */
 class BH_AdminReports {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_bh_export', [self::class, 'export_csv']);
         add_action('admin_post_bh_send_winners', [self::class, 'send_winner_notifications']);
 
@@ -26,7 +26,7 @@ class BH_AdminReports {
     // ever disputed, or something needs auditing outside wp-admin
     // entirely, this is the "pull everything" escape hatch rather than
     // having no way to get the underlying data out at all.
-    public static function export_csv() {
+    public static function export_csv(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_export')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -91,7 +91,8 @@ class BH_AdminReports {
     // capability+nonce gated; this closes the separate gap of the data
     // inside it not being safe for a spreadsheet to open. A leading
     // apostrophe is the standard, invisible-in-the-cell fix.
-    public static function csv_safe($value) {
+    /** @param mixed $value */
+    public static function csv_safe($value): string {
         $value = (string) $value;
         if ($value !== '' && strpbrk($value[0], "=+-@") !== false) {
             return "'" . $value;
@@ -107,7 +108,7 @@ class BH_AdminReports {
     // for a specific moment regardless of when results actually went
     // live. Tracks a sent timestamp so accidentally clicking again shows
     // a confirmation rather than silently re-notifying everyone.
-    public static function send_winner_notifications() {
+    public static function send_winner_notifications(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_send_winners')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -126,7 +127,7 @@ class BH_AdminReports {
     // wins) into a single message rather than firing off a separate
     // email per placement — nobody wants three emails because they won
     // three categories.
-    private static function email_winners($cid) {
+    private static function email_winners(int $cid): void {
         $placements = []; // uid => [ [label, rank, votes, title], ... ]
         $medal = ['🥇', '🥈', '🥉'];
 
@@ -205,7 +206,8 @@ class BH_AdminReports {
     // OUS_Jobs handler, registered in init() above — one call per winner,
     // run via Action Scheduler (or the fallback cron queue) rather than
     // inside the admin request that triggered the bulk send.
-    public static function send_one_winner_email($args) {
+    /** @param array<string, mixed> $args */
+    public static function send_one_winner_email($args): void {
         $email = $args['email'] ?? '';
         $subject = $args['subject'] ?? '';
         $body = $args['body'] ?? '';
@@ -225,7 +227,7 @@ class BH_AdminReports {
         }
     }
 
-    public static function render_results() {
+    public static function render_results(): void {
         $contests = BH_Helpers::all_contests();
         $cid = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : 0;
         if (!$cid || get_post_type($cid) !== 'bh_contest') $cid = BH_Helpers::active_contest();
@@ -407,12 +409,17 @@ class BH_AdminReports {
         </script>";
     }
 
-    private static function category_name($cats, $slug) {
+    /** @param array<int, array<string, string>> $cats */
+    private static function category_name($cats, string $slug): string {
         foreach ($cats as $c) if ($c['slug'] === $slug) return $c['name'];
         return '';
     }
 
-    private static function results_rows_html($rows, $cats = null) {
+    /**
+     * @param array<int, object> $rows
+     * @param array<int, array<string, string>>|null $cats
+     */
+    private static function results_rows_html($rows, $cats = null): void {
         $colspan = $cats ? 5 : 4;
         if (empty($rows)) { echo '<tr><td colspan="' . $colspan . '">No votes yet.</td></tr>'; return; }
 

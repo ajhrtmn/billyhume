@@ -30,11 +30,15 @@ class BH_Debug {
     const FAKE_ARTISTS = ['The Night Owls', 'Static Bloom', 'Copper Wire', 'Low Tide Motel', 'Radio Silo', 'Paper Kites Union', 'Glass Harbor', 'Velvet Static', 'Dry County', 'The Understudies'];
     const FAKE_TITLES  = ['Midnight Frequency', 'Concrete Bloom', 'Slow Burn', 'Neon Ghosts', 'Last Call', 'Static & Gold', 'Borrowed Time', 'Empty Rooms', 'Feedback Loop', 'Paper Moon'];
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);
     }
 
-    public static function register($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register($tools): array {
         $tools['bh-contest'] = [
             'label'  => 'BH Contest',
             'render' => [self::class, 'render_section'],
@@ -47,7 +51,7 @@ class BH_Debug {
 
     /* ---------------- UI ---------------- */
 
-    public static function render_section($key) {
+    public static function render_section(string $key): void {
         $contests = BH_Helpers::all_contests();
         $cid      = isset($_GET['contest_id']) ? (int) $_GET['contest_id'] : 0;
         if (!$cid || get_post_type($cid) !== 'bh_contest') $cid = $contests ? $contests[0]->ID : 0;
@@ -121,7 +125,7 @@ class BH_Debug {
     // target-contest hidden field and disables the button when no
     // contest is selected, which every action here except seed_contest
     // itself needs.
-    private static function button_with_contest($key, $action, $label, $cidField, $cid, $confirm = '') {
+    private static function button_with_contest(string $key, string $action, string $label, string $cidField, int $cid, string $confirm = ''): void {
         if (!$cid) {
             echo '<button class="button" disabled title="Select a target contest first">' . esc_html($label) . '</button> ';
             return;
@@ -134,7 +138,8 @@ class BH_Debug {
     // See OUS_Debug's class docblock: login_as_voter is the one action
     // here that needs to do its own redirect+exit rather than return a
     // message, since it switches the browser's session.
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, $post): string {
         $cid = (int) ($post['contest_id'] ?? 0);
 
         if ($action === 'login_as_voter') {
@@ -155,14 +160,14 @@ class BH_Debug {
         return 'Unknown action.';
     }
 
-    private static function redirect($cid, $msg) {
+    private static function redirect(int $cid, string $msg): void {
         $url = admin_url('admin.php?page=ous-debug');
         if ($cid) $url = add_query_arg('contest_id', (int) $cid, $url);
         wp_safe_redirect(add_query_arg('ous_msg', rawurlencode($msg), $url));
         exit;
     }
 
-    private static function seed_contest() {
+    private static function seed_contest(): int {
         $now = current_time('timestamp');
         $id = wp_insert_post([
             'post_title'  => 'Test Contest ' . gmdate('Y-m-d H:i:s'),
@@ -176,20 +181,20 @@ class BH_Debug {
         return $id;
     }
 
-    private static function close_contest($cid) {
+    private static function close_contest(int $cid): string {
         if (!$cid) return 'No target contest selected.';
         update_post_meta($cid, '_bh_end', gmdate('Y-m-d\TH:i', current_time('timestamp') - HOUR_IN_SECONDS));
         return 'Voting closed on "' . get_the_title($cid) . '".';
     }
 
-    private static function seed_categories($cid) {
+    private static function seed_categories(int $cid): string {
         if (!$cid) return 'No target contest selected.';
         $cats = BH_Helpers::parse_categories_input("Best Vocals\nBest Original Song\nFan Favorite");
         update_post_meta($cid, '_bh_categories', wp_json_encode($cats));
         return 'Added 3 sample categories to "' . get_the_title($cid) . '". Existing votes on this contest count as "general" votes and won\'t show under the new categories.';
     }
 
-    private static function seed_submissions($cid, $count) {
+    private static function seed_submissions(int $cid, int $count): string {
         if (!$cid) return 'No target contest selected.';
 
         for ($i = 0; $i < $count; $i++) {
@@ -214,10 +219,10 @@ class BH_Debug {
         return "Added $count fake submissions to \"" . get_the_title($cid) . '".';
     }
 
-    private static function seed_votes($cid) {
+    private static function seed_votes(int $cid): string {
         if (!$cid) return 'No target contest selected.';
 
-        $tracks = get_posts(['post_type' => 'bh_submission', 'post_status' => 'publish', 'meta_key' => '_bh_contest_id', 'meta_value' => $cid, 'posts_per_page' => -1, 'fields' => 'ids']);
+        $tracks = get_posts(['post_type' => 'bh_submission', 'post_status' => 'publish', 'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid, 'posts_per_page' => -1, 'fields' => 'ids']);
         if (!$tracks) return 'No submissions to vote on yet in "' . get_the_title($cid) . '" — seed submissions first.';
 
         $cats = BH_Helpers::categories($cid);
@@ -252,7 +257,7 @@ class BH_Debug {
         return "Cast $cast test votes from $voters fake voters$cat_note on \"" . get_the_title($cid) . '".';
     }
 
-    private static function set_results($cid, $on) {
+    private static function set_results(int $cid, bool $on): string {
         if (!$cid) return 'No target contest selected.';
         update_post_meta($cid, '_bh_results_published', $on ? '1' : '0');
         return ($on ? 'Results published' : 'Results hidden') . ' for "' . get_the_title($cid) . '".';
@@ -262,7 +267,7 @@ class BH_Debug {
     // zero prior votes) and switches this browser's auth cookie to it —
     // effectively "log in as a spoofed voter" for interactive UI testing.
     // Returns the front-end URL for the TARGET contest specifically.
-    private static function login_as_voter($cid) {
+    private static function login_as_voter(int $cid): string {
         $n = wp_rand(1000, 999999);
         $id = wp_insert_user([
             'user_login' => "bh_test_voter_{$n}",
@@ -284,7 +289,7 @@ class BH_Debug {
     // Finds a published page/post whose [bh_contest_player] shortcode
     // explicitly targets this contest (by slug or ID). Falls back to the
     // first page with the shortcode at all, then to the site home.
-    private static function player_page_url($cid) {
+    private static function player_page_url(int $cid): string {
         $slug = get_post_field('post_name', $cid);
         $candidates = get_posts(['post_type' => ['page', 'post'], 'post_status' => 'publish', 'posts_per_page' => 100, 'fields' => 'ids']);
 
@@ -307,7 +312,7 @@ class BH_Debug {
     // own reset(); a person can also trigger just this one from this
     // section — see OUS_Debug's dispatcher for how a plugin-specific
     // reset would be wired if this plugin adds one later.
-    public static function reset() {
+    public static function reset(): string {
         $posts = get_posts(['post_type' => ['bh_contest', 'bh_submission'], 'meta_key' => '_bh_is_test', 'meta_value' => '1', 'posts_per_page' => -1, 'post_status' => 'any', 'fields' => 'ids']);
         foreach ($posts as $pid) wp_delete_post($pid, true);
 

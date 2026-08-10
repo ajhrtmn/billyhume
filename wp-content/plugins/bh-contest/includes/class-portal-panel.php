@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * for anything still in a submittable state.
  */
 class BH_PortalPanel {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
@@ -19,7 +19,7 @@ class BH_PortalPanel {
     // pattern own-ur-shit's class-public-profile.php fixed this same
     // session (Bug #2 in that pass) — only load the replace-file JS on
     // the portal itself.
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!class_exists('BHI_Portal') || !get_query_var(BHI_Portal::QUERY_VAR)) return;
         wp_enqueue_script('bh-contest-portal-submissions', BH_URL . 'assets/js/portal-submissions.js', [], BH_VER, true);
         wp_localize_script('bh-contest-portal-submissions', 'bhContestPortalConfig', [
@@ -28,7 +28,11 @@ class BH_PortalPanel {
         ]);
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel($panels): array {
         $panels[] = [
             'id' => 'submissions',
             'label' => 'Contest Submissions',
@@ -39,13 +43,13 @@ class BH_PortalPanel {
         return $panels;
     }
 
-    private static function vote_count_for($submission_id) {
+    private static function vote_count_for(int $submission_id): int {
         global $wpdb;
         $t = class_exists('BH_Helpers') ? BH_Helpers::table() : $wpdb->prefix . 'bh_votes';
         return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE submission_id = %d", $submission_id));
     }
 
-    public static function render() {
+    public static function render(): void {
         $user_id = get_current_user_id();
         echo '<h1>Contest Submissions</h1>';
 

@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * columns, moderation actions, or CSV/results reporting here.
  */
 class BH_AdminMetaboxes {
-    public static function init() {
+    public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         // The branding/style override box is an opt-in, per-contest
         // feature most contests never touch (the site-wide theme from
@@ -24,7 +24,11 @@ class BH_AdminMetaboxes {
     // style override isn't enabled yet — the box is still fully present
     // and expandable, just not competing for attention by default the
     // way it would if it always opened expanded.
-    public static function maybe_collapse_style_box($classes) {
+    /**
+     * @param array<int, string> $classes
+     * @return array<int, string>
+     */
+    public static function maybe_collapse_style_box($classes): array {
         global $post;
         if ($post && !get_post_meta($post->ID, '_bhy_style_override', true)) $classes[] = 'closed';
         return $classes;
@@ -49,7 +53,7 @@ class BH_AdminMetaboxes {
      *     submitting a new file automatically flips this back to
      *     'pending' (see BH_API::replace_audio()).
      */
-    public static function render_approval_box($post) {
+    public static function render_approval_box(\WP_Post $post): void {
         $note = get_post_meta($post->ID, '_bh_admin_note', true);
         $audio_id = (int) get_post_meta($post->ID, '_bh_audio_id', true);
         $url  = $audio_id ? wp_get_attachment_url($audio_id) : '';
@@ -145,7 +149,7 @@ class BH_AdminMetaboxes {
         }
     }
 
-    public static function add_meta_boxes() {
+    public static function add_meta_boxes(): void {
         add_meta_box('bh_approval', 'Submission Details & Approval', [self::class, 'render_approval_box'], 'bh_submission', 'normal', 'high');
 
         add_meta_box('bh_contest_settings', 'Contest Rules & Results', function ($post) {
@@ -653,7 +657,7 @@ class BH_AdminMetaboxes {
         }, 'bh_contest', 'normal', 'default');
     }
 
-    public static function save_contest_meta($post_id) {
+    public static function save_contest_meta(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bh_contest_nonce']) || !wp_verify_nonce($_POST['bh_contest_nonce'], 'bh_save_contest')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -815,7 +819,8 @@ class BH_AdminMetaboxes {
     // T, optionally with seconds). Values written by "Start now"/"End now"
     // come from current_time('mysql') ("YYYY-MM-DD HH:MM:SS", a space) —
     // convert back so the field re-populates instead of showing blank.
-    private static function dt_for_input($v) {
+    /** @param mixed $v */
+    private static function dt_for_input($v): string {
         if (!$v) return '';
         $v = str_replace(' ', 'T', trim($v));
         if (preg_match('/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}):\d{2}$/', $v, $m)) $v = $m[1];

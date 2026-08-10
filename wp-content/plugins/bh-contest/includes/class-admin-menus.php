@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * BH_AdminMetaboxes, BH_AdminModeration, and BH_AdminReports respectively.
  */
 class BH_AdminMenus {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menus']);
         // A contest leaving 'publish' (trash/delete) or coming back
         // (untrash) also has to drop or restore its own menu entry —
@@ -56,7 +56,7 @@ class BH_AdminMenus {
         add_filter('show_admin_bar', [self::class, 'hide_admin_bar_for_voters']);
     }
 
-    public static function restrict_dashboard_access() {
+    public static function restrict_dashboard_access(): void {
         if (!apply_filters('bh_restrict_admin_access', true)) return;
         if (wp_doing_ajax() || current_user_can('manage_options')) return;
         // 'admin_init' fires for admin-post.php too, not just an actual
@@ -76,19 +76,19 @@ class BH_AdminMenus {
         exit;
     }
 
-    public static function hide_admin_bar_for_voters($show) {
+    public static function hide_admin_bar_for_voters(bool $show): bool {
         if (!apply_filters('bh_restrict_admin_access', true)) return $show;
         return current_user_can('manage_options') ? $show : false;
     }
 
-    public static function enqueue_media($hook) {
+    public static function enqueue_media(string $hook): void {
         global $post_type;
         if (in_array($hook, ['post.php', 'post-new.php'], true) && $post_type === 'bh_contest') {
             wp_enqueue_media();
         }
     }
 
-    public static function add_menus() {
+    public static function add_menus(): void {
         add_submenu_page(
             BH_PostTypes::MENU_PARENT,
             'Contest Results', 'Results', 'manage_options', 'bh-results',
@@ -98,7 +98,7 @@ class BH_AdminMenus {
 
     // Sets a contest's start or end to "right now", instantly flipping its
     // status — for "Start now"/"End now" links in the contest list.
-    public static function quick_schedule() {
+    public static function quick_schedule(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_quick_schedule')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -127,7 +127,7 @@ class BH_AdminMenus {
     // predates this feature). Public (not private, unlike its original
     // class-admin.php home) — BH_AdminListTables' contest_column_content()
     // and BH_AdminMetaboxes' shortcode metabox both call this.
-    public static function page_links_html($contest_id) {
+    public static function page_links_html(int $contest_id): string {
         $page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
         $status  = $page_id ? get_post_status($page_id) : false;
 
@@ -145,7 +145,7 @@ class BH_AdminMenus {
         return '<a href="' . esc_url($url) . '">Create page</a>';
     }
 
-    public static function create_page_action() {
+    public static function create_page_action(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bh_create_page')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -164,7 +164,7 @@ class BH_AdminMenus {
     // (not private, unlike its original class-admin.php home) —
     // BH_AdminMetaboxes::save_contest_meta() calls this from a different
     // class.
-    public static function maybe_create_contest_page($contest_id, $force = false) {
+    public static function maybe_create_contest_page(int $contest_id, bool $force = false): void {
         if (!$force && get_post_status($contest_id) !== 'publish') return;
 
         $page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
@@ -186,7 +186,7 @@ class BH_AdminMenus {
     // Small backlink box on the auto-created page's own edit screen, so an
     // admin who lands there first can jump back to the contest settings.
     // Only added for pages that actually have the contest-ref meta.
-    public static function add_page_backlink_meta_box($post) {
+    public static function add_page_backlink_meta_box(\WP_Post $post): void {
         $cid = (int) get_post_meta($post->ID, '_bh_contest_ref', true);
         if (!$cid || !get_post($cid)) return;
 
@@ -197,17 +197,22 @@ class BH_AdminMenus {
         }, 'page', 'side', 'high');
     }
 
-    public static function remove_add_new_links() {
+    public static function remove_add_new_links(): void {
         remove_submenu_page(BH_PostTypes::MENU_PARENT, 'post-new.php?post_type=bh_submission');
         remove_submenu_page(BH_PostTypes::MENU_PARENT, 'post-new.php?post_type=bh_contest');
     }
 
-    public static function register_search_provider($providers) {
+    /**
+     * @param array<string, mixed> $providers
+     * @return array<string, mixed>
+     */
+    public static function register_search_provider($providers): array {
         $providers['contests'] = [self::class, 'search_contests'];
         return $providers;
     }
 
-    public static function search_contests($query, $limit) {
+    /** @return array<int, array<string, string>> */
+    public static function search_contests(string $query, int $limit): array {
         $posts = get_posts([
             'post_type' => 'bh_contest', 'post_status' => 'publish',
             's' => $query, 'posts_per_page' => $limit,
@@ -239,7 +244,7 @@ class BH_AdminMenus {
      * drifts from what's actually checked. Ordered by start date so an
      * upcoming/current contest surfaces before older ones.
      */
-    public static function resync_menu() {
+    public static function resync_menu(): void {
         if (!class_exists('OUS_MenuSync')) return;
 
         $posts = get_posts([
@@ -263,7 +268,8 @@ class BH_AdminMenus {
         OUS_MenuSync::sync_group('contests', 'Contests', $items);
     }
 
-    public static function maybe_resync_menu_for_post($post_id) {
+    /** @param mixed $post_id */
+    public static function maybe_resync_menu_for_post($post_id): void {
         if (get_post_type($post_id) === 'bh_contest') self::resync_menu();
     }
 
@@ -275,7 +281,7 @@ class BH_AdminMenus {
     // meta-key-shaped snapshot; re-simulating a fake $_POST would be more
     // fragile than just writing the meta back directly, since the
     // snapshot already IS the target shape).
-    public static function handle_restore_revision() {
+    public static function handle_restore_revision(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $post_id = (int) ($_GET['object_id'] ?? 0);
         $version = (int) ($_GET['version'] ?? 0);
@@ -329,7 +335,8 @@ class BH_AdminMenus {
     // how WordPress's own trash already works for everything else here.
     // Hooked directly from bh-contest.php's own bootstrap (not this
     // class's init()) — unchanged from before this split.
-    public static function cleanup_deleted_contest($post_id) {
+    /** @param mixed $post_id */
+    public static function cleanup_deleted_contest($post_id): void {
         if (get_post_type($post_id) !== 'bh_contest') return;
 
         $submissions = get_posts([

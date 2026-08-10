@@ -10,11 +10,15 @@ if (!defined('ABSPATH')) exit;
  * — it just renders whatever HTML+CSS a registered surface hands it.
  */
 class BH_StyleSurfaces {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register($surfaces): array {
         $surfaces['bh-contest-player'] = [
             'group' => 'Contest', 'label' => 'Player',
             'render' => [self::class, 'player_preview'],
@@ -42,7 +46,8 @@ class BH_StyleSurfaces {
         return $surfaces;
     }
 
-    public static function wizard_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function wizard_preview(): array {
         ob_start();
         ?>
 <div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
@@ -69,11 +74,12 @@ Best Production</textarea>
         return ['css_url' => admin_url('css/common.min.css'), 'html' => ob_get_clean()];
     }
 
-    private static function css_url() {
+    private static function css_url(): string {
         return BH_URL . 'assets/css/player.css';
     }
 
-    public static function player_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function player_preview(): array {
         ob_start();
         ?>
 <div class="bh-container">
@@ -138,7 +144,8 @@ Best Production</textarea>
         return ['css_url' => self::css_url(), 'html' => ob_get_clean()];
     }
 
-    public static function forms_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function forms_preview(): array {
         ob_start();
         ?>
 <div style="display:flex;gap:20px;flex-wrap:wrap;padding:4px;">
@@ -203,7 +210,8 @@ Best Production</textarea>
         return ['css_url' => self::css_url(), 'html' => ob_get_clean()];
     }
 
-    public static function results_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function results_preview(): array {
         ob_start();
         ?>
 <div style="padding:4px;">

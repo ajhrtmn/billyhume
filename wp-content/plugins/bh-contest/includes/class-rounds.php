@@ -28,26 +28,29 @@ if (!defined('ABSPATH')) exit;
  * that got 40 votes in round 1 doesn't carry those into round 2's count.
  */
 class BH_Rounds {
-    public static function rounds($cid) {
+    /** @return array<int, array<string, mixed>> */
+    public static function rounds(int $cid): array {
         $raw = get_post_meta($cid, '_bh_rounds', true);
         $list = $raw ? json_decode($raw, true) : [];
         return is_array($list) ? $list : [];
     }
 
-    public static function is_multi_round($cid) {
+    public static function is_multi_round(int $cid): bool {
         return count(self::rounds($cid)) > 1;
     }
 
-    public static function active_round_index($cid) {
+    public static function active_round_index(int $cid): int {
         return max(0, (int) get_post_meta($cid, '_bh_active_round', true));
     }
 
-    public static function active_round($cid) {
+    /** @return array<string, mixed>|null */
+    public static function active_round(int $cid): ?array {
         $rounds = self::rounds($cid);
         return $rounds[self::active_round_index($cid)] ?? null;
     }
 
-    private static function normalize_dt($raw) {
+    /** @param mixed $raw */
+    private static function normalize_dt($raw): string {
         if (!$raw) return '';
         $raw = str_replace('T', ' ', trim($raw));
         if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $raw)) $raw .= ':00';
@@ -64,7 +67,7 @@ class BH_Rounds {
     // callers should treat an active round with round_index > 0 and no
     // sub window as CLOSED to new entrants in practice — see
     // is_new_submission_allowed() below, which is the real gate).
-    private static function window_status($start, $end) {
+    private static function window_status(string $start, string $end): string {
         $start = self::normalize_dt($start);
         $end = self::normalize_dt($end);
         if (!$start || !$end) return 'unscheduled';
@@ -81,7 +84,7 @@ class BH_Rounds {
     // round 0's window). Round 1+ with no configured sub window is
     // CLOSED to new entrants by design — round N+'s "entrants" are the
     // survivors of round N-1, not open enrollment.
-    public static function is_new_submission_allowed($cid) {
+    public static function is_new_submission_allowed(int $cid): bool {
         if (!self::is_multi_round($cid)) return BH_Helpers::is_submission_open($cid);
 
         $round = self::active_round($cid);
@@ -95,7 +98,7 @@ class BH_Rounds {
         return $status === 'open';
     }
 
-    public static function is_voting_open($cid) {
+    public static function is_voting_open(int $cid): bool {
         if (!self::is_multi_round($cid)) return BH_Helpers::is_voting_open($cid);
 
         $round = self::active_round($cid);
@@ -106,14 +109,14 @@ class BH_Rounds {
         return self::window_status($round['vote_start'] ?? '', $round['vote_end'] ?? '') === 'open';
     }
 
-    public static function round_reached($sid) {
+    public static function round_reached(int $sid): int {
         return max(0, (int) get_post_meta($sid, '_bh_round_reached', true));
     }
 
     // Eligible to be voted/scored/counted in the CURRENT active round —
     // survived at least that far. A submission never regresses; it
     // simply stops advancing once cut.
-    public static function is_eligible($sid, $cid) {
+    public static function is_eligible(int $sid, int $cid): bool {
         return self::round_reached($sid) >= self::active_round_index($cid);
     }
 
@@ -125,7 +128,8 @@ class BH_Rounds {
     // at their current _bh_round_reached — eliminated, not deleted, so
     // their round-N results/history remain intact for the record.
     // Returns ['advanced' => [...ids], 'eliminated' => [...ids], 'next_round' => int] or a WP_Error.
-    public static function advance_round($cid) {
+    /** @return array<string, mixed>|\WP_Error */
+    public static function advance_round(int $cid) {
         $rounds = self::rounds($cid);
         $idx = self::active_round_index($cid);
         if (!isset($rounds[$idx])) return new WP_Error('no_round', 'No active round to advance from.');
@@ -161,7 +165,7 @@ class BH_Rounds {
 
         $eligible_now = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids',
-            'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+            'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
         ]);
         $eligible_now = array_filter($eligible_now, fn($sid) => self::is_eligible($sid, $cid));
 

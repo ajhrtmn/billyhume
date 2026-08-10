@@ -28,15 +28,15 @@ if (!defined('ABSPATH')) exit;
  * than a deep link into a page that doesn't exist.
  */
 class BH_ShareCards {
-    public static function init() {
+    public static function init(): void {
         add_action('template_redirect', [self::class, 'maybe_serve_card']);
     }
 
-    public static function entered_card_url($submission_id) {
+    public static function entered_card_url(int $submission_id): string {
         return add_query_arg(['bh_share_entered' => (int) $submission_id], home_url('/'));
     }
 
-    public static function vote_card_url($submission_id) {
+    public static function vote_card_url(int $submission_id): string {
         return add_query_arg(['bh_share_vote' => (int) $submission_id], home_url('/'));
     }
 
@@ -44,13 +44,13 @@ class BH_ShareCards {
     // card image link (a downloadable/attachable PNG has no click
     // target of its own; this is the actual URL a "vote for me" post
     // should point people to).
-    public static function contest_page_url($contest_id) {
+    public static function contest_page_url(int $contest_id): string {
         $page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
         $status = $page_id ? get_post_status($page_id) : false;
         return ($page_id && $status && $status !== 'trash') ? get_permalink($page_id) : home_url('/');
     }
 
-    public static function maybe_serve_card() {
+    public static function maybe_serve_card(): void {
         if (isset($_GET['bh_share_entered'])) {
             self::serve(($_GET['bh_share_entered']), 'Now Entered');
         } elseif (isset($_GET['bh_share_vote'])) {
@@ -58,7 +58,8 @@ class BH_ShareCards {
         }
     }
 
-    private static function serve($raw_id, $eyebrow) {
+    /** @param mixed $raw_id */
+    private static function serve($raw_id, string $eyebrow): void {
         $submission_id = (int) $raw_id;
         $submission = get_post($submission_id);
         if (!$submission || $submission->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['response' => 404, 'back_link' => true]);

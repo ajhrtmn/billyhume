@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BH_Helpers {
-    public static function table() {
+    public static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bh_votes';
     }
@@ -10,7 +10,7 @@ class BH_Helpers {
     // Legacy single-contest fallback: newest published contest. Used when a
     // shortcode or API call doesn't specify which contest it means — keeps
     // old embeds working exactly as before multi-contest support existed.
-    public static function active_contest() {
+    public static function active_contest(): int {
         $q = new WP_Query([
             'post_type'      => 'bh_contest',
             'post_status'    => 'publish',
@@ -26,7 +26,8 @@ class BH_Helpers {
     // All published contests, newest first — used to populate admin
     // contest pickers (Results, Debug Tools) and the [bh_contest_player]
     // slug lookup.
-    public static function all_contests() {
+    /** @return array<int, \WP_Post> */
+    public static function all_contests(): array {
         $q = new WP_Query([
             'post_type'      => 'bh_contest',
             'post_status'    => 'publish',
@@ -37,7 +38,7 @@ class BH_Helpers {
         return $q->posts;
     }
 
-    public static function find_by_slug($slug) {
+    public static function find_by_slug(string $slug): int {
         $q = new WP_Query([
             'post_type'      => 'bh_contest',
             'post_status'    => 'publish',
@@ -53,7 +54,8 @@ class BH_Helpers {
     // (numeric ID, slug, or empty) into a validated, published contest ID.
     // Empty/invalid falls back to active_contest() so untargeted embeds and
     // older cached front-end code keep working.
-    public static function resolve_contest($raw) {
+    /** @param mixed $raw */
+    public static function resolve_contest($raw): int {
         $raw = is_string($raw) ? trim($raw) : $raw;
         if ($raw === '' || $raw === null) return self::active_contest();
 
@@ -67,14 +69,14 @@ class BH_Helpers {
 
     // [bh_contest_player contest="..."] string an admin can copy-paste to
     // embed this specific contest anywhere.
-    public static function shortcode_for($cid) {
+    public static function shortcode_for(int $cid): string {
         $post = get_post($cid);
         $ref  = ($post && $post->post_name) ? $post->post_name : $cid;
         return '[bh_contest_player contest="' . $ref . '"]';
     }
 
     // upcoming | open | closed | unscheduled — drives the admin status pill.
-    public static function contest_status($cid) {
+    public static function contest_status(int $cid): string {
         $start = self::normalize_dt(get_post_meta($cid, '_bh_start', true));
         $end   = self::normalize_dt(get_post_meta($cid, '_bh_end', true));
         if (!$start || !$end) return 'unscheduled';
@@ -90,7 +92,7 @@ class BH_Helpers {
     // from before submission windows existed, so older contests that
     // never set these fields keep accepting submissions exactly as they
     // always did.
-    public static function submission_status($cid) {
+    public static function submission_status(int $cid): string {
         $start = self::normalize_dt(get_post_meta($cid, '_bh_sub_start', true));
         $end   = self::normalize_dt(get_post_meta($cid, '_bh_sub_end', true));
         if (!$start || !$end) return 'unscheduled';
@@ -100,7 +102,7 @@ class BH_Helpers {
         return 'open';
     }
 
-    public static function is_submission_open($cid) {
+    public static function is_submission_open(int $cid): bool {
         $status = self::submission_status($cid);
         return $status === 'open' || $status === 'unscheduled';
     }
@@ -113,14 +115,15 @@ class BH_Helpers {
     // read as permanently "Upcoming". Normalize to the same shape before
     // any comparison, here and wherever a raw value might have been saved
     // in the old format already.
-    private static function normalize_dt($raw) {
+    /** @param mixed $raw */
+    private static function normalize_dt($raw): string {
         if (!$raw) return '';
         $raw = str_replace('T', ' ', trim($raw));
         if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $raw)) $raw .= ':00';
         return $raw;
     }
 
-    public static function is_voting_open($cid) {
+    public static function is_voting_open(int $cid): bool {
         return self::contest_status($cid) === 'open';
     }
 
@@ -129,7 +132,8 @@ class BH_Helpers {
     // results) — the single source of truth for the progress indicator
     // in the metabox and (eventually) anywhere else that wants it,
     // rather than each place re-deriving its own read of the same dates.
-    public static function contest_phase_summary($cid) {
+    /** @return array{label:string, color:string} */
+    public static function contest_phase_summary(int $cid): array {
         if (get_post_status($cid) !== 'publish') {
             return ['label' => 'Draft — not published yet', 'color' => '#8a8a8a'];
         }
@@ -174,7 +178,8 @@ class BH_Helpers {
     // meant to surface the obvious case (a script, or someone mashing
     // the vote button across many tabs) for a human to actually look at,
     // not to make an automated call.
-    public static function suspicious_voters($cid, $min_votes = 8, $window_seconds = 120) {
+    /** @return array<int, object> */
+    public static function suspicious_voters(int $cid, int $min_votes = 8, int $window_seconds = 120): array {
         global $wpdb;
         $t = self::table();
         return $wpdb->get_results($wpdb->prepare(
@@ -203,7 +208,8 @@ class BH_Helpers {
     // signal this table can offer, short of an actual CAPTCHA vendor
     // (explicitly not adopted — see this method's own roadmap doc
     // section for that direct decision).
-    public static function suspicious_ip_clusters($cid, $min_accounts = 2, $window_seconds = 300) {
+    /** @return array<int, object> */
+    public static function suspicious_ip_clusters(int $cid, int $min_accounts = 2, int $window_seconds = 300): array {
         global $wpdb;
         $t = self::table();
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -238,7 +244,8 @@ class BH_Helpers {
     // this setting works exactly as it always has.
     const CONTACT_FIELDS = ['real_name', 'discord_name', 'twitch_name', 'youtube_name', 'typical_platform', 'phone'];
 
-    public static function contact_config($cid) {
+    /** @return array<string, mixed> */
+    public static function contact_config(int $cid): array {
         $defaults = [
             'show' => self::CONTACT_FIELDS,
             'require_real_name' => true,
@@ -271,7 +278,8 @@ class BH_Helpers {
     // that identity is shared across the ecosystem rather than owned by
     // this plugin. Voters never have to clear this — only checked at
     // submission time.
-    public static function missing_for_submission($user_id, $cid) {
+    /** @return array<int, string> */
+    public static function missing_for_submission(int $user_id, int $cid): array {
         $cfg = self::contact_config($cid);
         $p = BHI_Profiles::get($user_id);
         $missing = [];
@@ -303,12 +311,13 @@ class BH_Helpers {
     // 'hybrid' keeps both running side by side, surfaced as two SEPARATE
     // leaderboards (Judges' Pick / People's Choice) — a direct decision
     // from the roadmap doc rather than inventing a blending formula.
-    public static function contest_format($cid) {
+    public static function contest_format(int $cid): string {
         $format = get_post_meta($cid, '_bh_contest_format', true);
         return in_array($format, ['judges', 'hybrid'], true) ? $format : 'public';
     }
 
-    public static function categories($cid) {
+    /** @return array<int, array<string, string>> */
+    public static function categories(int $cid): array {
         $raw = get_post_meta($cid, '_bh_categories', true);
         $list = $raw ? json_decode($raw, true) : [];
         return is_array($list) ? $list : [];
@@ -317,14 +326,14 @@ class BH_Helpers {
     // '' if the contest has no named categories, otherwise the first
     // defined category — used as the default when a request doesn't
     // specify one.
-    public static function default_category($cid) {
+    public static function default_category(int $cid): string {
         $cats = self::categories($cid);
         return $cats ? $cats[0]['slug'] : '';
     }
 
     // A category value is valid if it's '' on a contest with no categories,
     // or matches one of the contest's defined category slugs.
-    public static function is_valid_category($cid, $slug) {
+    public static function is_valid_category(int $cid, string $slug): bool {
         $cats = self::categories($cid);
         if (!$cats) return $slug === '';
         foreach ($cats as $c) if ($c['slug'] === $slug) return true;
@@ -333,7 +342,11 @@ class BH_Helpers {
 
     // Turns free-text (one category name per line) into a slug+name list,
     // deduping slugs so two similarly-named categories don't collide.
-    public static function parse_categories_input($text) {
+    /**
+     * @param mixed $text
+     * @return array<int, array<string, string>>
+     */
+    public static function parse_categories_input($text): array {
         $out = [];
         $seen = [];
         foreach (preg_split('/[\r\n]+/', (string) $text) as $line) {
@@ -349,7 +362,7 @@ class BH_Helpers {
 
     // Counts pending submissions too: submitting earns the bonus vote and
     // blocks a second entry the moment it is sent, before admin approval.
-    public static function has_submitted($uid, $cid) {
+    public static function has_submitted(int $uid, int $cid): bool {
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
             'author'         => $uid,
@@ -370,7 +383,7 @@ class BH_Helpers {
     // distinct check from has_submitted() above, which already counts
     // 'draft' as "any status" for duplicate-blocking purposes but can't
     // tell the caller WHICH kind of "already submitted" it found.
-    public static function draft_submission_for($uid, $cid) {
+    public static function draft_submission_for(int $uid, int $cid): int {
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
             'author'         => $uid,
@@ -391,7 +404,7 @@ class BH_Helpers {
     // it before an admin ever reviews the track. Only a post_status of
     // 'publish' (i.e. actually approved — see BH_AdminModeration in class-admin-moderation.php) counts
     // here.
-    public static function has_approved_submission($uid, $cid) {
+    public static function has_approved_submission(int $uid, int $cid): bool {
         $q = new WP_Query([
             'post_type'      => 'bh_submission',
             'author'         => $uid,
@@ -418,7 +431,7 @@ class BH_Helpers {
     // bonus, that would need to be a new, explicitly-named function
     // (e.g. lifetime_bonus()) added deliberately — not something that
     // should ever fall out of quietly removing the $cid scoping below.
-    public static function vote_limit($uid, $cid) {
+    public static function vote_limit(int $uid, int $cid): int {
         $base  = get_post_meta($cid, '_bh_vote_base', true);
         $bonus = get_post_meta($cid, '_bh_vote_bonus', true);
         $base  = ($base === '' || $base === false) ? BH_VOTE_BASE : max(0, (int) $base);
@@ -430,7 +443,7 @@ class BH_Helpers {
     // (every pre-existing call site) counts votes across every round, a
     // no-op distinction for a single-round contest since every one of
     // its votes carries round = 0.
-    public static function user_vote_count($uid, $cid, $category = '', $round = null) {
+    public static function user_vote_count(int $uid, int $cid, string $category = '', ?int $round = null): int {
         global $wpdb;
         $t = self::table();
         $round_sql = $round !== null ? $wpdb->prepare('AND round = %d', (int) $round) : '';
@@ -439,7 +452,7 @@ class BH_Helpers {
         ));
     }
 
-    public static function submission_count($cid, $status = 'publish') {
+    public static function submission_count(int $cid, string $status = 'publish'): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->posts} p
@@ -450,7 +463,7 @@ class BH_Helpers {
         ));
     }
 
-    public static function vote_count($cid, $category = null) {
+    public static function vote_count(int $cid, ?string $category = null): int {
         global $wpdb;
         if ($category === null) {
             return (int) $wpdb->get_var($wpdb->prepare(
@@ -462,14 +475,15 @@ class BH_Helpers {
         ));
     }
 
-    public static function user_total_votes($uid) {
+    public static function user_total_votes(int $uid): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d", $uid
         ));
     }
 
-    public static function allowed_audio() {
+    /** @return array<string, string> */
+    public static function allowed_audio(): array {
         return ['mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4'];
     }
 
@@ -483,7 +497,11 @@ class BH_Helpers {
     // that builds a ranked leaderboard (category results, overall
     // results, the reveal sequence) calls this rather than each
     // re-deriving its own notion of what a tie means.
-    public static function competition_ranks($votes_desc) {
+    /**
+     * @param array<int, int|float> $votes_desc
+     * @return array<int, int>
+     */
+    public static function competition_ranks($votes_desc): array {
         $ranks = [];
         $prev_votes = null;
         $prev_rank = null;
@@ -497,8 +515,8 @@ class BH_Helpers {
         return $ranks;
     }
 
-    public static function artist_for($post) {
+    public static function artist_for(\WP_Post $post): string {
         return get_post_meta($post->ID, '_bh_artist_name', true)
-            ?: get_the_author_meta('display_name', $post->post_author);
+            ?: get_the_author_meta('display_name', (int) $post->post_author);
     }
 }

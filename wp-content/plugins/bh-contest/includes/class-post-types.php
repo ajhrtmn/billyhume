@@ -7,7 +7,7 @@ class BH_PostTypes {
     // Results / Debug Tools, instead of two separate top-level menu items.
     const MENU_PARENT = 'edit.php?post_type=bh_contest';
 
-    public static function register() {
+    public static function register(): void {
         register_post_type('bh_contest', [
             // menu_name used to carry an "OUS ·" text prefix so this
             // top-level menu read as part of the Own Ur Shit ecosystem

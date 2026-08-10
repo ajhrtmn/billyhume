@@ -32,7 +32,7 @@ class BH_Admin {
         'other'        => 'Other (see note)',
     ];
 
-    public static function init() {
+    public static function init(): void {
         BH_AdminMenus::init();
         BH_AdminListTables::init();
         BH_AdminReports::init();

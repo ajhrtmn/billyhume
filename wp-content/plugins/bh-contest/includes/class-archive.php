@@ -18,18 +18,19 @@ if (!defined('ABSPATH')) exit;
  * placement info at all, never a leaked ranking.
  */
 class BH_Archive {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_archive', [self::class, 'render_display_shortcode']);
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bh/v1', '/library', [
             'methods' => 'GET', 'callback' => [self::class, 'get_library'], 'permission_callback' => '__return_true',
         ]);
     }
 
-    public static function get_library($req) {
+    /** @return \WP_REST_Response */
+    public static function get_library(\WP_REST_Request $req) {
         $filter_cid = (int) $req->get_param('contest');
         $all_contests = get_posts(['post_type' => 'bh_contest', 'post_status' => 'publish', 'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'DESC']);
         $target_contests = $filter_cid ? array_values(array_filter($all_contests, fn($c) => $c->ID === $filter_cid)) : $all_contests;
@@ -64,7 +65,8 @@ class BH_Archive {
     // an overall win are both possible for the same track, so this
     // returns a list, not a single result. Empty entirely (not
     // partially withheld) for a contest that hasn't published results.
-    private static function compute_placements($cid) {
+    /** @return array<int, array<int, string>> */
+    private static function compute_placements(int $cid): array {
         if (get_post_meta($cid, '_bh_results_published', true) !== '1') return [];
 
         $medals = ['🥇', '🥈', '🥉'];
@@ -84,7 +86,7 @@ class BH_Archive {
         return $placements;
     }
 
-    public static function render_display_shortcode() {
+    public static function render_display_shortcode(): string {
         ob_start();
         ?>
         <style><?php echo BHY_Style::inline_css(); ?></style>

@@ -26,25 +26,26 @@ if (!defined('ABSPATH')) exit;
  * the roadmap doc calls out directly.
  */
 class BH_Judging {
-    public static function init() {
+    public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_shortcode('bh_judge_panel', [self::class, 'render_judge_panel']);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bh_judge_scores';
     }
 
     /* ---------------- judges + rubric config ---------------- */
 
-    public static function judge_ids($cid) {
+    /** @return array<int, int> */
+    public static function judge_ids(int $cid): array {
         $raw = get_post_meta($cid, '_bh_judges', true);
         $list = $raw ? json_decode($raw, true) : [];
         return is_array($list) ? array_map('intval', $list) : [];
     }
 
-    public static function is_judge($uid, $cid) {
+    public static function is_judge(int $uid, int $cid): bool {
         return $uid && in_array((int) $uid, self::judge_ids($cid), true);
     }
 
@@ -54,7 +55,11 @@ class BH_Judging {
     // BH_Helpers::parse_categories_input(), deliberately not reusing
     // that method directly since criteria carry a max score categories
     // don't.
-    public static function parse_rubric_input($text) {
+    /**
+     * @param mixed $text
+     * @return array<int, array{slug:string,name:string,max:int}>
+     */
+    public static function parse_rubric_input($text): array {
         $out = [];
         $seen = [];
         foreach (preg_split('/[\r\n]+/', (string) $text) as $line) {
@@ -76,7 +81,8 @@ class BH_Judging {
         return $out;
     }
 
-    public static function rubric($cid) {
+    /** @return array<int, array<string, mixed>> */
+    public static function rubric(int $cid): array {
         $raw = get_post_meta($cid, '_bh_rubric', true);
         $list = $raw ? json_decode($raw, true) : [];
         return is_array($list) ? $list : [];
@@ -84,7 +90,8 @@ class BH_Judging {
 
     /* ---------------- scoring ---------------- */
 
-    public static function judge_status($judge_id, $cid, $sid, $category, $round = 0) {
+    /** @return array{scores: array<string, int>, status: string} */
+    public static function judge_status(int $judge_id, int $cid, int $sid, string $category, int $round = 0): array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT scores, status FROM " . self::table() . " WHERE judge_id = %d AND contest_id = %d AND submission_id = %d AND category = %s AND round = %d",
@@ -99,7 +106,8 @@ class BH_Judging {
     // draft (can be resubmitted/overwritten freely) or a final submit
     // (still overwritable, same as re-voting is in bh_votes — a judge
     // correcting a misclick shouldn't need a support ticket).
-    public static function save_score($judge_id, $cid, $sid, $category, array $scores, $status, $round = 0) {
+    /** @param array<string, mixed> $scores */
+    public static function save_score(int $judge_id, int $cid, int $sid, string $category, array $scores, string $status, int $round = 0): bool {
         global $wpdb;
         $status = $status === 'submitted' ? 'submitted' : 'draft';
         $clean_scores = [];
@@ -138,7 +146,8 @@ class BH_Judging {
     // $round: see BH_API::category_results()'s own docblock on this same
     // parameter — identical meaning and identical null-means-"every
     // round" default here.
-    public static function judge_results($cid, $category, $round = null) {
+    /** @return array<int, array<string, mixed>> */
+    public static function judge_results(int $cid, string $category, ?int $round = null): array {
         global $wpdb;
         $rubric = self::rubric($cid);
         if (!$rubric) return [];
@@ -194,7 +203,7 @@ class BH_Judging {
 
     /* ---------------- REST ---------------- */
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bh/v1', '/judge/score', [
             'methods' => 'POST',
             'callback' => [self::class, 'rest_save_score'],
@@ -202,7 +211,8 @@ class BH_Judging {
         ]);
     }
 
-    public static function rest_save_score($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function rest_save_score(\WP_REST_Request $req) {
         $uid = get_current_user_id();
         $cid = (int) $req->get_param('contest_id');
         $sid = (int) $req->get_param('submission_id');
@@ -248,7 +258,8 @@ class BH_Judging {
     // all, so gating this the same way the rest of this plugin's
     // logged-in-only front-end surfaces do (BH_Auth's session, not a WP
     // capability) is the right fit, not a deviation from precedent).
-    public static function render_judge_panel($atts) {
+    /** @param mixed $atts */
+    public static function render_judge_panel($atts): string {
         if (!is_user_logged_in()) {
             return '<p class="bh-empty">Log in to access the judging panel.</p>';
         }
@@ -268,7 +279,7 @@ class BH_Judging {
 
         $subs = get_posts([
             'post_type' => 'bh_submission', 'post_status' => 'publish', 'posts_per_page' => -1,
-            'meta_key' => '_bh_contest_id', 'meta_value' => $cid,
+            'meta_key' => '_bh_contest_id', 'meta_value' => (string) $cid,
         ]);
 
         // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b: a

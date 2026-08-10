@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) exit;
 class BH_Activator {
     const DB_VERSION = '1.7'; // 1.5 added bh_judge_scores (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2a, judge/rubric scoring mode) — see that table's own comment below. 1.6 added bh_votes.ip_address/voter_fp (2c, in-house IP+cookie fraud signal) — see the ALTER below. 1.7 added a `round` column to both bh_votes and bh_judge_scores (2b, multi-round/elimination format) — each round's votes/scores are tracked and tallied independently.
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bh_db_version', self::DB_VERSION);
         }
@@ -24,7 +24,7 @@ class BH_Activator {
     // complete and never retried, leaving the schema stuck half-updated
     // with nothing to surface that until something downstream breaks on
     // a missing column or table much later.
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bh_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bh_db_version', self::DB_VERSION);
@@ -40,7 +40,7 @@ class BH_Activator {
     // everything else in this project is, via its own "done" flag
     // rather than piggybacking on DB_VERSION above (that one's
     // specifically for table schema, this isn't).
-    public static function maybe_migrate_style_meta_keys() {
+    public static function maybe_migrate_style_meta_keys(): void {
         if (get_option('bh_style_meta_migrated') === '1') return;
 
         $contests = get_posts(['post_type' => 'bh_contest', 'post_status' => 'any', 'posts_per_page' => -1, 'fields' => 'ids']);
@@ -86,7 +86,7 @@ class BH_Activator {
     // activation hook alone won't reach an already-installed site after
     // a version bump — admin_init reliably fires the next time he's in
     // wp-admin after a deploy, which he will be.
-    public static function maybe_create_default_pages() {
+    public static function maybe_create_default_pages(): void {
         if (get_option('bh_pages_version') === self::PAGES_VERSION) return;
 
         self::maybe_create_singleton_page('bh_reveal_page_id', 'Reveal Party', '[bh_results_reveal]');
@@ -98,7 +98,7 @@ class BH_Activator {
     // No status/existence check needed here anymore — the version gate
     // above already ensures this only ever runs once per PAGES_VERSION,
     // so there's nothing left to optimize at this level.
-    private static function maybe_create_singleton_page($option_key, $title, $shortcode) {
+    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): void {
         if ((int) get_option($option_key, 0)) return;
 
         $new_id = wp_insert_post([
@@ -117,7 +117,7 @@ class BH_Activator {
     // throws on a failed query; it returns false/null and records the
     // problem in $wpdb->last_error, so that's what's checked at each
     // step rather than assuming success.
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $table   = $wpdb->prefix . 'bh_votes';
         $charset = $wpdb->get_charset_collate();
@@ -234,7 +234,7 @@ class BH_Activator {
     // distinguishes a judge's in-progress draft from a scored, counted
     // submission — only 'submitted' rows are ever read by
     // BH_Judging::judge_results()'s aggregate.
-    private static function create_or_update_judge_scores_table($charset) {
+    private static function create_or_update_judge_scores_table(string $charset): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'bh_judge_scores';
 
@@ -299,7 +299,7 @@ class BH_Activator {
     // historical data to migrate forward; a genuinely fresh install has
     // no such data, so there's nothing to preserve and creating an
     // empty, permanently-unused table would just be dead weight.
-    private static function create_or_update_profiles_table($charset) {
+    private static function create_or_update_profiles_table(string $charset): bool {
         global $wpdb;
         $table = $wpdb->prefix . 'bh_participant_profiles';
 

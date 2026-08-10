@@ -23,18 +23,18 @@ if (!defined('ABSPATH')) exit;
  * the real reveal can be rehearsed against it end to end.
  */
 class BH_Reveal {
-    public static function init() {
+    public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_admin_assets']);
         add_shortcode('bh_results_reveal', [self::class, 'render_display_shortcode']);
     }
 
-    public static function enqueue_admin_assets($hook) {
+    public static function enqueue_admin_assets(string $hook): void {
         if (strpos($hook, 'bh-console') === false) return;
         wp_enqueue_script('bh-common', BH_URL . 'assets/js/bh-common.js', [], BH_VER, true);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bh/v1', '/reveal/state', [
             'methods' => 'GET', 'callback' => [self::class, 'get_state'], 'permission_callback' => '__return_true',
         ]);
@@ -50,7 +50,8 @@ class BH_Reveal {
     // every request from live data rather than cached/stored — a reveal
     // in progress should never show stale vote counts, and contests are
     // small enough that recomputing this is cheap.
-    public static function build_sequence($cid) {
+    /** @return array<int, array<string, mixed>> */
+    public static function build_sequence(int $cid): array {
         $steps = [['type' => 'intro', 'title' => get_the_title($cid)]];
 
         $cats = BH_Helpers::categories($cid);
@@ -122,7 +123,8 @@ class BH_Reveal {
     // the "Overall" ranking, separate from any single category's. Public
     // so BH_Discord's results-published announcement can reuse this
     // exact ranking instead of re-deriving it.
-    public static function overall_results($cid) {
+    /** @return array<int, array<string, mixed>> */
+    public static function overall_results(int $cid): array {
         global $wpdb;
         $t = BH_Helpers::table();
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -151,7 +153,8 @@ class BH_Reveal {
     // visible so far (built bottom-up: 3rd place appears first, then
     // 2nd joins it, then 1st) plus which one just appeared, so the
     // front end can single it out with its own reveal animation.
-    public static function render_step($cid, $index) {
+    /** @return array<string, mixed> */
+    public static function render_step(int $cid, int $index): array {
         $seq = self::build_sequence($cid);
         $index = max(0, min($index, count($seq) - 1));
         $step = $seq[$index];
@@ -195,7 +198,8 @@ class BH_Reveal {
     // actually needs — NOT how many entries qualify, since a tie means
     // fewer distinct steps than entries (two people tied for 2nd is
     // still only one reveal step, just with two names in it).
-    private static function medal_tier_count($results) {
+    /** @param array<int, array<string, mixed>> $results */
+    private static function medal_tier_count($results): int {
         $ranks = array_unique(array_column(array_filter($results, fn($r) => $r['rank'] <= 3), 'rank'));
         return count($ranks);
     }
@@ -209,7 +213,11 @@ class BH_Reveal {
     // "isNew"/"isWinner" checks in reveal.js already key off the rank
     // VALUE rather than array position, so multiple entries sharing a
     // rank are handled correctly with no front-end changes needed.
-    private static function medal_slice($results, $reveal_count) {
+    /**
+     * @param array<int, array<string, mixed>> $results
+     * @return array{0: array<int, array<string, mixed>>, 1: int}
+     */
+    private static function medal_slice($results, int $reveal_count): array {
         $medal_results = array_values(array_filter($results, fn($r) => $r['rank'] <= 3));
         $tiers = array_values(array_unique(array_column($medal_results, 'rank')));
         sort($tiers); // ascending, e.g. [1,2,3] normally, or [1,2] if a tie ate the 3rd-place tier entirely
@@ -226,7 +234,8 @@ class BH_Reveal {
 
     /* ---------- REST ---------- */
 
-    public static function get_state($req) {
+    /** @return \WP_REST_Response */
+    public static function get_state(\WP_REST_Request $req) {
         $cid = (int) $req->get_param('contest') ?: self::default_contest();
         if (!$cid) return new WP_REST_Response(['success' => true, 'type' => 'none', 'index' => 0, 'total' => 1, 'authoritative_index' => 0], 200);
 
@@ -253,7 +262,8 @@ class BH_Reveal {
         return new WP_REST_Response($data, 200);
     }
 
-    public static function advance($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function advance(\WP_REST_Request $req) {
         $cid = (int) $req->get_param('contest') ?: self::default_contest();
         if (!$cid) return new WP_Error('no_contest', 'No contest to reveal.', ['status' => 404]);
 
@@ -287,7 +297,7 @@ class BH_Reveal {
     // Public so BH_Console can default to the same contest, rather than
     // the identity table and the reveal controls picking different ones
     // when neither has an explicit ?contest_id= yet.
-    public static function default_contest() {
+    public static function default_contest(): int {
         foreach (BH_Helpers::all_contests() as $c) {
             if (BH_Helpers::contest_status($c->ID) === 'closed') return $c->ID;
         }
@@ -304,7 +314,7 @@ class BH_Reveal {
     // Console so the participant identity/vote info and the controls for
     // actually running the reveal live on the same screen instead of
     // requiring two separate tabs while running the show.
-    public static function render_controls_widget($cid) {
+    public static function render_controls_widget(int $cid): void {
         if (BH_Helpers::is_voting_open($cid)) {
             echo '<div class="notice notice-warning" style="margin:0 0 12px;"><p>Voting is still open — the reveal is locked to the intro slide until you close voting.</p></div>';
         }
@@ -393,7 +403,8 @@ class BH_Reveal {
 
     /* ---------- public display shortcode ---------- */
 
-    public static function render_display_shortcode($atts) {
+    /** @param mixed $atts */
+    public static function render_display_shortcode($atts): string {
         $atts = shortcode_atts(['contest' => ''], $atts, 'bh_results_reveal');
         // Same resolution the REST endpoint falls back to (see
         // default_contest() above) — needed here too, not just there,
@@ -405,7 +416,7 @@ class BH_Reveal {
         ob_start();
         ?>
         <style><?php echo BHY_Style::inline_css($cid); ?></style>
-        <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr($cid); ?>">
+        <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr((string) $cid); ?>">
             <div class="bh-reveal-loading">Waiting for reveal to start…</div>
         </div>
         <?php

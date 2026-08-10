@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * rendering, list-table columns, or CSV/results reporting here.
  */
 class BH_AdminModeration {
-    public static function init() {
+    public static function init(): void {
         add_action('transition_post_status', [self::class, 'maybe_notify_approval'], 10, 3);
 
         // Submission review actions — file-replace workflow (a pending
@@ -31,7 +31,7 @@ class BH_AdminModeration {
     // that get rejected. Guarded to the actual off-to-on transition so
     // re-saving an already-published submission (editing its title,
     // fixing a typo, etc.) doesn't re-announce it every time.
-    public static function maybe_notify_approval($new_status, $old_status, $post) {
+    public static function maybe_notify_approval(string $new_status, string $old_status, \WP_Post $post): void {
         if ($post->post_type !== 'bh_submission') return;
         if ($new_status !== 'publish' || $old_status === 'publish') return;
 
@@ -52,7 +52,7 @@ class BH_AdminModeration {
     }
 
     /** Promotes a pending file swap to live: deletes the old attachment, moves pending -> live, clears pending meta. */
-    private static function promote_pending_audio($post_id) {
+    private static function promote_pending_audio(int $post_id): void {
         $old_audio = (int) get_post_meta($post_id, '_bh_audio_id', true);
         $pending = (int) get_post_meta($post_id, '_bh_pending_audio_id', true);
         if (!$pending) return;
@@ -63,7 +63,7 @@ class BH_AdminModeration {
         delete_post_meta($post_id, '_bh_pending_replaced_at');
     }
 
-    public static function handle_approve_swap() {
+    public static function handle_approve_swap(): void {
         $pid = (int) ($_GET['submission_id'] ?? 0);
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_approve_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
@@ -98,7 +98,7 @@ class BH_AdminModeration {
         exit;
     }
 
-    public static function handle_discard_swap() {
+    public static function handle_discard_swap(): void {
         $pid = (int) ($_GET['submission_id'] ?? 0);
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_discard_swap_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
@@ -123,7 +123,7 @@ class BH_AdminModeration {
      * rejected submission previously just sat at 'pending' forever
      * with no notification either way.
      */
-    public static function handle_reject_submission() {
+    public static function handle_reject_submission(): void {
         $pid = (int) ($_POST['submission_id'] ?? 0);
         if (!check_admin_referer('bh_reject_submission_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
@@ -191,7 +191,7 @@ class BH_AdminModeration {
     // (edit_post on the contest) and per-contest nonce'd, since this is
     // a real, one-way state change (eliminated entries don't come back
     // from this screen).
-    public static function ajax_advance_round() {
+    public static function ajax_advance_round(): void {
         $cid = (int) ($_POST['contest_id'] ?? 0);
         if (!$cid || !current_user_can('edit_post', $cid)) {
             wp_send_json_error(['message' => 'Not allowed.'], 403);

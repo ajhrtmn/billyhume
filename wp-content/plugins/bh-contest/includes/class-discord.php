@@ -53,18 +53,19 @@ class BH_Discord {
     const COLOR_RESULTS    = 0xFFD700; // gold — the big moment
     const COLOR_ANNOUNCE   = 0x5865F2;
 
-    public static function init() {
+    public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bh/v1', '/discord/announce', [
             'methods' => 'POST', 'callback' => [self::class, 'handle_announce'],
             'permission_callback' => fn() => current_user_can('manage_options'),
         ]);
     }
 
-    public static function handle_announce($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function handle_announce(\WP_REST_Request $req) {
         $cid = (int) $req->get_param('contest');
         $message = sanitize_textarea_field((string) $req->get_param('message'));
         if (!$cid || $message === '') {
@@ -89,7 +90,8 @@ class BH_Discord {
     //
     // $fields is Discord's embed field format: [['name' => ..., 'value'
     // => ..., 'inline' => true|false], ...] — up to 25 per embed.
-    public static function send($contest_id, $title, $description = '', $fields = [], $color = self::COLOR_ANNOUNCE, $url = '') {
+    /** @param array<int, array<string, mixed>> $fields */
+    public static function send(int $contest_id, string $title, string $description = '', array $fields = [], int $color = self::COLOR_ANNOUNCE, string $url = ''): bool {
         $webhook = trim((string) get_post_meta($contest_id, '_bh_discord_webhook', true));
         if ($webhook === '') return false; // no webhook configured — not an error, most contests don't have one
         if (!wp_http_validate_url($webhook)) {
@@ -130,7 +132,7 @@ class BH_Discord {
     // announcement either way (the channel
     // should know the audio behind an entry it already saw changed),
     // just different wording so it doesn't read as a duplicate entry.
-    public static function notify_submission($contest_id, $title, $artist, $audio_url = '', $is_file_update = false) {
+    public static function notify_submission(int $contest_id, string $title, string $artist, string $audio_url = '', bool $is_file_update = false): void {
         self::send(
             $contest_id,
             $is_file_update ? '🔄 Entry file updated' : '🎵 New entry approved!',
@@ -141,7 +143,7 @@ class BH_Discord {
         );
     }
 
-    public static function notify_voting_open($contest_id) {
+    public static function notify_voting_open(int $contest_id): void {
         $fields = [];
         self::send(
             $contest_id,
@@ -157,7 +159,7 @@ class BH_Discord {
     // rate-limit concern from firing several messages back to back) and
     // reads as one cohesive results post rather than a flood of separate
     // ones.
-    public static function notify_results($contest_id) {
+    public static function notify_results(int $contest_id): void {
         $fields = [];
 
         foreach (BH_Helpers::categories($contest_id) as $cat) {
@@ -182,7 +184,8 @@ class BH_Discord {
 
     // Top 3 of a ranked results array, medal-emoji style — shared by both
     // the per-category and overall sections of notify_results().
-    private static function medal_lines($results) {
+    /** @param array<int, array<string, mixed>> $results */
+    private static function medal_lines($results): string {
         $medals = ['🥇', '🥈', '🥉'];
         $lines = [];
         // Audit fix (2026-07-25): was indexed by array POSITION, not

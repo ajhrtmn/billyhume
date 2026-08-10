@@ -2,12 +2,37 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.22
+ * Version:     3.7.23
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.7.23 — Ecosystem quality Phase 2, brick 10/13: bh-contest is now
+// clean at PHPStan level 6 (native return/parameter types + precise
+// array-shape PHPDoc throughout every file in includes/, no shortcuts).
+// The largest single brick so far — 26 files, ~430 findings. Covers
+// class-helpers.php (the shared contest/vote/category helper layer),
+// class-api.php (every REST endpoint: tracks/play/vote/submit/replace-
+// audio/edit-details/results/admin-live), class-debug.php, class-
+// judging.php (rubric scoring), class-admin-menus.php, class-reveal.php
+// (the medal-ceremony reveal controller/display pair), class-rounds.php
+// (multi-round elimination), class-discord.php, class-admin-reports.php,
+// class-admin-list-tables.php, class-activator.php (schema migrations),
+// class-share-cards.php, class-blocks.php, class-admin-moderation.php,
+// class-auth.php, class-admin-metaboxes.php, class-style-surfaces.php,
+// class-crm-integration.php, class-test-suite.php, class-portal-panel.php,
+// class-console.php, class-archive.php, class-contest-wizard.php,
+// class-element-surface.php, class-post-types.php, class-admin.php. A
+// handful of PHPStan-flagged get_posts()/get_the_author_meta() call
+// sites needed an explicit (string)/(int) cast at the call site once
+// their surrounding parameter picked up a native int type — no behavior
+// change, WordPress's own meta_value/author args accept either. No
+// behavior changes otherwise — every edit is a type declaration or an
+// array-shape PHPDoc block; this plugin's own PHPStan level-6 scoped
+// check and the full 12-plugin level-5 ecosystem check both come back
+// clean.
+// NOT runtime-verified against a live WordPress+MySQL install.
 // 3.7.22 — TypeScript pilot, continued: converted this plugin's five
 // remaining plain-JS files (bh-common.ts, archive.ts, bh-judging.ts,
 // portal-submissions.ts, bh-contest-blocks.ts) — every file in this
@@ -193,7 +218,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.22');
+define('BH_VER',        '3.7.23');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

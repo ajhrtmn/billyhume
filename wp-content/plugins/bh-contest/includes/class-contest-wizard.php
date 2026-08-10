@@ -29,22 +29,22 @@ if (!defined('ABSPATH')) exit;
  * copies that can drift.
  */
 class BH_ContestWizard {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bh_contest_wizard_save', [self::class, 'handle_save']);
         add_action('admin_notices', [self::class, 'maybe_show_created_notice']);
     }
 
-    public static function maybe_show_created_notice() {
+    public static function maybe_show_created_notice(): void {
         if (empty($_GET['bh_wizard_created']) || get_current_screen()->id !== 'bh_contest') return;
         echo '<div class="notice notice-success is-dismissible"><p><strong>Contest created.</strong> The basics are set — rounds, Discord notifications, contact-field customization, and branding are all below with sensible defaults if you want to go further.</p></div>';
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page('edit.php?post_type=bh_contest', 'New Contest (Guided)', 'New Contest (Guided)', 'edit_posts', 'bh-contest-wizard', [self::class, 'render']);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('edit_posts')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
         echo '<div class="wrap"><h1>New Contest — Guided Setup</h1>';
@@ -114,7 +114,7 @@ class BH_ContestWizard {
         echo '</div>';
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('edit_posts', $_POST['bh_contest_wizard_nonce'] ?? '', 'bh_contest_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }

@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * filter dropdown). No settings or moderation logic here.
  */
 class BH_AdminListTables {
-    public static function init() {
+    public static function init(): void {
         // Contest list table: status pill, copyable shortcode, quick
         // stats. DRY/SOLID audit Phase 4: migrated to the shared
         // OUS_ListTable helper (own-ur-shit/includes/class-list-table.php)
@@ -29,7 +29,7 @@ class BH_AdminListTables {
 
     /* ================= Contest list table ================= */
 
-    public static function contest_column_content($col, $post_id) {
+    public static function contest_column_content(string $col, int $post_id): void {
         if ($col === 'bh_status') {
             // Submissions pill — "unscheduled" here genuinely means
             // "always open" (see BH_Helpers::is_submission_open), so it's
@@ -74,13 +74,13 @@ class BH_AdminListTables {
             $subs  = BH_Helpers::submission_count($post_id);
             $votes = BH_Helpers::vote_count($post_id);
             $url   = admin_url(BH_PostTypes::MENU_PARENT . '&page=bh-results&contest_id=' . $post_id);
-            echo esc_html($subs) . ' subs · <a href="' . esc_url($url) . '">' . esc_html($votes) . ' votes</a>';
+            echo esc_html((string) $subs) . ' subs · <a href="' . esc_url($url) . '">' . esc_html((string) $votes) . ' votes</a>';
         }
     }
 
     /* ================= Submissions list table ================= */
 
-    public static function submission_column_content($col, $post_id) {
+    public static function submission_column_content(string $col, int $post_id): void {
         if ($col === 'bh_contest') {
             $cid = (int) get_post_meta($post_id, '_bh_contest_id', true);
             if (!$cid || !get_post($cid)) { echo '<em>—</em>'; return; }
@@ -96,7 +96,7 @@ class BH_AdminListTables {
         }
     }
 
-    public static function submission_contest_filter($post_type) {
+    public static function submission_contest_filter(string $post_type): void {
         if ($post_type !== 'bh_submission') return;
         $contests = BH_Helpers::all_contests();
         if (!$contests) return;
@@ -108,7 +108,7 @@ class BH_AdminListTables {
         echo '</select>';
     }
 
-    public static function apply_submission_contest_filter($query) {
+    public static function apply_submission_contest_filter(\WP_Query $query): void {
         if (!is_admin() || !$query->is_main_query()) return;
         if ($query->get('post_type') !== 'bh_submission') return;
         if (empty($_GET['bh_contest_filter'])) return;

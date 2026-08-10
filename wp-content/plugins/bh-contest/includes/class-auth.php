@@ -10,11 +10,12 @@ if (!defined('ABSPATH')) exit;
  * legitimately references "the thing that renders the player."
  */
 class BH_Auth {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_contest_player', [self::class, 'render']);
     }
 
-    public static function render($atts) {
+    /** @param mixed $atts */
+    public static function render($atts): string {
         $atts = shortcode_atts(['contest' => ''], $atts, 'bh_contest_player');
         $raw  = trim((string) $atts['contest']);
         $cid  = 0;
@@ -148,7 +149,7 @@ class BH_Auth {
     // raw JSON/HTML string in an attribute could hit) — extracted here
     // once four call sites needed the identical five lines rather than
     // left duplicated a fourth time.
-    private static function attach_extra_zone(&$attrs, $cid, $slot, $attr_suffix) {
+    private static function attach_extra_zone(string &$attrs, int $cid, string $slot, string $attr_suffix): void {
         if (!class_exists('BH_Element')) return;
         $html = BH_Element::render_slot('bh_contest_player', $cid, $slot, ['contest_id' => $cid]);
         if (self::slot_has_visible_content($html)) {
@@ -160,7 +161,7 @@ class BH_Auth {
     // tells "genuinely empty" apart from "has real placement content"
     // without player.js needing to know anything about BH_Element's own
     // wrapper convention.
-    private static function slot_has_visible_content($html) {
+    private static function slot_has_visible_content(string $html): bool {
         return trim(wp_strip_all_tags($html)) !== '' || preg_match('/<(img|svg|iframe|video|audio)\b/i', $html) === 1;
     }
 }
