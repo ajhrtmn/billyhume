@@ -32,14 +32,14 @@ class BHS_VideoPostTypes {
     // registered from inside an already-executing 'init' callback,
     // which (per class-storefront.php's own documented bug precedent)
     // never fires in that request.
-    public static function init() {
+    public static function init(): void {
         self::register();
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('save_post_bhs_release', [self::class, 'save_release_video']);
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function register() {
+    public static function register(): void {
         $visible = !BHS_Env::hidden_in_production();
         register_post_type('bhs_video', [
             'labels' => [
@@ -53,7 +53,7 @@ class BHS_VideoPostTypes {
 
     /* ---------- linking a video to a release ---------- */
 
-    public static function add_meta_box() {
+    public static function add_meta_box(): void {
         add_meta_box('bhs_release_video', 'Video', [self::class, 'render_release_video_metabox'], 'bhs_release', 'normal', 'default');
     }
 
@@ -65,7 +65,7 @@ class BHS_VideoPostTypes {
     // the video library, which WordPress's own media modal already lets
     // you either pick an existing attachment OR upload a new one from —
     // no separate REST call needed from the browser at all.
-    public static function render_release_video_metabox($post) {
+    public static function render_release_video_metabox(\WP_Post $post): void {
         wp_nonce_field('bhs_save_release_video', 'bhs_release_video_nonce');
         $video_id = (int) get_post_meta($post->ID, '_bhs_release_video_id', true);
         $video = $video_id ? get_post($video_id) : null;
@@ -111,7 +111,7 @@ class BHS_VideoPostTypes {
         <?php
     }
 
-    public static function save_release_video($post_id) {
+    public static function save_release_video(int $post_id): void {
         if (!isset($_POST['bhs_release_video_nonce']) || !wp_verify_nonce($_POST['bhs_release_video_nonce'], 'bhs_save_release_video')) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
@@ -149,7 +149,7 @@ class BHS_VideoPostTypes {
 
     /* ---------- local upload (mirrors BHS_Import's audio path, MIME-gated to video) ---------- */
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/video-import', [
             'methods' => 'POST',
             'callback' => [self::class, 'import_local_video'],
@@ -159,7 +159,8 @@ class BHS_VideoPostTypes {
         ]);
     }
 
-    public static function import_local_video($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function import_local_video(\WP_REST_Request $req) {
         if (empty($_FILES['video'])) {
             return new WP_Error('missing_file', 'No video file provided (expected multipart field "video").', ['status' => 400]);
         }

@@ -19,11 +19,11 @@ if (!defined('ABSPATH')) exit;
  * here too, not a leaked half-built feature.
  */
 class BHS_Blocks {
-    public static function init() {
+    public static function init(): void {
         self::register_blocks();
     }
 
-    public static function register_blocks() {
+    public static function register_blocks(): void {
         if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
 
         wp_register_script(
@@ -40,7 +40,8 @@ class BHS_Blocks {
         ]);
     }
 
-    public static function render_player($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_player($attributes): string {
         return BHS_Player::render();
     }
 }

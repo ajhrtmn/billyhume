@@ -21,7 +21,7 @@ class BHS_API {
         '#^/bhs/v1/feed\.xml$#',
     ];
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/tracks', [
             'methods' => 'GET', 'callback' => [self::class, 'get_tracks'], 'permission_callback' => '__return_true',
         ]);
@@ -59,7 +59,7 @@ class BHS_API {
     // Origin: *' sent for the whole site, so this plugin only ever
     // widens exposure for the specific endpoints it has actually
     // reasoned about being safe to expose.
-    public static function add_cors_headers() {
+    public static function add_cors_headers(): void {
         add_filter('rest_pre_serve_request', function ($served, $result, $request) {
             $route = $request->get_route();
             foreach (self::CORS_ROUTES as $pattern) {
@@ -86,7 +86,7 @@ class BHS_API {
     // _bhs_audio_id a track has always had, so a track with only one
     // encode (the overwhelming majority, especially anything imported
     // from a feed or a local upload) behaves exactly as before.
-    public static function audio_url_for($post_id, $quality = null) {
+    public static function audio_url_for(int $post_id, ?string $quality = null): ?string {
         if ($quality) {
             $qualities = self::qualities_for($post_id);
             if (isset($qualities[$quality])) return wp_get_attachment_url($qualities[$quality]['attachment_id']);
@@ -101,7 +101,8 @@ class BHS_API {
     // it was tagged with (or 'standard' if never explicitly labeled),
     // so the player always has at least one entry to show even for a
     // track nobody has bothered adding extra encodes to.
-    public static function qualities_for($post_id) {
+    /** @return array<string, array<string, mixed>> */
+    public static function qualities_for(int $post_id): array {
         $raw = json_decode((string) get_post_meta($post_id, '_bhs_audio_qualities', true), true);
         $map = is_array($raw) ? $raw : [];
         $out = [];
@@ -119,7 +120,8 @@ class BHS_API {
         return $out;
     }
 
-    public static function track_payload($post) {
+    /** @return array<string, mixed> */
+    public static function track_payload(\WP_Post $post): array {
         $art = (int) get_post_meta($post->ID, '_bhs_artwork_id', true);
         $genres = wp_get_post_terms($post->ID, 'bhs_genre', ['fields' => 'names']);
         $release_id = (int) get_post_meta($post->ID, '_bhs_release_id', true);
@@ -191,7 +193,7 @@ class BHS_API {
         ];
     }
 
-    public static function get_tracks() {
+    public static function get_tracks(): \WP_REST_Response {
         $posts = get_posts(['post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1, 'orderby' => 'menu_order date', 'order' => 'ASC']);
         $out = [];
         foreach ($posts as $p) {
@@ -207,13 +209,14 @@ class BHS_API {
         return new WP_REST_Response(['success' => true, 'tracks' => $out], 200);
     }
 
-    private static function find_track($id) {
+    private static function find_track(int $id): ?\WP_Post {
         $post = get_post((int) $id);
         if (!$post || $post->post_type !== 'bhs_track' || $post->post_status !== 'publish') return null;
         return $post;
     }
 
-    public static function get_track($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_track(\WP_REST_Request $req) {
         $post = self::find_track($req->get_param('id'));
         if (!$post) return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
         return new WP_REST_Response(['success' => true, 'track' => self::track_payload($post)], 200);
@@ -222,7 +225,8 @@ class BHS_API {
     // Narrow, lyrics-only payload — the whole point is a client that
     // wants just this one field without pulling (and re-parsing) the
     // full track object.
-    public static function get_lyrics($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_lyrics(\WP_REST_Request $req) {
         $post = self::find_track($req->get_param('id'));
         if (!$post) return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
         $lrc = (string) get_post_meta($post->ID, '_bhs_lyrics_lrc', true);
@@ -230,7 +234,8 @@ class BHS_API {
         return new WP_REST_Response(['success' => true, 'lyrics' => ['synced' => $lrc ?: null, 'plain' => $plain ?: null]], 200);
     }
 
-    public static function get_qualities($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_qualities(\WP_REST_Request $req) {
         $post = self::find_track($req->get_param('id'));
         if (!$post) return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
         $qualities = self::qualities_for($post->ID);
@@ -241,7 +246,7 @@ class BHS_API {
         return new WP_REST_Response(['success' => true, 'qualities' => $out, 'default_url' => self::audio_url_for($post->ID)], 200);
     }
 
-    public static function get_releases() {
+    public static function get_releases(): \WP_REST_Response {
         $releases = get_posts(['post_type' => 'bhs_release', 'post_status' => 'publish', 'posts_per_page' => -1]);
         $out = [];
         foreach ($releases as $r) {
@@ -270,7 +275,8 @@ class BHS_API {
     // time — a monetization plugin can veto (insufficient wallet credit)
     // without bh-streaming knowing anything about wallets, prices, or
     // credits. No-op (always true) unless something hooks in.
-    public static function record_play($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function record_play(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
         if (get_post_type($id) !== 'bhs_track') return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
 

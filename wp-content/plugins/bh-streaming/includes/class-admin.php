@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * audio/artwork upload, the release picker — need custom metaboxes.
  */
 class BHS_Admin {
-    public static function init() {
+    public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_boxes']);
         add_action('save_post_bhs_track', [self::class, 'save_track']);
         add_action('save_post_bhs_track', [self::class, 'save_quality']);
@@ -35,14 +35,14 @@ class BHS_Admin {
      * collision check against existing rows instead of trusting
      * client-side randomness alone.
      */
-    public static function ajax_issue_isrc() {
+    public static function ajax_issue_isrc(): void {
         check_ajax_referer('bhs_issue_isrc', 'nonce');
         if (!current_user_can('edit_posts')) wp_send_json_error(['message' => 'Not allowed.'], 403);
         $isrc = BHS_ISRC::issue();
         wp_send_json_success(['isrc' => $isrc, 'is_mock' => BHS_ISRC::is_mock($isrc)]);
     }
 
-    public static function enqueue_media($hook) {
+    public static function enqueue_media(string $hook): void {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         if (!in_array(get_post_type(), ['bhs_track', 'bhs_release'], true)) return;
         wp_enqueue_media();
@@ -62,7 +62,7 @@ class BHS_Admin {
     // the fallback whenever no tier has been filled in at all.
     const QUALITY_LABELS = ['lossless' => 'Lossless (WAV / AIFF / FLAC)', 'high' => 'High (e.g. 320kbps MP3)', 'standard' => 'Standard (e.g. 128–192kbps MP3)'];
 
-    public static function add_meta_boxes() {
+    public static function add_meta_boxes(): void {
         add_meta_box('bhs_track_details', 'Track Details', [self::class, 'render_track_metabox'], 'bhs_track', 'normal', 'high');
         add_meta_box('bhs_track_quality', 'Quality Encodes', [self::class, 'render_quality_metabox'], 'bhs_track', 'normal', 'default');
         add_meta_box('bhs_track_lyrics', 'Lyrics', [self::class, 'render_lyrics_metabox'], 'bhs_track', 'normal', 'default');
@@ -89,7 +89,7 @@ class BHS_Admin {
     // If bh-monetization-woo (or anything else) is never installed, this
     // do_action() call is a complete no-op — nothing renders, nothing
     // breaks, and the metabox simply shows its own one-line fallback.
-    public static function render_track_monetization_metabox($post) {
+    public static function render_track_monetization_metabox(\WP_Post $post): void {
         if (!has_action('bhs_track_monetization_ui')) {
             echo '<p class="description">No monetization plugin is active. Install <strong>BH Monetization (WooCommerce)</strong> to sell this track, gate it behind a supporter tier, or accept tips.</p>';
             return;
@@ -97,7 +97,7 @@ class BHS_Admin {
         do_action('bhs_track_monetization_ui', $post);
     }
 
-    public static function render_release_monetization_metabox($post) {
+    public static function render_release_monetization_metabox(\WP_Post $post): void {
         if (!has_action('bhs_release_monetization_ui')) {
             echo '<p class="description">No monetization plugin is active. Install <strong>BH Monetization (WooCommerce)</strong> to sell this release, gate it behind a supporter tier, or accept tips.</p>';
             return;
@@ -107,7 +107,7 @@ class BHS_Admin {
 
     /* ---------- track metabox ---------- */
 
-    public static function render_track_metabox($post) {
+    public static function render_track_metabox(\WP_Post $post): void {
         wp_nonce_field('bhs_save_track', 'bhs_track_nonce');
         $artist  = get_post_meta($post->ID, '_bhs_artist', true);
         $aid     = (int) get_post_meta($post->ID, '_bhs_audio_id', true);
@@ -201,7 +201,7 @@ class BHS_Admin {
 
     /* ---------- quality encodes metabox ---------- */
 
-    public static function render_quality_metabox($post) {
+    public static function render_quality_metabox(\WP_Post $post): void {
         $is_external = get_post_meta($post->ID, '_bhs_source', true) === 'external';
         if ($is_external) {
             echo '<p class="description">Not available for externally-imported tracks — this site doesn\'t host their audio at all, so there\'s nothing here to attach an alternate encode to.</p>';
@@ -260,7 +260,7 @@ class BHS_Admin {
 
     /* ---------- lyrics metabox ---------- */
 
-    public static function render_lyrics_metabox($post) {
+    public static function render_lyrics_metabox(\WP_Post $post): void {
         wp_nonce_field('bhs_save_lyrics', 'bhs_lyrics_nonce');
         $plain = (string) get_post_meta($post->ID, '_bhs_lyrics_text', true);
         $lrc = (string) get_post_meta($post->ID, '_bhs_lyrics_lrc', true);
@@ -274,7 +274,7 @@ class BHS_Admin {
 
     /* ---------- release metabox ---------- */
 
-    public static function render_release_metabox($post) {
+    public static function render_release_metabox(\WP_Post $post): void {
         wp_nonce_field('bhs_save_release', 'bhs_release_nonce');
         $artist = get_post_meta($post->ID, '_bhs_release_artist', true);
         $art_id = (int) get_post_meta($post->ID, '_bhs_release_artwork_id', true);
@@ -289,7 +289,7 @@ class BHS_Admin {
         self::render_media_picker_script();
     }
 
-    private static function render_media_picker_script() {
+    private static function render_media_picker_script(): void {
         ?>
         <script>
         (function () {
@@ -323,7 +323,7 @@ class BHS_Admin {
 
     /* ---------- saving ---------- */
 
-    public static function save_track($post_id) {
+    public static function save_track(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_track_nonce']) || !wp_verify_nonce($_POST['bhs_track_nonce'], 'bhs_save_track')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -361,7 +361,7 @@ class BHS_Admin {
     // own add_meta_box() registration with its own nonce field — keeps
     // each concern (core track fields vs. quality encodes) independently
     // toggleable/removable without the two save paths tangled together.
-    public static function save_quality($post_id) {
+    public static function save_quality(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_quality_nonce']) || !wp_verify_nonce($_POST['bhs_quality_nonce'], 'bhs_save_quality')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -378,7 +378,7 @@ class BHS_Admin {
         update_post_meta($post_id, '_bhs_audio_qualities', wp_json_encode($qualities));
     }
 
-    public static function save_lyrics($post_id) {
+    public static function save_lyrics(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_lyrics_nonce']) || !wp_verify_nonce($_POST['bhs_lyrics_nonce'], 'bhs_save_lyrics')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -389,7 +389,7 @@ class BHS_Admin {
         if (isset($_POST['bhs_lyrics_text'])) update_post_meta($post_id, '_bhs_lyrics_text', sanitize_textarea_field($_POST['bhs_lyrics_text']));
     }
 
-    public static function save_release($post_id) {
+    public static function save_release(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_release_nonce']) || !wp_verify_nonce($_POST['bhs_release_nonce'], 'bhs_save_release')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -402,7 +402,7 @@ class BHS_Admin {
 
     /* ---------- list table ---------- */
 
-    public static function column_content($col, $post_id) {
+    public static function column_content(string $col, int $post_id): void {
         if ($col === 'bhs_artist') echo esc_html(get_post_meta($post_id, '_bhs_artist', true));
         if ($col === 'bhs_audio') {
             $has_audio = (bool) BHS_API::audio_url_for($post_id);

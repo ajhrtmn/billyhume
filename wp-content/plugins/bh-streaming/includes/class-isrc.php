@@ -22,12 +22,12 @@ if (!defined('ABSPATH')) exit;
 class BHS_ISRC {
     const MOCK_PATTERN = '/^ZZOUS\d{7}$/';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhs_isrc_registrant_save', [self::class, 'handle_registrant_save']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Was parented under 'own-ur-shit' — a music-metadata/rights-
         // registration tool specific to this plugin's own tracks has no
         // business sitting in the cross-cutting ecosystem hub next to
@@ -37,7 +37,7 @@ class BHS_ISRC {
         add_submenu_page(BHS_PostTypes::MENU_PARENT, 'ISRC Registrant', 'ISRC Registrant', 'manage_options', 'bhs-isrc-registrant', [self::class, 'render_registrant_page']);
     }
 
-    public static function render_registrant_page() {
+    public static function render_registrant_page(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
         $r = self::registrant();
 
@@ -68,7 +68,7 @@ class BHS_ISRC {
         echo '</form></div>';
     }
 
-    public static function handle_registrant_save() {
+    public static function handle_registrant_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['bhs_isrc_registrant_nonce'] ?? '', 'bhs_isrc_registrant_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -87,7 +87,8 @@ class BHS_ISRC {
         exit;
     }
 
-    public static function is_mock($isrc) {
+    /** @param mixed $isrc */
+    public static function is_mock($isrc): bool {
         return (bool) preg_match(self::MOCK_PATTERN, (string) $isrc);
     }
 
@@ -99,13 +100,14 @@ class BHS_ISRC {
      * ['country' => 'US', 'registrant' => 'ABC', 'status' =>
      * 'not_registered'|'applied'|'registered'].
      */
-    public static function registrant() {
+    /** @return array{country:string, registrant:string, status:string} */
+    public static function registrant(): array {
         $default = ['country' => '', 'registrant' => '', 'status' => 'not_registered'];
         $saved = get_option('bhs_isrc_registrant', []);
         return is_array($saved) ? array_merge($default, $saved) : $default;
     }
 
-    public static function is_real_registrant_configured() {
+    public static function is_real_registrant_configured(): bool {
         $r = self::registrant();
         return $r['status'] === 'registered' && strlen($r['country']) === 2 && preg_match('/^[A-Za-z0-9]{3}$/', $r['registrant']);
     }
@@ -121,7 +123,7 @@ class BHS_ISRC {
      * volume one artist's own catalog will ever hit, not a reason to
      * add a database table for a single incrementing integer).
      */
-    public static function issue() {
+    public static function issue(): string {
         if (self::is_real_registrant_configured()) {
             $r = self::registrant();
             $year = gmdate('y');

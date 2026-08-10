@@ -12,13 +12,14 @@ if (!defined('ABSPATH')) exit;
  * right-now version.
  */
 class BHS_Recommendations {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/tracks/(?P<id>\d+)/related', [
             'methods' => 'GET', 'callback' => [self::class, 'get_related'], 'permission_callback' => '__return_true',
         ]);
     }
 
-    public static function get_related($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_related(\WP_REST_Request $req) {
         $track_id = (int) $req->get_param('id');
         $track = get_post($track_id);
         if (!$track || $track->post_type !== 'bhs_track') {

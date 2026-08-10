@@ -31,7 +31,7 @@ class BHS_AudioHash {
     // if admin-added tracks should be checked too; the check itself
     // doesn't care where the track came from, only that a real file
     // exists on this server for it.
-    public static function hash_and_check($post_id, $attachment_id) {
+    public static function hash_and_check(int $post_id, int $attachment_id): void {
         $path = get_attached_file($attachment_id);
         if (!$path || !file_exists($path)) return;
 
@@ -99,7 +99,7 @@ class BHS_AudioHash {
     // Small admin-list-table helper — shows a visible warning on the
     // Tracks screen rather than requiring an admin to know to look for
     // hidden postmeta.
-    public static function flag_notice_html($post_id) {
+    public static function flag_notice_html(int $post_id): string {
         $matches = json_decode((string) get_post_meta($post_id, '_bhs_duplicate_audio_flag', true), true);
         if (!$matches) return '';
         $titles = array_map(fn($id) => get_the_title($id) ?: ('#' . $id), $matches);

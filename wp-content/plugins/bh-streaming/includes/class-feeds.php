@@ -32,7 +32,7 @@ if (!defined('ABSPATH')) exit;
 class BHS_Feeds {
     const CRON_HOOK = 'bhs_sync_feeds';
 
-    public static function init() {
+    public static function init(): void {
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
         add_action('save_post_bhs_feed_source', [self::class, 'save_feed_source']);
         add_action('admin_post_bhs_sync_feed', [self::class, 'handle_manual_sync']);
@@ -57,7 +57,8 @@ class BHS_Feeds {
     // with a real enclosure (the actual open-standard signal for "this is
     // a media feed"), which is exactly what Funkwhale channels, other
     // Podcasting-2.0 feeds, and this plugin's own export all provide.
-    private static function validate_is_open_feed($feed) {
+    /** @param mixed $feed */
+    private static function validate_is_open_feed($feed): bool {
         if (is_wp_error($feed)) return false;
         $items = $feed->get_items(0, 5);
         foreach ($items as $item) {
@@ -68,11 +69,11 @@ class BHS_Feeds {
 
     // This site's own subscribable feed URL — the thing to hand another
     // artist, another bh-streaming instance, or a Funkwhale/podcast app.
-    public static function own_feed_url() {
+    public static function own_feed_url(): string {
         return esc_url_raw(rest_url('bhs/v1/feed.xml'));
     }
 
-    public static function render_share_panel() {
+    public static function render_share_panel(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen || $screen->post_type !== 'bhs_feed_source') return;
 
@@ -99,7 +100,7 @@ class BHS_Feeds {
         echo '</div></div></div>';
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/feed.xml', [
             'methods' => 'GET', 'callback' => [self::class, 'export_feed'], 'permission_callback' => '__return_true',
         ]);
@@ -107,11 +108,11 @@ class BHS_Feeds {
 
     /* ---------- admin: feed source management ---------- */
 
-    public static function add_meta_box() {
+    public static function add_meta_box(): void {
         add_meta_box('bhs_feed_source_url', 'Feed Details', [self::class, 'render_meta_box'], 'bhs_feed_source', 'normal', 'high');
     }
 
-    public static function render_meta_box($post) {
+    public static function render_meta_box(\WP_Post $post): void {
         wp_nonce_field('bhs_save_feed_source', 'bhs_feed_source_nonce');
         $url = get_post_meta($post->ID, '_bhs_feed_url', true);
         $last = get_post_meta($post->ID, '_bhs_last_synced', true);
@@ -135,7 +136,7 @@ class BHS_Feeds {
         }
     }
 
-    public static function save_feed_source($post_id) {
+    public static function save_feed_source(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhs_feed_source_nonce']) || !wp_verify_nonce($_POST['bhs_feed_source_nonce'], 'bhs_save_feed_source')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -146,7 +147,7 @@ class BHS_Feeds {
         if ($url) self::sync_one($post_id, $url);
     }
 
-    public static function handle_manual_sync() {
+    public static function handle_manual_sync(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhs_sync_feed')) {
             wp_die('Not allowed.');
         }
@@ -176,7 +177,7 @@ class BHS_Feeds {
     // all-inline behavior if the job queue isn't there — same
     // class_exists()-guarded optional-integration shape every other
     // cross-plugin touch in this ecosystem uses.
-    public static function sync_all() {
+    public static function sync_all(): void {
         $sources = get_posts(['post_type' => 'bhs_feed_source', 'post_status' => 'publish', 'posts_per_page' => -1]);
 
         if (class_exists('OUS_Jobs')) {
@@ -199,7 +200,8 @@ class BHS_Feeds {
 
     // The per-feed-source unit of work OUS_Jobs actually calls — see
     // bh-streaming.php's bootstrap for the guarded registration.
-    public static function sync_one_job($args) {
+    /** @param array<string, mixed> $args */
+    public static function sync_one_job(array $args): void {
         $feed_id = (int) ($args['feed_id'] ?? 0);
         if (!$feed_id || get_post_status($feed_id) !== 'publish') return;
         $url = get_post_meta($feed_id, '_bhs_feed_url', true);
@@ -227,7 +229,7 @@ class BHS_Feeds {
     // download already in someone's hands.
     const HEALTH_DOWN_AFTER_FAILS = 3; // consecutive failures before a track is treated as actually unavailable, not just a blip
 
-    public static function check_external_track_health() {
+    public static function check_external_track_health(): void {
         $tracks = get_posts([
             'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
             'meta_key' => '_bhs_source', 'meta_value' => 'external', 'fields' => 'ids',
@@ -275,12 +277,12 @@ class BHS_Feeds {
     // status rather than the listener just discovering it by a failed
     // play. 'ok' when never checked yet — a brand-new import isn't
     // treated as suspect before its first health pass ever runs.
-    public static function source_health($track_id) {
+    public static function source_health(int $track_id): string {
         $health = get_post_meta($track_id, '_bhs_source_health', true);
         return $health ?: 'ok';
     }
 
-    private static function sync_one($feed_source_id, $url) {
+    private static function sync_one(int $feed_source_id, string $url): void {
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
 
@@ -362,7 +364,7 @@ class BHS_Feeds {
 
     /* ---------- export ---------- */
 
-    public static function export_feed() {
+    public static function export_feed(): \WP_REST_Response {
         $doc = new DOMDocument('1.0', 'UTF-8');
         $rss = $doc->createElement('rss');
         $rss->setAttribute('version', '2.0');

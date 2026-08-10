@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) exit;
 class BHS_PostTypes {
     const MENU_PARENT = 'edit.php?post_type=bhs_track';
 
-    public static function register() {
+    public static function register(): void {
         // CPTs (and their data) always register — hidden-in-production
         // (class-env.php) only ever toggles admin UI/menu visibility,
         // never whether the post type or its rows exist. $visible is

@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * liked tracks" as a real query instead of unpacking a blob every time.
  */
 class BHS_Likes {
-    public static function register_routes() {
+    public static function register_routes(): void {
         $auth = ['permission_callback' => 'is_user_logged_in'];
         register_rest_route('bhs/v1', '/likes', ['methods' => 'GET', 'callback' => [self::class, 'get_liked']] + $auth);
         register_rest_route('bhs/v1', '/likes/(?P<track_id>\d+)', [
@@ -17,7 +17,7 @@ class BHS_Likes {
         ] + $auth);
     }
 
-    public static function get_liked($req) {
+    public static function get_liked(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
         $t = $wpdb->prefix . 'bhs_likes';
         $uid = get_current_user_id();
@@ -29,7 +29,8 @@ class BHS_Likes {
     // always knows its own current state from the /tracks or /likes
     // response, so one endpoint that flips it is simpler than two that
     // both need "already in that state" guards.
-    public static function toggle_like($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function toggle_like(\WP_REST_Request $req) {
         global $wpdb;
         $t = $wpdb->prefix . 'bhs_likes';
         $uid = get_current_user_id();
@@ -48,7 +49,7 @@ class BHS_Likes {
         return new WP_REST_Response(['success' => true, 'liked' => $liked], 200);
     }
 
-    public static function count_for_track($track_id) {
+    public static function count_for_track(int $track_id): int {
         global $wpdb;
         $t = $wpdb->prefix . 'bhs_likes';
         return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE track_id = %d", $track_id));

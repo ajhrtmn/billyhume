@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  * this plugin doesn't have.
  */
 class BHS_Stats {
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_admin_page']);
         // BH_Event registration, per EVENT-TRACKING-ARCHITECTURE-PLAN.md
         // Section 6 — additive, does not replace this class's own
@@ -30,14 +30,14 @@ class BHS_Stats {
         }
     }
 
-    private static function table() { global $wpdb; return $wpdb->prefix . 'bhs_daily_stats'; }
+    private static function table(): string { global $wpdb; return $wpdb->prefix . 'bhs_daily_stats'; }
 
     // Called once per allowed play (see class-api.php's record_play())
     // and once per executed Jam vote-skip (see class-jam.php). One
     // shared table, a `metric` column distinguishing 'play' from
     // 'skip' so both live in the same simple rollup rather than two
     // near-identical tables.
-    public static function record_play($track_id, $req) {
+    public static function record_play(int $track_id, \WP_REST_Request $req): void {
         self::bump($track_id, 'play', $req);
         // Real per-event record alongside the aggregate rollup above —
         // both coexist (see EVENT-TRACKING-ARCHITECTURE-PLAN.md Section
@@ -52,7 +52,7 @@ class BHS_Stats {
         }
     }
 
-    public static function record_skip($track_id) {
+    public static function record_skip(int $track_id): void {
         self::bump($track_id, 'skip', null);
         if (class_exists('BH_Event')) {
             BH_Event::emit('bhs/skip', [
@@ -62,7 +62,7 @@ class BHS_Stats {
         }
     }
 
-    private static function bump($track_id, $metric, $req) {
+    private static function bump(int $track_id, string $metric, ?\WP_REST_Request $req): void {
         global $wpdb;
         $today = current_time('Y-m-d');
         $country = $req ? self::guess_country($req) : 'unknown';
@@ -81,7 +81,7 @@ class BHS_Stats {
     // first language tag in Accept-Language, which is at least real
     // signal (a listener's own browser/OS locale) rather than fabricated
     // data, just not the same thing as their actual location.
-    private static function guess_country($req) {
+    private static function guess_country(\WP_REST_Request $req): string {
         $header = $req->get_header('accept_language') ?: ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '');
         if (!$header) return 'unknown';
         if (preg_match('/^[a-zA-Z]{2}-([A-Za-z]{2})/', trim(explode(',', $header)[0]), $m)) {
@@ -90,7 +90,7 @@ class BHS_Stats {
         return 'unknown';
     }
 
-    private static function classify_referrer($req) {
+    private static function classify_referrer(\WP_REST_Request $req): string {
         $ref = $req->get_header('referer') ?: ($_SERVER['HTTP_REFERER'] ?? '');
         if (!$ref) return 'direct';
         if (strpos($ref, 'bh_shared_playlist=') !== false) return 'shared_playlist';
@@ -103,13 +103,13 @@ class BHS_Stats {
 
     /* ---------- admin dashboard ---------- */
 
-    public static function add_admin_page() {
+    public static function add_admin_page(): void {
         add_submenu_page(
             BHS_PostTypes::MENU_PARENT, 'Metrics', 'Metrics', 'edit_posts', 'bhs-metrics', [self::class, 'render']
         );
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('edit_posts')) wp_die('Not allowed.');
         global $wpdb;
         $days = 30;

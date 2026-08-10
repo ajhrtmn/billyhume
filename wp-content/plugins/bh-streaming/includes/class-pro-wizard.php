@@ -69,7 +69,7 @@ class BHS_PROWizard {
         'affiliated' => 'Affiliated — membership confirmed',
     ];
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhs_pro_wizard_save', [self::class, 'handle_save']);
         add_action('admin_post_bhs_export_royalty_report', [self::class, 'handle_export_royalty_report']);
@@ -84,7 +84,7 @@ class BHS_PROWizard {
     // whole page already works with no bh-monetization-woo installed,
     // this export just doesn't appear until there's ledger data to
     // export.
-    public static function handle_export_royalty_report() {
+    public static function handle_export_royalty_report(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhs_export_royalty_report')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
@@ -130,7 +130,8 @@ class BHS_PROWizard {
     // interpreted as a formula by Excel/Sheets when this file is opened) —
     // this export is explicitly meant to be forwarded to a third-party
     // PRO/MLC, so a malicious track title is a real cross-trust-boundary risk.
-    private static function csv_safe($value) {
+    /** @param mixed $value */
+    private static function csv_safe($value): string {
         $value = (string) $value;
         if ($value !== '' && preg_match('/^[=+\-@\t\r]/', $value)) {
             return "'" . $value;
@@ -138,7 +139,7 @@ class BHS_PROWizard {
         return $value;
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // Was parented under 'own-ur-shit' — same reasoning as ISRC
         // Registrant's own move (class-isrc.php): a rights-registration
         // tool specific to this plugin's own tracks belongs with the
@@ -159,7 +160,7 @@ class BHS_PROWizard {
     // ecosystem's own "wizard is an on-ramp, not a wall" rule) lands on
     // the status/settings view directly rather than being forced back
     // through steps 1-2 every time.
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
 
         $current = get_option('bhs_pro_affiliation', ['pro' => '', 'name' => '', 'ipi' => '', 'status' => 'not_started']);
@@ -193,7 +194,7 @@ class BHS_PROWizard {
 
     // Step 1: "Where do you want your PRO affiliation?" — one plain
     // question, pick a card, nothing else on screen yet.
-    private static function render_step_pick_pro() {
+    private static function render_step_pick_pro(): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
         echo '<h2>1. Pick a PRO</h2>';
         echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;max-width:760px;">';
@@ -209,7 +210,8 @@ class BHS_PROWizard {
 
     // Step 2: "Go register with them" — explains what to do next and why
     // (this tool can't do it for you), before asking for anything back.
-    private static function render_step_confirm($pro_key, $current) {
+    /** @param array<string, mixed> $current */
+    private static function render_step_confirm(string $pro_key, array $current): void {
         $p = self::PROS[$pro_key];
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
         echo '<h2>2. Register with ' . esc_html($p['name']) . '</h2>';
@@ -224,7 +226,8 @@ class BHS_PROWizard {
 
     // Step 3: the actual record-affiliation form, pre-filled with the
     // PRO picked in step 1 — the one place this screen asks for anything.
-    private static function render_step_record($pro_key, $current) {
+    /** @param array<string, mixed> $current */
+    private static function render_step_record(string $pro_key, array $current): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
         echo '<h2>3. Record your affiliation</h2>';
         echo '<p class="description">Your own record, same way you\'d jot it in a notes app, but somewhere the rest of this site can eventually reference it.</p>';
@@ -252,7 +255,8 @@ class BHS_PROWizard {
     // settings underneath the wizard, reachable directly (this
     // ecosystem's "wizard is an on-ramp, not a wall" rule), plus the
     // royalty export, plus a way back into the guided flow to change PRO.
-    private static function render_status_and_settings($current) {
+    /** @param array<string, mixed> $current */
+    private static function render_status_and_settings(array $current): void {
         $base = remove_query_arg(['step', 'pro'], admin_url('admin.php?page=bhs-pro-wizard'));
         $label = self::PROS[$current['pro']]['name'] ?? $current['pro'];
         echo '<div class="notice notice-success" style="padding:12px;"><p><strong>On file:</strong> ' . esc_html($label) . ' — ' . esc_html(self::STATUSES[$current['status']] ?? $current['status']) . (($current['ipi'] ?? '') ? ' (IPI/CAE: ' . esc_html($current['ipi']) . ')' : '') . '</p></div>';
@@ -269,7 +273,7 @@ class BHS_PROWizard {
         }
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['bhs_pro_wizard_nonce'] ?? '', 'bhs_pro_wizard_save')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }

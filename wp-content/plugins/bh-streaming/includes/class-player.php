@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BHS_Player {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_streaming', [self::class, 'render']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
         // OUS_Search consumer, ROADMAP-search-and-revisions.md Section 1
@@ -18,12 +18,17 @@ class BHS_Player {
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
     }
 
-    public static function register_search_provider($providers) {
+    /**
+     * @param array<string, mixed> $providers
+     * @return array<string, mixed>
+     */
+    public static function register_search_provider(array $providers): array {
         $providers['tracks'] = [self::class, 'search_tracks'];
         return $providers;
     }
 
-    public static function search_tracks($query, $limit) {
+    /** @return array<int, array<string, mixed>> */
+    public static function search_tracks(string $query, int $limit): array {
         $page_id = (int) get_option('bhs_streaming_page_id', 0);
         if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
 
@@ -46,7 +51,7 @@ class BHS_Player {
         return $out;
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         if (!is_singular()) return;
         global $post;
         // has_block() alongside has_shortcode() — ROADMAP-ux-polish-and-
@@ -128,7 +133,8 @@ class BHS_Player {
         ]);
     }
 
-    public static function render($atts = []) {
+    /** @param array<string, mixed>|string $atts */
+    public static function render($atts = []): string {
         // Hidden (not removed) in production while this is still being
         // actively built out — see class-env.php. Dev/staging renders
         // exactly as before.
@@ -293,7 +299,8 @@ class BHS_Player {
      * Course schema takes (the course description is public even
      * though the lessons are gated).
      */
-    private static function maybe_set_seo_data($atts) {
+    /** @param array<string, mixed>|string $atts */
+    private static function maybe_set_seo_data($atts): void {
         if (!class_exists('BH_SEO')) return;
         $atts = shortcode_atts(['track' => '', 'release' => ''], is_array($atts) ? $atts : []);
 

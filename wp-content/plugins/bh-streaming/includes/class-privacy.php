@@ -15,12 +15,16 @@ if (!defined('ABSPATH')) exit;
  * useful to keep around, and it's already ephemeral by design.
  */
 class BHS_Privacy {
-    public static function init() {
+    public static function init(): void {
         add_filter('wp_privacy_personal_data_exporters', [self::class, 'register_exporter']);
         add_filter('wp_privacy_personal_data_erasers', [self::class, 'register_eraser']);
     }
 
-    public static function register_exporter($exporters) {
+    /**
+     * @param array<string, mixed> $exporters
+     * @return array<string, mixed>
+     */
+    public static function register_exporter(array $exporters): array {
         $exporters['bh-streaming-activity'] = [
             'exporter_friendly_name' => __('Own Ur Shit — Streaming Activity', 'bh-streaming'),
             'callback' => [self::class, 'export'],
@@ -28,7 +32,11 @@ class BHS_Privacy {
         return $exporters;
     }
 
-    public static function register_eraser($erasers) {
+    /**
+     * @param array<string, mixed> $erasers
+     * @return array<string, mixed>
+     */
+    public static function register_eraser(array $erasers): array {
         $erasers['bh-streaming-activity'] = [
             'eraser_friendly_name' => __('Own Ur Shit — Streaming Activity', 'bh-streaming'),
             'callback' => [self::class, 'erase'],
@@ -36,7 +44,8 @@ class BHS_Privacy {
         return $erasers;
     }
 
-    public static function export($email, $page = 1) {
+    /** @return array{data: array<int, array<string, mixed>>, done: bool} */
+    public static function export(string $email, int $page = 1): array {
         global $wpdb;
         $user = get_user_by('email', $email);
         if (!$user) {
@@ -98,7 +107,8 @@ class BHS_Privacy {
         return ['data' => $data, 'done' => true];
     }
 
-    public static function erase($email, $page = 1) {
+    /** @return array{items_removed: bool, items_retained: bool, messages: array<int, mixed>, done: bool} */
+    public static function erase(string $email, int $page = 1): array {
         global $wpdb;
         $user = get_user_by('email', $email);
         if (!$user) {

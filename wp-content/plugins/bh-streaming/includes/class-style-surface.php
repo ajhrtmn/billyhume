@@ -7,11 +7,15 @@ if (!defined('ABSPATH')) exit;
  * the pattern actually works for more than one consuming plugin.
  */
 class BHS_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register(array $surfaces): array {
         $surfaces['bh-streaming-library'] = [
             'group' => 'Streaming', 'label' => 'Library & Now Playing',
             'render' => [self::class, 'preview'],
@@ -28,7 +32,8 @@ class BHS_StyleSurface {
         return $surfaces;
     }
 
-    public static function pro_wizard_preview() {
+    /** @return array{css_url:string, html:string} */
+    public static function pro_wizard_preview(): array {
         ob_start();
         ?>
 <div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
@@ -53,10 +58,11 @@ class BHS_StyleSurface {
     <p><button class="button button-primary">Save</button></p>
 </div>
         <?php
-        return ['css_url' => admin_url('css/common.min.css'), 'html' => ob_get_clean()];
+        return ['css_url' => admin_url('css/common.min.css'), 'html' => (string) ob_get_clean()];
     }
 
-    public static function preview() {
+    /** @return array{css_url:string, html:string} */
+    public static function preview(): array {
         ob_start();
         ?>
 <div class="bhs-app" style="min-height:0;padding-bottom:90px;">
@@ -100,6 +106,6 @@ class BHS_StyleSurface {
     </div>
 </div>
         <?php
-        return ['css_url' => BHS_URL . 'assets/css/player.css', 'html' => ob_get_clean()];
+        return ['css_url' => BHS_URL . 'assets/css/player.css', 'html' => (string) ob_get_clean()];
     }
 }

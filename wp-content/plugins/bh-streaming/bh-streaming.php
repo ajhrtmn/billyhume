@@ -2,12 +2,25 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.25
+ * Version:     0.5.26
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.5.26 — Ecosystem quality Phase 2, brick 8/13: added native return/
+// parameter types across all 22 includes files (293 findings, both
+// mechanical level-6 categories) — the biggest brick completed so far.
+// Covers the full surface: Jam's REST endpoints and session-row shape,
+// the admin metaboxes, feed import/export, the public API's track/
+// release payloads, playlists, artist metrics dashboard, the PRO
+// registration wizard, chapters/resume, privacy exporters/erasers,
+// video CPT, ISRC issuance, activation/migration, and the smaller
+// utility classes (likes, style-surface previews, audio-hash duplicate
+// detection, blocks, recommendations). Purely additive typing, no
+// behavior change. This plugin is now clean at PHPStan level 6 in
+// isolation.
+// NOT runtime-verified against a live install.
 // 0.5.25 — TypeScript pilot, continued: converted bhs-blocks.ts
 // (bhs/player Gutenberg block registration). Same posture as every
 // other plugin's TS pilot entry this session: plain `tsc`, no bundler,
@@ -76,7 +89,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.25');
+define('BHS_VER',  '0.5.26');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

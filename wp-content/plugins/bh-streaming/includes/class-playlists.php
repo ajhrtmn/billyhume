@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
  * browser actually calls.
  */
 class BHS_Playlists {
-    public static function register_routes() {
+    public static function register_routes(): void {
         $auth = ['permission_callback' => 'is_user_logged_in'];
         register_rest_route('bhs/v1', '/playlists', [
             ['methods' => 'GET', 'callback' => [self::class, 'get_mine']] + $auth,
@@ -41,12 +41,13 @@ class BHS_Playlists {
         ] + $auth);
     }
 
-    private static function owns($playlist_id, $uid) {
+    private static function owns(int $playlist_id, int $uid): bool {
         $p = get_post($playlist_id);
         return $p && $p->post_type === 'bhs_playlist' && (int) $p->post_author === $uid;
     }
 
-    private static function payload($post, $include_share_url = false) {
+    /** @return array<string, mixed> */
+    private static function payload(\WP_Post $post, bool $include_share_url = false): array {
         $ids = json_decode((string) get_post_meta($post->ID, '_bhs_track_ids', true), true);
         $out = [
             'id' => $post->ID, 'title' => $post->post_title,
@@ -61,7 +62,7 @@ class BHS_Playlists {
         return $out;
     }
 
-    public static function get_mine() {
+    public static function get_mine(): \WP_REST_Response {
         $posts = get_posts(['post_type' => 'bhs_playlist', 'author' => get_current_user_id(), 'posts_per_page' => -1, 'post_status' => 'publish']);
         return new WP_REST_Response(['success' => true, 'playlists' => array_map(function ($p) { return self::payload($p, true); }, $posts)], 200);
     }
@@ -70,7 +71,8 @@ class BHS_Playlists {
     // playlist is either shared (is_public) or the requester happens to
     // be its own owner — a private playlist's numeric ID being
     // guessable must not leak its contents.
-    public static function get_one($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_one(\WP_REST_Request $req) {
         $post = get_post((int) $req->get_param('id'));
         if (!$post || $post->post_type !== 'bhs_playlist' || $post->post_status !== 'publish') {
             return new WP_Error('not_found', 'Playlist not found.', ['status' => 404]);
@@ -86,7 +88,8 @@ class BHS_Playlists {
     // The actual link a recipient's browser hits — token-keyed rather
     // than ID-keyed so it can be revoked (unshare, re-share) independent
     // of the playlist's own identity.
-    public static function get_shared($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_shared(\WP_REST_Request $req) {
         global $wpdb;
         $token = sanitize_text_field((string) $req->get_param('token'));
         $post_id = $wpdb->get_var($wpdb->prepare(
@@ -101,7 +104,8 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlist' => self::payload($post)], 200);
     }
 
-    public static function create($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function create(\WP_REST_Request $req) {
         $title = sanitize_text_field((string) $req->get_param('title')) ?: 'New Playlist';
         $id = wp_insert_post(['post_title' => $title, 'post_type' => 'bhs_playlist', 'post_status' => 'publish', 'post_author' => get_current_user_id()], true);
         if (is_wp_error($id)) return new WP_Error('save_failed', 'Could not create playlist.', ['status' => 500]);
@@ -109,7 +113,8 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlist' => self::payload(get_post($id), true)], 200);
     }
 
-    public static function add_track($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function add_track(\WP_REST_Request $req) {
         $playlist_id = (int) $req->get_param('id');
         $track_id = (int) $req->get_param('track_id');
         if (!self::owns($playlist_id, get_current_user_id())) {
@@ -125,7 +130,8 @@ class BHS_Playlists {
         return new WP_REST_Response(['success' => true, 'playlist' => self::payload(get_post($playlist_id), true)], 200);
     }
 
-    public static function share($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function share(\WP_REST_Request $req) {
         $playlist_id = (int) $req->get_param('id');
         if (!self::owns($playlist_id, get_current_user_id())) {
             return new WP_Error('forbidden', 'Not your playlist.', ['status' => 403]);
@@ -145,7 +151,8 @@ class BHS_Playlists {
     // delete the meta directly; the common case here is "I made this
     // public by accident, take it back down," where reusing the same
     // token on the next share is the least surprising behavior.
-    public static function unshare($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function unshare(\WP_REST_Request $req) {
         $playlist_id = (int) $req->get_param('id');
         if (!self::owns($playlist_id, get_current_user_id())) {
             return new WP_Error('forbidden', 'Not your playlist.', ['status' => 403]);

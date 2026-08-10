@@ -25,12 +25,12 @@ class BHS_PWA {
     // generic one).
     const ICON_SIZES = [512, 192, 180, 144, 96, 72, 48];
 
-    public static function init() {
+    public static function init(): void {
         // No admin_post/admin_menu hooks here anymore — see the note
         // above the icon generation section below.
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/manifest.json', [
             'methods' => 'GET', 'callback' => [self::class, 'get_manifest'], 'permission_callback' => '__return_true',
         ]);
@@ -41,7 +41,7 @@ class BHS_PWA {
 
     /* ---------- manifest ---------- */
 
-    public static function get_manifest() {
+    public static function get_manifest(): \WP_REST_Response {
         $name = get_bloginfo('name') ?: 'Streaming';
         $icons = [];
         foreach (self::ICON_SIZES as $size) {
@@ -73,7 +73,7 @@ class BHS_PWA {
     // Service-Worker-Allowed can be set explicitly below — that header
     // is what lets a worker served from a plugin subpath still claim the
     // whole site as its scope, without needing a rewrite rule.
-    public static function get_service_worker() {
+    public static function get_service_worker(): \WP_REST_Response {
         $js = "
 const BHS_CACHE = 'bhs-shell-v" . BHS_VER . "';
 self.addEventListener('install', function (e) { self.skipWaiting(); });
@@ -93,7 +93,7 @@ self.addEventListener('fetch', function (e) {
 
     /* ---------- icon generation ---------- */
 
-    private static function icon_url($size) {
+    private static function icon_url(int $size): string {
         $icons = get_option('bhs_icons', []);
         return $icons[$size] ?? '';
     }
@@ -101,13 +101,13 @@ self.addEventListener('fetch', function (e) {
     // A generated placeholder so a track without its own artwork never
     // shows a broken image — a plain, theme-neutral gradient square
     // rather than nothing.
-    public static function placeholder_artwork_url() {
+    public static function placeholder_artwork_url(): string {
         return self::icon_url(512) ?: BHS_URL . 'assets/img/placeholder.svg';
     }
 
     /* ---------- head tags ---------- */
 
-    public static function print_head_tags() {
+    public static function print_head_tags(): void {
         $manifest_url = rest_url('bhs/v1/manifest.json');
         $icon180 = self::icon_url(180);
         echo "\n<!-- BH Streaming PWA -->\n";

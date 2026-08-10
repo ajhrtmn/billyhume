@@ -31,7 +31,7 @@ class BHS_Jam {
     const SKIP_VOTE_RATIO = 0.5; // votes needed = ceil(participant_count * this), min 1
     const STALE_AFTER_SECONDS = 6 * HOUR_IN_SECONDS; // an abandoned session ages out rather than lingering forever
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         $auth = ['permission_callback' => 'is_user_logged_in'];
 
         register_rest_route('bhs/v1', '/jam', [
@@ -72,8 +72,8 @@ class BHS_Jam {
 
     /* ---------------- helpers ---------------- */
 
-    private static function table() { global $wpdb; return $wpdb->prefix . 'bhs_jam_sessions'; }
-    private static function ptable() { global $wpdb; return $wpdb->prefix . 'bhs_jam_participants'; }
+    private static function table(): string { global $wpdb; return $wpdb->prefix . 'bhs_jam_sessions'; }
+    private static function ptable(): string { global $wpdb; return $wpdb->prefix . 'bhs_jam_participants'; }
 
     // A 6-char code from a 32-char set is ~1 billion combinations —
     // fine against a casual guess, not fine against an unthrottled
@@ -83,7 +83,7 @@ class BHS_Jam {
     // submission/verify endpoints use for the same reason: cheap,
     // no extra table, and it's the ATTEMPT rate that matters here, not
     // a hard cap on legitimate joins/creates.
-    private static function rate_limited($action, $limit = 20, $window = 60) {
+    private static function rate_limited(string $action, int $limit = 20, int $window = 60): bool {
         $key = 'bhs_jam_rl_' . $action . '_' . get_current_user_id();
         $count = (int) get_transient($key);
         if ($count >= $limit) return true;
@@ -91,7 +91,7 @@ class BHS_Jam {
         return false;
     }
 
-    private static function generate_code() {
+    private static function generate_code(): string {
         // Unambiguous charset (no 0/O/1/I) — this gets read aloud/typed
         // by a listener joining a friend's Jam, same reasoning as any
         // human-entered invite code.
@@ -101,14 +101,16 @@ class BHS_Jam {
         return $code;
     }
 
-    private static function get_session_row($code) {
+    /** @return array<string, mixed>|null */
+    private static function get_session_row(string $code): ?array {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE invite_code = %s AND status = 'active'", $code
         ), ARRAY_A);
     }
 
-    private static function is_participant($session, $uid) {
+    /** @param array<string, mixed> $session */
+    private static function is_participant(array $session, int $uid): bool {
         if ((int) $session['host_user_id'] === $uid) return true;
         global $wpdb;
         $row = $wpdb->get_var($wpdb->prepare(
@@ -117,7 +119,7 @@ class BHS_Jam {
         return (bool) $row;
     }
 
-    private static function participant_count($session_id) {
+    private static function participant_count(int $session_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::ptable() . " WHERE session_id = %d", $session_id
@@ -132,11 +134,12 @@ class BHS_Jam {
     // not 0 — 0 would let literally nothing ever pass a ">= 0" check
     // trivially true from the very first vote_skip() call, or worse, an
     // "already skipped" state with zero real votes on record).
-    private static function skip_votes_needed($session_id) {
+    private static function skip_votes_needed(int $session_id): int {
         return max(1, (int) ceil(self::participant_count($session_id) * self::SKIP_VOTE_RATIO));
     }
 
-    private static function participants_list($session_id) {
+    /** @return array<int, array<string, mixed>> */
+    private static function participants_list(int $session_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT user_id, display_name FROM " . self::ptable() . " WHERE session_id = %d ORDER BY joined_at ASC", $session_id
@@ -149,7 +152,11 @@ class BHS_Jam {
     // monetization-gated track behaves identically inside a Jam as it
     // does everywhere else in the player (still locked for whoever
     // doesn't have access, even mid-session).
-    private static function tracks_payload($ids) {
+    /**
+     * @param array<int, int> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private static function tracks_payload(array $ids): array {
         $out = [];
         foreach ($ids as $id) {
             $post = get_post((int) $id);
@@ -159,7 +166,11 @@ class BHS_Jam {
         return $out;
     }
 
-    private static function decode_state($row) {
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function decode_state(array $row): array {
         $state = json_decode((string) $row['state_json'], true);
         $defaults = [
             'queue' => [], 'index' => 0, 'playing' => false, 'position' => 0, 'position_updated_at' => time(),
@@ -168,7 +179,12 @@ class BHS_Jam {
         return is_array($state) ? array_merge($defaults, $state) : $defaults;
     }
 
-    private static function respond($session, $state, $uid) {
+    /**
+     * @param array<string, mixed> $session
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private static function respond(array $session, array $state, int $uid): array {
         $is_host = (int) $session['host_user_id'] === $uid;
         $out = [
             'code' => $session['invite_code'],
@@ -198,7 +214,7 @@ class BHS_Jam {
         return $out;
     }
 
-    private static function maybe_expire_stale() {
+    private static function maybe_expire_stale(): void {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "UPDATE " . self::table() . " SET status = 'ended' WHERE status = 'active' AND updated_at < %s",
@@ -208,7 +224,8 @@ class BHS_Jam {
 
     /* ---------------- endpoints ---------------- */
 
-    public static function create($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function create(\WP_REST_Request $req) {
         if (self::rate_limited('create', 10, 60)) {
             return new WP_Error('rate_limited', 'Too many Jam sessions started — wait a moment and try again.', ['status' => 429]);
         }
@@ -270,7 +287,8 @@ class BHS_Jam {
         return rest_ensure_response(self::respond($session, self::decode_state($session), $uid));
     }
 
-    public static function join($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function join(\WP_REST_Request $req) {
         if (self::rate_limited('join', 20, 60)) {
             return new WP_Error('rate_limited', 'Too many join attempts — wait a moment and try again.', ['status' => 429]);
         }
@@ -322,7 +340,8 @@ class BHS_Jam {
         return rest_ensure_response(self::respond($session, self::decode_state($session), $uid));
     }
 
-    public static function approve($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function approve(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -347,7 +366,8 @@ class BHS_Jam {
         return rest_ensure_response(self::respond($session, $state, $uid));
     }
 
-    public static function deny($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function deny(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -365,7 +385,8 @@ class BHS_Jam {
         return rest_ensure_response(self::respond($session, $state, $uid));
     }
 
-    public static function get_state($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_state(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -386,7 +407,8 @@ class BHS_Jam {
     // one place host-only enforcement matters most — a non-host caller
     // gets a plain 403, never a silent no-op, so the client can tell
     // the difference between "you're not allowed" and "request failed."
-    public static function push_host_state($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function push_host_state(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -425,7 +447,8 @@ class BHS_Jam {
     // vote_skip mode's whole point: available to ANY participant
     // (deliberately not host-only), majority-gated so one person can't
     // unilaterally skip everyone else's pick.
-    public static function vote_skip($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function vote_skip(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -472,7 +495,8 @@ class BHS_Jam {
     // that would otherwise make kicking pointless.
     const KICK_REJOIN_BLOCK_SECONDS = 10 * MINUTE_IN_SECONDS;
 
-    public static function kick($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function kick(\WP_REST_Request $req) {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return new WP_Error('not_found', 'That Jam has ended.', ['status' => 404]);
         $uid = get_current_user_id();
@@ -489,7 +513,7 @@ class BHS_Jam {
         return rest_ensure_response(['ok' => true]);
     }
 
-    public static function leave($req) {
+    public static function leave(\WP_REST_Request $req): \WP_REST_Response {
         $session = self::get_session_row($req->get_param('code'));
         if (!$session) return rest_ensure_response(['ok' => true]); // already gone, nothing to undo
         $uid = get_current_user_id();

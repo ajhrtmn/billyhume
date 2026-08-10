@@ -13,16 +13,21 @@ if (!defined('ABSPATH')) exit;
 class BHS_TestSuite {
     const SEED_TAG = 'bhs_test_suite';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register(array $suites): array {
         $suites['bh-streaming'] = ['label' => 'BH Streaming', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHS_ISRC')) {
             return [['name' => 'BHS_ISRC not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -42,7 +47,8 @@ class BHS_TestSuite {
     // pass (real track, real chapter lines, real player), but the pure
     // parsing/sorting logic deserves the same DB-backed real-fixture
     // coverage every other suite in this file already has.
-    private static function run_chapters_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_chapters_tests(): array {
         if (!class_exists('BHS_Chapters')) return [];
         $rows = [];
 
@@ -102,7 +108,8 @@ class BHS_TestSuite {
 
     /* ---------- BHS_ISRC ---------- */
 
-    private static function run_isrc_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_isrc_tests(): array {
         $rows = [];
 
         $rows[] = OUS_TestRunner::assert_true(
@@ -158,7 +165,8 @@ class BHS_TestSuite {
 
     /* ---------- BHS_Jam skip-vote threshold ---------- */
 
-    private static function run_jam_skip_vote_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_jam_skip_vote_tests(): array {
         if (!class_exists('BHS_Jam')) return [];
         $rows = [];
         global $wpdb;
@@ -212,7 +220,8 @@ class BHS_TestSuite {
 
     /* ---------- BHS_Recommendations content-based scoring ---------- */
 
-    private static function run_recommendations_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_recommendations_tests(): array {
         if (!class_exists('BHS_Recommendations')) return [];
         $rows = [];
 

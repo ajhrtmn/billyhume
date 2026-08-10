@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) exit;
  * on every install by changing WordPress's own role defaults.
  */
 class BHS_Import {
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhs/v1', '/import', [
             'methods'  => 'POST',
             'callback' => [self::class, 'import_local_file'],
@@ -50,7 +50,8 @@ class BHS_Import {
     // rather than touching $_FILES directly, so file-type sniffing,
     // upload-size limits, and the uploads-directory sandboxing all stay
     // exactly what a real WordPress install already enforces.
-    public static function import_local_file($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function import_local_file(\WP_REST_Request $req) {
         if (empty($_FILES['audio'])) {
             return new WP_Error('missing_file', 'No audio file provided (expected multipart field "audio").', ['status' => 400]);
         }
@@ -101,7 +102,7 @@ class BHS_Import {
 
     // Every logged-in user's own imported tracks — deliberately scoped
     // to post_author = current user, same ownership model as playlists.
-    public static function get_my_imports() {
+    public static function get_my_imports(): \WP_REST_Response {
         return new WP_REST_Response(['success' => true, 'tracks' => array_map(['BHS_API', 'track_payload'], self::imports_for_user(get_current_user_id()))], 200);
     }
 
@@ -115,14 +116,16 @@ class BHS_Import {
     // directly (the established class_exists()-guarded cross-plugin
     // call convention this ecosystem already uses) without needing a
     // round-trip through the REST layer.
-    public static function imports_for_user($user_id) {
+    /** @return \WP_Post[] */
+    public static function imports_for_user(int $user_id): array {
         return get_posts([
             'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
             'author' => (int) $user_id, 'meta_key' => '_bhs_source', 'meta_value' => 'local-import',
         ]);
     }
 
-    public static function delete_import($req) {
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function delete_import(\WP_REST_Request $req) {
         $id = (int) $req->get_param('id');
         $post = get_post($id);
         if (!$post || $post->post_type !== 'bhs_track' || get_post_meta($id, '_bhs_source', true) !== 'local-import') {

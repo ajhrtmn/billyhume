@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) exit;
 class BHS_Activator {
     const DB_VERSION = '1.3'; // 1.2 added bhs_daily_stats; 1.3 renamed the bh_track/bh_release/bh_playlist post types to bhs_track/bhs_release/bhs_playlist — see rename_post_types_to_prefixed()
 
-    public static function activate() {
+    public static function activate(): void {
         BHS_PostTypes::register();
         if (self::create_or_update_schema()) {
             update_option('bhs_db_version', self::DB_VERSION);
@@ -22,7 +22,7 @@ class BHS_Activator {
         flush_rewrite_rules();
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhs_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhs_db_version', self::DB_VERSION);
@@ -52,7 +52,7 @@ class BHS_Activator {
     // post_type = 'old' matching zero rows (already migrated, or a
     // fresh install that never had the old post type at all) is a
     // harmless no-op.
-    private static function rename_post_types_to_prefixed() {
+    private static function rename_post_types_to_prefixed(): void {
         global $wpdb;
         $renames = [
             'bh_track' => 'bhs_track',
@@ -71,7 +71,7 @@ class BHS_Activator {
         // itself, so there's nothing else to rename here.
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         $table   = $wpdb->prefix . 'bhs_likes';
@@ -163,7 +163,7 @@ class BHS_Activator {
     // a check that's only ever useful to an admin.
     const PAGES_VERSION = '1';
 
-    public static function maybe_create_default_pages() {
+    public static function maybe_create_default_pages(): void {
         if (get_option('bhs_pages_version') === self::PAGES_VERSION) return;
 
         self::maybe_create_singleton_page('bhs_streaming_page_id', 'Streaming', '[bh_streaming]');
@@ -175,7 +175,7 @@ class BHS_Activator {
     // page's status on every load — if someone manually trashes the
     // "Streaming" page, this won't notice and silently recreate it, a
     // deliberate choice since that's plausibly what they wanted.
-    private static function maybe_create_singleton_page($option_key, $title, $shortcode) {
+    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): void {
         if ((int) get_option($option_key, 0)) return;
 
         $new_id = wp_insert_post([

@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) exit;
  * sites below.
  */
 class BHS_Env {
-    public static function hidden_in_production() {
+    public static function hidden_in_production(): bool {
         if (defined('BHS_FORCE_VISIBLE') && BHS_FORCE_VISIBLE) return false;
         return !function_exists('wp_get_environment_type') || wp_get_environment_type() === 'production';
     }
