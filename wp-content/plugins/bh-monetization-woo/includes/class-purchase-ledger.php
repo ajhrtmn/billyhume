@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) exit;
  * of scope here.
  */
 class BHM_PurchaseLedger {
-    public static function init() {
+    public static function init(): void {
         // Registered as SEPARATE callbacks on the same hooks
         // BHM_Entitlements already uses — this class never modifies or
         // calls into class-entitlements.php, it just observes the same
@@ -47,7 +47,7 @@ class BHM_PurchaseLedger {
     // through any standard `ots verify` tool independent of this site —
     // the whole point of anchoring is that verification doesn't have to
     // go through bh-monetization-woo's own code.
-    public static function maybe_serve_proof_file() {
+    public static function maybe_serve_proof_file(): void {
         if (!isset($_GET['bhm_download_proof'])) return;
         $row = self::get((int) $_GET['bhm_download_proof']);
         if (!$row || $row->anchor_status !== 'confirmed' || !$row->anchor_proof) {
@@ -63,7 +63,7 @@ class BHM_PurchaseLedger {
         exit;
     }
 
-    public static function on_order_completed($order_id) {
+    public static function on_order_completed(int $order_id): void {
         $order = BH_Commerce::get_order($order_id);
         if (!$order || !$order['customer_id']) return;
 
@@ -87,7 +87,7 @@ class BHM_PurchaseLedger {
         }
     }
 
-    public static function on_order_reversed($order_id) {
+    public static function on_order_reversed(int $order_id): void {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_purchase_ledger';
         // Every still-un-reversed purchase row for this order gets a
@@ -104,7 +104,7 @@ class BHM_PurchaseLedger {
         }
     }
 
-    private static function write_row($event_type, $order_id, $user_id, $track_id, $content_hash, $price_cents, $linked_record_id) {
+    private static function write_row(string $event_type, int $order_id, int $user_id, int $track_id, string $content_hash, int $price_cents, ?int $linked_record_id): int {
         global $wpdb;
         $record_hash = hash('sha256', wp_json_encode([
             'event_type' => $event_type, 'order_id' => (int) $order_id, 'user_id' => (int) $user_id,
@@ -132,14 +132,15 @@ class BHM_PurchaseLedger {
         return $row_id;
     }
 
-    private static function first_track_of_release($release_id) {
-        $tracks = get_posts(['post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => 1, 'meta_key' => '_bhs_release_id', 'meta_value' => $release_id, 'fields' => 'ids']);
+    private static function first_track_of_release(int $release_id): int {
+        $tracks = get_posts(['post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => 1, 'meta_key' => '_bhs_release_id', 'meta_value' => (string) $release_id, 'fields' => 'ids']);
         return $tracks ? (int) $tracks[0] : 0;
     }
 
     /* ---------------- read helpers (used by the portal panel and bh-crm integration) ---------------- */
 
-    public static function for_user($user_id, $limit = 50) {
+    /** @return array<int, object> */
+    public static function for_user(int $user_id, int $limit = 50): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE user_id = %d AND event_type = 'purchase' ORDER BY created_at DESC LIMIT %d",
@@ -147,14 +148,14 @@ class BHM_PurchaseLedger {
         ));
     }
 
-    public static function reversal_for($purchase_row_id) {
+    public static function reversal_for(int $purchase_row_id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE linked_record_id = %d AND event_type = 'reversal'", $purchase_row_id
         ));
     }
 
-    public static function get($id) {
+    public static function get(int $id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE id = %d", (int) $id));
     }
@@ -166,7 +167,8 @@ class BHM_PurchaseLedger {
     // class-portal-panel.php), not the WooCommerce order id, so this
     // page never needs to re-derive which purchase within a
     // multi-item order is being verified.
-    public static function render_verify_shortcode($atts) {
+    /** @param mixed $atts */
+    public static function render_verify_shortcode($atts): string {
         $atts = shortcode_atts(['id' => 0], $atts);
         $row = self::get((int) $atts['id']);
         if (!$row || $row->event_type !== 'purchase') {
@@ -211,7 +213,7 @@ class BHM_PurchaseLedger {
         return ob_get_clean();
     }
 
-    public static function status_label($status) {
+    public static function status_label(string $status): string {
         return ['pending' => 'Pending', 'submitted' => 'Submitted, awaiting confirmation', 'confirmed' => 'Confirmed on-chain'][$status] ?? ucfirst($status);
     }
 }

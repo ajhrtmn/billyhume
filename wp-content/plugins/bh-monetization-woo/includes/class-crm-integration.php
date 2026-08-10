@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) exit;
  * bh_crm_activity_summary section, never something bolted onto this one.
  */
 class BHM_CRMIntegration {
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_crm_active_user_ids', [self::class, 'active_user_ids']);
         add_filter('bh_crm_activity_summary', [self::class, 'activity_summary'], 10, 2);
         add_action('admin_post_bhm_revoke_entitlement', [self::class, 'handle_revoke_entitlement']);
@@ -33,7 +33,7 @@ class BHM_CRMIntegration {
      * sync, bh-courses' own course-access notice, etc.) sees this as
      * identical to a real refund — not a second, divergent code path.
      */
-    public static function handle_revoke_entitlement() {
+    public static function handle_revoke_entitlement(): void {
         if (!current_user_can('bhcore_view_crm_sensitive') || !check_admin_referer('bhm_revoke_entitlement')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -48,14 +48,22 @@ class BHM_CRMIntegration {
         exit;
     }
 
-    public static function active_user_ids($ids) {
+    /**
+     * @param array<int, int> $ids
+     * @return array<int, int>
+     */
+    public static function active_user_ids($ids): array {
         global $wpdb;
         $entitled = $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhm_entitlements");
         $wallets = $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhm_wallet WHERE balance_cents > 0");
         return array_merge($ids, $entitled, $wallets);
     }
 
-    public static function activity_summary($sections, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $sections
+     * @return array<int, array<string, mixed>>
+     */
+    public static function activity_summary($sections, int $user_id): array {
         global $wpdb;
         // QA fix: wallet balance, tier, purchase history, and refund-
         // fraud flags were shown to anyone who could reach the CRM
@@ -116,11 +124,12 @@ class BHM_CRMIntegration {
         return $sections;
     }
 
-    private static function render_detail($entitlements, $balance, $refund_count = 0, $flagged = false, $shared_device_flagged = false, $velocity_flagged = false, $topup_flagged = false, $topup_recent_cents = 0) {
+    /** @param array<int, object> $entitlements */
+    private static function render_detail($entitlements, int $balance, int $refund_count = 0, bool $flagged = false, bool $shared_device_flagged = false, bool $velocity_flagged = false, bool $topup_flagged = false, int $topup_recent_cents = 0): void {
         echo '<p><strong>Wallet balance:</strong> $' . esc_html(BHM_Money::display($balance)) . '</p>';
         if ($refund_count > 0) {
             echo '<p' . ($flagged ? ' style="color:#b32d2e;font-weight:600;"' : '') . '>'
-               . ($flagged ? '⚠ ' : '') . esc_html($refund_count) . ' refund' . ($refund_count === 1 ? '' : 's') . ' in the last 30 days'
+               . ($flagged ? '⚠ ' : '') . esc_html((string) $refund_count) . ' refund' . ($refund_count === 1 ? '' : 's') . ' in the last 30 days'
                . ($flagged ? ' — repeated-refund pattern, worth a human look before extending further trust (e.g. wallet top-ups).' : '') . '</p>';
         }
         if ($topup_flagged) {
@@ -150,7 +159,7 @@ class BHM_CRMIntegration {
         self::maybe_print_revoke_script();
     }
 
-    private static function maybe_print_revoke_script() {
+    private static function maybe_print_revoke_script(): void {
         static $printed = false;
         if ($printed) return;
         $printed = true;

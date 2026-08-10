@@ -40,12 +40,12 @@ class BHM_Blocks {
     // the time this runs) sidesteps the whole footgun — there's nothing
     // register_block_type() needs from a later point in 'init' that
     // isn't already available the moment this executes.
-    public static function init() {
+    public static function init(): void {
         self::register_block();
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function register_block() {
+    public static function register_block(): void {
         if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
 
         wp_register_script(
@@ -90,21 +90,24 @@ class BHM_Blocks {
     // editor's ServerSideRender call — this IS the front end, the block
     // has no separate saved markup of its own (see bhm-blocks.js's
     // save(): return null).
-    public static function render_buy($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_buy($attributes): string {
         $id = (int) ($attributes['id'] ?? 0);
         if (!$id) return '';
         return BHM_Frontend::render_purchase_button(['id' => $id]);
     }
 
-    public static function render_tip_jar($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_tip_jar($attributes): string {
         return BHM_Frontend::render_tip_jar($attributes);
     }
 
-    public static function render_tiers($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_tiers($attributes): string {
         return BHM_Frontend::render_tiers();
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhm/v1', '/purchasable-objects', [
             'methods' => 'GET',
             'callback' => [self::class, 'rest_purchasable_objects'],
@@ -121,7 +124,8 @@ class BHM_Blocks {
     // _bhm_purchase_price_cents gate render_purchase_button() itself
     // already checks), so an author can never pick an object that would
     // just render blank.
-    public static function rest_purchasable_objects($req) {
+    /** @return \WP_REST_Response */
+    public static function rest_purchasable_objects(\WP_REST_Request $req) {
         $q = new WP_Query([
             'post_type' => ['bhs_track', 'bhs_release'],
             'post_status' => 'publish',

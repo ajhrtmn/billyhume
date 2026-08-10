@@ -32,7 +32,7 @@ class BHM_Fraud {
     const REFUND_ABUSE_WINDOW = 30 * DAY_IN_SECONDS;
     const REFUND_ABUSE_THRESHOLD = 3;
 
-    public static function track_refund_pattern($user_id, $order_id) {
+    public static function track_refund_pattern(int $user_id, int $order_id): void {
         $log = get_user_meta($user_id, '_bhm_refund_log', true);
         $log = is_array($log) ? $log : [];
         $cutoff = time() - self::REFUND_ABUSE_WINDOW;
@@ -86,7 +86,7 @@ class BHM_Fraud {
     // has no established X-Forwarded-For handling convention yet.
     const FINGERPRINT_COOKIE = 'bhm_fp';
 
-    private static function fingerprint_for() {
+    private static function fingerprint_for(): string {
         if (empty($_COOKIE[self::FINGERPRINT_COOKIE])) {
             $val = wp_generate_password(32, false);
             if (!headers_sent()) {
@@ -98,7 +98,7 @@ class BHM_Fraud {
         return hash('sha256', $ip . '|' . $_COOKIE[self::FINGERPRINT_COOKIE]);
     }
 
-    public static function refund_count_recent($user_id) {
+    public static function refund_count_recent(int $user_id): int {
         $log = get_user_meta($user_id, '_bhm_refund_log', true);
         $log = is_array($log) ? $log : [];
         $cutoff = time() - self::REFUND_ABUSE_WINDOW;
@@ -122,11 +122,11 @@ class BHM_Fraud {
      */
     const TOPUP_VELOCITY_WINDOW = DAY_IN_SECONDS;
 
-    public static function topup_velocity_cap_cents() {
+    public static function topup_velocity_cap_cents(): int {
         return (int) apply_filters('bhm_topup_velocity_cap_cents', 50000); // $500/24h default
     }
 
-    public static function track_topup_velocity($user_id, $cents) {
+    public static function track_topup_velocity(int $user_id, int $cents): void {
         $log = get_user_meta($user_id, '_bhm_topup_log', true);
         $log = is_array($log) ? $log : [];
         $cutoff = time() - self::TOPUP_VELOCITY_WINDOW;
@@ -143,7 +143,7 @@ class BHM_Fraud {
         }
     }
 
-    public static function topup_total_recent_cents($user_id) {
+    public static function topup_total_recent_cents(int $user_id): int {
         $log = get_user_meta($user_id, '_bhm_topup_log', true);
         $log = is_array($log) ? $log : [];
         $cutoff = time() - self::TOPUP_VELOCITY_WINDOW;

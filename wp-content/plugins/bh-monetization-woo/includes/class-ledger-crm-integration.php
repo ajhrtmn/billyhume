@@ -15,11 +15,15 @@ if (!defined('ABSPATH')) exit;
  * cross-check against) whatever WooCommerce's own admin reports show.
  */
 class BHM_LedgerCRMIntegration {
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_crm_activity_summary', [self::class, 'activity_summary'], 10, 2);
     }
 
-    public static function activity_summary($sections, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $sections
+     * @return array<int, array<string, mixed>>
+     */
+    public static function activity_summary($sections, int $user_id): array {
         // Same sensitivity class as BHM_CRMIntegration's own wallet/
         // purchase data — this is financial/proof-of-purchase data.
         if (!current_user_can('bhcore_view_crm_sensitive')) return $sections;
@@ -49,7 +53,8 @@ class BHM_LedgerCRMIntegration {
         return $sections;
     }
 
-    private static function render_detail($purchases) {
+    /** @param array<int, object> $purchases */
+    private static function render_detail($purchases): void {
         echo '<p class="description">Tamper-evident proof-of-purchase records, anchored to a public ledger (OpenTimestamps/Bitcoin) — evidence of what was purchased and when, never a mechanism that restores or protects access after a legitimate refund/chargeback revocation.</p>';
         echo '<div class="bhy-table-wrap"><table class="wp-list-table widefat striped"><thead><tr><th>Track</th><th>Price</th><th>Purchased</th><th>Anchor status</th><th>Reversed</th></tr></thead><tbody>';
         foreach ($purchases as $p) {

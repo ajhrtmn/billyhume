@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * the admin-facing config those other classes read.
  */
 class BHM_MonetizationUI {
-    public static function init() {
+    public static function init(): void {
         // Entirely conditional on bh-streaming actually being active,
         // checked the same way class-streaming-bridge.php in bh-registry
         // does it (a class_exists() check safely inside an init-hooked
@@ -48,14 +48,14 @@ class BHM_MonetizationUI {
     // tracks, just via a different door. Only a track with NO _bhs_source
     // at all — meaning it went through the ordinary admin-managed
     // catalog flow, not a public upload/aggregation path — is eligible.
-    public static function is_non_catalog_track($post_id) {
+    public static function is_non_catalog_track(int $post_id): bool {
         return in_array(get_post_meta($post_id, '_bhs_source', true), ['external', 'local-import'], true);
     }
 
-    public static function render_track_ui($post) { self::render_object_ui($post, 'bhs_track'); }
-    public static function render_release_ui($post) { self::render_object_ui($post, 'bhs_release'); }
+    public static function render_track_ui(\WP_Post $post): void { self::render_object_ui($post, 'bhs_track'); }
+    public static function render_release_ui(\WP_Post $post): void { self::render_object_ui($post, 'bhs_release'); }
 
-    private static function render_object_ui($post, $post_type) {
+    private static function render_object_ui(\WP_Post $post, string $post_type): void {
         wp_nonce_field('bhm_save_object', 'bhm_object_nonce');
 
         if ($post_type === 'bhs_track' && self::is_non_catalog_track($post->ID)) {
@@ -98,10 +98,10 @@ class BHM_MonetizationUI {
         echo '<p><label><strong>Pay-per-play price (USD, optional)</strong><br><input type="number" step="0.01" min="0" name="bhm_pay_per_play" value="' . esc_attr($pay_per_play ? BHM_Money::price($pay_per_play) : '') . '" style="width:140px;"> <span class="description">Debited from the listener\'s play-credit wallet each time they start this track. Leave blank for free streaming (subject to any tier requirement above).</span></label></p>';
     }
 
-    public static function save_track($post_id) { self::save_object($post_id, 'bhs_track'); }
-    public static function save_release($post_id) { self::save_object($post_id, 'bhs_release'); }
+    public static function save_track(int $post_id): void { self::save_object($post_id, 'bhs_track'); }
+    public static function save_release(int $post_id): void { self::save_object($post_id, 'bhs_release'); }
 
-    private static function save_object($post_id, $post_type) {
+    private static function save_object(int $post_id, string $post_type): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhm_object_nonce']) || !wp_verify_nonce($_POST['bhm_object_nonce'], 'bhm_save_object')) return;
         if (!current_user_can('edit_post', $post_id)) return;

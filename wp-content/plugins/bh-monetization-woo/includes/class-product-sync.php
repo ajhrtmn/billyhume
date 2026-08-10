@@ -22,7 +22,7 @@ class BHM_ProductSync {
     // since the artist may just be toggling the field back and forth
     // while drafting; a stale-but-hidden annual product is harmless —
     // catalog_visibility is already 'hidden', same as the monthly one).
-    public static function sync_tier_wc_product($tier_post_id, $name, $price_cents, $annual_price_cents = 0, $trial_days = 0) {
+    public static function sync_tier_wc_product(int $tier_post_id, string $name, int $price_cents, int $annual_price_cents = 0, int $trial_days = 0): void {
         if (!(BH_Commerce::available())) return;
         $existing_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id', true);
         $existing_annual_id = (int) get_post_meta($tier_post_id, '_bhm_wc_product_id_annual', true);
@@ -125,7 +125,7 @@ class BHM_ProductSync {
     // Public (not private, unlike its original class-products.php home)
     // since BHM_MonetizationUI::save_object() now calls it from a
     // different class.
-    public static function sync_object_purchase_product($object_id, $post_type, $price_cents) {
+    public static function sync_object_purchase_product(int $object_id, string $post_type, int $price_cents): int {
         if (!(BH_Commerce::available())) return 0;
         $meta_key = '_bhm_purchase_wc_product_id';
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);

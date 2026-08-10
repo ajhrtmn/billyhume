@@ -18,7 +18,7 @@ class BHM_Referrals {
     const DISCOUNT_PERCENT = 10;  // what the customer saves by using the code
     const COMMISSION_PERCENT = 10; // what the referrer earns, of the order's actual (post-discount) total
 
-    public static function init() {
+    public static function init(): void {
         // Priority 20 — after BHM_Entitlements' own woocommerce_order_status_completed
         // handler (default priority 10, class-entitlements.php:15) has
         // already run, so a referral credit is never the FIRST thing to
@@ -26,7 +26,7 @@ class BHM_Referrals {
         add_action('woocommerce_order_status_completed', [self::class, 'on_order_completed'], 20);
     }
 
-    public static function code_for_user($user_id) {
+    public static function code_for_user(int $user_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
             "SELECT code FROM {$wpdb->prefix}bhm_referral_codes WHERE user_id = %d", $user_id
@@ -37,7 +37,7 @@ class BHM_Referrals {
     // looks at their own referral section for the first time — nothing
     // to clean up for the overwhelming majority of accounts that never
     // do.
-    public static function get_or_create_code($user_id) {
+    public static function get_or_create_code(int $user_id): string {
         $existing = self::code_for_user($user_id);
         if ($existing) return $existing;
         if (!BH_Commerce::available()) return '';
@@ -58,7 +58,7 @@ class BHM_Referrals {
         return $code;
     }
 
-    private static function generate_unique_code() {
+    private static function generate_unique_code(): string {
         for ($i = 0; $i < 5; $i++) {
             $code = strtoupper(substr(wp_generate_password(8, false, false), 0, 6));
             if (!self::code_taken($code)) return $code;
@@ -66,7 +66,7 @@ class BHM_Referrals {
         return '';
     }
 
-    private static function code_taken($code) {
+    private static function code_taken(string $code): bool {
         global $wpdb;
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT 1 FROM {$wpdb->prefix}bhm_referral_codes WHERE code = %s", $code
@@ -74,11 +74,11 @@ class BHM_Referrals {
         return (bool) $exists || (function_exists('wc_get_coupon_id_by_code') && wc_get_coupon_id_by_code($code));
     }
 
-    public static function calculate_commission_cents($order_total_dollars) {
+    public static function calculate_commission_cents(float $order_total_dollars): int {
         return (int) round(((float) $order_total_dollars) * 100 * (self::COMMISSION_PERCENT / 100));
     }
 
-    public static function on_order_completed($order_id) {
+    public static function on_order_completed(int $order_id): void {
         if (!function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order) return;
@@ -141,7 +141,8 @@ class BHM_Referrals {
         }
     }
 
-    public static function stats_for_referrer($user_id) {
+    /** @return array{redemptions:int, total_cents:int} */
+    public static function stats_for_referrer(int $user_id): array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT COUNT(*) AS redemptions, COALESCE(SUM(commission_cents), 0) AS total_cents
@@ -159,7 +160,7 @@ class BHM_Referrals {
     // portal panel uses for its own achievements section, rather than
     // this class registering an entirely separate panel for what's
     // really one more section of the same "money" panel.
-    public static function render_section($user_id) {
+    public static function render_section(int $user_id): void {
         if (!BH_Commerce::available()) return;
         $code = self::get_or_create_code($user_id);
         if (!$code) return;

@@ -8,11 +8,15 @@ if (!defined('ABSPATH')) exit;
  * browse page).
  */
 class BHM_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register($surfaces): array {
         $surfaces['bh-monetization-tiers'] = [
             'group' => 'Monetization', 'label' => 'Supporter Tiers',
             'render' => [self::class, 'preview'],
@@ -20,7 +24,8 @@ class BHM_StyleSurface {
         return $surfaces;
     }
 
-    public static function preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function preview(): array {
         ob_start();
         ?>
 <div class="bhm-tier-grid">

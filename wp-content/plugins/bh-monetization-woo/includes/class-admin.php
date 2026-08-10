@@ -12,12 +12,16 @@ if (!defined('ABSPATH')) exit;
  * WooCommerce itself.
  */
 class BHM_Admin {
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_registered_plugins', [self::class, 'register']);
         add_action('admin_post_bhm_save_settings', [self::class, 'save_settings']);
     }
 
-    public static function register($plugins) {
+    /**
+     * @param array<string, mixed> $plugins
+     * @return array<string, mixed>
+     */
+    public static function register($plugins): array {
         $plugins['bh-monetization-woo'] = [
             'label' => 'BH Monetization', 'file' => 'bh-monetization-woo/bh-monetization-woo.php',
             'depends_on' => ['woocommerce'], 'check_class' => 'BHM_Gate',
@@ -57,7 +61,7 @@ class BHM_Admin {
         return $plugins;
     }
 
-    public static function render() {
+    public static function render(): void {
         // Routed through BH_Commerce (this ecosystem's abstraction seam
         // over WooCommerce — nothing should be hard-wired to an
         // external, unmockable dependency) rather than a bare
@@ -126,7 +130,7 @@ class BHM_Admin {
     // testing) — an artist selling gifts had no ordinary way to check
     // "did they claim it yet." This is that ordinary view: status only,
     // no test-only claim-link column.
-    private static function render_gift_status() {
+    private static function render_gift_status(): void {
         if (!class_exists('BHM_Gifts')) return;
         global $wpdb;
         $t = $wpdb->prefix . BHM_Gifts::TABLE;
@@ -161,7 +165,7 @@ class BHM_Admin {
      * own screen. Same "wrap what already exists, don't rebuild it"
      * posture as OUS_MediaWizard pointing at Advanced Media Offloader.
      */
-    private static function render_get_paid_card() {
+    private static function render_get_paid_card(): void {
         $enabled = BH_Commerce::get_available_payment_gateways();
         $payments_url = admin_url('admin.php?page=wc-settings&tab=checkout');
 
@@ -182,7 +186,7 @@ class BHM_Admin {
         echo '</div>';
     }
 
-    public static function save_settings() {
+    public static function save_settings(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['bhm_settings_nonce'] ?? '', 'bhm_save_settings')) {
             wp_die('Not allowed.');
         }

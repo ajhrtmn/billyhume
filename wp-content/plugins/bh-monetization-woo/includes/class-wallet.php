@@ -11,25 +11,25 @@ if (!defined('ABSPATH')) exit;
  * kind of row queried differently (a running balance vs. a yes/no check).
  */
 class BHM_Wallet {
-    public static function init() {
+    public static function init(): void {
         // Pure API class, no hooks of its own to register — see
         // BHM_Gate::init() for the same reasoning.
     }
 
-    public static function balance_cents($user_id) {
+    public static function balance_cents(int $user_id): int {
         global $wpdb;
         $bal = $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id));
         return $bal === null ? 0 : (int) $bal;
     }
 
-    public static function held_cents($user_id) {
+    public static function held_cents(int $user_id): int {
         global $wpdb;
         $held = $wpdb->get_var($wpdb->prepare("SELECT held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id));
         return $held === null ? 0 : (int) $held;
     }
 
     /** What's actually still spendable/biddable right now — balance minus whatever's already committed to an open auction bid. */
-    public static function available_cents($user_id) {
+    public static function available_cents(int $user_id): int {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare("SELECT balance_cents, held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id), ARRAY_A);
         return $row ? ((int) $row['balance_cents'] - (int) $row['held_cents']) : 0;
@@ -44,7 +44,7 @@ class BHM_Wallet {
     // SAME atomic UPDATE, guarded by its own WHERE clause, so two bids
     // racing for the same low-available-balance user can't both pass a
     // prior read before either commits.
-    public static function hold($user_id, $cents, $reason, $ref_id = null) {
+    public static function hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
         $w = $wpdb->prefix . 'bhm_wallet';
@@ -74,7 +74,7 @@ class BHM_Wallet {
     }
 
     /** Releases a hold without ever touching balance_cents — the outbid/lost path. Floors at 0 so a duplicate release call can't drive held_cents negative. */
-    public static function release_hold($user_id, $cents, $reason, $ref_id = null) {
+    public static function release_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
         $w = $wpdb->prefix . 'bhm_wallet';
@@ -101,7 +101,7 @@ class BHM_Wallet {
     // held_cents >= $cents in its own WHERE clause rather than trusting
     // the caller's bookkeeping — a capture can only ever spend money
     // that was genuinely held for it.
-    public static function capture_hold($user_id, $cents, $reason, $ref_id = null) {
+    public static function capture_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
         $w = $wpdb->prefix . 'bhm_wallet';
@@ -135,7 +135,7 @@ class BHM_Wallet {
         return true;
     }
 
-    public static function credit($user_id, $cents, $reason, $track_id = null, $order_id = null) {
+    public static function credit(int $user_id, int $cents, string $reason, ?int $track_id = null, ?int $order_id = null): void {
         self::apply_delta($user_id, abs((int) $cents), $reason, $track_id, $order_id);
         // Fraud/abuse velocity cap — only real purchased
         // top-ups count against this, not admin grants or refund-
@@ -157,7 +157,7 @@ class BHM_Wallet {
     // balance negative) — the check and the write are the SAME atomic
     // UPDATE statement, guarded by its own WHERE clause, with success
     // determined by $wpdb->rows_affected rather than a prior read.
-    public static function debit($user_id, $cents, $track_id = null, $reason = 'play') {
+    public static function debit(int $user_id, int $cents, ?int $track_id = null, string $reason = 'play'): bool {
         global $wpdb;
         $cents = abs((int) $cents);
         $w = $wpdb->prefix . 'bhm_wallet';
@@ -217,11 +217,11 @@ class BHM_Wallet {
     // nor "the listener spent credit on a play" — it's undoing a grant
     // after the fact, with its own explicit reason string in the ledger
     // rather than being disguised as either of those two.
-    public static function apply_ledger_delta($user_id, $delta_cents, $reason, $track_id = null, $order_id = null) {
+    public static function apply_ledger_delta(int $user_id, int $delta_cents, string $reason, ?int $track_id = null, ?int $order_id = null): void {
         self::apply_delta($user_id, (int) $delta_cents, $reason, $track_id, $order_id);
     }
 
-    private static function apply_delta($user_id, $delta_cents, $reason, $track_id, $order_id) {
+    private static function apply_delta(int $user_id, int $delta_cents, string $reason, ?int $track_id, ?int $order_id): void {
         global $wpdb;
         $w = $wpdb->prefix . 'bhm_wallet';
         $l = $wpdb->prefix . 'bhm_wallet_ledger';
@@ -262,7 +262,8 @@ class BHM_Wallet {
         }
     }
 
-    public static function ledger_for($user_id, $limit = 20) {
+    /** @return array<int, object> */
+    public static function ledger_for(int $user_id, int $limit = 20): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}bhm_wallet_ledger WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",

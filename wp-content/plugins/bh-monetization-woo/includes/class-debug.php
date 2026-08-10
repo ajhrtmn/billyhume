@@ -25,11 +25,15 @@ if (!defined('ABSPATH')) exit;
 class BHM_Debug {
     const SEED_TAG = '__bhm_test__';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);
     }
 
-    public static function register($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register($tools): array {
         $tools['bh-monetization-woo'] = [
             'label'  => 'BH Monetization',
             'render' => [self::class, 'render_section'],
@@ -40,7 +44,7 @@ class BHM_Debug {
         return $tools;
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         $uid = get_current_user_id();
         echo '<p>Simulate every money-tied code path without a real WooCommerce checkout. All actions apply to <strong>your own current account</strong> (user #' . esc_html((string) $uid) . ') unless noted.</p>';
 
@@ -82,7 +86,7 @@ class BHM_Debug {
             $mock_sub_id = self::user_mock_subscription_id($uid);
             if ($mock_sub_id) {
                 $data = BHM_MockCommerce::get($mock_sub_id);
-                echo '<p class="description">Your fake subscription #' . esc_html($mock_sub_id) . ' is currently: <strong>' . esc_html($data['status'] ?? 'unknown') . '</strong></p>';
+                echo '<p class="description">Your fake subscription #' . esc_html((string) $mock_sub_id) . ' is currently: <strong>' . esc_html($data['status'] ?? 'unknown') . '</strong></p>';
                 echo OUS_Debug::button('bh-monetization-woo', 'mock_pause', 'Pause it (fires the real on_subscription_paused())');
                 echo OUS_Debug::button('bh-monetization-woo', 'mock_resume', 'Resume it (fires the real on_subscription_active())');
                 echo OUS_Debug::button('bh-monetization-woo', 'mock_cancel', 'Cancel/end it (fires the real on_subscription_ended())');
@@ -126,7 +130,8 @@ class BHM_Debug {
         }
     }
 
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, $post): string {
         $uid = get_current_user_id();
         global $wpdb;
 
@@ -320,7 +325,7 @@ class BHM_Debug {
     // (BHM_MockCommerce::next_id()'s own reasoning), so this is a plain
     // lookup against the real bhm_entitlements table, not a second
     // parallel store of "which fake sub is this user's."
-    private static function user_mock_subscription_id($user_id) {
+    private static function user_mock_subscription_id(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT wc_subscription_id FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d AND wc_subscription_id >= 900001 ORDER BY id DESC LIMIT 1",
@@ -328,7 +333,7 @@ class BHM_Debug {
         ));
     }
 
-    public static function reset() {
+    public static function reset(): string {
         global $wpdb;
         $like = '%' . $wpdb->esc_like(self::SEED_TAG) . '%';
 

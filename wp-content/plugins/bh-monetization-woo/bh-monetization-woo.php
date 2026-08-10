@@ -2,13 +2,34 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.13
+ * Version:     0.5.14
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.5.14 — Ecosystem quality Phase 2, brick 11/13: bh-monetization-woo is
+// now clean at PHPStan level 6 (native return/parameter types + precise
+// array-shape PHPDoc throughout every file in includes/, no shortcuts).
+// The largest brick in this phase so far — 30 files, ~532 findings.
+// Covers class-wallet.php (hold/release/capture-hold prepaid credit
+// ledger), class-entitlements.php (the order/subscription -> entitlement
+// bridge), class-storefront.php, class-frontend.php, class-mock-
+// commerce.php, class-products.php, class-purchase-ledger.php, class-
+// gate.php, class-tiers.php, class-play-gating.php, class-gifts.php,
+// class-auctions.php, class-monetization-ui.php, class-crm-
+// integration.php, class-referrals.php, class-anchoring.php, class-
+// fraud.php, class-downloads.php, class-blocks.php, class-test-suite.php,
+// class-product-sync.php, class-debug.php, class-recommendations.php,
+// class-admin.php, class-portal-panel.php, class-money.php, class-
+// ledger-crm-integration.php, class-style-surface.php, class-
+// activator.php. No behavior changes — a handful of get_posts()/
+// esc_html()/esc_attr() call sites needed an explicit (string)/(int)
+// cast at the call site once their surrounding parameter picked up a
+// native type. Scoped bh-monetization-woo PHPStan level 6 check and the
+// full 12-plugin level 5 ecosystem check both come back clean.
+// NOT runtime-verified against a live WordPress+MySQL+WooCommerce install.
 // 0.5.13 — Real bugs surfaced by the repo-root PHPStan pass, now
 // actually running with a real php-stubs/woocommerce-stubs package
 // installed (own-ur-shit 3.10.10) instead of WC_* symbols just being
@@ -192,7 +213,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.13');
+define('BHM_VER',  '0.5.14');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

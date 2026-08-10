@@ -14,16 +14,21 @@ if (!defined('ABSPATH')) exit;
  * just be two ways of doing the same thing, not real extra coverage.
  */
 class BHM_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['bh-monetization-woo'] = ['label' => 'BH Monetization', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner')) return [];
         if (!class_exists('BHM_Gate') || !class_exists('BHM_Tiers')) {
             return [['name' => 'BHM_Gate/BHM_Tiers not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
@@ -223,7 +228,8 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    private static function run_tier_exclusivity_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_tier_exclusivity_tests(): array {
         $rows = [];
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
@@ -270,7 +276,8 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    private static function run_wallet_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_wallet_tests(): array {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_suite', false); // false = always a fresh user, never reuse a pool member mid-assertions
@@ -329,7 +336,8 @@ class BHM_TestSuite {
      * above, since these are exactly the kind of atomic-UPDATE-with-a-
      * WHERE-clause logic worth exercising for real rather than mocking.
      */
-    private static function run_wallet_hold_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_wallet_hold_tests(): array {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_hold_suite', false);
@@ -373,7 +381,8 @@ class BHM_TestSuite {
      * for a product (see the call site's own comment on why that's a
      * faithful stand-in here).
      */
-    private static function run_auction_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_auction_tests(): array {
         $rows = [];
         global $wpdb;
         $bidder_a = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_a', false);
@@ -454,7 +463,8 @@ class BHM_TestSuite {
         return $rows;
     }
 
-    private static function run_referral_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_referral_tests(): array {
         $rows = [];
         global $wpdb;
 
@@ -546,7 +556,8 @@ class BHM_TestSuite {
     // submission round-trip works). This only asserts that write_row()
     // successfully ENQUEUES the job — a job-queue interaction, not the
     // HTTP call itself.
-    private static function run_purchase_ledger_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_purchase_ledger_tests(): array {
         if (!class_exists('BHS_API')) return []; // content_hash lookup needs a real bhs_track
 
         $rows = [];

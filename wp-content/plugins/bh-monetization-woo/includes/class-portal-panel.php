@@ -13,11 +13,15 @@ if (!defined('ABSPATH')) exit;
  * on top of that, not a reimplementation of WooCommerce's billing UI.
  */
 class BHM_PortalPanel {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel($panels): array {
         $panels[] = [
             'id' => 'membership',
             'label' => 'Membership & Wallet',
@@ -38,7 +42,8 @@ class BHM_PortalPanel {
     // (grant_entitlement()'s 'purchase' type), which have nothing to do
     // with "active tiers" and would have shown up here as bogus
     // "Tier #123" rows once the column-name bug above was fixed.
-    private static function active_entitlements($user_id) {
+    /** @return array<int, array<string, mixed>> */
+    private static function active_entitlements(int $user_id): array {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         $now = current_time('mysql');
@@ -48,7 +53,7 @@ class BHM_PortalPanel {
         ), ARRAY_A);
     }
 
-    public static function render() {
+    public static function render(): void {
         $user_id = get_current_user_id();
 
         echo '<h1>Membership &amp; Wallet</h1>';

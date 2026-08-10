@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * future one to hook in, args: ($user_id, $type, $scope, $object_id[, $reason]).
  */
 class BHM_Entitlements {
-    public static function init() {
+    public static function init(): void {
         add_action('woocommerce_order_status_completed', [self::class, 'on_order_completed']);
         // A refunded or cancelled order must actually TAKE BACK whatever
         // it granted — otherwise a chargeback (a real, common fraud
@@ -54,7 +54,7 @@ class BHM_Entitlements {
     // isn't one of ours. Handles: tier purchases (one-time, when
     // WooCommerce Subscriptions isn't active), track/release purchases,
     // and wallet top-ups.
-    public static function on_order_completed($order_id) {
+    public static function on_order_completed(int $order_id): void {
         // BH_Commerce::get_order() normalizes the order into a plain
         // array (id/status/customer_id/total_cents/items[{product_id,quantity}])
         // — this file no longer touches a WC_Order object directly, same
@@ -148,7 +148,7 @@ class BHM_Entitlements {
     // some of the disputed credit doesn't end up with a negative
     // balance; the artist absorbs whatever was already spent, same as
     // any real merchant would on a chargeback for a consumed good.
-    public static function on_order_reversed($order_id) {
+    public static function on_order_reversed(int $order_id): void {
         global $wpdb;
         $order = BH_Commerce::get_order($order_id);
         if (!$order) return;
@@ -213,7 +213,8 @@ class BHM_Entitlements {
     // normalize_subscription() is the one place that reaches into
     // get_customer_id()/get_items()/get_id(), same treatment
     // BH_Commerce::get_order() already gives WC_Order objects.
-    public static function on_subscription_active($subscription) {
+    /** @param mixed $subscription */
+    public static function on_subscription_active($subscription): void {
         $sub = BH_Commerce::normalize_subscription($subscription);
         if (!$sub) {
             // Fallback for an old core without BH_Commerce — same
@@ -232,7 +233,8 @@ class BHM_Entitlements {
         }
     }
 
-    public static function on_subscription_ended($subscription) {
+    /** @param mixed $subscription */
+    public static function on_subscription_ended($subscription): void {
         self::revoke_subscription_entitlements($subscription, 'subscription_ended');
     }
 
@@ -248,11 +250,13 @@ class BHM_Entitlements {
      * fan resumes (WooCommerce Subscriptions fires that same event again
      * on the way out of on-hold) — nothing extra needed on that side.
      */
-    public static function on_subscription_paused($subscription) {
+    /** @param mixed $subscription */
+    public static function on_subscription_paused($subscription): void {
         self::revoke_subscription_entitlements($subscription, 'subscription_paused');
     }
 
-    private static function revoke_subscription_entitlements($subscription, $reason) {
+    /** @param mixed $subscription */
+    private static function revoke_subscription_entitlements($subscription, string $reason): void {
         global $wpdb;
         $sub_id = $subscription->get_id(); // trivial accessor, not worth a full normalize_subscription() round trip just for this
         $t = $wpdb->prefix . 'bhm_entitlements';
@@ -297,7 +301,7 @@ class BHM_Entitlements {
     // grant_entitlement()'s order/subscription-keyed idempotency check —
     // BHM_Gifts' own `status = 'redeemed'` guard is what prevents a
     // double-claim, not this.
-    public static function grant_gift_entitlement($user_id, $tier_id, $order_id) {
+    public static function grant_gift_entitlement(int $user_id, int $tier_id, int $order_id): void {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         // Same tier-exclusivity enforcement grant_entitlement() applies —
@@ -319,7 +323,8 @@ class BHM_Entitlements {
     // independently-written copies of "delete a row and maybe notify"
     // drifting apart. Returns the deleted row (as an array) on success,
     // or null if no such entitlement existed.
-    public static function revoke_entitlement_by_id($entitlement_id, $reason = 'manual_revoke') {
+    /** @return array<string, mixed>|null */
+    public static function revoke_entitlement_by_id(int $entitlement_id, string $reason = 'manual_revoke'): ?array {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", (int) $entitlement_id), ARRAY_A);
@@ -349,11 +354,11 @@ class BHM_Entitlements {
     // the real purchase path. These two thin public wrappers route
     // Debug Tools through the exact same private grant_entitlement()
     // every real order/subscription webhook uses.
-    public static function debug_grant_tier($user_id, $tier_id, $days = 30) {
+    public static function debug_grant_tier(int $user_id, int $tier_id, int $days = 30): void {
         self::grant_entitlement($user_id, 'streaming_tier', 'account', (int) $tier_id, null, null, gmdate('Y-m-d H:i:s', strtotime('+' . (int) $days . ' days')));
     }
 
-    public static function debug_grant_purchase($user_id, $object_id, $scope = 'track') {
+    public static function debug_grant_purchase(int $user_id, int $object_id, string $scope = 'track'): void {
         self::grant_entitlement($user_id, 'purchase', $scope, (int) $object_id, null, null, null);
     }
 
@@ -369,7 +374,7 @@ class BHM_Entitlements {
     // a case the order/subscription-keyed idempotency check above
     // didn't happen to catch) is cleared silently — no downgrade-credit
     // math, no "you switched" messaging, since it isn't a tier change.
-    private static function replace_active_tier_entitlements($user_id, $new_tier_id) {
+    private static function replace_active_tier_entitlements(int $user_id, int $new_tier_id): bool {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         $now = current_time('mysql', true);
@@ -421,7 +426,7 @@ class BHM_Entitlements {
         return $replaced_different_tier;
     }
 
-    private static function grant_entitlement($user_id, $type, $scope, $object_id, $order_id, $subscription_id, $expires_at) {
+    private static function grant_entitlement(int $user_id, string $type, string $scope, int $object_id, ?int $order_id, ?int $subscription_id, ?string $expires_at): void {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
 

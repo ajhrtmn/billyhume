@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) exit;
 class BHM_Gifts {
     const TABLE = 'bhm_gift_redemptions';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('woocommerce_add_cart_item_data', [self::class, 'capture_gift_email'], 10, 2);
         add_filter('woocommerce_get_item_data', [self::class, 'show_gift_email_in_cart'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [self::class, 'persist_gift_email_to_order_item'], 10, 4);
@@ -35,7 +35,11 @@ class BHM_Gifts {
     // render_tiers()) — captured here into the cart item's own data
     // array, the standard WooCommerce extension point for exactly this
     // ("carry custom data alongside a cart line item").
-    public static function capture_gift_email($cart_item_data, $product_id) {
+    /**
+     * @param array<string, mixed> $cart_item_data
+     * @return array<string, mixed>
+     */
+    public static function capture_gift_email($cart_item_data, int $product_id): array {
         if (!empty($_REQUEST['bhm_gift']) && !empty($_REQUEST['bhm_gift_email'])) {
             $email = sanitize_email(wp_unslash($_REQUEST['bhm_gift_email']));
             if (is_email($email)) {
@@ -51,14 +55,22 @@ class BHM_Gifts {
         return $cart_item_data;
     }
 
-    public static function show_gift_email_in_cart($item_data, $cart_item) {
+    /**
+     * @param array<int, mixed> $item_data
+     * @param array<string, mixed> $cart_item
+     * @return array<int, mixed>
+     */
+    public static function show_gift_email_in_cart($item_data, $cart_item): array {
         if (!empty($cart_item['bhm_gift_email'])) {
             $item_data[] = ['name' => 'Gift for', 'value' => esc_html($cart_item['bhm_gift_email'])];
         }
         return $item_data;
     }
 
-    public static function persist_gift_email_to_order_item($item, $cart_item_key, $values, $order) {
+    /**
+     * @param array<string, mixed> $values
+     */
+    public static function persist_gift_email_to_order_item(\WC_Order_Item $item, string $cart_item_key, $values, \WC_Order $order): void {
         if (!empty($values['bhm_gift_email'])) {
             $item->add_meta_data('_bhm_gift_email', $values['bhm_gift_email'], true);
         }
@@ -68,7 +80,7 @@ class BHM_Gifts {
     // grant_entitlement() when the paid line item carries a gift email —
     // the buyer never gets the entitlement themselves, only the
     // recipient does, once they claim it.
-    public static function create_redemption($tier_id, $buyer_user_id, $order_id, $recipient_email) {
+    public static function create_redemption(int $tier_id, int $buyer_user_id, int $order_id, string $recipient_email): string {
         global $wpdb;
         $code = wp_generate_password(20, false, false);
         $wpdb->insert($wpdb->prefix . self::TABLE, [
@@ -110,12 +122,12 @@ class BHM_Gifts {
     // homepage (with the shortcode nowhere to render it, admittedly a
     // dead end) only until an admin actually creates a page containing
     // [bhm_redeem_gift] and points this option at it.
-    public static function redeem_page_url() {
+    public static function redeem_page_url(): string {
         $page_id = (int) get_option('bhm_gift_redeem_page_id', 0);
         return $page_id ? get_permalink($page_id) : home_url('/');
     }
 
-    public static function render_redeem_form() {
+    public static function render_redeem_form(): string {
         $code = isset($_GET['gift_code']) ? sanitize_text_field(wp_unslash($_GET['gift_code'])) : '';
         if (!$code) return '<p>No gift code provided.</p>';
 
@@ -147,7 +159,7 @@ class BHM_Gifts {
         return ob_get_clean();
     }
 
-    public static function handle_redeem() {
+    public static function handle_redeem(): void {
         $code = isset($_POST['gift_code']) ? sanitize_text_field(wp_unslash($_POST['gift_code'])) : '';
         if (!$code || !isset($_POST['bhm_redeem_nonce']) || !wp_verify_nonce($_POST['bhm_redeem_nonce'], 'bhm_redeem_gift_' . $code)) {
             wp_die('Invalid request.', 400);

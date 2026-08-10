@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) exit;
  * need revisiting later.
  */
 class BHM_Gate {
-    public static function init() {
+    public static function init(): void {
         // Nothing to hook yet — this class is a pure, stateless API
         // other code calls into (see USAGE below), not something that
         // needs its own WordPress hooks. Kept as an init() entry point
@@ -45,7 +45,7 @@ class BHM_Gate {
      * user_has_tier_access(..., 0) always returns true, so content stays
      * fully open by default unless something explicitly locks it.
      */
-    public static function get_required_tier($post_id) {
+    public static function get_required_tier(int $post_id): int {
         return (int) get_post_meta($post_id, '_bhm_required_tier', true);
     }
 
@@ -55,7 +55,7 @@ class BHM_Gate {
     // one-time purchase entitlement scoped directly to this object, OR
     // anything a future plugin's own filter callback decides to grant.
     // $required_tier = 0 always passes (nothing to unlock).
-    public static function user_has_tier_access($user_id, $required_tier, $object_id = null) {
+    public static function user_has_tier_access(int $user_id, int $required_tier, ?int $object_id = null): bool {
         if (!$required_tier) return true;
         if (!$user_id) return apply_filters('bhm_extra_entitlement_check', false, 0, $required_tier, $object_id);
 
@@ -113,7 +113,7 @@ class BHM_Gate {
      * benefit key is set on a course, and falls back to the price-tier
      * model otherwise — see BHC_Gate::user_can_access_course()).
      */
-    public static function user_has_benefit($user_id, $benefit_key, $object_id = null) {
+    public static function user_has_benefit(int $user_id, string $benefit_key, ?int $object_id = null): bool {
         if (!$benefit_key) return true;
         if (!$user_id) return apply_filters('bhm_extra_entitlement_check', false, 0, 0, $object_id);
 
@@ -179,7 +179,7 @@ class BHM_Gate {
     // money. One constant, referenced everywhere the assumption is used.
     const FALLBACK_ACCESS_DAYS = 30;
 
-    public static function calculate_downgrade_credit_cents($old_tier_price_cents, $days_remaining) {
+    public static function calculate_downgrade_credit_cents(int $old_tier_price_cents, int $days_remaining): int {
         if ($old_tier_price_cents <= 0 || $days_remaining <= 0) return 0;
         $daily_rate_cents = $old_tier_price_cents / self::FALLBACK_ACCESS_DAYS;
         return (int) round($daily_rate_cents * $days_remaining);
@@ -193,14 +193,14 @@ class BHM_Gate {
     // genuine discount (annual < 12x monthly) — never a misleading "0%"
     // or negative number if an admin priced annual at or above the
     // monthly-times-12 cost.
-    public static function annual_savings_percent($monthly_price_cents, $annual_price_cents) {
+    public static function annual_savings_percent(int $monthly_price_cents, int $annual_price_cents): int {
         $full_year_at_monthly_rate = $monthly_price_cents * 12;
         if ($full_year_at_monthly_rate <= 0) return 0;
         $percent = round((1 - ($annual_price_cents / $full_year_at_monthly_rate)) * 100);
         return max(0, (int) $percent);
     }
 
-    public static function handle_tier_downgrade($user_id, $old_tier_id, $new_tier_id, $expires_at) {
+    public static function handle_tier_downgrade(int $user_id, int $old_tier_id, int $new_tier_id, string $expires_at): void {
         // Routed through BH_Commerce::has_subscription_switching() as of
         // the BH_Commerce migration's second pass — same
         // class_exists('WC_Subscriptions_Switcher') check underneath,
@@ -239,7 +239,7 @@ class BHM_Gate {
     // content — deliberately generic markup (no track/release-specific
     // language) so a future courses plugin's own lesson page can use the
     // exact same call.
-    public static function render_paywall_notice($tier_id) {
+    public static function render_paywall_notice(int $tier_id): string {
         $tier = BHM_Tiers::get($tier_id);
         if (!$tier) return '<div class="bhm-paywall"><p>This content requires supporter access.</p></div>';
 

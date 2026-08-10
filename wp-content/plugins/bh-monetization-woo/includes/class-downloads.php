@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * than this plugin inventing its own file-serving mechanism.
  */
 class BHM_Downloads {
-    public static function init() {
+    public static function init(): void {
         if (!BH_Commerce::available()) return;
         // Attach the real file list to a purchase product right before
         // checkout completion needs it — lazily, at order-processing
@@ -41,7 +41,7 @@ class BHM_Downloads {
     // directory rule below, so real downloads actually work; (2) never
     // again let a failure HERE take down every other callback on this
     // hook, regardless of the cause — catch and log instead.
-    public static function attach_download_files($order_id) {
+    public static function attach_download_files(int $order_id): void {
         self::maybe_register_approved_directory();
 
         $order = wc_get_order($order_id);
@@ -69,7 +69,7 @@ class BHM_Downloads {
         }
     }
 
-    private static function attach_for_item($item) {
+    private static function attach_for_item(\WC_Order_Item_Product $item): void {
         $product_id = $item->get_product_id();
         $object_id = (int) get_post_meta($product_id, '_bhm_purchase_object_id', true);
         $object_type = get_post_meta($product_id, '_bhm_purchase_object_type', true);
@@ -107,8 +107,8 @@ class BHM_Downloads {
     // than only at plugin activation, so this can't be missed on an
     // install where the approved-directories feature was toggled on
     // after this plugin already activated.
-    private static $checked_this_request = false;
-    private static function maybe_register_approved_directory() {
+    private static bool $checked_this_request = false;
+    private static function maybe_register_approved_directory(): void {
         if (self::$checked_this_request) return;
         self::$checked_this_request = true;
 
@@ -132,13 +132,14 @@ class BHM_Downloads {
     // Returns label => url for every quality encode a track has, or —
     // for a release — the union of every track's encodes, prefixed with
     // the track title so a multi-track album download list is legible.
-    private static function gather_files($object_id, $object_type) {
+    /** @return array<string, string> */
+    private static function gather_files(int $object_id, string $object_type): array {
         if (!class_exists('BHS_API')) return [];
 
         if ($object_type === 'bhs_release') {
             $track_ids = get_posts([
                 'post_type' => 'bhs_track', 'post_status' => 'publish', 'posts_per_page' => -1,
-                'meta_key' => '_bhs_release_id', 'meta_value' => $object_id, 'fields' => 'ids',
+                'meta_key' => '_bhs_release_id', 'meta_value' => (string) $object_id, 'fields' => 'ids',
             ]);
             $out = [];
             foreach ($track_ids as $tid) {
@@ -153,7 +154,8 @@ class BHM_Downloads {
         return self::track_files($object_id);
     }
 
-    private static function track_files($track_id) {
+    /** @return array<string, string> */
+    private static function track_files(int $track_id): array {
         $qualities = BHS_API::qualities_for($track_id);
         $out = [];
         foreach ($qualities as $label => $info) {

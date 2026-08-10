@@ -49,7 +49,7 @@ class BHM_Storefront {
     const TAXONOMY = 'bhm_collection';
     const REWRITE_SLUG = 'shop-collection';
 
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'register_taxonomy']);
         add_action('init', [self::class, 'add_rewrite']);
         add_filter('query_vars', [self::class, 'add_query_var']);
@@ -127,7 +127,7 @@ class BHM_Storefront {
         }
     }
 
-    public static function enable_block_editor_for_products($can_edit, $post_type) {
+    public static function enable_block_editor_for_products(bool $can_edit, string $post_type): bool {
         return $post_type === 'product' ? true : $can_edit;
     }
 
@@ -169,7 +169,11 @@ class BHM_Storefront {
     // BH_Content's own shorthand type names ('int'/'bool') -> WP core
     // block.json type names ('integer'/'boolean'); anything else
     // (currently just 'string') already matches both systems as-is.
-    private static function core_attributes($schema) {
+    /**
+     * @param array<string, array<string, mixed>> $schema
+     * @return array<string, array<string, mixed>>
+     */
+    private static function core_attributes($schema): array {
         $map = ['int' => 'integer', 'bool' => 'boolean'];
         $out = [];
         foreach ($schema as $key => $def) {
@@ -178,7 +182,7 @@ class BHM_Storefront {
         return $out;
     }
 
-    public static function register_core_blocks() {
+    public static function register_core_blocks(): void {
         if (!function_exists('register_block_type')) return;
         register_block_type('bhm/product-grid', [
             'api_version' => 3,
@@ -219,7 +223,7 @@ class BHM_Storefront {
     // since Studio's own JS already no-ops without its canvas markup.
     const STUDIO_BLOCKS_HANDLE = 'bhm-storefront-studio-blocks';
 
-    public static function enqueue_editor_blocks() {
+    public static function enqueue_editor_blocks(): void {
         $deps = ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor'];
         if (wp_script_is('bh-studio', 'registered')) $deps[] = 'bh-studio';
         wp_enqueue_script(
@@ -233,7 +237,7 @@ class BHM_Storefront {
 
     /* ---------------- collections taxonomy ---------------- */
 
-    public static function register_taxonomy() {
+    public static function register_taxonomy(): void {
         if (!post_type_exists('product')) return; // WooCommerce not active yet — nothing to attach to
         register_taxonomy(self::TAXONOMY, ['product'], [
             'labels' => ['name' => 'Collections', 'singular_name' => 'Collection'],
@@ -277,7 +281,7 @@ class BHM_Storefront {
     // history already identified as risky (see BHY_RewriteHealer's own
     // docblock for the full story). This is now escalation-only, same
     // as Portal.
-    public static function add_rewrite() {
+    public static function add_rewrite(): void {
         add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?bhm_collection_slug=$matches[1]', 'top');
 
         if (class_exists('BHY_RewriteHealer')) {
@@ -285,7 +289,11 @@ class BHM_Storefront {
         }
     }
 
-    public static function add_query_var($vars) {
+    /**
+     * @param array<int, string> $vars
+     * @return array<int, string>
+     */
+    public static function add_query_var($vars): array {
         $vars[] = 'bhm_collection_slug';
         return $vars;
     }
@@ -301,7 +309,7 @@ class BHM_Storefront {
     // in BH_Studio using bhm/product-grid directly with this collection
     // pre-selected — this route is the zero-effort default, not the
     // only way to show a collection.
-    public static function maybe_render_collection() {
+    public static function maybe_render_collection(): void {
         $slug = get_query_var('bhm_collection_slug');
         if (!$slug) return;
 
@@ -331,7 +339,7 @@ class BHM_Storefront {
     // plugin-owned pages must be theme-independent — never assume a
     // specific theme's structure, never break silently when the active
     // theme changes.
-    private static function print_header() {
+    private static function print_header(): void {
         if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_header_area')) {
             ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
@@ -348,7 +356,7 @@ class BHM_Storefront {
         }
     }
 
-    private static function print_footer() {
+    private static function print_footer(): void {
         if (function_exists('wp_is_block_theme') && wp_is_block_theme() && function_exists('block_footer_area')) {
             block_footer_area();
             wp_footer();
@@ -358,7 +366,7 @@ class BHM_Storefront {
         }
     }
 
-    private static function render_404() {
+    private static function render_404(): void {
         status_header(404);
         nocache_headers();
         self::print_header();
@@ -367,7 +375,7 @@ class BHM_Storefront {
         exit;
     }
 
-    private static function render_collection_page($term) {
+    private static function render_collection_page(\WP_Term $term): void {
         self::print_header();
         echo '<div class="bhm-storefront-wrap">';
         echo '<h1 class="bhm-collection-title">' . esc_html($term->name) . '</h1>';
@@ -388,7 +396,7 @@ class BHM_Storefront {
 
     /* ---------------- BH_Content block registration (server render) ---------------- */
 
-    private static function register_content_block_types() {
+    private static function register_content_block_types(): void {
         BH_Content::register_block_type('bhm/product-grid', self::BLOCK_SCHEMAS['bhm/product-grid'], [self::class, 'render_product_grid_block']);
         BH_Content::register_block_type('bhm/product-filter', self::BLOCK_SCHEMAS['bhm/product-filter'], [self::class, 'render_product_filter_block']);
 
@@ -414,7 +422,8 @@ class BHM_Storefront {
      * load-bearing for those two callers, not leftover caution to be
      * removed on a future cleanup pass.
      */
-    public static function render_product_grid_block($attrs) {
+    /** @param array<string, mixed> $attrs */
+    public static function render_product_grid_block($attrs): string {
         if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
             return '<p class="description">WooCommerce isn\'t active — nothing to show here yet.</p>';
         }
@@ -436,7 +445,8 @@ class BHM_Storefront {
         return $out;
     }
 
-    public static function render_product_filter_block($attrs) {
+    /** @param array<string, mixed> $attrs */
+    public static function render_product_filter_block($attrs): string {
         ob_start();
         ?>
         <form class="bhm-product-filter" onsubmit="return false;">
@@ -463,7 +473,8 @@ class BHM_Storefront {
         return ob_get_clean();
     }
 
-    public static function render_product_cards($products, $is_filtered = false) {
+    /** @param array<int, mixed> $products */
+    public static function render_product_cards($products, bool $is_filtered = false): string {
         if (!$products) {
             return class_exists('BHY_Style') ? BHY_Style::empty_state_html($is_filtered ? [
                 'reason' => 'filtered',
@@ -488,7 +499,11 @@ class BHM_Storefront {
 
     /* ---------------- shared product query (used by both the server render above and the REST filter endpoint below) ---------------- */
 
-    private static function query_products($args) {
+    /**
+     * @param array<string, mixed> $args
+     * @return array<int, mixed>
+     */
+    private static function query_products($args): array {
         $wc_args = [
             'limit' => $args['limit'] ?? 12,
             'page' => $args['page'] ?? 1,
@@ -529,7 +544,7 @@ class BHM_Storefront {
 
     /* ---------------- REST: the filter block's live re-query ---------------- */
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('ous/v1', '/storefront/products', [
             'methods' => 'GET',
             'permission_callback' => '__return_true', // public catalog browsing — same openness as WooCommerce's own shop pages
@@ -537,6 +552,7 @@ class BHM_Storefront {
         ]);
     }
 
+    /** @return \WP_REST_Response|\WP_Error */
     public static function rest_query_products(\WP_REST_Request $req) {
         if (!BH_Commerce::available() || !function_exists('wc_get_products')) {
             return new \WP_Error('bhm_storefront_no_woocommerce', 'WooCommerce is unavailable.', ['status' => 500]);
@@ -555,7 +571,7 @@ class BHM_Storefront {
 
     /* ---------------- assets ---------------- */
 
-    public static function enqueue_frontend_assets() {
+    public static function enqueue_frontend_assets(): void {
         wp_enqueue_style('bhm-storefront', BHM_URL . 'assets/css/storefront.css', [], defined('BHM_VER') ? BHM_VER : null);
         wp_register_script('bhm-storefront-filter', BHM_URL . 'assets/js/storefront-filter.js', [], defined('BHM_VER') ? BHM_VER : null, true);
         wp_enqueue_script('bhm-storefront-filter');
@@ -568,7 +584,7 @@ class BHM_Storefront {
     // hook-name-substring check class-studio.php itself uses for its
     // own asset gating, kept consistent rather than inventing a second
     // convention.
-    public static function maybe_enqueue_studio_blocks($hook) {
+    public static function maybe_enqueue_studio_blocks(string $hook): void {
         if (strpos($hook, 'bh-studio') === false) return;
         if (!wp_script_is('bh-studio', 'enqueued') && !wp_script_is('bh-studio', 'registered')) return; // BH_Studio itself isn't active/loaded
         if (wp_script_is(self::STUDIO_BLOCKS_HANDLE, 'registered')) {
@@ -587,7 +603,11 @@ class BHM_Storefront {
         );
     }
 
-    public static function register_studio_block_types($types) {
+    /**
+     * @param array<string, mixed> $types
+     * @return array<string, mixed>
+     */
+    public static function register_studio_block_types($types): array {
         $types['bhm/product-grid'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Product Grid'];
         $types['bhm/product-filter'] = ['tag' => 'form', 'category' => 'commerce', 'label' => 'Product Filter'];
         $types['bhm/related-products'] = ['tag' => 'div', 'category' => 'commerce', 'label' => 'Related Products'];
@@ -601,7 +621,8 @@ class BHM_Storefront {
     // never any other product-collection block a site owner might
     // deliberately place elsewhere (a "featured products" or manually
     // curated collection block is left completely alone).
-    public static function suppress_core_related_products_block($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function suppress_core_related_products_block(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'woocommerce/product-collection') return $block_content;
         if (($block['attrs']['collection'] ?? '') !== 'woocommerce/product-collection/related') return $block_content;
         return '';

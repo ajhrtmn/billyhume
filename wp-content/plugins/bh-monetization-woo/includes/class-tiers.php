@@ -39,7 +39,8 @@ class BHM_Tiers {
     // Filterable so bh-courses/bh-streaming/a future plugin can register
     // their own key + label without editing this file, same zero-
     // central-registration shape as everything else in this ecosystem.
-    public static function benefit_registry() {
+    /** @return array<string, string> */
+    public static function benefit_registry(): array {
         return apply_filters('bhm_benefit_registry', [
             'streaming' => 'Streaming library access',
             'downloads' => 'Downloadable audio',
@@ -48,7 +49,7 @@ class BHM_Tiers {
         ]);
     }
 
-    public static function init() {
+    public static function init(): void {
         self::register_post_type();
         add_action('save_post_' . self::CPT, [self::class, 'save']);
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
@@ -80,7 +81,7 @@ class BHM_Tiers {
     }
 
     /** Accountability log — deletion is the other half of tracking who changed what tier. */
-    public static function log_deletion($post_id) {
+    public static function log_deletion(int $post_id): void {
         $post = get_post($post_id);
         if (!$post || $post->post_type !== self::CPT || !class_exists('OUS_Audit')) return;
         OUS_Audit::log('tier_deleted', 'bhm_tier', $post_id, [
@@ -93,7 +94,7 @@ class BHM_Tiers {
     // no reason to load wp.media on every wp-admin page just because
     // this plugin is active, same "only where actually used" discipline
     // as bh-courses' own admin.js enqueue.
-    public static function maybe_enqueue_admin_assets($hook) {
+    public static function maybe_enqueue_admin_assets(string $hook): void {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         $screen = get_current_screen();
         if (!$screen || $screen->post_type !== self::CPT) return;
@@ -101,7 +102,7 @@ class BHM_Tiers {
         wp_enqueue_script('bhm-tier-admin', BHM_URL . 'assets/js/tier-admin.js', ['jquery'], BHM_VER, true);
     }
 
-    public static function register_post_type() {
+    public static function register_post_type(): void {
         register_post_type(self::CPT, [
             'labels' => [
                 'name' => 'Supporter Tiers', 'singular_name' => 'Tier', 'add_new_item' => 'Add New Tier',
@@ -126,11 +127,11 @@ class BHM_Tiers {
         ]);
     }
 
-    public static function add_meta_box() {
+    public static function add_meta_box(): void {
         add_meta_box('bhm_tier_details', 'Tier Details', [self::class, 'render_metabox'], self::CPT, 'normal', 'high');
     }
 
-    public static function render_metabox($post) {
+    public static function render_metabox(\WP_Post $post): void {
         wp_nonce_field('bhm_save_tier', 'bhm_tier_nonce');
         $price = (int) get_post_meta($post->ID, '_bhm_price_cents', true);
         $annual_price = (int) get_post_meta($post->ID, '_bhm_annual_price_cents', true);
@@ -255,7 +256,7 @@ class BHM_Tiers {
         }
     }
 
-    public static function save($post_id) {
+    public static function save(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhm_tier_nonce']) || !wp_verify_nonce($_POST['bhm_tier_nonce'], 'bhm_save_tier')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -324,7 +325,7 @@ class BHM_Tiers {
     // save would (including re-syncing the WooCommerce product), rather
     // than writing raw postmeta directly — so a restored tier is
     // indistinguishable from one an admin just re-saved by hand.
-    public static function handle_restore() {
+    public static function handle_restore(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.');
         $post_id = (int) ($_GET['object_id'] ?? 0);
         $version = (int) ($_GET['version'] ?? 0);
@@ -364,7 +365,8 @@ class BHM_Tiers {
 
     /* ---------- read helpers used by BHM_Gate and the fan-facing tier picker ---------- */
 
-    public static function get($tier_id) {
+    /** @return array<string, mixed>|null */
+    public static function get(int $tier_id): ?array {
         $post = get_post((int) $tier_id);
         if (!$post || $post->post_type !== self::CPT || $post->post_status !== 'publish') return null;
         return [
@@ -385,7 +387,8 @@ class BHM_Tiers {
     // of price rank — the direct query BHM_Gate::user_has_benefit()
     // needs, and the one thing ids_at_or_above() structurally can't
     // answer (it only ever knows about price order).
-    public static function ids_granting_benefit($benefit_key) {
+    /** @return array<int, int> */
+    public static function ids_granting_benefit(string $benefit_key): array {
         $ids = [];
         foreach (self::all() as $t) {
             if (in_array($benefit_key, $t['benefit_keys'], true)) $ids[] = $t['id'];
@@ -393,7 +396,8 @@ class BHM_Tiers {
         return $ids;
     }
 
-    public static function all() {
+    /** @return array<int, array<string, mixed>> */
+    public static function all(): array {
         $posts = get_posts(['post_type' => self::CPT, 'post_status' => 'publish', 'posts_per_page' => -1]);
         $tiers = array_map(function ($p) { return self::get($p->ID); }, $posts);
         usort($tiers, function ($a, $b) { return $a['price_cents'] <=> $b['price_cents']; });
@@ -403,7 +407,8 @@ class BHM_Tiers {
     // Every tier ID priced at or above $tier_id's own price — this is
     // what makes a $10/mo tier's supporters also count as satisfying a
     // $5/mo paywall, without hardcoding a fixed tier count/order.
-    public static function ids_at_or_above($tier_id) {
+    /** @return array<int, int> */
+    public static function ids_at_or_above(int $tier_id): array {
         $target = self::get($tier_id);
         if (!$target) return [];
         $ids = [];
@@ -413,7 +418,7 @@ class BHM_Tiers {
         return $ids;
     }
 
-    public static function tiers_page_url() {
+    public static function tiers_page_url(): string {
         $page_id = (int) get_option('bhm_tiers_page_id', 0);
         return $page_id ? get_permalink($page_id) : home_url('/');
     }

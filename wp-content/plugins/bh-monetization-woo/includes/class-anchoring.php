@@ -47,7 +47,7 @@ class BHM_Anchoring {
         'https://finney.calendar.eternitywall.com',
     ];
 
-    public static function init() {
+    public static function init(): void {
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register(self::SUBMIT_JOB_HOOK, [self::class, 'handle_submit_job']);
             OUS_Jobs::register(self::UPGRADE_JOB_HOOK, [self::class, 'handle_upgrade_job']);
@@ -59,12 +59,13 @@ class BHM_Anchoring {
     // OUS_Jobs, same "never block the customer's checkout on a
     // third-party HTTP call" reasoning as every other async path in
     // this ecosystem (BH_Event::emit(), OUS_Notifications' email queue).
-    public static function anchor_async($ledger_row_id) {
+    public static function anchor_async(int $ledger_row_id): void {
         if (!class_exists('OUS_Jobs')) return;
         OUS_Jobs::enqueue(self::SUBMIT_JOB_HOOK, ['ledger_row_id' => (int) $ledger_row_id]);
     }
 
-    public static function handle_submit_job($args) {
+    /** @param array<string, mixed> $args */
+    public static function handle_submit_job($args): void {
         $row_id = (int) ($args['ledger_row_id'] ?? 0);
         $row = self::get_row($row_id);
         if (!$row || $row->anchor_status !== 'pending') return;
@@ -105,7 +106,8 @@ class BHM_Anchoring {
         // real outage than a transient blip.
     }
 
-    public static function handle_upgrade_job($args) {
+    /** @param array<string, mixed> $args */
+    public static function handle_upgrade_job($args): void {
         $row_id = (int) ($args['ledger_row_id'] ?? 0);
         $attempt = (int) ($args['attempt'] ?? 1);
         $row = self::get_row($row_id);
@@ -149,17 +151,18 @@ class BHM_Anchoring {
         }
     }
 
-    private static function get_row($id) {
+    private static function get_row(int $id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE id = %d", $id));
     }
 
-    private static function update_row($id, array $fields) {
+    /** @param array<string, mixed> $fields */
+    private static function update_row(int $id, array $fields): void {
         global $wpdb;
         $wpdb->update($wpdb->prefix . 'bhm_purchase_ledger', $fields, ['id' => $id]);
     }
 
-    private static function log($level, $message, $row_id) {
+    private static function log(string $level, string $message, int $row_id): void {
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log($level, $message, ['ledger_row_id' => $row_id], 'BH Monetization');
         }

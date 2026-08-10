@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
  * come from BHM_Gate/BHM_Wallet, never from this class directly.
  */
 class BHM_PlayGating {
-    public static function init() {
+    public static function init(): void {
         if (class_exists('BHS_Admin')) {
             add_filter('bhs_track_access_allowed', [self::class, 'track_access_allowed'], 10, 2);
             add_filter('bhs_track_lock_notice', [self::class, 'track_lock_notice'], 10, 2);
@@ -18,14 +18,14 @@ class BHM_PlayGating {
         }
     }
 
-    public static function track_access_allowed($allowed, $track_id) {
+    public static function track_access_allowed(bool $allowed, int $track_id): bool {
         if (!$allowed) return false; // something else already said no — don't override
         if (BHM_MonetizationUI::is_non_catalog_track($track_id)) return true; // never gated — see is_non_catalog_track()
         $required_tier = (int) get_post_meta($track_id, '_bhm_required_tier', true);
         return BHM_Gate::user_has_tier_access(get_current_user_id(), $required_tier, $track_id);
     }
 
-    public static function track_lock_notice($default, $track_id) {
+    public static function track_lock_notice(string $default, int $track_id): string {
         $required_tier = (int) get_post_meta($track_id, '_bhm_required_tier', true);
         return BHM_Gate::render_paywall_notice($required_tier);
     }
@@ -39,7 +39,7 @@ class BHM_PlayGating {
     // authoritative, server-authored history to build reporting or a
     // future payout engine on top of — never bh-streaming's own
     // unauthenticated, gameable _bhs_play_count.
-    public static function track_play_allowed($allowed, $track_id, $user_id) {
+    public static function track_play_allowed(bool $allowed, int $track_id, int $user_id): bool {
         if (!$allowed) return false;
         if (BHM_MonetizationUI::is_non_catalog_track($track_id)) return true; // never charged — see is_non_catalog_track()
 
@@ -84,7 +84,7 @@ class BHM_PlayGating {
     const VELOCITY_WINDOW_SECONDS = 60;
     const VELOCITY_THRESHOLD = 8;
 
-    private static function check_play_velocity($user_id) {
+    private static function check_play_velocity(int $user_id): void {
         global $wpdb;
         $cutoff = gmdate('Y-m-d H:i:s', time() - self::VELOCITY_WINDOW_SECONDS);
         $recent_paid_plays = (int) $wpdb->get_var($wpdb->prepare(
@@ -105,7 +105,7 @@ class BHM_PlayGating {
         do_action('bhm_play_velocity_flagged', $user_id, $recent_paid_plays);
     }
 
-    public static function track_play_denied_message($default, $track_id) {
+    public static function track_play_denied_message(string $default, int $track_id): string {
         $ppp_cents = (int) get_post_meta($track_id, '_bhm_pay_per_play_cents', true);
         if (!$ppp_cents) return $default;
         return sprintf(
@@ -114,7 +114,7 @@ class BHM_PlayGating {
         );
     }
 
-    private static function log_play($user_id, $track_id, $paid, $cents) {
+    private static function log_play(int $user_id, int $track_id, bool $paid, int $cents): void {
         global $wpdb;
         $wpdb->insert($wpdb->prefix . 'bhm_play_log', [
             'user_id' => $user_id ?: 0, 'track_id' => $track_id, 'paid' => $paid ? 1 : 0, 'cents' => $cents,

@@ -28,14 +28,14 @@ if (!defined('ABSPATH')) exit;
 class BHM_Activator {
     const DB_VERSION = '1.7'; // 1.2 added bhm_refund_fingerprints; 1.3 migrates _bhm_purchase_object_type meta values after bh-streaming renamed bh_track/bh_release to bhs_track/bhs_release; 1.4 added bhm_gift_redemptions (gifting, ROADMAP-platform-evolution.md Section 4's last open item besides promo codes, which already work via WooCommerce's own native coupon system); 1.5 added bhm_referral_codes + bhm_referrals (ecosystem depth-pass Tier 2, referral/affiliate tracking — see class-referrals.php); 1.6 added bhm_purchase_ledger (ledger-anchored proof of purchase — see class-purchase-ledger.php, ROADMAP-streaming-media-scope-and-blockchain.md Part 2); 1.7 added bhm_wallet.held_cents + bhm_auction_bids (auction listings, ROADMAP-platform-evolution.md Section 5a — see class-auctions.php)
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhm_db_version', self::DB_VERSION);
         }
         self::migrate_purchase_object_type_meta();
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhm_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhm_db_version', self::DB_VERSION);
@@ -55,7 +55,7 @@ class BHM_Activator {
     // going forward. Without this migration, an existing release
     // purchase would silently misclassify as a "track" purchase after
     // upgrading. Idempotent: an UPDATE matching zero rows is a no-op.
-    private static function migrate_purchase_object_type_meta() {
+    private static function migrate_purchase_object_type_meta(): void {
         global $wpdb;
         $renames = ['bh_track' => 'bhs_track', 'bh_release' => 'bhs_release'];
         foreach ($renames as $old => $new) {
@@ -63,7 +63,7 @@ class BHM_Activator {
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';

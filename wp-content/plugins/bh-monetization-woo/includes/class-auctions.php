@@ -43,13 +43,13 @@ class BHM_Auctions {
     const META_FINALIZED = '_bhm_auction_finalized';
     const META_WINNER_ID = '_bhm_auction_winner_id';
 
-    public static function init() {
+    public static function init(): void {
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register('bhm_close_auction', [self::class, 'close_auction']);
         }
     }
 
-    public static function is_auction($product_id) {
+    public static function is_auction(int $product_id): bool {
         return (bool) get_post_meta($product_id, self::META_IS_AUCTION, true);
     }
 
@@ -66,7 +66,7 @@ class BHM_Auctions {
      * @param string $ends_at_mysql  MySQL datetime (site local time, matches current_time('mysql')) — when bidding closes.
      * @return bool
      */
-    public static function convert_to_auction($product_id, $starting_cents, $reserve_cents, $ends_at_mysql) {
+    public static function convert_to_auction(int $product_id, int $starting_cents, int $reserve_cents, string $ends_at_mysql): bool {
         if (!$product_id || !$ends_at_mysql) return false;
         $ends_timestamp = strtotime(get_gmt_from_date($ends_at_mysql) . ' UTC');
         if (!$ends_timestamp || $ends_timestamp <= time()) return false;
@@ -105,7 +105,7 @@ class BHM_Auctions {
      * passing and OUS_Jobs actually running close_auction() — bidding
      * is already refused, but the winner isn't finalized yet.
      */
-    public static function status($product_id) {
+    public static function status(int $product_id): string {
         if (!self::is_auction($product_id)) return 'not_auction';
         if (get_post_meta($product_id, self::META_FINALIZED, true)) return 'closed';
 
@@ -114,13 +114,13 @@ class BHM_Auctions {
         return (current_time('mysql') < $ends_at) ? 'open' : 'awaiting_close';
     }
 
-    public static function current_bid_cents($product_id) {
+    public static function current_bid_cents(int $product_id): int {
         $starting = (int) get_post_meta($product_id, self::META_STARTING_CENTS, true);
         $current = (int) get_post_meta($product_id, self::META_CURRENT_BID_CENTS, true);
         return $current > 0 ? $current : $starting;
     }
 
-    public static function current_bidder_id($product_id) {
+    public static function current_bidder_id(int $product_id): int {
         return (int) get_post_meta($product_id, self::META_CURRENT_BIDDER_ID, true);
     }
 
@@ -135,7 +135,11 @@ class BHM_Auctions {
      *
      * @return true|WP_Error
      */
-    public static function place_bid($product_id, $user_id, $amount_cents) {
+    /**
+     * @param mixed $amount_cents
+     * @return true|\WP_Error
+     */
+    public static function place_bid(int $product_id, int $user_id, $amount_cents) {
         $amount_cents = (int) $amount_cents;
         $status = self::status($product_id);
         if ($status !== 'open') {
@@ -181,7 +185,7 @@ class BHM_Auctions {
         return true;
     }
 
-    private static function mark_bid_status($product_id, $user_id, $amount_cents, $status) {
+    private static function mark_bid_status(int $product_id, int $user_id, int $amount_cents, string $status): void {
         global $wpdb;
         $wpdb->update(
             $wpdb->prefix . 'bhm_auction_bids',
@@ -197,7 +201,8 @@ class BHM_Auctions {
      * since neither a stray duplicate job nor a manual re-run should
      * ever be able to double-capture or double-release funds.
      */
-    public static function close_auction($args) {
+    /** @param array<string, mixed> $args */
+    public static function close_auction($args): void {
         $product_id = (int) ($args['product_id'] ?? 0);
         if (!$product_id || get_post_meta($product_id, self::META_FINALIZED, true)) return;
 

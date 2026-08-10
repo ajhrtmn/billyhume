@@ -21,7 +21,8 @@ if (!defined('ABSPATH')) exit;
  * product_tag last as the loosest signal.
  */
 class BHM_Recommendations {
-    public static function related_products($product_id, $limit = 8) {
+    /** @return array<int, \WC_Product> */
+    public static function related_products(int $product_id, int $limit = 8): array {
         if (!function_exists('wc_get_product')) return [];
         $product_id = (int) $product_id;
         if (!$product_id || !wc_get_product($product_id)) return [];
@@ -74,7 +75,8 @@ class BHM_Recommendations {
     // deliberately placed this block) AND the automatic
     // woocommerce_after_single_product_summary hook (every product gets
     // this for free, no authoring required) — one renderer, two callers.
-    public static function render_related_products_block($attrs) {
+    /** @param array<string, mixed> $attrs */
+    public static function render_related_products_block($attrs): string {
         $product_id = (int) ($attrs['productId'] ?? 0);
         if (!$product_id) {
             global $post;
@@ -102,7 +104,7 @@ class BHM_Recommendations {
     // no-ops via the `bhm_related_products_manual` flag an explicit
     // block render sets, so the automatic section never double-renders
     // alongside a manually-placed one on the same page).
-    public static function auto_render_related() {
+    public static function auto_render_related(): void {
         if (!function_exists('wc_get_product')) return;
         global $post;
         if (!$post || get_post_type($post) !== 'product') return;
@@ -110,9 +112,10 @@ class BHM_Recommendations {
         echo self::render_related_products_block(['productId' => $post->ID, 'limit' => 8]);
     }
 
-    private static $manual_block_rendered = false;
+    private static bool $manual_block_rendered = false;
 
-    public static function render_related_products_block_public($attrs) {
+    /** @param array<string, mixed> $attrs */
+    public static function render_related_products_block_public($attrs): string {
         self::$manual_block_rendered = true;
         return self::render_related_products_block($attrs);
     }

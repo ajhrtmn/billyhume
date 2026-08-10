@@ -26,7 +26,7 @@ class BHM_Frontend {
     const TIP_MIN_CENTS = 100;
     const TIP_MAX_CENTS = 50000;
 
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bhm_tiers', [self::class, 'render_tiers']);
         add_shortcode('bhm_tip_jar', [self::class, 'render_tip_jar']);
         add_shortcode('bhm_wallet', [self::class, 'render_wallet']);
@@ -80,7 +80,7 @@ class BHM_Frontend {
     // line item, so this silently renders nothing for those — it's
     // deliberately tier-specific, not a generic order-confirmation
     // re-skin.
-    public static function render_tier_thankyou_banner($order_id) {
+    public static function render_tier_thankyou_banner(int $order_id): void {
         if (!$order_id || !function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order) return;
@@ -117,21 +117,21 @@ class BHM_Frontend {
         }
     }
 
-    public static function maybe_remember_tiers_page($post_id) {
+    public static function maybe_remember_tiers_page(int $post_id): void {
         $post = get_post($post_id);
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_tiers')) {
             update_option('bhm_tiers_page_id', $post_id);
         }
     }
 
-    public static function maybe_remember_gift_redeem_page($post_id) {
+    public static function maybe_remember_gift_redeem_page(int $post_id): void {
         $post = get_post($post_id);
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_redeem_gift')) {
             update_option('bhm_gift_redeem_page_id', $post_id);
         }
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         // The WooCommerce order-received (thank-you) page never carries
         // any bhm_* shortcode of its own — render_tier_thankyou_banner()
         // still needs .bhm-thankyou-banner styling there, so this asset
@@ -150,7 +150,7 @@ class BHM_Frontend {
 
     /* ---------- tier picker ---------- */
 
-    public static function render_tiers() {
+    public static function render_tiers(): string {
         if (!BH_Commerce::available()) return '<p>Supporter tiers aren\'t available yet.</p>';
         $tiers = BHM_Tiers::all();
         if (!$tiers) return '<p>No supporter tiers are set up yet.</p>';
@@ -285,7 +285,7 @@ class BHM_Frontend {
     // documented pattern for when WC Subscriptions isn't installed)
     // has nothing to pause; there's no recurring billing to interrupt,
     // just an expiry date already running.
-    private static function render_subscription_controls($user_id, $tier_id) {
+    private static function render_subscription_controls(int $user_id, int $tier_id): string {
         // Routed through BH_Commerce (standing architecture rule:
         // nothing outside the core should be hard-wired to an
         // external dependency in a way that can't be mocked/replaced) —
@@ -324,7 +324,7 @@ class BHM_Frontend {
     }
 
     /** The most recent real (has a wc_subscription_id) tier entitlement row for this user+tier — a fallback one-time-purchase entitlement (wc_subscription_id NULL) never matches, by design (see this section's own docblock). */
-    private static function active_subscription_id($user_id, $tier_id) {
+    private static function active_subscription_id(int $user_id, int $tier_id): int {
         global $wpdb;
         $t = $wpdb->prefix . 'bhm_entitlements';
         return (int) $wpdb->get_var($wpdb->prepare(
@@ -341,7 +341,7 @@ class BHM_Frontend {
      * touching anything — a crafted subscription_id from a different
      * account must never be actionable here.
      */
-    public static function handle_manage_subscription() {
+    public static function handle_manage_subscription(): void {
         $sub_id = (int) ($_POST['subscription_id'] ?? 0);
         $action = sanitize_key($_POST['bhm_sub_action'] ?? '');
         $user_id = get_current_user_id();
@@ -370,7 +370,7 @@ class BHM_Frontend {
         exit;
     }
 
-    private static function add_to_cart_url($product_id) {
+    private static function add_to_cart_url(int $product_id): string {
         return wc_get_cart_url() . '?add-to-cart=' . (int) $product_id;
     }
 
@@ -380,7 +380,8 @@ class BHM_Frontend {
     // their own amount on at checkout (WooCommerce core supports
     // "Name Your Price"-style variable pricing via a simple custom
     // field on a virtual product) — no separate payment machinery here.
-    public static function render_tip_jar($atts) {
+    /** @param mixed $atts */
+    public static function render_tip_jar($atts): string {
         if (!BH_Commerce::available()) return '';
         $product_id = (int) get_option('bhm_tip_product_id', 0);
         if (!$product_id) $product_id = self::ensure_tip_product();
@@ -388,7 +389,7 @@ class BHM_Frontend {
         ob_start();
         ?>
         <form class="bhm-tip-jar" method="get" action="<?php echo esc_url(wc_get_cart_url()); ?>">
-            <input type="hidden" name="add-to-cart" value="<?php echo esc_attr($product_id); ?>">
+            <input type="hidden" name="add-to-cart" value="<?php echo esc_attr((string) $product_id); ?>">
             <!-- Suggested-amount chips — a bare number input defaulting to
                  $5 was the only anchor a fan had for "what's a normal tip
                  here"; real, tappable amounts (matching the same
@@ -414,7 +415,7 @@ class BHM_Frontend {
     // first (see class-commerce.php's own docblock for the full
     // history). Never a subscription — a tip is always a one-time
     // product, upsert_product()'s subscription arg simply isn't passed.
-    private static function ensure_tip_product() {
+    private static function ensure_tip_product(): int {
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product(0, [
                 'name' => 'Tip',
@@ -443,7 +444,11 @@ class BHM_Frontend {
     // request after that would otherwise never register this filter at
     // all and silently fall back to charging the $1 catalog price
     // regardless of what the fan actually typed).
-    public static function apply_tip_amount($cart_item_data, $product_id) {
+    /**
+     * @param array<string, mixed> $cart_item_data
+     * @return array<string, mixed>
+     */
+    public static function apply_tip_amount($cart_item_data, int $product_id): array {
         if ((int) $product_id !== (int) get_option('bhm_tip_product_id', 0)) return $cart_item_data;
         $requested_cents = isset($_GET['bhm_tip_amount']) ? BHM_Money::parse($_GET['bhm_tip_amount']) : 500;
         // Clamped server-side — the min/max on the <input> above is a
@@ -459,7 +464,7 @@ class BHM_Frontend {
     // rather than cosmetic. Re-clamps again here too (not just at
     // add-to-cart time) since cart contents can persist across requests
     // and this is the actual point money changes hands.
-    public static function apply_tip_price($cart) {
+    public static function apply_tip_price(\WC_Cart $cart): void {
         if (is_admin() && !defined('DOING_AJAX')) return;
         foreach ($cart->get_cart() as $item) {
             if (!isset($item['bhm_tip_cents'])) continue;
@@ -484,7 +489,8 @@ class BHM_Frontend {
     // "drop it wherever" posture as [bhm_tip_jar]). $atts['id'] is the
     // track/release post ID (its own real ID, not the WC product ID —
     // matches how BHM_Products::render_object_ui() is already keyed).
-    public static function render_purchase_button($atts) {
+    /** @param mixed $atts */
+    public static function render_purchase_button($atts): string {
         if (!BH_Commerce::available()) return '';
         $atts = shortcode_atts(['id' => 0], $atts);
         $object_id = (int) $atts['id'];
@@ -532,7 +538,11 @@ class BHM_Frontend {
     // reverse-lookup confirms is actually a PWYW-enabled purchase
     // product, never a tier/tip/wallet product that happens to share
     // the cart.
-    public static function apply_purchase_amount($cart_item_data, $product_id) {
+    /**
+     * @param array<string, mixed> $cart_item_data
+     * @return array<string, mixed>
+     */
+    public static function apply_purchase_amount($cart_item_data, int $product_id): array {
         $object_id = (int) get_post_meta($product_id, '_bhm_purchase_object_id', true);
         if (!$object_id || !get_post_meta($object_id, '_bhm_purchase_pwyw', true)) return $cart_item_data;
         $floor_cents = (int) get_post_meta($object_id, '_bhm_purchase_price_cents', true);
@@ -546,7 +556,7 @@ class BHM_Frontend {
         return $cart_item_data;
     }
 
-    public static function apply_purchase_price($cart) {
+    public static function apply_purchase_price(\WC_Cart $cart): void {
         if (is_admin() && !defined('DOING_AJAX')) return;
         foreach ($cart->get_cart() as $item) {
             if (!isset($item['bhm_purchase_cents'])) continue;
@@ -561,7 +571,7 @@ class BHM_Frontend {
 
     /* ---------- wallet ---------- */
 
-    public static function render_wallet() {
+    public static function render_wallet(): string {
         if (!is_user_logged_in()) return '<p>Log in to see your play-credit wallet.</p>';
         $user_id = get_current_user_id();
         $balance = BHM_Wallet::balance_cents($user_id);
@@ -598,7 +608,7 @@ class BHM_Frontend {
     // bhm_wallet_topup_options, entered by the artist on the settings
     // screen), converted to integer cents for upsert_product()'s
     // contract rather than passed through as a formatted price string.
-    public static function sync_wallet_topup_products() {
+    public static function sync_wallet_topup_products(): void {
         if (!BH_Commerce::available()) return;
         $options = get_option('bhm_wallet_topup_options', []);
         $existing = get_option('bhm_wallet_topup_products', []); // cents => product_id
@@ -637,13 +647,13 @@ class BHM_Frontend {
         update_option('bhm_wallet_topup_products', $new_map);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhm/v1', '/wallet', [
             'methods' => 'GET', 'callback' => [self::class, 'get_wallet'], 'permission_callback' => 'is_user_logged_in',
         ]);
     }
 
-    public static function get_wallet() {
+    public static function get_wallet(): \WP_REST_Response {
         $user_id = get_current_user_id();
         return new WP_REST_Response([
             'success' => true,
