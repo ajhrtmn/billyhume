@@ -2,11 +2,34 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.23
+ * Version:     3.7.24
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.24 — TypeScript pilot: converted player.js (the embedded contest
+// player — track list/voting/audio playback, sign-up/login, submission
+// upload, share cards, results), the first of the two large/risky
+// files deliberately deferred from the earlier pilot rounds. Real
+// typed instance properties on `class BHPlayer`, real method
+// signatures throughout, no @ts-nocheck. Howler.js gets a minimal
+// local `declare class Howl` (just the constructor options/instance
+// methods this file actually calls), not a full @types/howler
+// pull-in, matching this pilot's existing "declare only what's used"
+// convention. The REST responses this file reads (bh/v1 tracks/vote/
+// submit/results, bhi/v1 login/register/profile) are typed per-
+// endpoint from what the code actually reads off each response.
+// Every compiled assets/js/player.js diff was reviewed line-by-line
+// against the pre-conversion file — the only behavioral deltas are
+// type-safety-driven casts that don't change runtime behavior
+// (isNaN(d.getTime()) instead of isNaN(d) on a Date, explicit
+// String() coercion on numeric values assigned to input.value, which
+// JS already coerced implicitly either way) — no logic changed.
+// bh-streaming's player.js remains deferred — a materially harder
+// conversion (one flat IIFE, no class to hang types on) getting its
+// own dedicated pass.
+// NOT runtime-verified against a live browser this session.
 
 // 3.7.23 — Ecosystem quality Phase 2, brick 10/13: bh-contest is now
 // clean at PHPStan level 6 (native return/parameter types + precise
@@ -218,7 +241,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.23');
+define('BH_VER',        '3.7.24');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

@@ -1,4 +1,3 @@
-"use strict";
 /**
  * The embedded contest player — track list/voting/audio playback,
  * sign-up/login, submission upload, share cards, and results. The
@@ -23,7 +22,146 @@
  * from what this file actually reads off each response — real shapes,
  * not a blanket `any`, but not a full server-side contract either.
  */
-const D = window.BHData || {};
+
+interface BHPlayerWindow extends Window {
+    BHData?: BHPlayerData;
+}
+
+interface BHPlayerData {
+    rest?: string;
+    identity?: string;
+    nonce?: string;
+    loggedIn?: boolean;
+    maxBytes?: number;
+    brand?: BHBrand;
+}
+
+interface BHBrand {
+    part1: string;
+    part2: string;
+    logoUrl: string;
+}
+
+interface BHStyleOverrides {
+    vars?: Record<string, string>;
+    brand?: BHBrand;
+}
+
+interface BHProfileFieldDef {
+    key: string;
+    cls: string;
+}
+
+interface BHCategory {
+    slug: string;
+    name: string;
+}
+
+interface BHTrack {
+    id: number;
+    title: string;
+    artist: string;
+    src?: string;
+    votes?: Record<string, boolean>;
+}
+
+interface BHContactFieldsConfig {
+    show: string[];
+    require_real_name: boolean;
+    require_handle: boolean;
+    require_phone: boolean;
+}
+
+interface BHTracksResponse {
+    contest_id?: number | string;
+    results_published?: boolean;
+    categories?: BHCategory[];
+    vote_limit?: number | null;
+    votes_remaining?: Record<string, number>;
+    contact_fields?: BHContactFieldsConfig;
+    tracks?: BHTrack[];
+}
+
+interface BHVoteResponse {
+    action?: 'added' | 'removed';
+    votes_left?: number;
+    limit?: number;
+    message?: string;
+}
+
+interface BHSubmitResponse {
+    needs_audio?: boolean;
+    message?: string;
+    entered_card_url?: string;
+    vote_card_url?: string;
+    contest_page_url?: string;
+    vote_end?: string;
+}
+
+interface BHProfileData {
+    real_name?: string;
+    real_name_public?: boolean;
+    discord_name?: string;
+    discord_name_public?: boolean;
+    twitch_name?: string;
+    twitch_name_public?: boolean;
+    youtube_name?: string;
+    youtube_name_public?: boolean;
+    typical_platform?: string;
+    phone?: string;
+}
+
+interface BHProfileResponse {
+    profile?: BHProfileData;
+}
+
+interface BHAuthResponse {
+    message?: string;
+}
+
+interface BHResultEntry {
+    rank: number;
+    title: string;
+    artist: string;
+    votes: number;
+}
+
+interface BHCategoryResults extends BHCategory {
+    results?: BHResultEntry[];
+    judge_results?: BHResultEntry[];
+}
+
+interface BHResultsResponse {
+    categories?: BHCategoryResults[];
+    format?: string;
+    message?: string;
+}
+
+interface BHSelectElement extends HTMLSelectElement {
+    bhResync?: () => void;
+}
+
+interface HowlOptions {
+    src: string[];
+    html5?: boolean;
+    onplay?: () => void;
+    onpause?: () => void;
+    onend?: () => void;
+}
+
+declare class Howl {
+    constructor(options: HowlOptions);
+    play(): void;
+    pause(): void;
+    stop(): void;
+    playing(): boolean;
+    seek(): number;
+    seek(position: number): void;
+    duration(): number;
+}
+
+const D: BHPlayerData = (window as BHPlayerWindow).BHData || {};
+
 // One color per category, assigned by order (not hashed) so it stays
 // stable as long as the admin doesn't reorder the category list. Each
 // slot resolves to a --bh-cat-N custom property set by BHY_Style (see
@@ -31,10 +169,11 @@ const D = window.BHData || {};
 // Colors panel on the Settings & Style admin page, not here. The literal
 // hexes below are only a fallback for the rare case that property isn't
 // defined (e.g. this script loaded outside the plugin's own CSS).
-const CAT_COLORS = [
+const CAT_COLORS: string[] = [
     'var(--bh-cat-1, #FF5A36)', 'var(--bh-cat-2, #2DD4BF)', 'var(--bh-cat-3, #A78BFA)', 'var(--bh-cat-4, #F472B6)',
     'var(--bh-cat-5, #38BDF8)', 'var(--bh-cat-6, #A3E635)', 'var(--bh-cat-7, #FBBF24)', 'var(--bh-cat-8, #FB7185)',
 ];
+
 // The one place the profile-field list/DOM-class mapping lives now —
 // contract-drift fix, caught by an audit run right after the quiz-
 // shuffle bug (own-ur-shit's BHI_Profiles::TEXT_COLS is the real PHP-
@@ -51,19 +190,44 @@ const CAT_COLORS = [
 // PHP needs to dictate), so this stays JS-side rather than crossing the
 // PHP/JS boundary via wp_localize_script — the fix is collapsing THREE
 // copies into ONE, not moving the one copy.
-const PROFILE_FIELDS = [
+const PROFILE_FIELDS: BHProfileFieldDef[] = [
     { key: 'real_name', cls: 'realname' },
     { key: 'discord_name', cls: 'discord' },
     { key: 'twitch_name', cls: 'twitch' },
     { key: 'youtube_name', cls: 'youtube' },
 ];
-const CONTACT_FIELD_KEYS = PROFILE_FIELDS.map(f => f.key).concat(['typical_platform', 'phone']);
+const CONTACT_FIELD_KEYS: string[] = PROFILE_FIELDS.map(f => f.key).concat(['typical_platform', 'phone']);
+
 class BHPlayer {
+    root: HTMLElement;
+    api: string;
+    identityApi: string;
+    nonce: string;
+    loggedIn: boolean;
+    maxBytes: number;
+    brand: BHBrand;
+    contest: string;
+    allowAudioOptional: boolean;
+    tracks: BHTrack[];
+    categories: BHCategory[];
+    activeCategory: string;
+    sound: Howl | null;
+    playingIndex: number;
+    scrubbing: boolean; // true while dragging the scrubber
+    isLogin: boolean;   // auth modal mode
+    resultsPublished?: boolean;
+    voteLimit?: number | null;
+    votesRemaining?: Record<string, number>;
+    contactFields?: BHContactFieldsConfig;
+    _resultsCats?: BHCategoryResults[];
+    _resultsFormat?: string;
+    _resultsActive?: string;
+
     // root: the specific .bh-player-root element for THIS instance. Every
     // DOM lookup below is scoped to root.querySelector(...), never the
     // global document — that's what lets multiple contests run on the same
     // page at once without their controls colliding.
-    constructor(root) {
+    constructor(root: HTMLElement) {
         this.root = root;
         this.api = D.rest || '/wp-json/bh/v1/';
         this.identityApi = D.identity || '/wp-json/bhi/v1/';
@@ -76,6 +240,7 @@ class BHPlayer {
         // (class-admin.php's Contest Rules & Results box) — off by
         // default, an admin opts a specific contest in.
         this.allowAudioOptional = root.dataset.allowAudioOptional === '1';
+
         // Per-contest style override (accent + category colors + brand),
         // set server-side only when a contest has "Override site
         // styling" enabled (see BHY_Style::entity_style_payload).
@@ -85,14 +250,12 @@ class BHPlayer {
         // are untouched.
         if (root.dataset.styleOverrides) {
             try {
-                const ov = JSON.parse(root.dataset.styleOverrides);
-                if (ov.vars)
-                    Object.entries(ov.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-                if (ov.brand)
-                    this.brand = ov.brand;
-            }
-            catch (e) { /* malformed override data — fall back to site defaults silently */ }
+                const ov: BHStyleOverrides = JSON.parse(root.dataset.styleOverrides);
+                if (ov.vars) Object.entries(ov.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+                if (ov.brand) this.brand = ov.brand;
+            } catch (e) { /* malformed override data — fall back to site defaults silently */ }
         }
+
         this.tracks = [];
         this.categories = [];
         this.activeCategory = '';
@@ -100,39 +263,47 @@ class BHPlayer {
         this.playingIndex = -1;
         this.scrubbing = false;
         this.isLogin = true;
+
         this.start();
     }
-    start() {
+
+    start(): void {
         this.renderSkeleton();
         this.updateAuthUI();
         this.loadTracks(1);
     }
+
     /* ---------- tiny utils ---------- */
-    q(sel) {
-        return this.root.querySelector(sel);
+    q<T extends HTMLElement = HTMLElement>(sel: string): T {
+        return this.root.querySelector(sel) as T;
     }
-    qa(sel) {
-        return this.root.querySelectorAll(sel);
+    qa<T extends HTMLElement = HTMLElement>(sel: string): NodeListOf<T> {
+        return this.root.querySelectorAll(sel) as NodeListOf<T>;
     }
-    esc(s) {
+
+    esc(s: unknown): string {
         const d = document.createElement('div');
         d.textContent = s == null ? '' : String(s);
         return d.innerHTML;
     }
-    fmtTime(sec) {
+
+    fmtTime(sec: number): string {
         sec = Math.max(0, Math.floor(sec || 0));
         return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
     }
+
     // Deterministic hue per track so each row gets a distinct little "disc" —
     // no artwork needed, but the list still reads as visually varied.
-    hue(id) { return (id * 47) % 360; }
-    catColor(slug) {
+    hue(id: number): number { return (id * 47) % 360; }
+
+    catColor(slug: string): string {
         const i = this.categories.findIndex(c => c.slug === slug);
-        return CAT_COLORS[(i >= 0 ? i : 0) % CAT_COLORS.length];
+        return CAT_COLORS[(i >= 0 ? i : 0) % CAT_COLORS.length] as string;
     }
+
     // One shared toast for the whole page — fine even with multiple player
     // instances, since only one action happens at a time.
-    toast(msg, err = false) {
+    toast(msg: string, err = false): void {
         let t = document.getElementById('bh-toast');
         if (!t) {
             t = document.createElement('div');
@@ -144,28 +315,23 @@ class BHPlayer {
         toastEl.textContent = msg;
         toastEl.classList.toggle('error', !!err);
         toastEl.classList.add('show');
-        const win = window;
+        const win = window as BHPlayerWindow & { _bhToastTimer?: number };
         clearTimeout(win._bhToastTimer);
         win._bhToastTimer = window.setTimeout(() => toastEl.classList.remove('show'), 3400);
     }
+
     // Single fetch wrapper. The nonce is attached on every request, GET
     // included — WordPress only recognizes a logged-in user on REST calls
     // when a valid nonce is present. The resolved contest ID/slug for THIS
     // instance is appended automatically unless the call already sets one.
-    async req(path, opts = {}) {
-        const o = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers || {}) } };
+    async req<T = Record<string, any>>(path: string, opts: RequestInit = {}): Promise<{ ok: boolean; body: T | Record<string, any> }> {
+        const o: RequestInit = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers as Record<string, string> || {}) } };
         let url = this.api + path;
-        if (this.contest)
-            url += (url.includes('?') ? '&' : '?') + 'contest=' + encodeURIComponent(this.contest);
-        let res;
-        let body = {};
-        try {
-            res = await fetch(url, o);
-            body = await res.json().catch(() => ({}));
-        }
-        catch (e) {
-            return { ok: false, body: {} };
-        }
+        if (this.contest) url += (url.includes('?') ? '&' : '?') + 'contest=' + encodeURIComponent(this.contest);
+        let res: Response;
+        let body: any = {};
+        try { res = await fetch(url, o); body = await res.json().catch(() => ({})); }
+        catch (e) { return { ok: false, body: {} }; }
         // A 401/403 previously fell through to whatever generic action-
         // specific fallback the caller had ("Could not record your
         // vote."), which reads like the ACTION failed rather than the
@@ -179,31 +345,28 @@ class BHPlayer {
         }
         return { ok: res.ok, body };
     }
+
     // Same shape as req() above, but against bh-identity's REST base
     // instead of this plugin's own — auth/profile calls now live there,
     // not here, and unlike a contest-scoped call there's no contest
     // param to append.
-    async reqIdentity(path, opts = {}) {
-        const o = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers || {}) } };
-        let res;
-        let body = {};
-        try {
-            res = await fetch(this.identityApi + path, o);
-            body = await res.json().catch(() => ({}));
-        }
-        catch (e) {
-            return { ok: false, body: {} };
-        }
+    async reqIdentity<T = Record<string, any>>(path: string, opts: RequestInit = {}): Promise<{ ok: boolean; body: T | Record<string, any> }> {
+        const o: RequestInit = { ...opts, headers: { 'X-WP-Nonce': this.nonce, ...(opts.headers as Record<string, string> || {}) } };
+        let res: Response;
+        let body: any = {};
+        try { res = await fetch(this.identityApi + path, o); body = await res.json().catch(() => ({})); }
+        catch (e) { return { ok: false, body: {} }; }
         return { ok: res.ok, body };
     }
+
     /* ---------- skeleton ---------- */
-    renderSkeleton() {
+    renderSkeleton(): void {
         this.root.innerHTML = `
             <div class="bh-container">
                 <div class="bh-header">
                     <div class="bh-brand">${this.brand.logoUrl
-            ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
-            : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
+                        ? `<img class="bh-brand-logo" src="${this.esc(this.brand.logoUrl)}" alt="${this.esc(this.brand.part1 + this.brand.part2)}">`
+                        : `${this.esc(this.brand.part1)}<span>${this.esc(this.brand.part2)}</span>`}</div>
                     <div class="bh-header-extra"></div>
                     <div class="bh-header-actions">
                         <button class="bh-results-btn bh-btn bh-btn-results" style="display:none;">
@@ -375,6 +538,7 @@ class BHPlayer {
         this.injectExtraZone('nowPlayingExtra', '.bh-now-playing-extra');
         this.injectExtraZone('resultsModalIntro', '.bh-results-modal-intro');
     }
+
     // Task #80's real, safe slice — a genuinely new insertion point, not
     // a rebuild of anything player.js already owns. class-auth.php's
     // render() base64-encodes each real, server-rendered
@@ -390,13 +554,11 @@ class BHPlayer {
     // the now-playing bar's own controls, or '.bh-results-body' — every
     // this.q(...)-style lookup elsewhere in this file keeps working
     // exactly as before, untouched.
-    injectExtraZone(datasetKey, selector) {
+    injectExtraZone(datasetKey: string, selector: string): void {
         const raw = this.root.dataset[datasetKey];
-        if (!raw)
-            return;
+        if (!raw) return;
         const target = this.q(selector);
-        if (!target)
-            return;
+        if (!target) return;
         try {
             // atob() + decodeURIComponent/escape round-trip handles UTF-8
             // content correctly (plain atob() alone mangles anything
@@ -405,62 +567,66 @@ class BHPlayer {
             // needs, not specific to this feature.
             const decoded = decodeURIComponent(escape(atob(raw)));
             target.innerHTML = decoded;
-        }
-        catch (e) {
+        } catch (e) {
             // Malformed/corrupt attribute — fail silently to an empty
             // (invisible, since CSS gives it no border/background of its
             // own) div rather than breaking the rest of the player over
             // one bad zone render.
         }
     }
-    updateAuthUI() {
+
+    updateAuthUI(): void {
         this.q('.bh-submit-btn').style.display = this.loggedIn ? 'inline-flex' : 'none';
-        this.q('.bh-login-btn').style.display = this.loggedIn ? 'none' : 'inline-flex';
+        this.q('.bh-login-btn').style.display  = this.loggedIn ? 'none' : 'inline-flex';
         this.q('.bh-logout-btn').style.display = this.loggedIn ? 'inline-flex' : 'none';
     }
-    bind() {
-        const modal = (name) => this.q(`.bh-${name}-modal`);
-        const show = (name) => { modal(name).style.display = 'flex'; };
-        const openAuth = () => { this.setAuthMode(true); show('auth'); };
-        this.q('.bh-login-btn').onclick = openAuth;
-        this.q('.bh-logout-btn').onclick = e => { e.preventDefault(); this.logout(); };
-        this.q('.bh-submit-btn').onclick = () => {
-            show('submit');
-            this.prefillSubmitProfile();
-            if (this.allowAudioOptional)
-                this.q('.bh-file-hint').textContent = 'MP3 or M4A · Max 20MB · optional — you can attach this later from your account portal';
+
+    bind(): void {
+        const modal = (name: string): HTMLElement => this.q(`.bh-${name}-modal`);
+        const show = (name: string): void => { modal(name).style.display = 'flex'; };
+        const openAuth = (): void => { this.setAuthMode(true); show('auth'); };
+
+        this.q('.bh-login-btn').onclick   = openAuth;
+        this.q<HTMLAnchorElement>('.bh-logout-btn').onclick = e => { e.preventDefault(); this.logout(); };
+        this.q('.bh-submit-btn').onclick  = () => {
+            show('submit'); this.prefillSubmitProfile();
+            if (this.allowAudioOptional) this.q('.bh-file-hint').textContent = 'MP3 or M4A · Max 20MB · optional — you can attach this later from your account portal';
         };
         this.q('.bh-results-btn').onclick = () => this.loadResults();
         this.q('.bh-auth-submit').onclick = () => this.auth();
-        this.q('.bh-upload-btn').onclick = () => this.upload();
-        this.q('.bh-play-pause').onclick = () => this.toggle();
-        this.q('.bh-sub-file').addEventListener('change', e => {
-            const target = e.target;
+        this.q('.bh-upload-btn').onclick  = () => this.upload();
+        this.q('.bh-play-pause').onclick  = () => this.toggle();
+
+        this.q<HTMLInputElement>('.bh-sub-file').addEventListener('change', e => {
+            const target = e.target as HTMLInputElement;
             const f = target.files ? target.files[0] : undefined;
             this.q('.bh-file-label-text').textContent = f ? f.name : 'Choose an audio file…';
         });
-        this.enhanceSelect(this.q('.bh-reg-platform'));
-        this.enhanceSelect(this.q('.bh-sub-platform'));
+
+        this.enhanceSelect(this.q<HTMLSelectElement>('.bh-reg-platform'));
+        this.enhanceSelect(this.q<HTMLSelectElement>('.bh-sub-platform'));
+
         // Close via X or backdrop click.
         this.qa('.bh-modal').forEach(m => {
             m.addEventListener('click', e => {
-                const target = e.target;
-                if (target === m || target.dataset.close)
-                    m.style.display = 'none';
+                const target = e.target as HTMLElement;
+                if (target === m || target.dataset.close) m.style.display = 'none';
             });
         });
+
         this.q('.bh-toggle-auth').onclick = e => {
             e.preventDefault();
             this.setAuthMode(!this.isLogin);
         };
+
         // Password show/hide — a baseline expectation this auth form
         // never had; flips the field's own type rather than duplicating
         // it as a second text input, so nothing else about validation/
         // submission needs to change.
-        const passToggle = this.q('.bh-pass-toggle');
+        const passToggle = this.q<HTMLButtonElement>('.bh-pass-toggle');
         if (passToggle) {
             passToggle.onclick = () => {
-                const input = this.q('.bh-pass');
+                const input = this.q<HTMLInputElement>('.bh-pass');
                 const showing = input.type === 'text';
                 input.type = showing ? 'password' : 'text';
                 passToggle.setAttribute('aria-pressed', String(!showing));
@@ -468,19 +634,19 @@ class BHPlayer {
                 passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
             };
         }
+
         // Copy-to-clipboard: the one genuinely missing utility this
         // ecosystem's micro-interaction survey found — a fan is
         // explicitly told to "pair this link" but previously had to
         // select/copy it by hand. navigator.clipboard requires a secure
         // context (https or localhost); falls back to leaving the plain
         // link selectable (which already worked) if unavailable.
-        const copyBtn = this.q('.bh-copy-link-btn');
+        const copyBtn = this.q<HTMLButtonElement>('.bh-copy-link-btn');
         if (copyBtn) {
             copyBtn.onclick = () => {
-                const target = this.q(copyBtn.dataset.copyTarget || '');
+                const target = this.q<HTMLAnchorElement>(copyBtn.dataset.copyTarget || '');
                 const text = target ? (target.href || target.textContent || '') : '';
-                if (!text || !navigator.clipboard)
-                    return;
+                if (!text || !navigator.clipboard) return;
                 navigator.clipboard.writeText(text).then(() => {
                     const original = copyBtn.textContent || '';
                     copyBtn.textContent = 'Copied!';
@@ -495,24 +661,19 @@ class BHPlayer {
                 });
             };
         }
+
         // Event delegation: one listener covers every (re-rendered) track row.
         this.q('.bh-tracklist').addEventListener('click', e => {
-            const target = e.target;
-            const v = target.closest('.bh-vote-btn');
-            if (v) {
-                this.vote(v.dataset.id || '');
-                return;
-            }
-            const row = target.closest('.bh-track-row');
-            if (row)
-                this.play(+(row.dataset.index || 0));
+            const target = e.target as HTMLElement;
+            const v = target.closest<HTMLElement>('.bh-vote-btn'); if (v) { this.vote(v.dataset.id || ''); return; }
+            const row = target.closest<HTMLElement>('.bh-track-row'); if (row) this.play(+(row.dataset.index || 0));
         });
+
         // Scrubber: freeze auto-updates while dragging, seek on release.
-        const s = this.q('.bh-scrubber');
-        const grab = () => { this.scrubbing = true; };
-        const drop = () => {
-            if (this.sound)
-                this.sound.seek((this.sound.duration() || 0) * (parseFloat(s.value) / 100));
+        const s = this.q<HTMLInputElement>('.bh-scrubber');
+        const grab = (): void => { this.scrubbing = true; };
+        const drop = (): void => {
+            if (this.sound) this.sound.seek((this.sound.duration() || 0) * (parseFloat(s.value) / 100));
             this.scrubbing = false;
         };
         s.addEventListener('input', grab);
@@ -522,35 +683,37 @@ class BHPlayer {
         s.addEventListener('pointerup', drop);
         s.addEventListener('touchend', drop);
     }
-    setAuthMode(isLogin) {
+
+    setAuthMode(isLogin: boolean): void {
         this.isLogin = isLogin;
         this.q('.bh-auth-title').innerText = isLogin ? 'Log In' : 'Sign Up';
-        this.q('.bh-email').style.display = isLogin ? 'none' : 'block';
+        this.q<HTMLElement>('.bh-email').style.display = isLogin ? 'none' : 'block';
         this.q('.bh-reg-extra').style.display = isLogin ? 'none' : 'flex';
         this.q('.bh-toggle-auth').innerText = isLogin ? 'Need an account? Sign up' : 'Have an account? Log in';
     }
+
     // Shared by the sign-up form and the submit form — appends whichever
     // profile fields have a value, plus their public/private checkbox, to
     // an outgoing FormData using the given field prefix ('reg' or 'sub').
-    appendProfileFields(fd, prefix) {
+    appendProfileFields(fd: FormData, prefix: string): void {
         for (const { key: serverKey, cls } of PROFILE_FIELDS) {
-            const val = this.q(`.bh-${prefix}-${cls}`).value.trim();
+            const val = this.q<HTMLInputElement>(`.bh-${prefix}-${cls}`).value.trim();
             if (val) {
                 fd.append(serverKey, val);
-                fd.append(`${serverKey}_public`, this.q(`.bh-${prefix}-${cls}-pub`).checked ? '1' : '0');
+                fd.append(`${serverKey}_public`, this.q<HTMLInputElement>(`.bh-${prefix}-${cls}-pub`).checked ? '1' : '0');
             }
         }
-        const platform = this.q(`.bh-${prefix}-platform`).value;
-        if (platform)
-            fd.append('typical_platform', platform);
+        const platform = this.q<HTMLSelectElement>(`.bh-${prefix}-platform`).value;
+        if (platform) fd.append('typical_platform', platform);
+
         // No public/private checkbox for this one — it only exists on
         // the submit form (prize contact only matters for someone who
         // could actually win), so the lookup is guarded rather than
         // assumed present the way the fields above are.
-        const phoneEl = this.q(`.bh-${prefix}-phone`);
-        if (phoneEl && phoneEl.value.trim())
-            fd.append('phone', phoneEl.value.trim());
+        const phoneEl = this.q<HTMLInputElement>(`.bh-${prefix}-phone`);
+        if (phoneEl && phoneEl.value.trim()) fd.append('phone', phoneEl.value.trim());
     }
+
     // Replaces a native <select>'s on-page presentation with a themed
     // trigger + option list, while leaving the real <select> in the DOM
     // as the actual source of truth (just visually hidden). Every other
@@ -558,34 +721,37 @@ class BHPlayer {
     // one of these selects keeps working exactly as before — this only
     // changes what's drawn, not how the value is stored. Reusable for any
     // future <select> the plugin adds, not just the two current ones.
-    enhanceSelect(select) {
-        if (!select || select.dataset.enhanced)
-            return;
+    enhanceSelect(select: HTMLSelectElement | null): void {
+        if (!select || select.dataset.enhanced) return;
         select.dataset.enhanced = '1';
+
         const wrap = document.createElement('div');
         wrap.className = 'bh-select-wrap';
-        if (select.dataset.field)
-            wrap.dataset.field = select.dataset.field;
-        select.parentNode.insertBefore(wrap, select);
+        if (select.dataset.field) wrap.dataset.field = select.dataset.field;
+        (select.parentNode as ParentNode).insertBefore(wrap, select);
         wrap.appendChild(select);
         select.classList.add('bh-select-native');
         select.tabIndex = -1; // the trigger button is what actually takes focus/tabbing
+
         const trigger = document.createElement('button');
         trigger.type = 'button';
         trigger.className = 'bh-select-trigger';
         const label = document.createElement('span');
         trigger.appendChild(label);
-        trigger.insertAdjacentHTML('beforeend', '<svg class="bh-select-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>');
+        trigger.insertAdjacentHTML('beforeend',
+            '<svg class="bh-select-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>');
         wrap.appendChild(trigger);
+
         const menu = document.createElement('div');
         menu.className = 'bh-select-menu';
         wrap.appendChild(menu);
-        const syncLabel = () => {
+
+        const syncLabel = (): void => {
             const opt = select.options[select.selectedIndex];
             label.textContent = opt ? opt.text : '';
             label.style.color = (opt && opt.value === '') ? 'var(--bh-text-dim)' : '';
         };
-        const renderOptions = () => {
+        const renderOptions = (): void => {
             menu.innerHTML = '';
             Array.from(select.options).forEach(opt => {
                 const item = document.createElement('div');
@@ -601,6 +767,7 @@ class BHPlayer {
                 menu.appendChild(item);
             });
         };
+
         // Real bug, AJ's own report (possibly Safari-specific, but not a
         // browser quirk — it's a genuine layout bug in any engine): this
         // menu is `position:absolute` inside `.bh-modal-content`, which is
@@ -614,7 +781,7 @@ class BHPlayer {
         // screen coordinates the moment it opens — that escapes the
         // scrolling container entirely rather than trying to out-z-index
         // a clip that z-index can't affect.
-        const positionMenu = () => {
+        const positionMenu = (): void => {
             const r = trigger.getBoundingClientRect();
             menu.style.position = 'fixed';
             menu.style.left = r.left + 'px';
@@ -625,39 +792,38 @@ class BHPlayer {
             e.stopPropagation();
             const willOpen = !wrap.classList.contains('open');
             document.querySelectorAll('.bh-select-wrap.open').forEach(w => w.classList.remove('open'));
-            if (willOpen) {
-                renderOptions();
-                positionMenu();
-                wrap.classList.add('open');
-            }
+            if (willOpen) { renderOptions(); positionMenu(); wrap.classList.add('open'); }
         };
         document.addEventListener('click', () => wrap.classList.remove('open'));
-        window.addEventListener('scroll', () => { if (wrap.classList.contains('open'))
-            positionMenu(); }, true);
-        window.addEventListener('resize', () => { if (wrap.classList.contains('open'))
-            positionMenu(); });
+        window.addEventListener('scroll', () => { if (wrap.classList.contains('open')) positionMenu(); }, true);
+        window.addEventListener('resize', () => { if (wrap.classList.contains('open')) positionMenu(); });
+
         // Exposed so code elsewhere that sets select.value directly
         // (bypassing the trigger, e.g. prefillSubmitProfile) can ask the
         // visible label to catch up — a plain .value= write has no event
         // for this component to observe on its own.
-        select.bhResync = () => { syncLabel(); renderOptions(); };
+        (select as BHSelectElement).bhResync = () => { syncLabel(); renderOptions(); };
+
         syncLabel();
         renderOptions();
     }
+
     /* ---------- auth ---------- */
-    async auth() {
-        const btn = this.q('.bh-auth-submit'), label = btn.innerText;
+    async auth(): Promise<void> {
+        const btn = this.q<HTMLButtonElement>('.bh-auth-submit'), label = btn.innerText;
         const fd = new FormData();
-        fd.append('username', this.q('.bh-user').value.trim());
-        fd.append('password', this.q('.bh-pass').value);
+        fd.append('username', this.q<HTMLInputElement>('.bh-user').value.trim());
+        fd.append('password', this.q<HTMLInputElement>('.bh-pass').value);
         if (!this.isLogin) {
-            fd.append('email', this.q('.bh-email').value.trim());
-            fd.append('website', this.q('.bh-website').value); // honeypot
+            fd.append('email', this.q<HTMLInputElement>('.bh-email').value.trim());
+            fd.append('website', this.q<HTMLInputElement>('.bh-website').value); // honeypot
             this.appendProfileFields(fd, 'reg');
         }
+
         btn.disabled = true;
         btn.innerText = this.isLogin ? 'Logging in…' : 'Creating account…';
-        const { ok, body } = await this.reqIdentity(this.isLogin ? 'login' : 'register', { method: 'POST', body: fd });
+
+        const { ok, body } = await this.reqIdentity<BHAuthResponse>(this.isLogin ? 'login' : 'register', { method: 'POST', body: fd });
         if (ok) {
             this.toast(this.isLogin ? 'Welcome back!' : 'Account created — you\'re now signed in.');
             // Reload rather than patch state in place. WordPress rejects any
@@ -677,8 +843,9 @@ class BHPlayer {
         btn.disabled = false;
         btn.innerText = label;
     }
-    async logout() {
-        const btn = this.q('.bh-logout-btn');
+
+    async logout(): Promise<void> {
+        const btn = this.q<HTMLAnchorElement>('.bh-logout-btn');
         btn.style.pointerEvents = 'none';
         await this.reqIdentity('logout', { method: 'POST' });
         this.toast('Logged out.');
@@ -687,39 +854,37 @@ class BHPlayer {
         // 1400ms (was 300) so the toast is actually readable first.
         setTimeout(() => window.location.reload(), 1400);
     }
+
     /* ---------- submission ---------- */
     // Pulls whatever the person already gave us at sign-up so they don't
     // have to retype it here — only empty fields stay editable-but-blank.
-    async prefillSubmitProfile() {
-        const { ok, body } = await this.reqIdentity('profile');
-        if (!ok || !body.profile)
-            return;
+    async prefillSubmitProfile(): Promise<void> {
+        const { ok, body } = await this.reqIdentity<BHProfileResponse>('profile');
+        if (!ok || !body.profile) return;
         const p = body.profile;
-        const pRecord = p;
+        const pRecord = p as unknown as Record<string, string | boolean | undefined>;
         for (const { key: serverKey, cls } of PROFILE_FIELDS) {
-            const input = this.q(`.bh-sub-${cls}`);
+            const input = this.q<HTMLInputElement>(`.bh-sub-${cls}`);
             const val = pRecord[serverKey];
-            if (val && !input.value)
-                input.value = String(val);
-            this.q(`.bh-sub-${cls}-pub`).checked = !!pRecord[`${serverKey}_public`];
+            if (val && !input.value) input.value = String(val);
+            this.q<HTMLInputElement>(`.bh-sub-${cls}-pub`).checked = !!pRecord[`${serverKey}_public`];
         }
         if (p.typical_platform) {
-            const sel = this.q('.bh-sub-platform');
+            const sel = this.q<BHSelectElement>('.bh-sub-platform');
             sel.value = p.typical_platform;
-            if (sel.bhResync)
-                sel.bhResync();
+            if (sel.bhResync) sel.bhResync();
         }
-        const phoneEl = this.q('.bh-sub-phone');
-        if (phoneEl && p.phone && !phoneEl.value)
-            phoneEl.value = p.phone;
+        const phoneEl = this.q<HTMLInputElement>('.bh-sub-phone');
+        if (phoneEl && p.phone && !phoneEl.value) phoneEl.value = p.phone;
     }
-    async upload() {
-        var _a;
-        const file = (_a = this.q('.bh-sub-file').files) === null || _a === void 0 ? void 0 : _a[0];
-        const title = this.q('.bh-sub-title').value.trim();
-        const artist = this.q('.bh-sub-artist').value.trim();
-        const note = this.q('.bh-sub-note').value.trim();
-        const btn = this.q('.bh-upload-btn');
+
+    async upload(): Promise<void> {
+        const file = this.q<HTMLInputElement>('.bh-sub-file').files?.[0];
+        const title = this.q<HTMLInputElement>('.bh-sub-title').value.trim();
+        const artist = this.q<HTMLInputElement>('.bh-sub-artist').value.trim();
+        const note = this.q<HTMLTextAreaElement>('.bh-sub-note').value.trim();
+        const btn = this.q<HTMLButtonElement>('.bh-upload-btn');
+
         // Audio is only optional when THIS contest's own admin turned on
         // "Allow submitting without audio yet" — every other contest
         // keeps the original all-three-required behavior unchanged.
@@ -729,23 +894,20 @@ class BHPlayer {
                 : 'Add a song title, artist name, and an audio file.', true);
             return;
         }
-        if (file && file.size > this.maxBytes) {
-            this.toast('That file is over 20MB. Please choose a smaller one.', true);
-            return;
-        }
+        if (file && file.size > this.maxBytes) { this.toast('That file is over 20MB. Please choose a smaller one.', true); return; }
+
         btn.disabled = true;
         btn.innerText = file ? 'Uploading… please wait' : 'Saving…';
+
         const fd = new FormData();
-        fd.append('title', title);
-        fd.append('artist', artist);
-        fd.append('note', note);
-        if (file)
-            fd.append('audio', file);
+        fd.append('title', title); fd.append('artist', artist); fd.append('note', note);
+        if (file) fd.append('audio', file);
         this.appendProfileFields(fd, 'sub');
-        const { ok, body } = await this.req('submit', { method: 'POST', body: fd });
+
+        const { ok, body } = await this.req<BHSubmitResponse>('submit', { method: 'POST', body: fd });
         if (ok) {
             this.q('.bh-submit-modal').style.display = 'none';
-            this.qa('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
+            this.qa<HTMLInputElement | HTMLTextAreaElement>('.bh-sub-title, .bh-sub-artist, .bh-sub-note, .bh-sub-file, .bh-sub-realname, .bh-sub-discord, .bh-sub-twitch, .bh-sub-youtube, .bh-sub-phone')
                 .forEach(el => { el.value = ''; });
             this.q('.bh-file-label-text').textContent = 'Choose an audio file…';
             if (body.needs_audio) {
@@ -753,18 +915,17 @@ class BHPlayer {
                 // track exists (showShareModal() would have nothing
                 // meaningful to point at).
                 this.toast(body.message || 'Submission started! Attach your audio file from your account portal to finish.');
-            }
-            else {
+            } else {
                 this.toast('Track submitted! It will appear once an admin approves it.');
                 this.showShareModal(body);
             }
-        }
-        else {
+        } else {
             this.toast(body.message || 'Upload failed. Check the file and try again.', true);
         }
         btn.disabled = false;
         btn.innerText = 'Upload';
     }
+
     // Populates and opens the share modal added alongside the submit
     // flow — entered_card_url/vote_card_url/contest_page_url all ride
     // on the submit API's own success response (class-api.php's
@@ -772,9 +933,8 @@ class BHPlayer {
     // being present since an older cached copy of this JS talking to a
     // freshly-updated API (or vice versa during a deploy) shouldn't
     // throw trying to read a field that isn't there yet.
-    showShareModal(body) {
-        if (!body.entered_card_url || !body.vote_card_url)
-            return;
+    showShareModal(body: BHSubmitResponse): void {
+        if (!body.entered_card_url || !body.vote_card_url) return;
         // The one concrete "what happens next" a fan sees between
         // submitting and however far off the reveal party is — there's no
         // stored reveal date (that's admin-triggered live), so the
@@ -788,60 +948,59 @@ class BHPlayer {
                 nextEl.textContent = label
                     ? `Voting closes ${label} — winners are announced live at the Reveal Party.`
                     : 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
-            }
-            else {
+            } else {
                 nextEl.textContent = 'Watch for the Reveal Party once voting closes — that\'s when winners are announced.';
             }
         }
-        this.q('[data-share="entered"]').href = body.entered_card_url;
-        this.q('[data-share-img="entered"]').src = body.entered_card_url;
-        this.q('[data-share="vote"]').href = body.vote_card_url;
-        this.q('[data-share-img="vote"]').src = body.vote_card_url;
-        const link = this.q('.bh-share-contest-link');
+        this.q<HTMLAnchorElement>('[data-share="entered"]').href = body.entered_card_url;
+        this.q<HTMLImageElement>('[data-share-img="entered"]').src = body.entered_card_url;
+        this.q<HTMLAnchorElement>('[data-share="vote"]').href = body.vote_card_url;
+        this.q<HTMLImageElement>('[data-share-img="vote"]').src = body.vote_card_url;
+        const link = this.q<HTMLAnchorElement>('.bh-share-contest-link');
         link.href = body.contest_page_url || '#';
         link.textContent = body.contest_page_url || '';
         this.q('.bh-share-modal').style.display = 'flex';
     }
+
     /* ---------- tracks ---------- */
-    async loadTracks(page) {
-        var _a;
+    async loadTracks(page: number): Promise<void> {
         const list = this.q('.bh-tracklist');
-        const { ok, body } = await this.req(`tracks?page=${page}`);
-        if (!ok) {
-            list.innerHTML = '<div class="bh-empty">Could not load tracks.</div>';
-            return;
-        }
+        const { ok, body } = await this.req<BHTracksResponse>(`tracks?page=${page}`);
+        if (!ok) { list.innerHTML = '<div class="bh-empty">Could not load tracks.</div>'; return; }
+
         // The server resolves an untargeted shortcode to "newest published
         // contest" — lock this instance to that specific ID so a second
         // contest being published elsewhere mid-session can't silently
         // swap what this embed shows.
-        if (body.contest_id)
-            this.contest = String(body.contest_id);
+        if (body.contest_id) this.contest = String(body.contest_id);
         this.resultsPublished = !!body.results_published;
         this.q('.bh-results-btn').style.display = this.resultsPublished ? 'inline-flex' : 'none';
+
         this.categories = body.categories || [];
         if (!this.activeCategory || !this.categories.some(c => c.slug === this.activeCategory)) {
-            this.activeCategory = this.categories.length ? this.categories[0].slug : '';
+            this.activeCategory = this.categories.length ? (this.categories[0] as BHCategory).slug : '';
         }
         this.renderCategoryTabs();
+
         // Audit fix (2026-07-25): votes_remaining/vote_limit come back
         // from /tracks now specifically so this counter has real data
         // from page load, not only after casting a first vote.
-        this.voteLimit = (_a = body.vote_limit) !== null && _a !== void 0 ? _a : null;
+        this.voteLimit = body.vote_limit ?? null;
         this.votesRemaining = body.votes_remaining || {};
         this.renderVotesRemaining();
+
         this.contactFields = body.contact_fields || {
             show: CONTACT_FIELD_KEYS,
             require_real_name: true, require_handle: true, require_phone: false,
         };
         this.applyContactFields();
+
         this.tracks = body.tracks || [];
-        if (!this.tracks.length) {
-            list.innerHTML = '<div class="bh-empty">No tracks yet. Be the first to submit!</div>';
-            return;
-        }
+        if (!this.tracks.length) { list.innerHTML = '<div class="bh-empty">No tracks yet. Be the first to submit!</div>'; return; }
+
         this.renderTrackRows();
     }
+
     // Shows/hides each contact field in the submit form per this
     // contest's configuration (see BH_Helpers::contact_config() on the
     // server), and rewrites the hint text to describe what's actually
@@ -851,22 +1010,18 @@ class BHPlayer {
     // construction — this runs later, after the async tracks fetch
     // resolves), so hiding "typical_platform" correctly targets the
     // wrapper carrying that data-field, not the now-invisible raw select.
-    applyContactFields() {
+    applyContactFields(): void {
         const cfg = this.contactFields;
-        if (!cfg)
-            return;
+        if (!cfg) return;
         CONTACT_FIELD_KEYS.forEach(f => {
-            const el = this.q(`[data-field="${f}"]`);
-            if (el)
-                el.style.display = cfg.show.includes(f) ? '' : 'none';
+            const el = this.q<HTMLElement>(`[data-field="${f}"]`);
+            if (el) el.style.display = cfg.show.includes(f) ? '' : 'none';
         });
-        const parts = [];
-        if (cfg.require_real_name)
-            parts.push('your real name');
-        if (cfg.require_handle)
-            parts.push('at least one way to reach you (Discord, Twitch, or YouTube)');
-        if (cfg.require_phone)
-            parts.push('a phone number');
+
+        const parts: string[] = [];
+        if (cfg.require_real_name) parts.push('your real name');
+        if (cfg.require_handle) parts.push('at least one way to reach you (Discord, Twitch, or YouTube)');
+        if (cfg.require_phone) parts.push('a phone number');
         const hint = this.q('.bh-sub-fan-note');
         if (hint) {
             hint.textContent = parts.length
@@ -874,61 +1029,58 @@ class BHPlayer {
                 : 'Optional — fill in whatever you\'d like below.';
         }
     }
+
     // A row of pill tabs, one per voting category — only shown when a
     // contest actually defines 2+ of them. A single category is the same
     // as none from the voter's perspective, so it stays hidden rather than
     // adding a tab that never does anything.
-    renderCategoryTabs() {
+    renderCategoryTabs(): void {
         const wrap = this.q('.bh-category-tabs');
-        if (this.categories.length < 2) {
-            wrap.style.display = 'none';
-            wrap.innerHTML = '';
-            return;
-        }
+        if (this.categories.length < 2) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+
         wrap.style.display = 'flex';
         wrap.innerHTML = this.categories.map(c => `
             <button class="bh-cat-tab ${c.slug === this.activeCategory ? 'active' : ''}" data-cat="${this.esc(c.slug)}" style="--bh-cat-color:${this.catColor(c.slug)}">${this.esc(c.name)}</button>
         `).join('');
-        wrap.querySelectorAll('.bh-cat-tab').forEach(btn => {
+        wrap.querySelectorAll<HTMLButtonElement>('.bh-cat-tab').forEach(btn => {
             btn.onclick = () => this.switchCategory(btn.dataset.cat || '');
         });
     }
+
     // Switching categories never refetches — every category's vote state
     // for every track came back in the initial /tracks call, so this is
     // instant and reuses whatever's already in memory.
-    switchCategory(slug) {
-        if (slug === this.activeCategory)
-            return;
+    switchCategory(slug: string): void {
+        if (slug === this.activeCategory) return;
         this.activeCategory = slug;
         this.renderCategoryTabs();
         this.renderTrackRows();
         this.renderVotesRemaining();
     }
+
     // Audit fix (2026-07-25): persistent votes-remaining indicator for
     // the active category — voteLimit/votesRemaining are populated from
     // loadTracks() (page load) and kept current from castVote()'s own
     // response after every cast, so this never needs its own round trip.
-    renderVotesRemaining() {
+    renderVotesRemaining(): void {
         const el = this.q('.bh-votes-remaining');
-        if (!el)
-            return;
+        if (!el) return;
         const cat = this.activeCategory || '';
         const left = this.votesRemaining ? this.votesRemaining[cat] : undefined;
-        if (left === undefined || this.voteLimit === null) {
-            el.style.display = 'none';
-            return;
-        }
+        if (left === undefined || this.voteLimit === null) { el.style.display = 'none'; return; }
         el.style.display = '';
         el.textContent = left > 0
             ? `${left} vote${left === 1 ? '' : 's'} left${this.voteLimit ? ` of ${this.voteLimit}` : ''}`
             : 'No votes left in this category';
         el.classList.toggle('bh-votes-remaining--empty', left <= 0);
     }
-    activeCategoryName() {
+
+    activeCategoryName(): string {
         const c = this.categories.find(c => c.slug === this.activeCategory);
         return c ? c.name : '';
     }
-    renderTrackRows() {
+
+    renderTrackRows(): void {
         const list = this.q('.bh-tracklist');
         const color = this.catColor(this.activeCategory);
         list.innerHTML = this.tracks.map((t, i) => {
@@ -947,51 +1099,52 @@ class BHPlayer {
             </div>`;
         }).join('');
     }
-    play(index) {
-        if (this.sound)
-            this.sound.stop();
+
+    play(index: number): void {
+        if (this.sound) this.sound.stop();
         const t = this.tracks[index];
-        if (!t || !t.src) {
-            this.toast('This track has no audio file.', true);
-            return;
-        }
+        if (!t || !t.src) { this.toast('This track has no audio file.', true); return; }
+
         this.playingIndex = index;
         this.q('.bh-np-info').innerHTML = `<strong>${this.esc(t.title)}</strong><br><small>${this.esc(t.artist)}</small>`;
         this.q('.bh-np-disc').style.setProperty('--bh-hue', String(this.hue(t.id)));
         this.req('play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ submission_id: t.id }) });
+
         this.sound = new Howl({
             src: [t.src], html5: true,
             onplay: () => { this.setPlayIcon(true); requestAnimationFrame(() => this.tick()); },
             onpause: () => this.setPlayIcon(false),
-            onend: () => { this.setPlayIcon(false); this.q('.bh-scrubber').value = '0'; this.q('.bh-time-elapsed').textContent = '0:00'; },
+            onend: () => { this.setPlayIcon(false); this.q<HTMLInputElement>('.bh-scrubber').value = '0'; this.q('.bh-time-elapsed').textContent = '0:00'; },
         });
         this.sound.play();
     }
-    setPlayIcon(playing) {
+
+    setPlayIcon(playing: boolean): void {
         this.q('.bh-icon-play').style.display = playing ? 'none' : '';
         this.q('.bh-icon-pause').style.display = playing ? '' : 'none';
         this.q('.bh-np-disc').classList.toggle('spinning', playing);
     }
-    toggle() {
-        if (!this.sound)
-            return;
+
+    toggle(): void {
+        if (!this.sound) return;
         this.sound.playing() ? this.sound.pause() : this.sound.play();
     }
-    tick() {
+
+    tick(): void {
         if (this.sound && this.sound.playing()) {
             const dur = this.sound.duration() || 0;
             if (!this.scrubbing) {
                 const seek = this.sound.seek() || 0;
-                this.q('.bh-scrubber').value = String(dur ? (seek / dur) * 100 : 0);
+                this.q<HTMLInputElement>('.bh-scrubber').value = String(dur ? (seek / dur) * 100 : 0);
                 this.q('.bh-time-elapsed').textContent = this.fmtTime(seek);
             }
             this.q('.bh-time-duration').textContent = this.fmtTime(dur);
             requestAnimationFrame(() => this.tick());
         }
     }
+
     /* ---------- voting ---------- */
-    async vote(id) {
-        var _a;
+    async vote(id: string): Promise<void> {
         if (!this.loggedIn) {
             this.setAuthMode(true);
             this.q('.bh-auth-modal').style.display = 'flex';
@@ -999,48 +1152,34 @@ class BHPlayer {
             return;
         }
         const track = this.tracks.find(t => String(t.id) === String(id));
-        const btn = this.q(`#vote-${id}`);
-        if (btn)
-            btn.disabled = true;
+        const btn = this.q<HTMLButtonElement>(`#vote-${id}`);
+        if (btn) btn.disabled = true;
+
         const catName = this.activeCategoryName();
         const catSuffix = catName ? ` for ${catName}` : '';
-        const { ok, body } = await this.req('vote', {
+
+        const { ok, body } = await this.req<BHVoteResponse>('vote', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ submission_id: id, category: this.activeCategory }),
         });
+
         if (ok && body.action === 'added') {
             // Write the result back into the data model, not just the DOM —
             // renderTrackRows() rebuilds from this.tracks on every tab
             // switch, so without this the vote appeared to "disappear"
             // the moment you switched away and back (it was never lost
             // server-side, only in what got redrawn on screen).
-            if (track) {
-                track.votes = track.votes || {};
-                track.votes[this.activeCategory] = true;
-            }
-            if (btn) {
-                btn.classList.add('voted');
-                const span = btn.querySelector('span');
-                if (span)
-                    span.textContent = 'Voted';
-            }
-            const votesLeft = (_a = body.votes_left) !== null && _a !== void 0 ? _a : 0;
+            if (track) { track.votes = track.votes || {}; track.votes[this.activeCategory] = true; }
+            if (btn) { btn.classList.add('voted'); const span = btn.querySelector('span'); if (span) span.textContent = 'Voted'; }
+            const votesLeft = body.votes_left ?? 0;
             this.toast(votesLeft > 0
                 ? `Vote counted${catSuffix} — ${votesLeft} vote${votesLeft === 1 ? '' : 's'} left.`
                 : `Vote counted${catSuffix} — that was your last vote here.`);
-        }
-        else if (ok) {
-            if (track && track.votes)
-                track.votes[this.activeCategory] = false;
-            if (btn) {
-                btn.classList.remove('voted');
-                const span = btn.querySelector('span');
-                if (span)
-                    span.textContent = 'Vote';
-            }
+        } else if (ok) {
+            if (track && track.votes) track.votes[this.activeCategory] = false;
+            if (btn) { btn.classList.remove('voted'); const span = btn.querySelector('span'); if (span) span.textContent = 'Vote'; }
             this.toast(`Vote removed${catSuffix} — you can pick another track.`);
-        }
-        else {
+        } else {
             this.toast(body.message || 'Could not record your vote.', true);
         }
         // Audit fix (2026-07-25): both the added/removed branches above
@@ -1050,41 +1189,37 @@ class BHPlayer {
         if (ok && body.votes_left !== undefined) {
             this.votesRemaining = this.votesRemaining || {};
             this.votesRemaining[this.activeCategory] = body.votes_left;
-            if (body.limit !== undefined)
-                this.voteLimit = body.limit;
+            if (body.limit !== undefined) this.voteLimit = body.limit;
             this.renderVotesRemaining();
         }
-        if (btn)
-            btn.disabled = false;
+        if (btn) btn.disabled = false;
     }
+
     /* ---------- results ---------- */
-    async loadResults() {
+    async loadResults(): Promise<void> {
         const out = this.q('.bh-results-body');
         out.innerHTML = 'Loading…';
         this.q('.bh-results-modal').style.display = 'flex';
-        const { ok, body } = await this.req('results');
-        if (!ok) {
-            out.innerHTML = `<p class="bh-results-empty">${this.esc(body.message || 'Results are not available yet.')}</p>`;
-            return;
-        }
+
+        const { ok, body } = await this.req<BHResultsResponse>('results');
+        if (!ok) { out.innerHTML = `<p class="bh-results-empty">${this.esc(body.message || 'Results are not available yet.')}</p>`; return; }
+
         const cats = body.categories || [];
-        if (!cats.length) {
-            out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>';
-            return;
-        }
+        if (!cats.length) { out.innerHTML = '<p class="bh-results-empty">No votes have been cast yet.</p>'; return; }
+
         this._resultsCats = cats;
         this._resultsFormat = body.format || 'public';
-        this._resultsActive = cats.length > 1 ? 'all' : cats[0].slug;
+        this._resultsActive = cats.length > 1 ? 'all' : (cats[0] as BHCategoryResults).slug;
         this.renderResultsBody();
     }
+
     // unit: 'votes' (default, real vote count) or 'score' — BH_Judging::
     // judge_results() reuses the same `votes` JSON key for a rubric
     // score/percentage (not an actual vote count), so a judged
     // leaderboard needs its own label rather than rendering a
     // nonsensical "75 votes".
-    renderResultsList(results, unit = 'votes') {
-        if (!results || !results.length)
-            return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
+    renderResultsList(results: BHResultEntry[] | undefined, unit: 'votes' | 'score' = 'votes'): string {
+        if (!results || !results.length) return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
         const medals = ['🥇', '🥈', '🥉'];
         return `<ol class="bh-results-list">${results.map(r => `
             <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
@@ -1096,6 +1231,7 @@ class BHPlayer {
                 <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
+
     // Every category's results flattened into one list, re-ranked, with a
     // colored category badge per row (matching the tab colors) so it
     // reads as "all of it in one place" rather than a confusing mash-up.
@@ -1111,15 +1247,15 @@ class BHPlayer {
     // "People's Choice" as two separate lists rather than blending
     // mismatched scales (a % score and a raw vote count) into one
     // ranked list.
-    renderAllResultsList(cats) {
-        const unit = this._resultsFormat === 'judges' ? 'score' : 'votes';
-        const rows = [];
+    renderAllResultsList(cats: BHCategoryResults[]): string {
+        const unit: 'votes' | 'score' = this._resultsFormat === 'judges' ? 'score' : 'votes';
+        const rows: (BHResultEntry & { categoryName: string; categorySlug: string })[] = [];
         cats.forEach(c => (c.results || []).forEach(r => rows.push({ ...r, categoryName: c.name, categorySlug: c.slug })));
         rows.sort((a, b) => b.votes - a.votes);
         rows.forEach((r, i) => { r.rank = i + 1; });
         const top = rows.slice(0, 20);
-        if (!top.length)
-            return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
+        if (!top.length) return `<p class="bh-results-empty">No ${unit === 'score' ? 'scores' : 'votes'} yet.</p>`;
+
         const medals = ['🥇', '🥈', '🥉'];
         return `<ol class="bh-results-list">${top.map(r => `
             <li class="${r.rank <= 3 ? 'bh-results-top' : ''}">
@@ -1132,21 +1268,23 @@ class BHPlayer {
                 <span class="bh-results-votes">${unit === 'score' ? r.votes + '%' : r.votes + ' vote' + (r.votes === 1 ? '' : 's')}</span>
             </li>`).join('')}</ol>`;
     }
-    renderResultsBody() {
+
+    renderResultsBody(): void {
         const out = this.q('.bh-results-body');
         const cats = this._resultsCats || [];
-        const tabDefs = cats.length > 1 ? [{ slug: 'all', name: 'All' }, ...cats] : cats;
+        const tabDefs: BHCategoryResults[] = cats.length > 1 ? [{ slug: 'all', name: 'All' }, ...cats] : cats;
+
         const tabs = tabDefs.length > 1
             ? `<div class="bh-category-tabs bh-results-tabs">${tabDefs.map(c => `
                 <button class="bh-cat-tab ${c.slug === this._resultsActive ? 'active' : ''}" data-cat="${this.esc(c.slug)}" style="--bh-cat-color:${c.slug === 'all' ? 'var(--bh-text-dim)' : this.catColor(c.slug)}">${this.esc(c.name)}</button>
               `).join('')}</div>`
             : '';
-        let body;
+
+        let body: string;
         if (this._resultsActive === 'all') {
             body = this.renderAllResultsList(cats);
-        }
-        else {
-            const activeCat = cats.find(c => c.slug === this._resultsActive) || cats[0];
+        } else {
+            const activeCat = cats.find(c => c.slug === this._resultsActive) || (cats[0] as BHCategoryResults);
             // A hybrid contest's REST payload carries a second
             // `judge_results` leaderboard (class-api.php's results()) —
             // render both, labeled, matching Reveal Party's own
@@ -1155,22 +1293,25 @@ class BHPlayer {
             // the rubric score, substituted server-side.
             if (activeCat.judge_results) {
                 body = `<h4 class="bh-results-subhead">Judges' Pick</h4>${this.renderResultsList(activeCat.judge_results, 'score')}`
-                    + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
-            }
-            else {
+                     + `<h4 class="bh-results-subhead">People's Choice</h4>${this.renderResultsList(activeCat.results)}`;
+            } else {
                 body = this.renderResultsList(activeCat.results, this._resultsFormat === 'judges' ? 'score' : 'votes');
             }
         }
+
         out.innerHTML = tabs + body;
+
         if (tabDefs.length > 1) {
-            out.querySelectorAll('.bh-cat-tab').forEach(btn => {
+            out.querySelectorAll<HTMLButtonElement>('.bh-cat-tab').forEach(btn => {
                 btn.onclick = () => { this._resultsActive = btn.dataset.cat; this.renderResultsBody(); };
             });
         }
     }
 }
+
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.bh-player-root').forEach(root => new BHPlayer(root));
+    document.querySelectorAll<HTMLElement>('.bh-player-root').forEach(root => new BHPlayer(root));
+
     // Email-verification confirmation used to be handled here, but this
     // checked for `bh_verified` while class-auth.php's actual redirect
     // sends `bhi_verified` — a key-name mismatch that meant this never
