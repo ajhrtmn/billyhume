@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) exit;
  * shipped, same posture Lesson Q&A/certificates already established.
  */
 class BHC_Leaderboard {
-    public static function is_enabled($course_id) {
+    public static function is_enabled(int $course_id): bool {
         return (bool) get_post_meta($course_id, '_bhc_leaderboard_enabled', true);
     }
 
@@ -28,7 +28,8 @@ class BHC_Leaderboard {
     // who've attempted at least one quiz appear (average returns null
     // otherwise) — obvious-or-gone, no student shows as "0%" just for
     // having enrolled.
-    public static function top_scorers($course_id, $limit = 10) {
+    /** @return array<int, array<string, mixed>> */
+    public static function top_scorers(int $course_id, int $limit = 10): array {
         if (!class_exists('BHC_Progress')) return [];
         global $wpdb;
         $user_ids = $wpdb->get_col($wpdb->prepare(
@@ -66,7 +67,7 @@ class BHC_Leaderboard {
     // Not rendered at all when disabled or when nobody's attempted a
     // quiz yet — obvious-or-gone, never an empty "Top Scorers" heading
     // sitting over nothing.
-    public static function render($course_id) {
+    public static function render(int $course_id): string {
         if (!self::is_enabled($course_id)) return '';
         $rows = self::top_scorers($course_id);
         if (!$rows) return '';

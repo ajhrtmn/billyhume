@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * detection (bhc_completions + the bhc_course_completed action).
  */
 class BHC_Progress {
-    public static function init() {
+    public static function init(): void {
         // Nothing to hook here beyond the two AJAX actions registered
         // in the main bootstrap file — kept as an init() entry point
         // anyway for consistency with every other class in this
@@ -28,12 +28,13 @@ class BHC_Progress {
         }
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhc_progress';
     }
 
-    public static function step_status($user_id, $lesson_id, $step_index) {
+    /** @return array<string, mixed>|null */
+    public static function step_status(int $user_id, int $lesson_id, int $step_index): ?array {
         global $wpdb;
         if (!$user_id) return null;
         return $wpdb->get_row($wpdb->prepare(
@@ -42,7 +43,7 @@ class BHC_Progress {
         ), ARRAY_A);
     }
 
-    public static function is_step_complete($user_id, $lesson_id, $step_index) {
+    public static function is_step_complete(int $user_id, int $lesson_id, int $step_index): bool {
         $row = self::step_status($user_id, $lesson_id, $step_index);
         // A quiz step only counts as "complete" (i.e. the walker can
         // advance past it) once passed — a failed attempt still writes
@@ -59,7 +60,8 @@ class BHC_Progress {
     // lives in class-render.php, not here — this is just the data).
     // Only counts steps that are genuinely done per is_step_complete()'s
     // rule above (a failed, attempts-exhausted quiz never counts).
-    public static function completed_steps($user_id, $lesson_id) {
+    /** @return array<int, int> */
+    public static function completed_steps(int $user_id, int $lesson_id): array {
         global $wpdb;
         if (!$user_id) return [];
         $rows = $wpdb->get_results($wpdb->prepare(
@@ -73,7 +75,7 @@ class BHC_Progress {
         return $done;
     }
 
-    public static function attempts($user_id, $lesson_id, $step_index) {
+    public static function attempts(int $user_id, int $lesson_id, int $step_index): int {
         $row = self::step_status($user_id, $lesson_id, $step_index);
         return $row ? (int) $row['attempts'] : 0;
     }
@@ -85,7 +87,7 @@ class BHC_Progress {
     // established (see the comment below): a plain text/image step, or a
     // quiz row written before this column existed, gets a real SQL NULL,
     // never a stringified 'null'/empty string.
-    public static function mark_step_complete($user_id, $lesson_id, $step_index, $score = null, $passed = null, $answers_json = null) {
+    public static function mark_step_complete(int $user_id, int $lesson_id, int $step_index, ?int $score = null, ?bool $passed = null, ?string $answers_json = null): void {
         global $wpdb;
         // QA fix: $wpdb->prepare() has no NULL passthrough for scalar
         // placeholders — a PHP null bound through %s/%d is cast to ''/0
@@ -146,7 +148,7 @@ class BHC_Progress {
         }
     }
 
-    public static function watched_percent($user_id, $lesson_id, $step_index) {
+    public static function watched_percent(int $user_id, int $lesson_id, int $step_index): int {
         $row = self::step_status($user_id, $lesson_id, $step_index);
         return $row && $row['watched_percent'] !== null ? (int) $row['watched_percent'] : 0;
     }
@@ -161,7 +163,7 @@ class BHC_Progress {
     // never needs a separate button click to advance — same "no bespoke
     // second completion mechanic" posture the resource step's docblock
     // already established for non-blocking steps.
-    public static function update_watch_progress($user_id, $lesson_id, $step_index, $percent) {
+    public static function update_watch_progress(int $user_id, int $lesson_id, int $step_index, int $percent): bool {
         global $wpdb;
         $percent = max(0, min(100, (int) $percent));
 
@@ -207,7 +209,8 @@ class BHC_Progress {
     // of a passed quiz instead of re-deriving anything from the current
     // (possibly since-edited) _bhc_steps content — see the answers
     // column's own comment in class-activator.php for why that matters.
-    public static function stored_answers($user_id, $lesson_id, $step_index) {
+    /** @return array<string, mixed>|null */
+    public static function stored_answers(int $user_id, int $lesson_id, int $step_index): ?array {
         $row = self::step_status($user_id, $lesson_id, $step_index);
         if (!$row || empty($row['answers'])) return null;
         $decoded = json_decode($row['answers'], true);
@@ -216,7 +219,7 @@ class BHC_Progress {
 
     // Percent of a whole COURSE a user has completed — steps across
     // every lesson in the course's own order, not just one lesson.
-    public static function course_percent($user_id, $course_id) {
+    public static function course_percent(int $user_id, int $course_id): int {
         if (!$user_id) return 0;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return 0;
@@ -242,7 +245,7 @@ class BHC_Progress {
     // Returns null (not 0) when no quiz has been attempted yet —
     // callers must treat that as "nothing to show" (never a bare "0%"
     // before a student has actually taken a quiz).
-    public static function course_quiz_average($user_id, $course_id) {
+    public static function course_quiz_average(int $user_id, int $course_id): ?int {
         if (!$user_id) return null;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return null;
@@ -262,7 +265,8 @@ class BHC_Progress {
     // had its own private copy) so class-nudges.php's stalled-student
     // check and the admin Student Progress page read off one shared
     // implementation instead of two that could drift apart.
-    public static function students_for_course($course_id) {
+    /** @return array<int, int> */
+    public static function students_for_course(int $course_id): array {
         global $wpdb;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return [];
@@ -273,7 +277,7 @@ class BHC_Progress {
         )));
     }
 
-    public static function last_activity_for_course($user_id, $course_id) {
+    public static function last_activity_for_course(int $user_id, int $course_id): ?string {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return null;
         global $wpdb;
@@ -293,7 +297,8 @@ class BHC_Progress {
     // that admin page (course/lesson rendering, gating) still calls the
     // single-user methods above — those are already O(1) per page view
     // and don't need batching.
-    public static function course_progress_matrix($course_id) {
+    /** @return array<string, mixed> */
+    public static function course_progress_matrix(int $course_id): array {
         global $wpdb;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return ['user_ids' => [], 'completed' => [], 'last_activity' => [], 'quiz_scores' => []];
@@ -336,7 +341,11 @@ class BHC_Progress {
 
     // Batched sibling of is_course_completed() — one query for every
     // student on the page instead of one COUNT(*) per student.
-    public static function completed_user_ids($course_id, array $user_ids) {
+    /**
+     * @param array<int, int> $user_ids
+     * @return array<int, int>
+     */
+    public static function completed_user_ids(int $course_id, array $user_ids): array {
         if (!$user_ids) return [];
         global $wpdb;
         $placeholders = implode(',', array_fill(0, count($user_ids), '%d'));
@@ -355,7 +364,7 @@ class BHC_Progress {
     // into). Returns null if every open lesson is fully done — the
     // caller (class-render.php) treats that as "show a Review/Complete
     // state instead."
-    public static function first_incomplete_lesson($user_id, $course_id) {
+    public static function first_incomplete_lesson(int $user_id, int $course_id): ?int {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         foreach ($lesson_ids as $lesson_id) {
             if (get_post_status($lesson_id) !== 'publish') continue;
@@ -379,7 +388,7 @@ class BHC_Progress {
     // across an unrelated call earlier in the same request) to show a
     // one-time orientation moment instead of dropping straight into
     // lesson content.
-    public static function enroll_if_needed($user_id, $course_id) {
+    public static function enroll_if_needed(int $user_id, int $course_id): bool {
         if (!$user_id || !$course_id) return false;
         global $wpdb;
         $wpdb->query($wpdb->prepare(
@@ -409,7 +418,7 @@ class BHC_Progress {
         return false;
     }
 
-    public static function enrolled_at($user_id, $course_id) {
+    public static function enrolled_at(int $user_id, int $course_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
             "SELECT enrolled_at FROM {$wpdb->prefix}bhc_enrollments WHERE user_id = %d AND course_id = %d",
@@ -422,7 +431,8 @@ class BHC_Progress {
     // bhc_progress ROW (i.e. who've already touched a step). A student
     // waiting on a drip-locked lesson may be enrolled with zero progress
     // rows yet, so class-drip-nudges.php needs this list, not that one.
-    public static function enrolled_user_ids($course_id) {
+    /** @return array<int, int> */
+    public static function enrolled_user_ids(int $course_id): array {
         global $wpdb;
         return array_map('intval', $wpdb->get_col($wpdb->prepare(
             "SELECT user_id FROM {$wpdb->prefix}bhc_enrollments WHERE course_id = %d",
@@ -437,7 +447,8 @@ class BHC_Progress {
     // Returns course_id => count for every course with at least one
     // enrollment; a course with zero simply isn't in the returned array
     // (callers treat a missing key as 0).
-    public static function enrollment_counts() {
+    /** @return array<int, int> */
+    public static function enrollment_counts(): array {
         global $wpdb;
         $rows = $wpdb->get_results(
             "SELECT course_id, COUNT(*) AS c FROM {$wpdb->prefix}bhc_enrollments GROUP BY course_id",
@@ -457,7 +468,7 @@ class BHC_Progress {
     // every later call), not by an application-level "have I fired this
     // already" check, so a race between two nearly-simultaneous last
     // steps can't double-fire it either.
-    private static function maybe_fire_course_completed($user_id, $course_id) {
+    private static function maybe_fire_course_completed(int $user_id, int $course_id): void {
         if (!$user_id || !$course_id) return;
         if (self::course_percent($user_id, $course_id) < 100) return;
 
@@ -505,7 +516,7 @@ class BHC_Progress {
     // invested" stat) still reads the student's real original
     // completion timestamp, which stays historically accurate even
     // though "is this course completed RIGHT NOW" no longer is.
-    public static function is_course_completed($user_id, $course_id) {
+    public static function is_course_completed(int $user_id, int $course_id): bool {
         global $wpdb;
         $has_completion_row = (bool) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
@@ -516,7 +527,7 @@ class BHC_Progress {
     }
 
     /** Null if not yet completed — same shape as enrolled_at(), for the completion screen's "time invested" stat. */
-    public static function course_completed_at($user_id, $course_id) {
+    public static function course_completed_at(int $user_id, int $course_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
             "SELECT completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
@@ -531,7 +542,7 @@ class BHC_Progress {
     // pass-count and a score-average answer two different questions
     // (a student could pass every quiz at exactly the passing_score and
     // still have a modest average, or vice versa on a generous curve).
-    public static function quizzes_passed_count($user_id, $course_id) {
+    public static function quizzes_passed_count(int $user_id, int $course_id): int {
         if (!$user_id) return 0;
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return 0;
@@ -545,7 +556,7 @@ class BHC_Progress {
 
     /* ---------------- AJAX handlers (logged-in students) ---------------- */
 
-    public static function ajax_mark_complete() {
+    public static function ajax_mark_complete(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
@@ -581,7 +592,7 @@ class BHC_Progress {
         ]);
     }
 
-    public static function ajax_update_watch_progress() {
+    public static function ajax_update_watch_progress(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
@@ -612,7 +623,7 @@ class BHC_Progress {
         wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed, 'course_id' => $course_id, 'course_percent' => $course_percent]);
     }
 
-    public static function ajax_submit_quiz() {
+    public static function ajax_submit_quiz(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);

@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  * method.
  */
 class BHC_Render_Course {
-    private static function render_course_header($course_id, $uid, $locked) {
+    private static function render_course_header(int $course_id, int $uid, bool $locked): string {
         $difficulty_label = BHC_PostTypes::difficulty_label($course_id);
         $instructor = BHC_PostTypes::instructor($course_id);
         $lesson_count = BHC_PostTypes::lesson_count($course_id);
@@ -67,7 +67,7 @@ class BHC_Render_Course {
         if (class_exists('BHC_Reviews')) {
             $rating = BHC_Reviews::average_rating($course_id);
             if ($rating['count'] > 0) {
-                echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html($rating['average']) . '</span> <span class="bhc-rating-count">(' . (int) $rating['count'] . ' review' . ($rating['count'] === 1 ? '' : 's') . ')</span></span>';
+                echo '<span class="bhc-course-rating">' . self::render_stars($rating['average']) . ' <span class="bhc-rating-number">' . esc_html((string) $rating['average']) . '</span> <span class="bhc-rating-count">(' . (int) $rating['count'] . ' review' . ($rating['count'] === 1 ? '' : 's') . ')</span></span>';
             }
         }
         echo '</div>';
@@ -97,7 +97,8 @@ class BHC_Render_Course {
         return ob_get_clean();
     }
 
-    public static function render_course($atts) {
+    /** @param mixed $atts */
+    public static function render_course($atts): string {
         $course_id = (int) ($atts['id'] ?? get_the_ID());
         if (!$course_id || get_post_type($course_id) !== 'bh_course') return '';
 
@@ -228,7 +229,7 @@ class BHC_Render_Course {
     // purpose (matches the admin moderation table's own str_repeat
     // approach) rather than half-star rendering, which would need a
     // second glyph/SVG this codebase doesn't otherwise use anywhere.
-    private static function render_stars($rating) {
+    private static function render_stars(float $rating): string {
         $full = (int) round($rating);
         $full = max(0, min(5, $full));
         return '<span class="bhc-stars" aria-hidden="true">' . str_repeat('&#9733;', $full) . str_repeat('&#9734;', 5 - $full) . '</span>';
@@ -239,7 +240,7 @@ class BHC_Render_Course {
     // below) + the submission/edit form. Eligibility is ENROLLMENT, not
     // completion — locked-out visitors never see this section at all
     // (the caller already gates on !$locked).
-    private static function render_reviews_section($course_id, $uid) {
+    private static function render_reviews_section(int $course_id, int $uid): string {
         ob_start();
         echo '<div class="bhc-reviews-section" id="bhc-reviews">';
         echo '<h2>Reviews</h2>';
@@ -302,7 +303,7 @@ class BHC_Render_Course {
     // between lessons without going back to the course page first.
     // $current_lesson_id highlights the lesson currently open; null on
     // the course page itself (nothing is "current" there).
-    public static function render_lesson_sidebar($course_id, $uid, $current_lesson_id = null) {
+    public static function render_lesson_sidebar(int $course_id, int $uid, ?int $current_lesson_id = null): string {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         if (!$lesson_ids) return '';
         $percent = $uid ? BHC_Progress::course_percent($uid, $course_id) : 0;
@@ -324,7 +325,8 @@ class BHC_Render_Course {
     // current-lesson highlighting had drifted from the course page's
     // drip-notice/step-progress display instead of just being the two
     // real differences they are.
-    private static function render_lesson_li($lesson_id, $uid, $current_lesson_id, $is_sidebar) {
+    /** @return array{html:string, complete:bool, is_current:bool} */
+    private static function render_lesson_li(int $lesson_id, int $uid, ?int $current_lesson_id, bool $is_sidebar): array {
         $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
         $step_count = BHC_Steps::count($lesson_id);
         $done_count = $uid ? count(BHC_Progress::completed_steps($uid, $lesson_id)) : 0;
@@ -356,7 +358,7 @@ class BHC_Render_Course {
     // modules collapse out of the way, current/upcoming ones stay
     // visible, matching how the stepper already treats past vs. current
     // steps.
-    private static function render_grouped_lesson_list($course_id, $uid, $current_lesson_id, $is_sidebar) {
+    private static function render_grouped_lesson_list(int $course_id, int $uid, ?int $current_lesson_id, bool $is_sidebar): string {
         $list_class = $is_sidebar ? 'bhc-lesson-list bhc-sidebar-lesson-list' : 'bhc-lesson-list';
         $out = '<ol class="' . $list_class . '">';
         foreach (BHC_PostTypes::grouped_lesson_order($course_id) as $group) {
@@ -388,7 +390,7 @@ class BHC_Render_Course {
     // $percent is passed in rather than recomputed since both call sites
     // already have it (or compute it themselves right before calling
     // this).
-    public static function render_continue_cta($uid, $course_id, $percent) {
+    public static function render_continue_cta(int $uid, int $course_id, int $percent): string {
         $target_lesson = BHC_Progress::first_incomplete_lesson($uid, $course_id);
         if ($target_lesson) {
             $label = $percent > 0 ? 'Continue' : 'Start';
@@ -428,7 +430,7 @@ class BHC_Render_Course {
      * hasn't happened yet at that point), so that one call site passes
      * true to skip the check it would otherwise incorrectly fail.
      */
-    public static function render_completion_screen($uid, $course_id, $assume_complete = false) {
+    public static function render_completion_screen(int $uid, int $course_id, bool $assume_complete = false): string {
         if (!$uid || !class_exists('BHC_Progress')) return '';
         if (!$assume_complete && !BHC_Progress::is_course_completed($uid, $course_id)) return '';
 
@@ -501,7 +503,8 @@ class BHC_Render_Course {
      * a student sees the real syllabus they're about to work through,
      * not a generic "you're enrolled!" toast with no substance.
      */
-    private static function render_orientation_screen($uid, $course_id, array $lesson_ids) {
+    /** @param array<int, int> $lesson_ids */
+    private static function render_orientation_screen(int $uid, int $course_id, array $lesson_ids): string {
         ob_start();
         echo '<div class="bhc-orientation">';
         echo '<p class="bhc-orientation-eyebrow">You\'re in</p>';

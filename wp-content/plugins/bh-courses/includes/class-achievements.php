@@ -24,7 +24,7 @@ class BHC_Achievements {
         self::COURSES_MASTERED_3 => ['label' => '3 Courses Mastered', 'description' => 'Completed three courses with distinction.'],
     ];
 
-    public static function init() {
+    public static function init(): void {
         add_action('bhc_course_completed', [self::class, 'on_course_completed'], 10, 2);
 
         // Depth-of-magic Phase 4 — the same `bhi_profile_badges` filter
@@ -44,7 +44,11 @@ class BHC_Achievements {
     // sentinel + UNIQUE KEY guarantee only ever exist once), and links to
     // that course's own page. first_quiz_aced/courses_mastered_3 are
     // global (course_id 0) — generic label, no link.
-    public static function register_profile_badges($badges, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $badges
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_profile_badges($badges, int $user_id): array {
         foreach (self::all_for_user($user_id) as $row) {
             $key = $row['achievement_key'];
             $meta = self::LABELS[$key] ?? null;
@@ -63,7 +67,7 @@ class BHC_Achievements {
         return $badges;
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhc_achievements';
     }
@@ -75,7 +79,7 @@ class BHC_Achievements {
     // true only when this call is the one that actually newly earned it
     // (rows_affected === 1) — callers use that to decide whether a
     // dependent achievement (courses_mastered_3) needs re-checking.
-    public static function award($user_id, $achievement_key, $course_id = 0) {
+    public static function award(int $user_id, string $achievement_key, int $course_id = 0): bool {
         if (!$user_id || !isset(self::LABELS[$achievement_key])) return false;
         global $wpdb;
         $wpdb->query($wpdb->prepare(
@@ -85,7 +89,7 @@ class BHC_Achievements {
         return (int) $wpdb->rows_affected === 1;
     }
 
-    public static function has($user_id, $achievement_key, $course_id = 0) {
+    public static function has(int $user_id, string $achievement_key, int $course_id = 0): bool {
         global $wpdb;
         return (bool) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d AND achievement_key = %s AND course_id = %d",
@@ -93,7 +97,7 @@ class BHC_Achievements {
         ));
     }
 
-    public static function count($user_id, $achievement_key) {
+    public static function count(int $user_id, string $achievement_key): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d AND achievement_key = %s",
@@ -101,7 +105,8 @@ class BHC_Achievements {
         ));
     }
 
-    public static function all_for_user($user_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function all_for_user(int $user_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT achievement_key, course_id, earned_at FROM " . self::table() . " WHERE user_id = %d ORDER BY earned_at ASC",
@@ -116,7 +121,7 @@ class BHC_Achievements {
     // class-activator.php's own comment on why 0 rather than NULL), since
     // "first" is a once-ever-across-the-whole-site milestone, not a
     // per-course one.
-    public static function maybe_award_quiz_aced($user_id, $score) {
+    public static function maybe_award_quiz_aced(int $user_id, int $score): void {
         if ((int) $score !== 100) return;
         self::award($user_id, self::FIRST_QUIZ_ACED);
     }
@@ -127,7 +132,7 @@ class BHC_Achievements {
     // certificate's own "with distinction" branch already uses (Phase
     // 1e) — one distinction bar for the whole plugin, not two that could
     // silently drift apart.
-    public static function on_course_completed($user_id, $course_id) {
+    public static function on_course_completed(int $user_id, int $course_id): void {
         if (!$user_id || !$course_id || !class_exists('BHC_Progress')) return;
 
         $avg = BHC_Progress::course_quiz_average($user_id, $course_id);

@@ -14,7 +14,7 @@ class BHC_Render_Lesson {
     // just works with zero shortcode needed — same "public CPT with its
     // own single view" approach bh-streaming doesn't use (it's an SPA)
     // but bh-contest's/most plain WP content does.
-    public static function render_lesson_steps($lesson_id) {
+    public static function render_lesson_steps(int $lesson_id): string {
         $uid = get_current_user_id();
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
 
@@ -176,15 +176,11 @@ class BHC_Render_Lesson {
             echo '<p class="bhc-lesson-complete-stats">' . $stats . '</p>';
             echo '</div>';
             echo '<div class="bhc-lesson-next-actions">';
-            if (count($steps) > 0) {
-                echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
-            }
+            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
             echo '<a class="bhc-btn" href="' . esc_url(get_permalink($next_lesson_id)) . '">Next Lesson &rarr;</a>';
             echo '</div>';
         } elseif ($course_id) {
-            if (count($steps) > 0) {
-                echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
-            }
+            echo '<button type="button" class="bhc-btn bhc-btn-secondary bhc-step-back" data-target-index="' . (int) (count($steps) - 1) . '">&larr; Back to lesson</button>';
             // The real "payoff" moment, fired the instant the final step
             // of the final lesson completes. Delegates to the shared
             // BHC_Render_Course::render_completion_screen() (stats,
@@ -230,7 +226,7 @@ class BHC_Render_Lesson {
     // Recognized platforms convert to their real embeddable URL first;
     // anything else still falls through to the old substring heuristic,
     // then to "treat as a direct file" as the final fallback.
-    private static function to_embed_url($url) {
+    private static function to_embed_url(string $url): ?string {
         if (preg_match('#youtu\.be/([A-Za-z0-9_-]+)#i', $url, $m)
             || preg_match('#youtube\.com/(?:watch\?v=|shorts/|embed/)([A-Za-z0-9_-]+)#i', $url, $m)) {
             return 'https://www.youtube.com/embed/' . $m[1];
@@ -244,7 +240,8 @@ class BHC_Render_Lesson {
         return null;
     }
 
-    private static function render_step($lesson_id, $index, $step, $is_done) {
+    /** @param array<string, mixed> $step */
+    private static function render_step(int $lesson_id, int $index, $step, bool $is_done): string {
         ob_start();
         if ($step['type'] === 'text') {
             echo '<div class="bhc-step-text">' . wp_kses_post($step['content']) . '</div>';
@@ -486,7 +483,8 @@ class BHC_Render_Lesson {
     // 1.5 — (A) would let a student game the max_attempts budget one
     // question at a time; (B) can't, since the attempt is already spent
     // and scored before any correctness is shown).
-    public static function render_quiz_review($snapshot) {
+    /** @param mixed $snapshot */
+    public static function render_quiz_review($snapshot): string {
         $score = (int) ($snapshot['score'] ?? 0);
         ob_start();
         echo '<div class="bhc-quiz-review">';

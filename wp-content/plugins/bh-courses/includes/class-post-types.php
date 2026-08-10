@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
 class BHC_PostTypes {
     const MENU_PARENT = 'edit.php?post_type=bh_course';
 
-    public static function register() {
+    public static function register(): void {
         register_post_type('bh_course', [
             'labels' => [
                 // "OUS ·" text prefix dropped — the shared icon
@@ -105,16 +105,17 @@ class BHC_PostTypes {
 
     /* ---------------- helpers shared across admin + front end ---------------- */
 
-    public static function lesson_order($course_id) {
+    /** @return array<int, int> */
+    public static function lesson_order(int $course_id): array {
         $ids = get_post_meta($course_id, '_bhc_lesson_order', true);
         return is_array($ids) ? array_map('intval', $ids) : [];
     }
 
-    public static function course_for_lesson($lesson_id) {
+    public static function course_for_lesson(int $lesson_id): int {
         return (int) get_post_meta($lesson_id, '_bhc_course_id', true);
     }
 
-    public static function module_title($lesson_id) {
+    public static function module_title(int $lesson_id): string {
         return (string) get_post_meta($lesson_id, '_bhc_module_title', true);
     }
 
@@ -124,7 +125,8 @@ class BHC_PostTypes {
     // becomes one group; a blank title is its own single-lesson group
     // with title '' (rendered ungrouped/standalone). Order itself still
     // comes from _bhc_lesson_order — this never re-sorts, only buckets.
-    public static function grouped_lesson_order($course_id) {
+    /** @return array<int, array{title: string, lesson_ids: array<int, int>}> */
+    public static function grouped_lesson_order(int $course_id): array {
         $groups = [];
         foreach (self::lesson_order($course_id) as $lesson_id) {
             $title = self::module_title($lesson_id);
@@ -141,7 +143,7 @@ class BHC_PostTypes {
     // Position (0-based) of $lesson_id within its own course's order,
     // or null if it isn't (yet) listed — a lesson can exist as a draft
     // before an author adds it to the course's order.
-    public static function lesson_position($lesson_id) {
+    public static function lesson_position(int $lesson_id): ?int {
         $course_id = self::course_for_lesson($lesson_id);
         if (!$course_id) return null;
         $order = self::lesson_order($course_id);
@@ -159,7 +161,8 @@ class BHC_PostTypes {
     // has one place to make it, not because this is meant to be an
     // open, author-extensible list like the category/topic taxonomies
     // above.
-    public static function difficulty_registry() {
+    /** @return array<string, string> */
+    public static function difficulty_registry(): array {
         return apply_filters('bhc_difficulty_registry', [
             'beginner' => 'Beginner',
             'intermediate' => 'Intermediate',
@@ -167,13 +170,13 @@ class BHC_PostTypes {
         ]);
     }
 
-    public static function difficulty($course_id) {
+    public static function difficulty(int $course_id): string {
         $key = get_post_meta($course_id, '_bhc_difficulty', true);
         $registry = self::difficulty_registry();
         return isset($registry[$key]) ? $key : '';
     }
 
-    public static function difficulty_label($course_id) {
+    public static function difficulty_label(int $course_id): string {
         $key = self::difficulty($course_id);
         $registry = self::difficulty_registry();
         return $key ? $registry[$key] : '';
@@ -186,7 +189,7 @@ class BHC_PostTypes {
     // Returns null (never a fatal) if the referenced user was since
     // deleted — get_userdata() legitimately returns false for that, and
     // callers must not assume a truthy result.
-    public static function instructor($course_id) {
+    public static function instructor(int $course_id): ?\WP_User {
         $instructor_id = (int) get_post_meta($course_id, '_bhc_instructor_id', true);
         if (!$instructor_id) {
             $post = get_post($course_id);
@@ -202,11 +205,11 @@ class BHC_PostTypes {
     // a computed lesson count never does). Walks the same lesson_order()/
     // BHC_Steps::count() data course_percent() already reads, so this
     // adds no new data source, just a different aggregation of it.
-    public static function lesson_count($course_id) {
+    public static function lesson_count(int $course_id): int {
         return count(self::lesson_order($course_id));
     }
 
-    public static function step_count($course_id) {
+    public static function step_count(int $course_id): int {
         $total = 0;
         foreach (self::lesson_order($course_id) as $lesson_id) {
             $total += class_exists('BHC_Steps') ? BHC_Steps::count($lesson_id) : 0;
@@ -217,7 +220,7 @@ class BHC_PostTypes {
     // The optional free-text override (e.g. "~4 hours of video") — see
     // Part 2.2: computed-first, override-optional, never the other way
     // around, so a course with no override still shows something honest.
-    public static function duration_note($course_id) {
+    public static function duration_note(int $course_id): string {
         return (string) get_post_meta($course_id, '_bhc_duration_note', true);
     }
 }

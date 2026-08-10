@@ -15,11 +15,15 @@ if (!defined('ABSPATH')) exit;
  * previewing/tuning independently.
  */
 class BHC_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register($surfaces): array {
         $surfaces['bh-courses-catalog'] = [
             'group' => 'Courses', 'label' => 'Course Catalog',
             'render' => [self::class, 'preview_catalog'],
@@ -31,7 +35,8 @@ class BHC_StyleSurface {
         return $surfaces;
     }
 
-    public static function preview_catalog() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function preview_catalog(): array {
         ob_start();
         ?>
 <div class="bhc-catalog">
@@ -50,7 +55,8 @@ class BHC_StyleSurface {
         return ['css_url' => BHC_URL . 'assets/css/courses.css', 'html' => ob_get_clean()];
     }
 
-    public static function preview_lesson() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function preview_lesson(): array {
         ob_start();
         ?>
 <div class="bhc-lesson" data-step-count="3">

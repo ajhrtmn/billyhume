@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) exit;
  * bh-streaming already demonstrates.
  */
 class BHC_Gate {
-    public static function init() {
+    public static function init(): void {
         // Real gap an ecosystem-wide refund/revocation audit flagged:
         // bh-courses had zero awareness of bhm_entitlement_revoked — a
         // student who lost the tier gating a course they were mid-way
@@ -34,7 +34,7 @@ class BHC_Gate {
     // itself account-wide, never per-track/release) — a revoked
     // per-object entitlement (a track/release purchase) has nothing to
     // do with course access and is skipped here.
-    public static function maybe_notify_course_access_change($user_id, $type, $scope, $object_id, $reason) {
+    public static function maybe_notify_course_access_change(int $user_id, string $type, string $scope, int $object_id, string $reason): void {
         if (!$user_id || $scope !== 'account' || !class_exists('BHM_Tiers') || !class_exists('OUS_Notifications')) return;
 
         $courses = get_posts(['post_type' => 'bh_course', 'post_status' => 'publish', 'numberposts' => -1, 'fields' => 'ids']);
@@ -63,7 +63,7 @@ class BHC_Gate {
         );
     }
 
-    public static function required_tier($course_id) {
+    public static function required_tier(int $course_id): int {
         return (int) get_post_meta($course_id, '_bhm_required_tier', true);
     }
 
@@ -74,7 +74,7 @@ class BHC_Gate {
     // are genuinely different questions). A course author picks ONE of
     // these two meta keys, not both — required_benefit(), when set,
     // takes priority in user_can_access_course() below.
-    public static function required_benefit($course_id) {
+    public static function required_benefit(int $course_id): string {
         $key = get_post_meta($course_id, '_bhm_required_benefit', true);
         return $key ? sanitize_key($key) : '';
     }
@@ -83,7 +83,7 @@ class BHC_Gate {
     // an individual track inherits its release's gating in bh-streaming
     // where relevant, and keeps authoring simple (set the tier once, on
     // the course).
-    public static function user_can_access_course($user_id, $course_id) {
+    public static function user_can_access_course(int $user_id, int $course_id): bool {
         if (!class_exists('BHM_Gate')) return true; // bh-monetization-woo not active: nothing gates anything
 
         $benefit = self::required_benefit($course_id);
@@ -99,7 +99,7 @@ class BHC_Gate {
     // into this course at all," drip scheduling is "has it opened up
     // for you YET" — a fully-paid student can still be waiting on a
     // lesson's release date. Both must pass.
-    public static function user_can_access_lesson($user_id, $lesson_id) {
+    public static function user_can_access_lesson(int $user_id, int $lesson_id): bool {
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
         if (!$course_id) return true; // orphaned lesson, nothing to gate against
         if (!self::user_can_access_course($user_id, $course_id)) return false;
@@ -115,12 +115,12 @@ class BHC_Gate {
     // third combined concept nobody asked for. Absence of both meta
     // keys means "open immediately," same default-open-unless-set
     // pattern _bhm_required_tier already uses.
-    public static function drip_after_days($lesson_id) {
+    public static function drip_after_days(int $lesson_id): ?int {
         $v = get_post_meta($lesson_id, '_bhc_available_after_days', true);
         return $v === '' ? null : max(0, (int) $v);
     }
 
-    public static function drip_on_date($lesson_id) {
+    public static function drip_on_date(int $lesson_id): ?string {
         $v = get_post_meta($lesson_id, '_bhc_available_on_date', true);
         return $v ?: null;
     }
@@ -137,7 +137,7 @@ class BHC_Gate {
     // comparing enrolled_at (a raw UTC `CURRENT_TIMESTAMP` value from
     // MySQL, same convention WordPress's own *_gmt columns use) against
     // raw UTC time() rather than the site-offset-adjusted current_time().
-    private static function on_date_timestamp_utc($on_date) {
+    private static function on_date_timestamp_utc(string $on_date): int {
         try {
             $dt = new DateTime($on_date . ' 00:00:00', wp_timezone());
             return $dt->getTimestamp();
@@ -146,7 +146,7 @@ class BHC_Gate {
         }
     }
 
-    public static function lesson_is_open($user_id, $lesson_id) {
+    public static function lesson_is_open(int $user_id, int $lesson_id): bool {
         $after_days = self::drip_after_days($lesson_id);
         $on_date = self::drip_on_date($lesson_id);
         if ($after_days === null && $on_date === null) return true; // no drip rule set at all
@@ -171,7 +171,7 @@ class BHC_Gate {
 
     // Human-readable reason a locked-by-drip lesson is locked, for the
     // front end to show instead of a generic "no access" message.
-    public static function drip_notice($user_id, $lesson_id) {
+    public static function drip_notice(int $user_id, int $lesson_id): string {
         $on_date = self::drip_on_date($lesson_id);
         if ($on_date !== null) {
             return 'This lesson opens on ' . esc_html(date_i18n(get_option('date_format'), self::on_date_timestamp_utc($on_date))) . '.';
@@ -186,7 +186,7 @@ class BHC_Gate {
         return 'This lesson isn\'t available yet.';
     }
 
-    public static function render_paywall_notice($course_id) {
+    public static function render_paywall_notice(int $course_id): string {
         if (class_exists('BHM_Gate')) {
             return BHM_Gate::render_paywall_notice(self::required_tier($course_id));
         }

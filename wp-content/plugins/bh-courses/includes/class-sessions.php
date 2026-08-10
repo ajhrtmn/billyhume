@@ -31,18 +31,18 @@ class BHC_Sessions {
     // within this many hours of the start time (AJ's call: yes to
     // self-cancel, but with a cutoff). Filterable so this doesn't need
     // a code change to tune later.
-    public static function cancel_cutoff_hours() {
+    public static function cancel_cutoff_hours(): int {
         return (int) apply_filters('bhc_session_cancel_cutoff_hours', 24);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhc_sessions';
     }
 
     const DB_VERSION = '1.0';
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) update_option('bhc_sessions_db_version', self::DB_VERSION);
     }
 
@@ -50,12 +50,12 @@ class BHC_Sessions {
     // deploy of an already-active plugin, since that never fires WP's
     // real activation hook — same reasoning BHCRM_Links/BHCRM_Segments'
     // own maybe_upgrade() already documents.
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhc_sessions_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) update_option('bhc_sessions_db_version', self::DB_VERSION);
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -80,13 +80,14 @@ class BHC_Sessions {
     }
 
     /** Single-instructor v1: the first account holding bhcore_manage_students. Not exposed as a setting yet — see this class's own docblock. */
-    public static function default_instructor_id() {
+    public static function default_instructor_id(): int {
         $users = get_users(['role__in' => ['administrator'], 'number' => 1, 'fields' => 'ID']);
         $cap_users = get_users(['capability' => 'bhcore_manage_students', 'number' => 1, 'fields' => 'ID']);
         return $cap_users ? (int) $cap_users[0] : ((int) ($users[0] ?? 0));
     }
 
-    public static function create_slot($starts_at, $duration_minutes = 30, $course_id = 0, $notes = '', $instructor_id = 0) {
+    /** @return int|\WP_Error */
+    public static function create_slot(string $starts_at, int $duration_minutes = 30, int $course_id = 0, string $notes = '', int $instructor_id = 0) {
         global $wpdb;
         $instructor_id = (int) $instructor_id ?: self::default_instructor_id();
         if (!$instructor_id) return new WP_Error('no_instructor', 'No instructor account found.');
@@ -103,26 +104,30 @@ class BHC_Sessions {
         return $wpdb->insert_id ? (int) $wpdb->insert_id : new WP_Error('db_error', 'Could not create the slot.');
     }
 
-    public static function get($id) {
+    /** @return array<string, mixed>|null */
+    public static function get(int $id): ?array {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', (int) $id), ARRAY_A);
     }
 
-    public static function open_slots() {
+    /** @return array<int, array<string, mixed>> */
+    public static function open_slots(): array {
         global $wpdb;
         return $wpdb->get_results(
             'SELECT * FROM ' . self::table() . " WHERE status = 'open' AND starts_at >= NOW() ORDER BY starts_at ASC", ARRAY_A
         );
     }
 
-    public static function for_instructor($instructor_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_instructor(int $instructor_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE instructor_id = %d ORDER BY starts_at DESC', (int) $instructor_id
         ), ARRAY_A);
     }
 
-    public static function for_student($student_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_student(int $student_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE student_id = %d ORDER BY starts_at DESC', (int) $student_id
@@ -136,7 +141,8 @@ class BHC_Sessions {
      * of truth for "did I actually get it," never a separate read-then-
      * write.
      */
-    public static function claim($slot_id, $student_id) {
+    /** @return bool */
+    public static function claim(int $slot_id, int $student_id) {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "UPDATE " . self::table() . " SET status = 'booked', student_id = %d WHERE id = %d AND status = 'open' AND starts_at >= NOW()",
@@ -173,7 +179,8 @@ class BHC_Sessions {
      * (BHC_SessionsAdmin) is a separate, unrestricted path — a manager
      * can always cancel/reopen a slot regardless of the cutoff.
      */
-    public static function self_cancel($slot_id, $student_id) {
+    /** @return bool|\WP_Error */
+    public static function self_cancel(int $slot_id, int $student_id) {
         global $wpdb;
         $slot = self::get($slot_id);
         if (!$slot || (int) $slot['student_id'] !== (int) $student_id || $slot['status'] !== 'booked') return false;
@@ -199,14 +206,18 @@ class BHC_Sessions {
         return true;
     }
 
-    public static function set_status($slot_id, $status) {
+    public static function set_status(int $slot_id, string $status): bool {
         global $wpdb;
         if (!isset(self::STATUSES[$status])) return false;
         return $wpdb->update(self::table(), ['status' => $status], ['id' => (int) $slot_id]) !== false;
     }
 
     /** Feed for a FullCalendar month view — plain events array, {id, title, start} shape FullCalendar's own events source expects. */
-    public static function as_calendar_events($rows) {
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    public static function as_calendar_events($rows): array {
         $events = [];
         foreach ($rows as $r) {
             $label = $r['status'] === 'open' ? 'Open' : ($r['status'] === 'booked' ? 'Booked' : ucfirst($r['status']));

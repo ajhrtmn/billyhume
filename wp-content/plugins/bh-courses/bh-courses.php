@@ -2,12 +2,40 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.71
+ * Version:     0.4.72
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 0.4.72 — Ecosystem quality Phase 2, brick 12/13: bh-courses is now
+// clean at PHPStan level 6 (native return/parameter types + precise
+// array-shape PHPDoc throughout every file in includes/, no shortcuts).
+// 32 files, ~584 findings. Covers class-progress.php (the largest single
+// file in this brick — enrollment, per-step completion, quiz scoring/
+// answer snapshots, course-completion detection), class-admin.php
+// (course/lesson authoring, duplication, list-table columns), class-
+// render-course.php, class-gate.php (tier gating + drip scheduling),
+// class-sessions.php (instructor availability/booking), class-
+// reviews.php, class-render.php, class-post-types.php, class-
+// achievements.php, class-progress-admin.php (batched Student Progress
+// N+1 fix), class-content-bridge.php (the BH_Content block-tree bridge
+// for lesson authoring), class-debug.php, class-steps.php (step
+// sanitization/quiz scoring), class-render-catalog.php, class-test-
+// suite.php, class-comments.php, class-render-lesson.php, class-
+// privacy.php, class-certificates.php, class-video-settings.php,
+// class-portal-panel.php, class-crm-integration.php, class-blocks.php,
+// class-sessions-admin.php, class-leaderboard.php, class-instructor-
+// notes.php, class-sessions-portal.php, class-style-surface.php,
+// class-share-cards.php, class-nudges.php, class-drip-nudges.php,
+// class-activator.php, class-lesson-surface.php. No behavior changes —
+// a handful of esc_html()/get_posts() call sites needed an explicit
+// (string) cast once their param picked up a native type, and one dead-
+// code simplification (a redundant `count($steps) > 0` check where
+// $steps was already provably non-empty). Scoped bh-courses PHPStan
+// level 6 check and the full 12-plugin level 5 ecosystem check both
+// come back clean.
+// NOT runtime-verified against a live WordPress+MySQL install.
 // 0.4.71 — TypeScript pilot: converted the two remaining large/risky
 // files that were deliberately deferred in the previous round —
 // courses-studio-blocks.js (Gutenberg block registration for the
@@ -243,7 +271,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.71');
+define('BHC_VER',  '0.4.72');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

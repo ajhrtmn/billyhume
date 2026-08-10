@@ -20,29 +20,29 @@ if (!defined('ABSPATH')) exit;
 class BHC_VideoSettings {
     const OPTION = 'bhc_max_direct_video_mb';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhc_save_video_settings', [self::class, 'save']);
         add_action('enqueue_block_editor_assets', [self::class, 'localize_limit']);
     }
 
-    public static function max_mb() {
+    public static function max_mb(): int {
         return max(0, (int) get_option(self::OPTION, 0));
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page(
             BHC_PostTypes::MENU_PARENT, 'Video Settings', 'Video Settings',
             'manage_options', 'bhc-video-settings', [self::class, 'render']
         );
     }
 
-    public static function localize_limit() {
+    public static function localize_limit(): void {
         if (get_current_screen() === null || get_current_screen()->post_type !== 'bh_lesson') return;
         wp_add_inline_script('wp-blocks', 'window.BHCMaxVideoMB = ' . self::max_mb() . ';', 'before');
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
         settings_errors('bhc_video_settings');
         $mb = self::max_mb();
@@ -53,14 +53,14 @@ class BHC_VideoSettings {
         wp_nonce_field('bhc_save_video_settings', 'bhc_video_settings_nonce');
         echo '<input type="hidden" name="action" value="bhc_save_video_settings">';
         echo '<table class="form-table"><tr><th scope="row"><label for="bhc_max_video_mb">Max direct upload size</label></th><td>';
-        echo '<input type="number" min="0" step="1" id="bhc_max_video_mb" name="bhc_max_video_mb" value="' . esc_attr($mb) . '" style="width:100px;"> MB';
+        echo '<input type="number" min="0" step="1" id="bhc_max_video_mb" name="bhc_max_video_mb" PLACEHOLDER style="width:100px;"> MB';
         echo '<p class="description">Above this size, a lesson video must use the block\'s <strong>URL (oEmbed)</strong> source (YouTube/Vimeo) instead of uploading the file directly.</p>';
         echo '</td></tr></table>';
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
         echo '</form></div>';
     }
 
-    public static function save() {
+    public static function save(): void {
         if (!current_user_can('manage_options') || !check_admin_referer('bhc_save_video_settings', 'bhc_video_settings_nonce')) {
             wp_die('Invalid request.');
         }
@@ -80,7 +80,8 @@ class BHC_VideoSettings {
      * BHC_ContentBridge::sync_legacy_steps(), which already parses this
      * exact tree on every save.
      */
-    public static function check_tree($post_id, $tree) {
+    /** @param array<int, array<string, mixed>> $tree */
+    public static function check_tree(int $post_id, $tree): void {
         $max_mb = self::max_mb();
         if (!$max_mb) return;
 
@@ -99,7 +100,7 @@ class BHC_VideoSettings {
         }
     }
 
-    public static function maybe_show_notice() {
+    public static function maybe_show_notice(): void {
         $post_id = get_the_ID();
         if (!$post_id) return;
         $over = get_transient('bhc_video_size_notice_' . $post_id);

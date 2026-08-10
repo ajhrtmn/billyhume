@@ -5,31 +5,31 @@ if (!defined('ABSPATH')) exit;
 class BHC_SessionsAdmin {
     const CAP = 'bhcore_manage_students';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('admin_post_bhc_create_slot', [self::class, 'handle_create_slot']);
         add_action('admin_post_bhc_set_slot_status', [self::class, 'handle_set_status']);
     }
 
-    private static function required_cap() {
+    private static function required_cap(): string {
         return class_exists('OUS_Roles') ? self::CAP : 'edit_posts';
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page(
             BHC_PostTypes::MENU_PARENT, 'Sessions', 'Sessions',
             self::required_cap(), 'bhc-sessions', [self::class, 'render']
         );
     }
 
-    public static function maybe_enqueue($hook) {
+    public static function maybe_enqueue(string $hook): void {
         if (strpos($hook, 'bhc-sessions') === false) return;
         wp_enqueue_script('bhc-fullcalendar', BHC_URL . 'assets/js/vendor/fullcalendar.global.js', [], '7.0.2', true);
         wp_enqueue_script('bhc-sessions-admin', BHC_URL . 'assets/js/sessions-admin.js', ['bhc-fullcalendar'], BHC_VER, true);
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
         if (isset($_GET['bhc_msg'])) echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sanitize_text_field(wp_unslash($_GET['bhc_msg']))) . '</p></div>';
 
@@ -98,7 +98,7 @@ class BHC_SessionsAdmin {
         BHY_UI::shell_close();
     }
 
-    public static function handle_create_slot() {
+    public static function handle_create_slot(): void {
         if (!current_user_can(self::required_cap()) || !check_admin_referer('bhc_create_slot')) wp_die('Not allowed.');
 
         $result = BHC_Sessions::create_slot(
@@ -112,7 +112,7 @@ class BHC_SessionsAdmin {
         exit;
     }
 
-    public static function handle_set_status() {
+    public static function handle_set_status(): void {
         $slot_id = (int) ($_POST['slot_id'] ?? 0);
         if (!current_user_can(self::required_cap()) || !check_admin_referer('bhc_set_slot_status_' . $slot_id)) wp_die('Not allowed.');
 

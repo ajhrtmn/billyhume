@@ -37,7 +37,11 @@ if (!defined('ABSPATH')) exit;
  * replacement for that one.
  */
 class BHC_LessonSurface {
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         $surfaces['bh_courses_lesson'] = [
             'group'       => 'Courses',
             'label'       => 'Lesson page extras',

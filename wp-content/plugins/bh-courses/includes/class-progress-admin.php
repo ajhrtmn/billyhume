@@ -26,22 +26,22 @@ if (!defined('ABSPATH')) exit;
 class BHC_ProgressAdmin {
     const CAP = 'bhcore_manage_students';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
     }
 
-    private static function required_cap() {
+    private static function required_cap(): string {
         return class_exists('OUS_Roles') ? self::CAP : 'edit_posts';
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page(
             BHC_PostTypes::MENU_PARENT, 'Student Progress', 'Student Progress',
             self::required_cap(), 'bhc-progress', [self::class, 'render']
         );
     }
 
-    public static function render() {
+    public static function render(): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
         self::maybe_handle_override(); // processes + queues a settings_errors() notice before any output below
 
@@ -93,7 +93,11 @@ class BHC_ProgressAdmin {
        source, just a different aggregation of the same bhc_progress
        rows, same relationship BHC_PostTypes::step_count() already has
        to lesson_order()/BHC_Steps::count(). */
-    private static function render_summary($course_id, array $matrix, array $completed_user_ids) {
+    /**
+     * @param array<string, mixed> $matrix
+     * @param array<int, int> $completed_user_ids
+     */
+    private static function render_summary(int $course_id, array $matrix, array $completed_user_ids): void {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         $students = $matrix['user_ids'];
         if (!$lesson_ids || !$students) return;
@@ -140,7 +144,8 @@ class BHC_ProgressAdmin {
     // steps at all, so the table can show "—" instead of a misleading 0%.
     // Reads $matrix['quiz_scores'] (already fetched in one query for the
     // whole page) instead of running its own AVG() query per quiz step.
-    private static function lesson_avg_quiz_score($lesson_id, array $matrix) {
+    /** @param array<string, mixed> $matrix */
+    private static function lesson_avg_quiz_score(int $lesson_id, array $matrix): ?float {
         $steps = BHC_Steps::get($lesson_id);
         $quiz_indexes = [];
         foreach ($steps as $i => $step) if (($step['type'] ?? '') === 'quiz') $quiz_indexes[] = $i;
@@ -172,7 +177,7 @@ class BHC_ProgressAdmin {
     // row for this course (see students_for_course()) — granting access
     // to someone with zero activity is BHM_Gate's/an entitlement's job,
     // not this page's.
-    private static function maybe_handle_override() {
+    private static function maybe_handle_override(): void {
         if (!isset($_POST['bhc_override_action'])) return;
         if (!current_user_can(self::required_cap())) return;
         if (!isset($_POST['bhc_override_nonce']) || !wp_verify_nonce($_POST['bhc_override_nonce'], 'bhc_override')) return;
@@ -204,13 +209,13 @@ class BHC_ProgressAdmin {
     // is_step_complete()'s own rule is that a quiz row only reads "done"
     // once passed, so anything less would silently fail to actually
     // unblock the student this was meant to unblock.
-    private static function force_complete_lesson($user_id, $lesson_id) {
+    private static function force_complete_lesson(int $user_id, int $lesson_id): int {
         $steps = BHC_Steps::get($lesson_id);
         $count = 0;
         foreach ($steps as $i => $step) {
             if (BHC_Progress::is_step_complete($user_id, $lesson_id, $i)) continue;
             if (($step['type'] ?? '') === 'quiz') {
-                BHC_Progress::mark_step_complete($user_id, $lesson_id, $i, 100, 1);
+                BHC_Progress::mark_step_complete($user_id, $lesson_id, $i, 100, true);
             } else {
                 BHC_Progress::mark_step_complete($user_id, $lesson_id, $i);
             }
@@ -219,7 +224,8 @@ class BHC_ProgressAdmin {
         return $count;
     }
 
-    private static function render_override_form($course_id, array $students) {
+    /** @param array<int, int> $students */
+    private static function render_override_form(int $course_id, array $students): void {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
 
         echo '<div class="bhy-card" style="max-width:640px;">';
@@ -253,7 +259,11 @@ class BHC_ProgressAdmin {
         echo '</form></div>';
     }
 
-    private static function render_course_table($course_id, array $matrix, array $completed_user_ids) {
+    /**
+     * @param array<string, mixed> $matrix
+     * @param array<int, int> $completed_user_ids
+     */
+    private static function render_course_table(int $course_id, array $matrix, array $completed_user_ids): void {
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
         $lesson_titles = array_map('get_the_title', $lesson_ids);
         // Step counts computed once here, not per-student inside the row

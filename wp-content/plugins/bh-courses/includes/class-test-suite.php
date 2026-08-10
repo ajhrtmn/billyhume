@@ -11,20 +11,29 @@ if (!defined('ABSPATH')) exit;
  * optional integration in this ecosystem.
  */
 class BHC_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['bh-courses'] = ['label' => 'BH Courses', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    private static function q($correct_index, $choices = ['A', 'B', 'C']) {
+    /**
+     * @param array<int, string> $choices
+     * @return array<string, mixed>
+     */
+    private static function q(int $correct_index, $choices = ['A', 'B', 'C']): array {
         return ['question' => 'Q', 'choices' => $choices, 'correct_index' => $correct_index];
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner')) return [];
         $rows = [];
 
@@ -216,7 +225,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_completion_consistency_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_completion_consistency_tests(): array {
         $rows = [];
         $uid = OUS_Debug::get_or_create_test_user('bhc_completion_consistency_suite', false);
 
@@ -258,7 +268,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_review_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_review_tests(): array {
         $rows = [];
         global $wpdb;
 
@@ -337,7 +348,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_gate_drip_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_gate_drip_tests(): array {
         $rows = [];
         global $wpdb;
 
@@ -414,7 +426,7 @@ class BHC_TestSuite {
         // three views (completed/last_activity/quiz_scores) all agree
         // with what was just written, matching what the per-user
         // methods (completed_steps()/course_percent()) would report.
-        BHC_Progress::mark_step_complete($uid, $undripped_lesson, 0, 80, 1);
+        BHC_Progress::mark_step_complete($uid, $undripped_lesson, 0, 80, true);
         $matrix = BHC_Progress::course_progress_matrix($course_id);
         $rows[] = OUS_TestRunner::assert_true(in_array((int) $uid, $matrix['user_ids'], true), 'course_progress_matrix() includes a user with a real progress row');
         $rows[] = OUS_TestRunner::assert_same([0], $matrix['completed'][$uid][$undripped_lesson] ?? null, 'course_progress_matrix() records the completed step index for the right user/lesson');
@@ -440,7 +452,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_catalog_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_catalog_tests(): array {
         $rows = [];
         $saved_get = $_GET;
 
@@ -506,7 +519,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_progress_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_progress_tests(): array {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_progress_suite', false);
@@ -520,7 +534,7 @@ class BHC_TestSuite {
             'score' => 100, 'passed' => true, 'passing_score' => 70,
             'questions' => [['q' => 'Q1', 'choices' => ['A', 'B'], 'correct_index' => 0, 'chosen_index' => 0]],
         ]);
-        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 100, 1, $answers_payload);
+        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 100, true, $answers_payload);
 
         $row_exists = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 0
@@ -548,7 +562,7 @@ class BHC_TestSuite {
         // attempt-only semantics — see the answers column's own docblock
         // in class-activator.php for why this is deliberately NOT an
         // append-only log), not create a second row.
-        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 50, 0, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_id, 0, 50, false, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
         $row_count_after_retry = (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table WHERE user_id = %d AND lesson_id = %d AND step_index = %d", $uid, $lesson_id, 0
         ));
@@ -568,7 +582,8 @@ class BHC_TestSuite {
     // but this method reads lesson IDs from a real course's own
     // _bhc_lesson_order postmeta (BHC_PostTypes::lesson_order()), so a
     // real fixture bh_course post is needed to point at them.
-    private static function run_quiz_average_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_quiz_average_tests(): array {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_quiz_average_suite', false);
@@ -593,14 +608,14 @@ class BHC_TestSuite {
         // A quiz step (real score) and a plain step (score stays NULL —
         // see mark_step_complete()'s own NULL-passthrough fix) in the
         // same course: only the quiz step should count toward the average.
-        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 80, true, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
         BHC_Progress::mark_step_complete($uid, $lesson_a, 1, null, null, null);
         $rows[] = OUS_TestRunner::assert_same(
             80, BHC_Progress::course_quiz_average($uid, $course_id),
             'course_quiz_average(): a single scored quiz step is the average on its own; the plain (NULL-score) step is correctly excluded'
         );
 
-        BHC_Progress::mark_step_complete($uid, $lesson_b, 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_b, 0, 100, true, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
         $rows[] = OUS_TestRunner::assert_same(
             90, BHC_Progress::course_quiz_average($uid, $course_id),
             'course_quiz_average(): averages across every quiz step in the course (80 + 100) / 2 = 90, catching an int-division or wrong-scope regression'
@@ -609,7 +624,7 @@ class BHC_TestSuite {
         // A retry overwrites the same row (latest-attempt-only semantics,
         // same rule run_progress_tests() above already covers) — the
         // average must reflect the NEW score, not double-count the old one.
-        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 60, 0, wp_json_encode(['score' => 60, 'passed' => false, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_a, 0, 60, false, wp_json_encode(['score' => 60, 'passed' => false, 'questions' => []]));
         $rows[] = OUS_TestRunner::assert_same(
             80, BHC_Progress::course_quiz_average($uid, $course_id),
             'course_quiz_average(): a retry replaces the prior score for that step rather than being averaged as a second data point (60 + 100) / 2 = 80'
@@ -623,7 +638,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_achievement_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_achievement_tests(): array {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_achievements_suite', false);
@@ -678,7 +694,7 @@ class BHC_TestSuite {
         }
 
         // Course 0: below the distinction threshold — no badge.
-        BHC_Progress::mark_step_complete($uid, $lesson_ids[0], 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[0], 0, 80, true, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
         BHC_Achievements::on_course_completed($uid, $course_ids[0]);
         $rows[] = OUS_TestRunner::assert_false(
             BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[0]),
@@ -687,7 +703,7 @@ class BHC_TestSuite {
 
         // Courses 1 and 2: at/above threshold — distinction earned, but
         // "3 mastered" should not fire until the THIRD one lands.
-        BHC_Progress::mark_step_complete($uid, $lesson_ids[1], 0, 95, 1, wp_json_encode(['score' => 95, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[1], 0, 95, true, wp_json_encode(['score' => 95, 'passed' => true, 'questions' => []]));
         BHC_Achievements::on_course_completed($uid, $course_ids[1]);
         $rows[] = OUS_TestRunner::assert_true(
             BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[1]),
@@ -698,7 +714,7 @@ class BHC_TestSuite {
             'on_course_completed(): courses_mastered_3 does not fire after only 1 distinction'
         );
 
-        BHC_Progress::mark_step_complete($uid, $lesson_ids[2], 0, 92, 1, wp_json_encode(['score' => 92, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[2], 0, 92, true, wp_json_encode(['score' => 92, 'passed' => true, 'questions' => []]));
         BHC_Achievements::on_course_completed($uid, $course_ids[2]);
         $rows[] = OUS_TestRunner::assert_true(
             BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[2]),
@@ -709,7 +725,7 @@ class BHC_TestSuite {
             'on_course_completed(): courses_mastered_3 still does not fire after only 2 distinctions'
         );
 
-        BHC_Progress::mark_step_complete($uid, $lesson_ids[3], 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid, $lesson_ids[3], 0, 100, true, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
         BHC_Achievements::on_course_completed($uid, $course_ids[3]);
         $rows[] = OUS_TestRunner::assert_true(
             BHC_Achievements::has($uid, BHC_Achievements::COURSE_DISTINCTION, $course_ids[3]),
@@ -728,7 +744,8 @@ class BHC_TestSuite {
         return $rows;
     }
 
-    private static function run_leaderboard_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_leaderboard_tests(): array {
         $rows = [];
         global $wpdb;
         $progress_table = $wpdb->prefix . 'bhc_progress';
@@ -761,9 +778,9 @@ class BHC_TestSuite {
         $wpdb->insert($enroll_table, ['user_id' => $uid_a, 'course_id' => $course_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_b, 'course_id' => $course_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_c, 'course_id' => $course_id]);
-        BHC_Progress::mark_step_complete($uid_a, $lesson_id, 0, 100, 1, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
-        BHC_Progress::mark_step_complete($uid_b, $lesson_id, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
-        BHC_Progress::mark_step_complete($uid_c, $lesson_id, 0, 80, 1, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_a, $lesson_id, 0, 100, true, wp_json_encode(['score' => 100, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_b, $lesson_id, 0, 80, true, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_c, $lesson_id, 0, 80, true, wp_json_encode(['score' => 80, 'passed' => true, 'questions' => []]));
 
         $scores = BHC_Leaderboard::top_scorers($course_id);
         $rows[] = OUS_TestRunner::assert_same(3, count($scores), 'top_scorers(): all 3 enrolled students who attempted a quiz appear');
@@ -778,7 +795,7 @@ class BHC_TestSuite {
         $uid_d = OUS_Debug::get_or_create_test_user('bhc_leaderboard_d', false);
         $wpdb->delete($progress_table, ['user_id' => $uid_d, 'lesson_id' => $lesson_id]);
         $wpdb->insert($enroll_table, ['user_id' => $uid_d, 'course_id' => $course_id]);
-        BHC_Progress::mark_step_complete($uid_d, $lesson_id, 0, 50, 0, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
+        BHC_Progress::mark_step_complete($uid_d, $lesson_id, 0, 50, false, wp_json_encode(['score' => 50, 'passed' => false, 'questions' => []]));
         $scores = BHC_Leaderboard::top_scorers($course_id);
         $ranks_by_user = [];
         foreach ($scores as $s) $ranks_by_user[$s['user_id']] = $s['rank'];

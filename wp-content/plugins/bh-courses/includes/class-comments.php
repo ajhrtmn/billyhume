@@ -41,7 +41,7 @@ if (!defined('ABSPATH')) exit;
  *    by re-testing the exact same locked-lesson scenario.
  */
 class BHC_Comments {
-    public static function init() {
+    public static function init(): void {
         add_action('init', [self::class, 'register_support'], 20); // after BHC_PostTypes::register() (priority 10) so the post type already exists
         add_filter('comments_open', [self::class, 'filter_comments_open'], 10, 2);
         add_action('pre_get_comments', [self::class, 'restrict_comment_query']);
@@ -56,23 +56,23 @@ class BHC_Comments {
         add_filter('get_comments_number', [self::class, 'filter_comments_number'], 10, 2);
     }
 
-    public static function register_support() {
+    public static function register_support(): void {
         add_post_type_support('bh_lesson', 'comments');
     }
 
-    public static function course_allows_comments($course_id) {
+    public static function course_allows_comments(int $course_id): bool {
         return $course_id && (bool) get_post_meta($course_id, '_bhc_comments_enabled', true);
     }
 
     /** True only if this lesson's course has comments turned on AND the current visitor can actually see the lesson content itself — same rule BHC_Gate already enforces for the steps, not a second one. */
-    public static function visitor_can_see_comments($lesson_id) {
+    public static function visitor_can_see_comments(int $lesson_id): bool {
         if (get_post_type($lesson_id) !== 'bh_lesson') return true; // not ours to gate
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
         if (!self::course_allows_comments($course_id)) return false;
         return BHC_Gate::user_can_access_lesson(get_current_user_id(), $lesson_id);
     }
 
-    public static function filter_comments_open($open, $post_id) {
+    public static function filter_comments_open(bool $open, int $post_id): bool {
         if (get_post_type($post_id) !== 'bh_lesson') return $open;
         return $open && self::visitor_can_see_comments($post_id);
     }
@@ -87,7 +87,7 @@ class BHC_Comments {
      * results" idiom for a query class with no simpler "return nothing"
      * switch — cheaper than letting the query run and filtering after.
      */
-    public static function restrict_comment_query($query) {
+    public static function restrict_comment_query(\WP_Comment_Query $query): void {
         $post_id = (int) ($query->query_vars['post_id'] ?? 0);
         if (!$post_id || get_post_type($post_id) !== 'bh_lesson') return;
         if (!self::visitor_can_see_comments($post_id)) {
@@ -96,7 +96,7 @@ class BHC_Comments {
     }
 
     /** Keeps the displayed comment COUNT consistent with the (already hidden) list — same visitor_can_see_comments() check, so a locked lesson always reads as zero, never a stale nonzero number over an empty list. */
-    public static function filter_comments_number($count, $post_id) {
+    public static function filter_comments_number(int $count, int $post_id): int {
         if (get_post_type($post_id) !== 'bh_lesson') return $count;
         return self::visitor_can_see_comments($post_id) ? $count : 0;
     }

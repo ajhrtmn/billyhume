@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) exit;
  * outright rather than left as a second writer of the same data.
  */
 class BHC_Admin {
-    public static function add_meta_boxes() {
+    public static function add_meta_boxes(): void {
         add_meta_box('bhc_course_details', 'Course Details', [self::class, 'render_course_metabox'], 'bh_course', 'normal', 'high');
         // Separate box, not folded into Course Details above — this is
         // purely catalog/browse metadata (instructor, difficulty,
@@ -41,7 +41,7 @@ class BHC_Admin {
     // bhc_course_topic) are real taxonomies (class-post-types.php) and
     // get WordPress's own standard category/tag meta boxes automatically
     // — no custom UI needed or written for those here.
-    public static function render_catalog_metabox($post) {
+    public static function render_catalog_metabox(\WP_Post $post): void {
         wp_nonce_field('bhc_save_catalog', 'bhc_catalog_nonce');
 
         $instructor_id = (int) get_post_meta($post->ID, '_bhc_instructor_id', true);
@@ -73,7 +73,7 @@ class BHC_Admin {
         echo '<p class="description">Category and tags: see the standard <strong>Course Categories</strong> / <strong>Course Topics</strong> boxes elsewhere on this screen.</p>';
     }
 
-    public static function render_site_menu_metabox($post) {
+    public static function render_site_menu_metabox(\WP_Post $post): void {
         wp_nonce_field('bhc_save_menu', 'bhc_menu_nonce');
         if (get_post_status($post->ID) !== 'publish') {
             echo '<p class="description">Publish this course first — a course with no live permalink can\'t appear in the menu.</p>';
@@ -90,7 +90,7 @@ class BHC_Admin {
 
     // Same "View · Edit" / "Create page" fallback link pattern
     // BH_Admin::page_links_html() already uses for contests.
-    private static function page_link_html($course_id) {
+    private static function page_link_html(int $course_id): string {
         $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
         if ($page_id && get_post_status($page_id) && get_post_status($page_id) !== 'trash') {
             return '<a href="' . esc_url(get_permalink($page_id)) . '" target="_blank">View</a> &middot; <a href="' . esc_url(get_edit_post_link($page_id)) . '">Edit</a>';
@@ -102,7 +102,7 @@ class BHC_Admin {
         return '<a href="' . esc_url($url) . '">Create page</a>';
     }
 
-    public static function save_site_menu_settings($post_id) {
+    public static function save_site_menu_settings(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhc_menu_nonce']) || !wp_verify_nonce($_POST['bhc_menu_nonce'], 'bhc_save_menu')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -116,7 +116,7 @@ class BHC_Admin {
     }
 
     /** Same shape as BH_Admin::resync_menu() in bh-contest — see that docblock. */
-    public static function resync_course_menu() {
+    public static function resync_course_menu(): void {
         if (!class_exists('OUS_MenuSync')) return;
 
         $posts = get_posts([
@@ -152,7 +152,7 @@ class BHC_Admin {
      * built page (e.g. the original "Songwriting Fundamentals"). Only
      * falls back to the raw permalink if neither finds anything.
      */
-    private static function menu_url_for_course($course_id) {
+    private static function menu_url_for_course(int $course_id): string {
         $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
         if ($page_id && get_post_status($page_id) === 'publish') {
             return get_permalink($page_id);
@@ -169,11 +169,11 @@ class BHC_Admin {
         return get_permalink($course_id);
     }
 
-    public static function maybe_resync_menu_for_post($post_id) {
+    public static function maybe_resync_menu_for_post(int $post_id): void {
         if (get_post_type($post_id) === 'bh_course') self::resync_course_menu();
     }
 
-    public static function save_catalog_details($post_id) {
+    public static function save_catalog_details(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhc_catalog_nonce']) || !wp_verify_nonce($_POST['bhc_catalog_nonce'], 'bhc_save_catalog')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -191,7 +191,7 @@ class BHC_Admin {
         }
     }
 
-    public static function enqueue_admin_assets($hook) {
+    public static function enqueue_admin_assets(string $hook): void {
         if (!in_array($hook, ['post.php', 'post-new.php'], true)) return;
         if (!in_array(get_post_type(), ['bh_course', 'bh_lesson'], true)) return;
         wp_enqueue_media();
@@ -210,7 +210,7 @@ class BHC_Admin {
 
     /* ---------------- course metabox ---------------- */
 
-    public static function render_course_metabox($post) {
+    public static function render_course_metabox(\WP_Post $post): void {
         wp_nonce_field('bhc_save_course', 'bhc_course_nonce');
 
         // "Preview as student" — the Lesson screen has had this for a
@@ -227,7 +227,7 @@ class BHC_Admin {
         $lesson_ids = BHC_PostTypes::lesson_order($post->ID);
         $all_lessons = get_posts([
             'post_type' => 'bh_lesson', 'numberposts' => -1, 'post_status' => ['publish', 'draft'],
-            'meta_key' => '_bhc_course_id', 'meta_value' => $post->ID,
+            'meta_key' => '_bhc_course_id', 'meta_value' => (string) $post->ID,
             'orderby' => 'title', 'order' => 'ASC',
         ]);
         // Keep lessons in their saved order first, then any not-yet-ordered lesson.
@@ -367,7 +367,7 @@ class BHC_Admin {
         }
     }
 
-    public static function save_course($post_id) {
+    public static function save_course(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!isset($_POST['bhc_course_nonce']) || !wp_verify_nonce($_POST['bhc_course_nonce'], 'bhc_save_course')) return;
         if (!current_user_can('edit_post', $post_id)) return;
@@ -409,7 +409,7 @@ class BHC_Admin {
      * duplicate: skipped if a live (non-trashed) page is already
      * linked, unless $force is passed (the "Create page" fallback link).
      */
-    public static function maybe_create_course_page($course_id, $force = false) {
+    public static function maybe_create_course_page(int $course_id, bool $force = false): void {
         if (!$force && get_post_status($course_id) !== 'publish') return;
 
         $page_id = (int) get_post_meta($course_id, '_bhc_page_id', true);
@@ -428,7 +428,7 @@ class BHC_Admin {
         update_post_meta($new_id, '_bhc_course_ref', $course_id);
     }
 
-    public static function create_course_page_action() {
+    public static function create_course_page_action(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhc_create_page')) {
             wp_die('Not allowed.', '', ['back_link' => true]);
         }
@@ -440,7 +440,7 @@ class BHC_Admin {
 
     // Small backlink box on the auto-created page's own edit screen —
     // same convention as bh-contest's add_page_backlink_meta_box().
-    public static function add_page_backlink_meta_box($post) {
+    public static function add_page_backlink_meta_box(\WP_Post $post): void {
         $course_id = (int) get_post_meta($post->ID, '_bhc_course_ref', true);
         if (!$course_id || !get_post($course_id)) return;
 
@@ -453,7 +453,7 @@ class BHC_Admin {
 
     /* ---------------- lesson metabox (course assignment) ---------------- */
 
-    public static function render_lesson_metabox($post) {
+    public static function render_lesson_metabox(\WP_Post $post): void {
         wp_nonce_field('bhc_save_lesson', 'bhc_lesson_nonce');
         $current_course = BHC_PostTypes::course_for_lesson($post->ID);
         // A brand-new lesson started from the course screen's "+ Add
@@ -531,7 +531,7 @@ class BHC_Admin {
     // canvas) plus a "preview as student" link. It never writes step
     // content — BHC_ContentBridge's save_post_bh_lesson hook is the
     // only writer, see that class's own docblock.
-    public static function render_steps_metabox($post) {
+    public static function render_steps_metabox(\WP_Post $post): void {
         $steps = BHC_Steps::get($post->ID);
 
         // Per-step content labels rather than just a comma-separated list
@@ -569,7 +569,8 @@ class BHC_Admin {
     // wrote it (BHC_ContentBridge::sync_legacy_steps() keeps _bhc_steps
     // in sync with the real editor's post_content, see that class's
     // docblock).
-    private static function describe_step($step) {
+    /** @param array<string, mixed> $step */
+    private static function describe_step($step): string {
         $type = $step['type'] ?? '?';
         switch ($type) {
             case 'text':
@@ -606,7 +607,7 @@ class BHC_Admin {
         }
     }
 
-    public static function save_lesson($post_id) {
+    public static function save_lesson(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
@@ -674,13 +675,13 @@ class BHC_Admin {
         // preferred resolution.
     }
 
-    private static function remove_lesson_from_order($course_id, $lesson_id) {
+    private static function remove_lesson_from_order(int $course_id, int $lesson_id): void {
         $order = BHC_PostTypes::lesson_order($course_id);
         $order = array_values(array_diff($order, [(int) $lesson_id]));
         update_post_meta($course_id, '_bhc_lesson_order', $order);
     }
 
-    private static function add_lesson_to_order($course_id, $lesson_id) {
+    private static function add_lesson_to_order(int $course_id, int $lesson_id): void {
         $order = BHC_PostTypes::lesson_order($course_id);
         if (!in_array((int) $lesson_id, $order, true)) {
             $order[] = (int) $lesson_id;
@@ -697,11 +698,11 @@ class BHC_Admin {
     // and class-render-lesson.php's own comments already acknowledge
     // tolerating; this closes it at the source instead of just
     // tolerating it everywhere that reads the meta.
-    public static function cleanup_deleted_course($post_id) {
+    public static function cleanup_deleted_course(int $post_id): void {
         if (get_post_type($post_id) !== 'bh_course') return;
         $lessons = get_posts([
             'post_type' => 'bh_lesson', 'numberposts' => -1, 'post_status' => 'any',
-            'meta_key' => '_bhc_course_id', 'meta_value' => $post_id,
+            'meta_key' => '_bhc_course_id', 'meta_value' => (string) $post_id,
         ]);
         foreach ($lessons as $lesson) {
             delete_post_meta($lesson->ID, '_bhc_course_id');
@@ -716,7 +717,7 @@ class BHC_Admin {
     // (course_column_content() below) over-counted forever, and any
     // future code trusting lesson_order() without that same defensive
     // filter would silently include a dangling ID.
-    public static function cleanup_deleted_lesson($post_id) {
+    public static function cleanup_deleted_lesson(int $post_id): void {
         if (get_post_type($post_id) !== 'bh_lesson') return;
         $course_id = BHC_PostTypes::course_for_lesson($post_id);
         if ($course_id) self::remove_lesson_from_order($course_id, $post_id);
@@ -732,7 +733,11 @@ class BHC_Admin {
        shortcut like sharing lesson IDs between two courses) — a
        template re-run needs its own independent copy of every lesson so
        editing one cohort's content never touches another's. */
-    public static function course_row_actions($actions, $post) {
+    /**
+     * @param array<string, string> $actions
+     * @return array<string, string>
+     */
+    public static function course_row_actions($actions, \WP_Post $post): array {
         if ($post->post_type !== 'bh_course' || !current_user_can('edit_post', $post->ID)) return $actions;
         $url = wp_nonce_url(
             admin_url('admin-post.php?action=bhc_duplicate_course&course_id=' . (int) $post->ID),
@@ -742,7 +747,7 @@ class BHC_Admin {
         return $actions;
     }
 
-    public static function handle_duplicate_course() {
+    public static function handle_duplicate_course(): void {
         $course_id = (int) ($_GET['course_id'] ?? 0);
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_course_' . $course_id)) wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         if (!current_user_can('edit_post', $course_id)) wp_die('Not allowed.', '', ['response' => 403, 'back_link' => true]);
@@ -816,7 +821,7 @@ class BHC_Admin {
 
     /* ---------------- list table ---------------- */
 
-    public static function course_column_content($col, $post_id) {
+    public static function course_column_content(string $col, int $post_id): void {
         if ($col === 'bhc_lessons') echo count(BHC_PostTypes::lesson_order($post_id));
         if ($col === 'bhc_gate') {
             $tier = BHC_Gate::required_tier($post_id);
@@ -831,7 +836,11 @@ class BHC_Admin {
        — a real gap the deep LMS audit called out (no lesson-duplication
        anywhere). A plain row-action + admin-post handler, same pattern
        WordPress core's own "Duplicate" plugins use, not a bespoke UI. */
-    public static function lesson_row_actions($actions, $post) {
+    /**
+     * @param array<string, string> $actions
+     * @return array<string, string>
+     */
+    public static function lesson_row_actions($actions, \WP_Post $post): array {
         if ($post->post_type !== 'bh_lesson' || !current_user_can('edit_post', $post->ID)) return $actions;
         $url = wp_nonce_url(
             admin_url('admin-post.php?action=bhc_duplicate_lesson&lesson_id=' . (int) $post->ID),
@@ -841,7 +850,7 @@ class BHC_Admin {
         return $actions;
     }
 
-    public static function handle_duplicate_lesson() {
+    public static function handle_duplicate_lesson(): void {
         $lesson_id = (int) ($_GET['lesson_id'] ?? 0);
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_duplicate_lesson_' . $lesson_id)) wp_die('Security check failed.', 403);
         if (!current_user_can('edit_post', $lesson_id)) wp_die('Not allowed.', 403);
@@ -889,7 +898,7 @@ class BHC_Admin {
     // pointer relationship save_lesson()'s course-reassignment sync
     // already keeps consistent — this is the same operation, just
     // triggered from the course side instead of the lesson side).
-    public static function handle_unassign_lesson() {
+    public static function handle_unassign_lesson(): void {
         $lesson_id = (int) ($_GET['lesson_id'] ?? 0);
         $course_id = (int) ($_GET['course_id'] ?? 0);
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bhc_unassign_lesson_' . $lesson_id)) wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
@@ -911,7 +920,7 @@ class BHC_Admin {
     // prevents going forward, but pre-existing data or direct DB edits
     // could still produce), shows a clear flag instead of silently
     // being unreachable from any course screen.
-    public static function lesson_column_content($col, $post_id) {
+    public static function lesson_column_content(string $col, int $post_id): void {
         if ($col !== 'bhc_course') return;
         $course_id = BHC_PostTypes::course_for_lesson($post_id);
         if (!$course_id) {

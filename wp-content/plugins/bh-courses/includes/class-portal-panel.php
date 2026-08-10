@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * and a direct link back into the course itself to continue.
  */
 class BHC_PortalPanel {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
         add_filter('bhi_user_bar_links', [self::class, 'register_user_bar_link']);
     }
@@ -23,7 +23,11 @@ class BHC_PortalPanel {
     // covers). Picks the most recently enrolled course that isn't
     // already complete — the one a student most plausibly wants to
     // pick back up right now.
-    public static function register_user_bar_link($links) {
+    /**
+     * @param array<int, array<string, mixed>> $links
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_user_bar_link($links): array {
         $user_id = get_current_user_id();
         if (!$user_id || !class_exists('BHC_Progress')) return $links;
 
@@ -44,7 +48,11 @@ class BHC_PortalPanel {
         return $links;
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel($panels): array {
         $panels[] = [
             'id' => 'courses',
             'label' => 'My Courses',
@@ -59,7 +67,7 @@ class BHC_PortalPanel {
     // (BHC_Achievements). Obvious-or-gone: a student with none earned yet
     // sees nothing here at all, not a row of greyed-out locked badges —
     // this section only exists once there's something real to show.
-    private static function render_achievements($user_id) {
+    private static function render_achievements(int $user_id): void {
         if (!class_exists('BHC_Achievements')) return;
         $earned = BHC_Achievements::all_for_user($user_id);
         if (!$earned) return;
@@ -80,7 +88,8 @@ class BHC_PortalPanel {
         echo '</div>';
     }
 
-    private static function enrolled_course_ids($user_id) {
+    /** @return array<int, int> */
+    private static function enrolled_course_ids(int $user_id): array {
         global $wpdb;
         return $wpdb->get_col($wpdb->prepare(
             "SELECT course_id FROM {$wpdb->prefix}bhc_enrollments WHERE user_id = %d ORDER BY enrolled_at DESC",
@@ -88,7 +97,7 @@ class BHC_PortalPanel {
         ));
     }
 
-    public static function render() {
+    public static function render(): void {
         $user_id = get_current_user_id();
         echo '<h1>My Courses</h1>';
 

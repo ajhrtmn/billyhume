@@ -17,19 +17,20 @@ class BHC_DripNudges {
     const JOB_HOOK = 'bhc_check_drip_unlocks';
     const INTERVAL = DAY_IN_SECONDS;
 
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('OUS_Jobs')) return; // no queue infra, no job — same guard class-nudges.php's own registration uses
         OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run']);
         add_action('init', [self::class, 'maybe_schedule_first_run']);
     }
 
-    public static function maybe_schedule_first_run() {
+    public static function maybe_schedule_first_run(): void {
         if (get_option('bhc_drip_nudge_job_scheduled')) return;
         update_option('bhc_drip_nudge_job_scheduled', time());
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::INTERVAL);
     }
 
-    public static function run($args = []) {
+    /** @param array<string, mixed> $args */
+    public static function run($args = []): void {
         // Reschedule first — a fatal error partway through the sweep
         // below shouldn't silently kill the recurring job forever, same
         // reasoning as class-nudges.php's own run().

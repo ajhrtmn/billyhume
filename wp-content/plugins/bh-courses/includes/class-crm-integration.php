@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
  * something this class needs to know about.
  */
 class BHC_CrmIntegration {
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_crm_active_user_ids', [self::class, 'active_user_ids']);
         add_filter('bh_crm_activity_summary', [self::class, 'activity_summary'], 10, 2);
     }
@@ -26,12 +26,20 @@ class BHC_CrmIntegration {
     // Anyone with course activity qualifies for the CRM person list even
     // without profile data filled in — same reasoning bh-contest's own
     // filter callback uses for voters.
-    public static function active_user_ids($ids) {
+    /**
+     * @param array<int, int> $ids
+     * @return array<int, int>
+     */
+    public static function active_user_ids($ids): array {
         global $wpdb;
         return array_merge($ids, $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhc_progress"));
     }
 
-    public static function activity_summary($sections, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $sections
+     * @return array<int, array<string, mixed>>
+     */
+    public static function activity_summary($sections, int $user_id): array {
         global $wpdb;
         $completed = $wpdb->get_results($wpdb->prepare(
             // id DESC as a tiebreaker — completed_at only has 1-second
@@ -64,7 +72,8 @@ class BHC_CrmIntegration {
         return $sections;
     }
 
-    private static function render_detail($user_id, $completed) {
+    /** @param array<int, array<string, mixed>> $completed */
+    private static function render_detail(int $user_id, $completed): void {
         echo '<div class="bhy-table-wrap">';
         echo '<table class="widefat striped"><thead><tr><th>Course</th><th>Progress</th><th>Completed</th></tr></thead><tbody>';
         $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);

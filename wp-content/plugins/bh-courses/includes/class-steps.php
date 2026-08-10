@@ -78,12 +78,17 @@ class BHC_Steps {
     // follows) rather than a free-text style field.
     const CALLOUT_VARIANTS = ['tip', 'note', 'warning'];
 
-    public static function get($lesson_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function get(int $lesson_id): array {
         $steps = get_post_meta($lesson_id, '_bhc_steps', true);
         return is_array($steps) ? array_values($steps) : [];
     }
 
-    public static function save($lesson_id, array $steps) {
+    /**
+     * @param array<int, array<string, mixed>> $steps
+     * @return array<int, array<string, mixed>>
+     */
+    public static function save(int $lesson_id, array $steps): array {
         // Defensively re-sanitize on the way in rather than trusting
         // whatever the admin form posted — this ends up in the DB and
         // gets echoed back out on the front end.
@@ -248,7 +253,8 @@ class BHC_Steps {
     // class-render-lesson.php falls back to the plain Mark-complete button
     // for those regardless of what's stored here. Stored on the step
     // either way so the value survives a later source-type switch.
-    private static function sanitize_watch_threshold($value) {
+    /** @param mixed $value */
+    private static function sanitize_watch_threshold($value): int {
         if ($value === null || $value === '') return 0;
         return max(0, min(100, (int) $value));
     }
@@ -271,7 +277,12 @@ class BHC_Steps {
     // difference is purely in how courses.js displays it, not the data.
     const ANNOTATION_TYPES = ['note', 'hotspot', 'question', 'banner'];
 
-    private static function sanitize_annotations($annotations) {
+    /** @return array<int, array<string, mixed>> */
+    /**
+     * @param mixed $annotations
+     * @return array<int, array<string, mixed>>
+     */
+    private static function sanitize_annotations($annotations): array {
         $clean = [];
         foreach ((array) $annotations as $a) {
             $type = in_array($a['type'] ?? '', self::ANNOTATION_TYPES, true) ? $a['type'] : '';
@@ -304,12 +315,13 @@ class BHC_Steps {
         return array_values($clean);
     }
 
-    public static function get_step($lesson_id, $step_index) {
+    /** @return array<string, mixed>|null */
+    public static function get_step(int $lesson_id, int $step_index): ?array {
         $steps = self::get($lesson_id);
         return $steps[$step_index] ?? null;
     }
 
-    public static function count($lesson_id) {
+    public static function count(int $lesson_id): int {
         return count(self::get($lesson_id));
     }
 
@@ -323,7 +335,12 @@ class BHC_Steps {
     // BHC_Progress::ajax_submit_quiz() snapshots into bhc_progress.answers,
     // and what it returns to the front end for the immediate per-question
     // breakdown (courses.js).
-    public static function score_quiz(array $step, array $answers) {
+    /**
+     * @param array<string, mixed> $step
+     * @param array<int, int> $answers
+     * @return array<string, mixed>
+     */
+    public static function score_quiz(array $step, array $answers): array {
         $questions = $step['questions'] ?? [];
         $total = count($questions);
         if (!$total) return ['score' => 0, 'passed' => false, 'total' => 0, 'correct' => 0, 'questions' => []];

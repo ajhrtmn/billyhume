@@ -38,20 +38,20 @@ if (!defined('ABSPATH')) exit;
  * never needed.
  */
 class BHC_Certificates {
-    public static function init() {
+    public static function init(): void {
         add_action('template_redirect', [self::class, 'maybe_serve_download']);
     }
 
-    public static function course_offers_certificate($course_id) {
+    public static function course_offers_certificate(int $course_id): bool {
         return (bool) get_post_meta($course_id, '_bhc_certificate_enabled', true);
     }
 
     /** The actual download URL — a plain query arg on the course's own permalink, same "no rewrite rule needed" pattern this ecosystem's WooCommerce-facing links already use (wc_get_cart_url() . '?add-to-cart=X'). */
-    public static function download_url($course_id) {
+    public static function download_url(int $course_id): string {
         return add_query_arg('bhc_certificate', (int) $course_id, get_permalink($course_id));
     }
 
-    public static function maybe_serve_download() {
+    public static function maybe_serve_download(): void {
         if (!isset($_GET['bhc_certificate'])) return;
         $course_id = (int) $_GET['bhc_certificate'];
         $user_id = get_current_user_id();
@@ -75,7 +75,7 @@ class BHC_Certificates {
         exit;
     }
 
-    private static function stream_pdf($user_id, $course_id) {
+    private static function stream_pdf(int $user_id, int $course_id): void {
         // A raw require_once fatal (a white-screen PHP error, the least
         // graceful outcome possible for "student earned a certificate,
         // clicks download") if the vendored FPDF file is ever missing —
@@ -166,7 +166,8 @@ class BHC_Certificates {
     }
 
     /** FPDF's default core fonts (Helvetica etc.) only support Windows-1252, not UTF-8 — course titles/names routinely aren't. Deliberately simple (strip anything outside Latin-1 rather than a full transliteration table) since this only affects a handful of characters in what's normally a short title/name string. */
-    private static function pdf_safe($text) {
+    /** @param mixed $text */
+    private static function pdf_safe($text): string {
         $converted = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT//IGNORE', (string) $text);
         return $converted !== false ? $converted : preg_replace('/[^\x20-\x7E]/', '', (string) $text);
     }

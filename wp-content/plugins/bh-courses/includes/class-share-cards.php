@@ -18,18 +18,18 @@ if (!defined('ABSPATH')) exit;
  * the student's session) can still fetch it.
  */
 class BHC_ShareCards {
-    public static function init() {
+    public static function init(): void {
         add_action('template_redirect', [self::class, 'maybe_serve_card']);
     }
 
-    public static function card_url($user_id, $course_id) {
+    public static function card_url(int $user_id, int $course_id): string {
         return add_query_arg([
             'bhc_share_card' => (int) $course_id,
             'u' => (int) $user_id,
         ], home_url('/'));
     }
 
-    public static function maybe_serve_card() {
+    public static function maybe_serve_card(): void {
         if (!isset($_GET['bhc_share_card'])) return;
         $course_id = (int) $_GET['bhc_share_card'];
         $user_id = (int) ($_GET['u'] ?? 0);

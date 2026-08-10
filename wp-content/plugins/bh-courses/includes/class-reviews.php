@@ -23,16 +23,16 @@ if (!defined('ABSPATH')) exit;
 class BHC_Reviews {
     const CAP = 'bhcore_manage_students'; // same course-content-moderation capability BHC_ProgressAdmin already uses
 
-    private static function required_cap() {
+    private static function required_cap(): string {
         return class_exists('OUS_Roles') ? self::CAP : 'edit_posts';
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhc_reviews';
     }
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
         add_action('admin_post_bhc_review_approve', [self::class, 'handle_approve']);
         add_action('admin_post_bhc_review_reject', [self::class, 'handle_reject']);
@@ -45,7 +45,8 @@ class BHC_Reviews {
     // (same user+course, the UNIQUE KEY's ON DUPLICATE KEY branch)
     // always resets status back to 'pending' — an edited review is
     // re-moderated, never grandfathered in on its original approval.
-    public static function submit_review($user_id, $course_id, $rating, $body) {
+    /** @return true|\WP_Error */
+    public static function submit_review(int $user_id, int $course_id, int $rating, string $body) {
         if (!$user_id || !$course_id) return new WP_Error('bhc_review_invalid', 'Missing user or course.');
         if (!BHC_Progress::enrolled_at($user_id, $course_id)) {
             return new WP_Error('bhc_review_not_enrolled', 'You need to be enrolled in this course to leave a review.');
@@ -66,7 +67,7 @@ class BHC_Reviews {
         return true;
     }
 
-    public static function ajax_submit_review() {
+    public static function ajax_submit_review(): void {
         check_ajax_referer('bhc_progress', 'nonce'); // same generic front-end nonce every other bh-courses AJAX action already uses
         $user_id = get_current_user_id();
         if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
@@ -82,7 +83,8 @@ class BHC_Reviews {
 
     /* ---------------- reads ---------------- */
 
-    public static function average_rating($course_id) {
+    /** @return array{average: float|null, count: int} */
+    public static function average_rating(int $course_id): array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT AVG(rating) AS avg_rating, COUNT(*) AS cnt FROM " . self::table() . " WHERE course_id = %d AND status = 'approved'",
@@ -95,7 +97,8 @@ class BHC_Reviews {
     // Bulk sibling of average_rating(), same shape as BHC_Progress::
     // enrollment_counts() — used for the catalog's "Highest rated" sort
     // so that sort doesn't run one query per course card.
-    public static function average_ratings() {
+    /** @return array<int, array{average: float, count: int}> */
+    public static function average_ratings(): array {
         global $wpdb;
         $rows = $wpdb->get_results(
             "SELECT course_id, AVG(rating) AS avg_rating, COUNT(*) AS cnt FROM " . self::table() . " WHERE status = 'approved' GROUP BY course_id",
@@ -108,7 +111,8 @@ class BHC_Reviews {
         return $out;
     }
 
-    public static function reviews_for_course($course_id, $status = 'approved') {
+    /** @return array<int, array<string, mixed>> */
+    public static function reviews_for_course(int $course_id, string $status = 'approved'): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::table() . " WHERE course_id = %d AND status = %s ORDER BY created_at DESC",
@@ -120,7 +124,8 @@ class BHC_Reviews {
     // shows this instead of the blank submission form once it exists,
     // so a student can see their pending/rejected/approved state and
     // edit rather than only ever being able to submit once blind.
-    public static function user_review($user_id, $course_id) {
+    /** @return array<string, mixed>|null */
+    public static function user_review(int $user_id, int $course_id): ?array {
         if (!$user_id) return null;
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
@@ -129,7 +134,8 @@ class BHC_Reviews {
         ), ARRAY_A);
     }
 
-    public static function pending_reviews() {
+    /** @return array<int, array<string, mixed>> */
+    public static function pending_reviews(): array {
         global $wpdb;
         return $wpdb->get_results(
             "SELECT * FROM " . self::table() . " WHERE status = 'pending' ORDER BY created_at ASC",
@@ -139,17 +145,17 @@ class BHC_Reviews {
 
     /* ---------------- admin moderation ---------------- */
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         add_submenu_page(
             BHC_PostTypes::MENU_PARENT, 'Course Reviews', 'Course Reviews',
             self::required_cap(), 'bhc-reviews', [self::class, 'render_admin']
         );
     }
 
-    public static function handle_approve() { self::handle_moderation('approved'); }
-    public static function handle_reject() { self::handle_moderation('rejected'); }
+    public static function handle_approve(): void { self::handle_moderation('approved'); }
+    public static function handle_reject(): void { self::handle_moderation('rejected'); }
 
-    private static function handle_moderation($new_status) {
+    private static function handle_moderation(string $new_status): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
         check_admin_referer('bhc_review_moderate');
         $id = (int) ($_GET['review_id'] ?? 0);
@@ -161,7 +167,7 @@ class BHC_Reviews {
         exit;
     }
 
-    public static function render_admin() {
+    public static function render_admin(): void {
         if (!current_user_can(self::required_cap())) wp_die('Not allowed.', '', ['back_link' => true]);
 
         echo '<div class="wrap"><h1>Course Reviews</h1>';
@@ -192,7 +198,8 @@ class BHC_Reviews {
         echo '</div>';
     }
 
-    private static function render_review_table($rows, $show_actions) {
+    /** @param array<int, array<string, mixed>> $rows */
+    private static function render_review_table($rows, bool $show_actions): void {
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr><th>Course</th><th>Student</th><th>Rating</th><th>Review</th><th>Status</th>';
         if ($show_actions) echo '<th></th>';
         echo '</tr></thead><tbody>';

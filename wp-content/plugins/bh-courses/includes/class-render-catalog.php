@@ -27,7 +27,7 @@ class BHC_Render_Catalog {
     // rather than WP's own 's'/'paged' — this can be embedded via
     // shortcode on any page, possibly alongside other content/queries,
     // so it needs params that can't collide with the main query's own.
-    public static function render_catalog() {
+    public static function render_catalog(): string {
         $search = isset($_GET['bhc_s']) ? sanitize_text_field(wp_unslash($_GET['bhc_s'])) : '';
         $category = isset($_GET['bhc_category']) ? sanitize_title(wp_unslash($_GET['bhc_category'])) : '';
         $topic = isset($_GET['bhc_topic']) ? sanitize_title(wp_unslash($_GET['bhc_topic'])) : '';
@@ -145,7 +145,7 @@ class BHC_Render_Catalog {
         return ob_get_clean();
     }
 
-    private static function render_course_card($course, $uid) {
+    private static function render_course_card(\WP_Post $course, int $uid): string {
         $locked = !BHC_Gate::user_can_access_course($uid, $course->ID);
         $percent = $uid ? BHC_Progress::course_percent($uid, $course->ID) : 0;
         $difficulty_label = BHC_PostTypes::difficulty_label($course->ID);
@@ -218,7 +218,7 @@ class BHC_Render_Catalog {
         if (class_exists('BHC_Reviews')) {
             $rating = BHC_Reviews::average_rating($course->ID);
             if ($rating['count'] > 0) {
-                echo '<span class="bhc-card-rating">&#9733; ' . esc_html($rating['average']) . ' <span class="bhc-card-rating-count">(' . (int) $rating['count'] . ')</span></span>';
+                echo '<span class="bhc-card-rating">&#9733; ' . esc_html((string) $rating['average']) . ' <span class="bhc-card-rating-count">(' . (int) $rating['count'] . ')</span></span>';
             }
         }
         echo '</div>';
@@ -251,7 +251,7 @@ class BHC_Render_Catalog {
     // (class-post-types.php), and the three sorts Part 2.5 settled on.
     // Preserves whichever filters are already active as hidden fields so
     // changing one doesn't clear the others.
-    private static function render_catalog_filters($search, $category, $topic, $sort) {
+    private static function render_catalog_filters(string $search, string $category, string $topic, string $sort): string {
         $categories = get_terms(['taxonomy' => 'bhc_course_category', 'hide_empty' => true]);
         $topics = get_terms(['taxonomy' => 'bhc_course_topic', 'hide_empty' => true]);
 
@@ -291,7 +291,7 @@ class BHC_Render_Catalog {
         return ob_get_clean();
     }
 
-    private static function render_pagination($page, $max_pages, $search, $category, $topic, $sort) {
+    private static function render_pagination(int $page, int $max_pages, string $search, string $category, string $topic, string $sort): string {
         if ($max_pages <= 1) return '';
         $base = remove_query_arg('bhc_paged');
         ob_start();

@@ -21,13 +21,13 @@ if (!defined('ABSPATH')) exit;
 class BHC_Debug {
     const SEED_TAG = '__bhc_test__';
 
-    public static function init() {
+    public static function init(): void {
         // Registration itself happens in the main bootstrap file
         // (add_filter('ous_debug_tools', ...)) — kept as an init() entry
         // point anyway for consistency with every other class here.
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         echo '<p>Seed a fully working course (multiple lessons, text/image/quiz steps, a test student partway through it) — or wipe it all and start clean.</p>';
 
         echo '<h4>Seed</h4>';
@@ -62,7 +62,8 @@ class BHC_Debug {
         echo '<p class="description">Currently seeded test courses: ' . (int) $count . '</p>';
     }
 
-    public static function handle_action($action, $post) {
+    /** @param array<string, mixed> $post */
+    public static function handle_action(string $action, $post): string {
         switch ($action) {
             case 'seed_course':
                 $course_id = self::seed_course('Songwriting Fundamentals ' . self::SEED_TAG, false);
@@ -89,13 +90,13 @@ class BHC_Debug {
         }
     }
 
-    public static function reset() {
+    public static function reset(): string {
         return self::wipe();
     }
 
     /* ---------------- seeding ---------------- */
 
-    private static function seed_course($title, $gated) {
+    private static function seed_course(string $title, bool $gated): int {
         $course_id = wp_insert_post([
             'post_title' => $title, 'post_type' => 'bh_course', 'post_status' => 'publish',
             'post_content' => 'A seeded test course — safe to delete, or use "Wipe" above.',
@@ -131,7 +132,8 @@ class BHC_Debug {
         return $course_id;
     }
 
-    private static function seed_lesson($course_id, $title, $steps) {
+    /** @param array<int, array<string, mixed>> $steps */
+    private static function seed_lesson(int $course_id, string $title, $steps): int {
         $lesson_id = wp_insert_post(['post_title' => $title, 'post_type' => 'bh_lesson', 'post_status' => 'publish']);
         if (!$lesson_id) return 0;
         update_post_meta($lesson_id, '_bhc_course_id', $course_id);
@@ -140,7 +142,7 @@ class BHC_Debug {
         return $lesson_id;
     }
 
-    private static function seed_student_progress() {
+    private static function seed_student_progress(): string {
         $course = self::find_seeded_course();
         if (!$course) return 'Seed a course first (button above).';
 
@@ -181,7 +183,8 @@ class BHC_Debug {
      * real" button here rather than living only as a pass/fail row.
      * Keyed so new presets can be added without renumbering anything.
      */
-    private static function edge_case_presets() {
+    /** @return array<string, array<string, mixed>> */
+    private static function edge_case_presets(): array {
         return [
             'empty_lesson' => [
                 'label' => 'Empty lesson (zero steps)',
@@ -245,7 +248,7 @@ class BHC_Debug {
         ];
     }
 
-    private static function seed_edge_case($preset_key) {
+    private static function seed_edge_case(string $preset_key): string {
         $presets = self::edge_case_presets();
         if (!isset($presets[$preset_key])) return 'Unknown preset.';
 
@@ -270,14 +273,14 @@ class BHC_Debug {
         return "Seeded lesson #$lesson_id (\"$label\") on \"" . esc_html($course->post_title) . "\" — sent $sent raw step(s), BHC_Steps::save() kept $kept after sanitization. Open the lesson (or the course front end) to see the actual saved result.";
     }
 
-    private static function find_seeded_course() {
+    private static function find_seeded_course(): ?\WP_Post {
         $posts = get_posts(['post_type' => 'bh_course', 'meta_key' => '_bhc_seed_tag', 'meta_value' => self::SEED_TAG, 'numberposts' => 1]);
         return $posts[0] ?? null;
     }
 
     /* ---------------- wipe ---------------- */
 
-    private static function wipe() {
+    private static function wipe(): string {
         $courses = get_posts(['post_type' => 'bh_course', 'meta_key' => '_bhc_seed_tag', 'meta_value' => self::SEED_TAG, 'numberposts' => -1]);
         $lessons = get_posts(['post_type' => 'bh_lesson', 'meta_key' => '_bhc_seed_tag', 'meta_value' => self::SEED_TAG, 'numberposts' => -1]);
 

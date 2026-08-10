@@ -3,13 +3,17 @@ if (!defined('ABSPATH')) exit;
 
 /** "Sessions" portal panel — a student's own upcoming/past sessions, plus a "book a slot" list of what's open. */
 class BHC_SessionsPortal {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
         add_action('admin_post_bhc_book_slot', [self::class, 'handle_book']);
         add_action('admin_post_bhc_cancel_slot', [self::class, 'handle_cancel']);
     }
 
-    public static function register_panel($panels) {
+    /**
+     * @param array<int, array<string, mixed>> $panels
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_panel($panels): array {
         $panels[] = [
             'id' => 'sessions',
             'label' => 'Sessions',
@@ -20,7 +24,7 @@ class BHC_SessionsPortal {
         return $panels;
     }
 
-    public static function render() {
+    public static function render(): void {
         $user_id = get_current_user_id();
         if (!$user_id) return;
 
@@ -71,7 +75,7 @@ class BHC_SessionsPortal {
         echo '</table>';
     }
 
-    public static function handle_book() {
+    public static function handle_book(): void {
         $slot_id = (int) ($_POST['slot_id'] ?? 0);
         if (!is_user_logged_in() || !check_admin_referer('bhc_book_slot_' . $slot_id)) wp_die('Not allowed.');
 
@@ -81,7 +85,7 @@ class BHC_SessionsPortal {
         exit;
     }
 
-    public static function handle_cancel() {
+    public static function handle_cancel(): void {
         $slot_id = (int) ($_POST['slot_id'] ?? 0);
         if (!is_user_logged_in() || !check_admin_referer('bhc_cancel_slot_' . $slot_id)) wp_die('Not allowed.');
 

@@ -17,12 +17,12 @@ if (!defined('ABSPATH')) exit;
  * the actual final content, not just a container shell.
  */
 class BHC_Blocks {
-    public static function init() {
+    public static function init(): void {
         self::register_blocks();
         add_action('rest_api_init', [self::class, 'register_routes']);
     }
 
-    public static function register_blocks() {
+    public static function register_blocks(): void {
         if (!function_exists('register_block_type')) return; // WP too old — harmless no-op, same posture every optional integration in this ecosystem uses
 
         wp_register_script(
@@ -47,17 +47,19 @@ class BHC_Blocks {
         ]);
     }
 
-    public static function render_catalog($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_catalog($attributes): string {
         return BHC_Render::render_catalog();
     }
 
-    public static function render_course($attributes) {
+    /** @param array<string, mixed> $attributes */
+    public static function render_course($attributes): string {
         $id = (int) ($attributes['id'] ?? 0);
         if (!$id) return '';
         return BHC_Render::render_course(['id' => $id]);
     }
 
-    public static function register_routes() {
+    public static function register_routes(): void {
         register_rest_route('bhc/v1', '/courses-picker', [
             'methods' => 'GET',
             'callback' => [self::class, 'rest_courses_picker'],
@@ -69,7 +71,8 @@ class BHC_Blocks {
     // published course, regardless of gating (an editor choosing which
     // course to embed needs to see all of them, not just ones they
     // personally have access to).
-    public static function rest_courses_picker($req) {
+    /** @return \WP_REST_Response */
+    public static function rest_courses_picker(\WP_REST_Request $req) {
         $q = new WP_Query([
             'post_type' => 'bh_course', 'post_status' => 'publish', 'posts_per_page' => -1,
         ]);

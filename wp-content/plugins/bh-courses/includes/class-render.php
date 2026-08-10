@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) exit;
  * is unchanged, only its internals moved out.
  */
 class BHC_Render {
-    public static function init() {
+    public static function init(): void {
         add_shortcode('bh_courses', [self::class, 'render_catalog']);
         add_shortcode('bh_course', [self::class, 'render_course']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
@@ -52,7 +52,8 @@ class BHC_Render {
      * bh_lesson's render_lesson_steps() never prints its own title, so
      * the theme's title block there is the only one and stays untouched.
      */
-    public static function suppress_duplicate_course_title($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function suppress_duplicate_course_title(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'core/post-title') return $block_content;
         if (!is_singular('bh_course')) return $block_content;
         return '';
@@ -65,7 +66,8 @@ class BHC_Render {
      * core/post-featured-image block in single.html was already printing
      * that same attachment, plain and undecorated, directly above it.
      */
-    public static function suppress_duplicate_course_cover($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function suppress_duplicate_course_cover(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'core/post-featured-image') return $block_content;
         if (!is_singular('bh_course')) return $block_content;
         return '';
@@ -86,7 +88,8 @@ class BHC_Render {
      * "match the specific broken output, not the whole block type"
      * posture suppress_generic_post_navigation() already takes above.
      */
-    public static function suppress_broken_byline($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function suppress_broken_byline(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'core/group') return $block_content;
         if (!is_singular(['bh_lesson', 'bh_course'])) return $block_content;
         if (strpos($block_content, 'Written by') === false) return $block_content;
@@ -112,7 +115,8 @@ class BHC_Render {
      * rather than patching the theme, since another theme/pattern could
      * reintroduce the same generic block later.
      */
-    public static function suppress_generic_post_navigation($block_content, $block) {
+    /** @param array<string, mixed> $block */
+    public static function suppress_generic_post_navigation(string $block_content, $block): string {
         if (($block['blockName'] ?? '') !== 'core/post-navigation-link') return $block_content;
         if (is_singular(['bh_lesson', 'bh_course'])) return '';
         return $block_content;
@@ -128,13 +132,13 @@ class BHC_Render {
     // this filter only supplies the fallback the theme didn't provide),
     // same "degrade to a sane default, never fight a real override"
     // posture as everything else in this ecosystem.
-    public static function maybe_use_archive_template($template) {
+    public static function maybe_use_archive_template(string $template): string {
         if (!is_post_type_archive('bh_course')) return $template;
         if ($template && strpos(basename($template), 'archive-bh_course') !== false) return $template;
         return BHC_PATH . 'templates/archive-bh_course.php';
     }
 
-    public static function maybe_enqueue() {
+    public static function maybe_enqueue(): void {
         // Extended to also cover the bh_course post-type ARCHIVE
         // ('has_archive' => 'courses', class-post-types.php) — the
         // catalog rebuild (BHC_Render_Catalog) is a real enough surface
@@ -167,7 +171,7 @@ class BHC_Render {
         self::enqueue_assets();
     }
 
-    private static function enqueue_assets() {
+    private static function enqueue_assets(): void {
         wp_enqueue_style('bhc-front', BHC_URL . 'assets/css/courses.css', [], BHC_VER);
         if (class_exists('BHY_Style')) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
         wp_enqueue_script('bhc-front', BHC_URL . 'assets/js/courses.js', [], BHC_VER, true);
@@ -179,15 +183,16 @@ class BHC_Render {
 
     /* ---------------- delegates — real logic lives in the three classes above ---------------- */
 
-    public static function render_catalog() {
+    public static function render_catalog(): string {
         return BHC_Render_Catalog::render_catalog();
     }
 
-    public static function render_course($atts) {
+    /** @param mixed $atts */
+    public static function render_course($atts): string {
         return BHC_Render_Course::render_course($atts);
     }
 
-    public static function render_lesson_steps($lesson_id) {
+    public static function render_lesson_steps(int $lesson_id): string {
         return BHC_Render_Lesson::render_lesson_steps($lesson_id);
     }
 
@@ -196,7 +201,8 @@ class BHC_Render {
     // own render_step()), but it was public on the original class, so
     // it stays public/delegated here too rather than silently narrowing
     // this class's API surface.
-    public static function render_quiz_review($snapshot) {
+    /** @param mixed $snapshot */
+    public static function render_quiz_review($snapshot): string {
         return BHC_Render_Lesson::render_quiz_review($snapshot);
     }
 }

@@ -67,7 +67,7 @@ if (!defined('ABSPATH')) exit;
 class BHC_ContentBridge {
     const CONTEXT = 'post';
 
-    public static function init() {
+    public static function init(): void {
         if (!class_exists('BH_Content')) return;
         self::register_block_types();
 
@@ -97,7 +97,7 @@ class BHC_ContentBridge {
     }
 
     /** Skips autosaves/revisions (the standard WP guard every other save_post consumer in this ecosystem uses), then re-derives `_bhc_steps` from this lesson's own just-saved post_content. */
-    public static function sync_legacy_steps($post_id) {
+    public static function sync_legacy_steps(int $post_id): void {
         if (wp_is_post_autosave($post_id) || wp_is_post_revision($post_id)) return;
         if (!class_exists('BHC_Steps')) return;
         $tree = self::get_tree($post_id);
@@ -108,7 +108,11 @@ class BHC_ContentBridge {
     // Purely cosmetic (the inserter groups unregistered categories under
     // "Uncategorized" otherwise, not a functional break) but cheap and
     // worth doing — 'lms' is used by every block type registered below.
-    public static function register_block_category($categories) {
+    /**
+     * @param array<int, array<string, mixed>> $categories
+     * @return array<int, array<string, mixed>>
+     */
+    public static function register_block_category($categories): array {
         foreach ($categories as $c) {
             if (($c['slug'] ?? '') === 'lms') return $categories; // another plugin already added it
         }
@@ -122,7 +126,7 @@ class BHC_ContentBridge {
     // own narrow check rather than assuming "fired at all" means
     // "fired for a lesson." get_current_screen() is always available
     // by the time this action fires (core guarantees it).
-    public static function maybe_enqueue_lesson_blocks() {
+    public static function maybe_enqueue_lesson_blocks(): void {
         $screen = get_current_screen();
         if (!$screen || $screen->post_type !== 'bh_lesson') return;
         wp_enqueue_script(
@@ -162,7 +166,11 @@ class BHC_ContentBridge {
     // getting CSS into the iframe (the same one theme.json/
     // add_editor_style() use) — each entry's `css` string gets
     // collected into the iframe's own stylesheet.
-    public static function add_studio_block_editor_styles($settings, $context) {
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    public static function add_studio_block_editor_styles($settings, \WP_Block_Editor_Context $context): array {
         $screen = $context->post ? get_post_type($context->post) : null;
         if ($screen !== 'bh_lesson') return $settings;
 
@@ -220,7 +228,7 @@ class BHC_ContentBridge {
         return $settings;
     }
 
-    private static function register_block_types() {
+    private static function register_block_types(): void {
         BH_Content::register_block_type('bhc/text', [
             'content' => ['type' => 'html', 'default' => ''],
         ], function ($attrs) {
@@ -404,7 +412,8 @@ class BHC_ContentBridge {
      * for a lesson whose post_content is still empty — a lesson created
      * before this migration, not yet opened in the real editor.
      */
-    public static function get_tree($lesson_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function get_tree(int $lesson_id): array {
         $stored = BH_Content::get(self::CONTEXT, $lesson_id);
         if ($stored) return $stored;
         return self::steps_to_tree(BHC_Steps::get($lesson_id));
@@ -423,12 +432,16 @@ class BHC_ContentBridge {
      * empty); a lesson created after never needs it — opening
      * it in the real editor and saving once is the same operation.
      */
-    public static function migrate_lesson($lesson_id) {
+    public static function migrate_lesson(int $lesson_id): bool {
         $tree = self::steps_to_tree(BHC_Steps::get($lesson_id));
         return BH_Content::save(self::CONTEXT, $lesson_id, $tree);
     }
 
-    private static function steps_to_tree(array $steps) {
+    /**
+     * @param array<int, array<string, mixed>> $steps
+     * @return array<int, array<string, mixed>>
+     */
+    private static function steps_to_tree(array $steps): array {
         $tree = [];
         foreach ($steps as $step) {
             $type = $step['type'] ?? '';
@@ -463,7 +476,11 @@ class BHC_ContentBridge {
         return $tree;
     }
 
-    private static function tree_to_steps(array $tree) {
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @return array<int, array<string, mixed>>
+     */
+    private static function tree_to_steps(array $tree): array {
         $steps = [];
         foreach ($tree as $block) {
             $type = $block['type'] ?? '';
@@ -495,7 +512,11 @@ class BHC_ContentBridge {
         return $steps;
     }
 
-    public static function register_debug_tool($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register_debug_tool($tools): array {
         $tools['bhc_content_bridge'] = [
             'label' => 'BH Courses: populate lesson content from steps',
             // Handled inline within render() rather than via the shared
