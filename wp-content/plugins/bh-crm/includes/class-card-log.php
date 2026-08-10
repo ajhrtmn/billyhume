@@ -49,7 +49,7 @@ if (!defined('ABSPATH')) exit;
 class BHCRM_CardLog {
     const DB_VERSION = '1.1'; // 1.1 — Phase D: bhcrm_project_attachments (track links + uploads)
 
-    public static function init() {
+    public static function init(): void {
         self::maybe_upgrade();
 
         add_action('admin_post_bhcrm_card_add_fix', [self::class, 'handle_add_fix']);
@@ -60,35 +60,35 @@ class BHCRM_CardLog {
         add_action('admin_post_bhcrm_card_remove_attachment', [self::class, 'handle_remove_attachment']);
     }
 
-    private static function fixes_table() {
+    private static function fixes_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_project_fixes';
     }
 
-    private static function feedback_table() {
+    private static function feedback_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_project_feedback';
     }
 
-    private static function attachments_table() {
+    private static function attachments_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_project_attachments';
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhcrm_card_log_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhcrm_card_log_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhcrm_card_log_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -145,7 +145,8 @@ class BHCRM_CardLog {
      * Fixes
      * ================================================================= */
 
-    public static function add_fix($card_id, $timestamp_seconds, $note) {
+    /** @return int|false */
+    public static function add_fix(int $card_id, int $timestamp_seconds, string $note) {
         global $wpdb;
         $note = sanitize_textarea_field((string) $note);
         if ($note === '') return false;
@@ -157,14 +158,15 @@ class BHCRM_CardLog {
         return $ok ? (int) $wpdb->insert_id : false;
     }
 
-    public static function toggle_fix_resolved($fix_id) {
+    public static function toggle_fix_resolved(int $fix_id): bool {
         global $wpdb;
         $fix_id = (int) $fix_id;
         $current = (int) $wpdb->get_var($wpdb->prepare("SELECT resolved FROM " . self::fixes_table() . " WHERE id = %d", $fix_id));
         return (bool) $wpdb->update(self::fixes_table(), ['resolved' => $current ? 0 : 1], ['id' => $fix_id]);
     }
 
-    public static function list_fixes($card_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_fixes(int $card_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::fixes_table() . " WHERE card_placement_id = %d ORDER BY timestamp_seconds ASC, id ASC",
@@ -176,7 +178,8 @@ class BHCRM_CardLog {
      * Feedback
      * ================================================================= */
 
-    public static function add_feedback($card_id, $author_name, $note) {
+    /** @return int|false */
+    public static function add_feedback(int $card_id, string $author_name, string $note) {
         global $wpdb;
         $note = sanitize_textarea_field((string) $note);
         if ($note === '') return false;
@@ -190,7 +193,8 @@ class BHCRM_CardLog {
         return $ok ? (int) $wpdb->insert_id : false;
     }
 
-    public static function list_feedback($card_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_feedback(int $card_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::feedback_table() . " WHERE card_placement_id = %d ORDER BY created_at ASC, id ASC",
@@ -202,7 +206,8 @@ class BHCRM_CardLog {
      * Phase D — Idea Drop (track links + uploads)
      * ================================================================= */
 
-    public static function add_track_link($card_id, $track_post_id, $added_by) {
+    /** @return int|false */
+    public static function add_track_link(int $card_id, int $track_post_id, int $added_by) {
         global $wpdb;
         $track_post_id = (int) $track_post_id;
         if (!$track_post_id || get_post_type($track_post_id) !== 'bhs_track') return false;
@@ -213,7 +218,8 @@ class BHCRM_CardLog {
         return $ok ? (int) $wpdb->insert_id : false;
     }
 
-    public static function add_upload($card_id, $wp_attachment_id, $added_by) {
+    /** @return int|false */
+    public static function add_upload(int $card_id, int $wp_attachment_id, int $added_by) {
         global $wpdb;
         $wp_attachment_id = (int) $wp_attachment_id;
         if (!$wp_attachment_id) return false;
@@ -224,7 +230,8 @@ class BHCRM_CardLog {
         return $ok ? (int) $wpdb->insert_id : false;
     }
 
-    public static function list_attachments($card_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_attachments(int $card_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM " . self::attachments_table() . " WHERE card_placement_id = %d ORDER BY created_at ASC, id ASC",
@@ -232,7 +239,7 @@ class BHCRM_CardLog {
         ), ARRAY_A);
     }
 
-    public static function remove_attachment($attachment_id) {
+    public static function remove_attachment(int $attachment_id): bool {
         global $wpdb;
         return (bool) $wpdb->delete(self::attachments_table(), ['id' => (int) $attachment_id]);
     }
@@ -243,7 +250,8 @@ class BHCRM_CardLog {
     // for the duration of this one call only, never persisted, same
     // pattern own-ur-shit's class-public-profile.php and bh-feedback's
     // class-requests.php already use for their own upload forms.
-    private static function handle_file_upload($field) {
+    /** @return int|\WP_Error */
+    private static function handle_file_upload(string $field) {
         require_once ABSPATH . 'wp-admin/includes/image.php';
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -266,18 +274,18 @@ class BHCRM_CardLog {
      * Render — called from BHCRM_Subtasks::render(), root level only
      * ================================================================= */
 
-    private static function format_timestamp($seconds) {
+    private static function format_timestamp(int $seconds): string {
         $seconds = (int) $seconds;
         return sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60);
     }
 
-    public static function render($project_id, $uid, $card_id) {
+    public static function render(int $project_id, int $uid, int $card_id): void {
         self::render_attachments($project_id, $uid, $card_id);
         self::render_fixes($project_id, $uid, $card_id);
         self::render_feedback($project_id, $uid, $card_id);
     }
 
-    private static function render_attachments($project_id, $uid, $card_id) {
+    private static function render_attachments(int $project_id, int $uid, int $card_id): void {
         $attachments = self::list_attachments($card_id);
 
         echo '<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>Idea Drop</strong>' . ($attachments ? ' (' . count($attachments) . ')' : '') . '</summary>';
@@ -350,7 +358,7 @@ class BHCRM_CardLog {
         echo '</details>';
     }
 
-    private static function render_fixes($project_id, $uid, $card_id) {
+    private static function render_fixes(int $project_id, int $uid, int $card_id): void {
         $fixes = self::list_fixes($card_id);
 
         echo '<details class="bhcrm-card-log" open><summary style="cursor:pointer;"><strong>Fixes</strong>' . ($fixes ? ' (' . count($fixes) . ')' : '') . '</summary>';
@@ -390,7 +398,7 @@ class BHCRM_CardLog {
         echo '</details>';
     }
 
-    private static function render_feedback($project_id, $uid, $card_id) {
+    private static function render_feedback(int $project_id, int $uid, int $card_id): void {
         $feedback = self::list_feedback($card_id);
 
         echo '<details class="bhcrm-card-log"><summary style="cursor:pointer;"><strong>Feedback</strong>' . ($feedback ? ' (' . count($feedback) . ')' : '') . '</summary>';
@@ -427,14 +435,15 @@ class BHCRM_CardLog {
      * fix/feedback note isn't destructive).
      * ================================================================= */
 
-    private static function redirect_to_card($project_id, $uid, $card_id) {
+    private static function redirect_to_card(int $project_id, int $uid, int $card_id): void {
         wp_safe_redirect(add_query_arg([
             'page' => 'bh-crm', 'user_id' => (int) $uid, 'project_id' => (int) $project_id, 'card_id' => (int) $card_id,
         ], admin_url('admin.php')));
         exit;
     }
 
-    private static function parse_timestamp($raw) {
+    /** @param mixed $raw */
+    private static function parse_timestamp($raw): int {
         $raw = trim((string) $raw);
         if ($raw === '') return 0;
         if (preg_match('/^(\d+):(\d{1,2})$/', $raw, $m)) {
@@ -443,7 +452,7 @@ class BHCRM_CardLog {
         return max(0, (int) $raw);
     }
 
-    public static function handle_add_fix() {
+    public static function handle_add_fix(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $card_id = (int) ($_POST['card_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_add_fix_' . $card_id)) wp_die('Bad nonce.');
@@ -452,7 +461,7 @@ class BHCRM_CardLog {
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
     }
 
-    public static function handle_toggle_fix() {
+    public static function handle_toggle_fix(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $fix_id = (int) ($_POST['fix_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_toggle_fix_' . $fix_id)) wp_die('Bad nonce.');
@@ -461,7 +470,7 @@ class BHCRM_CardLog {
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), (int) ($_POST['card_id'] ?? 0));
     }
 
-    public static function handle_add_feedback() {
+    public static function handle_add_feedback(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $card_id = (int) ($_POST['card_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_add_feedback_' . $card_id)) wp_die('Bad nonce.');
@@ -470,7 +479,7 @@ class BHCRM_CardLog {
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
     }
 
-    public static function handle_link_track() {
+    public static function handle_link_track(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $card_id = (int) ($_POST['card_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_link_track_' . $card_id)) wp_die('Bad nonce.');
@@ -480,7 +489,7 @@ class BHCRM_CardLog {
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
     }
 
-    public static function handle_upload_file() {
+    public static function handle_upload_file(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $card_id = (int) ($_POST['card_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_upload_file_' . $card_id)) wp_die('Bad nonce.');
@@ -492,7 +501,7 @@ class BHCRM_CardLog {
         self::redirect_to_card((int) ($_POST['project_id'] ?? 0), (int) ($_POST['user_id'] ?? 0), $card_id);
     }
 
-    public static function handle_remove_attachment() {
+    public static function handle_remove_attachment(): void {
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $attachment_id = (int) ($_POST['attachment_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_card_remove_attachment_' . $attachment_id)) wp_die('Bad nonce.');

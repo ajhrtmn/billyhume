@@ -41,7 +41,7 @@ class BHCRM_Segments {
         'has_project' => 'Has an active project',
     ];
 
-    public static function init() {
+    public static function init(): void {
         self::maybe_upgrade();
         add_action('admin_post_bhcrm_save_segment', [self::class, 'handle_save']);
         add_action('admin_post_bhcrm_delete_segment', [self::class, 'handle_delete']);
@@ -70,7 +70,7 @@ class BHCRM_Segments {
      * Datastar's {contentType:'form'} to pick up, same field name the
      * old wp_localize_script()-based JS always posted under.
      */
-    public static function ajax_preview() {
+    public static function ajax_preview(): void {
         check_ajax_referer('bhcrm_preview_segment', 'nonce');
         if (!current_user_can('bhcore_manage_crm')) wp_send_json_error(['message' => 'Not allowed.'], 403);
 
@@ -89,25 +89,25 @@ class BHCRM_Segments {
         wp_send_json_success(['count' => $count, 'total' => $total]);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_segments';
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhcrm_segments_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhcrm_segments_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhcrm_segments_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -125,7 +125,8 @@ class BHCRM_Segments {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    public static function all() {
+    /** @return array<int, array<string, mixed>> */
+    public static function all(): array {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY name ASC', ARRAY_A);
         foreach ($rows as &$r) {
@@ -135,7 +136,8 @@ class BHCRM_Segments {
         return $rows;
     }
 
-    public static function get($id) {
+    /** @return array<string, mixed>|null */
+    public static function get(int $id): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', $id), ARRAY_A);
         if (!$row) return null;
@@ -148,7 +150,11 @@ class BHCRM_Segments {
     // known-field rows — same "never trust what's about to end up in
     // the DB and get run against a user filter" posture every other
     // save handler in this plugin already takes.
-    public static function sanitize_conditions($raw) {
+    /**
+     * @param mixed $raw
+     * @return array<int, array<string, string>>
+     */
+    public static function sanitize_conditions($raw): array {
         $clean = [];
         foreach ((array) $raw as $c) {
             $field = sanitize_key($c['field'] ?? '');
@@ -165,7 +171,12 @@ class BHCRM_Segments {
     // already computes, passed in rather than re-derived here, so this
     // never has its own opinion about who's "active" that could drift
     // from the list page's.
-    public static function apply($ids, array $conditions) {
+    /**
+     * @param array<int, int> $ids
+     * @param array<int, array<string, string>> $conditions
+     * @return array<int, int>
+     */
+    public static function apply($ids, array $conditions): array {
         foreach ($conditions as $c) {
             $ids = array_values(array_filter($ids, fn($id) => self::matches_condition($id, $c)));
             if (!$ids) break; // no one left to check further conditions against
@@ -173,7 +184,8 @@ class BHCRM_Segments {
         return $ids;
     }
 
-    private static function matches_condition($user_id, array $condition) {
+    /** @param array<string, string> $condition */
+    private static function matches_condition(int $user_id, array $condition): bool {
         switch ($condition['field']) {
             case 'tag':
                 return in_array($condition['value'], BHCRM_Tags::get($user_id), true);
@@ -200,7 +212,7 @@ class BHCRM_Segments {
         }
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_segment')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $name = sanitize_text_field(wp_unslash($_POST['segment_name'] ?? ''));
@@ -245,7 +257,11 @@ class BHCRM_Segments {
      * posture every other optional cross-plugin filter in this
      * ecosystem takes.
      */
-    public static function register_campaign_segments($segments) {
+    /**
+     * @param array<string, mixed> $segments
+     * @return array<string, mixed>
+     */
+    public static function register_campaign_segments($segments): array {
         if (class_exists('BHCRM_People')) {
             $segments['bhcrm_active'] = [
                 'label' => 'CRM: everyone active in the CRM',
@@ -266,7 +282,7 @@ class BHCRM_Segments {
         return $segments;
     }
 
-    public static function handle_delete() {
+    public static function handle_delete(): void {
         if (!check_admin_referer('bhcrm_delete_segment')) wp_die('Bad nonce.');
         if (class_exists('OUS_Audit')) {
             OUS_Audit::require_cap('manage_options');

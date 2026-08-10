@@ -29,18 +29,18 @@ class BHCRM_Links {
     const DB_VERSION = '1.0';
     const RELATIONS = ['owner' => 'Owner', 'collaborator' => 'Collaborator', 'watcher' => 'Watcher'];
 
-    public static function init() {
+    public static function init(): void {
         self::maybe_upgrade();
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhcrm_links_db_version', self::DB_VERSION);
             self::migrate_legacy_project_owners();
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhcrm_links_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhcrm_links_db_version', self::DB_VERSION);
@@ -48,7 +48,7 @@ class BHCRM_Links {
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -72,7 +72,7 @@ class BHCRM_Links {
         return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_links';
     }
@@ -84,7 +84,7 @@ class BHCRM_Links {
      * INSERT IGNORE) — safe to call from maybe_upgrade() on every
      * version bump that touches this, not just the very first install.
      */
-    public static function migrate_legacy_project_owners() {
+    public static function migrate_legacy_project_owners(): void {
         global $wpdb;
         $projects_table = $wpdb->prefix . 'bhcrm_projects';
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $projects_table)) !== $projects_table) return;
@@ -100,7 +100,7 @@ class BHCRM_Links {
      * ================================================================= */
 
     /** Creates the link if it doesn't already exist (same 4-tuple + relation). Returns the link id either way. */
-    public static function link($from_type, $from_id, $to_type, $to_id, $relation = 'related') {
+    public static function link(string $from_type, int $from_id, string $to_type, int $to_id, string $relation = 'related'): int {
         global $wpdb;
         $from_type = sanitize_key($from_type);
         $to_type = sanitize_key($to_type);
@@ -141,13 +141,14 @@ class BHCRM_Links {
         return $link_id;
     }
 
-    public static function unlink_by_id($link_id) {
+    public static function unlink_by_id(int $link_id): bool {
         global $wpdb;
         return (bool) $wpdb->delete(self::table(), ['id' => (int) $link_id]);
     }
 
     /** Every link where the given entity is the FROM side. */
-    public static function for_from($from_type, $from_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_from(string $from_type, int $from_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE from_type=%s AND from_id=%d ORDER BY created_at ASC, id ASC',
@@ -156,7 +157,8 @@ class BHCRM_Links {
     }
 
     /** Every link where the given entity is the TO side. */
-    public static function for_to($to_type, $to_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function for_to(string $to_type, int $to_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE to_type=%s AND to_id=%d ORDER BY created_at ASC, id ASC',
@@ -170,12 +172,13 @@ class BHCRM_Links {
      * wrappers hide that so callers on either side don't need to know it.
      * ================================================================= */
 
-    public static function link_project_person($project_id, $person_id, $relation = 'owner') {
+    public static function link_project_person(int $project_id, int $person_id, string $relation = 'owner'): int {
         return self::link('project', $project_id, 'person', $person_id, $relation);
     }
 
     /** Linked people for a project, each row enriched with the WP_User (or null if the account is gone). */
-    public static function people_for_project($project_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function people_for_project(int $project_id): array {
         $links = self::for_from('project', (int) $project_id);
         $out = [];
         foreach ($links as $l) {
@@ -191,7 +194,8 @@ class BHCRM_Links {
     }
 
     /** Every project id a person is linked to, regardless of relation. */
-    public static function project_ids_for_person($person_id) {
+    /** @return array<int, int> */
+    public static function project_ids_for_person(int $person_id): array {
         $links = self::for_to('person', (int) $person_id);
         $ids = [];
         foreach ($links as $l) {

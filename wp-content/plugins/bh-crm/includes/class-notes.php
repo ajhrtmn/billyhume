@@ -33,7 +33,7 @@ if (!defined('ABSPATH')) exit;
 class BHCRM_Notes {
     const DB_VERSION = '1.0';
 
-    public static function init() {
+    public static function init(): void {
         // Called directly from bh-crm.php's own 'plugins_loaded'
         // bootstrap closure (not re-hooked to 'plugins_loaded' itself)
         // — this method IS already running during that hook's dispatch,
@@ -46,25 +46,25 @@ class BHCRM_Notes {
         }
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_notes';
     }
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhcrm_notes_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhcrm_notes_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhcrm_notes_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -93,7 +93,7 @@ class BHCRM_Notes {
     // viewed (no need for a slow one-time site-wide migration pass over
     // every person up front; most CRMs have far more people than anyone
     // will ever open the notes tab for on a given day).
-    private static function migrate_legacy_meta($person_id) {
+    private static function migrate_legacy_meta(int $person_id): void {
         $legacy = get_user_meta($person_id, '_bhcrm_notes', true);
         if (!$legacy || trim($legacy) === '') return;
 
@@ -110,7 +110,8 @@ class BHCRM_Notes {
         delete_user_meta($person_id, '_bhcrm_notes');
     }
 
-    public static function list_for_person($person_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_for_person(int $person_id): array {
         self::migrate_legacy_meta($person_id);
         global $wpdb;
         // id DESC as a tiebreaker — created_at only has 1-second
@@ -130,7 +131,8 @@ class BHCRM_Notes {
     // when set — a reminder in the past (or for "right now") still
     // schedules, just with delay_seconds clamped to 0, so it fires on
     // the next cron tick rather than being silently dropped.
-    public static function add($person_id, $author_id, $text, $reminder_at = '') {
+    /** @return int|false */
+    public static function add(int $person_id, int $author_id, string $text, string $reminder_at = '') {
         global $wpdb;
         $text = sanitize_textarea_field($text);
         if ($text === '') return false;
@@ -172,7 +174,8 @@ class BHCRM_Notes {
     // otherwise, same degrade-gracefully posture every OUS_Jobs consumer
     // already gets for free). Notifies the note's ORIGINAL AUTHOR, not
     // every admin — "remind me" is personal, not a broadcast.
-    public static function handle_reminder_job($args) {
+    /** @param array<string, mixed> $args */
+    public static function handle_reminder_job(array $args): void {
         global $wpdb;
         $note_id = (int) ($args['note_id'] ?? 0);
 
@@ -207,7 +210,7 @@ class BHCRM_Notes {
         );
     }
 
-    public static function render_editor($user_id) {
+    public static function render_editor(int $user_id): void {
         $notes = self::list_for_person($user_id);
 
         echo '<h3>Notes</h3>';
@@ -248,7 +251,7 @@ class BHCRM_Notes {
         echo '</ul>';
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         // QA fix: this required manage_options while the CRM menu
         // itself only requires bhcore_manage_crm (granted to editor and
         // the new Studio Manager role) -- editors/managers could see

@@ -17,11 +17,15 @@ if (!defined('ABSPATH')) exit;
 class BHCRM_Debug {
     const SEED_TAG = '__bhcrm_seed__';
 
-    public static function init() {
+    public static function init(): void {
         add_filter('ous_debug_tools', [self::class, 'register']);
     }
 
-    public static function register($tools) {
+    /**
+     * @param array<string, mixed> $tools
+     * @return array<string, mixed>
+     */
+    public static function register($tools): array {
         $tools['bh-crm-projects'] = [
             'label'  => 'BH CRM — Project Tracker',
             'render' => [self::class, 'render_section'],
@@ -32,12 +36,15 @@ class BHCRM_Debug {
         return $tools;
     }
 
-    public static function render_section() {
+    public static function render_section(): void {
         echo '<p>Seed one demo project (a fake commission) with a few sticky cards spread across its kanban columns, one of them carrying nested sub-task cards, so the project tracker board has something real to open and debug into immediately.</p>';
         echo OUS_Debug::button('bh-crm-projects', 'seed', 'Seed Project Tracker Demo Data');
     }
 
-    public static function handle_action($action, $post) {
+    /**
+     * @param mixed $post
+     */
+    public static function handle_action(string $action, $post): string {
         if ($action !== 'seed') return '';
         if (!class_exists('BHCRM_Projects') || !class_exists('BH_Element')) {
             return 'BHCRM_Projects or BH_Element is unavailable — cannot seed.';
@@ -60,6 +67,7 @@ class BHCRM_Debug {
      * (rollup_counts()) has something real to show and the nesting
      * bridge is exercised, not just the flat card list.
      */
+    /** @return array<string, int>|false */
     private static function seed() {
         $person_id = OUS_Debug::get_or_create_test_user('bhcrm_project');
 
@@ -125,7 +133,7 @@ class BHCRM_Debug {
      * design (other plugins' seed data may still reference the same
      * tagged account).
      */
-    public static function reset() {
+    public static function reset(): string {
         global $wpdb;
         if (!class_exists('BHCRM_Projects')) return '0 seeded BH CRM project(s) removed.';
 

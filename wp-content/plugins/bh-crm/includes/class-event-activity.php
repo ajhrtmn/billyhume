@@ -32,11 +32,11 @@ class BHCRM_Event_Activity {
     // capped list.
     const DETAIL_LIMIT = 25;
 
-    public static function init() {
+    public static function init(): void {
         add_filter('bh_crm_activity_summary', [self::class, 'contribute_summary'], 10, 2);
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcore_events';
     }
@@ -44,7 +44,7 @@ class BHCRM_Event_Activity {
     // Total event count for this user, all types, all time — cheap
     // single COUNT(*) against the indexed `user` key (see
     // class-identity-activator.php's bhcore_events KEY user (user_id)).
-    private static function total_count($user_id) {
+    private static function total_count(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM " . self::table() . " WHERE user_id = %d",
@@ -55,7 +55,8 @@ class BHCRM_Event_Activity {
     // Most recent DETAIL_LIMIT events for this user, newest first —
     // bounded and prepared, matching every other bounded query in this
     // ecosystem's admin views.
-    private static function recent_events($user_id) {
+    /** @return array<int, array<string, mixed>> */
+    private static function recent_events(int $user_id): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT type, subject_type, subject_id, payload, occurred_at
@@ -75,7 +76,7 @@ class BHCRM_Event_Activity {
      * know about) falls back to a readable-enough default derived from
      * the raw string rather than showing nothing.
      */
-    public static function type_label($type) {
+    public static function type_label(string $type): string {
         $labels = [
             'bhs/play'            => 'Played a track',
             'bhs/skip'            => 'Skipped a track',
@@ -103,7 +104,12 @@ class BHCRM_Event_Activity {
 
     /* ---------------- bh_crm_activity_summary contribution ---------------- */
 
-    public static function contribute_summary($sections, $user_id) {
+    /**
+     * @param array<int, array<string, mixed>> $sections
+     * @param mixed $user_id
+     * @return array<int, array<string, mixed>>
+     */
+    public static function contribute_summary($sections, $user_id): array {
         $user_id = (int) $user_id;
         if (!$user_id) return $sections;
 
@@ -123,7 +129,7 @@ class BHCRM_Event_Activity {
     // label, subject, and a couple of the more useful payload fields
     // when present (best-effort only; payload shape varies per type,
     // so this doesn't attempt a schema-aware render).
-    public static function render_detail($user_id) {
+    public static function render_detail(int $user_id): void {
         $rows = self::recent_events($user_id);
         if (!$rows) {
             echo '<p><em>No events recorded.</em></p>';

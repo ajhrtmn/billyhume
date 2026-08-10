@@ -73,7 +73,7 @@ class BHCRM_Subtasks {
     // Past this many breadcrumb segments the middle collapses to "…".
     const BREADCRUMB_COLLAPSE_AT = 5;
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_post_bhcrm_subtask_add', [self::class, 'handle_add']);
         add_action('admin_post_bhcrm_subtask_bulk_add', [self::class, 'handle_bulk_add']);
         add_action('admin_post_bhcrm_subtask_toggle', [self::class, 'handle_toggle']);
@@ -84,7 +84,7 @@ class BHCRM_Subtasks {
     }
 
     /** Only on this exact view (?page=bh-crm&project_id=&card_id=) — same gate posture BHCRM_Projects::maybe_enqueue() already uses. */
-    public static function maybe_enqueue($hook) {
+    public static function maybe_enqueue(string $hook): void {
         if (empty($_GET['page']) || $_GET['page'] !== 'bh-crm' || empty($_GET['card_id'])) return;
         // Reuses the top-level board's own stylesheet — same
         // .bhcrm-kanban-* classes, so a sub-task board looks and
@@ -99,17 +99,20 @@ class BHCRM_Subtasks {
         ]);
     }
 
-    private static function path_from_string($raw) {
+    /** @return array<int, string> */
+    private static function path_from_string(string $raw): array {
         $raw = trim((string) $raw);
         return $raw === '' ? [] : array_values(array_filter(array_map('sanitize_text_field', explode(',', $raw))));
     }
 
-    private static function path_to_string(array $path) {
+    /** @param array<int, string> $path */
+    private static function path_to_string(array $path): string {
         return implode(',', $path);
     }
 
     /** The project's own column vocabulary — shared by every nesting level (see class docblock). */
-    private static function project_columns($project_id) {
+    /** @return array<int, string> */
+    private static function project_columns(int $project_id): array {
         $project = class_exists('BHCRM_Projects') ? BHCRM_Projects::get($project_id) : null;
         $columns = $project['columns_config'] ?? [];
         return $columns ?: (class_exists('BHCRM_Projects') ? BHCRM_Projects::DEFAULT_COLUMNS : ['To Do', 'In Progress', 'Review', 'Done']);
@@ -120,6 +123,11 @@ class BHCRM_Subtasks {
      * returns a REFERENCE to it so the caller can mutate its
      * 'children' array in place before the whole tree is re-saved as
      * one document (BH_Content's own storage contract).
+     */
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @param array<int, string> $path
+     * @return array<string, mixed>|null
      */
     private static function &find_node(array &$tree, array $path) {
         $null = null;
@@ -137,6 +145,11 @@ class BHCRM_Subtasks {
     }
 
     /** The children array AT $path — the root document's own top-level array when $path is empty. */
+    /**
+     * @param array<int, array<string, mixed>> $tree
+     * @param array<int, string> $path
+     * @return array<int, array<string, mixed>>
+     */
     private static function &children_at(array &$tree, array $path) {
         if (!$path) return $tree;
         $node = &self::find_node($tree, $path);
@@ -157,7 +170,8 @@ class BHCRM_Subtasks {
      * tree, means bad data self-heals on first touch instead of staying
      * a live landmine.
      */
-    private static function backfill_uids(array &$tree) {
+    /** @param array<int, array<string, mixed>> $tree */
+    private static function backfill_uids(array &$tree): bool {
         $changed = false;
         foreach ($tree as &$node) {
             if (empty($node['attrs']['uid'])) {
@@ -173,7 +187,8 @@ class BHCRM_Subtasks {
     }
 
     /** Loads the card's tree and persists a uid backfill (see backfill_uids()) if one was needed. */
-    private static function load_tree($content_id) {
+    /** @return array<int, array<string, mixed>> */
+    private static function load_tree(int $content_id): array {
         $tree = class_exists('BH_Content') ? BH_Content::get('bh_element', $content_id) : [];
         if (!is_array($tree)) $tree = [];
         if (self::backfill_uids($tree)) {
@@ -201,7 +216,13 @@ class BHCRM_Subtasks {
      *
      * Returns [$reordered_children, $state_changed].
      */
-    private static function apply_reorder(array $children, array $layout, array $columns) {
+    /**
+     * @param array<int, array<string, mixed>> $children
+     * @param array<int, array<string, mixed>> $layout
+     * @param array<int, string> $columns
+     * @return array{0: array<int, array<string, mixed>>, 1: bool}
+     */
+    private static function apply_reorder(array $children, array $layout, array $columns): array {
         $by_uid = [];
         $blank_uid_nodes = [];
         foreach ($children as $node) {
@@ -244,7 +265,8 @@ class BHCRM_Subtasks {
     }
 
     /** Total node count across the WHOLE tree (every level, every column) — the size-warning signal. */
-    private static function total_node_count(array $tree) {
+    /** @param array<int, array<string, mixed>> $tree */
+    private static function total_node_count(array $tree): int {
         $count = 0;
         foreach ($tree as $node) {
             $count++;
@@ -260,11 +282,13 @@ class BHCRM_Subtasks {
      * map — BH_Element stores each attr as {literal: 'x'} (or
      * {source: ...} for a bound value).
      */
-    private static function card_title($card) {
+    /** @param array<string, mixed> $card */
+    private static function card_title(array $card): string {
         return (string) ($card['config']['attrs']['title']['literal'] ?? '');
     }
 
-    private static function load_card($project_id, $card_id) {
+    /** @return array<string, mixed>|null */
+    private static function load_card(int $project_id, int $card_id): ?array {
         if (!class_exists('BH_Element')) return null;
         foreach (BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board') as $p) {
             if ((int) $p['id'] === (int) $card_id) return $p;
@@ -272,7 +296,7 @@ class BHCRM_Subtasks {
         return null;
     }
 
-    private static function base_url($project_id, $uid, $card_id) {
+    private static function base_url(int $project_id, int $uid, int $card_id): string {
         return admin_url('admin.php?page=bh-crm&user_id=' . (int) $uid . '&project_id=' . (int) $project_id . '&card_id=' . (int) $card_id);
     }
 
@@ -280,7 +304,8 @@ class BHCRM_Subtasks {
      * Render
      * ================================================================= */
 
-    public static function render($project_id, $uid, $card_id, $path) {
+    /** @param array<int, string> $path */
+    public static function render(int $project_id, int $uid, int $card_id, array $path): void {
         $card = self::load_card($project_id, $card_id);
         if (!$card) {
             echo '<p>Card not found.</p>';
@@ -325,7 +350,7 @@ class BHCRM_Subtasks {
      * text-only version. $mini renders a smaller variant sized for
      * inside a card rather than across the top of a whole board.
      */
-    private static function render_progress_bar($done, $total, $mini = false) {
+    private static function render_progress_bar(int $done, int $total, bool $mini = false): void {
         if ($total <= 0) return;
         $pct = class_exists('BHCRM_Projects') ? BHCRM_Projects::progress_percent($done, $total) : (int) round(($done / $total) * 100);
         $class = 'bhcrm-progress-bar' . ($mini ? ' bhcrm-progress-bar-mini' : '');
@@ -341,7 +366,12 @@ class BHCRM_Subtasks {
      * "…" (itself a link back to the first collapsed level, not a dead
      * end).
      */
-    private static function render_breadcrumb($project_id, $uid, $card_id, $card, array $tree, array $path) {
+    /**
+     * @param array<string, mixed> $card
+     * @param array<int, array<string, mixed>> $tree
+     * @param array<int, string> $path
+     */
+    private static function render_breadcrumb(int $project_id, int $uid, int $card_id, array $card, array $tree, array $path): void {
         $base = self::base_url($project_id, $uid, $card_id);
         $crumbs = [['label' => self::card_title($card) ?: 'Card', 'url' => $base]];
 
@@ -370,7 +400,12 @@ class BHCRM_Subtasks {
     }
 
     /** The board itself — one column per project column, cards grouped by their own 'column' attr, drag between columns via subtasks.js. */
-    private static function render_board($project_id, $uid, $card_id, array $path, array $children, array $columns) {
+    /**
+     * @param array<int, string> $path
+     * @param array<int, array<string, mixed>> $children
+     * @param array<int, string> $columns
+     */
+    private static function render_board(int $project_id, int $uid, int $card_id, array $path, array $children, array $columns): void {
         $by_column = array_fill_keys($columns, []);
         foreach ($children as $node) {
             $col = $node['attrs']['column'] ?? '';
@@ -411,7 +446,11 @@ class BHCRM_Subtasks {
         echo '</div></div>';
     }
 
-    private static function render_card($project_id, $uid, $card_id, array $path, array $node) {
+    /**
+     * @param array<int, string> $path
+     * @param array<string, mixed> $node
+     */
+    private static function render_card(int $project_id, int $uid, int $card_id, array $path, array $node): void {
         $node_uid = $node['attrs']['uid'] ?? '';
         $title = $node['attrs']['title'] ?? '(untitled)';
         $notes = $node['attrs']['notes'] ?? '';
@@ -481,7 +520,8 @@ class BHCRM_Subtasks {
         echo '</div>';
     }
 
-    private static function render_add_form($project_id, $uid, $card_id, array $path, $column) {
+    /** @param array<int, string> $path */
+    private static function render_add_form(int $project_id, int $uid, int $card_id, array $path, string $column): void {
         $base = self::base_url($project_id, $uid, $card_id);
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="bhcrm-kanban-add-card">';
         echo '<input type="hidden" name="action" value="bhcrm_subtask_add">';
@@ -499,7 +539,11 @@ class BHCRM_Subtasks {
      * column, matching the pattern already used elsewhere in this
      * codebase (segment conditions, project columns).
      */
-    private static function render_bulk_add_form($project_id, $uid, $card_id, array $path, array $columns) {
+    /**
+     * @param array<int, string> $path
+     * @param array<int, string> $columns
+     */
+    private static function render_bulk_add_form(int $project_id, int $uid, int $card_id, array $path, array $columns): void {
         $base = self::base_url($project_id, $uid, $card_id);
         echo '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:13px;">+ Add several at once</summary>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:8px;">';
@@ -520,7 +564,8 @@ class BHCRM_Subtasks {
      * Handlers
      * ================================================================= */
 
-    private static function require_access($project_id, $card_id) {
+    /** @return array<string, mixed> */
+    private static function require_access(int $project_id, int $card_id): array {
         if (class_exists('OUS_Audit')) {
             OUS_Audit::require_cap('bhcore_manage_crm');
         } elseif (!current_user_can('bhcore_manage_crm')) {
@@ -531,12 +576,13 @@ class BHCRM_Subtasks {
         return $card;
     }
 
-    private static function redirect_back($project_id, $uid, $card_id, $path) {
+    /** @param array<int, string> $path */
+    private static function redirect_back(int $project_id, int $uid, int $card_id, array $path): void {
         wp_safe_redirect(self::base_url($project_id, $uid, $card_id) . '&subtask_path=' . urlencode(self::path_to_string($path)));
         exit;
     }
 
-    public static function handle_add() {
+    public static function handle_add(): void {
         check_admin_referer('bhcrm_subtask_add');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $uid = (int) ($_POST['user_id'] ?? 0);
@@ -561,7 +607,7 @@ class BHCRM_Subtasks {
         self::redirect_back($project_id, $uid, $card_id, $path);
     }
 
-    public static function handle_bulk_add() {
+    public static function handle_bulk_add(): void {
         check_admin_referer('bhcrm_subtask_bulk_add');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $uid = (int) ($_POST['user_id'] ?? 0);
@@ -608,7 +654,7 @@ class BHCRM_Subtasks {
      * stale/partial request racing a concurrent add()) is appended at
      * the end rather than silently dropped.
      */
-    public static function handle_reorder() {
+    public static function handle_reorder(): void {
         check_ajax_referer('bhcrm_subtask_reorder', 'nonce');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $card_id = (int) ($_POST['card_id'] ?? 0);
@@ -638,7 +684,7 @@ class BHCRM_Subtasks {
         wp_send_json_success(['state_changed' => $state_changed]);
     }
 
-    public static function handle_toggle() {
+    public static function handle_toggle(): void {
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $uid = (int) ($_POST['user_id'] ?? 0);
         $card_id = (int) ($_POST['card_id'] ?? 0);
@@ -666,7 +712,7 @@ class BHCRM_Subtasks {
      * per-node nonce field, since there's no real `<form>` submitting
      * this anymore.
      */
-    public static function handle_save() {
+    public static function handle_save(): void {
         check_ajax_referer('bhcrm_subtask_reorder', 'nonce');
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $card_id = (int) ($_POST['card_id'] ?? 0);
@@ -690,7 +736,7 @@ class BHCRM_Subtasks {
         wp_send_json_success(['title' => $node['attrs']['title']]);
     }
 
-    public static function handle_delete() {
+    public static function handle_delete(): void {
         $project_id = (int) ($_POST['project_id'] ?? 0);
         $uid = (int) ($_POST['user_id'] ?? 0);
         $card_id = (int) ($_POST['card_id'] ?? 0);

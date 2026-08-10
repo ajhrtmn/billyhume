@@ -45,11 +45,11 @@ if (!defined('ABSPATH')) exit;
 class BHCRM_Hub {
     const CAP = 'bhcore_manage_crm';
 
-    public static function init() {
+    public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menu']);
     }
 
-    public static function add_menu() {
+    public static function add_menu(): void {
         // QA reframe: renamed the visible top-level menu from "CRM" to
         // "Studio" — this plugin is really the full artist project-
         // management tool (people + projects +,
@@ -78,7 +78,8 @@ class BHCRM_Hub {
     // once per 60 seconds, on every admin page load. Same fix as
     // OUS_MenuMerge::merge()'s own version of this exact pattern: only
     // the failure case is worth a log row at all.
-    private static function log_result($what, $hook) {
+    /** @param string|false $hook */
+    private static function log_result(string $what, $hook): void {
         if ($hook !== false || !class_exists('OUS_DebugLog')) return;
         OUS_DebugLog::log('error',
             'add_menu_page()/add_submenu_page() for ' . $what . ' FAILED (returned false).',

@@ -50,11 +50,15 @@ if (!defined('ABSPATH')) exit;
  * the tree recognized.
  */
 class BHCRM_StyleSurface {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhy_style_surfaces', [self::class, 'register']);
     }
 
-    public static function register($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register($surfaces): array {
         if (!class_exists('BH_Element')) return $surfaces; // same guard every other BH_Element integration in this plugin uses
         $surfaces['bh_crm_profile'] = [
             'group'  => 'CRM',
@@ -77,7 +81,8 @@ class BHCRM_StyleSurface {
         return $surfaces;
     }
 
-    public static function kanban_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function kanban_preview(): array {
         ob_start();
         ?>
 <div style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:8px;">
@@ -119,11 +124,12 @@ class BHCRM_StyleSurface {
         return ['css_url' => BHCRM_URL . 'assets/css/kanban-board.css', 'html' => ob_get_clean()];
     }
 
-    private static function css_url() {
+    private static function css_url(): string {
         return OUS_URL . 'assets/css/public-profile.css'; // real front-end profile styling (.bhi-profile*), not admin CSS — this is meant to look like the actual page, not the wp-admin detail view
     }
 
-    public static function profile_preview() {
+    /** @return array{css_url:string, html:string|false} */
+    public static function profile_preview(): array {
         // 1.3.3 — updated for the single 'root' slot (register_element_
         // surface()'s own docblock, "NO SPECIAL-CASED PAGES" Step 1) —
         // was three separate render_slot() calls (header/main/sidebar),

@@ -158,7 +158,7 @@ class BHCRM_Projects {
     const STALL_DAYS = 5; // a card whose most recent logged move is at least this many days ago shows the "hasn't moved" badge
     const DEFAULT_COLUMNS = ['To Do', 'In Progress', 'Review', 'Done'];
 
-    public static function init() {
+    public static function init(): void {
         // Called directly from bh-crm.php's own 'plugins_loaded' bootstrap
         // closure (not re-hooked to 'plugins_loaded' itself) — this method
         // IS already running during that hook's dispatch, so a cheap
@@ -203,7 +203,7 @@ class BHCRM_Projects {
      * fetched once per board load, keeps this bh-crm-specific concern
      * out of own-ur-shit's generic placements endpoint entirely.
      */
-    public static function register_rest_routes() {
+    public static function register_rest_routes(): void {
         register_rest_route('bh-crm/v1', '/rollups', [
             'methods' => 'GET',
             'callback' => [self::class, 'rest_rollups'],
@@ -222,11 +222,11 @@ class BHCRM_Projects {
         ]);
     }
 
-    public static function rest_stalled_cards($req) {
+    public static function rest_stalled_cards(\WP_REST_Request $req): \WP_REST_Response {
         return new WP_REST_Response(self::stalled_cards_for_board((int) $req->get_param('project_id')), 200);
     }
 
-    public static function rest_rollups($req) {
+    public static function rest_rollups(\WP_REST_Request $req): \WP_REST_Response {
         $project_id = (int) $req->get_param('project_id');
         $out = [];
         if (class_exists('BH_Element') && class_exists('BH_Content')) {
@@ -249,20 +249,20 @@ class BHCRM_Projects {
      * activation hook).
      * ================================================================= */
 
-    public static function activate() {
+    public static function activate(): void {
         if (self::create_or_update_schema()) {
             update_option('bhcrm_projects_db_version', self::DB_VERSION);
         }
     }
 
-    public static function maybe_upgrade() {
+    public static function maybe_upgrade(): void {
         if (version_compare(get_option('bhcrm_projects_db_version', '0'), self::DB_VERSION, '>=')) return;
         if (self::create_or_update_schema()) {
             update_option('bhcrm_projects_db_version', self::DB_VERSION);
         }
     }
 
-    private static function create_or_update_schema() {
+    private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -304,12 +304,12 @@ class BHCRM_Projects {
             && $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $moves)) === $moves;
     }
 
-    private static function moves_table() {
+    private static function moves_table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_project_card_moves';
     }
 
-    private static function table() {
+    private static function table(): string {
         global $wpdb;
         return $wpdb->prefix . 'bhcrm_projects';
     }
@@ -318,7 +318,8 @@ class BHCRM_Projects {
      * Project CRUD
      * ================================================================= */
 
-    public static function get($id) {
+    /** @return array<string, mixed>|null */
+    public static function get(int $id): ?array {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', (int) $id), ARRAY_A);
         if (!$row) return null;
@@ -334,7 +335,8 @@ class BHCRM_Projects {
      * (owner, collaborator, watcher), matching the Jira/DevOps-style
      * "a project can have multiple people attached" model AJ asked for.
      */
-    public static function list_for_person($person_id) {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_for_person(int $person_id): array {
         global $wpdb;
         $ids = class_exists('BHCRM_Links') ? BHCRM_Links::project_ids_for_person($person_id) : [];
         if (!$ids) return [];
@@ -357,7 +359,8 @@ class BHCRM_Projects {
      * 'bh-crm-projects' top-level submenu (render_boards() below). Same
      * shape as list_for_person(), just without the WHERE clause.
      */
-    public static function list_all() {
+    /** @return array<int, array<string, mixed>> */
+    public static function list_all(): array {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY updated_at DESC, id DESC', ARRAY_A);
         if (!$rows) return [];
@@ -378,7 +381,7 @@ class BHCRM_Projects {
      * rather than a new board-rendering code path — no board/kanban logic
      * is duplicated here, this only adds a cross-person index page.
      */
-    public static function render_boards() {
+    public static function render_boards(): void {
         echo '<div class="wrap">';
         echo '<h1>People &rsaquo; Project Tracker</h1>';
         echo '<p class="description">Every project board across the CRM. Opening one lands on the same kanban board view reachable from a person\'s own profile — this is just a cross-person index, not a second board implementation.</p>';
@@ -471,7 +474,11 @@ class BHCRM_Projects {
         echo '</div>';
     }
 
-    public static function create($name, $person_id, array $columns = [], $scene = '') {
+    /**
+     * @param array<int, string> $columns
+     * @return int|false
+     */
+    public static function create(string $name, int $person_id, array $columns = [], string $scene = '') {
         global $wpdb;
         $name = sanitize_text_field((string) $name);
         if ($name === '') $name = 'Untitled project';
@@ -500,7 +507,8 @@ class BHCRM_Projects {
         return $id;
     }
 
-    public static function update_columns($id, array $columns) {
+    /** @param array<int, string> $columns */
+    public static function update_columns(int $id, array $columns): bool {
         global $wpdb;
         $columns = self::sanitize_columns($columns);
         return (bool) $wpdb->update(self::table(), [
@@ -509,7 +517,7 @@ class BHCRM_Projects {
         ], ['id' => (int) $id]);
     }
 
-    public static function update_scene($id, $scene) {
+    public static function update_scene(int $id, string $scene): bool {
         global $wpdb;
         return (bool) $wpdb->update(self::table(), [
             'scene'      => sanitize_text_field((string) $scene),
@@ -522,7 +530,8 @@ class BHCRM_Projects {
     // "freeform text with autocomplete over existing values" posture
     // class-tags.php's all_in_use() already established for tags,
     // rather than a fixed enum anywhere.
-    public static function distinct_scenes() {
+    /** @return array<int, string> */
+    public static function distinct_scenes(): array {
         global $wpdb;
         $scenes = $wpdb->get_col('SELECT DISTINCT scene FROM ' . self::table() . " WHERE scene != '' ORDER BY scene ASC");
         return array_map('strval', $scenes);
@@ -542,7 +551,11 @@ class BHCRM_Projects {
     // initial column is itself a "move" for time-in-column purposes
     // (without it, a never-since-moved card would have no baseline row
     // to measure "days since" against).
-    public static function on_placement_saved($id, $data, $old_row) {
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed>|null $old_row
+     */
+    public static function on_placement_saved(int $id, array $data, ?array $old_row): void {
         if (($data['surface'] ?? '') !== 'bhcrm_project_board') return;
         if (($data['element_type'] ?? '') !== 'bh/sticky-card') return;
 
@@ -561,7 +574,7 @@ class BHCRM_Projects {
         }
     }
 
-    public static function log_card_move($card_placement_id, $column) {
+    public static function log_card_move(int $card_placement_id, string $column): void {
         global $wpdb;
         $wpdb->insert(self::moves_table(), [
             'card_placement_id' => (int) $card_placement_id,
@@ -576,7 +589,8 @@ class BHCRM_Projects {
     // feature shipped would have none) is excluded rather than treated
     // as infinitely stalled, since "we genuinely don't know" and
     // "definitely stalled" are different claims.
-    public static function stalled_cards_for_board($project_id) {
+    /** @return array<int, int> */
+    public static function stalled_cards_for_board(int $project_id): array {
         global $wpdb;
         if (!class_exists('BH_Element')) return [];
         $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
@@ -605,7 +619,8 @@ class BHCRM_Projects {
     // (most recent) stay is deliberately excluded: it hasn't ended yet,
     // so counting it would understate real time-in-column for
     // whichever column things currently pile up in.
-    public static function average_hours_per_column($project_id) {
+    /** @return array<string, float> */
+    public static function average_hours_per_column(int $project_id): array {
         global $wpdb;
         if (!class_exists('BH_Element')) return [];
         $card_ids = array_map(function ($p) { return (int) $p['id']; }, BH_Element::get_placements('bhcrm_project_board', (int) $project_id, 'board'));
@@ -639,7 +654,12 @@ class BHCRM_Projects {
         return $out;
     }
 
-    private static function sanitize_columns(array $columns) {
+    /** @return array<int, string> */
+    /**
+     * @param array<int, mixed> $columns
+     * @return array<int, string>
+     */
+    private static function sanitize_columns(array $columns): array {
         $out = [];
         foreach ($columns as $c) {
             $c = sanitize_text_field((string) $c);
@@ -654,7 +674,7 @@ class BHCRM_Projects {
      * anywhere else in this codebase (no other table stores a project
      * id), so this is a real, safe, full delete, not a soft-delete.
      */
-    public static function delete($id) {
+    public static function delete(int $id): bool {
         global $wpdb;
         $id = (int) $id;
         if (class_exists('BH_Element')) {
@@ -678,7 +698,11 @@ class BHCRM_Projects {
      * own-ur-shit integration — element type + surface + content block
      * ================================================================= */
 
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface(array $surfaces): array {
         $surfaces['bhcrm_project_board'] = [
             'group' => 'CRM',
             'label' => 'Project tracker board',
@@ -691,7 +715,7 @@ class BHCRM_Projects {
         return $surfaces;
     }
 
-    private static function register_element_type() {
+    private static function register_element_type(): void {
         BH_Element::register_type('bh/sticky-card', [
             'label'    => 'Sticky card',
             'category' => 'data',
@@ -760,7 +784,7 @@ class BHCRM_Projects {
         ]);
     }
 
-    private static function register_content_block_type() {
+    private static function register_content_block_type(): void {
         BH_Content::register_block_type('bhcrm/sub-card', [
             // 'uid' — stable per-node identifier, added alongside the
             // new BHCRM_Subtasks nested tracking view (see that class's
@@ -818,7 +842,7 @@ class BHCRM_Projects {
     // BH_Element widget that can render anywhere, including contexts
     // where kanban-board.css isn't loaded, so it uses fully inline
     // styles rather than depending on that admin-only stylesheet).
-    public static function progress_percent($done, $total) {
+    public static function progress_percent(int $done, int $total): int {
         return $total > 0 ? (int) round(($done / $total) * 100) : 0;
     }
 
@@ -831,9 +855,10 @@ class BHCRM_Projects {
      * could add one) is silently skipped for counting purposes, same
      * graceful-degrade posture as BH_Content::render() itself.
      *
+     * @param array<int, array<string, mixed>> $tree
      * @return array{0:int,1:int} [$done_count, $total_count]
      */
-    public static function rollup_counts(array $tree) {
+    public static function rollup_counts(array $tree): array {
         $done = 0;
         $total = 0;
         foreach ($tree as $node) {
@@ -864,7 +889,7 @@ class BHCRM_Projects {
      * ================================================================= */
 
     /** Called from BHCRM_People::render_detail($uid) — additive section, same posture as the existing tags/notes editors. */
-    public static function render_projects_section($uid) {
+    public static function render_projects_section(int $uid): void {
         $projects = self::list_for_person($uid);
 
         echo '<h3>Projects</h3>';
@@ -904,7 +929,7 @@ class BHCRM_Projects {
         echo '</form>';
     }
 
-    public static function handle_create() {
+    public static function handle_create(): void {
         // QA fix: matches the CRM menu's own bhcore_manage_crm gate — creating a project isn't destructive.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_create')) wp_die('Bad nonce.');
@@ -927,7 +952,7 @@ class BHCRM_Projects {
         exit;
     }
 
-    public static function handle_save_columns() {
+    public static function handle_save_columns(): void {
         // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
@@ -942,7 +967,7 @@ class BHCRM_Projects {
         exit;
     }
 
-    public static function handle_save_scene() {
+    public static function handle_save_scene(): void {
         // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
         $project_id = (int) ($_POST['project_id'] ?? 0);
@@ -955,7 +980,7 @@ class BHCRM_Projects {
         exit;
     }
 
-    public static function handle_delete() {
+    public static function handle_delete(): void {
         $project_id = (int) ($_POST['project_id'] ?? 0);
         if (!wp_verify_nonce($_POST['_wpnonce'] ?? '', 'bhcrm_project_delete_' . $project_id)) wp_die('Bad nonce.');
         if (class_exists('OUS_Audit')) {
@@ -977,7 +1002,7 @@ class BHCRM_Projects {
     }
 
     /** Renders the board view — the bespoke presentation layer's PHP shell; kanban-board.js fills it in against the standard BH_Element REST bridge. Called from BHCRM_People::render() when $_GET['project_id'] is set. */
-    public static function render_board($project_id, $uid = 0) {
+    public static function render_board(int $project_id, int $uid = 0): void {
         $project = self::get($project_id);
         // QA fix: $uid is now optional (a project can be opened
         // straight from the Project Tracker index with no person
@@ -1040,7 +1065,7 @@ class BHCRM_Projects {
      * chosen relation. Only CRM people (BHCRM_People::active_user_ids())
      * are offered, same population every other CRM person-picker uses.
      */
-    private static function render_people_panel($project_id) {
+    private static function render_people_panel(int $project_id): void {
         $linked = class_exists('BHCRM_Links') ? BHCRM_Links::people_for_project($project_id) : [];
 
         echo '<div class="bhy-card">';
@@ -1080,11 +1105,11 @@ class BHCRM_Projects {
         echo '</div>';
     }
 
-    private static function relation_label($relation) {
+    private static function relation_label(string $relation): string {
         return BHCRM_Links::RELATIONS[$relation] ?? ucfirst($relation);
     }
 
-    public static function handle_link_person() {
+    public static function handle_link_person(): void {
         check_admin_referer('bhcrm_project_link');
         // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
         if (!current_user_can('bhcore_manage_crm')) wp_die('Not allowed.');
@@ -1099,7 +1124,7 @@ class BHCRM_Projects {
         exit;
     }
 
-    public static function handle_unlink_person() {
+    public static function handle_unlink_person(): void {
         $link_id = (int) ($_GET['link_id'] ?? 0);
         check_admin_referer('bhcrm_project_unlink_' . $link_id);
         // QA fix: matches the CRM menu's own bhcore_manage_crm gate.
@@ -1113,7 +1138,7 @@ class BHCRM_Projects {
     }
 
     /** Enqueues the kanban board's own JS/CSS only when actually viewing a project board (?page=bh-crm&project_id=). */
-    public static function maybe_enqueue($hook) {
+    public static function maybe_enqueue(string $hook): void {
         if (empty($_GET['page']) || $_GET['page'] !== 'bh-crm' || empty($_GET['project_id'])) return;
         if (!class_exists('BH_Element')) return;
 

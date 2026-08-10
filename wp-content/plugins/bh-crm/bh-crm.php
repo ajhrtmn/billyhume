@@ -2,12 +2,30 @@
 /**
  * Plugin Name: BH CRM
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
- * Version:     2.4.19
+ * Version:     2.4.20
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
 
+// 2.4.20 — Ecosystem quality Phase 2, brick 9/13: bh-crm is now clean at
+// PHPStan level 6 (native return/parameter types + precise array-shape
+// PHPDoc throughout, no @ts-nocheck-equivalent shortcuts). All 14 files
+// in includes/ typed: class-subtasks.php (the recursive nested sub-task
+// tree — the two reference-returning helpers &find_node()/&children_at()
+// got PHPDoc-only return types since PHP reference-return syntax doesn't
+// combine with a native return type), class-projects.php (1153 lines,
+// REST routes, schema, stall analytics, BH_Element/BH_Content surface
+// registration — fixed a pre-existing misattached @param on
+// rollup_counts()'s docblock along the way), class-card-log.php (Fixes/
+// Feedback/Idea Drop sub-features), class-links.php, class-segments.php,
+// class-notes.php, class-tags.php, class-people.php, class-event-
+// activity.php, class-test-suite.php, class-debug.php, class-style-
+// surface.php, class-hub.php, class-export.php. No behavior changes —
+// every edit is a type declaration or an array-shape PHPDoc block; this
+// plugin's own PHPStan level-6 scoped check and the full 12-plugin
+// level-5 ecosystem check both come back clean.
+// NOT runtime-verified against a live WordPress+MySQL install.
 // 2.4.19 — TypeScript pilot: converted kanban-board.js (the project
 // board — SortableJS multi-column drag/drop, full-slot placement
 // upsert via the BH_Element REST bridge), the last deferred large/risky
@@ -185,7 +203,7 @@ if (!defined('ABSPATH')) exit;
 // inherited the gallery's brand font-family token, so a Typography pick
 // restyled this fake wp-admin screen too. Fixed with an explicit
 // system-font-stack override.
-define('BHCRM_VER',  '2.4.19');
+define('BHCRM_VER',  '2.4.20');
 
 // 2.4.5 — registered the kanban Project Tracker board as its own Design
 // Suite surface (class-style-surface.php) — previously the gallery only

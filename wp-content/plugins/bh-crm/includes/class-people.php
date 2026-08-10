@@ -70,7 +70,11 @@ class BHCRM_People {
      * via live screenshot that all three of the old slots were empty on
      * this install (no placement rows to migrate or orphan).
      */
-    public static function register_element_surface($surfaces) {
+    /**
+     * @param array<string, mixed> $surfaces
+     * @return array<string, mixed>
+     */
+    public static function register_element_surface($surfaces): array {
         $surfaces['bh_crm_profile'] = [
             'group'       => 'CRM',
             'label'       => 'CRM profile page',
@@ -101,7 +105,8 @@ class BHCRM_People {
     // never filled in a real name still shows up if bh-contest is
     // active and contributes their ID, but a bare list of every WP
     // subscriber with zero activity anywhere would just be noise.
-    public static function active_user_ids() {
+    /** @return array<int, int> */
+    public static function active_user_ids(): array {
         // Per QA-REPORT-code-quality.md's cross-plugin finding #2 — this
         // used to run raw SQL directly against core's bhi_profiles table
         // (a real encapsulation violation, doubled by class-export.php
@@ -114,7 +119,7 @@ class BHCRM_People {
 
     /* ---------------- page ---------------- */
 
-    public static function render() {
+    public static function render(): void {
         $uid = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
         $project_id = isset($_GET['project_id']) ? (int) $_GET['project_id'] : 0;
         BHY_UI::shell_open('People');
@@ -146,7 +151,7 @@ class BHCRM_People {
         BHY_UI::shell_close();
     }
 
-    private static function render_list() {
+    private static function render_list(): void {
         $ids = self::active_user_ids();
         if (!$ids) {
             echo '<p>No one has a profile on file or any recorded activity yet. This list fills in on its own — nothing to configure.</p>';
@@ -252,7 +257,8 @@ class BHCRM_People {
     // own-ur-shit's BHY_UI::print_design_system_js()) rather than
     // hand-picked pixel values, unlike a few of this same pass's earlier
     // panels — worth matching going forward.
-    private static function render_segments_panel($active_segment) {
+    /** @param array<string, mixed>|null $active_segment */
+    private static function render_segments_panel($active_segment): void {
         $segments = BHCRM_Segments::all();
 
         echo '<div style="margin:var(--bhy-space-4,16px) 0;padding:var(--bhy-space-4,16px);background:var(--bhy-surface,#fff);border:1px solid var(--bhy-border,#dcdcde);border-radius:var(--bhy-radius,8px);">';
@@ -334,7 +340,7 @@ class BHCRM_People {
 
     // Real name / platform handles / consent flags, admin-only. Never
     // exposed anywhere public — see BHI_Profiles for that guarantee.
-    private static function render_profile($uid) {
+    private static function render_profile(int $uid): void {
         $p = BHI_Profiles::get($uid);
         $rows = array_filter([
             ['Real name', $p['real_name'], $p['real_name_public']],
@@ -377,7 +383,7 @@ class BHCRM_People {
     // context here just adds the public/private state and a direct
     // link out to the live page when one exists, since staff often
     // need to check "what does this actually look like."
-    private static function render_identity_header($uid) {
+    private static function render_identity_header(int $uid): void {
         if (!class_exists('BHI_Profiles')) return;
         $p = BHI_Profiles::get($uid);
         $avatar = $p['avatar_id'] ? wp_get_attachment_image_url((int) $p['avatar_id'], 'thumbnail') : '';
@@ -407,7 +413,7 @@ class BHCRM_People {
         echo '</div>';
     }
 
-    private static function render_detail($uid) {
+    private static function render_detail(int $uid): void {
         $user = get_userdata($uid);
         if (!$user) { echo '<p>User not found.</p>'; return; }
 

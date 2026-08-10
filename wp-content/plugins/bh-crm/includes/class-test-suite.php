@@ -11,16 +11,21 @@ if (!defined('ABSPATH')) exit;
  * helpers (find_node()/children_at()/total_node_count()).
  */
 class BHCRM_TestSuite {
-    public static function init() {
+    public static function init(): void {
         add_filter('bhcore_test_suites', [self::class, 'register']);
     }
 
-    public static function register($suites) {
+    /**
+     * @param array<string, mixed> $suites
+     * @return array<string, mixed>
+     */
+    public static function register($suites): array {
         $suites['bh-crm'] = ['label' => 'BH CRM', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
-    public static function run() {
+    /** @return array<int, array<string, mixed>> */
+    public static function run(): array {
         if (!class_exists('OUS_TestRunner') || !class_exists('BHCRM_Segments')) {
             return [['name' => 'BHCRM_Segments not loaded', 'pass' => false, 'message' => 'Skipped — required classes not found.']];
         }
@@ -45,7 +50,8 @@ class BHCRM_TestSuite {
 
     /* ---------- Phase D: Idea Drop (track links + uploads) ---------- */
 
-    private static function run_idea_drop_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_idea_drop_tests(): array {
         $rows = [];
         global $wpdb;
         $card_id = 999002;
@@ -89,7 +95,8 @@ class BHCRM_TestSuite {
 
     /* ---------- Phase B: fixes + feedback log ---------- */
 
-    private static function run_card_log_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_card_log_tests(): array {
         $rows = [];
         global $wpdb;
 
@@ -143,7 +150,8 @@ class BHCRM_TestSuite {
 
     /* ---------- Phase C: stall analytics ---------- */
 
-    private static function run_stall_analytics_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_stall_analytics_tests(): array {
         $rows = [];
         global $wpdb;
 
@@ -246,7 +254,8 @@ class BHCRM_TestSuite {
 
     /* ---------- PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md Phase E: scene ---------- */
 
-    private static function run_project_scene_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_project_scene_tests(): array {
         $rows = [];
 
         $id_scened = BHCRM_Projects::create('Scene Suite Test Project A', 0, [], 'Album Launch');
@@ -278,7 +287,8 @@ class BHCRM_TestSuite {
 
     /* ---------- BHCRM_Segments::sanitize_conditions() ---------- */
 
-    private static function run_segment_condition_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_segment_condition_tests(): array {
         $rows = [];
 
         $clean = BHCRM_Segments::sanitize_conditions([
@@ -319,7 +329,8 @@ class BHCRM_TestSuite {
 
     /* ---------- BHCRM_Export::csv_safe() ---------- */
 
-    private static function run_csv_safe_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_csv_safe_tests(): array {
         if (!class_exists('BHCRM_Export')) return [];
         $rows = [];
         foreach (['=cmd', '+1', '-1', '@SUM(A1)'] as $formula) {
@@ -341,7 +352,8 @@ class BHCRM_TestSuite {
 
     /* ---------- BHCRM_Subtasks tree helpers — private, via Reflection ---------- */
 
-    private static function run_subtasks_tree_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_subtasks_tree_tests(): array {
         if (!class_exists('BHCRM_Subtasks')) return [];
         $rows = [];
 
@@ -409,7 +421,8 @@ class BHCRM_TestSuite {
      * data on read, and apply_reorder() never colliding/dropping a
      * blank-uid node even if one somehow still reaches it.
      */
-    private static function run_subtasks_blank_uid_tests() {
+    /** @return array<int, array<string, mixed>> */
+    private static function run_subtasks_blank_uid_tests(): array {
         $rows = [];
 
         $backfill_uids = new ReflectionMethod('BHCRM_Subtasks', 'backfill_uids');

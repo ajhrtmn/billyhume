@@ -21,16 +21,17 @@ class BHCRM_Tags {
     // tag-chips.js just keeps it in sync with the chip UI, so JS-off
     // degrades to exactly the old plain-text-field behavior, not a
     // broken form.
-    public static function init() {
+    public static function init(): void {
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
     }
 
-    public static function maybe_enqueue($hook) {
+    public static function maybe_enqueue(string $hook): void {
         if (empty($_GET['page']) || $_GET['page'] !== 'bh-crm' || empty($_GET['user_id'])) return;
         wp_enqueue_script('bhcrm-tag-chips', BHCRM_URL . 'assets/js/tag-chips.js', [], BHCRM_VER, true);
     }
 
-    public static function get($user_id) {
+    /** @return array<int, string> */
+    public static function get(int $user_id): array {
         $raw = get_user_meta($user_id, '_bhcrm_tags', true);
         $tags = $raw ? json_decode($raw, true) : [];
         return is_array($tags) ? $tags : [];
@@ -40,7 +41,8 @@ class BHCRM_Tags {
     // "filter by tag" links on the list page. Fine to compute on every
     // page load at the scale a tag list actually reaches; revisit if
     // this ever needs to scale past a few thousand people.
-    public static function all_in_use() {
+    /** @return array<int, string> */
+    public static function all_in_use(): array {
         global $wpdb;
         $raw_values = $wpdb->get_col("SELECT meta_value FROM {$wpdb->usermeta} WHERE meta_key = '_bhcrm_tags'");
         $all = [];
@@ -51,7 +53,7 @@ class BHCRM_Tags {
         return array_values(array_unique($all));
     }
 
-    public static function render_editor($user_id) {
+    public static function render_editor(int $user_id): void {
         $tags = self::get($user_id);
         // Every distinct tag site-wide, for the autocomplete dropdown —
         // computed once per page load (all_in_use()'s own docblock
@@ -83,7 +85,7 @@ class BHCRM_Tags {
     // is a full-list overwrite from the single-person editor) — bulk-
     // tagging 40 people with "vip" should never accidentally wipe out
     // whatever tags each of them already had.
-    public static function add_tag($user_id, $tag) {
+    public static function add_tag(int $user_id, string $tag): bool {
         $tag = trim($tag);
         if ($tag === '') return false;
         $tags = self::get($user_id);
@@ -93,7 +95,7 @@ class BHCRM_Tags {
         return true;
     }
 
-    public static function handle_bulk_tag() {
+    public static function handle_bulk_tag(): void {
         if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_bulk_action')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $tag = sanitize_text_field(wp_unslash($_POST['bulk_tag'] ?? ''));
@@ -113,7 +115,7 @@ class BHCRM_Tags {
         exit;
     }
 
-    public static function handle_save() {
+    public static function handle_save(): void {
         if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_save_tags')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $user_id = (int) ($_POST['user_id'] ?? 0);

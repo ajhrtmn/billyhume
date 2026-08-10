@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 class BHCRM_Export {
-    public static function handle() {
+    public static function handle(): void {
         if (!current_user_can('bhcore_manage_crm') || !check_admin_referer('bhcrm_export')) wp_die('Not allowed.'); // QA fix: matches the CRM menu's own bhcore_manage_crm gate
 
         $tag_filter = sanitize_text_field($_GET['tag'] ?? '');
@@ -58,7 +58,7 @@ class BHCRM_Export {
     // verifying the method itself. One CSV cell can't hold a real
     // table, so every note is flattened into one cell, newest first,
     // each stamped with its own author + date.
-    private static function notes_summary($uid) {
+    private static function notes_summary(int $uid): string {
         $notes = BHCRM_Notes::list_for_person($uid);
         if (!$notes) return '';
         $lines = array_map(function ($n) {
@@ -82,7 +82,8 @@ class BHCRM_Export {
     // spreadsheet to open. A leading apostrophe is the standard fix —
     // every major spreadsheet app treats it as "force this cell to be
     // text," and it's invisible in the rendered cell.
-    public static function csv_safe($value) {
+    /** @param mixed $value */
+    public static function csv_safe($value): string {
         $value = (string) $value;
         if ($value !== '' && strpbrk($value[0], "=+-@") !== false) {
             return "'" . $value;
