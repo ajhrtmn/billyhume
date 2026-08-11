@@ -2,11 +2,24 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.76
+ * Version:     0.4.77
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.77 — Fixed the course seed's placeholder video URL. Found live on
+// billyhume.wasmer.app while verifying the video step end-to-end:
+// Google's old public sample bucket
+// (commondatastorage.googleapis.com/gtv-videos-bucket) now returns 403,
+// so the seeded video step rendered a real <video> element with real
+// controls (confirmed the actual bh-courses video-step renderer and
+// player chrome are correct) but the source itself failed to load.
+// Swapped to w3schools.com/html/mov_bbb.mp4, confirmed loadable
+// (loadedmetadata fires, duration=10.03s) directly from the deployed
+// site before committing. Not this plugin's bug — a dead third-party
+// URL — but worth fixing since a demo course with a broken video looks
+// like a real defect to anyone clicking through it.
 
 // 0.4.76 — Follow-up to 0.4.75's fleshed-out course seed: two display
 // strings in BHC_Debug (the seed button's label and its post-click
@@ -326,7 +339,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.76');
+define('BHC_VER',  '0.4.77');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
