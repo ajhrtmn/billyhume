@@ -2,10 +2,43 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.17
+ * Version:     3.10.18
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.18 — Two real gaps, found in the same pass:
+//
+// 1. Broader tooltip rollout: the Roles page's per-job column headers
+//    used a bare native `title="..."` attribute instead of BHY_UI::tip()
+//    — inconsistent with the rest of this ecosystem's admin UI, delayed
+//    to show, and invisible on touch. Upgraded to the real component.
+//
+// 2. Bundled-zip / dashboard-registry coverage gap: OUS_Registry::
+//    DEFAULTS only ever listed 7 of the 13 real ecosystem plugins
+//    (bh-crm/bh-contest/bh-streaming/bh-courses/bh-registry/
+//    bh-feedback/bh-monetization-woo). bh-live, bh-social, and bh-video
+//    had NO 'ous_registered_plugins' self-registration at all — an
+//    inactive copy of any of the three was invisible to the ecosystem
+//    dashboard (couldn't be installed/activated from there) and none of
+//    the three ever had a bundled zip to regenerate, despite zip FILES
+//    for all three already sitting in bundled/ (stale, unreachable from
+//    any UI). bh-mailpoet and bh-tickets DO self-register, but only
+//    once already active — same chicken-and-egg gap already fixed for
+//    bh-courses/bh-registry/bh-feedback in an earlier pass, just never
+//    extended to these two. All five hardcoded into DEFAULTS now, same
+//    pattern as the existing seven. bh-tickets' own self-registration
+//    already declared a bundled_zip filename that never existed on
+//    disk; bh-mailpoet's didn't declare one at all (added). Real zip
+//    files for bh-mailpoet and bh-tickets were generated via Debug
+//    Tools -> Bundled Zip Freshness -> Regenerate, alongside refreshing
+//    the seven that were already stale from this session's many version
+//    bumps. deploy-ftp.yml already covered all 13 plugin folders
+//    (fixed in an earlier pass) — confirmed unchanged and correct.
+// NOT runtime-verified beyond php -l/PHPStan — confirm the Bundled Zip
+// Freshness report shows every one of the 13 as non-stale, and that a
+// fresh bh-live/bh-social/bh-video/bh-mailpoet/bh-tickets install
+// actually extracts and activates correctly from its regenerated zip.
 
 // 3.10.17 — Turned BH_Commerce from a single hard-wired WooCommerce
 // implementation into a real, swappable provider registry (task: abstract
@@ -1219,7 +1252,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.17');
+define('OUS_VER', '3.10.18');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

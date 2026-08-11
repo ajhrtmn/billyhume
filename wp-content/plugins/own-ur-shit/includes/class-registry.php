@@ -206,6 +206,67 @@ class OUS_Registry {
                 ['slug' => 'bhm-settings', 'label' => 'Monetization Settings', 'callback' => ['BHM_Admin', 'render']],
             ],
         ],
+        // Real gap found while checking bundled-zip coverage: bh-live,
+        // bh-social, and bh-video had NO 'ous_registered_plugins' self-
+        // registration at all (unlike bh-mailpoet/bh-tickets, which at
+        // least self-register once active) — meaning an INACTIVE copy
+        // of any of these three was invisible to the dashboard and
+        // couldn't be installed/activated from here, and none of the
+        // three ever had a bundled zip to regenerate. Same chicken-and-
+        // egg fix already applied to bh-courses/bh-registry/bh-feedback
+        // above: hardcoded here so an inactive install is still
+        // discoverable. bh-mailpoet/bh-tickets are ALSO added here for
+        // the same reason (their own self-registration only fires once
+        // already active) — bh-tickets already declared a bundled_zip
+        // filename that never actually existed on disk; bh-mailpoet's
+        // self-registration didn't declare one at all. Real zip files
+        // for both were generated alongside this fix (Debug Tools →
+        // Bundled Zip Freshness → Regenerate).
+        'bh-live' => [
+            'label' => 'BH Live',
+            'file' => 'bh-live/bh-live.php',
+            'depends_on' => [],
+            'check_class' => 'BHL_PostTypes',
+            'description' => 'Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server or Cloudflare Stream Live.',
+            'dashboard_link' => 'edit.php?post_type=bhl_stream',
+            'bundled_zip' => 'bh-live.zip',
+        ],
+        'bh-social' => [
+            'label' => 'BH Social',
+            'file' => 'bh-social/bh-social.php',
+            'depends_on' => [],
+            'check_class' => 'BHSO_Admin',
+            'description' => 'Social/marketing platform integrations — organic cross-posting + stats, plus paid ad-campaign draft-capture.',
+            'dashboard_link' => 'admin.php?page=bh-social',
+            'bundled_zip' => 'bh-social.zip',
+        ],
+        'bh-video' => [
+            'label' => 'BH Video',
+            'file' => 'bh-video/bh-video.php',
+            'depends_on' => [],
+            'check_class' => 'BHV_PostTypes',
+            'description' => 'A standalone video catalog and player, independent of bh-streaming\'s audio catalog.',
+            'dashboard_link' => 'edit.php?post_type=bhv_video',
+            'bundled_zip' => 'bh-video.zip',
+        ],
+        'bh-mailpoet' => [
+            'label' => 'BH MailPoet',
+            'file' => 'bh-mailpoet/bh-mailpoet.php',
+            'depends_on' => ['mailpoet'],
+            'check_class' => 'BHMP_Sync',
+            'description' => 'Syncs bh-crm contacts into a MailPoet subscriber list, so MailPoet\'s own automations/newsletters have current data.',
+            'dashboard_link' => 'admin.php?page=ous-debug',
+            'bundled_zip' => 'bh-mailpoet.zip',
+        ],
+        'bh-tickets' => [
+            'label' => 'BH Tickets',
+            'file' => 'bh-tickets/bh-tickets.php',
+            'depends_on' => [],
+            'check_class' => 'BHT_Tickets',
+            'description' => 'In-house support/issue ticketing built on bh-crm\'s own identity model — no third-party helpdesk dependency.',
+            'dashboard_link' => 'admin.php?page=bh-tickets',
+            'bundled_zip' => 'bh-tickets.zip',
+        ],
         // WooCommerce itself — bh-monetization-woo's own bootstrap also
         // adds this (guarded by isset() so the two never fight), kept
         // here too so WooCommerce shows up as installable even before
