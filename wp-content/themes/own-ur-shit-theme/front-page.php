@@ -22,7 +22,6 @@ $has_static_content = $front_id && get_post_field('post_content', $front_id) !==
         <div class="oust-hero-boomerang" aria-hidden="true"></div>
         <div class="oust-hero-boomerang oust-hero-boomerang-2" aria-hidden="true"></div>
         <div class="oust-hero-inner">
-            <span class="oust-hero-kicker"><?php esc_html_e('Own Ur Shit', 'own-ur-shit-theme'); ?></span>
             <h1 class="oust-hero-title"><?php bloginfo('name'); ?></h1>
             <div class="oust-hero-rule"></div>
             <?php $desc = get_bloginfo('description'); ?>

@@ -4,7 +4,7 @@
     <div class="oust-site-footer-rule"></div>
     <div class="oust-site-footer-inner">
         <div class="oust-footer-col oust-footer-brand">
-            <span class="oust-footer-kicker"><?php esc_html_e('Own Ur Shit', 'own-ur-shit-theme'); ?></span>
+            <span class="oust-footer-kicker"><?php bloginfo('name'); ?></span>
             <p class="oust-footer-tagline"><?php bloginfo('description'); ?></p>
         </div>
 

@@ -16,7 +16,6 @@
             <?php if (has_custom_logo()) : ?>
                 <?php the_custom_logo(); ?>
             <?php else : ?>
-                <span class="oust-site-brand-kicker"><?php esc_html_e('Own Ur Shit', 'own-ur-shit-theme'); ?></span>
                 <span class="oust-site-brand-name"><?php bloginfo('name'); ?></span>
             <?php endif; ?>
         </a>
