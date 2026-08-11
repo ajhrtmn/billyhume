@@ -31,7 +31,7 @@ class BHC_Debug {
         echo '<p>Seed a fully working course (multiple lessons, text/image/quiz steps, a test student partway through it) — or wipe it all and start clean.</p>';
 
         echo '<h4>Seed</h4>';
-        OUS_Debug::button('bh-courses', 'seed_course', 'Seed a complete test course (2 lessons, text + image + quiz steps)');
+        OUS_Debug::button('bh-courses', 'seed_course', 'Seed a complete test course (5 lessons — text/image/video/quiz/callout/checklist/chord-chart steps)');
         if (class_exists('BHM_Tiers')) {
             OUS_Debug::button('bh-courses', 'seed_gated_course', 'Seed a second course gated behind a test supporter tier');
         } else {
@@ -67,11 +67,11 @@ class BHC_Debug {
         switch ($action) {
             case 'seed_course':
                 $course_id = self::seed_course('Songwriting Fundamentals ' . self::SEED_TAG, false);
-                return "Seeded course #$course_id with 2 lessons.";
+                return "Seeded course #$course_id with 5 lessons.";
 
             case 'seed_gated_course':
                 $course_id = self::seed_course('Advanced Mixing ' . self::SEED_TAG, true);
-                return "Seeded gated course #$course_id with 2 lessons and a test supporter tier.";
+                return "Seeded gated course #$course_id with 5 lessons and a test supporter tier.";
 
             case 'seed_student_progress':
                 return self::seed_student_progress();
