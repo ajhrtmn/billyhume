@@ -2,11 +2,20 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.75
+ * Version:     0.4.76
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.76 — Follow-up to 0.4.75's fleshed-out course seed: two display
+// strings in BHC_Debug (the seed button's label and its post-click
+// confirmation message) still hardcoded "2 lessons" from before that
+// change, even though seed_course() itself was already correctly
+// building all 5. Caught live on billyhume.wasmer.app right after
+// deploying 0.4.75 — the seeded course itself was correct (verified:
+// all 5 real lessons existed), only the two UI strings were stale.
+// NOT a functional bug, cosmetic only.
 
 // 0.4.75 — Fleshed out the Debug Tools course seed (BHC_Debug::
 // seed_course()) from a thin 2-lesson/4-step demo into a real 5-lesson
@@ -317,7 +326,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.75');
+define('BHC_VER',  '0.4.76');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
