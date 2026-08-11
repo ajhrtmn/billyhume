@@ -237,33 +237,6 @@ class BH_Event {
         ));
     }
 
-    /* ---------------- per-user reads (CRM unified activity timeline) ---------------- */
-
-    /**
-     * Every event recorded against a given user_id, newest first —
-     * the read side backing bh-crm's per-person activity timeline
-     * (BHCRM_People::render_timeline()). Deliberately a thin,
-     * type-agnostic read (no filtering by type here) — the caller
-     * decides how to label/group rows; this just returns the raw
-     * history. payload/context are returned already json_decode()'d
-     * for convenience.
-     */
-    /** @return array<int, array<string, mixed>> */
-    public static function for_user(int $user_id, int $limit = 50): array {
-        global $wpdb;
-        $rows = $wpdb->get_results($wpdb->prepare(
-            'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY occurred_at DESC, id DESC LIMIT %d',
-            (int) $user_id, (int) $limit
-        ), ARRAY_A);
-        if (!$rows) return [];
-        foreach ($rows as &$row) {
-            $row['payload'] = json_decode((string) $row['payload'], true) ?: [];
-            $row['context'] = json_decode((string) $row['context'], true) ?: [];
-        }
-        unset($row);
-        return $rows;
-    }
-
     /* ---------------- Debug Tools: minimal metrics view (MVP dashboard) ---------------- */
 
     /**

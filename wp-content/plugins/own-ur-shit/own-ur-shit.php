@@ -2,10 +2,25 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.12
+ * Version:     3.10.13
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.13 — Phase 4 follow-up: investigated the "BH_Event::for_user()"
+// gap flagged during the dead-code triage. Confirmed it's stale
+// documentation, not a real bug — its docblock claimed to back
+// bh-crm's per-person activity timeline (BHCRM_People::
+// render_timeline()), but that method doesn't even exist in bh-crm
+// anymore; the real timeline is BHCRM_Event_Activity (class-event-
+// activity.php), which already does its own direct bhcore_events query
+// via the bh_crm_activity_summary filter, for documented reasons (no
+// identity-stitching table, so widening by client_id would add no real
+// rows). No other caller existed anywhere. Deleted for_user() as
+// genuinely dead rather than leaving a duplicate, unused, and now
+// factually-wrong-docblocked read path sitting next to the
+// implementation that actually ships. NOT runtime-verified against a
+// live install.
 
 // 3.10.12 — Dead-code sweep (Phase 4): installed shipmonk/dead-code-
 // detector v0.5.1 as a PHPStan extension (pinned below the v1.x line
@@ -1106,7 +1121,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.12');
+define('OUS_VER', '3.10.13');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

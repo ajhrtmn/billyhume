@@ -2,11 +2,29 @@
 /**
  * Plugin Name: BH MailPoet
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.1.1
+ * Version:     1.1.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.1.2 — Real bug fix found while investigating a Phase 4 dead-code-
+// triage flag: BHMP_Sync::remove_contact() was fully implemented and
+// its own docblock literally says "Account deletion / explicit 'stop
+// syncing this person' path," but nothing anywhere ever called it —
+// class-sync.php's init() was a deliberate no-op ("mirrors BHM_Wallet's
+// own init() reasoning"), and no ecosystem plugin has any account-
+// deletion hook at all right now. Net effect: deleting a WordPress
+// account never removed that person's MailPoet subscription — a real,
+// silent gap, mildly privacy-relevant. Fixed by hooking remove_contact()
+// to WordPress's own `delete_user` action (fires before the user row
+// is actually removed, so remove_contact()'s internal get_userdata()
+// call still resolves) via a thin void-returning closure (PHPStan
+// flags a bool-returning value from an action callback). remove_contact()
+// itself already no-ops harmlessly via its class_exists('\MailPoet\API\
+// API') guard when MailPoet isn't installed, so this hook is safe
+// unconditionally. NOT runtime-verified against a live MailPoet
+// install — same standing caveat as the rest of this plugin.
 
 // 1.1.1 — Ecosystem quality Phase 2, brick 1 of 13 (this plugin had the
 // fewest PHPStan level-6 findings of all 12, so it's the first): added
@@ -68,7 +86,7 @@ if (!defined('ABSPATH')) exit;
 // its own developer docs) before relying on this in production; `php -l`
 // is clean on every file here, but that only proves valid PHP syntax,
 // not that these calls match MailPoet's real method signatures.
-define('BHMP_VER',  '1.1.1');
+define('BHMP_VER',  '1.1.2');
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
 

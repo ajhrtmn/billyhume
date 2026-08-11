@@ -2,11 +2,34 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.24
+ * Version:     3.7.25
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.25 — Real bug fix found while investigating a Phase 4 dead-code-
+// triage flag (own-ur-shit BH_Rounds::is_new_submission_allowed() had
+// no caller anywhere). class-rounds.php's own docblock names this
+// method "the real gate" for whether a NEW track can be submitted, but
+// class-api.php's submit() REST handler was calling the round-unaware
+// BH_Helpers::is_submission_open() instead — which only ever checks
+// the contest's original _bh_sub_start/_bh_sub_end window. For a
+// multi-round contest sitting in round 1+, that meant a brand-new
+// submission could sneak in through the original window even though
+// round 2+'s "entrants" are supposed to be round-1 survivors only, not
+// open enrollment (see class-rounds.php's is_new_submission_allowed()
+// docblock). Fixed submit() to use
+// `class_exists('BH_Rounds') ? BH_Rounds::is_new_submission_allowed($cid)
+// : BH_Helpers::is_submission_open($cid)`, matching the same
+// class_exists()-guarded pattern vote() already uses for
+// BH_Rounds::is_voting_open(). replace_audio()/edit_details() were
+// deliberately left on the plain BH_Helpers gate — those edit an
+// EXISTING submission, not create a new entrant, so round-awareness
+// doesn't apply the same way. NOT runtime-verified against a live
+// install; this only matters for contests that actually configure 2+
+// rounds (ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b), which
+// per this repo's own docs is a newer, less-exercised feature.
 
 // 3.7.24 — TypeScript pilot: converted player.js (the embedded contest
 // player — track list/voting/audio playback, sign-up/login, submission
@@ -241,7 +264,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.24');
+define('BH_VER',        '3.7.25');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible
