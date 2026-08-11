@@ -881,26 +881,6 @@ class BHY_UI {
         ';
     }
 
-    // Tiny shared behavior for any input.bhy-range: keeps --bhy-range-pct
-    // in sync with its value so the filled-track gradient above tracks
-    // the thumb, and is safe to call multiple times on a page (each
-    // range wires itself once via a data attribute guard).
-    public static function range_fill_js(): string {
-        return "
-        document.querySelectorAll('input.bhy-range').forEach(function (input) {
-            if (input.dataset.bhyRangeWired) return;
-            input.dataset.bhyRangeWired = '1';
-            function paint() {
-                var min = parseFloat(input.min || 0), max = parseFloat(input.max || 100), val = parseFloat(input.value);
-                var pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
-                input.style.setProperty('--bhy-range-pct', pct + '%');
-            }
-            input.addEventListener('input', paint);
-            paint();
-        });
-        ";
-    }
-
     // Consistent open/close for the shared card+shell wrapper any custom
     // admin screen (Console, Debug Tools, People, etc.) can use instead
     // of its own one-off wrap markup.
