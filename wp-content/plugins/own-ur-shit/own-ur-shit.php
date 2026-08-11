@@ -2,10 +2,27 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.15
+ * Version:     3.10.16
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.16 — Real bug fix, caught visually right after deploying
+// 3.10.15's tooltips: both .bhy-tip-bubble (admin) and .bhi-tip-bubble
+// (portal) used background:var(--bhy-text/--bh-text, ...) — but that
+// token is the theme's FOREGROUND text color, not a fixed dark chrome
+// color, so on this site's real dark theme the tooltip bubble rendered
+// as a washed-out light-cream box instead of a proper dark tooltip
+// chip. Fixed both to a fixed dark background regardless of the
+// current color scheme, matching how a transient overlay like this is
+// normally styled (same appearance in light or dark mode, since it's
+// chrome, not page content). Caught fixing class-ui.php's own comment
+// wording: writing "the admin design system's" inside the single-
+// quoted PHP string that design_system_css() returns needed the exact
+// same apostrophe-escaping discipline this codebase's own documented
+// BHY_UI::admin_page_css() incident (see CLAUDE.md) already warns
+// about — php -l caught it immediately, exactly as that incident's own
+// lesson says it would.
 
 // 3.10.15 — First real pass at in-context help tooltips (a small "?"
 // badge, hover OR keyboard-focus reveals a positioned bubble — never
@@ -1163,7 +1180,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.15');
+define('OUS_VER', '3.10.16');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
