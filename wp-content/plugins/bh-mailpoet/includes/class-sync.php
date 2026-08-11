@@ -18,8 +18,19 @@ if (!defined('ABSPATH')) exit;
  */
 class BHMP_Sync {
     public static function init(): void {
-        // Pure API class, no hooks of its own — mirrors BHM_Wallet's own
-        // init() reasoning in bh-monetization-woo.
+        // Bug fix (Phase 4 dead-code triage): remove_contact() existed,
+        // fully implemented and documented as "the account deletion...
+        // path," but was never actually wired to anything — WordPress's
+        // own delete_user fires before the user row is removed (so
+        // get_userdata() inside remove_contact() still resolves), and
+        // nothing in this ecosystem currently listens for it at all.
+        // Deleting a WP account left that person's MailPoet subscription
+        // untouched indefinitely. remove_contact() itself no-ops
+        // harmlessly (class_exists('\MailPoet\API\API') guard) when
+        // MailPoet isn't installed, so this hook is safe unconditionally.
+        add_action('delete_user', static function (int $user_id): void {
+            self::remove_contact($user_id);
+        });
     }
 
     /** @return \MailPoet\API\MP\v1\API|null */

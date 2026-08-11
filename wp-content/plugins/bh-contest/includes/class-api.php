@@ -366,7 +366,8 @@ class BH_API {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
 
         if (!$cid) return self::err('no_contest', 'No contest is accepting submissions right now.', 403);
-        if (!BH_Helpers::is_submission_open($cid)) {
+        $submission_open = class_exists('BH_Rounds') ? BH_Rounds::is_new_submission_allowed($cid) : BH_Helpers::is_submission_open($cid);
+        if (!$submission_open) {
             $status = BH_Helpers::submission_status($cid);
             $msg = $status === 'upcoming'
                 ? 'Submissions haven\'t opened yet.'
