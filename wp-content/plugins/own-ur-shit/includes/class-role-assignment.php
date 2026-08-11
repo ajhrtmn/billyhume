@@ -181,7 +181,8 @@ class OUS_RoleAssignment {
 
         echo '<table class="widefat striped"><thead><tr><th>Person</th>';
         foreach (self::JOBS as $job) {
-            echo '<th title="' . esc_attr($job['description']) . '">' . esc_html($job['label']) . '</th>';
+            $tip = class_exists('BHY_UI') ? BHY_UI::tip($job['description']) : '';
+            echo '<th>' . esc_html($job['label']) . $tip . '</th>';
         }
         echo '</tr></thead><tbody>';
 

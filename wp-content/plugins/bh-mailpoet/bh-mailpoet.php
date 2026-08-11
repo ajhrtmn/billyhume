@@ -2,11 +2,20 @@
 /**
  * Plugin Name: BH MailPoet
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.1.2
+ * Version:     1.1.3
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.1.3 — Added the missing 'bundled_zip' key to this plugin's own
+// 'ous_registered_plugins' self-registration (found while auditing
+// bundled-zip coverage ecosystem-wide — own-ur-shit 3.10.18's own
+// changelog has the full story). Also newly hardcoded into
+// OUS_Registry::DEFAULTS itself, closing the same chicken-and-egg gap
+// bh-courses/bh-registry/bh-feedback already had fixed: this plugin's
+// self-registration only ever fires once it's already active, so an
+// inactive install was invisible to the ecosystem dashboard.
 
 // 1.1.2 — Real bug fix found while investigating a Phase 4 dead-code-
 // triage flag: BHMP_Sync::remove_contact() was fully implemented and
@@ -86,7 +95,7 @@ if (!defined('ABSPATH')) exit;
 // its own developer docs) before relying on this in production; `php -l`
 // is clean on every file here, but that only proves valid PHP syntax,
 // not that these calls match MailPoet's real method signatures.
-define('BHMP_VER',  '1.1.2');
+define('BHMP_VER',  '1.1.3');
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
 
@@ -160,6 +169,7 @@ add_filter('ous_registered_plugins', function ($plugins) {
         'check_class' => 'BHMP_Sync',
         'description' => 'Syncs bh-crm contacts into a MailPoet subscriber list, so MailPoet\'s own automations/newsletters have current data. Send/automation logic stays in MailPoet — this plugin only keeps list membership current.',
         'dashboard_link' => 'admin.php?page=ous-debug',
+        'bundled_zip' => 'bh-mailpoet.zip',
     ];
     // MailPoet itself — a third-party WordPress.org plugin, not ours to
     // author or bundle, same 'wporg_slug' pattern class-registry.php's
