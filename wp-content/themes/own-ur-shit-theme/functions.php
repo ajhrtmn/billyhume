@@ -99,3 +99,24 @@ function oust_pingback_header() {
     }
 }
 add_action('wp_head', 'oust_pingback_header');
+
+/**
+ * Real gap: nothing anywhere linked to the account portal — a visitor
+ * had to already know the /account/ URL by heart. Appends an Account/
+ * Log In link to the end of the primary nav automatically, rather than
+ * asking Billy to remember to add one by hand in Appearance > Menus (a
+ * step that's easy to forget, and silently stays missing on a fresh
+ * install otherwise). class_exists('BHI_Portal')-guarded since the
+ * theme can technically be active without the core plugin; degrades to
+ * simply not adding the link rather than linking to a route that
+ * doesn't exist.
+ */
+function oust_append_portal_link($items, $args) {
+    if (($args->theme_location ?? '') !== 'primary' || !class_exists('BHI_Portal')) return $items;
+
+    $url = esc_url(home_url('/account/'));
+    $label = is_user_logged_in() ? __('Account', 'own-ur-shit-theme') : __('Log In', 'own-ur-shit-theme');
+    $items .= '<li class="menu-item oust-nav-account-link"><a href="' . $url . '">' . esc_html($label) . '</a></li>';
+    return $items;
+}
+add_filter('wp_nav_menu_items', 'oust_append_portal_link', 10, 2);
