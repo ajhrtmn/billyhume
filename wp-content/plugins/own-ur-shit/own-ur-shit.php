@@ -2,10 +2,31 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.13
+ * Version:     3.10.14
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.14 — Real, branded portal login screen (BHI_Portal::
+// render_login()), replacing the previous behavior of bouncing a
+// logged-out /account/ visitor to WordPress's own generic wp-login.php.
+// Posts to the existing bhi/v1/login and bhi/v1/register REST routes
+// (BHI_Auth) — the same endpoints the contest player's own embedded
+// auth form already uses — so this is a second front-end onto proven
+// auth logic (brute-force lockout, 2FA challenge, registration
+// throttling), never a parallel reimplementation of any of it.
+// wp_signon() inside BHI_Auth::login() already sets the real auth
+// cookies server-side, so a successful REST call just does a plain
+// full-page redirect back to the portal. Styled entirely off the same
+// --bh-* front-end brand tokens (BHY_Style::inline_css()) the rest of
+// the portal shell already uses, so it matches Billy's actual live
+// design rather than introducing a second visual language. "Forgot
+// your password?" still points at WordPress's own native
+// wp_lostpassword_url() flow rather than reinventing password reset.
+// NOT runtime-verified against a live install by this commit alone —
+// verify by logging out and hitting /account/ directly, confirm the
+// styled page renders (not wp-login.php), and that both login and
+// register actually authenticate.
 
 // 3.10.13 — Phase 4 follow-up: investigated the "BH_Event::for_user()"
 // gap flagged during the dead-code triage. Confirmed it's stale
@@ -1121,7 +1142,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.13');
+define('OUS_VER', '3.10.14');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

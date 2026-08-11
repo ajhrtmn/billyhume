@@ -530,7 +530,9 @@ class BHI_Portal {
         if (!get_query_var(self::QUERY_VAR)) return;
 
         if (!is_user_logged_in()) {
-            wp_safe_redirect(wp_login_url(home_url('/' . self::REWRITE_SLUG . '/')));
+            status_header(200);
+            nocache_headers();
+            self::render_login(home_url('/' . self::REWRITE_SLUG . '/'));
             exit;
         }
 
@@ -538,6 +540,183 @@ class BHI_Portal {
         nocache_headers();
         self::render_shell();
         exit;
+    }
+
+    /**
+     * A real, branded fan-facing login/register screen — replaces the
+     * previous behavior of bouncing a logged-out portal visitor to
+     * WordPress's own generic wp-login.php. Posts to the existing
+     * bhi/v1/login and bhi/v1/register REST routes (BHI_Auth) — the
+     * exact same endpoints the contest player's own embedded auth form
+     * already uses, so this is a second front-end onto proven auth
+     * logic (brute-force lockout, 2FA challenge, registration
+     * throttling), never a parallel implementation of any of it.
+     * wp_signon() (inside BHI_Auth::login()) sets the real auth cookies
+     * server-side, so a successful REST call is followed by a plain
+     * full-page redirect to pick up the new session — no client-side
+     * session state to manage here.
+     */
+    private static function render_login(string $redirect_to): void {
+        $has_style = class_exists('BHY_Style');
+        ?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo('charset'); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?php echo esc_html(get_bloginfo('name')); ?> — Log in</title>
+<?php wp_head(); ?>
+<?php if ($has_style): BHY_Style::inline_css(); endif; ?>
+<style>
+  body.bhi-portal-login {
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--bh-bg, #f6f6f7); color:var(--bh-text, #1d2327);
+    font-family:var(--bh-font-body, -apple-system), -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:24px; box-sizing:border-box;
+  }
+  .bhi-login-card {
+    width:100%; max-width:380px; background:var(--bh-surface, #fff);
+    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 10px);
+    padding:32px 28px; box-sizing:border-box;
+  }
+  .bhi-login-brand { font-family:var(--bh-font-display, inherit); font-weight:700; font-size:18px; text-align:center; margin-bottom:4px; }
+  .bhi-login-sub { text-align:center; color:var(--bh-text-dim, #6b7280); font-size:13px; margin-bottom:24px; }
+  .bhi-login-tabs { display:flex; gap:4px; margin-bottom:20px; background:var(--bh-surface-2, #f0f0f1); border-radius:var(--bh-radius-sm, 8px); padding:3px; }
+  .bhi-login-tab {
+    flex:1; text-align:center; padding:8px 0; border-radius:calc(var(--bh-radius-sm, 8px) - 2px); font-size:13px; font-weight:600;
+    cursor:pointer; color:var(--bh-text-dim, #6b7280); background:transparent; border:none; font-family:inherit;
+  }
+  .bhi-login-tab.is-active { background:var(--bh-surface, #fff); color:var(--bh-text, #1d2327); }
+  .bhi-login-field { margin-bottom:14px; }
+  .bhi-login-field label { display:block; font-size:12.5px; font-weight:600; margin-bottom:5px; color:var(--bh-text-dim, #6b7280); }
+  .bhi-login-field input {
+    width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--bh-border, #e2e2e2);
+    border-radius:var(--bh-radius-sm, 6px); font-size:14px; background:var(--bh-bg, #fff); color:inherit;
+  }
+  .bhi-login-submit {
+    width:100%; padding:10px 0; border:none; border-radius:var(--bh-radius-sm, 6px); background:var(--bh-accent, #2271b1);
+    color:#fff; font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;
+  }
+  .bhi-login-submit:disabled { opacity:0.6; cursor:default; }
+  .bhi-login-error {
+    display:none; background:#fbeaea; color:#b32d2e; border-radius:var(--bh-radius-sm, 6px);
+    padding:9px 11px; font-size:13px; margin-bottom:14px;
+  }
+  .bhi-login-foot { text-align:center; margin-top:16px; font-size:12.5px; }
+  .bhi-login-foot a { color:var(--bh-accent, #2271b1); text-decoration:none; }
+  .bhi-login-panel[hidden] { display:none; }
+</style>
+</head>
+<body class="bhi-portal-login">
+<div class="bhi-login-card">
+  <div class="bhi-login-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
+  <div class="bhi-login-sub">Sign in to your account</div>
+
+  <div class="bhi-login-tabs">
+    <button type="button" class="bhi-login-tab is-active" data-panel="login">Log in</button>
+    <button type="button" class="bhi-login-tab" data-panel="register">Create account</button>
+  </div>
+
+  <div class="bhi-login-error" id="bhi-login-error"></div>
+
+  <form class="bhi-login-panel" id="bhi-login-panel-login">
+    <div class="bhi-login-field"><label for="bhi-login-username">Username or email</label><input type="text" id="bhi-login-username" autocomplete="username" required></div>
+    <div class="bhi-login-field"><label for="bhi-login-password">Password</label><input type="password" id="bhi-login-password" autocomplete="current-password" required></div>
+    <div class="bhi-login-field" id="bhi-login-2fa-field" hidden><label for="bhi-login-2fa">6-digit code</label><input type="text" id="bhi-login-2fa" inputmode="numeric" autocomplete="one-time-code"></div>
+    <button type="submit" class="bhi-login-submit">Log in</button>
+    <div class="bhi-login-foot"><a href="<?php echo esc_url(wp_lostpassword_url(home_url('/' . self::REWRITE_SLUG . '/'))); ?>">Forgot your password?</a></div>
+  </form>
+
+  <form class="bhi-login-panel" id="bhi-login-panel-register" hidden>
+    <div class="bhi-login-field"><label for="bhi-reg-username">Username</label><input type="text" id="bhi-reg-username" autocomplete="username" required></div>
+    <div class="bhi-login-field"><label for="bhi-reg-email">Email</label><input type="email" id="bhi-reg-email" autocomplete="email" required></div>
+    <div class="bhi-login-field"><label for="bhi-reg-password">Password</label><input type="password" id="bhi-reg-password" autocomplete="new-password" minlength="8" required></div>
+    <button type="submit" class="bhi-login-submit">Create account</button>
+  </form>
+</div>
+<script>
+(function () {
+  var redirectTo = <?php echo wp_json_encode($redirect_to); ?>;
+  var restBase = <?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1'))); ?>;
+  var tabs = document.querySelectorAll('.bhi-login-tab');
+  var panels = { login: document.getElementById('bhi-login-panel-login'), register: document.getElementById('bhi-login-panel-register') };
+  var errorBox = document.getElementById('bhi-login-error');
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) { t.classList.remove('is-active'); });
+      tab.classList.add('is-active');
+      var target = tab.dataset.panel;
+      Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== target; });
+      errorBox.style.display = 'none';
+    });
+  });
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.style.display = 'block';
+  }
+
+  function submitJSON(path, body, submitBtn) {
+    submitBtn.disabled = true;
+    return fetch(restBase + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+    }).finally(function () {
+      submitBtn.disabled = false;
+    });
+  }
+
+  document.getElementById('bhi-login-panel-login').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = e.target.querySelector('.bhi-login-submit');
+    var body = {
+      username: document.getElementById('bhi-login-username').value,
+      password: document.getElementById('bhi-login-password').value,
+    };
+    var codeField = document.getElementById('bhi-login-2fa');
+    if (!document.getElementById('bhi-login-2fa-field').hidden && codeField.value) {
+      body.code = codeField.value;
+    }
+    submitJSON('/login', body, btn).then(function (result) {
+      if (result.ok) {
+        window.location.href = redirectTo;
+        return;
+      }
+      if (result.data && result.data.data && result.data.data.requires_2fa) {
+        document.getElementById('bhi-login-2fa-field').hidden = false;
+        showError(result.data.message || 'Enter your 2FA code.');
+        return;
+      }
+      showError((result.data && result.data.message) || 'Login failed.');
+    });
+  });
+
+  document.getElementById('bhi-login-panel-register').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = e.target.querySelector('.bhi-login-submit');
+    var body = {
+      username: document.getElementById('bhi-reg-username').value,
+      email: document.getElementById('bhi-reg-email').value,
+      password: document.getElementById('bhi-reg-password').value,
+    };
+    submitJSON('/register', body, btn).then(function (result) {
+      if (result.ok) {
+        window.location.href = redirectTo;
+        return;
+      }
+      showError((result.data && result.data.message) || 'Could not create your account.');
+    });
+  });
+})();
+</script>
+<?php wp_footer(); ?>
+</body>
+</html>
+        <?php
     }
 
     /**
