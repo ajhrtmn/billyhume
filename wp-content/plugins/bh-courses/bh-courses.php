@@ -2,11 +2,24 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.73
+ * Version:     0.4.74
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.74 — Dead-code sweep (Phase 4, shipmonk/dead-code-detector v0.5.1
+// against the full ecosystem, manually triaged finding-by-finding
+// before deleting anything). Removed BHC_PostTypes::step_count() — a
+// genuinely uncalled aggregation helper (lesson_count() nearby is real
+// and used; step_count() had no caller anywhere, only a comment
+// reference in class-progress-admin.php). Confirmed a look-alike
+// candidate, BHC_Render::render_quiz_review(), is NOT dead despite no
+// current caller — its own docblock explicitly documents it as a
+// deliberate one-line backward-compat delegate preserving this class's
+// public API surface post-refactor (0.4.8), kept on purpose. NOT
+// runtime-verified against a live install; this is a pure removal of
+// unreferenced code, same risk shape as the rest of this sweep.
 
 // 0.4.73 — Real bug fix surfaced by own-ur-shit's own final PHPStan
 // level 6 brick (typing OUS_Debug::button() with a real `: void`
@@ -287,7 +300,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.73');
+define('BHC_VER',  '0.4.74');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

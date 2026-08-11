@@ -1,0 +1,3 @@
+includes:
+    - phpstan.neon
+    - vendor/shipmonk/dead-code-detector/rules.neon

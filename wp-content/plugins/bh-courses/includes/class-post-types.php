@@ -209,14 +209,6 @@ class BHC_PostTypes {
         return count(self::lesson_order($course_id));
     }
 
-    public static function step_count(int $course_id): int {
-        $total = 0;
-        foreach (self::lesson_order($course_id) as $lesson_id) {
-            $total += class_exists('BHC_Steps') ? BHC_Steps::count($lesson_id) : 0;
-        }
-        return $total;
-    }
-
     // The optional free-text override (e.g. "~4 hours of video") — see
     // Part 2.2: computed-first, override-optional, never the other way
     // around, so a course with no override still shows something honest.

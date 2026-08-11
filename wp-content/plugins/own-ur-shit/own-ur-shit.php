@@ -2,11 +2,56 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.11
+ * Version:     3.10.12
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
 
+// 3.10.12 — Dead-code sweep (Phase 4): installed shipmonk/dead-code-
+// detector v0.5.1 as a PHPStan extension (pinned below the v1.x line
+// this repo's phpstan/phpstan ^1.12 already runs, deliberately avoiding
+// an unprompted PHPStan 1.x→2.x major bump; wired via a separate,
+// non-CI-gating phpstan-deadcode.neon that includes the real
+// phpstan.neon plus the detector's rules.neon), ran it across the full
+// 279-file/12-plugin ecosystem (40 raw findings), and manually triaged
+// every finding against real call-site evidence before deleting
+// anything, per standing instruction. Removed BHY_UI::range_fill_js() —
+// unlike its sibling swatch_js() (genuinely echoed on the Styles page),
+// no template anywhere actually renders an `input.bhy-range`-classed
+// element (slider_row()'s own <input type="range"> carries no class at
+// all), so this JS had no live target to wire into; reads as leftover
+// debris rather than a wireable gap. Also removed bh-courses'
+// BHC_PostTypes::step_count() (bh-courses.php 0.4.74 changelog has the
+// detail).
+//
+// Real limitation confirmed during triage, worth recording: this
+// detector cannot reliably trace calls made through an interface-typed
+// variable, `$this->method()` inside a class implementing an
+// interface/abstract base, or `(new self())->method()` dispatch back to
+// an interface/abstract declaration — produced a full cluster of false
+// positives across bh-live's BHL_HostProvisioner/BHL_StreamEngine and
+// bh-social's BH_SocialPlatform + ~10 concrete subclasses. Left
+// untouched. Also confirmed one false positive caused by this repo's
+// own phpstan.neon excludePaths gap (OUS_DebugLog::request_buffer()'s
+// only real caller lives inside the QM-integration file excluded from
+// analysis for unrelated reasons) and several deliberate,
+// already-documented "kept unused on purpose" methods (BHI_Portal::
+// register_elements_panel(), OUS_Hypermedia::patch_elements(),
+// OUS_MediaWizard::cloudflare_stream_credentials()/enqueue_hls_js()) —
+// none of these were touched.
+//
+// Two apparent real functional gaps surfaced incidentally during triage
+// (NOT fixed here — flagging only, each needs its own investigation):
+// BH_Event::for_user() is documented as the read side backing bh-crm's
+// per-person activity timeline, but BHCRM_People::render_timeline()
+// does its own direct query instead and never calls it — the CRM
+// timeline may not actually be sourcing from bhcore_events at all.
+// BH_Rounds::is_new_submission_allowed() (bh-contest) is documented as
+// "the real gate" for multi-round submission but has no caller anywhere.
+// BHMP_Sync::remove_contact() (bh-mailpoet) is documented as the
+// account-deletion sync-removal path but isn't wired to any deletion
+// hook. NOT runtime-verified against a live install.
+//
 // 3.10.11 — PHPStan level 6 pass, FINAL brick of the ecosystem-wide
 // Phase 2 effort: all 68 files under own-ur-shit/includes/ now carry
 // real native return/parameter types and precise array-shape PHPDoc —
@@ -1061,7 +1106,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.11');
+define('OUS_VER', '3.10.12');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
