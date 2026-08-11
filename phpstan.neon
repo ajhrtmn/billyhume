@@ -164,13 +164,16 @@ parameters:
             message: '#(unknown class BHL_\w+|BHL_\w+ not found|Advanced_Media_Offloader)#'
             path: wp-content/plugins/own-ur-shit/includes/class-media-wizard.php
         # WC_Product_Subscription is a WooCommerce Subscriptions class (a
-        # separate paid extension, not core WooCommerce) — class-commerce.php
+        # separate paid extension, not core WooCommerce) — this code path
         # only reaches this branch after a WC_Subscriptions-active check
         # elsewhere in the same method. php-stubs/woocommerce-stubs only
         # covers WooCommerce core, not the Subscriptions extension.
+        # Path updated for the provider-registry refactor: this logic
+        # moved from class-commerce.php into BH_WooCommerceProvider
+        # (class-commerce-provider-woocommerce.php), a pure move.
         -
             message: '#WC_Product_Subscription#'
-            path: wp-content/plugins/own-ur-shit/includes/class-commerce.php
+            path: wp-content/plugins/own-ur-shit/includes/class-commerce-provider-woocommerce.php
         -
             message: '#WC_Product_Subscription#'
             path: wp-content/plugins/bh-monetization-woo/includes/class-product-sync.php
