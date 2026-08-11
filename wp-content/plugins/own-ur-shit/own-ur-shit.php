@@ -2,10 +2,31 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.14
+ * Version:     3.10.15
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.15 — First real pass at in-context help tooltips (a small "?"
+// badge, hover OR keyboard-focus reveals a positioned bubble — never
+// hover-only, since a hover-only tooltip is unreachable without a
+// mouse). New shared component: BHY_UI::tip($text) for admin screens
+// (.bhy-tip/.bhy-tip-bubble in design_system_css(), positioning JS in
+// print_design_system_js()) plus a duplicated-but-matching .bhi-tip
+// component inline in BHI_Portal's own render_shell()/render_login()
+// output, since the portal is a standalone document that never loads
+// wp-admin's enqueued assets. Applied to two places this pass: the
+// portal Overview tier badge's "renews" date (genuinely ambiguous
+// copy — clarified that without a real subscription mode, this is a
+// fixed-length grant that just ends, not an auto-recharge), and two
+// admin fields in bh-courses/bh-contest (see their own changelogs).
+// Deliberately NOT an ecosystem-wide sweep in one pass — same
+// incremental-rollout posture this codebase already uses for the TS
+// migration (ROADMAP-hyperpress-migration.md): more screens get tips
+// as separate, later, individually-scoped passes. NOT runtime-verified
+// against a live install by this commit alone — verify by hovering
+// AND tabbing to a "?" badge on both an admin metabox and the portal
+// Overview tab.
 
 // 3.10.14 — Real, branded portal login screen (BHI_Portal::
 // render_login()), replacing the previous behavior of bouncing a
@@ -1142,7 +1163,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.14');
+define('OUS_VER', '3.10.15');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

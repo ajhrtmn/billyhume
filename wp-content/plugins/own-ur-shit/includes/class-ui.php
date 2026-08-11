@@ -657,9 +657,67 @@ class BHY_UI {
                     }
                 }
             });
+
+            // In-context help tooltips (.bhy-tip, see BHY_UI::tip()) — one
+            // shared bubble element reused across every badge on the page
+            // rather than one bubble per badge, positioned above the
+            // badge (or below, if there is not enough room above the
+            // viewport top) and re-clamped horizontally so it never runs
+            // off either side of the screen.
+            var bhyTipBubble = null;
+            function bhyTipShow(el) {
+                var text = el.getAttribute('data-tip');
+                if (!text) return;
+                if (!bhyTipBubble) {
+                    bhyTipBubble = document.createElement('div');
+                    bhyTipBubble.className = 'bhy-tip-bubble';
+                    document.body.appendChild(bhyTipBubble);
+                }
+                bhyTipBubble.textContent = text;
+                var r = el.getBoundingClientRect();
+                bhyTipBubble.style.left = '0px';
+                bhyTipBubble.style.top = '0px';
+                bhyTipBubble.classList.add('is-visible');
+                var bw = bhyTipBubble.offsetWidth, bh = bhyTipBubble.offsetHeight;
+                var left = Math.min(Math.max(8, r.left + r.width / 2 - bw / 2), window.innerWidth - bw - 8);
+                var top = r.top - bh - 8;
+                if (top < 8) top = r.bottom + 8;
+                bhyTipBubble.style.left = left + 'px';
+                bhyTipBubble.style.top = top + 'px';
+            }
+            function bhyTipHide() {
+                if (bhyTipBubble) bhyTipBubble.classList.remove('is-visible');
+            }
+            document.addEventListener('mouseover', function (e) {
+                var tip = e.target.closest('.bhy-tip');
+                if (tip) bhyTipShow(tip);
+            });
+            document.addEventListener('mouseout', function (e) {
+                if (e.target.closest('.bhy-tip')) bhyTipHide();
+            });
+            document.addEventListener('focusin', function (e) {
+                var tip = e.target.closest('.bhy-tip');
+                if (tip) bhyTipShow(tip);
+            });
+            document.addEventListener('focusout', function (e) {
+                if (e.target.closest('.bhy-tip')) bhyTipHide();
+            });
         })();
         </script>
         <?php
+    }
+
+    // A small "?" badge that reveals `$text` on hover or keyboard focus
+    // — see print_design_system_js()'s .bhy-tip handling and
+    // design_system_css()'s .bhy-tip/.bhy-tip-bubble rules for the
+    // actual show/hide + positioning behavior. `role="button"` +
+    // `tabindex="0"` make it a real keyboard-reachable target (a
+    // hover-only tooltip is unreachable without a mouse); `aria-label`
+    // gives a screen reader the same text sighted users get from the
+    // bubble, since the bubble itself is decorative (built via
+    // textContent, not part of the accessibility tree by default).
+    public static function tip(string $text): string {
+        return '<span class="bhy-tip" tabindex="0" role="button" data-tip="' . esc_attr($text) . '" aria-label="' . esc_attr($text) . '">?</span>';
     }
 
     public static function print_design_system_css(): void {
@@ -878,6 +936,33 @@ class BHY_UI {
                 width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--bhy-accent);
                 box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer;
             }
+
+            /* In-context help tooltip — a small "?" badge any admin
+               screen can drop next to a label/control via BHY_UI::tip().
+               Hover OR keyboard focus reveals the bubble (never
+               hover-only — a field label\'s worth of context shouldn\'t
+               be unreachable from the keyboard), positioned by JS in
+               print_design_system_js() rather than pure CSS since a
+               fixed ::after placement clips against real metabox edges
+               on narrower screens. */
+            .bhy-tip {
+                display: inline-flex; align-items: center; justify-content: center;
+                width: 15px; height: 15px; border-radius: 50%; margin-left: 4px;
+                background: var(--bhy-surface-2, #f0f0f1); color: var(--bhy-text-dim, #6b7280);
+                font-size: 10.5px; font-weight: 700; line-height: 1; cursor: help;
+                border: 1px solid var(--bhy-border, #dcdcde); vertical-align: middle;
+            }
+            .bhy-tip:hover, .bhy-tip:focus-visible {
+                background: var(--bhy-accent, #2271b1); color: #fff; border-color: var(--bhy-accent, #2271b1); outline: none;
+            }
+            .bhy-tip-bubble {
+                position: fixed; z-index: 100000; max-width: 280px; padding: 8px 11px;
+                background: var(--bhy-text, #1d2327); color: #fff; font-size: var(--bhy-text-xs, 12px);
+                font-weight: 400; line-height: 1.4; border-radius: var(--bhy-radius-sm, 6px);
+                box-shadow: 0 2px 10px rgba(0,0,0,.25); pointer-events: none; opacity: 0;
+                transform: translateY(2px); transition: opacity .12s ease, transform .12s ease;
+            }
+            .bhy-tip-bubble.is-visible { opacity: 1; transform: translateY(0); }
         ';
     }
 

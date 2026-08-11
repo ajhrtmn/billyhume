@@ -2,11 +2,19 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.25
+ * Version:     3.7.26
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.26 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
+// a round's "Cut to" field on the Rounds (elimination format) metabox,
+// clarifying that entries which don't advance are never deleted — they
+// stay in Submissions, just excluded from later rounds' voting. A real
+// point of anxiety for a contest admin cutting a round for the first
+// time. Part of this session's first pass at in-context tooltips, not
+// a full sweep.
 
 // 3.7.25 — Real bug fix found while investigating a Phase 4 dead-code-
 // triage flag (own-ur-shit BH_Rounds::is_new_submission_allowed() had
@@ -264,7 +272,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.25');
+define('BH_VER',        '3.7.26');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

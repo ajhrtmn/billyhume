@@ -345,7 +345,8 @@ class BHC_Admin {
             $required_benefit = BHC_Gate::required_benefit($post->ID);
             echo '<h4>Supporter access</h4><p class="description">Optional — leave both set to "open" for a fully open course. Requires BH Monetization.</p>';
 
-            echo '<p><label><strong>Gate by tier price rank</strong><br><select name="bhc_required_tier"><option value="0">— Open to everyone —</option>';
+            $tier_tip = class_exists('BHY_UI') ? BHY_UI::tip('Requires the tier selected here OR any higher-priced tier — a fan on a $10 tier still gets in if this is set to a $5 tier.') : '';
+            echo '<p><label><strong>Gate by tier price rank</strong>' . $tier_tip . '<br><select name="bhc_required_tier"><option value="0">— Open to everyone —</option>';
             foreach (BHM_Tiers::all() as $tier) {
                 echo '<option value="' . (int) $tier['id'] . '"' . selected($required, $tier['id'], false) . '>' . esc_html($tier['name']) . '</option>';
             }
