@@ -2,10 +2,49 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.16
+ * Version:     3.10.17
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.17 — Turned BH_Commerce from a single hard-wired WooCommerce
+// implementation into a real, swappable provider registry (task: abstract
+// bh-monetization-woo behind a payment-provider contract). BH_Commerce
+// already WAS this ecosystem's commerce interface across two prior
+// migration passes, but its own method bodies had the WooCommerce logic
+// written directly inside them — a contract in spirit, not yet an
+// actually swappable one.
+//
+// New: BH_CommerceProvider (class-commerce-provider.php) — the real
+// interface, every method BH_Commerce's callers already depend on.
+// BH_WooCommerceProvider (class-commerce-provider-woocommerce.php) — a
+// pure move of BH_Commerce's old method bodies, no logic changes.
+// BH_CommerceProviders (class-commerce-providers.php) — the registry
+// (same keyed-registry shape bh-social's BHSO_PlatformRegistry already
+// uses), with 'woocommerce' the only real registered provider today and
+// 'shopify'/'stripe'/'squarespace' reserved, documented, NOT-implemented
+// slots — writing fake adapters against three real payment APIs with no
+// account to test against would be exactly the unverified-code problem
+// this ecosystem's own "NOT runtime-verified" convention exists to flag.
+// A future adapter for any of them is one new class + one register()
+// call, class_exists()-guarded like every other cross-plugin touch here.
+// BH_Commerce itself (class-commerce.php) is now a thin dispatcher —
+// every public method is a one-line delegate to
+// BH_CommerceProviders::active(); every existing call site across
+// bh-monetization-woo/bh-streaming/etc. is completely unchanged, since
+// this refactor only changed what's INSIDE these methods, never
+// BH_Commerce's public API. Registered with OUS_Integration
+// ('commerce_provider' key) for the same status-report visibility every
+// other contract gets, and with its own Debug Tools section (Commerce
+// Providers) showing the full multi-provider registry state.
+//
+// Full ecosystem PHPStan (283 files) clean, both PHPUnit suites (14+34
+// tests) pass unchanged — this was a structural move, not a logic
+// change, and both verify that held. NOT runtime-verified against a
+// live install beyond the automated test suites — no behavior should
+// have changed for an existing WooCommerce-only install, but confirm a
+// real checkout/entitlement-grant flow still works end-to-end before
+// relying on this in production.
 
 // 3.10.16 — Real bug fix, caught visually right after deploying
 // 3.10.15's tooltips: both .bhy-tip-bubble (admin) and .bhi-tip-bubble
@@ -1180,7 +1219,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.16');
+define('OUS_VER', '3.10.17');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -1534,7 +1573,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -1623,6 +1662,18 @@ add_action('init', function () {
             'label' => 'Email broadcast / marketing',
             'description' => 'Reach a live-queried audience (a bh-crm segment, or everyone) with a one-off or list-driven email.',
             'builtin_class' => 'OUS_Campaigns',
+        ]);
+        // Commerce-provider registry (class-commerce-providers.php) is a
+        // multi-slot registry (woocommerce/shopify/stripe/squarespace),
+        // not the single-enhancer shape this contract system otherwise
+        // assumes — registered here anyway for the same status-report
+        // visibility every other contract gets; BH_CommerceProviders'
+        // own Debug Tools section (Commerce Providers) is the real,
+        // detailed multi-provider view.
+        OUS_Integration::register('commerce_provider', [
+            'label' => 'Commerce / payments provider',
+            'description' => 'Order/product/subscription model behind BH_Commerce — see the Commerce Providers Debug Tools section for the full multi-provider registry.',
+            'builtin_class' => 'BH_WooCommerceProvider',
         ]);
     }
 }, 20);
@@ -1822,6 +1873,7 @@ add_action('admin_enqueue_scripts', ['OUS_Dashboard', 'enqueue_assets']);
  */
 add_action('init', ['BH_Content', 'init']);
 add_action('init', ['BHI_Portal', 'init']);
+add_action('init', ['BH_CommerceProviders', 'init']);
 register_activation_hook(__FILE__, function () {
     // BHI_Portal::add_rewrite() also runs on every 'init', but the
     // rewrite rule needs an explicit flush once so /account/ resolves
