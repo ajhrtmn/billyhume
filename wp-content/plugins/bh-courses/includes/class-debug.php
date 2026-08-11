@@ -114,21 +114,58 @@ class BHC_Debug {
         }
 
         $lesson1 = self::seed_lesson($course_id, 'Lesson 1: Song Structure', [
-            ['type' => 'text', 'content' => '<p>Most songs lean on a handful of repeating sections: verse, chorus, and sometimes a bridge. This lesson walks through how they work together.</p>'],
-            ['type' => 'image', 'attachment_ids' => [], 'caption' => 'A typical verse-chorus-verse-chorus-bridge-chorus layout.'],
+            ['type' => 'text', 'content' => '<p>Most songs lean on a handful of repeating sections: verse, chorus, and sometimes a bridge. A verse introduces new information every time it comes around — a new scene, a new detail, forward motion in the story. The chorus is the opposite: it repeats, near-verbatim, and carries the song\'s emotional center of gravity. A bridge, when a song has one, is a deliberate detour — a new chord progression or melodic idea that makes the final chorus land harder by contrast.</p><p>The most common shape in modern songwriting is verse–chorus–verse–chorus–bridge–chorus. It is common because it works, not because it is the only option — plenty of great songs skip the bridge entirely, or use a pre-chorus to build tension into the hook. This lesson focuses on the standard shape first, since every variation is easier to understand once the baseline is second nature.</p>'],
+            ['type' => 'image', 'attachment_ids' => [], 'caption' => 'A typical verse-chorus-verse-chorus-bridge-chorus layout, mapped against a two-and-a-half-minute runtime.'],
+            ['type' => 'callout', 'variant' => 'tip', 'content' => '<p>Try mapping an existing song you love onto this shape before writing your own — you will start hearing the architecture everywhere.</p>'],
+            ['type' => 'checklist', 'title' => 'Before you move on', 'items' => [
+                'Can you name the verse/chorus boundary in three songs off the top of your head?',
+                'Do you know which section of your own song idea repeats?',
+                'Have you picked the emotional peak your bridge (if any) should set up?',
+            ]],
             ['type' => 'quiz', 'passing_score' => 70, 'questions' => [
                 ['question' => 'Which section usually carries the song\'s main hook?', 'choices' => ['Verse', 'Chorus', 'Bridge'], 'correct_index' => 1],
+                ['question' => 'What is a bridge\'s main job?', 'choices' => ['Introduce the title', 'Repeat the verse melody', 'Provide contrast before the final chorus'], 'correct_index' => 2],
             ]],
         ]);
         $lesson2 = self::seed_lesson($course_id, 'Lesson 2: Writing a Hook', [
-            ['type' => 'text', 'content' => '<p>A hook is the part a listener remembers and hums back. Keep it short, melodically simple, and repeat it.</p>'],
+            ['type' => 'text', 'content' => '<p>A hook is the part a listener remembers and hums back without trying. It is usually short — often just a handful of syllables — melodically simple enough to sing on the first listen, and repeated at least two or three times within the song. Lyrically, the strongest hooks tend to compress the whole song\'s idea into one line; if you can\'t explain your song in the hook line alone, the hook probably is not doing its job yet.</p><p>A common mistake is writing a hook that is interesting to the songwriter but forgettable to everyone else, usually because it is too wordy or the melody wanders. Try singing your hook idea from memory five minutes after writing it — if you stumble, simplify.</p>'],
+            ['type' => 'video', 'source' => 'url', 'video_url' => 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 'caption' => 'Example teaching video for this lesson (placeholder footage — swap for a real lesson recording).'],
+            ['type' => 'callout', 'variant' => 'warning', 'content' => '<p>Do not bury your hook past the one-minute mark — most listeners decide whether to keep listening well before then.</p>'],
             ['type' => 'quiz', 'passing_score' => 70, 'questions' => [
                 ['question' => 'A strong hook is usually...', 'choices' => ['Long and complex', 'Short and repeatable', 'Only in the bridge'], 'correct_index' => 1],
                 ['question' => 'True or false: repetition helps a hook stick.', 'choices' => ['True', 'False'], 'correct_index' => 0],
+                ['question' => 'A good test for a hook is...', 'choices' => ['Whether you can recall it 5 minutes later', 'Whether it uses complex chords', 'Whether it appears only once'], 'correct_index' => 0],
+            ]],
+        ]);
+        $lesson3 = self::seed_lesson($course_id, 'Lesson 3: Chords That Support the Melody', [
+            ['type' => 'text', 'content' => '<p>Chord choice is in service of the melody, not the other way around — a chord progression\'s job is to make the melody notes above it feel inevitable. Start simple: a I–V–vi–IV progression (or any rotation of it) underlies an enormous share of popular music because it gives a melody a stable, singable harmonic bed without competing for attention.</p><p>Once the basic progression is locked in, small substitutions — a relative minor swapped in, a passing chord between two anchors — are where a song starts to sound like it has its own identity instead of a generic template.</p>'],
+            ['type' => 'chord-chart', 'title' => 'Common verse progression (key of C)', 'content' => "C  -  G\nAm -  F\nC  -  G\nAm -  F"],
+            ['type' => 'quiz', 'passing_score' => 70, 'questions' => [
+                ['question' => 'A chord progression\'s primary job is to...', 'choices' => ['Compete with the melody for attention', 'Support and frame the melody', 'Always use as many chords as possible'], 'correct_index' => 1],
+            ]],
+        ]);
+        $lesson4 = self::seed_lesson($course_id, 'Lesson 4: Editing a Rough Draft', [
+            ['type' => 'text', 'content' => '<p>A first draft\'s job is to exist, not to be good — editing is where the actual craft happens. Read your lyric out loud (not sung) and flag any line that only makes sense because you already know what you meant. A listener does not have that advantage; every line has to carry its own weight.</p><p>Cut ruthlessly. If a verse says the same thing twice in different words, keep the stronger version and delete the other one entirely — a shorter, denser verse almost always beats a longer, padded one.</p>'],
+            ['type' => 'checklist', 'title' => 'Editing pass', 'items' => [
+                'Read the lyric out loud with no melody',
+                'Cut any line that only makes sense with outside context',
+                'Check the hook still lands in under 60 seconds',
+                'Confirm the bridge actually contrasts the verse/chorus',
+            ]],
+            ['type' => 'quiz', 'passing_score' => 70, 'questions' => [
+                ['question' => 'The best first step when editing a rough draft is to...', 'choices' => ['Add more instrumentation', 'Read the lyric out loud with no melody', 'Immediately record a final take'], 'correct_index' => 1],
+            ]],
+        ]);
+        $lesson5 = self::seed_lesson($course_id, 'Lesson 5: Putting a Full Song Together', [
+            ['type' => 'text', 'content' => '<p>With structure, a hook, supporting chords, and an edited lyric in hand, the final step is arrangement — deciding what plays where, and just as importantly, what stays silent. A common beginner mistake is having every instrument play through the entire song at the same intensity; contrast between a stripped-down verse and a fuller chorus is often what makes the chorus feel like a chorus at all, independent of the melody itself.</p><p>This lesson closes out the course — the quiz below draws on everything covered in lessons 1 through 4.</p>'],
+            ['type' => 'callout', 'variant' => 'note', 'content' => '<p>There is no single correct arrangement. Try at least two contrasting versions of your own song\'s dynamics before committing to one.</p>'],
+            ['type' => 'quiz', 'passing_score' => 70, 'questions' => [
+                ['question' => 'A common beginner arrangement mistake is...', 'choices' => ['Having every instrument play at the same intensity throughout', 'Using contrast between sections', 'Leaving space in the arrangement'], 'correct_index' => 0],
+                ['question' => 'What makes a chorus feel bigger than the verse before it?', 'choices' => ['A louder vocal only', 'Contrast in arrangement density', 'A faster tempo'], 'correct_index' => 1],
             ]],
         ]);
 
-        update_post_meta($course_id, '_bhc_lesson_order', [$lesson1, $lesson2]);
+        update_post_meta($course_id, '_bhc_lesson_order', [$lesson1, $lesson2, $lesson3, $lesson4, $lesson5]);
         return $course_id;
     }
 

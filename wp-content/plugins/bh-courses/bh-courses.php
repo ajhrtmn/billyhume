@@ -2,11 +2,28 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.74
+ * Version:     0.4.75
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.75 — Fleshed out the Debug Tools course seed (BHC_Debug::
+// seed_course()) from a thin 2-lesson/4-step demo into a real 5-lesson
+// showcase course exercising most of the step-type vocabulary: text,
+// image, a direct-URL video step (real public sample MP4 — this was
+// the only seeded content that actually exercised the video step
+// renderer end-to-end before now), quiz, callout (all three variants),
+// checklist, and a chord-chart. Deliberately did NOT seed 'resource' or
+// 'audio-compare' steps — both require a real, non-zero attachment_id
+// (BHC_Steps::save() silently drops the whole step otherwise, by
+// design, since a resource/comparison with no real file "has nothing
+// to offer"), and this seed tool has no real media library asset to
+// attach without also faking an upload. Left as a known gap rather
+// than seeding a placeholder id that would just get silently dropped.
+// NOT runtime-verified against a live install by this commit alone —
+// verify by clicking "Seed a complete test course" on a real site and
+// confirming all 5 lessons/every step type renders.
 
 // 0.4.74 — Dead-code sweep (Phase 4, shipmonk/dead-code-detector v0.5.1
 // against the full ecosystem, manually triaged finding-by-finding
@@ -300,7 +317,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.74');
+define('BHC_VER',  '0.4.75');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
