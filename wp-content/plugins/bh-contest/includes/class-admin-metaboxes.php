@@ -435,7 +435,8 @@ class BH_AdminMetaboxes {
                 echo '<label>closes<br><input type="datetime-local" name="bh_round_sub_end[]" value="' . esc_attr(self::dt_for_input($r['sub_end'] ?? '')) . '"></label></p>';
                 echo '<p><label>Voting opens<br><input type="datetime-local" name="bh_round_vote_start[]" value="' . esc_attr(self::dt_for_input($r['vote_start'] ?? '')) . '"></label> ';
                 echo '<label>closes<br><input type="datetime-local" name="bh_round_vote_end[]" value="' . esc_attr(self::dt_for_input($r['vote_end'] ?? '')) . '"></label></p>';
-                echo '<p><label>Cut to (how many advance out of this round)<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
+                $cut_tip = class_exists('BHY_UI') ? BHY_UI::tip('Entries that do not advance are never deleted — they stay in Submissions, just excluded from later rounds\' voting.') : '';
+                echo '<p><label>Cut to (how many advance out of this round)' . $cut_tip . '<br><input type="number" min="1" name="bh_round_cut[]" value="' . esc_attr((string) ($r['cut_count'] ?? 8)) . '" style="width:80px;"></label></p>';
                 echo '</div>';
             }
             ?>

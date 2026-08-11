@@ -2,11 +2,18 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.77
+ * Version:     0.4.78
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.78 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
+// the "Gate by tier price rank" select on a course's Supporter access
+// metabox, clarifying the price-rank rule: selecting a tier here grants
+// access to that tier AND every higher-priced tier, not just the exact
+// one picked — not obvious from the select alone. Part of this
+// session's first pass at in-context tooltips, not a full sweep.
 
 // 0.4.77 — Fixed the course seed's placeholder video URL. Found live on
 // billyhume.wasmer.app while verifying the video step end-to-end:
@@ -339,7 +346,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.77');
+define('BHC_VER',  '0.4.78');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

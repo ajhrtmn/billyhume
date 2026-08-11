@@ -445,7 +445,20 @@ class BHI_Portal {
                 echo '<div class="bhi-portal-section bhi-overview-membership">';
                 echo '<h2>Membership</h2>';
                 echo '<p><span class="bhi-overview-tier-badge">' . esc_html($label) . '</span>';
-                if ($active[0]['expires_at']) echo ' <span class="bhi-overview-dim">renews ' . esc_html(mysql2date('M j, Y', $active[0]['expires_at'])) . '</span>';
+                if ($active[0]['expires_at']) {
+                    // "renews" was ambiguous copy — on this site, absent
+                    // a real WooCommerce Subscriptions integration,
+                    // access is a fixed-length grant that just ends on
+                    // this date; it does not auto-charge again. Kept the
+                    // word "renews" (a fan buying again before this date
+                    // extends it) but added the tip rather than silently
+                    // changing wording that other code may already
+                    // expect, since the real behavior genuinely does
+                    // depend on whether BHM_Subscriptions mock/real mode
+                    // is active.
+                    echo ' <span class="bhi-overview-dim">renews ' . esc_html(mysql2date('M j, Y', $active[0]['expires_at'])) . '</span>';
+                    echo '<span class="bhi-tip" tabindex="0" role="button" data-tip="This is when your current access period ends. Whether it re-charges automatically depends on how you paid — check Membership &amp; Wallet for the details." aria-label="This is when your current access period ends. Whether it re-charges automatically depends on how you paid — check Membership and Wallet for the details.">?</span>';
+                }
                 echo '</p>';
                 echo '</div>';
             }
@@ -931,6 +944,26 @@ class BHI_Portal {
     .bhi-portal-nav a.is-active { border-left-color:transparent; border-bottom-color:var(--bh-accent, #2271b1); }
     .bhi-portal-main { padding:20px 16px; max-width:none; }
   }
+
+  /* Judicious front-end use of the same help-tooltip pattern the admin
+     design system (BHY_UI::tip()/.bhy-tip) already uses — reused here,
+     not reinvented, since the portal is a standalone document that
+     doesn't load wp-admin's own enqueued assets. Kept to genuinely
+     ambiguous copy (see the membership expiry date below), not sprinkled
+     everywhere. */
+  .bhi-tip {
+    display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+    border-radius:50%; margin-left:4px; background:var(--bh-surface-2, #f0f0f1); color:var(--bh-text-dim, #6b7280);
+    font-size:10.5px; font-weight:700; line-height:1; cursor:help; border:1px solid var(--bh-border, #e2e2e2); vertical-align:middle;
+  }
+  .bhi-tip:hover, .bhi-tip:focus-visible { background:var(--bh-accent, #2271b1); color:#fff; border-color:var(--bh-accent, #2271b1); outline:none; }
+  .bhi-tip-bubble {
+    position:fixed; z-index:100000; max-width:260px; padding:8px 11px; background:var(--bh-text, #1d2327); color:#fff;
+    font-size:12.5px; font-weight:400; line-height:1.4; border-radius:var(--bh-radius-sm, 6px);
+    box-shadow:0 2px 10px rgba(0,0,0,.25); pointer-events:none; opacity:0; transform:translateY(2px);
+    transition:opacity .12s ease, transform .12s ease;
+  }
+  .bhi-tip-bubble.is-visible { opacity:1; transform:translateY(0); }
 </style>
 </head>
 <body class="bhi-portal">
@@ -981,6 +1014,35 @@ class BHI_Portal {
     ?>
   </main>
 </div>
+<script>
+(function () {
+  var bhiTipBubble = null;
+  function show(el) {
+    var text = el.getAttribute('data-tip');
+    if (!text) return;
+    if (!bhiTipBubble) {
+      bhiTipBubble = document.createElement('div');
+      bhiTipBubble.className = 'bhi-tip-bubble';
+      document.body.appendChild(bhiTipBubble);
+    }
+    bhiTipBubble.textContent = text;
+    var r = el.getBoundingClientRect();
+    bhiTipBubble.style.left = '0px'; bhiTipBubble.style.top = '0px';
+    bhiTipBubble.classList.add('is-visible');
+    var bw = bhiTipBubble.offsetWidth, bh = bhiTipBubble.offsetHeight;
+    var left = Math.min(Math.max(8, r.left + r.width / 2 - bw / 2), window.innerWidth - bw - 8);
+    var top = r.top - bh - 8;
+    if (top < 8) top = r.bottom + 8;
+    bhiTipBubble.style.left = left + 'px';
+    bhiTipBubble.style.top = top + 'px';
+  }
+  function hide() { if (bhiTipBubble) bhiTipBubble.classList.remove('is-visible'); }
+  document.addEventListener('mouseover', function (e) { var t = e.target.closest('.bhi-tip'); if (t) show(t); });
+  document.addEventListener('mouseout', function (e) { if (e.target.closest('.bhi-tip')) hide(); });
+  document.addEventListener('focusin', function (e) { var t = e.target.closest('.bhi-tip'); if (t) show(t); });
+  document.addEventListener('focusout', function (e) { if (e.target.closest('.bhi-tip')) hide(); });
+})();
+</script>
 <?php wp_footer(); ?>
 </body>
 </html>
