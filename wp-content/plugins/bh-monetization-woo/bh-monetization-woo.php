@@ -2,12 +2,37 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.15
+ * Version:     0.5.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: Own Ur Shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.16 — Tier-gating for ordinary Posts and Pages (new class-post-
+// gate.php, BHM_PostGate). BHM_Gate::get_required_tier()/
+// user_has_tier_access()/render_paywall_notice() were already generic
+// (keyed off any post_id), but until now only bh-courses (its own CPT)
+// and bh-streaming tracks/releases (BHM_MonetizationUI, via bh-streaming's
+// own action hooks) actually rendered a tier-select metabox and enforced
+// it — a plain blog post or page couldn't be gated at all despite the
+// underlying machinery already supporting it. Adds: a "Supporter access"
+// metabox (same `_bhm_required_tier` meta key every other gated object
+// type already uses, with a help tooltip on the price-rank rule — see
+// own-ur-shit 3.10.15's tip component), and the actual enforcement — a
+// the_content filter (priority 20, after wpautop/block/shortcode
+// rendering) that swaps in BHM_Gate::render_paywall_notice() for an
+// ungated visitor. Scoped to is_singular(['post','page']) +
+// in_the_loop() + is_main_query() specifically so it can never leak into
+// an excerpt, widget, REST response, or admin preview context that
+// wasn't meant to enforce gating. class_exists('BHM_Tiers')/
+// BH_Commerce::available()-guarded throughout, same posture as every
+// other monetization touchpoint in this plugin — a site with no
+// WooCommerce or no tiers created sees no metabox and no gating at all.
+// NOT runtime-verified against a live install by this commit alone —
+// verify by gating a real page behind a tier, viewing it logged out
+// (or as a non-entitled user), and confirming the paywall notice shows
+// instead of the real content.
 
 // 0.5.15 — Real bug fix surfaced by own-ur-shit's own final PHPStan
 // level 6 brick (typing OUS_Debug::button() with a real `: void`
@@ -224,7 +249,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.15');
+define('BHM_VER',  '0.5.16');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::
@@ -294,7 +319,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['money', 'activator', 'tiers', 'gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions'] as $f) {
+foreach (['money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -316,6 +341,7 @@ add_action('plugins_loaded', function () {
 
     add_action('init',          ['BHM_Tiers', 'init']);
     add_action('init',          ['BHM_Gate', 'init']);
+    add_action('init',          ['BHM_PostGate', 'init']);
     add_action('init',          ['BHM_Wallet', 'init']);
     add_action('init',          ['BHM_Admin', 'init']);
     add_action('init',          ['BHM_Products', 'init']);
