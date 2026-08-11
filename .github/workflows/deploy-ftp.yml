@@ -12,15 +12,28 @@ on:
 # wp-content/plugins (woocommerce, advanced-media-offloader, query-monitor,
 # any other third-party plugin) is deliberately never touched by this
 # workflow — Billy manages those himself via wp-admin/WordPress.org.
+#
+# Updated 2026-08-11 to match the actual current ecosystem — this list had
+# drifted to only the original 7 plugins while bh-feedback, bh-live,
+# bh-mailpoet, bh-social, bh-tickets, and bh-video shipped real, working
+# code without ever being added here, so none of those six would have
+# reached Billy's real site even after a `stable` promotion. Kept in sync
+# with the same 13-plugin whitelist .gitignore's own plugin allowlist uses.
 env:
   PLUGIN_FOLDERS: >-
     own-ur-shit
     bh-contest
     bh-courses
     bh-crm
+    bh-feedback
+    bh-live
+    bh-mailpoet
     bh-monetization-woo
     bh-registry
+    bh-social
     bh-streaming
+    bh-tickets
+    bh-video
 
 jobs:
   deploy:
@@ -29,7 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Stage only the seven ecosystem plugin folders into a clean directory
+      # Stage only the ecosystem plugin folders above into a clean directory
       # so the FTP sync step below can never touch anything else, even if
       # PLUGIN_FOLDERS is edited incorrectly later.
       - name: Stage ecosystem plugins only
