@@ -1,4 +1,3 @@
-"use strict";
 // BH Streaming player — full feature set. Organized into clearly
 // separated sections since this file covers a lot of ground: state,
 // rendering per view, the playback/queue engine, Media Session
@@ -23,10 +22,121 @@
 // read them both ways (`window.BHSData &&` for the truthy check,
 // bare `BHSData.foo` for the read) — same object either way, so this
 // collapses both spellings onto the one bare-global form throughout.
+
+interface BHSDataShape {
+    rest?: string;
+    identity?: string;
+    nonce?: string;
+    loggedIn?: boolean;
+    emptyStateFiltered?: string;
+    emptyStateZero?: string;
+    emptyStateReleases?: string;
+    emptyStateLiked?: string;
+    emptyStatePlaylistsLoggedOut?: string;
+    emptyStatePlaylistsEmpty?: string;
+}
+
+declare var BHSData: BHSDataShape | undefined;
+declare var BHCoreToast: { show: (msg: string, type: string) => void } | undefined;
+
+interface BHSWindow extends Window {
+    webkitAudioContext?: typeof AudioContext;
+}
+
+interface BHSQuality {
+    label: string;
+    url: string;
+    filesize?: number;
+}
+
+interface BHSLyrics {
+    synced?: string;
+    plain?: string;
+}
+
+interface BHSChapter {
+    time: number;
+    label: string;
+}
+
+interface BHSTrack {
+    id: number;
+    url: string;
+    title: string;
+    artist: string;
+    artwork: string;
+    plays: number;
+    genres: string[];
+    locked?: boolean;
+    lock_notice?: string;
+    source_health?: string;
+    external?: boolean;
+    qualities?: BHSQuality[];
+    lyrics?: BHSLyrics;
+    chapters?: BHSChapter[];
+    resumeSeconds?: number;
+}
+
+interface BHSRelease {
+    id: number;
+    title: string;
+    artist: string;
+    artwork: string;
+    track_ids: number[];
+}
+
+interface BHSPlaylist {
+    id: number;
+    title: string;
+    name?: string;
+    track_ids: number[];
+    is_public?: boolean;
+    share_url?: string;
+}
+
+interface BHSLyricLine {
+    time: number;
+    text: string;
+}
+
+interface BHSJamParticipant {
+    user_id: number;
+    display_name?: string;
+}
+
+interface BHSJamPendingParticipant {
+    user_id: number;
+    display_name?: string;
+}
+
+interface BHSJamState {
+    code: string;
+    control_mode: string;
+    participants?: BHSJamParticipant[];
+    pending?: BHSJamPendingParticipant[];
+    queue: BHSTrack[];
+    index: number;
+    playing: boolean;
+    position: number;
+    position_updated_at: number;
+    i_voted_skip?: boolean;
+    skip_votes_count?: number;
+    skip_votes_needed?: number;
+}
+
+interface BHSJam {
+    active: boolean;
+    isHost: boolean;
+    code: string | null;
+    controlMode: string;
+    pollTimer: number | null;
+    suppressNextPositionSync: boolean;
+}
+
 (function () {
     var app = document.getElementById('bhs-app');
-    if (!app)
-        return;
+    if (!app) return;
+
     // Non-null cast helper — every ID below is part of this plugin's
     // own server-rendered shortcode template, always present together
     // with #bhs-app (already confirmed present by the guard above).
@@ -34,54 +144,59 @@
     // the password-toggle button, bhs-np-chapters) keep their original
     // nullable `document.getElementById(...)` form and their own
     // `if (x)` guard, unchanged from the source.
-    function byId(id) {
-        return document.getElementById(id);
+    function byId<T extends HTMLElement = HTMLElement>(id: string): T {
+        return document.getElementById(id) as T;
     }
+
     var rest = (BHSData && BHSData.rest) || '';
     var identityRest = (BHSData && BHSData.identity) || '';
     var nonce = (BHSData && BHSData.nonce) || '';
     var loggedIn = !!(BHSData && BHSData.loggedIn);
-    var library = byId('bhs-library');
-    var relatedBox = byId('bhs-related');
-    var relatedList = byId('bhs-related-list');
-    var nowplaying = byId('bhs-nowplaying');
-    var artEl = byId('bhs-np-art');
-    var titleEl = byId('bhs-np-title');
-    var artistEl = byId('bhs-np-artist');
-    var playPauseBtn = byId('bhs-playpause');
-    var likeBtn = byId('bhs-like');
-    var seek = byId('bhs-seek');
-    var volume = byId('bhs-volume');
-    var queuePanel = byId('bhs-queue-panel');
-    var queueList = byId('bhs-queue-list');
-    var playlistPicker = byId('bhs-playlist-picker');
-    var playlistPickerList = byId('bhs-playlist-picker-list');
-    var searchInput = byId('bhs-search');
-    var genreFilter = byId('bhs-genre-filter');
-    var lyricsPanel = byId('bhs-lyrics-panel');
-    var lyricsBody = byId('bhs-lyrics-body');
-    var lyricsToggleBtn = byId('bhs-lyrics-toggle');
-    var qualityPanel = byId('bhs-quality-panel');
-    var qualityList = byId('bhs-quality-list');
-    var qualityToggleBtn = document.getElementById('bhs-quality-toggle');
-    var eqPanel = byId('bhs-eq-panel');
-    var eqToggleBtn = byId('bhs-eq-toggle');
-    var vizToggleBtn = byId('bhs-viz-toggle');
-    var vizCanvas = byId('bhs-visualizer');
-    var importModal = byId('bhs-import-modal');
-    var allTracks = [];
-    var releases = [];
-    var likedIds = [];
-    var myPlaylists = [];
+
+    var library = byId<HTMLElement>('bhs-library');
+    var relatedBox = byId<HTMLElement>('bhs-related');
+    var relatedList = byId<HTMLElement>('bhs-related-list');
+    var nowplaying = byId<HTMLElement>('bhs-nowplaying');
+    var artEl = byId<HTMLImageElement>('bhs-np-art');
+    var titleEl = byId<HTMLElement>('bhs-np-title');
+    var artistEl = byId<HTMLElement>('bhs-np-artist');
+    var playPauseBtn = byId<HTMLButtonElement>('bhs-playpause');
+    var likeBtn = byId<HTMLButtonElement>('bhs-like');
+    var seek = byId<HTMLInputElement>('bhs-seek');
+    var volume = byId<HTMLInputElement>('bhs-volume');
+    var queuePanel = byId<HTMLElement>('bhs-queue-panel');
+    var queueList = byId<HTMLElement>('bhs-queue-list');
+    var playlistPicker = byId<HTMLElement>('bhs-playlist-picker');
+    var playlistPickerList = byId<HTMLElement>('bhs-playlist-picker-list');
+    var searchInput = byId<HTMLInputElement>('bhs-search');
+    var genreFilter = byId<HTMLSelectElement>('bhs-genre-filter');
+
+    var lyricsPanel = byId<HTMLElement>('bhs-lyrics-panel');
+    var lyricsBody = byId<HTMLElement>('bhs-lyrics-body');
+    var lyricsToggleBtn = byId<HTMLButtonElement>('bhs-lyrics-toggle');
+    var qualityPanel = byId<HTMLElement>('bhs-quality-panel');
+    var qualityList = byId<HTMLElement>('bhs-quality-list');
+    var qualityToggleBtn = document.getElementById('bhs-quality-toggle') as HTMLButtonElement | null;
+    var eqPanel = byId<HTMLElement>('bhs-eq-panel');
+    var eqToggleBtn = byId<HTMLButtonElement>('bhs-eq-toggle');
+    var vizToggleBtn = byId<HTMLButtonElement>('bhs-viz-toggle');
+    var vizCanvas = byId<HTMLCanvasElement>('bhs-visualizer');
+    var importModal = byId<HTMLElement>('bhs-import-modal');
+
+    var allTracks: BHSTrack[] = [];
+    var releases: BHSRelease[] = [];
+    var likedIds: number[] = [];
+    var myPlaylists: BHSPlaylist[] = [];
     var currentView = 'all';
-    var queue = []; // the ordered list of track objects currently being played through
+    var queue: BHSTrack[] = [];          // the ordered list of track objects currently being played through
     var queueIndex = -1;
+
     // Jam state — see class-jam.php for the server side of this.
     // `jam.active` gates most local input (shuffle/prev/next/seek/queue
     // clicks) to host-only while a session is running; a non-host
     // participant's UI becomes a mirror driven by jamApplyState(),
     // not local clicks.
-    var jam = {
+    var jam: BHSJam = {
         active: false, isHost: false, code: null, controlMode: 'host',
         pollTimer: null, suppressNextPositionSync: false,
     };
@@ -93,45 +208,44 @@
     // aggregated/external tracks — see class-feeds.php) can never cause
     // actual playback to go silent.
     var audio = new Audio();
-    var currentQuality = null; // null = whatever track.url already is (the track's own default)
-    var currentTrackLyrics = null; // parsed LRC lines for the track currently playing, if any
+    var currentQuality: string | null = null;   // null = whatever track.url already is (the track's own default)
+    var currentTrackLyrics: BHSLyricLine[] | null = null; // parsed LRC lines for the track currently playing, if any
     var visualizerOn = false;
-    function esc(s) {
-        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+    function esc(s: unknown): string {
+        var map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-            return map[c];
+            return map[c] as string;
         });
     }
-    function authHeaders(extra) {
+
+    function authHeaders(extra?: Record<string, string>): Record<string, string> {
         var h = Object.assign({ 'X-WP-Nonce': nonce }, extra || {});
         return h;
     }
+
     // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
     // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
     // unconditionally) replaces every alert() this player used to block
     // on for a plain "log in to do that" notice. Same typeof guard every
     // other call site in this ecosystem uses.
-    function notify(msg, isError) {
-        if (typeof BHCoreToast !== 'undefined' && BHCoreToast) {
-            BHCoreToast.show(msg, isError ? 'error' : 'success');
-        }
-        else {
-            alert(msg);
-        }
+    function notify(msg: string, isError?: boolean): void {
+        if (typeof BHCoreToast !== 'undefined' && BHCoreToast) { BHCoreToast.show(msg, isError ? 'error' : 'success'); } else { alert(msg); }
     }
+
     /* ---------- filtering (search + genre, applied to the "All Tracks" view) ---------- */
-    function filteredTracks() {
+
+    function filteredTracks(): BHSTrack[] {
         var q = searchInput.value.trim().toLowerCase();
         var genre = genreFilter.value;
         return allTracks.filter(function (t) {
-            if (genre && t.genres.indexOf(genre) === -1)
-                return false;
-            if (q && t.title.toLowerCase().indexOf(q) === -1 && t.artist.toLowerCase().indexOf(q) === -1)
-                return false;
+            if (genre && t.genres.indexOf(genre) === -1) return false;
+            if (q && t.title.toLowerCase().indexOf(q) === -1 && t.artist.toLowerCase().indexOf(q) === -1) return false;
             return true;
         });
     }
-    function trackCardHtml(t) {
+
+    function trackCardHtml(t: BHSTrack): string {
         var liked = likedIds.indexOf(t.id) !== -1;
         // A featured/external track's playability depends on ANOTHER
         // site's host staying up (bh-streaming never re-hosts it — see
@@ -141,10 +255,9 @@
         // catalog entry (and its metadata) staying visible is the point,
         // it's just clearly labeled as currently unreachable.
         var healthBadge = '';
-        if (t.source_health === 'down')
-            healthBadge = '<span class="bhs-badge bhs-badge-down">Unavailable</span>';
-        else if (t.source_health === 'degraded')
-            healthBadge = '<span class="bhs-badge bhs-badge-degraded">Unreliable</span>';
+        if (t.source_health === 'down') healthBadge = '<span class="bhs-badge bhs-badge-down">Unavailable</span>';
+        else if (t.source_health === 'degraded') healthBadge = '<span class="bhs-badge bhs-badge-degraded">Unreliable</span>';
+
         return '<button type="button" class="bhs-card' + (t.locked ? ' bhs-card-locked' : '') + '" data-id="' + t.id + '">'
             + '<img src="' + esc(t.artwork) + '" alt="" class="bhs-card-art">'
             + (t.external ? '<span class="bhs-badge">Featured</span>' : '')
@@ -155,9 +268,12 @@
             + '<div class="bhs-card-meta">' + (t.locked ? 'Supporters only' : ((liked ? '&#9829;' : '') + ' ' + t.plays + ' plays')) + '</div>'
             + '</button>';
     }
+
     /* ---------- view rendering ---------- */
-    function renderView() {
+
+    function renderView(): void {
         relatedBox.style.display = 'none';
+
         if (currentView === 'all') {
             var tracks = filteredTracks();
             // UX-AUDIT-2026-07.md's cited finding — this bare
@@ -174,8 +290,7 @@
                 ? '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>'
                 : (isFiltered ? (BHSData && BHSData.emptyStateFiltered) : (BHSData && BHSData.emptyStateZero)) || '<p class="bhs-empty">No tracks match.</p>';
             bindCardClicks(tracks);
-        }
-        else if (currentView === 'releases') {
+        } else if (currentView === 'releases') {
             library.innerHTML = releases.length
                 ? '<div class="bhs-grid">' + releases.map(function (r) {
                     return '<button type="button" class="bhs-card bhs-release-card" data-release="' + r.id + '">'
@@ -185,11 +300,10 @@
                         + '</button>';
                 }).join('') + '</div>'
                 : ((BHSData && BHSData.emptyStateReleases) || '<p class="bhs-empty">No releases yet.</p>');
-            library.querySelectorAll('.bhs-release-card').forEach(function (card) {
+            library.querySelectorAll<HTMLButtonElement>('.bhs-release-card').forEach(function (card) {
                 card.addEventListener('click', function () { openRelease(parseInt(card.dataset.release || '', 10)); });
             });
-        }
-        else if (currentView === 'liked') {
+        } else if (currentView === 'liked') {
             var liked = allTracks.filter(function (t) { return likedIds.indexOf(t.id) !== -1; });
             library.innerHTML = liked.length
                 ? '<div class="bhs-grid">' + liked.map(trackCardHtml).join('') + '</div>'
@@ -197,13 +311,13 @@
                     ? ((BHSData && BHSData.emptyStateLiked) || '<p class="bhs-empty">Nothing liked yet.</p>')
                     : '<p class="bhs-empty">Log in to like tracks.</p>');
             bindCardClicks(liked);
-        }
-        else if (currentView === 'playlists') {
+        } else if (currentView === 'playlists') {
             renderPlaylistsView();
         }
     }
-    function bindCardClicks(list) {
-        library.querySelectorAll('.bhs-card[data-id]').forEach(function (card) {
+
+    function bindCardClicks(list: BHSTrack[]): void {
+        library.querySelectorAll<HTMLButtonElement>('.bhs-card[data-id]').forEach(function (card) {
             card.addEventListener('click', function () {
                 var id = parseInt(card.dataset.id || '', 10);
                 var index = list.findIndex(function (t) { return t.id === id; });
@@ -213,80 +327,76 @@
                 // whatever paywall notice the monetization plugin
                 // supplied (bh-monetization-woo's own "become a
                 // supporter" markup) instead of attempting playback.
-                if (t && t.locked) {
-                    showLockNotice(t);
-                    return;
-                }
+                if (t && t.locked) { showLockNotice(t); return; }
                 playQueue(list, index);
             });
         });
     }
-    function showLockNotice(t) {
+
+    function showLockNotice(t: BHSTrack): void {
         library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-from-lock">&larr; Back</button>'
             + '<div class="bhs-lock-detail">'
             + '<h2 class="bhs-release-title">' + esc(t.title) + '</h2>'
             + (t.lock_notice || '<p>This track requires supporter access.</p>')
             + '</div>';
-        byId('bhs-back-from-lock').addEventListener('click', renderView);
+        byId<HTMLButtonElement>('bhs-back-from-lock').addEventListener('click', renderView);
     }
-    function openRelease(releaseId) {
+
+    function openRelease(releaseId: number): void {
         var release = releases.find(function (r) { return r.id === releaseId; });
-        if (!release)
-            return;
-        var tracks = release.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean);
+        if (!release) return;
+        var tracks = release.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean) as BHSTrack[];
         library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-to-releases">&larr; Releases</button>'
             + '<h2 class="bhs-release-title">' + esc(release.title) + '</h2>'
             + '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>';
-        byId('bhs-back-to-releases').addEventListener('click', renderView);
+        byId<HTMLButtonElement>('bhs-back-to-releases').addEventListener('click', renderView);
         bindCardClicks(tracks);
     }
-    function renderPlaylistsView() {
+
+    function renderPlaylistsView(): void {
         // Audit fix (2026-07-25): migrated onto the shared empty-state
         // component, matching every other tab (BHSData.emptyState*).
-        if (!loggedIn) {
-            library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsLoggedOut) || '<p class="bhs-empty">Log in to create playlists.</p>';
-            return;
-        }
-        if (!myPlaylists.length) {
-            library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsEmpty) || '<p class="bhs-empty">No playlists yet — use the + button on a track while it\'s playing to start one.</p>';
-            return;
-        }
+        if (!loggedIn) { library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsLoggedOut) || '<p class="bhs-empty">Log in to create playlists.</p>'; return; }
+        if (!myPlaylists.length) { library.innerHTML = (BHSData && BHSData.emptyStatePlaylistsEmpty) || '<p class="bhs-empty">No playlists yet — use the + button on a track while it\'s playing to start one.</p>'; return; }
+
         library.innerHTML = '<div class="bhs-grid">' + myPlaylists.map(function (p) {
             return '<button type="button" class="bhs-card bhs-playlist-card" data-playlist="' + p.id + '">'
                 + '<div class="bhs-card-title">' + esc(p.title) + '</div>'
                 + '<div class="bhs-card-artist">' + p.track_ids.length + ' tracks</div>'
                 + '</button>';
         }).join('') + '</div>';
-        library.querySelectorAll('.bhs-playlist-card').forEach(function (card) {
+
+        library.querySelectorAll<HTMLButtonElement>('.bhs-playlist-card').forEach(function (card) {
             card.addEventListener('click', function () {
                 var playlist = myPlaylists.find(function (p) { return p.id === parseInt(card.dataset.playlist || '', 10); });
-                if (playlist)
-                    openOwnedPlaylist(playlist);
+                if (playlist) openOwnedPlaylist(playlist);
             });
         });
     }
-    function openOwnedPlaylist(playlist) {
-        var tracks = playlist.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean);
+
+    function openOwnedPlaylist(playlist: BHSPlaylist): void {
+        var tracks = playlist.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean) as BHSTrack[];
         library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-to-playlists">&larr; Playlists</button>'
             + '<h2 class="bhs-release-title">' + esc(playlist.title) + '</h2>'
             + '<button type="button" class="bhs-btn" id="bhs-playlist-share-toggle">' + (playlist.is_public ? 'Stop sharing' : 'Share playlist') + '</button>'
             + (playlist.is_public && playlist.share_url ? '<p><input type="text" readonly value="' + esc(playlist.share_url) + '" onclick="this.select();" class="bhs-share-link"></p>' : '')
             + '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>';
-        byId('bhs-back-to-playlists').addEventListener('click', renderView);
-        byId('bhs-playlist-share-toggle').addEventListener('click', function () {
+        byId<HTMLButtonElement>('bhs-back-to-playlists').addEventListener('click', renderView);
+        byId<HTMLButtonElement>('bhs-playlist-share-toggle').addEventListener('click', function () {
             var endpoint = playlist.is_public ? 'unshare' : 'share';
             fetch(rest + 'playlists/' + playlist.id + '/' + endpoint, { method: 'POST', headers: authHeaders() })
                 .then(function (r) { return r.json(); })
-                .then(function (data) {
-                var idx = myPlaylists.findIndex(function (p) { return p.id === playlist.id; });
-                if (idx !== -1)
-                    myPlaylists[idx] = data.playlist;
-                openOwnedPlaylist(data.playlist);
-            });
+                .then(function (data: { playlist: BHSPlaylist }) {
+                    var idx = myPlaylists.findIndex(function (p) { return p.id === playlist.id; });
+                    if (idx !== -1) myPlaylists[idx] = data.playlist;
+                    openOwnedPlaylist(data.playlist);
+                });
         });
         bindCardClicks(tracks);
     }
+
     /* ---------- deep-linking a single track (OUS_Search's own real destination) ---------- */
+
     // ROADMAP-search-and-revisions.md's own honest flag: tracks/releases
     // have no canonical per-item URL at all, only ever reachable through
     // this shortcode's client-rendered SPA — a search result had nowhere
@@ -298,52 +408,56 @@
     // explicit click is bad UX regardless) — shows just that one track,
     // ready to play with the same real click-to-play path every other
     // card already uses.
-    function maybeOpenTrackDeepLink() {
+    function maybeOpenTrackDeepLink(): boolean {
         var params = new URLSearchParams(window.location.search);
         var trackId = parseInt(params.get('bhs_track') || '', 10);
-        if (!trackId)
-            return false;
+        if (!trackId) return false;
+
         var track = allTracks.find(function (t) { return t.id === trackId; });
         if (!track) {
             // Audit fix (2026-07-25): a dead-end deep link had no way
             // back except the browser's own Back button — same pattern
             // showLockNotice()/openRelease() already use.
             library.innerHTML = '<button type="button" class="bhs-back" id="bhs-back-from-deep-link">&larr; Back to library</button><p class="bhs-empty">That track isn\'t available.</p>';
-            byId('bhs-back-from-deep-link').addEventListener('click', renderView);
+            byId<HTMLButtonElement>('bhs-back-from-deep-link').addEventListener('click', renderView);
             return true;
         }
         library.innerHTML = '<h2 class="bhs-release-title">' + esc(track.title) + '</h2><div class="bhs-grid">' + trackCardHtml(track) + '</div>';
         bindCardClicks([track]);
         return true;
     }
+
     /* ---------- viewing someone else's shared playlist (read-only, no auth) ---------- */
-    function maybeOpenSharedPlaylist() {
+
+    function maybeOpenSharedPlaylist(): boolean {
         var params = new URLSearchParams(window.location.search);
         var token = params.get('bhs_shared_playlist');
-        if (!token)
-            return false;
+        if (!token) return false;
+
         library.innerHTML = '<p class="bhs-empty">Loading shared playlist…</p>';
         fetch(rest + 'playlists/shared/' + encodeURIComponent(token))
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-            .then(function (res) {
-            if (!res.ok) {
-                library.innerHTML = '<p class="bhs-empty">' + esc((res.data && res.data.message) || 'This shared playlist link is invalid or has been revoked.') + '</p>';
-                return;
-            }
-            var playlist = res.data.playlist;
-            // Shared tracks might reference tracks not in this
-            // viewer's own /tracks list only if this were a
-            // cross-site share — same-site shares always resolve
-            // fully since allTracks already covers the whole catalog.
-            var tracks = playlist.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean);
-            library.innerHTML = '<h2 class="bhs-release-title">' + esc(playlist.title) + ' <span class="bhs-badge">Shared playlist</span></h2>'
-                + '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>';
-            bindCardClicks(tracks);
-        })
+            .then(function (res: { ok: boolean; data: { message?: string; playlist: BHSPlaylist } }) {
+                if (!res.ok) {
+                    library.innerHTML = '<p class="bhs-empty">' + esc((res.data && res.data.message) || 'This shared playlist link is invalid or has been revoked.') + '</p>';
+                    return;
+                }
+                var playlist = res.data.playlist;
+                // Shared tracks might reference tracks not in this
+                // viewer's own /tracks list only if this were a
+                // cross-site share — same-site shares always resolve
+                // fully since allTracks already covers the whole catalog.
+                var tracks = playlist.track_ids.map(function (id) { return allTracks.find(function (t) { return t.id === id; }); }).filter(Boolean) as BHSTrack[];
+                library.innerHTML = '<h2 class="bhs-release-title">' + esc(playlist.title) + ' <span class="bhs-badge">Shared playlist</span></h2>'
+                    + '<div class="bhs-grid">' + tracks.map(trackCardHtml).join('') + '</div>';
+                bindCardClicks(tracks);
+            })
             .catch(function () { library.innerHTML = '<p class="bhs-empty">Could not load this shared playlist right now.</p>'; });
         return true;
     }
+
     /* ---------- playback + queue ---------- */
+
     // Shuffle only ever reorders the UPCOMING portion of the queue
     // (indices after queueIndex) — history (what's already played,
     // indices before queueIndex) stays exactly as played, Apple-Music
@@ -351,37 +465,37 @@
     // shuffle back off restores it for whatever hasn't played yet,
     // rather than re-randomizing again or losing the original order.
     var shuffleOn = false;
-    var originalOrder = null;
-    function shuffleArray(arr) {
+    var originalOrder: BHSTrack[] | null = null;
+
+    function shuffleArray<T>(arr: T[]): T[] {
         for (var i = arr.length - 1; i > 0; i--) {
             var j = Math.floor(Math.random() * (i + 1));
-            var tmp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = tmp;
+            var tmp = arr[i] as T; arr[i] = arr[j] as T; arr[j] = tmp;
         }
         return arr;
     }
-    function playQueue(list, index) {
+
+    function playQueue(list: BHSTrack[], index: number): void {
         queue = list.slice();
         queueIndex = index;
         originalOrder = null;
-        if (shuffleOn)
-            applyShuffle();
+        if (shuffleOn) applyShuffle();
         playCurrent();
         renderQueuePanel();
     }
-    function applyShuffle() {
+
+    function applyShuffle(): void {
         originalOrder = queue.slice();
         var head = queue.slice(0, queueIndex + 1);
         var tail = shuffleArray(queue.slice(queueIndex + 1));
         queue = head.concat(tail);
     }
-    function toggleShuffle() {
+
+    function toggleShuffle(): void {
         shuffleOn = !shuffleOn;
         if (shuffleOn) {
             applyShuffle();
-        }
-        else if (originalOrder) {
+        } else if (originalOrder) {
             // Restore original relative order for whatever's still ahead
             // of us; already-played history and the current track stay
             // exactly where they are — shuffle never rewrites the past.
@@ -391,40 +505,40 @@
             originalOrder = null;
         }
         var shuffleBtn = document.getElementById('bhs-shuffle-toggle');
-        if (shuffleBtn)
-            shuffleBtn.classList.toggle('active', shuffleOn);
+        if (shuffleBtn) shuffleBtn.classList.toggle('active', shuffleOn);
         renderQueuePanel();
-        if (jam.active && jam.isHost)
-            jamPushState();
+        if (jam.active && jam.isHost) jamPushState();
     }
-    function playCurrent() {
+
+    function playCurrent(): void {
         var t = queue[queueIndex];
-        if (!t)
-            return;
+        if (!t) return;
+
         currentQuality = null; // a fresh track always starts from its default encode
         shadowUrlOverride = null; // don't let a previous track's quality-URL override leak into this one (see switchToQuality)
         audio.src = t.url;
-        audio.play().catch(function () { });
+        audio.play().catch(function () { /* needs a user gesture first — the click that got us here counts */ });
         // A 402 here means a monetization plugin (if any) declined the
         // play — e.g. pay-per-play with an empty wallet. bh-streaming
         // itself has no idea what that means beyond "stop and say so";
         // the actual reason/message comes from whatever's hooked into
         // bhs_track_play_denied_message server-side.
         fetch(rest + 'tracks/' + t.id + '/play', { method: 'POST' })
-            .then(function (r) { if (r.status === 402)
-            return r.json().then(function (d) { throw new Error(d.message || 'Payment required.'); }); return; })
+            .then(function (r) { if (r.status === 402) return r.json().then(function (d) { throw new Error(d.message || 'Payment required.'); }); return; })
             .catch(function (err) {
-            if (err && err.message) {
-                audio.pause();
-                showLockNotice(Object.assign({}, t, { locked: true, lock_notice: '<p>' + esc(err.message) + '</p>' }));
-            }
-        });
+                if (err && err.message) {
+                    audio.pause();
+                    showLockNotice(Object.assign({}, t, { locked: true, lock_notice: '<p>' + esc(err.message) + '</p>' }));
+                }
+            });
+
         nowplaying.style.display = '';
         artEl.src = t.artwork;
         titleEl.textContent = t.title;
         artistEl.textContent = t.artist;
         likeBtn.classList.toggle('liked', likedIds.indexOf(t.id) !== -1);
         likeBtn.innerHTML = likedIds.indexOf(t.id) !== -1 ? '&#9829;' : '&#9825;';
+
         qualityToggleBtn && (qualityToggleBtn.style.display = (t.qualities && t.qualities.length) ? '' : 'none');
         renderLyricsFor(t);
         renderQualityFor(t);
@@ -433,6 +547,7 @@
         // new track is safe to route through it — see the EQ/visualizer
         // section below for why this can't just carry over blindly.
         onTrackChangedForAudioGraph(t);
+
         updateMediaSession(t);
         loadRelated(t.id);
         renderQueuePanel();
@@ -440,36 +555,27 @@
         maybeResumeSeek(t);
         lastResumeSave = 0;
     }
-    function playPrev() {
-        if (jam.active && !jam.isHost)
-            return; // participants don't drive transport — see jamApplyState
-        if (queueIndex > 0) {
-            queueIndex--;
-            playCurrent();
-            if (jam.active && jam.isHost)
-                jamPushState();
-        }
+
+    function playPrev(): void {
+        if (jam.active && !jam.isHost) return; // participants don't drive transport — see jamApplyState
+        if (queueIndex > 0) { queueIndex--; playCurrent(); if (jam.active && jam.isHost) jamPushState(); }
     }
-    function playNext() {
-        if (jam.active && !jam.isHost)
-            return;
-        if (queueIndex < queue.length - 1) {
-            queueIndex++;
-            playCurrent();
-            if (jam.active && jam.isHost)
-                jamPushState();
-        }
+    function playNext(): void {
+        if (jam.active && !jam.isHost) return;
+        if (queueIndex < queue.length - 1) { queueIndex++; playCurrent(); if (jam.active && jam.isHost) jamPushState(); }
     }
+
     // Apple-Music-style split: a "History" section (already played,
     // oldest first, most-recent nearest the now-playing divider) and an
     // "Up Next" section (what's coming, respecting shuffle if it's on).
     // Same rendering is reused as-is for a Jam session's shared queue —
     // Jam just keeps `queue`/`queueIndex` in sync with the host instead
     // of the local click handlers driving them (see jamApplyState()).
-    function renderQueuePanel() {
+    function renderQueuePanel(): void {
         var history = queue.slice(0, queueIndex);
         var current = queue[queueIndex];
         var upcoming = queue.slice(queueIndex + 1);
+
         var html = '';
         if (history.length) {
             html += '<div class="bhs-queue-heading">History</div>';
@@ -484,41 +590,40 @@
             html += upcoming.map(function (t, i) { return queueItemHtml(t, queueIndex + 1 + i, false); }).join('');
         }
         queueList.innerHTML = html;
-        queueList.querySelectorAll('.bhs-queue-item').forEach(function (item) {
+        queueList.querySelectorAll<HTMLElement>('.bhs-queue-item').forEach(function (item) {
             item.addEventListener('click', function () {
                 // In a Jam session, only the host can jump the queue —
                 // a participant's queue view is a read-only mirror of
                 // whatever the host is actually playing (see jamApplyState).
-                if (jam.active && !jam.isHost)
-                    return;
+                if (jam.active && !jam.isHost) return;
                 queueIndex = parseInt(item.dataset.index || '', 10);
                 playCurrent();
-                if (jam.active && jam.isHost)
-                    jamPushState();
+                if (jam.active && jam.isHost) jamPushState();
             });
         });
     }
-    function queueItemHtml(t, i, isActive) {
+
+    function queueItemHtml(t: BHSTrack, i: number, isActive: boolean): string {
         return '<div class="bhs-queue-item' + (isActive ? ' active' : '') + '" data-index="' + i + '">'
             + esc(t.title) + ' <span class="bhs-queue-artist">' + esc(t.artist) + '</span></div>';
     }
+
     /* ---------- related tracks ---------- */
-    function loadRelated(trackId) {
-        fetch(rest + 'tracks/' + trackId + '/related').then(function (r) { return r.json(); }).then(function (data) {
+
+    function loadRelated(trackId: number): void {
+        fetch(rest + 'tracks/' + trackId + '/related').then(function (r) { return r.json(); }).then(function (data: { related?: BHSTrack[] }) {
             var related = data.related || [];
-            if (!related.length) {
-                relatedBox.style.display = 'none';
-                return;
-            }
+            if (!related.length) { relatedBox.style.display = 'none'; return; }
             relatedBox.style.display = '';
             relatedList.innerHTML = related.map(trackCardHtml).join('');
             bindCardClicks(related);
         }).catch(function () { relatedBox.style.display = 'none'; });
     }
+
     /* ---------- Media Session (unchanged approach from the original MVP) ---------- */
-    function updateMediaSession(t) {
-        if (!('mediaSession' in navigator))
-            return;
+
+    function updateMediaSession(t: BHSTrack): void {
+        if (!('mediaSession' in navigator)) return;
         navigator.mediaSession.metadata = new MediaMetadata({
             title: t.title, artist: t.artist,
             artwork: [{ src: t.artwork, sizes: '512x512', type: 'image/png' }],
@@ -528,21 +633,20 @@
         navigator.mediaSession.setActionHandler('previoustrack', playPrev);
         navigator.mediaSession.setActionHandler('nexttrack', playNext);
         navigator.mediaSession.setActionHandler('seekto', function (details) {
-            if (details.seekTime != null)
-                audio.currentTime = details.seekTime;
+            if (details.seekTime != null) audio.currentTime = details.seekTime;
         });
     }
+
     audio.addEventListener('play', function () {
         playPauseBtn.innerHTML = '&#10074;&#10074;';
-        if ('mediaSession' in navigator)
-            navigator.mediaSession.playbackState = 'playing';
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
     });
     audio.addEventListener('pause', function () {
         playPauseBtn.innerHTML = '&#9658;';
-        if ('mediaSession' in navigator)
-            navigator.mediaSession.playbackState = 'paused';
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     });
     audio.addEventListener('ended', playNext);
+
     /* ---------- stream health (task 40) ---------- */
     // Shared hosting means bandwidth/uptime is genuinely variable —
     // this surfaces THIS session's actual playback trouble (stalls,
@@ -551,34 +655,25 @@
     // SOURCE, not of what this one listener is experiencing right now).
     // A listener on a bad connection to an otherwise-healthy source
     // still deserves to know it's their stream, not just a dead track.
-    var streamHealth = { stallTimer: null, stalling: false, errorStreak: 0 };
+    var streamHealth: { stallTimer: number | null; stalling: boolean; errorStreak: number } = { stallTimer: null, stalling: false, errorStreak: 0 };
     var streamBadge = document.createElement('span');
     streamBadge.className = 'bhs-stream-health';
     streamBadge.style.display = 'none';
     nowplaying.insertBefore(streamBadge, nowplaying.firstChild);
-    function setStreamBadge(state) {
-        if (state === 'poor') {
-            streamBadge.textContent = 'Poor connection…';
-            streamBadge.className = 'bhs-stream-health bhs-stream-health--poor';
-            streamBadge.style.display = '';
-        }
-        else if (state === 'error') {
-            streamBadge.textContent = 'Playback error — retrying…';
-            streamBadge.className = 'bhs-stream-health bhs-stream-health--error';
-            streamBadge.style.display = '';
-        }
-        else {
-            streamBadge.style.display = 'none';
-        }
+
+    function setStreamBadge(state: 'poor' | 'error' | 'none'): void {
+        if (state === 'poor') { streamBadge.textContent = 'Poor connection…'; streamBadge.className = 'bhs-stream-health bhs-stream-health--poor'; streamBadge.style.display = ''; }
+        else if (state === 'error') { streamBadge.textContent = 'Playback error — retrying…'; streamBadge.className = 'bhs-stream-health bhs-stream-health--error'; streamBadge.style.display = ''; }
+        else { streamBadge.style.display = 'none'; }
     }
+
     // 'waiting' fires when playback has to pause for more data — a
     // single blip is normal (any buffered stream does this briefly);
     // only flag it as a real "poor connection" if it hasn't recovered
     // within a couple seconds, so a listener isn't shown an alarming
     // badge for every ordinary micro-buffer.
     audio.addEventListener('waiting', function () {
-        if (streamHealth.stallTimer)
-            clearTimeout(streamHealth.stallTimer);
+        if (streamHealth.stallTimer) clearTimeout(streamHealth.stallTimer);
         streamHealth.stallTimer = window.setTimeout(function () {
             streamHealth.stalling = true;
             setStreamBadge('poor');
@@ -586,14 +681,8 @@
         }, 2000);
     });
     audio.addEventListener('playing', function () {
-        if (streamHealth.stallTimer) {
-            clearTimeout(streamHealth.stallTimer);
-            streamHealth.stallTimer = null;
-        }
-        if (streamHealth.stalling) {
-            streamHealth.stalling = false;
-            setStreamBadge('none');
-        }
+        if (streamHealth.stallTimer) { clearTimeout(streamHealth.stallTimer); streamHealth.stallTimer = null; }
+        if (streamHealth.stalling) { streamHealth.stalling = false; setStreamBadge('none'); }
         streamHealth.errorStreak = 0;
     });
     audio.addEventListener('error', function () {
@@ -605,58 +694,50 @@
         // source — three tries mirrors BHS_Feeds' own
         // HEALTH_DOWN_AFTER_FAILS threshold for the same reasoning.
         if (streamHealth.errorStreak <= 3) {
-            setTimeout(function () { audio.load(); audio.play().catch(function () { }); }, 1500 * streamHealth.errorStreak);
-        }
-        else {
+            setTimeout(function () { audio.load(); audio.play().catch(function () {}); }, 1500 * streamHealth.errorStreak);
+        } else {
             setStreamBadge('none');
             var t = queue[queueIndex];
-            if (t)
-                showLockNotice(Object.assign({}, t, {
-                    locked: true,
-                    lock_notice: '<p>This track isn’t playable right now — its source may be temporarily unavailable.</p>',
-                }));
+            if (t) showLockNotice(Object.assign({}, t, {
+                locked: true,
+                lock_notice: '<p>This track isn’t playable right now — its source may be temporarily unavailable.</p>',
+            }));
         }
     });
+
     // If this track offers a lower-bitrate encode and playback is
     // visibly struggling, drop to it automatically rather than just
     // showing a badge and hoping — the same switchToQuality() the
     // manual Quality panel uses, so position/playing-state preservation
     // is identical either way.
-    function maybeStepDownQuality() {
+    function maybeStepDownQuality(): void {
         var t = queue[queueIndex];
-        if (!t || !t.qualities || !t.qualities.length)
-            return;
+        if (!t || !t.qualities || !t.qualities.length) return;
         var order = ['lossless', 'high', 'standard'];
         var currentIdx = order.indexOf(currentQuality || ((t.qualities[0] && t.qualities[0].label) || ''));
         for (var i = currentIdx + 1; i < order.length; i++) {
             var candidate = t.qualities.find(function (q) { return q.label === order[i]; });
-            if (candidate) {
-                switchToQuality(candidate.label, candidate.url);
-                return;
-            }
+            if (candidate) { switchToQuality(candidate.label, candidate.url); return; }
         }
     }
     audio.addEventListener('timeupdate', function () {
-        if (audio.duration)
-            seek.value = String((audio.currentTime / audio.duration) * 100);
+        if (audio.duration) seek.value = String((audio.currentTime / audio.duration) * 100);
         if ('mediaSession' in navigator && audio.duration && 'setPositionState' in navigator.mediaSession) {
             navigator.mediaSession.setPositionState({ duration: audio.duration, playbackRate: 1, position: audio.currentTime });
         }
         updateLyricsHighlight();
         maybeSaveResumePosition();
     });
+
     /* ---------- long-form audio: chapters + resume position (ROADMAP-streaming-media-scope-and-blockchain.md Part 5, Phase 1) ---------- */
+
     var chaptersEl = document.getElementById('bhs-np-chapters');
     var lastResumeSave = 0;
-    function renderChapters(t) {
-        if (!chaptersEl)
-            return;
+
+    function renderChapters(t: BHSTrack | undefined): void {
+        if (!chaptersEl) return;
         var chapters = t && t.chapters;
-        if (!chapters || !chapters.length) {
-            chaptersEl.style.display = 'none';
-            chaptersEl.innerHTML = '';
-            return;
-        }
+        if (!chapters || !chapters.length) { chaptersEl.style.display = 'none'; chaptersEl.innerHTML = ''; return; }
         chaptersEl.style.display = '';
         chaptersEl.innerHTML = '';
         chapters.forEach(function (c) {
@@ -666,134 +747,119 @@
             var mm = Math.floor(c.time / 60), ss = c.time % 60;
             btn.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss + ' ' + c.label;
             btn.addEventListener('click', function () { audio.currentTime = c.time; });
-            chaptersEl.appendChild(btn);
+            (chaptersEl as HTMLElement).appendChild(btn);
         });
     }
+
     // Only logged-in listeners get resume (BHSData.loggedIn — the same
     // flag every other per-user player feature already checks), and
     // only via a real user gesture already granting audio.play()
     // elsewhere — this never autoplays, it just seeks once metadata is
     // available so the FIRST play of a track a listener already started
     // picks up where they left off.
-    function maybeResumeSeek(t) {
-        if (!t || !t.resumeSeconds || t.resumeSeconds < 5)
-            return; // a few seconds in isn't worth resuming into — that's just "the start"
+    function maybeResumeSeek(t: BHSTrack | undefined): void {
+        if (!t || !t.resumeSeconds || t.resumeSeconds < 5) return; // a few seconds in isn't worth resuming into — that's just "the start"
         var resumeSeconds = t.resumeSeconds;
         function onLoaded() {
-            if (resumeSeconds < (audio.duration || Infinity) - 5)
-                audio.currentTime = resumeSeconds;
+            if (resumeSeconds < (audio.duration || Infinity) - 5) audio.currentTime = resumeSeconds;
             audio.removeEventListener('loadedmetadata', onLoaded);
         }
         audio.addEventListener('loadedmetadata', onLoaded);
     }
+
     // Throttled to once per 10s of real playback, not every timeupdate
     // tick (which can fire several times a second) — a resume position
     // is a convenience, not something that needs sub-second accuracy.
-    function maybeSaveResumePosition() {
-        if (!BHSData || !BHSData.loggedIn)
-            return;
+    function maybeSaveResumePosition(): void {
+        if (!BHSData || !BHSData.loggedIn) return;
         var t = queue[queueIndex];
-        if (!t || audio.paused)
-            return;
+        if (!t || audio.paused) return;
         var now = Date.now();
-        if (now - lastResumeSave < 10000)
-            return;
+        if (now - lastResumeSave < 10000) return;
         lastResumeSave = now;
         fetch(rest + 'tracks/' + t.id + '/resume', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': BHSData.nonce || '' },
             body: JSON.stringify({ seconds: Math.floor(audio.currentTime) }),
-        }).catch(function () { });
+        }).catch(function () { /* best-effort — a failed resume-position save just means next play starts from 0, not a real error to surface */ });
     }
+
     playPauseBtn.addEventListener('click', function () {
-        if (jam.active && !jam.isHost)
-            return; // a participant doesn't drive playback directly, just hears the host's
+        if (jam.active && !jam.isHost) return; // a participant doesn't drive playback directly, just hears the host's
         audio.paused ? audio.play() : audio.pause();
-        if (jam.active && jam.isHost)
-            jamPushState();
+        if (jam.active && jam.isHost) jamPushState();
     });
-    byId('bhs-prev').addEventListener('click', playPrev);
-    byId('bhs-next').addEventListener('click', playNext);
+    byId<HTMLButtonElement>('bhs-prev').addEventListener('click', playPrev);
+    byId<HTMLButtonElement>('bhs-next').addEventListener('click', playNext);
     seek.addEventListener('input', function () {
-        if (jam.active && !jam.isHost)
-            return;
-        if (audio.duration)
-            audio.currentTime = (Number(seek.value) / 100) * audio.duration;
-        if (jam.active && jam.isHost)
-            jamPushState();
+        if (jam.active && !jam.isHost) return;
+        if (audio.duration) audio.currentTime = (Number(seek.value) / 100) * audio.duration;
+        if (jam.active && jam.isHost) jamPushState();
     });
-    byId('bhs-shuffle-toggle').addEventListener('click', function () {
-        if (jam.active && !jam.isHost)
-            return;
+    byId<HTMLButtonElement>('bhs-shuffle-toggle').addEventListener('click', function () {
+        if (jam.active && !jam.isHost) return;
         toggleShuffle();
     });
+
     // Desktop-only in practice: mobile browsers largely ignore
     // audio.volume and defer to the hardware volume buttons instead —
     // this still doesn't hurt to have, it's just a no-op there rather
     // than something actively broken.
     volume.addEventListener('input', function () { audio.volume = Number(volume.value) / 100; });
-    byId('bhs-queue-toggle').addEventListener('click', function () {
+
+    byId<HTMLButtonElement>('bhs-queue-toggle').addEventListener('click', function () {
         queuePanel.style.display = queuePanel.style.display === 'none' ? '' : 'none';
     });
+
     /* ---------- likes ---------- */
+
     likeBtn.addEventListener('click', function () {
-        if (!loggedIn) {
-            notify('Log in to like tracks.', true);
-            return;
-        }
+        if (!loggedIn) { notify('Log in to like tracks.', true); return; }
         var t = queue[queueIndex];
-        if (!t)
-            return;
+        if (!t) return;
         var track = t;
         fetch(rest + 'likes/' + track.id, { method: 'POST', headers: authHeaders() })
             .then(function (r) { return r.json(); })
-            .then(function (data) {
-            if (data.liked) {
-                likedIds.push(track.id);
-            }
-            else {
-                likedIds = likedIds.filter(function (id) { return id !== track.id; });
-            }
-            likeBtn.classList.toggle('liked', data.liked);
-            likeBtn.innerHTML = data.liked ? '&#9829;' : '&#9825;';
-            if (currentView === 'liked')
-                renderView();
-        })
+            .then(function (data: { liked: boolean }) {
+                if (data.liked) { likedIds.push(track.id); } else { likedIds = likedIds.filter(function (id) { return id !== track.id; }); }
+                likeBtn.classList.toggle('liked', data.liked);
+                likeBtn.innerHTML = data.liked ? '&#9829;' : '&#9825;';
+                if (currentView === 'liked') renderView();
+            })
             .catch(function () { notify('Could not save that — check your connection and try again.', true); });
     });
+
     /* ---------- playlists ---------- */
-    byId('bhs-add-playlist').addEventListener('click', function () {
-        if (!loggedIn) {
-            notify('Log in to use playlists.', true);
-            return;
-        }
+
+    byId<HTMLButtonElement>('bhs-add-playlist').addEventListener('click', function () {
+        if (!loggedIn) { notify('Log in to use playlists.', true); return; }
         renderPlaylistPicker();
         playlistPicker.style.display = '';
     });
-    byId('bhs-playlist-picker-close').addEventListener('click', function () { playlistPicker.style.display = 'none'; });
-    function renderPlaylistPicker() {
+    byId<HTMLButtonElement>('bhs-playlist-picker-close').addEventListener('click', function () { playlistPicker.style.display = 'none'; });
+
+    function renderPlaylistPicker(): void {
         playlistPickerList.innerHTML = myPlaylists.length
             ? myPlaylists.map(function (p) { return '<button type="button" class="bhs-btn bhs-playlist-option" data-id="' + p.id + '">' + esc(p.title) + '</button>'; }).join('')
             : '<p class="bhs-empty">No playlists yet.</p>';
-        playlistPickerList.querySelectorAll('.bhs-playlist-option').forEach(function (btn) {
+        playlistPickerList.querySelectorAll<HTMLButtonElement>('.bhs-playlist-option').forEach(function (btn) {
             btn.addEventListener('click', function () { addCurrentToPlaylist(parseInt(btn.dataset.id || '', 10)); });
         });
     }
-    function addCurrentToPlaylist(playlistId) {
+
+    function addCurrentToPlaylist(playlistId: number): void {
         var t = queue[queueIndex];
-        if (!t)
-            return;
+        if (!t) return;
         // Disable every row so a double-tap can't fire two adds while the
         // first request is still in flight — previously nothing in the
         // picker indicated a request was even happening.
-        playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+        playlistPickerList.querySelectorAll<HTMLButtonElement>('button').forEach(function (b) { b.disabled = true; });
         fetch(rest + 'playlists/' + playlistId + '/tracks', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ track_id: t.id }),
-        }).then(function (r) { return r.json(); }).then(function (data) {
+        }).then(function (r) { return r.json(); }).then(function (data: { playlist: BHSPlaylist }) {
             var idx = myPlaylists.findIndex(function (p) { return p.id === playlistId; });
-            if (idx !== -1)
-                myPlaylists[idx] = data.playlist;
+            if (idx !== -1) myPlaylists[idx] = data.playlist;
             playlistPicker.style.display = 'none';
             // Was silent on success (only the failure path below ever
             // called notify()) — the picker just closed with zero
@@ -801,23 +867,23 @@
             var addedName = (data.playlist && data.playlist.name) || 'playlist';
             notify('Added to "' + addedName + '".');
         }).catch(function () {
-            playlistPickerList.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+            playlistPickerList.querySelectorAll<HTMLButtonElement>('button').forEach(function (b) { b.disabled = false; });
             notify('Could not add to playlist — check your connection and try again.', true);
         });
     }
-    byId('bhs-new-playlist-create').addEventListener('click', function () {
-        var nameEl = byId('bhs-new-playlist-name');
-        var createBtn = byId('bhs-new-playlist-create');
+
+    byId<HTMLButtonElement>('bhs-new-playlist-create').addEventListener('click', function () {
+        var nameEl = byId<HTMLInputElement>('bhs-new-playlist-name');
+        var createBtn = byId<HTMLButtonElement>('bhs-new-playlist-create');
         var name = nameEl.value.trim();
-        if (!name)
-            return;
+        if (!name) return;
         createBtn.disabled = true;
         var originalLabel = createBtn.textContent || '';
         createBtn.textContent = 'Creating…';
         fetch(rest + 'playlists', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ title: name }),
-        }).then(function (r) { return r.json(); }).then(function (data) {
+        }).then(function (r) { return r.json(); }).then(function (data: { playlist: BHSPlaylist }) {
             myPlaylists.push(data.playlist);
             nameEl.value = '';
             createBtn.disabled = false;
@@ -829,22 +895,27 @@
             notify('Could not create the playlist — check your connection and try again.', true);
         });
     });
+
     /* ---------- auth (bh-identity) ---------- */
-    var authModal = byId('bhs-auth-modal');
+
+    var authModal = byId<HTMLElement>('bhs-auth-modal');
     var authMode = 'login';
-    var emailField = byId('bhs-auth-email');
-    var authSubmitBtn = byId('bhs-auth-submit');
-    var authError = byId('bhs-auth-error');
-    var loginOpenBtn = byId('bhs-login-open');
-    var accountInfo = byId('bhs-account-info');
-    var accountUsername = byId('bhs-account-username');
-    function refreshAccountUI() {
+    var emailField = byId<HTMLInputElement>('bhs-auth-email');
+    var authSubmitBtn = byId<HTMLButtonElement>('bhs-auth-submit');
+    var authError = byId<HTMLElement>('bhs-auth-error');
+    var loginOpenBtn = byId<HTMLButtonElement>('bhs-login-open');
+    var accountInfo = byId<HTMLElement>('bhs-account-info');
+    var accountUsername = byId<HTMLElement>('bhs-account-username');
+
+    function refreshAccountUI(): void {
         loginOpenBtn.style.display = loggedIn ? 'none' : '';
         accountInfo.style.display = loggedIn ? '' : 'none';
     }
+
     loginOpenBtn.addEventListener('click', function () { authModal.style.display = ''; });
-    byId('bhs-auth-close').addEventListener('click', function () { authModal.style.display = 'none'; });
-    document.querySelectorAll('.bhs-auth-tab').forEach(function (tab) {
+    byId<HTMLButtonElement>('bhs-auth-close').addEventListener('click', function () { authModal.style.display = 'none'; });
+
+    document.querySelectorAll<HTMLElement>('.bhs-auth-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             document.querySelectorAll('.bhs-auth-tab').forEach(function (t) { t.classList.remove('active'); });
             tab.classList.add('active');
@@ -854,27 +925,29 @@
             authError.textContent = '';
         });
     });
+
     // Password show/hide — a baseline expectation this auth form never
     // had; flips the field's own type rather than a second duplicate
     // input, so nothing about validation/submission needs to change.
-    var passToggle = document.querySelector('.bhs-pass-toggle');
+    var passToggle = document.querySelector<HTMLButtonElement>('.bhs-pass-toggle');
     if (passToggle) {
         passToggle.addEventListener('click', function () {
-            var input = byId('bhs-auth-password');
+            var input = byId<HTMLInputElement>('bhs-auth-password');
             var showing = input.type === 'text';
             input.type = showing ? 'password' : 'text';
-            passToggle.setAttribute('aria-pressed', String(!showing));
-            passToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
-            passToggle.innerHTML = showing ? '&#128065;' : '&#128683;';
+            (passToggle as HTMLButtonElement).setAttribute('aria-pressed', String(!showing));
+            (passToggle as HTMLButtonElement).setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+            (passToggle as HTMLButtonElement).innerHTML = showing ? '&#128065;' : '&#128683;';
         });
     }
+
     [document.getElementById('bhs-auth-username'), document.getElementById('bhs-auth-password'), emailField].forEach(function (el) {
-        if (el)
-            el.addEventListener('input', function () { el.classList.remove('bhs-field-invalid'); });
+        if (el) el.addEventListener('input', function () { el.classList.remove('bhs-field-invalid'); });
     });
+
     authSubmitBtn.addEventListener('click', function () {
-        var usernameEl = byId('bhs-auth-username');
-        var passwordEl = byId('bhs-auth-password');
+        var usernameEl = byId<HTMLInputElement>('bhs-auth-username');
+        var passwordEl = byId<HTMLInputElement>('bhs-auth-password');
         var username = usernameEl.value.trim();
         var password = passwordEl.value;
         // Basic empty-field check before ever hitting the network — the
@@ -893,9 +966,9 @@
             authError.textContent = 'Enter an email address.';
             return;
         }
-        var body = { username: username, password: password };
-        if (authMode === 'register')
-            body.email = emailField.value.trim();
+        var body: { username: string; password: string; email?: string } = { username: username, password: password };
+        if (authMode === 'register') body.email = emailField.value.trim();
+
         // Pending state — this used to give zero feedback between click
         // and response, letting a slow connection invite a double-click
         // (and a real duplicate register/login POST).
@@ -903,116 +976,112 @@
         var originalLabel = authSubmitBtn.textContent || '';
         authSubmitBtn.textContent = authMode === 'register' ? 'Creating account…' : 'Signing in…';
         authError.textContent = '';
+
         fetch(identityRest + authMode, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
         })
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-            .then(function (res) {
-            if (!res.ok) {
+            .then(function (res: { ok: boolean; data: { message?: string } }) {
+                if (!res.ok) {
+                    authSubmitBtn.disabled = false;
+                    authSubmitBtn.textContent = originalLabel;
+                    authError.textContent = res.data.message || 'Something went wrong.';
+                    return;
+                }
+                loggedIn = true;
+                authModal.style.display = 'none';
                 authSubmitBtn.disabled = false;
                 authSubmitBtn.textContent = originalLabel;
-                authError.textContent = res.data.message || 'Something went wrong.';
-                return;
-            }
-            loggedIn = true;
-            authModal.style.display = 'none';
-            authSubmitBtn.disabled = false;
-            authSubmitBtn.textContent = originalLabel;
-            authError.textContent = '';
-            refreshAccountUI();
-            reloadUserData();
-        })
+                authError.textContent = '';
+                refreshAccountUI();
+                reloadUserData();
+            })
             .catch(function () {
-            authSubmitBtn.disabled = false;
-            authSubmitBtn.textContent = originalLabel;
-            authError.textContent = 'Could not reach the server — check your connection and try again.';
-        });
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = originalLabel;
+                authError.textContent = 'Could not reach the server — check your connection and try again.';
+            });
     });
-    byId('bhs-logout').addEventListener('click', function () {
+
+    byId<HTMLButtonElement>('bhs-logout').addEventListener('click', function () {
         fetch(identityRest + 'logout', { method: 'POST', headers: { 'X-WP-Nonce': nonce } }).then(function () {
             loggedIn = false;
             likedIds = [];
             myPlaylists = [];
             refreshAccountUI();
-            if (currentView === 'liked' || currentView === 'playlists')
-                renderView();
+            if (currentView === 'liked' || currentView === 'playlists') renderView();
         });
     });
+
     // After logging in mid-session, the account's own likes/playlists
     // need to actually load — a plain page reload would also work, but
     // this keeps whatever they were listening to playing uninterrupted.
-    function reloadUserData() {
-        fetch(identityRest + 'session').then(function (r) { return r.json(); }).then(function (s) {
-            if (s.loggedIn)
-                accountUsername.textContent = s.username;
+    function reloadUserData(): void {
+        fetch(identityRest + 'session').then(function (r) { return r.json(); }).then(function (s: { loggedIn: boolean; username: string }) {
+            if (s.loggedIn) accountUsername.textContent = s.username;
         });
         Promise.all([
             fetch(rest + 'likes', { headers: authHeaders() }).then(function (r) { return r.json(); }),
             fetch(rest + 'playlists', { headers: authHeaders() }).then(function (r) { return r.json(); }),
-        ]).then(function (results) {
+        ]).then(function (results: [{ track_ids?: number[] }, { playlists?: BHSPlaylist[] }]) {
             likedIds = results[0].track_ids || [];
             myPlaylists = results[1].playlists || [];
-            if (currentView === 'liked' || currentView === 'playlists')
-                renderView();
+            if (currentView === 'liked' || currentView === 'playlists') renderView();
         });
     }
+
     refreshAccountUI();
     if (loggedIn) {
-        fetch(identityRest + 'session').then(function (r) { return r.json(); }).then(function (s) {
-            if (s.loggedIn)
-                accountUsername.textContent = s.username;
+        fetch(identityRest + 'session').then(function (r) { return r.json(); }).then(function (s: { loggedIn: boolean; username: string }) {
+            if (s.loggedIn) accountUsername.textContent = s.username;
         });
     }
+
     /* ---------- lyrics ---------- */
+
     // Parses [mm:ss.xx]text lines into {time, text} objects sorted by
     // time. Deliberately tolerant of missing/extra fields (a two-digit
     // vs three-digit fraction, no fraction at all) since LRC exports
     // vary slightly between tools — a line that doesn't match the
     // timestamp pattern at all is just skipped rather than aborting the
     // whole parse.
-    function parseLRC(lrc) {
-        var lines = [];
+    function parseLRC(lrc: string | undefined): BHSLyricLine[] {
+        var lines: BHSLyricLine[] = [];
         (lrc || '').split(/\r?\n/).forEach(function (raw) {
             var m = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
-            if (!m)
-                return;
-            var time = parseInt(m[1], 10) * 60 + parseFloat(m[2]);
-            var text = m[3].trim();
-            if (text)
-                lines.push({ time: time, text: text });
+            if (!m) return;
+            var time = parseInt(m[1] as string, 10) * 60 + parseFloat(m[2] as string);
+            var text = (m[3] as string).trim();
+            if (text) lines.push({ time: time, text: text });
         });
         lines.sort(function (a, b) { return a.time - b.time; });
         return lines;
     }
-    function renderLyricsFor(t) {
+
+    function renderLyricsFor(t: BHSTrack): void {
         var lyrics = t.lyrics || {};
         if (lyrics.synced) {
             currentTrackLyrics = parseLRC(lyrics.synced);
             lyricsBody.innerHTML = currentTrackLyrics.map(function (line, i) {
                 return '<div class="bhs-lyric-line" data-index="' + i + '">' + esc(line.text) + '</div>';
             }).join('') || '<p class="bhs-empty">No lyrics for this track.</p>';
-        }
-        else if (lyrics.plain) {
+        } else if (lyrics.plain) {
             currentTrackLyrics = null;
             lyricsBody.innerHTML = '<div class="bhs-lyric-plain">' + esc(lyrics.plain).replace(/\n/g, '<br>') + '</div>';
-        }
-        else {
+        } else {
             currentTrackLyrics = null;
             lyricsBody.innerHTML = '<p class="bhs-empty">No lyrics for this track.</p>';
         }
     }
-    function updateLyricsHighlight() {
-        if (!currentTrackLyrics || !currentTrackLyrics.length || lyricsPanel.style.display === 'none')
-            return;
+
+    function updateLyricsHighlight(): void {
+        if (!currentTrackLyrics || !currentTrackLyrics.length || lyricsPanel.style.display === 'none') return;
         var t = audio.currentTime;
         var activeIndex = -1;
         for (var i = 0; i < currentTrackLyrics.length; i++) {
-            if (currentTrackLyrics[i].time <= t)
-                activeIndex = i;
-            else
-                break;
+            if ((currentTrackLyrics[i] as BHSLyricLine).time <= t) activeIndex = i; else break;
         }
-        var lines = lyricsBody.querySelectorAll('.bhs-lyric-line');
+        var lines = lyricsBody.querySelectorAll<HTMLElement>('.bhs-lyric-line');
         lines.forEach(function (el, i) {
             el.classList.toggle('active', i === activeIndex);
         });
@@ -1021,17 +1090,20 @@
             activeLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
         }
     }
+
     lyricsToggleBtn.addEventListener('click', function () {
         var open = lyricsPanel.style.display !== 'none';
         lyricsPanel.style.display = open ? 'none' : '';
         qualityPanel.style.display = 'none';
         eqPanel.style.display = 'none';
     });
+
     /* ---------- quality selection ---------- */
+
     // Switching quality mid-track preserves playback position and
     // paused/playing state — this is a listener preference change, not
     // a "start over" action.
-    function switchToQuality(label, url) {
+    function switchToQuality(label: string, url: string): void {
         var wasPlaying = !audio.paused;
         var position = audio.currentTime;
         currentQuality = label;
@@ -1045,8 +1117,7 @@
             // correctly reflects the real (paused) state via the
             // audio element's own 'pause' event, but nothing told the
             // user THEY didn't click pause, the browser did.
-            if (wasPlaying)
-                audio.play().catch(function () { notify('Playback stopped — press play to resume.', true); });
+            if (wasPlaying) audio.play().catch(function () { notify('Playback stopped — press play to resume.', true); });
         });
         renderQualityFor(queue[queueIndex]);
         // A quality switch is effectively a new URL for the same logical
@@ -1056,13 +1127,12 @@
         // behavior than the default. graphRequestToken (incremented
         // inside engageGraphForCurrentTrack) makes sure a stale probe
         // from the PREVIOUS quality can't win a race against this one.
-        if (graphWanted)
-            engageGraphForCurrentTrack();
+        if (graphWanted) engageGraphForCurrentTrack();
     }
-    function renderQualityFor(t) {
-        if (!t)
-            return;
-        var options = [{ label: 'default', url: t.url }].concat((t.qualities || []).map(function (q) {
+
+    function renderQualityFor(t: BHSTrack | undefined): void {
+        if (!t) return;
+        var options: { label: string; url: string; filesize?: number }[] = [{ label: 'default', url: t.url }].concat((t.qualities || []).map(function (q) {
             return { label: q.label, url: q.url, filesize: q.filesize };
         }));
         qualityList.innerHTML = options.map(function (o) {
@@ -1071,10 +1141,11 @@
                 + esc(o.label) + (o.filesize ? ' <span class="bhs-quality-size">(' + Math.round(o.filesize / 1024 / 1024 * 10) / 10 + ' MB)</span>' : '')
                 + '</button>';
         }).join('');
-        qualityList.querySelectorAll('.bhs-quality-option').forEach(function (btn) {
+        qualityList.querySelectorAll<HTMLButtonElement>('.bhs-quality-option').forEach(function (btn) {
             btn.addEventListener('click', function () { switchToQuality(btn.dataset.label || '', btn.dataset.url || ''); });
         });
     }
+
     if (qualityToggleBtn) {
         qualityToggleBtn.addEventListener('click', function () {
             var open = qualityPanel.style.display !== 'none';
@@ -1083,6 +1154,7 @@
             eqPanel.style.display = 'none';
         });
     }
+
     /* ---------- EQ + visualizer (Web Audio API) ----------
      *
      * IMPORTANT CORS constraint this section is built around: per the
@@ -1110,78 +1182,76 @@
      * for this one," never silence.
      */
     var EQ_BANDS = [60, 250, 1000, 4000, 8000, 14000]; // fixed, musically-spread peaking filters — same "chain of BiquadFilterNodes" approach Funkwhale's own web client and most open-source web players use, not anything more exotic
-    var audioCtx = null;
-    var shadowAudio = null;
-    var sourceNode = null;
-    var analyserNode = null;
-    var eqFilters = null;
+
+    var audioCtx: AudioContext | null = null;
+    var shadowAudio: HTMLAudioElement | null = null;
+    var sourceNode: MediaElementAudioSourceNode | null = null;
+    var analyserNode: AnalyserNode | null = null;
+    var eqFilters: BiquadFilterNode[] | null = null;
     var graphBuilt = false;
-    var graphEngaged = false; // true only while shadowAudio is the actual audible output
-    var graphWanted = false; // true once the listener has opened EQ or Visualizer at least once this session
-    var eqBandsEl = byId('bhs-eq-bands');
-    var graphNotice = null; // lazily-created "unavailable for this track" message
-    function ensureGraphNotice() {
-        if (graphNotice)
-            return graphNotice;
+    var graphEngaged = false;   // true only while shadowAudio is the actual audible output
+    var graphWanted = false;    // true once the listener has opened EQ or Visualizer at least once this session
+    var eqBandsEl = byId<HTMLElement>('bhs-eq-bands');
+    var graphNotice: HTMLParagraphElement | null = null;     // lazily-created "unavailable for this track" message
+
+    function ensureGraphNotice(): HTMLParagraphElement {
+        if (graphNotice) return graphNotice;
         graphNotice = document.createElement('p');
         graphNotice.className = 'bhs-empty';
         graphNotice.textContent = 'EQ and the visualizer aren’t available for this track — it’s hosted on a server that doesn’t grant cross-origin audio access. Playback itself is unaffected.';
         return graphNotice;
     }
-    function isSameOrigin(url) {
-        try {
-            return new URL(url, window.location.href).origin === window.location.origin;
-        }
-        catch (e) {
-            return false;
-        }
+
+    function isSameOrigin(url: string): boolean {
+        try { return new URL(url, window.location.href).origin === window.location.origin; }
+        catch (e) { return false; }
     }
+
     // A real, cheap capability probe rather than guessing: a tiny
     // ranged GET in explicit 'cors' mode. If the host doesn't send
     // Access-Control-Allow-Origin, the fetch PROMISE REJECTS (browsers
     // enforce this at the network layer for mode:'cors'), which we can
     // reliably catch — unlike the silent-mute failure mode this whole
     // section exists to avoid.
-    function probeCors(url) {
-        if (isSameOrigin(url))
-            return Promise.resolve(true);
+    function probeCors(url: string): Promise<boolean> {
+        if (isSameOrigin(url)) return Promise.resolve(true);
         return fetch(url, { method: 'GET', mode: 'cors', headers: { 'Range': 'bytes=0-0' } })
             .then(function (r) { return r.ok || r.status === 206; })
             .catch(function () { return false; });
     }
+
     // Built once, lazily, on first EQ/Visualizer use — browsers block
     // AudioContext until a user gesture, and createMediaElementSource()
     // can only ever be called ONCE per element for its whole lifetime.
     // Built against shadowAudio, never against the primary `audio`.
-    function ensureAudioGraph() {
-        if (graphBuilt)
-            return;
-        var win = window;
-        var Ctx = (typeof AudioContext !== 'undefined' ? AudioContext : undefined) || win.webkitAudioContext;
-        if (!Ctx)
-            return; // ancient-browser fallback: EQ/visualizer simply unavailable, playback itself is unaffected
+    function ensureAudioGraph(): void {
+        if (graphBuilt) return;
+        var win = window as BHSWindow;
+        var Ctx: typeof AudioContext | undefined = (typeof AudioContext !== 'undefined' ? AudioContext : undefined) || win.webkitAudioContext;
+        if (!Ctx) return; // ancient-browser fallback: EQ/visualizer simply unavailable, playback itself is unaffected
         graphBuilt = true;
+
         shadowAudio = new Audio();
         shadowAudio.crossOrigin = 'anonymous';
+
         var ctx = new Ctx();
         audioCtx = ctx;
         sourceNode = ctx.createMediaElementSource(shadowAudio);
         eqFilters = EQ_BANDS.map(function (freq) {
             var f = ctx.createBiquadFilter();
-            f.type = 'peaking';
-            f.frequency.value = freq;
-            f.Q.value = 1;
-            f.gain.value = 0;
+            f.type = 'peaking'; f.frequency.value = freq; f.Q.value = 1; f.gain.value = 0;
             return f;
         });
         analyserNode = ctx.createAnalyser();
         analyserNode.fftSize = 128;
-        var node = sourceNode;
+
+        var node: AudioNode = sourceNode;
         eqFilters.forEach(function (f) { node.connect(f); node = f; });
         node.connect(analyserNode);
         analyserNode.connect(ctx.destination);
         renderEqBands();
     }
+
     // Monotonic token guarding every async engage attempt — incremented
     // on every call (track change OR quality switch OR re-engage), so a
     // stale probe/play promise that resolves late (from a track the
@@ -1190,6 +1260,7 @@
     // `queue[queueIndex] !== t` alone (the original guard) missed the
     // same-track-different-quality-URL case flagged in review.
     var graphRequestToken = 0;
+
     // Attempts to make shadowAudio the actual audible output for
     // whatever's currently loaded in the primary element. Called when
     // the listener opens EQ/Visualizer, and again on every track or
@@ -1200,52 +1271,45 @@
     // shadow element that fails to decode, stalls, or rejects play()
     // after a successful CORS probe can NEVER leave the listener with
     // silence: the primary element stays audible the whole time.
-    function engageGraphForCurrentTrack() {
+    function engageGraphForCurrentTrack(): void {
         var t = queue[queueIndex];
-        if (!t || !t.url)
-            return;
+        if (!t || !t.url) return;
         var url = (currentQuality && shadowUrlOverride) || t.url;
         var myToken = ++graphRequestToken;
+
         ensureAudioGraph();
-        if (!audioCtx) {
-            showGraphNotice(true);
-            return;
-        } // no Web Audio support at all in this browser
+        if (!audioCtx) { showGraphNotice(true); return; } // no Web Audio support at all in this browser
+
         probeCors(url).then(function (eligible) {
-            if (myToken !== graphRequestToken)
-                return; // superseded by a newer track/quality change — ignore
-            if (!eligible) {
-                disengageGraph();
-                showGraphNotice(true);
-                return;
-            }
+            if (myToken !== graphRequestToken) return; // superseded by a newer track/quality change — ignore
+            if (!eligible) { disengageGraph(); showGraphNotice(true); return; }
+
             showGraphNotice(false);
-            var sa = shadowAudio;
+            var sa = shadowAudio as HTMLAudioElement;
             sa.src = url;
             sa.currentTime = audio.currentTime;
+
             // Do NOT mute the primary element yet — wait for shadowAudio
             // to actually confirm it's producing sound. audio.muted only
             // flips once 'playing' fires below, and only if this is still
             // the current request.
             var onPlaying = function () {
                 sa.removeEventListener('playing', onPlaying);
-                if (myToken !== graphRequestToken)
-                    return;
+                if (myToken !== graphRequestToken) return;
                 audio.muted = true;
                 graphEngaged = true;
             };
             sa.addEventListener('playing', onPlaying);
             sa.addEventListener('error', function onErr() {
                 sa.removeEventListener('error', onErr);
-                if (myToken !== graphRequestToken)
-                    return;
+                if (myToken !== graphRequestToken) return;
                 disengageGraph();
                 showGraphNotice(true);
             }, { once: true });
+
             if (!audio.paused) {
                 sa.play().catch(function () {
-                    if (myToken !== graphRequestToken)
-                        return;
+                    if (myToken !== graphRequestToken) return;
                     disengageGraph();
                     showGraphNotice(true);
                 });
@@ -1255,26 +1319,26 @@
             // playback starts, so there's nothing to restore in that case.
         });
     }
-    var shadowUrlOverride = null; // set by switchToQuality() when the active quality differs from the track's default URL
-    function disengageGraph() {
-        if (shadowAudio)
-            shadowAudio.pause();
+
+    var shadowUrlOverride: string | null = null; // set by switchToQuality() when the active quality differs from the track's default URL
+
+    function disengageGraph(): void {
+        if (shadowAudio) shadowAudio.pause();
         audio.muted = false;
         graphEngaged = false;
     }
-    function showGraphNotice(show) {
+
+    function showGraphNotice(show: boolean): void {
         var notice = ensureGraphNotice();
         if (show) {
-            if (!eqPanel.contains(notice))
-                eqPanel.appendChild(notice);
+            if (!eqPanel.contains(notice)) eqPanel.appendChild(notice);
             vizCanvas.style.visibility = 'hidden';
-        }
-        else {
-            if (eqPanel.contains(notice))
-                eqPanel.removeChild(notice);
+        } else {
+            if (eqPanel.contains(notice)) eqPanel.removeChild(notice);
             vizCanvas.style.visibility = '';
         }
     }
+
     // Keeps the shadow element roughly in sync with the primary one
     // while engaged — two independently-decoded streams can drift a
     // little over a long track; a periodic hard resync (not sample-
@@ -1282,16 +1346,14 @@
     // which are enhancements, not the source of truth for playback
     // position (the primary element still owns seek/duration/MediaSession).
     setInterval(function () {
-        if (!graphEngaged || !shadowAudio)
-            return;
+        if (!graphEngaged || !shadowAudio) return;
         if (Math.abs(shadowAudio.currentTime - audio.currentTime) > 0.35) {
             shadowAudio.currentTime = audio.currentTime;
         }
-        if (audio.paused && !shadowAudio.paused)
-            shadowAudio.pause();
-        if (!audio.paused && shadowAudio.paused)
-            shadowAudio.play().catch(function () { });
+        if (audio.paused && !shadowAudio.paused) shadowAudio.pause();
+        if (!audio.paused && shadowAudio.paused) shadowAudio.play().catch(function () {});
     }, 2000);
+
     // Called from playCurrent() on every track change. Only does
     // anything if the listener has already opted into EQ/Visualizer at
     // least once — otherwise the graph is never even built, and every
@@ -1300,77 +1362,77 @@
     // playCurrent() — harmless in the original JS (extra args are
     // silently ignored), kept as an optional param here rather than
     // changed, since removing it would mean touching the call site too.
-    function onTrackChangedForAudioGraph(_t) {
-        if (!graphWanted)
-            return;
+    function onTrackChangedForAudioGraph(_t?: BHSTrack): void {
+        if (!graphWanted) return;
         engageGraphForCurrentTrack();
     }
-    function renderEqBands() {
+
+    function renderEqBands(): void {
         eqBandsEl.innerHTML = EQ_BANDS.map(function (freq, i) {
             var label = freq >= 1000 ? (freq / 1000) + 'kHz' : freq + 'Hz';
             return '<div class="bhs-eq-band">'
                 + '<input type="range" min="-12" max="12" value="0" step="1" data-index="' + i + '" orient="vertical">'
                 + '<span>' + label + '</span></div>';
         }).join('');
-        eqBandsEl.querySelectorAll('input[type=range]').forEach(function (slider) {
+        eqBandsEl.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(function (slider) {
             slider.addEventListener('input', function () {
                 var i = parseInt(slider.dataset.index || '', 10);
-                if (eqFilters && eqFilters[i])
-                    eqFilters[i].gain.value = parseFloat(slider.value);
+                if (eqFilters && eqFilters[i]) (eqFilters[i] as BiquadFilterNode).gain.value = parseFloat(slider.value);
             });
         });
     }
+
     // Disengages the shadow graph entirely once NEITHER the EQ panel nor
     // the visualizer wants it running anymore — otherwise shadowAudio
     // would keep silently playing in the background (and the primary
     // element would stay muted) after the listener closes both surfaces.
-    function disengageGraphIfUnwanted() {
+    function disengageGraphIfUnwanted(): void {
         var eqOpen = eqPanel.style.display !== 'none';
-        if (!eqOpen && !visualizerOn)
-            disengageGraph();
+        if (!eqOpen && !visualizerOn) disengageGraph();
     }
+
     eqToggleBtn.addEventListener('click', function () {
         var wasOpen = eqPanel.style.display !== 'none';
         eqPanel.style.display = wasOpen ? 'none' : '';
         lyricsPanel.style.display = 'none';
         qualityPanel.style.display = 'none';
+
         if (wasOpen) {
             disengageGraphIfUnwanted();
-        }
-        else {
+        } else {
             graphWanted = true;
             engageGraphForCurrentTrack();
         }
     });
-    byId('bhs-eq-reset').addEventListener('click', function () {
-        if (!eqFilters)
-            return;
+    byId<HTMLButtonElement>('bhs-eq-reset').addEventListener('click', function () {
+        if (!eqFilters) return;
         eqFilters.forEach(function (f) { f.gain.value = 0; });
-        eqBandsEl.querySelectorAll('input[type=range]').forEach(function (s) { s.value = '0'; });
+        eqBandsEl.querySelectorAll<HTMLInputElement>('input[type=range]').forEach(function (s) { s.value = '0'; });
     });
+
     // Visualizer: a simple bar-graph over the analyser's frequency-domain
     // data — reads from the SAME shadow-graph analyser as the EQ, so it's
     // subject to the exact same eligibility gating above (no separate
     // CORS risk of its own). Only drawn while toggled on AND the graph
     // is actually engaged for the current track.
-    var vizCtx = vizCanvas.getContext('2d');
-    function drawVisualizer() {
-        if (!visualizerOn)
-            return;
+    var vizCtx = vizCanvas.getContext('2d') as CanvasRenderingContext2D;
+    function drawVisualizer(): void {
+        if (!visualizerOn) return;
         requestAnimationFrame(drawVisualizer);
-        if (!analyserNode || !graphEngaged || audio.paused)
-            return;
+        if (!analyserNode || !graphEngaged || audio.paused) return;
+
         var data = new Uint8Array(analyserNode.frequencyBinCount);
         analyserNode.getByteFrequencyData(data);
         var w = vizCanvas.width, h = vizCanvas.height;
         vizCtx.clearRect(0, 0, w, h);
         var barWidth = w / data.length;
         for (var i = 0; i < data.length; i++) {
-            var barHeight = (data[i] / 255) * h;
+            var barHeight = ((data[i] as number) / 255) * h;
             vizCtx.fillRect(i * barWidth, h - barHeight, Math.max(1, barWidth - 1), barHeight);
         }
     }
     vizCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bh-accent') || '#C1503A';
+
     vizToggleBtn.addEventListener('click', function () {
         visualizerOn = !visualizerOn;
         vizCanvas.style.display = visualizerOn ? '' : 'none';
@@ -1378,19 +1440,18 @@
             graphWanted = true;
             engageGraphForCurrentTrack();
             drawVisualizer();
-        }
-        else {
+        } else {
             disengageGraphIfUnwanted();
         }
     });
+
     /* ---------- local file import ---------- */
-    byId('bhs-import-open').addEventListener('click', function () {
-        if (!loggedIn) {
-            notify('Log in to import your own music.', true);
-            return;
-        }
+
+    byId<HTMLButtonElement>('bhs-import-open').addEventListener('click', function () {
+        if (!loggedIn) { notify('Log in to import your own music.', true); return; }
         importModal.style.display = 'flex';
     });
+
     // Audit fix (2026-07-25): the shared empty-state component's CTA/clear
     // links are same-page anchors (#bhs-import, #bhs-clear-filters), not
     // real URLs — the library is re-rendered via innerHTML on every view
@@ -1398,56 +1459,50 @@
     // the moment the empty state re-renders. Delegated on `library` (a
     // stable container that's never itself replaced) instead.
     library.addEventListener('click', function (e) {
-        var target = e.target;
+        var target = e.target as HTMLElement;
         if (target.closest('a[href="#bhs-import"]')) {
             e.preventDefault();
-            byId('bhs-import-open').click();
-        }
-        else if (target.closest('a[href="#bhs-clear-filters"]')) {
+            byId<HTMLButtonElement>('bhs-import-open').click();
+        } else if (target.closest('a[href="#bhs-clear-filters"]')) {
             e.preventDefault();
             searchInput.value = '';
             genreFilter.value = '';
-            if (currentView === 'all')
-                renderView();
+            if (currentView === 'all') renderView();
         }
     });
-    byId('bhs-import-close').addEventListener('click', function () { importModal.style.display = 'none'; });
-    byId('bhs-import-submit').addEventListener('click', function () {
-        var fileInput = byId('bhs-import-file');
-        var errorBox = byId('bhs-import-error');
+    byId<HTMLButtonElement>('bhs-import-close').addEventListener('click', function () { importModal.style.display = 'none'; });
+
+    byId<HTMLButtonElement>('bhs-import-submit').addEventListener('click', function () {
+        var fileInput = byId<HTMLInputElement>('bhs-import-file');
+        var errorBox = byId<HTMLElement>('bhs-import-error');
         errorBox.textContent = '';
-        if (!fileInput.files || !fileInput.files.length) {
-            errorBox.textContent = 'Choose a file first.';
-            return;
-        }
+        if (!fileInput.files || !fileInput.files.length) { errorBox.textContent = 'Choose a file first.'; return; }
+
         var form = new FormData();
-        form.append('audio', fileInput.files[0]);
-        var title = byId('bhs-import-title').value.trim();
-        var artist = byId('bhs-import-artist').value.trim();
-        if (title)
-            form.append('title', title);
-        if (artist)
-            form.append('artist', artist);
+        form.append('audio', fileInput.files[0] as File);
+        var title = byId<HTMLInputElement>('bhs-import-title').value.trim();
+        var artist = byId<HTMLInputElement>('bhs-import-artist').value.trim();
+        if (title) form.append('title', title);
+        if (artist) form.append('artist', artist);
+
         // No Content-Type header here — the browser sets the correct
         // multipart boundary itself when the body is a FormData object;
         // setting it manually would break the boundary.
         fetch(rest + 'import', { method: 'POST', headers: authHeaders(), body: form })
             .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
-            .then(function (res) {
-            if (!res.ok) {
-                errorBox.textContent = (res.data && res.data.message) || 'Import failed.';
-                return;
-            }
-            allTracks.push(res.data.track);
-            importModal.style.display = 'none';
-            fileInput.value = '';
-            if (currentView === 'all')
-                renderView();
-        })
+            .then(function (res: { ok: boolean; data: { message?: string; track: BHSTrack } }) {
+                if (!res.ok) { errorBox.textContent = (res.data && res.data.message) || 'Import failed.'; return; }
+                allTracks.push(res.data.track);
+                importModal.style.display = 'none';
+                fileInput.value = '';
+                if (currentView === 'all') renderView();
+            })
             .catch(function () { errorBox.textContent = 'Could not reach the server — check your connection and try again.'; });
     });
+
     /* ---------- tabs + filters ---------- */
-    byId('bhs-tabs').querySelectorAll('.bhs-tab').forEach(function (tab) {
+
+    byId<HTMLElement>('bhs-tabs').querySelectorAll<HTMLElement>('.bhs-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             document.querySelectorAll('.bhs-tab').forEach(function (t) { t.classList.remove('active'); });
             tab.classList.add('active');
@@ -1455,21 +1510,21 @@
             renderView();
         });
     });
-    searchInput.addEventListener('input', function () { if (currentView === 'all')
-        renderView(); });
-    genreFilter.addEventListener('change', function () { if (currentView === 'all')
-        renderView(); });
+    searchInput.addEventListener('input', function () { if (currentView === 'all') renderView(); });
+    genreFilter.addEventListener('change', function () { if (currentView === 'all') renderView(); });
+
     /* ---------- initial load ---------- */
-    function loadGenreOptions() {
-        var genres = {};
+
+    function loadGenreOptions(): void {
+        var genres: Record<string, boolean> = {};
         allTracks.forEach(function (t) { t.genres.forEach(function (g) { genres[g] = true; }); });
         Object.keys(genres).sort().forEach(function (g) {
             var opt = document.createElement('option');
-            opt.value = g;
-            opt.textContent = g;
+            opt.value = g; opt.textContent = g;
             genreFilter.appendChild(opt);
         });
     }
+
     /* ---------- Jam (shared listening) ---------- */
     // Polling-first (see class-jam.php's header note on why): every
     // 2s, whoever isn't the host fetches /jam/{code}/state and applies
@@ -1477,33 +1532,26 @@
     // state on every local transport action (see the guarded handlers
     // above) so a host's own listening feels instant, never waiting on
     // its own poll round-trip.
-    var jamModal = byId('bhs-jam-modal');
-    var jamBanner = byId('bhs-jam-banner');
+
+    var jamModal = byId<HTMLElement>('bhs-jam-modal');
+    var jamBanner = byId<HTMLElement>('bhs-jam-banner');
     var jamErrorEl = document.getElementById('bhs-jam-error');
-    function jamShowError(msg) { if (jamErrorEl)
-        jamErrorEl.textContent = msg || ''; }
-    byId('bhs-jam-toggle').addEventListener('click', function () {
-        if (jam.active) {
-            jamRenderBanner();
-            jamModal.style.display = '';
-            return;
-        }
+
+    function jamShowError(msg: string): void { if (jamErrorEl) jamErrorEl.textContent = msg || ''; }
+
+    byId<HTMLButtonElement>('bhs-jam-toggle').addEventListener('click', function () {
+        if (jam.active) { jamRenderBanner(); jamModal.style.display = ''; return; }
         jamModal.style.display = jamModal.style.display === 'none' ? '' : 'none';
         jamShowError('');
     });
-    byId('bhs-jam-close').addEventListener('click', function () { jamModal.style.display = 'none'; });
-    byId('bhs-jam-create').addEventListener('click', function () {
-        if (!loggedIn) {
-            jamShowError('Log in to start a Jam.');
-            return;
-        }
-        if (!queue.length) {
-            jamShowError('Play something first — Jam starts from your current queue.');
-            return;
-        }
-        var voteMode = byId('bhs-jam-vote-mode').checked;
-        var approvalMode = byId('bhs-jam-approval-mode').checked;
-        var maxParticipants = parseInt(byId('bhs-jam-max-participants').value, 10) || 0;
+    byId<HTMLButtonElement>('bhs-jam-close').addEventListener('click', function () { jamModal.style.display = 'none'; });
+
+    byId<HTMLButtonElement>('bhs-jam-create').addEventListener('click', function () {
+        if (!loggedIn) { jamShowError('Log in to start a Jam.'); return; }
+        if (!queue.length) { jamShowError('Play something first — Jam starts from your current queue.'); return; }
+        var voteMode = byId<HTMLInputElement>('bhs-jam-vote-mode').checked;
+        var approvalMode = byId<HTMLInputElement>('bhs-jam-approval-mode').checked;
+        var maxParticipants = parseInt(byId<HTMLInputElement>('bhs-jam-max-participants').value, 10) || 0;
         fetch(rest + 'jam', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
@@ -1514,66 +1562,53 @@
                 max_participants: maxParticipants,
             }),
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-            .then(function (res) {
-            if (!res.ok) {
-                jamShowError(res.d.message || 'Could not start a Jam.');
-                return;
-            }
-            jamStart(res.d, true);
-        }).catch(function () { jamShowError('Could not start a Jam right now.'); });
+            .then(function (res: { ok: boolean; d: BHSJamState & { message?: string } }) {
+                if (!res.ok) { jamShowError(res.d.message || 'Could not start a Jam.'); return; }
+                jamStart(res.d, true);
+            }).catch(function () { jamShowError('Could not start a Jam right now.'); });
     });
-    byId('bhs-jam-join').addEventListener('click', function () {
-        if (!loggedIn) {
-            jamShowError('Log in to join a Jam.');
-            return;
-        }
-        var code = (byId('bhs-jam-code-input').value || '').trim().toUpperCase();
-        if (!code)
-            return;
+
+    byId<HTMLButtonElement>('bhs-jam-join').addEventListener('click', function () {
+        if (!loggedIn) { jamShowError('Log in to join a Jam.'); return; }
+        var code = (byId<HTMLInputElement>('bhs-jam-code-input').value || '').trim().toUpperCase();
+        if (!code) return;
         fetch(rest + 'jam/' + encodeURIComponent(code) + '/join', { method: 'POST', headers: authHeaders() })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
-            .then(function (res) {
-            if (res.status === 202 && res.d.pending) {
-                // Approval-required mode: nothing to render as a live
-                // session yet — keep polling THIS SAME join endpoint
-                // until the host approves (or the request is denied,
-                // which shows up as a plain join failure once the
-                // host clears it from pending — there's no separate
-                // "you were denied" signal, matching how a kicked
-                // participant's poll just starts failing too).
-                jamShowError(res.d.message || 'Waiting for the host…');
-                jamAwaitApproval(code);
-                return;
-            }
-            if (res.status >= 400) {
-                jamShowError((res.d && res.d.message) || 'Could not join that Jam.');
-                return;
-            }
-            jamStart(res.d, false);
-        }).catch(function () { jamShowError('Could not join that Jam right now.'); });
+            .then(function (res: { status: number; d: BHSJamState & { message?: string; pending?: boolean } }) {
+                if (res.status === 202 && res.d.pending) {
+                    // Approval-required mode: nothing to render as a live
+                    // session yet — keep polling THIS SAME join endpoint
+                    // until the host approves (or the request is denied,
+                    // which shows up as a plain join failure once the
+                    // host clears it from pending — there's no separate
+                    // "you were denied" signal, matching how a kicked
+                    // participant's poll just starts failing too).
+                    jamShowError(res.d.message || 'Waiting for the host…');
+                    jamAwaitApproval(code);
+                    return;
+                }
+                if (res.status >= 400) { jamShowError((res.d && res.d.message) || 'Could not join that Jam.'); return; }
+                jamStart(res.d, false);
+            }).catch(function () { jamShowError('Could not join that Jam right now.'); });
     });
-    var jamApprovalPoll = null;
-    function jamAwaitApproval(code) {
-        if (jamApprovalPoll)
-            clearInterval(jamApprovalPoll);
+
+    var jamApprovalPoll: number | null = null;
+    function jamAwaitApproval(code: string): void {
+        if (jamApprovalPoll) clearInterval(jamApprovalPoll);
         jamApprovalPoll = window.setInterval(function () {
             fetch(rest + 'jam/' + encodeURIComponent(code) + '/join', { method: 'POST', headers: authHeaders() })
                 .then(function (r) { return r.json().then(function (d) { return { status: r.status, d: d }; }); })
-                .then(function (res) {
-                if (res.status === 202)
-                    return; // still waiting
-                if (jamApprovalPoll)
-                    clearInterval(jamApprovalPoll);
-                jamApprovalPoll = null;
-                if (res.status >= 400) {
-                    jamShowError((res.d && res.d.message) || 'The host didn’t let you in.');
-                    return;
-                }
-                jamStart(res.d, false);
-            }).catch(function () { });
+                .then(function (res: { status: number; d: BHSJamState & { message?: string } }) {
+                    if (res.status === 202) return; // still waiting
+                    if (jamApprovalPoll) clearInterval(jamApprovalPoll);
+                    jamApprovalPoll = null;
+                    if (res.status >= 400) { jamShowError((res.d && res.d.message) || 'The host didn’t let you in.'); return; }
+                    jamStart(res.d, false);
+                }).catch(function () {});
         }, 3000);
     }
-    function jamStart(state, isHost) {
+
+    function jamStart(state: BHSJamState, isHost: boolean): void {
         jam.active = true;
         jam.isHost = isHost;
         jam.code = state.code;
@@ -1582,36 +1617,30 @@
         jamShowError('');
         jamApplyState(state);
         jamRenderBanner();
-        if (jam.pollTimer)
-            clearInterval(jam.pollTimer);
+        if (jam.pollTimer) clearInterval(jam.pollTimer);
         // The host still polls, at a slower cadence, purely to pick up
         // vote-skip results and the participant list — its own transport
         // state is never overwritten by a poll response (see
         // jamApplyState's isHost short-circuit).
         jam.pollTimer = window.setInterval(jamPoll, isHost ? 4000 : 2000);
     }
-    function jamPoll() {
-        if (!jam.active || !jam.code)
-            return;
+
+    function jamPoll(): void {
+        if (!jam.active || !jam.code) return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/state', { headers: authHeaders() })
             .then(function (r) {
-            if (r.status === 404) {
-                jamEnd('This Jam has ended.');
-                throw new Error('ended');
-            }
-            // 403 here (never for the host, who's always a
-            // participant) means the host removed us — get_state's
-            // own participant check is what actually detects this,
-            // there's no separate "was I kicked" signal to poll.
-            if (r.status === 403) {
-                jamEnd('You were removed from this Jam by the host.');
-                throw new Error('kicked');
-            }
-            return r.json();
-        })
+                if (r.status === 404) { jamEnd('This Jam has ended.'); throw new Error('ended'); }
+                // 403 here (never for the host, who's always a
+                // participant) means the host removed us — get_state's
+                // own participant check is what actually detects this,
+                // there's no separate "was I kicked" signal to poll.
+                if (r.status === 403) { jamEnd('You were removed from this Jam by the host.'); throw new Error('kicked'); }
+                return r.json();
+            })
             .then(jamApplyState)
-            .catch(function () { });
+            .catch(function () { /* a missed poll just tries again next tick */ });
     }
+
     // The one function that turns server state into what's actually
     // playing. For a non-host, this IS the transport — queue/index/
     // playing/position all come from here, not from any local click.
@@ -1619,23 +1648,26 @@
     // own action (participants, vote-skip tally, and — if a vote just
     // cleared — the index/position it forced) are applied; the host's
     // own play/pause/seek is authoritative locally and already pushed.
-    function jamApplyState(state) {
+    function jamApplyState(state: BHSJamState): void {
         jam.controlMode = state.control_mode;
         jamRenderParticipants(state.participants);
         jamRenderSkipVotes(state);
         jamRenderPending(state.pending);
-        if (jam.isHost)
-            return; // see comment above — host doesn't take transport dictation from its own poll
+
+        if (jam.isHost) return; // see comment above — host doesn't take transport dictation from its own poll
+
         var incomingIds = state.queue.map(function (t) { return t.id; });
         var currentIds = queue.map(function (t) { return t.id; });
         var queueChanged = incomingIds.length !== currentIds.length || incomingIds.some(function (id, i) { return id !== currentIds[i]; });
-        if (queueChanged)
-            queue = state.queue;
+
+        if (queueChanged) queue = state.queue;
         var trackChanged = queueIndex !== state.index || queueChanged;
         queueIndex = state.index;
+
         if (trackChanged) {
             playCurrent();
         }
+
         // Position projection: the server gives us "position P as of
         // server-time T," not "position right now" — a participant who
         // polls every 2s and just naively sets currentTime = P on
@@ -1646,26 +1678,22 @@
         if (state.playing) {
             var elapsed = (Date.now() / 1000) - state.position_updated_at;
             var projected = state.position + Math.max(0, elapsed);
-            if (Math.abs(audio.currentTime - projected) > 1.5)
-                audio.currentTime = projected;
-            if (audio.paused)
-                audio.play().catch(function () { });
+            if (Math.abs(audio.currentTime - projected) > 1.5) audio.currentTime = projected;
+            if (audio.paused) audio.play().catch(function () {});
+        } else {
+            if (Math.abs(audio.currentTime - state.position) > 0.75) audio.currentTime = state.position;
+            if (!audio.paused) audio.pause();
         }
-        else {
-            if (Math.abs(audio.currentTime - state.position) > 0.75)
-                audio.currentTime = state.position;
-            if (!audio.paused)
-                audio.pause();
-        }
+
         renderQueuePanel();
     }
+
     // Debounced-by-nature: only ever called right after a guarded local
     // transport action (see playPrev/playNext/playPauseBtn/seek/
     // toggleShuffle/queue-click above), never on a timer — the host's
     // push IS the state, so there's nothing to coalesce.
-    function jamPushState() {
-        if (!jam.active || !jam.isHost || !jam.code)
-            return;
+    function jamPushState(): void {
+        if (!jam.active || !jam.isHost || !jam.code) return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/host-state', {
             method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
@@ -1674,51 +1702,42 @@
                 playing: !audio.paused,
                 position: audio.currentTime || 0,
             }),
-        }).catch(function () { });
+        }).catch(function () { /* next local action retries implicitly */ });
     }
-    function jamVoteSkip() {
-        if (!jam.active || !jam.code || jam.controlMode !== 'vote_skip')
-            return;
+
+    function jamVoteSkip(): void {
+        if (!jam.active || !jam.code || jam.controlMode !== 'vote_skip') return;
         fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/vote-skip', { method: 'POST', headers: authHeaders() })
             .then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {
-            // Previously fully silent — a listener tapping "Vote to
-            // skip" during a real connection blip had no way to tell
-            // their vote didn't register vs. the button just being
-            // unresponsive.
-            notify('Could not reach the server — check your connection and try again.', true);
-        });
+                // Previously fully silent — a listener tapping "Vote to
+                // skip" during a real connection blip had no way to tell
+                // their vote didn't register vs. the button just being
+                // unresponsive.
+                notify('Could not reach the server — check your connection and try again.', true);
+            });
     }
-    function jamLeave() {
-        if (!jam.active || !jam.code)
-            return;
-        fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/leave', { method: 'POST', headers: authHeaders() }).catch(function () { });
+
+    function jamLeave(): void {
+        if (!jam.active || !jam.code) return;
+        fetch(rest + 'jam/' + encodeURIComponent(jam.code) + '/leave', { method: 'POST', headers: authHeaders() }).catch(function () {});
         jamEnd(null);
     }
-    function jamEnd(notice) {
+
+    function jamEnd(notice: string | null): void {
         jam.active = false;
         jam.isHost = false;
         jam.code = null;
-        if (jam.pollTimer)
-            clearInterval(jam.pollTimer);
+        if (jam.pollTimer) clearInterval(jam.pollTimer);
         jam.pollTimer = null;
         jamBanner.style.display = 'none';
         jamBanner.innerHTML = '';
-        if (jamParticipantsPanel) {
-            jamParticipantsPanel.remove();
-            jamParticipantsPanel = null;
-        }
-        if (jamPendingPanel) {
-            jamPendingPanel.remove();
-            jamPendingPanel = null;
-        }
-        if (jamApprovalPoll) {
-            clearInterval(jamApprovalPoll);
-            jamApprovalPoll = null;
-        }
-        if (notice)
-            notify(notice, true);
+        if (jamParticipantsPanel) { jamParticipantsPanel.remove(); jamParticipantsPanel = null; }
+        if (jamPendingPanel) { jamPendingPanel.remove(); jamPendingPanel = null; }
+        if (jamApprovalPoll) { clearInterval(jamApprovalPoll); jamApprovalPoll = null; }
+        if (notice) notify(notice, true);
     }
-    function jamRenderBanner() {
+
+    function jamRenderBanner(): void {
         jamBanner.style.display = '';
         var roleLabel = jam.isHost ? 'You\'re hosting' : 'Listening along';
         var skipHtml = (!jam.isHost && jam.controlMode === 'vote_skip')
@@ -1728,11 +1747,12 @@
             + skipHtml
             + ' <button type="button" class="bhs-link-btn" id="bhs-jam-leave-btn">Leave</button>';
         var voteBtn = document.getElementById('bhs-jam-vote-skip-btn');
-        if (voteBtn)
-            voteBtn.addEventListener('click', jamVoteSkip);
-        byId('bhs-jam-leave-btn').addEventListener('click', jamLeave);
+        if (voteBtn) voteBtn.addEventListener('click', jamVoteSkip);
+        byId<HTMLButtonElement>('bhs-jam-leave-btn').addEventListener('click', jamLeave);
     }
-    var jamParticipantsPanel = null;
+
+    var jamParticipantsPanel: HTMLElement | null = null;
+
     // A per-listener, purely-local mute: hides a specific person's name
     // from YOUR OWN "who's here" view. Everyone in a Jam still hears the
     // exact same shared audio stream (there's no per-participant audio
@@ -1741,38 +1761,31 @@
     // (for a host) kicking: no server round-trip, no one else is
     // affected, reversible any time. Scoped per Jam code so it doesn't
     // carry over oddly into an unrelated future session.
-    function mutedKey() { return 'bhs_jam_muted_' + jam.code; }
-    function getMuted() {
-        try {
-            return JSON.parse(localStorage.getItem(mutedKey()) || '[]');
-        }
-        catch (e) {
-            return [];
-        }
+    function mutedKey(): string { return 'bhs_jam_muted_' + jam.code; }
+    function getMuted(): number[] {
+        try { return JSON.parse(localStorage.getItem(mutedKey()) || '[]'); } catch (e) { return []; }
     }
-    function isMuted(uid) { return getMuted().indexOf(uid) !== -1; }
-    function toggleMute(uid) {
+    function isMuted(uid: number): boolean { return getMuted().indexOf(uid) !== -1; }
+    function toggleMute(uid: number): void {
         var list = getMuted();
         var i = list.indexOf(uid);
-        if (i === -1)
-            list.push(uid);
-        else
-            list.splice(i, 1);
+        if (i === -1) list.push(uid); else list.splice(i, 1);
         localStorage.setItem(mutedKey(), JSON.stringify(list));
     }
-    function jamRenderParticipants(list) {
-        if (!jam.active)
-            return;
+
+    function jamRenderParticipants(list: BHSJamParticipant[] | undefined): void {
+        if (!jam.active) return;
         list = list || [];
         var muted = getMuted();
         var visibleNames = list
             .filter(function (p) { return muted.indexOf(p.user_id) === -1; })
             .map(function (p) { return p.display_name || ('User #' + p.user_id); });
         jamBanner.title = visibleNames.length ? ('In this Jam: ' + visibleNames.join(', ')) : '';
+
         if (!jamParticipantsPanel) {
             jamParticipantsPanel = document.createElement('div');
             jamParticipantsPanel.className = 'bhs-jam-participants';
-            jamBanner.parentNode.insertBefore(jamParticipantsPanel, jamBanner.nextSibling);
+            (jamBanner.parentNode as ParentNode).insertBefore(jamParticipantsPanel, jamBanner.nextSibling);
         }
         // Everyone gets the mute toggle; only the host ALSO gets remove
         // (silently rejected on the host's own row — see class-jam.php's
@@ -1783,18 +1796,17 @@
             var mutedNow = isMuted(p.user_id);
             var html = '<span class="bhs-jam-participant' + (mutedNow ? ' bhs-jam-participant--muted' : '') + '">' + name
                 + ' <button type="button" class="bhs-link-btn" data-mute-uid="' + p.user_id + '">' + (mutedNow ? 'unmute' : 'mute') + '</button>';
-            if (jam.isHost)
-                html += ' <button type="button" class="bhs-link-btn" data-kick-uid="' + p.user_id + '">remove</button>';
+            if (jam.isHost) html += ' <button type="button" class="bhs-link-btn" data-kick-uid="' + p.user_id + '">remove</button>';
             html += '</span>';
             return html;
         }).join('');
-        jamParticipantsPanel.querySelectorAll('button[data-mute-uid]').forEach(function (btn) {
+        jamParticipantsPanel.querySelectorAll<HTMLButtonElement>('button[data-mute-uid]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 toggleMute(parseInt(btn.dataset.muteUid || '', 10));
                 jamRenderParticipants(list); // re-render locally, no server round-trip
             });
         });
-        jamParticipantsPanel.querySelectorAll('button[data-kick-uid]').forEach(function (btn) {
+        jamParticipantsPanel.querySelectorAll<HTMLButtonElement & { _armTimer?: number }>('button[data-kick-uid]').forEach(function (btn) {
             // Arm/disarm instead of confirm() — same banned-dialog reason
             // as everywhere else in this ecosystem. First click arms it
             // (relabeled for 3s); a second click while armed actually
@@ -1818,57 +1830,55 @@
             });
         });
     }
-    var jamPendingPanel = null;
+
+    var jamPendingPanel: HTMLElement | null = null;
+
     // Host-only: `state.pending` is only ever populated by the server
     // response when the caller IS the host (see class-jam.php's
     // respond()) — a non-host's state simply has no such key, so this
     // naturally renders nothing for anyone else.
-    function jamRenderPending(pending) {
-        if (!jam.active || !jam.isHost)
-            return;
+    function jamRenderPending(pending: BHSJamPendingParticipant[] | undefined): void {
+        if (!jam.active || !jam.isHost) return;
         if (!pending || !pending.length) {
-            if (jamPendingPanel) {
-                jamPendingPanel.remove();
-                jamPendingPanel = null;
-            }
+            if (jamPendingPanel) { jamPendingPanel.remove(); jamPendingPanel = null; }
             return;
         }
         if (!jamPendingPanel) {
             jamPendingPanel = document.createElement('div');
             jamPendingPanel.className = 'bhs-jam-pending';
-            jamBanner.parentNode.insertBefore(jamPendingPanel, (jamParticipantsPanel || jamBanner).nextSibling);
+            (jamBanner.parentNode as ParentNode).insertBefore(jamPendingPanel, (jamParticipantsPanel || jamBanner).nextSibling);
         }
         jamPendingPanel.innerHTML = '<strong>Waiting to join:</strong> ' + pending.map(function (p) {
             return '<span class="bhs-jam-participant">' + esc(p.display_name)
                 + ' <button type="button" class="bhs-link-btn" data-approve-uid="' + p.user_id + '">let in</button>'
                 + ' <button type="button" class="bhs-link-btn" data-deny-uid="' + p.user_id + '">deny</button></span>';
         }).join('');
-        jamPendingPanel.querySelectorAll('button[data-approve-uid]').forEach(function (btn) {
+        jamPendingPanel.querySelectorAll<HTMLButtonElement>('button[data-approve-uid]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 fetch(rest + 'jam/' + encodeURIComponent(jam.code || '') + '/approve', {
                     method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ user_id: parseInt(btn.dataset.approveUid || '', 10) }),
-                }).then(function (r) { return r.json(); }).then(jamApplyState).catch(function () { });
+                }).then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {});
             });
         });
-        jamPendingPanel.querySelectorAll('button[data-deny-uid]').forEach(function (btn) {
+        jamPendingPanel.querySelectorAll<HTMLButtonElement>('button[data-deny-uid]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 fetch(rest + 'jam/' + encodeURIComponent(jam.code || '') + '/deny', {
                     method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ user_id: parseInt(btn.dataset.denyUid || '', 10) }),
-                }).then(function (r) { return r.json(); }).then(jamApplyState).catch(function () { });
+                }).then(function (r) { return r.json(); }).then(jamApplyState).catch(function () {});
             });
         });
     }
-    function jamRenderSkipVotes(state) {
-        if (!jam.active || jam.controlMode !== 'vote_skip')
-            return;
+
+    function jamRenderSkipVotes(state: BHSJamState): void {
+        if (!jam.active || jam.controlMode !== 'vote_skip') return;
         var btn = document.getElementById('bhs-jam-vote-skip-btn');
-        if (btn)
-            btn.textContent = state.i_voted_skip
-                ? ('Voted (' + state.skip_votes_count + '/' + state.skip_votes_needed + ')')
-                : ('Vote to skip (' + state.skip_votes_count + '/' + state.skip_votes_needed + ')');
+        if (btn) btn.textContent = state.i_voted_skip
+            ? ('Voted (' + state.skip_votes_count + '/' + state.skip_votes_needed + ')')
+            : ('Vote to skip (' + state.skip_votes_count + '/' + state.skip_votes_needed + ')');
     }
+
     Promise.all([
         // WordPress's REST cookie-auth deliberately treats a request as
         // anonymous unless X-WP-Nonce is present (rest_cookie_check_errors()
@@ -1883,7 +1893,7 @@
         fetch(rest + 'releases', { headers: authHeaders() }).then(function (r) { return r.json(); }),
         loggedIn ? fetch(rest + 'likes', { headers: authHeaders() }).then(function (r) { return r.json(); }) : Promise.resolve({ track_ids: [] }),
         loggedIn ? fetch(rest + 'playlists', { headers: authHeaders() }).then(function (r) { return r.json(); }) : Promise.resolve({ playlists: [] }),
-    ]).then(function (results) {
+    ]).then(function (results: [{ tracks?: BHSTrack[] }, { releases?: BHSRelease[] }, { track_ids?: number[] }, { playlists?: BHSPlaylist[] }]) {
         allTracks = results[0].tracks || [];
         releases = results[1].releases || [];
         likedIds = results[2].track_ids || [];
@@ -1893,8 +1903,7 @@
         // (read-only, no tabs needed) — everything else above still
         // loads normally first since the shared view's own track
         // lookups depend on allTracks already being populated.
-        if (!maybeOpenSharedPlaylist() && !maybeOpenTrackDeepLink())
-            renderView();
+        if (!maybeOpenSharedPlaylist() && !maybeOpenTrackDeepLink()) renderView();
     }).catch(function () {
         library.innerHTML = '<p class="bhs-empty">Could not load the library right now.</p>';
     });

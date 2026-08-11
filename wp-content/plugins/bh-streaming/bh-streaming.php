@@ -2,11 +2,52 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.26
+ * Version:     0.5.27
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.27 — TypeScript pilot: converted player.js (state, per-view
+// rendering, the playback/queue engine, Media Session, likes/
+// playlists/volume/related-tracks, quality switching, the EQ/
+// visualizer Web Audio graph, and shared-listening Jam sessions) —
+// the last of the two large/risky files deliberately deferred from
+// the earlier pilot rounds, and the harder of the two: no class to
+// hang types on, so this stays the exact same one flat IIFE the
+// original was, with every `var`/function inside it given a real
+// type instead of being restructured into a class just to make
+// typing easier. Real interfaces for the REST shapes this file reads
+// (tracks/releases/playlists/Jam state), a `byId<T>()` non-null-cast
+// helper matching player.ts's own `q<T>()` convention (bh-contest's
+// class-shaped player, converted last round) for the many DOM lookups
+// this template guarantees are present, and a real (not `any`)
+// AudioContext/webkitAudioContext fallback for the EQ/visualizer
+// graph. No @ts-nocheck.
+// Two real, deliberate fixes worth calling out (both confirmed non-
+// behavioral): (1) AudioContext isn't a Window property in TypeScript's
+// own DOM lib (it's a bare global), so `window.AudioContext` doesn't
+// type-check even though it worked at runtime — rewritten to check the
+// real global `AudioContext` directly, falling back to
+// `window.webkitAudioContext`, same two-branch fallback as before, just
+// referenced correctly. (2) `.then()` for the play-tracking fetch
+// needed an explicit trailing `return;` to satisfy noImplicitReturns —
+// the function already implicitly returned undefined on the non-402
+// path, this just makes that explicit.
+// Every compiled assets/js/player.js diff was reviewed line-by-line
+// against the pre-conversion file — the remaining deltas are all
+// compiler reformatting (single-line `if (x) y;` expanded to braces)
+// or type-safety-driven String()/Number() casts on values already
+// implicitly coerced at runtime either way (seek.value, volume.value).
+// No logic changed. `node --check` clean, no CommonJS artifacts.
+// NOT runtime-verified against a live browser this session — this is
+// the single highest-risk file in the whole TS pilot (real-time audio
+// playback, Web Audio CORS handling, shared-listening session state),
+// so treat this changelog's own "no behavior changed" claim as
+// static-analysis-and-diff-reviewed, not live-tested, and prioritize a
+// real browser smoke test (play/pause/seek, quality switch, EQ/
+// visualizer toggle, starting and joining a Jam) before relying on
+// this in production.
 
 // 0.5.26 — Ecosystem quality Phase 2, brick 8/13: added native return/
 // parameter types across all 22 includes files (293 findings, both
@@ -89,7 +130,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.26');
+define('BHS_VER',  '0.5.27');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
