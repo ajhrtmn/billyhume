@@ -958,9 +958,17 @@ class BHI_Portal {
   }
   .bhi-tip:hover, .bhi-tip:focus-visible { background:var(--bh-accent, #2271b1); color:#fff; border-color:var(--bh-accent, #2271b1); outline:none; }
   .bhi-tip-bubble {
-    position:fixed; z-index:100000; max-width:260px; padding:8px 11px; background:var(--bh-text, #1d2327); color:#fff;
+    /* Fixed dark chip regardless of the site's own light/dark theme —
+       QA fix: this originally read background:var(--bh-text, ...),
+       but --bh-text is the site's theme-relative FOREGROUND text color
+       (light in dark mode), not a fixed dark chrome color, so on this
+       site's real dark theme it rendered as a washed-out light-cream
+       box instead of a proper dark tooltip. A transient overlay like
+       this should look the same regardless of page theme, same as
+       .bhy-tip-bubble's admin-side counterpart. */
+    position:fixed; z-index:100000; max-width:260px; padding:8px 11px; background:#1c0e0a; color:#f5e9df;
     font-size:12.5px; font-weight:400; line-height:1.4; border-radius:var(--bh-radius-sm, 6px);
-    box-shadow:0 2px 10px rgba(0,0,0,.25); pointer-events:none; opacity:0; transform:translateY(2px);
+    box-shadow:0 2px 10px rgba(0,0,0,.35); pointer-events:none; opacity:0; transform:translateY(2px);
     transition:opacity .12s ease, transform .12s ease;
   }
   .bhi-tip-bubble.is-visible { opacity:1; transform:translateY(0); }

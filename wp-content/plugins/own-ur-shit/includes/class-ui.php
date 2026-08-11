@@ -956,10 +956,20 @@ class BHY_UI {
                 background: var(--bhy-accent, #2271b1); color: #fff; border-color: var(--bhy-accent, #2271b1); outline: none;
             }
             .bhy-tip-bubble {
+                /* Fixed dark chip regardless of the current admin color
+                   scheme — QA fix: this originally read
+                   background:var(--bhy-text, ...), but that token is
+                   the admin design system\'s theme-relative FOREGROUND
+                   text color, not a fixed dark chrome color (confirmed
+                   live: the portal\'s identical mistake, --bh-text,
+                   rendered as a washed-out light-cream box on the
+                   site\'s real dark theme instead of a proper dark
+                   tooltip). A transient overlay like this should look
+                   the same regardless of theme. */
                 position: fixed; z-index: 100000; max-width: 280px; padding: 8px 11px;
-                background: var(--bhy-text, #1d2327); color: #fff; font-size: var(--bhy-text-xs, 12px);
+                background: #1d2327; color: #fff; font-size: var(--bhy-text-xs, 12px);
                 font-weight: 400; line-height: 1.4; border-radius: var(--bhy-radius-sm, 6px);
-                box-shadow: 0 2px 10px rgba(0,0,0,.25); pointer-events: none; opacity: 0;
+                box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; opacity: 0;
                 transform: translateY(2px); transition: opacity .12s ease, transform .12s ease;
             }
             .bhy-tip-bubble.is-visible { opacity: 1; transform: translateY(0); }
