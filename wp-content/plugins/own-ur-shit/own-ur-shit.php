@@ -2,10 +2,52 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.20
+ * Version:     3.10.21
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.21 — Real regression caused by 3.10.20, caught live the moment
+// Billy actually looked at the front-end nav after it deployed: the
+// site's real "Contests"/"Courses" submenus were there, but every link
+// that used to be in the nav (Home, a handful of Pages, an Account/Log
+// In link) had vanished. Root cause: those links were NEVER a real
+// menu — they were own-ur-shit-theme's own no-menu-assigned fallback
+// (oust_default_menu() in header.php), which only renders when the
+// theme's primary location has nothing assigned. The instant
+// ensure_default_menu_exists() (3.10.20) auto-creates a real menu and
+// assigns it, that fallback stops firing — and the brand-new menu was
+// otherwise EMPTY apart from whatever OUS_MenuSync::sync_group() had
+// just synced into it, so those links silently disappeared with
+// nothing wrong actually reported anywhere.
+//
+// OUS_MenuSync::seed_default_menu_content() (new) — called from
+// ensure_default_menu_exists() ONLY the moment a menu is genuinely
+// brand-new (never on a pre-existing "Primary Menu" term, which may
+// already hold Billy's own real content) — recreates the same Home +
+// up to 6 Pages + Account/Log In link the fallback used to show, but
+// now as real, editable nav_menu_items instead of a hardcoded fallback
+// dump. Deliberately built plugin-side rather than deferring to
+// oust_default_menu()'s own logic: this plugin is the one guaranteed to
+// actually deploy (own-ur-shit-theme's files have a known, separate,
+// unresolved gap where they don't reliably sync to this install's
+// Wasmer hosting), and the Account/Log In link is a real ecosystem
+// feature that must show up regardless of which theme is active — the
+// same "plugins and theme fully independent" posture 3.10.19/3.10.20
+// were already built on.
+//
+// Doesn't touch Billy's actual live site retroactively — its "Primary
+// Menu" term already exists from 3.10.20's rollout, so this seed only
+// fires for a menu created from here forward. The already-created menu
+// needs a one-time manual backfill (done directly via wp-admin's own
+// Add-to-Menu UI, not a second code path) to get the same Home/Pages/
+// Account links added to it.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone — verify by deleting a
+// test site's "Primary Menu" entirely, re-triggering a resync (re-save
+// any contest/course), and confirming the fresh menu shows Home +
+// Pages + Account alongside the synced Contests/Courses groups.
 
 // 3.10.20 — Second half of the OUS_MenuSync fix (3.10.19), found
 // immediately after deploying it and toggling "show in site menu" on
@@ -1310,7 +1352,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.20');
+define('OUS_VER', '3.10.21');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

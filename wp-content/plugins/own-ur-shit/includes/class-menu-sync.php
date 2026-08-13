@@ -128,6 +128,20 @@ class OUS_MenuSync {
         $menu_id = $existing ? $existing->term_id : wp_create_nav_menu('Primary Menu');
         if (is_wp_error($menu_id) || !$menu_id) return 0;
 
+        // Real regression found live: the classic theme's own no-menu-
+        // assigned fallback (oust_default_menu() in header.php) rendered
+        // Home + a handful of Pages + an Account/Log In link — the
+        // moment this method assigns a real (but otherwise EMPTY) menu
+        // to the theme's primary location, that fallback stops firing
+        // and every one of those links vanishes, even though nothing
+        // about them was ever a real menu Billy could edit. A brand-new
+        // menu gets seeded with the same links, but as real, editable
+        // nav_menu_items this time — never re-seeded on a menu that
+        // already existed (that "$existing" case shouldn't happen, but
+        // if it does, it may already hold Billy's own real content and
+        // must not be touched).
+        if (!$existing) self::seed_default_menu_content((int) $menu_id);
+
         $locations = get_nav_menu_locations();
         foreach (array_keys(get_registered_nav_menus()) as $location) {
             if (empty($locations[$location])) {
@@ -137,6 +151,44 @@ class OUS_MenuSync {
         set_theme_mod('nav_menu_locations', $locations);
 
         return (int) $menu_id;
+    }
+
+    // Seeds a genuinely brand-new menu with the same content the classic
+    // theme's own fallback used to show, so auto-creating a real menu is
+    // never a visible regression: "Home", up to 6 published pages
+    // (same query/order oust_default_menu() used), and an Account/Log
+    // In link if own-ur-shit's portal is installed. Deliberately plugin-
+    // side rather than relying on theme code for this — the portal link
+    // is a real ecosystem feature that must show up regardless of which
+    // theme is active or whether that theme's own code has deployed
+    // correctly.
+    private static function seed_default_menu_content(int $menu_id): void {
+        wp_update_nav_menu_item($menu_id, 0, [
+            'menu-item-title'  => __('Home', 'own-ur-shit'),
+            'menu-item-url'    => home_url('/'),
+            'menu-item-status' => 'publish',
+            'menu-item-type'   => 'custom',
+        ]);
+
+        $pages = get_pages(['sort_column' => 'menu_order', 'number' => 6]);
+        foreach ($pages as $page) {
+            wp_update_nav_menu_item($menu_id, 0, [
+                'menu-item-title'     => $page->post_title,
+                'menu-item-object'    => 'page',
+                'menu-item-object-id' => $page->ID,
+                'menu-item-type'      => 'post_type',
+                'menu-item-status'    => 'publish',
+            ]);
+        }
+
+        if (class_exists('BHI_Portal')) {
+            wp_update_nav_menu_item($menu_id, 0, [
+                'menu-item-title'  => __('Account', 'own-ur-shit'),
+                'menu-item-url'    => home_url('/account/'),
+                'menu-item-status' => 'publish',
+                'menu-item-type'   => 'custom',
+            ]);
+        }
     }
 
     /** @param array<int, array<string, mixed>> $items */
