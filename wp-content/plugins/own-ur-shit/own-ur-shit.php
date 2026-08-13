@@ -2,10 +2,36 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.22
+ * Version:     3.10.23
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.23 — Real UX gap found live: clicking a menu group's own label
+// (e.g. "Courses", not one of its child items) went nowhere — every
+// group parent OUS_MenuSync::sync_group() creates was hardcoded to
+// menu-item-url '#'. sync_group() now takes an optional 4th arg,
+// $group_url, threaded through both sync_classic_menus() and
+// sync_block_navigations() as the parent item's real link — defaults
+// to '#' (unchanged behavior) when a caller has no real destination to
+// offer. bh-courses (0.4.80, same release) passes its native
+// /courses/ archive; bh-contest (3.7.28) looks for a real page using
+// [bh_archive] and links there if one exists.
+//
+// Also: the seeded Account/Log-In link's on-page "Log In"/"Go to
+// Portal" swap only worked for items OUS_MenuSync itself creates (its
+// own ACCOUNT_LINK_META_KEY tag) — a menu whose "Primary Menu" term
+// already existed before this feature landed never got that tag
+// retroactively. Not a code fix (nothing to change — the tagging only
+// happens at real creation time, correctly), but worth noting here:
+// re-seeding a pre-existing menu (delete + let ensure_default_menu_
+// exists() recreate it) is the way to pick up the tag on an older
+// install, confirmed live on billyhume.wasmer.app.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone — verify by re-saving a
+// course/contest and confirming its group's own label (not a child
+// item) links to a real catalog page instead of doing nothing.
 
 // 3.10.22 — New shared service: OUS_Visibility (class-visibility.php),
 // the same shared-service shape as Notifications/Jobs/Roles/Events.
@@ -1383,7 +1409,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.22');
+define('OUS_VER', '3.10.23');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

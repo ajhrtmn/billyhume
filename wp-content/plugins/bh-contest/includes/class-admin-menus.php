@@ -265,7 +265,27 @@ class BH_AdminMenus {
             $items[] = ['label' => $label, 'url' => get_permalink($page_id)];
         }
 
-        OUS_MenuSync::sync_group('contests', 'Contests', $items);
+        OUS_MenuSync::sync_group('contests', 'Contests', $items, self::archive_page_url());
+    }
+
+    // Real gap found live: clicking "Contests" itself (the group label,
+    // not a child contest) went nowhere ('#'). Unlike bh-courses, this
+    // CPT has no native archive URL — BH_Archive's own docblock
+    // deliberately treats [bh_archive] as a single unified library
+    // spanning every contest, placed on whatever real page an admin
+    // chooses (there's no auto-created page for it the way an
+    // individual contest gets one via _bh_page_id). Finds a real,
+    // published page actually using that shortcode and links there if
+    // one exists; leaves the parent link at '#' (no worse than before
+    // this fix) if none does, rather than guessing a URL that might not
+    // exist on this install.
+    private static function archive_page_url(): string {
+        $pages = get_posts([
+            'post_type' => 'page', 'post_status' => 'publish', 'numberposts' => 1,
+            's' => '[bh_archive', 'orderby' => 'ID', 'order' => 'ASC',
+        ]);
+        $url = $pages ? get_permalink($pages[0]->ID) : false;
+        return $url ?: '#';
     }
 
     /** @param mixed $post_id */

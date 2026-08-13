@@ -2,11 +2,23 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.79
+ * Version:     0.4.80
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.80 — Real UX gap found live: clicking "Courses" itself (the
+// synced menu group's own label, not a child course) went nowhere —
+// OUS_MenuSync::sync_group() (own-ur-shit 3.10.23) now takes an
+// optional real URL for the group parent; resync_course_menu()
+// (class-admin.php) passes home_url('/courses/'), this CPT's own
+// native archive (has_archive => 'courses', class-post-types.php),
+// the same URL convention BHC_Gate/BHC_PortalPanel already used
+// elsewhere.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone.
 
 // 0.4.79 — Real product decision, caught live: a course with no
 // required tier was fully viewable by a logged-OUT visitor — clicking
@@ -384,7 +396,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.79');
+define('BHC_VER',  '0.4.80');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

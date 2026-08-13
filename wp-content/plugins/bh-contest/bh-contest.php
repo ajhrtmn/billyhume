@@ -2,11 +2,28 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.27
+ * Version:     3.7.28
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.28 — Real UX gap found live: clicking "Contests" itself (the
+// synced menu group's own label, not a child contest) went nowhere —
+// OUS_MenuSync::sync_group() (own-ur-shit 3.10.23) now takes an
+// optional real URL for the group parent. Unlike bh-courses, this CPT
+// has no native archive URL — BH_Archive's own docblock deliberately
+// treats [bh_archive] as a single unified library spanning every
+// contest, placed on whatever real page an admin chooses, not an
+// auto-created page the way an individual contest gets one. New
+// BH_AdminMenus::archive_page_url() (class-admin-menus.php) finds a
+// real, published page actually using that shortcode and links there
+// if one exists; leaves the parent at '#' (no worse than before this
+// fix) if none does, rather than guessing a URL that might not exist
+// on a given install.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone.
 
 // 3.7.27 — New "Access" metabox (class-admin-metaboxes.php, side column
 // next to Site Menu): a real, explicit per-contest opt-IN for
@@ -300,7 +317,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.27');
+define('BH_VER',        '3.7.28');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

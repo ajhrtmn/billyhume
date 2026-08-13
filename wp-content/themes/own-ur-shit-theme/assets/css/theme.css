@@ -161,6 +161,16 @@ body.admin-bar .oust-site-header { top: 32px; }
 }
 .oust-nav-list li:hover > ul, .oust-nav-list li:focus-within > ul { display: block; }
 .oust-nav-list ul a { height: 34px; border-radius: 6px; width: 100%; }
+/* A submenu near the right edge of the nav bar (e.g. the last one or
+   two top-level items — Contests/Courses on this site, added by
+   OUS_MenuSync) would otherwise run off the viewport on desktop, since
+   every submenu anchors left:0 relative to its own parent regardless
+   of how close that parent sits to the right edge. theme.js measures
+   each submenu's actual position on hover/focus and adds this class
+   only when it would genuinely overflow — real per-item overflow
+   detection, not a hardcoded "last N items" guess that would break the
+   moment the menu's real content changes. */
+.oust-nav-list li.oust-submenu-flip > ul { left: auto; right: 0; }
 
 .oust-nav-toggle {
     display: none; flex-direction: column; justify-content: center; align-items: center; gap: 4px;

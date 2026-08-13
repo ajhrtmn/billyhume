@@ -78,15 +78,22 @@ class OUS_MenuSync {
      * [['label' => 'Summer Songwriting Contest', 'url' => '...'], ...].
      * An empty array removes the group's submenu entirely rather than
      * leaving a label with nothing under it.
+     *
+     * $group_url is the parent item's OWN link — real UX gap found
+     * live: clicking "Courses" (the group label itself, not a child
+     * item) went nowhere ('#'), when a real catalog/archive to browse
+     * usually exists. Optional and defaults to '#' — a group with no
+     * real catalog page to send someone to (bh-contest, most installs)
+     * is no worse off than before.
      */
     /** @param array<int, array<string, mixed>> $items */
-    public static function sync_group(string $group_key, string $label, array $items): void {
-        self::sync_classic_menus($group_key, $label, $items);
-        self::sync_block_navigations($group_key, $label, $items);
+    public static function sync_group(string $group_key, string $label, array $items, string $group_url = '#'): void {
+        self::sync_classic_menus($group_key, $label, $items, $group_url);
+        self::sync_block_navigations($group_key, $label, $items, $group_url);
     }
 
     /** @param array<int, array<string, mixed>> $items */
-    private static function sync_classic_menus(string $group_key, string $label, array $items): void {
+    private static function sync_classic_menus(string $group_key, string $label, array $items, string $group_url = '#'): void {
         $menus = wp_get_nav_menus();
         if (!$menus) {
             // Real gap found live: a site that has never been through
@@ -130,7 +137,7 @@ class OUS_MenuSync {
 
             $parent_id = wp_update_nav_menu_item($menu_id, 0, [
                 'menu-item-title'  => $label,
-                'menu-item-url'    => '#',
+                'menu-item-url'    => $group_url,
                 'menu-item-status' => 'publish',
                 'menu-item-type'   => 'custom',
             ]);
@@ -236,7 +243,7 @@ class OUS_MenuSync {
     }
 
     /** @param array<int, array<string, mixed>> $items */
-    private static function sync_block_navigations(string $group_key, string $label, array $items): void {
+    private static function sync_block_navigations(string $group_key, string $label, array $items, string $group_url = '#'): void {
         $navs = get_posts([
             'post_type'      => self::NAV_POST_TYPE,
             'post_status'    => 'any',
@@ -270,7 +277,7 @@ class OUS_MenuSync {
                     'blockName'    => 'core/navigation-submenu',
                     'attrs'        => [
                         'label'    => $label,
-                        'url'      => '#',
+                        'url'      => $group_url,
                         'kind'     => 'custom',
                         'metadata' => ['ousMenuSyncGroup' => $group_key],
                     ],

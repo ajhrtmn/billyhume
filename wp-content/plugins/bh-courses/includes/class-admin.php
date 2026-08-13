@@ -135,7 +135,12 @@ class BHC_Admin {
             $items[] = ['label' => $label, 'url' => self::menu_url_for_course($p->ID)];
         }
 
-        OUS_MenuSync::sync_group('courses', 'Courses', $items);
+        // Real gap found live: clicking "Courses" itself (the group
+        // label, not a child course) went nowhere ('#') — bh_course has
+        // a real, native archive at /courses/ (has_archive => 'courses',
+        // class-post-types.php) to send them to instead, the exact same
+        // URL convention BHC_Gate/BHC_PortalPanel already use elsewhere.
+        OUS_MenuSync::sync_group('courses', 'Courses', $items, home_url('/courses/'));
     }
 
     /**
