@@ -66,6 +66,7 @@ class OUS_GithubUpdates {
         add_action('init', [self::class, 'load_sources'], 30); // after OUS_Registry's own data is definitely populated
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_post_ous_github_update_now', [self::class, 'handle_update_now']);
+        add_action('admin_post_ous_github_check_now', [self::class, 'handle_check_now']);
 
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run_check']);
@@ -129,10 +130,10 @@ class OUS_GithubUpdates {
      * ous_registered_plugins/ous_debug_tools.
      */
     public static function load_sources(): void {
-        if (class_exists('OUS_Registry')) {
-            $default_repo = apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
-            $default_branch = apply_filters('ous_github_updates_default_branch', 'dev');
+        $default_repo = apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
+        $default_branch = apply_filters('ous_github_updates_default_branch', 'dev');
 
+        if (class_exists('OUS_Registry')) {
             foreach (OUS_Registry::all() as $key => $info) {
                 if (empty($info['bundled_zip']) || empty($info['file'])) continue;
                 self::register($key, [
@@ -145,6 +146,33 @@ class OUS_GithubUpdates {
                 ]);
             }
         }
+
+        // Bootstrap fallback for this ecosystem's own companion theme —
+        // a real, confirmed chicken-and-egg gap: the theme's own,
+        // decentralized registration (own-ur-shit-theme/functions.php,
+        // the documented "any theme opts in via
+        // ous_github_updates_register" pattern every OTHER theme should
+        // use) can't take effect on THIS install until the theme's code
+        // has already deployed successfully — which is the exact
+        // problem this mechanism exists to solve for a host (like this
+        // one) whose git-deploy integration only syncs
+        // wp-content/plugins/. Registering it here too, from a plugin
+        // that's guaranteed to deploy, breaks the deadlock; harmless if
+        // the theme's own copy also runs once its code is current
+        // (register() is a plain overwrite, not additive). Not a
+        // general "plugins know about themes" precedent — scoped to
+        // this one specific, named companion theme.
+        if (wp_get_theme('own-ur-shit-theme')->exists()) {
+            self::register('own-ur-shit-theme', [
+                'type' => 'theme',
+                'label' => 'Own Ur Shit (theme)',
+                'stylesheet' => 'own-ur-shit-theme',
+                'repo' => $default_repo,
+                'branch' => $default_branch,
+                'path' => 'wp-content/themes/own-ur-shit-theme',
+            ]);
+        }
+
         do_action('ous_github_updates_register');
     }
 
@@ -229,6 +257,26 @@ class OUS_GithubUpdates {
         $body = wp_remote_retrieve_body($response);
         if (preg_match('/^[ \t\/*#@]*Version:\s*(.+)$/mi', $body, $m)) return trim($m[1]);
         return null;
+    }
+
+    // Real gap this debug section's own copy used to admit outright
+    // ("a manual 'check now' pass isn't wired up yet") — the daily
+    // scheduled job (run_check(), above) was the only way this table's
+    // status ever refreshed, so a source registered moments ago (like
+    // a brand-new theme source) sat at "Not checked yet" with no real
+    // path to an "Update now" button until the next cron tick, up to
+    // 24h later. check_all() is cheap (raw-file HEAD-weight fetches,
+    // no zip downloads), so running it synchronously on a real admin
+    // click is fine.
+    public static function handle_check_now(): void {
+        if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
+        check_admin_referer('ous_github_check_now');
+
+        self::check_all();
+
+        if (class_exists('OUS_Toast')) OUS_Toast::queue('Checked GitHub for updates.', 'success');
+        wp_safe_redirect(add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')));
+        exit;
     }
 
     /* ---------------- the real update: download, re-zip, install ---------------- */
@@ -395,7 +443,13 @@ class OUS_GithubUpdates {
             return;
         }
 
-        echo '<p class="description">Self-hosted update checking against each source\'s own GitHub repo/branch — no wordpress.org dependency. Checked automatically once a day (a manual "check now" pass isn\'t wired up yet — this table shows the most recent scheduled check\'s result); "Update now" downloads and installs directly, overwriting the currently-installed copy.</p>';
+        echo '<p class="description">Self-hosted update checking against each source\'s own GitHub repo/branch — no wordpress.org dependency. Checked automatically once a day; "Check now" refreshes this table immediately instead of waiting for the next scheduled pass. "Update now" downloads and installs directly, overwriting the currently-installed copy.</p>';
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:12px;">';
+        echo '<input type="hidden" name="action" value="ous_github_check_now">';
+        wp_nonce_field('ous_github_check_now');
+        echo '<button class="button">Check now</button>';
+        echo '</form>';
 
         $status = get_option('ous_github_update_status', []);
 

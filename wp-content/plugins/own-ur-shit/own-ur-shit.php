@@ -2,10 +2,41 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.23
+ * Version:     3.10.24
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.24 — Two real gaps found live minutes after 3.10.23 (which
+// wired the companion theme into OUS_GithubUpdates) actually deployed:
+// (1) a genuine chicken-and-egg deadlock — the theme's own
+// registration (own-ur-shit-theme/functions.php, the documented
+// decentralized "any theme opts in" pattern) can't take effect until
+// the theme's code has already deployed successfully, which is
+// precisely the problem this mechanism exists to solve for a host
+// (like this install's Wasmer hosting) whose git-deploy only syncs
+// wp-content/plugins/. OUS_GithubUpdates::load_sources() now also
+// registers this ecosystem's own named companion theme directly, from
+// a plugin guaranteed to deploy — breaks the deadlock; harmless once
+// the theme's own copy also runs (register() overwrites, not
+// duplicates). Scoped to this one specific theme by name, not a
+// general "plugins know about themes" precedent.
+//
+// (2) The debug section's own copy admitted outright: "a manual
+// 'check now' pass isn't wired up yet" — the daily scheduled job was
+// the only way the status table ever refreshed, so anything just
+// registered (like the theme moments ago) sat at "Not checked yet"
+// with no path to an "Update now" button short of a real cron tick up
+// to 24h later. New handle_check_now() (admin_post_ous_github_check_
+// now) + a real "Check now" button run check_all() synchronously on
+// click — cheap (raw-file fetches, no zip downloads), fine to run
+// on-demand.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone — verify by clicking
+// "Check now" on Debug Tools -> GitHub Updates and confirming the
+// theme row populates with a real remote version instead of staying
+// at "Not checked yet".
 
 // 3.10.23 — Real UX gap found live: clicking a menu group's own label
 // (e.g. "Courses", not one of its child items) went nowhere — every
@@ -1409,7 +1440,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.23');
+define('OUS_VER', '3.10.24');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
