@@ -101,22 +101,49 @@ function oust_pingback_header() {
 add_action('wp_head', 'oust_pingback_header');
 
 /**
- * Real gap: nothing anywhere linked to the account portal — a visitor
- * had to already know the /account/ URL by heart. Appends an Account/
- * Log In link to the end of the primary nav automatically, rather than
- * asking Billy to remember to add one by hand in Appearance > Menus (a
- * step that's easy to forget, and silently stays missing on a fresh
- * install otherwise). class_exists('BHI_Portal')-guarded since the
- * theme can technically be active without the core plugin; degrades to
- * simply not adding the link rather than linking to a route that
- * doesn't exist.
+ * oust_append_portal_link() removed (was here) — a real, latent
+ * duplicate-link bug caught before it could ever surface live: this
+ * theme-side filter and own-ur-shit's own OUS_MenuSync (3.10.20+,
+ * class-menu-sync.php) both add an Account/Log-In link to the primary
+ * menu independently, so a menu that's ever actually been synced would
+ * show it TWICE the moment this theme's code deploys and starts
+ * running (it hadn't yet, at the time this was caught — see
+ * class-github-updates.php's new registration below). OUS_MenuSync's
+ * own seeded link is the single source of truth now — real, tagged,
+ * per-request dynamic ("Log In" / "Go to Portal"), theme-agnostic (any
+ * theme's own no-menu-assigned fallback still gets it too, see
+ * header.php's oust_default_menu()) — so this theme no longer needs
+ * its own copy of the same feature.
  */
-function oust_append_portal_link($items, $args) {
-    if (($args->theme_location ?? '') !== 'primary' || !class_exists('BHI_Portal')) return $items;
 
-    $url = esc_url(home_url('/account/'));
-    $label = is_user_logged_in() ? __('Account', 'own-ur-shit-theme') : __('Log In', 'own-ur-shit-theme');
-    $items .= '<li class="menu-item oust-nav-account-link"><a href="' . $url . '">' . esc_html($label) . '</a></li>';
-    return $items;
-}
-add_filter('wp_nav_menu_items', 'oust_append_portal_link', 10, 2);
+/**
+ * Real, confirmed infra gap: this install's Wasmer hosting deploys
+ * wp-content/plugins/ from this repo's GitHub on every push, but never
+ * wp-content/themes/ — confirmed live by comparing this file's own
+ * committed version against style.css's live Version: header, which
+ * stayed stale across multiple real pushes. No wasmer.toml exists in
+ * this repo controlling deploy scope, so this is a Wasmer-dashboard-
+ * side setting outside this codebase's control, not something fixable
+ * here directly.
+ *
+ * Rather than depend on that file-sync path at all, this theme
+ * registers itself with own-ur-shit's own OUS_GithubUpdates
+ * (class-github-updates.php) — the same real, self-hosted "check
+ * GitHub for a newer version, install it in one click" mechanism every
+ * ecosystem plugin already gets automatically. The live site PULLS a
+ * fresh copy from GitHub using its own already-configured access,
+ * rather than any external process pushing credentials/files at it —
+ * the more robust, hosting-agnostic direction (works identically on
+ * Wasmer, a different host, or no host-level git integration at all).
+ */
+add_action('ous_github_updates_register', function () {
+    if (!class_exists('OUS_GithubUpdates')) return;
+    OUS_GithubUpdates::register('own-ur-shit-theme', [
+        'type' => 'theme',
+        'label' => 'Own Ur Shit (theme)',
+        'stylesheet' => 'own-ur-shit-theme',
+        'repo' => apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume'),
+        'branch' => apply_filters('ous_github_updates_default_branch', 'dev'),
+        'path' => 'wp-content/themes/own-ur-shit-theme',
+    ]);
+});

@@ -61,10 +61,12 @@ function oust_default_menu() {
     foreach ($pages as $p) {
         echo '<li><a href="' . esc_url(get_permalink($p->ID)) . '">' . esc_html(get_the_title($p->ID)) . '</a></li>';
     }
-    // wp_nav_menu_items (see oust_append_portal_link() in functions.php)
-    // only fires for a real, assigned menu — this fallback path (no
-    // menu assigned in Appearance > Menus) skips that filter entirely,
-    // so the same Account/Log In link is added directly here too.
+    // This fallback only runs when NO menu is assigned to 'primary' at
+    // all — a state OUS_MenuSync's ensure_default_menu_exists() (own-
+    // ur-shit 3.10.20+) now actively prevents by auto-creating one the
+    // first time it ever syncs. Kept as a genuine last-resort safety
+    // net, not the normal path anymore, so it still needs its own
+    // Account/Log In link — nothing else would add one here.
     if (class_exists('BHI_Portal')) {
         $url = esc_url(home_url('/account/'));
         $label = is_user_logged_in() ? esc_html__('Account', 'own-ur-shit-theme') : esc_html__('Log In', 'own-ur-shit-theme');
