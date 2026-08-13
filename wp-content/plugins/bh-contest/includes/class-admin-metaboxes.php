@@ -511,6 +511,18 @@ class BH_AdminMetaboxes {
             echo '<p><label>Menu label (optional)<br><input type="text" name="bh_menu_label" value="' . esc_attr($label) . '" placeholder="' . esc_attr($post->post_title) . '" style="width:100%;"></label></p>';
         }, 'bh_contest', 'side', 'default');
 
+        // Real, deliberate default: a contest is publicly viewable
+        // (that's how voting/engagement is meant to work — fans need to
+        // see and share it without an account, login is only required
+        // to VOTE). This is the explicit per-contest opt-IN for the
+        // rare case an artist wants a contest restricted to logged-in
+        // members only — see OUS_Visibility's own docblock for why this
+        // is the opposite default polarity from bh-courses.
+        add_meta_box('bh_contest_access', 'Access', function ($post) {
+            echo '<p>' . OUS_Visibility::members_only_checkbox_field($post->ID) . '</p>';
+            echo '<p class="description">Off by default — this contest (and its voting/results data) is visible to anyone, logged in or not. Voting itself already requires an account regardless of this setting. Turn this on for a contest you genuinely want restricted to logged-in members only.</p>';
+        }, 'bh_contest', 'side', 'default');
+
         // Separate from the "Contest Branding & Style" override below —
         // this picks a CARD TEMPLATE (brand vs. poster), not a color
         // override; a contest that never turns on style override at all
@@ -788,6 +800,7 @@ class BH_AdminMetaboxes {
         if (isset($_POST['bh_menu_label'])) {
             update_post_meta($post_id, '_bh_menu_label', sanitize_text_field($_POST['bh_menu_label']));
         }
+        OUS_Visibility::save_members_only_from_request($post_id);
 
         // Real OUS_Revisions consumer — versioning matters most for
         // anything that's a post, like contests and lessons. Lessons

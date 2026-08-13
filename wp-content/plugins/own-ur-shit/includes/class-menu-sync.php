@@ -32,6 +32,42 @@ if (!defined('ABSPATH') ) exit;
 class OUS_MenuSync {
     const NAV_POST_TYPE = 'wp_navigation';
     const CLASSIC_GROUP_META_KEY = '_ous_menu_sync_group';
+    const ACCOUNT_LINK_META_KEY = '_ous_menu_sync_account_link';
+
+    // The seeded Account/Log In item (seed_default_menu_content() below)
+    // is a real, static nav_menu_item — its title/url can't react to
+    // who's viewing the page the way the old theme-side filter
+    // (oust_append_portal_link(), now superseded) used to. Tagged via
+    // ACCOUNT_LINK_META_KEY so this filter can find it and rewrite its
+    // title/url per-request instead: "Log In" -> the portal's login
+    // screen for a visitor, "Go to Portal" -> the portal itself for a
+    // logged-in member. Fires on every classic wp_nav_menu() render,
+    // regardless of theme — same "plugins and theme fully independent"
+    // posture as the rest of this class.
+    public static function init(): void {
+        add_filter('wp_nav_menu_objects', [self::class, 'localize_account_link'], 10, 1);
+    }
+
+    /**
+     * @param array<int, \WP_Post> $items
+     * @return array<int, \WP_Post>
+     */
+    public static function localize_account_link(array $items): array {
+        if (!class_exists('BHI_Portal')) return $items;
+        $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/');
+        $logged_in = is_user_logged_in();
+        foreach ($items as $item) {
+            if (get_post_meta($item->ID, self::ACCOUNT_LINK_META_KEY, true) !== '1') continue;
+            // title/url — real properties wp_setup_nav_menu_item()
+            // (core) adds to every item this filter receives, declared
+            // for PHPStan via phpstan-stubs/wp-post-nav-menu-item.stub.php
+            // (see that file's own docblock for why a stub, not an
+            // ignore, is the correct fix here).
+            $item->title = $logged_in ? __('Go to Portal', 'own-ur-shit') : __('Log In', 'own-ur-shit');
+            $item->url = $portal_url;
+        }
+        return $items;
+    }
 
     /**
      * Rebuilds ONE named submenu group (e.g. 'contests') inside every
@@ -182,12 +218,20 @@ class OUS_MenuSync {
         }
 
         if (class_exists('BHI_Portal')) {
-            wp_update_nav_menu_item($menu_id, 0, [
-                'menu-item-title'  => __('Account', 'own-ur-shit'),
-                'menu-item-url'    => home_url('/account/'),
+            $account_item_id = wp_update_nav_menu_item($menu_id, 0, [
+                'menu-item-title'  => __('Log In', 'own-ur-shit'),
+                'menu-item-url'    => home_url('/' . BHI_Portal::REWRITE_SLUG . '/'),
                 'menu-item-status' => 'publish',
                 'menu-item-type'   => 'custom',
             ]);
+            // Tagged so localize_account_link() (this class's own
+            // wp_nav_menu_objects filter) can find and rewrite this
+            // exact item's title/url per-request — "Log In" here is
+            // just the logged-out default it's saved with, not the
+            // final rendered label for every visitor.
+            if (!is_wp_error($account_item_id) && $account_item_id) {
+                update_post_meta($account_item_id, self::ACCOUNT_LINK_META_KEY, '1');
+            }
         }
     }
 

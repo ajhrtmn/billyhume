@@ -511,10 +511,23 @@
                     // when the real, actionable cause is a stale
                     // session/nonce (e.g. this tab sat open past a
                     // login timeout).
-                    if (res === -1 || res === '-1') {
+                    //
+                    // A logged-OUT visitor hits a different bare
+                    // response: admin-ajax.php itself replies "0"
+                    // (not "-1") for an action with no
+                    // wp_ajax_nopriv_* handler registered — real gap
+                    // found while auditing why a logged-out click
+                    // here just showed "Something went wrong."
+                    // instead of a clear "log in" prompt. This is
+                    // now defense-in-depth (the lesson itself
+                    // requires login to view at all — see
+                    // OUS_Visibility/BHC_Gate — so a logged-out
+                    // visitor shouldn't normally reach this button),
+                    // covering a session that expires mid-lesson.
+                    if (res === -1 || res === '-1' || res === 0 || res === '0') {
                         btn.disabled = false;
                         btn.textContent = originalLabel;
-                        var expiredMsg = 'Your session has expired — refresh the page and log in again.';
+                        var expiredMsg = 'You need to be logged in to save your progress — log in and try again.';
                         if (typeof BHCoreToast !== 'undefined') {
                             BHCoreToast.show(expiredMsg, 'error');
                         }
@@ -694,6 +707,21 @@
                 .then(function (res) {
                 var _a;
                 var resultBox = form.querySelector('.bhc-quiz-result');
+                // Same bare 0/-1 cases as bhc_mark_complete above — a
+                // logged-out or session-expired submit here previously
+                // fell straight into the generic "Something went
+                // wrong." branch below with no indication login was
+                // the actual problem.
+                if (res === -1 || res === '-1' || res === 0 || res === '0') {
+                    if (quizSubmitBtn) {
+                        quizSubmitBtn.disabled = false;
+                        quizSubmitBtn.textContent = quizSubmitLabel;
+                    }
+                    resultBox.style.display = '';
+                    resultBox.className = 'bhc-quiz-result bhc-fail';
+                    resultBox.textContent = 'You need to be logged in to submit this quiz — log in and try again.';
+                    return;
+                }
                 if (!res.success) {
                     if (quizSubmitBtn) {
                         quizSubmitBtn.disabled = false;

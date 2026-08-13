@@ -18,6 +18,13 @@ class BHC_Render_Lesson {
         $uid = get_current_user_id();
         $course_id = BHC_PostTypes::course_for_lesson($lesson_id);
 
+        // Same login-vs-tier split as BHC_Render_Course::render_course()
+        // — a deep-linked lesson permalink was the OTHER real way a
+        // logged-out visitor could reach real course content directly,
+        // bypassing the course page's own gate entirely.
+        if ($course_id && !$uid && !OUS_Visibility::is_public($course_id)) {
+            return OUS_Visibility::render_login_notice(__('Log in to view this lesson.', 'bh-courses'));
+        }
         // Tier access and drip scheduling are checked (and reported)
         // separately, not through the combined user_can_access_lesson()
         // check — a paid-up student hitting a not-yet-open lesson should

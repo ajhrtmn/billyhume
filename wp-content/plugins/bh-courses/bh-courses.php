@@ -2,11 +2,49 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.78
+ * Version:     0.4.79
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.79 — Real product decision, caught live: a course with no
+// required tier was fully viewable by a logged-OUT visitor — clicking
+// "Mark complete" or a quiz submit button just failed with a confusing
+// generic error, because the tier gate (BHM_Gate::user_has_tier_access)
+// only asks "is the tier requirement satisfied," which is vacuously
+// true when no tier is set at all. Login and tier are different
+// questions this plugin was conflating.
+//
+// BHC_Render_Course::render_course() and BHC_Render_Lesson::
+// render_lesson_steps() now check own-ur-shit's new OUS_Visibility
+// (3.10.22) FIRST, separately from BHC_Gate's tier check — a course
+// defaults to requiring a logged-in account to view at all, same as
+// anything ordinarily meant for an audience rather than an anonymous
+// visitor. A new "Public — anyone can view without logging in"
+// checkbox on the course's own Login requirement metabox section is
+// the explicit per-course opt-out (class-admin.php,
+// OUS_Visibility::checkbox_field()/save_from_request()). Deliberately
+// NOT applied to bh-contest — a contest's whole design depends on
+// being publicly viewable/shareable; that's a separate, explicit
+// product decision left for later, not a side effect of this fix.
+//
+// Also fixed, found while double-checking the "Mark complete and
+// continue" flow specifically wasn't ALSO broken in some other way:
+// courses.ts's bhc_mark_complete/bhc_submit_quiz response handlers only
+// special-cased a bare "-1" (a stale-nonce wp_die()) with a clear "log
+// in" message — admin-ajax.php's actual response for a logged-out
+// visitor hitting an action with no wp_ajax_nopriv_* handler is a bare
+// "0", which fell through to a generic "Something went wrong." Now
+// treated the same as "-1". Mostly defense-in-depth now that the lesson
+// itself requires login to reach at all, but still a real gap for a
+// session that expires mid-lesson. Recompiled via `npx tsc`.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone — verify by viewing an
+// ungated course/lesson while logged out (should show a login prompt,
+// not the real content), then toggling "Public" on and confirming it
+// opens back up.
 
 // 0.4.78 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
 // the "Gate by tier price rank" select on a course's Supporter access
@@ -346,7 +384,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.78');
+define('BHC_VER',  '0.4.79');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

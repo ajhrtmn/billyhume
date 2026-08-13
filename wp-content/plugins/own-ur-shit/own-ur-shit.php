@@ -2,10 +2,41 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.21
+ * Version:     3.10.22
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.22 — New shared service: OUS_Visibility (class-visibility.php),
+// the same shared-service shape as Notifications/Jobs/Roles/Events.
+// Built for a real product decision, caught live: bh-courses' tier gate
+// (BHM_Gate::user_has_tier_access) only ever asks "is the tier
+// requirement satisfied" — for a course with no tier set, that's
+// vacuously true regardless of login state, so an ungated course was
+// fully viewable by a logged-OUT visitor. Login and tier turned out to
+// be two genuinely different questions this ecosystem was conflating:
+// "can anyone with an account see this" vs. "does seeing it cost
+// something."
+//
+// OUS_Visibility::can_view($post_id) is the shared answer: logged in,
+// OR the post is explicitly marked public via a shared `_ous_public_
+// access` postmeta key — plus render_login_notice() (routes through
+// BHI_Portal's branded login screen when installed, falls back to core
+// wp_login_url() otherwise) and checkbox_field()/save_from_request()
+// so a contributing plugin's own metabox can offer the toggle with
+// zero duplicated meta-key logic.
+//
+// Deliberately NOT wired up as an ecosystem-wide default — bh-contest's
+// whole design depends on a contest being publicly viewable/shareable
+// (login is required to VOTE, not to see the contest), so this is
+// opt-in per plugin/CPT. bh-courses (0.4.79, same release) is the first
+// adopter: courses now default to requiring login, contests are
+// untouched. A future pass may add the INVERTED default to bh-contest
+// (public unless explicitly marked members-only) — a deliberately
+// separate, later product decision, not a side effect of this one.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone.
 
 // 3.10.21 — Real regression caused by 3.10.20, caught live the moment
 // Billy actually looked at the front-end nav after it deployed: the
@@ -1352,7 +1383,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.21');
+define('OUS_VER', '3.10.22');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
@@ -1706,7 +1737,7 @@ define('BHCORE_LOADED', true);
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -2007,6 +2038,7 @@ add_action('admin_enqueue_scripts', ['OUS_Dashboard', 'enqueue_assets']);
 add_action('init', ['BH_Content', 'init']);
 add_action('init', ['BHI_Portal', 'init']);
 add_action('init', ['BH_CommerceProviders', 'init']);
+add_action('init', ['OUS_MenuSync', 'init']);
 register_activation_hook(__FILE__, function () {
     // BHI_Portal::add_rewrite() also runs on every 'init', but the
     // rewrite rule needs an explicit flush once so /account/ resolves

@@ -37,6 +37,17 @@ parameters:
         # file instead would actually execute it against undefined WP
         # functions and fatal; this hand-written stub avoids that.
         - phpstan-bootstrap.php
+    stubFiles:
+        # Merges extra @property tags onto the REAL WP_Post class —
+        # php-stubs/wordpress-stubs already does exactly this for other
+        # dynamic WP_Post properties (its own `@property string
+        # $page_template` tag on the same class); this adds the two
+        # nav-menu-item properties (title, url) that wp_setup_nav_menu_item()
+        # (WP core) bolts onto every WP_Post object wp_get_nav_menu_items()/
+        # the `wp_nav_menu_objects` filter hands out — real, honest typing
+        # for real dynamic properties, not a suppression. See the stub
+        # file's own docblock.
+        - phpstan-stubs/wp-post-nav-menu-item.stub.php
     scanDirectories:
         - wp-content/plugins/own-ur-shit
     scanFiles:

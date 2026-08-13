@@ -2,11 +2,39 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.26
+ * Version:     3.7.27
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.27 — New "Access" metabox (class-admin-metaboxes.php, side column
+// next to Site Menu): a real, explicit per-contest opt-IN for
+// restricting a contest to logged-in members only, via own-ur-shit's
+// new OUS_Visibility (3.10.22, class-visibility.php)
+// can_view_open_by_default()/members_only_checkbox_field()/
+// save_members_only_from_request(). Off by default — a contest stays
+// exactly as publicly viewable/shareable as it's always been (that's
+// how voting/engagement is meant to work; voting itself already
+// requires an account regardless of this setting), the opposite
+// default polarity from bh-courses' new login-required-by-default
+// posture, a deliberate difference explained in OUS_Visibility's own
+// docblock.
+//
+// Real security completeness, not just a UI toggle: BH_Auth::render()
+// (class-auth.php) now checks the same gate before building the player
+// markup at all, AND class-api.php's tracks()/results() REST endpoints
+// (the actual data the player fetches after loading) refuse a
+// members-only contest's submissions/results to a logged-out request —
+// gating only the shortcode's initial HTML would have left the real
+// data reachable by hitting those endpoints directly.
+//
+// php -l clean, scoped PHPStan level 6 clean (full-ecosystem PHPStan
+// level 6 also re-run clean after this change, zero errors, zero new
+// ignores). NOT runtime-verified against a live install by this commit
+// alone — verify by toggling "Members only" on a test contest and
+// confirming a logged-out visitor sees a login prompt instead of the
+// player, with the same result hitting bh/v1/tracks directly.
 
 // 3.7.26 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
 // a round's "Cut to" field on the Rounds (elimination format) metabox,
@@ -272,7 +300,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.26');
+define('BH_VER',        '3.7.27');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

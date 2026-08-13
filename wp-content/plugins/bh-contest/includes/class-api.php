@@ -69,6 +69,9 @@ class BH_API {
         $page = max(1, (int) $req->get_param('page'));
         $cid  = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid) return self::err('no_contest', 'No matching contest.', 404);
+        if (!OUS_Visibility::can_view_open_by_default($cid)) {
+            return self::err('members_only', 'This contest is only visible to logged-in members.', 403);
+        }
 
         $cats = BH_Helpers::categories($cid);
 
@@ -718,6 +721,9 @@ class BH_API {
         $cid = BH_Helpers::resolve_contest($req->get_param('contest'));
         if (!$cid || get_post_meta($cid, '_bh_results_published', true) !== '1') {
             return self::err('hidden', 'Results have not been published yet.', 403);
+        }
+        if (!OUS_Visibility::can_view_open_by_default($cid)) {
+            return self::err('members_only', 'This contest is only visible to logged-in members.', 403);
         }
 
         $cats = BH_Helpers::categories($cid);

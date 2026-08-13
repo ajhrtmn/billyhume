@@ -33,6 +33,20 @@ class BH_Auth {
             }
         }
 
+        // Real, deliberate product decision (not a default): unlike
+        // bh-courses (closed unless marked public), a contest defaults
+        // OPEN — that's how voting/engagement is meant to work, fans
+        // need to see and share a contest without an account. This is
+        // the explicit per-contest opt-IN for the ones an artist wants
+        // restricted to logged-in members only — see OUS_Visibility's
+        // own docblock. The same check also gates the REST endpoints
+        // the player itself fetches from (class-api.php's tracks()/
+        // results()), so this isn't just hiding the player markup —
+        // the actual submission/vote data is refused server-side too.
+        if ($cid && !OUS_Visibility::can_view_open_by_default($cid)) {
+            return OUS_Visibility::render_login_notice(__('Log in to view this contest.', 'bh-contest'));
+        }
+
         if ($cid && class_exists('BH_SEO')) {
             $start = get_post_meta($cid, '_bh_start', true);
             $end   = get_post_meta($cid, '_bh_end', true);

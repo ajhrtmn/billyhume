@@ -135,7 +135,16 @@ class BHC_Render_Course {
         }
 
         $uid = get_current_user_id();
-        $locked = !BHC_Gate::user_can_access_course($uid, $course_id);
+        // Real gap found live: a course with no required tier set was
+        // fully viewable by a logged-OUT visitor — BHC_Gate's tier
+        // check only asks "is the tier requirement satisfied," which is
+        // vacuously true when there's no tier at all. Login and tier
+        // are different questions (see OUS_Visibility's own docblock) —
+        // checked separately so the syllabus-preview treatment below
+        // covers both "you need an account" and "you need a higher
+        // tier" with the right message for each, not one generic lock.
+        $requires_login = !$uid && !OUS_Visibility::is_public($course_id);
+        $locked = $requires_login || !BHC_Gate::user_can_access_course($uid, $course_id);
         $lesson_ids = BHC_PostTypes::lesson_order($course_id);
 
         // The moment a logged-in student is confirmed to have real
@@ -159,7 +168,11 @@ class BHC_Render_Course {
         // Ratings/reviews now live in BHC_Reviews (class-reviews.php).
         echo self::render_course_header($course_id, $uid, $locked);
         if ($locked) {
-            echo BHC_Gate::render_paywall_notice($course_id);
+            if ($requires_login) {
+                echo OUS_Visibility::render_login_notice(__('Log in to view this course.', 'bh-courses'));
+            } else {
+                echo BHC_Gate::render_paywall_notice($course_id);
+            }
             // Even locked, a prospective student can see what they'd be
             // signing up for — a syllabus of lesson TITLES only (no
             // content, no permalink), same "tease, don't leak" posture

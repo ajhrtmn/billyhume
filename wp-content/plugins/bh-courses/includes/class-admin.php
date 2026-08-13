@@ -340,10 +340,20 @@ class BHC_Admin {
         echo '<p><label><input type="checkbox" name="bhc_leaderboard_enabled" value="1"' . checked($leaderboard_enabled, true, false) . '> <strong>Show a leaderboard of top quiz scorers on this course\'s page</strong></label></p>';
         echo '<p class="description">Off by default. Ranks students by their quiz average in this course (same "Mastery: N%" figure shown on the course page and used for certificate distinction) — only students who\'ve attempted at least one quiz appear.</p>';
 
+        // Login vs. tier are different questions (OUS_Visibility's own
+        // docblock) — a course defaults to requiring a logged-in
+        // account to view at all, same as anything meant for an
+        // audience rather than an anonymous visitor. This checkbox is
+        // the explicit, deliberate opt-out for a course an artist
+        // genuinely wants open to anyone, tier or no tier.
+        echo '<h4>Login requirement</h4>';
+        echo '<p>' . OUS_Visibility::checkbox_field($post->ID, 'Public — anyone can view without logging in') . '</p>';
+        echo '<p class="description">Off by default — viewing this course requires a logged-in account, same as anything ordinarily meant for your audience rather than an anonymous visitor. Turn this on for a course you genuinely want open to the public (a free preview course, for example).</p>';
+
         if (class_exists('BHM_Tiers')) {
             $required = BHC_Gate::required_tier($post->ID);
             $required_benefit = BHC_Gate::required_benefit($post->ID);
-            echo '<h4>Supporter access</h4><p class="description">Optional — leave both set to "open" for a fully open course. Requires BH Monetization.</p>';
+            echo '<h4>Supporter access</h4><p class="description">Optional — leave both set to "open" for a course any logged-in account can view (see the login checkbox above for anonymous access). Requires BH Monetization.</p>';
 
             $tier_tip = class_exists('BHY_UI') ? BHY_UI::tip('Requires the tier selected here OR any higher-priced tier — a fan on a $10 tier still gets in if this is set to a $5 tier.') : '';
             echo '<p><label><strong>Gate by tier price rank</strong>' . $tier_tip . '<br><select name="bhc_required_tier"><option value="0">— Open to everyone —</option>';
@@ -383,6 +393,7 @@ class BHC_Admin {
         $posted_style = (string) ($_POST['bhc_share_card_style'] ?? '');
         update_post_meta($post_id, '_bhc_share_card_style', (class_exists('BH_ShareCard') && BH_ShareCard::is_valid_style($posted_style)) ? $posted_style : 'brand');
         update_post_meta($post_id, '_bhc_leaderboard_enabled', !empty($_POST['bhc_leaderboard_enabled']) ? 1 : 0);
+        OUS_Visibility::save_from_request($post_id);
         // Only ever written if bh-monetization-woo is active enough to
         // have rendered the select above — a crafted POST on a site
         // without it does nothing harmful (BHM_Gate simply isn't
