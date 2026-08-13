@@ -2,10 +2,41 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.18
+ * Version:     3.10.19
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.19 — Real bug fix, found while investigating why Billy never
+// saw contests/courses auto-appear in the site menu despite the
+// per-item "show in site menu" checkboxes both bh-contest and
+// bh-courses have long had: OUS_MenuSync::sync_group() only ever wrote
+// to `wp_navigation` posts — the storage a BLOCK theme's Navigation
+// block reads from. own-ur-shit-theme is a classic theme (header.php
+// calls the classic wp_nav_menu()/register_nav_menus() API, no
+// theme.json) — `wp_navigation` posts exist in the database but
+// nothing on this site ever renders them. Every sync_group() call
+// before this fix silently wrote into a menu system this theme
+// doesn't use; the checkbox saved correctly with no error, but nothing
+// ever actually appeared. The contest links Billy DID see in the menu
+// were added there manually, not by this system.
+//
+// Fixed generically, not theme-specifically (plugins and the theme
+// must work fully independently of each other): sync_group() now
+// writes to BOTH real menu systems unconditionally — every classic
+// wp_nav_menu() on the site (via wp_get_nav_menus()/
+// wp_update_nav_menu_item(), tagged with a real postmeta key so a
+// resync can find and replace exactly its own group without touching
+// manually-added items) and every wp_navigation block-theme post (the
+// original, correct-but-incomplete code path, kept as-is). Neither
+// path references own-ur-shit-theme or any specific theme_location —
+// this works correctly on any classic theme, any block theme, or a
+// site running both simultaneously, with zero theme-side code required
+// either way.
+// NOT runtime-verified against a live install by this commit alone —
+// verify by re-saving an existing contest/course with "show in site
+// menu" checked and confirming a real "Contests"/"Courses" submenu
+// appears in the actual rendered nav, not just in the database.
 
 // 3.10.18 — Two real gaps, found in the same pass:
 //
@@ -1252,7 +1283,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.18');
+define('OUS_VER', '3.10.19');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
