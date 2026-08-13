@@ -52,7 +52,24 @@ class OUS_MenuSync {
     /** @param array<int, array<string, mixed>> $items */
     private static function sync_classic_menus(string $group_key, string $label, array $items): void {
         $menus = wp_get_nav_menus();
-        if (!$menus) return;
+        if (!$menus) {
+            // Real gap found live: a site that has never been through
+            // Appearance > Menus has ZERO wp_nav_menu terms at all — not
+            // "a menu with nothing in it," genuinely none. Every classic
+            // theme's own no-menu-assigned fallback (own-ur-shit-theme's
+            // oust_default_menu(), for example) renders SOMETHING
+            // (usually a naive get_pages() dump), which is exactly what
+            // made this look like it was "working" — Billy was seeing
+            // arbitrary Pages, not anything this system ever synced.
+            // Auto-create one real menu and assign it to every
+            // registered nav menu location that doesn't already have
+            // one, so there's always a real menu object to sync into —
+            // no theme-side setup step required.
+            $created_id = self::ensure_default_menu_exists();
+            if (!$created_id) return;
+            $menus = wp_get_nav_menus();
+            if (!$menus) return;
+        }
 
         foreach ($menus as $menu) {
             $menu_id = $menu->term_id;
@@ -97,6 +114,29 @@ class OUS_MenuSync {
                 }
             }
         }
+    }
+
+    // Creates one real nav_menu term ("Primary Menu") and assigns it to
+    // every registered nav menu location (get_registered_nav_menus())
+    // that doesn't already have a menu assigned — never overwrites an
+    // existing assignment, only fills genuinely empty slots. Returns
+    // the new menu's term_id, or 0 if a menu with this name somehow
+    // already exists but wp_get_nav_menus() still came back empty
+    // (defensive; shouldn't happen) or creation failed.
+    private static function ensure_default_menu_exists(): int {
+        $existing = wp_get_nav_menu_object('Primary Menu');
+        $menu_id = $existing ? $existing->term_id : wp_create_nav_menu('Primary Menu');
+        if (is_wp_error($menu_id) || !$menu_id) return 0;
+
+        $locations = get_nav_menu_locations();
+        foreach (array_keys(get_registered_nav_menus()) as $location) {
+            if (empty($locations[$location])) {
+                $locations[$location] = $menu_id;
+            }
+        }
+        set_theme_mod('nav_menu_locations', $locations);
+
+        return (int) $menu_id;
     }
 
     /** @param array<int, array<string, mixed>> $items */
