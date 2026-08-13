@@ -2,10 +2,37 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.19
+ * Version:     3.10.20
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.20 — Second half of the OUS_MenuSync fix (3.10.19), found
+// immediately after deploying it and toggling "show in site menu" on
+// for the demo contests/course: still nothing appeared. Root cause
+// wasn't the wp_navigation-vs-classic-menu bug 3.10.19 already fixed —
+// it's that Appearance > Menus had NEVER been set up on this install
+// at all. wp_get_nav_menus() returns genuinely zero menu terms on a
+// site like that, not "a menu with nothing in it" — there's no real
+// menu object for sync_classic_menus() to write into. own-ur-shit-
+// theme's own no-menu-assigned fallback (oust_default_menu(), a naive
+// get_pages() dump) was rendering something, which is exactly what
+// made this look deceptively like a working, manually-curated menu —
+// what Billy was actually seeing was arbitrary Pages, never anything
+// this system synced.
+//
+// OUS_MenuSync::ensure_default_menu_exists() (new) auto-creates one
+// real "Primary Menu" nav_menu term and assigns it to every registered
+// nav menu location that doesn't already have one, the first time
+// sync_classic_menus() ever runs into a completely menu-less site —
+// never overwrites an existing assignment, only fills genuinely empty
+// slots. No theme-side setup step required either way, same
+// "plugins and theme fully independent" posture as 3.10.19.
+// NOT runtime-verified against a live install by this commit alone —
+// verify on a site with zero existing menus: toggle a contest/course's
+// "show in site menu" on, confirm Appearance > Menus now shows a real
+// "Primary Menu" with the item's submenu group in it, AND that it
+// actually renders in the front-end nav.
 
 // 3.10.19 — Real bug fix, found while investigating why Billy never
 // saw contests/courses auto-appear in the site menu despite the
@@ -1283,7 +1310,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.19');
+define('OUS_VER', '3.10.20');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
