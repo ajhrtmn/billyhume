@@ -264,17 +264,43 @@ class OUS_GithubUpdates {
     // scheduled job (run_check(), above) was the only way this table's
     // status ever refreshed, so a source registered moments ago (like
     // a brand-new theme source) sat at "Not checked yet" with no real
-    // path to an "Update now" button until the next cron tick, up to
-    // 24h later. check_all() is cheap (raw-file HEAD-weight fetches,
-    // no zip downloads), so running it synchronously on a real admin
-    // click is fine.
+    // path to an "Update now" button until the next cron tick.
+    //
+    // Real bug, caught live on the very first click on this install:
+    // this originally called self::check_all() SYNCHRONOUSLY, inline,
+    // in the admin request — up to 13 sequential wp_remote_get() calls
+    // (one per registered source, 10s timeout each), so a genuinely
+    // cheap-per-call operation could still add up to a worst case of
+    // minutes if several calls were slow/timed out. Wasmer's hosting
+    // enforces a hard request-timeout (confirmed live: the click
+    // reliably took the whole site down with a critical error, not
+    // just this one admin screen), so a long-running synchronous
+    // request is a real, site-wide risk here, not just a slow spinner.
+    // Now enqueues the SAME existing job (run_check(), the class's own
+    // OUS_Jobs consumer that already runs this daily) for immediate
+    // background processing instead of running it inline — matches
+    // this ecosystem's own standing convention for anything that talks
+    // to a remote network resource (OUS_Jobs exists specifically for
+    // this). Debug Tools' own "Run due jobs now" button (Job Queue
+    // section) processes it right away instead of waiting for the next
+    // real cron tick.
     public static function handle_check_now(): void {
         if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
         check_admin_referer('ous_github_check_now');
 
-        self::check_all();
+        if (class_exists('OUS_Jobs')) {
+            OUS_Jobs::enqueue(self::JOB_HOOK, [], 0);
+            $message = 'Queued a GitHub check — use Job Queue\'s "Run due jobs now" below to process it immediately, or wait a moment for it to run in the background.';
+        } else {
+            // OUS_Jobs isn't active for some reason — fall back to the
+            // old inline behavior rather than silently doing nothing;
+            // still a real risk on a host with a tight request timeout,
+            // but better than a dead button.
+            self::check_all();
+            $message = 'Checked GitHub for updates.';
+        }
 
-        if (class_exists('OUS_Toast')) OUS_Toast::queue('Checked GitHub for updates.', 'success');
+        if (class_exists('OUS_Toast')) OUS_Toast::queue($message, 'success');
         wp_safe_redirect(add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')));
         exit;
     }

@@ -2,10 +2,39 @@
 /**
  * Plugin Name: Own Ur Shit
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.24
+ * Version:     3.10.25
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.25 — Real, site-breaking bug caught live on the very first
+// click of 3.10.24's new "Check now" button: OUS_GithubUpdates::
+// handle_check_now() called self::check_all() SYNCHRONOUSLY, inline,
+// in the admin request — up to 13 sequential wp_remote_get() calls (10s
+// timeout each) against every registered plugin/theme source. This
+// install's Wasmer hosting enforces a hard request-timeout, and the
+// click reliably took the ENTIRE SITE down with a critical error, not
+// just the one admin screen — confirmed by the site staying down for
+// every request (including a fresh, cookie-less tab) until the
+// timed-out request was killed server-side.
+//
+// Fixed by routing through OUS_Jobs instead — handle_check_now() now
+// enqueues the class's own existing run_check() job for immediate
+// background processing (OUS_Jobs::enqueue(self::JOB_HOOK, [], 0))
+// rather than running the network-heavy work inline, matching this
+// ecosystem's own standing convention that anything talking to a
+// remote resource goes through the job queue, not a blocking request.
+// Debug Tools' own "Run due jobs now" button (Job Queue section)
+// processes it immediately instead of waiting for the next real cron
+// tick. Falls back to the old inline check_all() only if OUS_Jobs
+// somehow isn't active, with an explanatory comment on why that path
+// is still a real (smaller) risk rather than silently pretending it's
+// safe.
+//
+// php -l clean, scoped PHPStan level 6 clean. NOT runtime-verified
+// against a live install by this commit alone — the bug it fixes WAS
+// runtime-verified (it broke the live site), but this fix itself needs
+// a real click-through to confirm the site survives "Check now" now.
 
 // 3.10.24 — Two real gaps found live minutes after 3.10.23 (which
 // wired the companion theme into OUS_GithubUpdates) actually deployed:
@@ -1440,7 +1469,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.24');
+define('OUS_VER', '3.10.25');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
