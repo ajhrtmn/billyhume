@@ -1,0 +1,1257 @@
+/*
+ * Admin Skin — The Self-Hosted Self
+ *
+ * wp-admin only. Tokens first, components second — every rule below
+ * reads a var(--shsas-*) custom property rather than a hardcoded
+ * color/radius, so the whole skin re-themes from one place (the
+ * :root block) and the light variant is a pure token swap, not a
+ * second parallel set of rules.
+ *
+ * Palette, v2: genuinely themeless — no single hue owns the ground the
+ * way the first pass's terracotta did. The neutral ramp isn't flat
+ * gray either (flat gray reads dead/lifeless at this many elevation
+ * steps); it alternates a hair warm and a hair cool step to step, so
+ * depth comes from real temperature variation, not just lightness.
+ * Every accent need (links, focus rings, the active-nav indicator,
+ * button glows, notice colors, badges) draws from one real six-hue
+ * neon set instead of a single overworked accent — a magenta here, a
+ * cyan there, lime for success, amber for warning — HUD/JARVIS
+ * territory, HSL-spaced by ~60° around the wheel so no two neons
+ * fight for the same visual slot. Neons are used ONLY for small,
+ * bounded elements (borders, underlines, icons, 1-2 word badges,
+ * focus rings) — body text always stays on the neutral ramp, so the
+ * rainbow reads as instrumentation lighting up a control panel, never
+ * as low-contrast colored paragraphs.
+ */
+
+:root {
+    /* Neutral ramp — dark mode: warm/cool alternation for depth. */
+    --shsas-bg: #121316;
+    --shsas-surface: #1a1c20;
+    --shsas-surface-2: #23262b;
+    --shsas-surface-3: #2d3138;
+    --shsas-border: #3a3f47;
+    --shsas-border-strong: #4c525c;
+    --shsas-text: #eef0f3;
+    --shsas-text-dim: #a8afb9;
+    --shsas-text-faint: #7b7e83; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+
+    /* Neon rainbow, ~60° apart, tuned bright/saturated enough to read
+       clearly against the near-black ground above. Electric blue added
+       as the new primary accent (direct request) — pink stays in the
+       set for danger/error, where a red-family hue is the correct
+       semantic (blue reads as "informational/interactive," not
+       "something's wrong," in every established UI convention). */
+    --shsas-neon-blue: #2f7dff;
+    --shsas-neon-pink: #ff3ea5;
+    --shsas-neon-orange: #ff8a3d;
+    --shsas-neon-yellow: #f5d90a;
+    --shsas-neon-lime: #7cf25c;
+    --shsas-neon-cyan: #33e6e0;
+    --shsas-neon-violet: #b06bff;
+
+    /* Semantic assignments — real hues, not a muted-down "safe"
+       version of them, but each one deliberately doing exactly one
+       job so the rainbow stays purposeful rather than random. */
+    --shsas-accent: var(--shsas-neon-blue);
+    --shsas-accent-secondary: var(--shsas-neon-cyan);
+    --shsas-accent-text: #f5f9ff;
+    --shsas-focus: var(--shsas-neon-cyan);
+    --shsas-danger: var(--shsas-neon-pink);
+    --shsas-success: var(--shsas-neon-lime);
+    --shsas-warning: var(--shsas-neon-yellow);
+    --shsas-info: var(--shsas-neon-violet);
+
+    --shsas-radius: 10px;
+    --shsas-radius-sm: 6px;
+    --shsas-shadow: 0 12px 28px -14px rgba(0, 0, 0, .6);
+    --shsas-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --shsas-speed: 220ms;
+}
+
+:root[data-shsas-theme="light"] {
+    /* Neutral ramp — light mode: same warm/cool alternation, inverted. */
+    --shsas-bg: #f4f5f7;
+    --shsas-surface: #ffffff;
+    --shsas-surface-2: #ebedf0;
+    --shsas-surface-3: #dfe2e7;
+    --shsas-border: #d3d7dd;
+    --shsas-border-strong: #b9bec7;
+    --shsas-text: #191b1f;
+    --shsas-text-dim: #565d68;
+    --shsas-text-faint: #6f6b66; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+
+    /* Same neons, deepened/desaturated just enough to keep real
+       contrast on a light ground — "jewel tone" versions of the exact
+       same six hues, not a different palette. */
+    --shsas-neon-blue: #1a5fd6;
+    --shsas-neon-pink: #c81e79;
+    --shsas-neon-orange: #c65a12;
+    --shsas-neon-yellow: #8a6d00;
+    --shsas-neon-lime: #3f8f22;
+    --shsas-neon-cyan: #0f8f8a;
+    --shsas-neon-violet: #7433c9;
+
+    --shsas-accent: var(--shsas-neon-blue);
+    --shsas-accent-secondary: var(--shsas-neon-cyan);
+    --shsas-accent-text: #f5f9ff;
+    --shsas-focus: var(--shsas-neon-cyan);
+    --shsas-danger: var(--shsas-neon-pink);
+    --shsas-success: var(--shsas-neon-lime);
+    --shsas-warning: var(--shsas-neon-yellow);
+    --shsas-info: var(--shsas-neon-violet);
+
+    --shsas-shadow: 0 10px 22px -14px rgba(30, 32, 36, .25);
+}
+
+/* Respect the OS default the instant the page paints, before any JS
+   toggle runs — data-shsas-theme (set by admin-skin.js, persisted in
+   localStorage) always wins once present, in either direction. */
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) {
+        --shsas-bg: #f4f5f7;
+        --shsas-surface: #ffffff;
+        --shsas-surface-2: #ebedf0;
+        --shsas-surface-3: #dfe2e7;
+        --shsas-border: #d3d7dd;
+        --shsas-border-strong: #b9bec7;
+        --shsas-text: #191b1f;
+        --shsas-text-dim: #565d68;
+        --shsas-text-faint: #6f6b66; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+
+        --shsas-neon-blue: #1a5fd6;
+        --shsas-neon-pink: #c81e79;
+        --shsas-neon-orange: #c65a12;
+        --shsas-neon-yellow: #8a6d00;
+        --shsas-neon-lime: #3f8f22;
+        --shsas-neon-cyan: #0f8f8a;
+        --shsas-neon-violet: #7433c9;
+
+        --shsas-accent: var(--shsas-neon-blue);
+        --shsas-accent-secondary: var(--shsas-neon-cyan);
+        --shsas-accent-text: #f5f9ff;
+        --shsas-focus: var(--shsas-neon-cyan);
+        --shsas-danger: var(--shsas-neon-pink);
+        --shsas-success: var(--shsas-neon-lime);
+        --shsas-warning: var(--shsas-neon-yellow);
+        --shsas-info: var(--shsas-neon-violet);
+
+        --shsas-shadow: 0 10px 22px -14px rgba(30, 32, 36, .25);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root { --shsas-speed: 0ms; }
+}
+
+/* ---------------- global ground + type ---------------- */
+
+body.wp-admin, body.wp-admin #wpcontent, body.wp-admin #wpbody-content {
+    background: var(--shsas-bg) !important;
+    color: var(--shsas-text);
+}
+/* A quiet load-in instead of the page just snapping into place — one
+   settle, once, on the actual content area (never #adminmenu/#wpadminbar,
+   which should feel permanent/structural, not like they "arrived"). */
+#wpbody-content { animation: shsas-content-in 320ms ease-out; }
+@keyframes shsas-content-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #wpbody-content { animation: none; }
+}
+/* Real bug found auditing WooCommerce's settings screen: WooCommerce's
+   own admin CSS sets a hardcoded light #wpcontent/#wpbody-content/form
+   background on its embedded-admin pages (body carries a big stack of
+   woocommerce-* classes, and Woo's own rule was winning the cascade
+   without !important above) — the whole page read as light gray with
+   near-black form inputs instead of this skin's dark surface. Same
+   root cause as every other fight already won in this file. */
+.wrap.woocommerce, #mainform, .woocommerce-layout__header,
+.woocommerce-layout__header-wrapper, .woocommerce-layout__primary {
+    background: transparent !important;
+}
+body.wp-admin { font-family: var(--shsas-font); }
+/* Real, plain-language accessibility request: bigger, easier-to-read
+   text and more breathing room between lines than WP core's own
+   default (13px, tight line-height) — genuinely helps anyone reading
+   at a normal (non-zoomed) browser size, not just low-vision users.
+   Scoped to running text/content, not every UI chrome element (a
+   button label or table header staying at its own considered size is
+   a deliberate choice elsewhere in this file, not an oversight). */
+body.wp-admin p, body.wp-admin li, body.wp-admin td, body.wp-admin .description {
+    font-size: 14px;
+    line-height: 1.6;
+}
+body.wp-admin a { color: var(--shsas-accent); }
+body.wp-admin a:hover, body.wp-admin a:focus { color: var(--shsas-focus); }
+
+/* A visible, high-contrast focus ring everywhere, keyboard or not —
+   the single highest-leverage accessibility change available: WP
+   core's default focus treatment is a thin blue box-shadow that
+   disappears entirely against a dark custom skin. */
+body.wp-admin *:focus-visible {
+    outline: 3px solid var(--shsas-focus) !important;
+    outline-offset: 2px !important;
+    box-shadow: none !important;
+}
+
+/* Svelte Streamline-Moderne pass: lighter type weight, wider
+   breathing room, everything a touch slimmer/quieter than a typical
+   bold-and-cramped admin heading — restraint is the flourish here,
+   the rainbow underline below is the one loud moment left. */
+.wrap { padding-top: 6px; }
+.wrap h1, .wrap h1.wp-heading-inline {
+    color: var(--shsas-text);
+    /* Real perceptual-contrast fix: the color pair itself already
+       measures very high (15-16:1, well past WCAG AA/AAA), so "not
+       enough contrast" here is a WEIGHT problem, not a color one —
+       500 reads as thin/quiet at this size, which feels low-contrast
+       even where the math says otherwise. True bold instead. */
+    font-weight: 700;
+    font-size: 27px;
+    letter-spacing: -.005em;
+    position: relative;
+    /* Wright's horizontal emphasis: a full-width quiet ground line
+       under the whole title band, not a boxed heading. Direct
+       feedback: no "weird gems" — dropped the faceted conic-gradient
+       mark entirely rather than trying to tone it down; one thin
+       single-hue accent segment is the whole flourish, not a jeweled
+       icon competing with the page title for attention. */
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--shsas-border);
+}
+.wrap h1::after {
+    content: "";
+    position: absolute; left: 0; bottom: -1px;
+    width: 48px; height: 2px;
+    /* Family resemblance with the front-end (bh-courses' own
+       .bhc-archive-rule): a gradient fade-to-transparent instead of a
+       flat bar, plus a draw-in animation on load — the same
+       Streamline-Moderine "speed line" idiom the site's own front end
+       already uses for this exact spot (a thin rule under a title). */
+    background: linear-gradient(90deg, var(--shsas-accent) 0%, color-mix(in srgb, var(--shsas-accent) 15%, transparent) 100%);
+    animation: shsas-rule-draw 480ms ease-out;
+}
+@keyframes shsas-rule-draw {
+    from { width: 0; }
+    to { width: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .wrap h1::after { animation: none; }
+}
+.wrap h2, .wrap h3 { color: var(--shsas-text); font-weight: 500; }
+.wrap h2 {
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--shsas-border);
+    margin-bottom: 18px;
+}
+
+/* ---------------- admin bar ---------------- */
+
+#wpadminbar {
+    background: var(--shsas-surface) !important;
+    border-bottom: 1px solid var(--shsas-border);
+}
+#wpadminbar .ab-item, #wpadminbar a.ab-item, #wpadminbar > #wp-toolbar span.ab-label, #wpadminbar > #wp-toolbar span.noticon {
+    color: var(--shsas-text-dim) !important;
+}
+#wpadminbar .ab-top-menu > li:hover > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-item:focus {
+    color: var(--shsas-text) !important;
+    background: var(--shsas-surface-2) !important;
+}
+#wpadminbar .quicklinks .menupop ul.ab-submenu {
+    background: var(--shsas-surface) !important;
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius-sm);
+    overflow: hidden;
+}
+#wpadminbar .quicklinks .menupop ul.ab-submenu .ab-item {
+    color: var(--shsas-text-dim) !important;
+}
+#wpadminbar .quicklinks .menupop ul.ab-submenu li:hover .ab-item {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+}
+/* Bigger admin bar icons — same "resize the glyph itself" approach as
+   the sidebar, WP core's admin-bar dashicons default to 20px. */
+#wpadminbar .ab-icon:before, #wpadminbar .ab-item:before {
+    font-size: 22px !important;
+}
+/* WP core gives the "W" logo (far top-left) its own hardcoded blue
+   (#0073aa-ish), independent of the rest of the toolbar's icon color —
+   real gap, since that fixed blue doesn't move with either theme here
+   and reads inconsistently against everything else that's now on this
+   skin's own palette. Matched to the same accent as everything else. */
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before,
+#wpadminbar #wp-admin-bar-wp-logo > .ab-item:before {
+    font-size: 22px !important;
+    color: var(--shsas-accent) !important;
+}
+#wpadminbar #wp-admin-bar-wp-logo:hover .ab-icon:before,
+#wpadminbar #wp-admin-bar-wp-logo:hover > .ab-item:before {
+    color: var(--shsas-focus) !important;
+}
+
+/* ---------------- dashicons ---------------- */
+/* "Bigger, better icons for all" reconsidered with real judgment
+   instead of one blanket rule: a flat font-size bump on literally
+   every .dashicons in wp-admin would also inflate small, deliberately
+   tight utility controls that are correctly sized for their fixed-
+   size containers today — a postbox's collapse/toggle arrow, a
+   notice's dismiss "X", a list-table column-sort arrow, the Screen
+   Options gear. Blowing those up doesn't help anyone; it just
+   overflows their box and misaligns them against the text next to
+   them, which is the opposite of the accessibility goal (a clipped
+   or overlapping icon is harder to parse, not easier).
+   The real accessibility win — bigger visual/touch targets — actually
+   applies to icons a person identifies and acts on directly: primary
+   navigation (sidebar, admin bar — both already sized above) and
+   icon-bearing buttons, where a bigger glyph has room to grow because
+   the button itself already has padding to absorb it. Explicitly
+   excludes the small fixed-size utility controls named above so this
+   stays a real improvement, not a blanket resize that breaks things
+   elsewhere on the same screen. */
+.wp-admin .button .dashicons,
+.wp-admin .button .dashicons-before:before,
+.wp-admin .media-toolbar .dashicons,
+.wp-admin .wp-list-table .row-actions .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+/* ---------------- sidebar menu ---------------- */
+/*
+ * Real redesign pass, not just a recolor: the first pass kept WP
+ * core's own cramped row geometry and just repainted it, which read
+ * exactly like what it was. This one takes a cue from a native macOS
+ * sidebar (Finder/Mail) instead — calm by default, one soft rounded
+ * selection fill rather than a loud left bar + background-swap
+ * combo, generous internal padding, comfortable multi-line labels
+ * instead of forced truncation (a label as long as this plugin's own
+ * "The Self-Hosted Self" should wrap gracefully, not look broken).
+ * Deliberately does NOT touch #adminmenu's outer width/the folded
+ * breakpoint — WP core's own JS computes the responsive fold from a
+ * hardcoded expectation of that width, and fighting it there risks
+ * breaking the fold on some other install's screen size in a way
+ * this plugin has no way to test for. Everything below works within
+ * the existing 160px column.
+ */
+
+#adminmenuback, #adminmenuwrap, #adminmenu {
+    background: var(--shsas-surface) !important;
+}
+#adminmenu, #adminmenu .wp-submenu {
+    background: var(--shsas-surface) !important;
+}
+#adminmenu li.menu-top {
+    margin: 3px 8px;
+}
+#adminmenu a.menu-top {
+    color: var(--shsas-text-dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* Real touch-target fix: WP core's default admin-menu row is
+       ~34px tall — below the WCAG 2.5.5 / iOS HIG 44px comfortable-tap
+       minimum. min-height (not a fixed height) so a genuinely long,
+       wrapped label can still grow past it rather than clipping. */
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: var(--shsas-radius-sm);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: .01em;
+    line-height: 1.35;
+    white-space: normal;
+    transition: background-color var(--shsas-speed) ease, color var(--shsas-speed) ease, box-shadow var(--shsas-speed) ease;
+}
+#adminmenu div.wp-menu-image {
+    flex: 0 0 auto;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform var(--shsas-speed) ease;
+}
+/* A small, functional nudge (not decoration for its own sake) — the
+   icon steps in toward the label on hover, echoing the front-end's
+   own image-scale-on-hover cue (bh-courses' card thumbnails) so
+   hovering a nav item reads as "alive" the same way browsing a course
+   grid does, at a scale appropriate to a 30px icon rather than a
+   scale transform. */
+#adminmenu li.menu-top:hover > a.menu-top div.wp-menu-image {
+    transform: translateX(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+    #adminmenu div.wp-menu-image { transition: none; }
+}
+/* Real gap: a plugin can register its own top-level page with a
+   custom SVG/PNG icon (add_menu_page()'s own $icon_url argument) —
+   WP core renders that as a real <img>, not a font glyph, so none of
+   the :before color rules above (dashicon-only) ever touch it. Most
+   custom icons ship as a plain dark silhouette meant for WP core's
+   OWN default light-gray icon treatment (core applies a fixed
+   opacity/filter itself) — against this skin's dark sidebar that can
+   be nearly invisible, the same class of bug already found and fixed
+   on the wp-login.php logo. brightness(0) invert(1) forces ANY custom
+   icon to pure white first (a safe, visible baseline regardless of
+   its original color), then a per-item hue-rotate approximates the
+   same rainbow differentiation the dashicon-font icons get — not a
+   pixel-exact hue match (a raster/SVG image can't be retargeted to an
+   exact color the way a font glyph's `color` can), but real, visible,
+   distinct-per-item color instead of one flat white-ified icon. */
+#adminmenu div.wp-menu-image img {
+    opacity: 1;
+    width: 22px; height: 22px;
+    filter: brightness(0) invert(1);
+}
+:root[data-shsas-theme="light"] #adminmenu div.wp-menu-image img { filter: brightness(0); }
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) #adminmenu div.wp-menu-image img { filter: brightness(0); }
+}
+#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(300deg); }
+#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(0deg); }
+#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(70deg); }
+#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(150deg); }
+#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(230deg); }
+#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(30deg); }
+
+/* Real THIRD icon-rendering mode found live, missed by both rules
+   above: add_menu_page() passed a base64 SVG data URI renders as
+   neither a font glyph nor a real <img> — WP core puts it on
+   div.wp-menu-image itself as a CSS background-image (class="wp-menu-
+   image svg"), confirmed by inspecting this exact DOM live (own-ur-
+   shit's own menu item uses this exact path). None of the :before or
+   img rules above ever touch a background-image. filter still applies
+   to an element's background, so the exact same brightness/invert-
+   then-hue-rotate approach works here too — just needs its own
+   selector, since CSS has no single selector that means "however this
+   icon happens to be implemented." */
+#adminmenu div.wp-menu-image.svg {
+    background-size: 20px 20px !important;
+    filter: brightness(0) invert(1);
+}
+:root[data-shsas-theme="light"] #adminmenu div.wp-menu-image.svg { filter: brightness(0); }
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) #adminmenu div.wp-menu-image.svg { filter: brightness(0); }
+}
+#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(300deg); }
+#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(0deg); }
+#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(70deg); }
+#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(150deg); }
+#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(230deg); }
+#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(30deg); }
+/* Bigger, clearer sidebar icons — WP core's own dashicon glyph is
+   font-size-driven (font: normal 20px/1 dashicons on this exact
+   :before), so "bigger" means resizing the glyph itself, not just its
+   container. line-height kept equal to font-size so the glyph stays
+   vertically centered in the (also-enlarged) box above. */
+#adminmenu div.wp-menu-image:before {
+    font-size: 28px !important;
+    line-height: 30px !important;
+    width: 30px !important;
+}
+#adminmenu a.menu-top .wp-menu-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* Real bug #1, confirmed live via computed geometry: WP core's own
+       #adminmenu div.wp-menu-name rule ships a baked-in
+       `padding: 8px 8px 8px 36px` — core reserves that 36px on the
+       LEFT for its own absolutely-positioned icon, a completely
+       different layout model than the flex icon+gap this skin uses.
+       Never resetting it meant the icon indent was being applied
+       TWICE (this skin's 20px icon + 10px gap, AND core's own 36px
+       padding baked into the text element itself) — on a real ~90px
+       available column, that left only ~46px for actual text, so
+       even "Dashboard" (needs ~54px) truncated. This is the actual
+       root cause; the white-space/overflow rules below were treating
+       the symptom, not the disease, until this was found. Reset to 0
+       so this skin's OWN flex spacing is the only spacing in effect —
+       applies at every viewport/breakpoint (not just one),
+       #adminmenu's own layout doesn't change shape at any of them. */
+    padding: 0 !important;
+    /* Real bug #2, confirmed live: core's rule also wrapped text
+       (word-break/hyphens) for long custom-post-type labels — a
+       genuinely different failure mode from #1 above, both needed
+       fixing. !important matches this file's established pattern for
+       beating wp-admin's baked-in styles (see the #adminmenu
+       background rules above), not a new hack. */
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    hyphens: none !important;
+}
+#adminmenu li.menu-top:hover > a.menu-top,
+#adminmenu li > a.menu-top:focus {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+    /* Real bug, direct feedback ("weird dark boxy background"): WP core
+       ships its OWN hardcoded hover indicator here — an inset 4px solid
+       near-black (#191b1f) left bar — completely untouched by any of
+       this skin's tokens. Against this skin's light surfaces that reads
+       as a stray dark smudge, not an accent. Replace with a themed
+       accent-colored bar so the hover state stays legible but on-brand
+       in both themes. */
+    box-shadow: inset 4px 0 0 0 var(--shsas-accent) !important;
+}
+/* One calm, native-feeling "you are here" idiom — a soft rounded
+   fill, plus the accent-colored icon (below) — no extra marker shape
+   on top of it. Direct feedback: no more small geometric "gem"
+   shapes anywhere in this skin (this one echoed the h1 mark that was
+   already removed for the same reason). */
+#adminmenu li.menu-top.current > a.menu-top,
+#adminmenu li.wp-has-current-submenu > a.menu-top {
+    background: color-mix(in srgb, var(--shsas-accent) 16%, var(--shsas-surface)) !important;
+    color: var(--shsas-text) !important;
+    font-weight: 600;
+}
+/* Real bug caught live: WP core renders TWO genuinely different things
+   under the same .wp-submenu class — the CURRENT top-level item's
+   submenu sits INLINE in normal document flow underneath its own row
+   (transparent is correct there — it's just an indented list already
+   inside the dark sidebar), but hovering any OTHER (non-current) item
+   pops up a real absolutely-positioned FLYOVER on top of the page
+   content. Transparent background on that flyover let the page
+   content underneath show straight through it — a washed-out,
+   overlapping mess, not a submenu. These need opposite treatments. */
+#adminmenu li.wp-has-current-submenu > .wp-submenu {
+    background: transparent !important;
+    padding-left: 6px;
+}
+#adminmenu li:not(.wp-has-current-submenu) .wp-submenu {
+    background: var(--shsas-surface-2) !important;
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius-sm);
+    box-shadow: var(--shsas-shadow);
+    padding: 6px;
+}
+#adminmenu .wp-submenu a {
+    color: var(--shsas-text-dim);
+    padding: 7px 10px 7px 34px;
+    line-height: 1.35;
+    border-radius: var(--shsas-radius-sm);
+    display: block;
+    min-height: 32px;
+}
+#adminmenu li:not(.wp-has-current-submenu) .wp-submenu a { padding-left: 12px; }
+#adminmenu .wp-submenu a:hover, #adminmenu .wp-submenu a:focus {
+    color: var(--shsas-text) !important;
+    /* Real bug, direct feedback ("hover is still bad"): the previous
+       rule here lost a cascade fight against WP core's own submenu-
+       item hover/focus background (the same class of bug already
+       found and fixed for .wp-menu-name padding and the flyover
+       background) — core's default rendered a stark white box, jarring
+       against the dark sidebar around it. !important, matching every
+       other place in this file that beats a core default. */
+    background: var(--shsas-surface-2) !important;
+}
+#adminmenu .wp-submenu li.current a {
+    color: var(--shsas-accent) !important;
+    font-weight: 600;
+}
+/* Direct request: every sidebar icon its own distinct, vivid color —
+   a real wayfinding pattern (quick visual scanning by color, same
+   idea as color-coded folders/tabs), not decoration. Cycles through
+   the full seven-hue set via :nth-of-type so it works for however
+   many top-level items a given install actually has (this ecosystem's
+   own peer plugins each add one), rather than naming specific menu
+   items this skin has no way to know about ahead of time. Kept in
+   EVERY state (default, hover, current) — the point is each item
+   stays recognizable by its own color everywhere, not just at rest;
+   "this is the current section" is still communicated separately by
+   the background fill (below), so the two signals don't compete. */
+#adminmenu li.menu-top:nth-of-type(7n+1) div.wp-menu-image:before { color: var(--shsas-neon-blue); }
+#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image:before { color: var(--shsas-neon-pink); }
+#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image:before { color: var(--shsas-neon-orange); }
+#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image:before { color: var(--shsas-neon-lime); }
+#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image:before { color: var(--shsas-neon-cyan); }
+#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image:before { color: var(--shsas-neon-violet); }
+#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image:before { color: var(--shsas-neon-yellow); }
+/* Hover/current still gets a brightness lift so the state change
+   itself stays perceptible, not just the background fill — without
+   swapping away from the item's own assigned hue. */
+#adminmenu li.menu-top:hover div.wp-menu-image:before,
+#adminmenu li.menu-top.current div.wp-menu-image:before,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image:before {
+    filter: brightness(1.25) saturate(1.15);
+}
+#collapse-button { color: var(--shsas-text-dim); }
+#collapse-button:hover { color: var(--shsas-text); }
+.folded #collapse-menu .collapse-button-icon:before { color: var(--shsas-text-dim); }
+
+/* Folded (icon-only) mode: the flyout submenu is a real popover here,
+   not inline — give it the same calm card treatment as everything
+   else instead of leaving WP's stock white flyout unstyled. */
+.folded #adminmenu .wp-submenu {
+    background: var(--shsas-surface-2) !important;
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius-sm);
+    box-shadow: var(--shsas-shadow);
+    padding: 6px;
+}
+.folded #adminmenu .wp-submenu a { padding-left: 12px; }
+.folded #adminmenu a.menu-top { justify-content: center; padding: 8px; }
+
+/* ---------------- cards / postboxes / meta boxes ---------------- */
+
+/* Material over outline, Eames-style — the shadow alone should read
+   as "this is a raised plane," a thin border on top of it is
+   redundant weight. Border kept, but faint — just enough to hold an
+   edge on a display with no shadow rendering (print, forced-colors),
+   never the primary signal. */
+.postbox, .stuffbox, .bhy-card, .card {
+    background: var(--shsas-surface) !important;
+    border: 1px solid color-mix(in srgb, var(--shsas-border) 55%, transparent) !important;
+    border-radius: var(--shsas-radius);
+    box-shadow: var(--shsas-shadow);
+    margin-bottom: 24px;
+    transition: box-shadow var(--shsas-speed) ease, border-color var(--shsas-speed) ease;
+}
+/* Family resemblance with the front-end's course-card hover (bh-
+   courses' .bhc-course-card:hover — translateY lift + accent-tinted
+   glow). No transform here deliberately: unlike a front-end card,
+   which is one single click target, a postbox is a container full of
+   its own separate buttons/inputs/links — lifting the whole box on
+   ANY hover inside it would jitter every time a cursor passes over
+   text while reading. The shadow-deepen + accent-tinted glow gives the
+   same "this surface is alive" cue without the layout-shift downside,
+   consistent with this file's own established Eames "shadow is the
+   signal" stance. */
+.postbox:hover, .card:hover {
+    border-color: color-mix(in srgb, var(--shsas-accent) 35%, var(--shsas-border)) !important;
+    box-shadow: 0 16px 32px -14px color-mix(in srgb, var(--shsas-accent) 22%, transparent), var(--shsas-shadow);
+}
+@media (prefers-reduced-motion: reduce) {
+    .postbox, .card { transition: none; }
+}
+/* WP core's plain .card (Tools screen, some settings pages) is a
+   DIFFERENT class than .postbox/.bhy-card above but the same "raised
+   surface" idiom — same orphaned-white-box pattern as the welcome
+   panel and .wp-filter fixes, caught by walking the Tools screen. */
+.card h2, .card h3 { color: var(--shsas-text) !important; }
+.card p, .card li { color: var(--shsas-text-dim); }
+.postbox .postbox-header, .postbox > h2, .postbox > .hndle {
+    background: transparent !important;
+    border-bottom: 1px solid var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+    font-weight: 500;
+}
+.postbox .inside { color: var(--shsas-text); }
+
+/* Real bug, confirmed live and very likely the actual "weird dark boxy
+   background" report: WP core's Dashboard welcome panel is really TWO
+   parts — a themed-looking outer .welcome-panel (which this skin's
+   .postbox rule above happens to also catch) and a nested
+   .welcome-panel-column-container whose three columns ship a hardcoded
+   white background straight from core, completely untouched by any
+   rule in this file. The result was a single box that's dark on top
+   and stark white on the bottom half — exactly the kind of "boxy,
+   wrong" seam a systematic pass needs to catch, not just this one
+   instance of it. */
+.welcome-panel { background: var(--shsas-surface) !important; }
+.welcome-panel-column-container {
+    background: transparent !important;
+    border-top: 1px solid var(--shsas-border) !important;
+}
+.welcome-panel-column-container .welcome-panel-column,
+.welcome-panel-column-container p,
+.welcome-panel-column-container li {
+    color: var(--shsas-text-dim) !important;
+}
+.welcome-panel-column-container h3 { color: var(--shsas-text) !important; }
+.welcome-panel-column-container .welcome-icon:before { color: var(--shsas-accent) !important; }
+
+/* ---------------- buttons ---------------- */
+
+.wp-admin .button, .wp-admin .button-secondary {
+    background: var(--shsas-surface-2);
+    border-color: var(--shsas-border);
+    color: var(--shsas-text);
+    border-radius: var(--shsas-radius-sm);
+    min-height: 36px;
+    transition: transform var(--shsas-speed) ease, box-shadow var(--shsas-speed) ease, background-color var(--shsas-speed) ease;
+}
+.wp-admin .button:hover {
+    background: var(--shsas-border);
+    color: var(--shsas-text);
+    transform: translateY(-1px);
+    box-shadow: var(--shsas-shadow);
+}
+.wp-admin .button:active { transform: translateY(0); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+    .wp-admin .button:hover { transform: none; }
+}
+.wp-admin .button-primary {
+    background: var(--shsas-accent);
+    border-color: var(--shsas-accent);
+    color: var(--shsas-accent-text);
+    border-radius: var(--shsas-radius-sm);
+    min-height: 36px;
+    font-weight: 600;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--shsas-accent) 55%, transparent);
+    transition: transform var(--shsas-speed) ease, box-shadow var(--shsas-speed) ease, filter var(--shsas-speed) ease;
+}
+.wp-admin .button-primary:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--shsas-accent) 22%, transparent);
+    transform: translateY(-1px);
+}
+.wp-admin .button-primary:active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+    .wp-admin .button-primary:hover { transform: none; }
+}
+
+/* ---------------- tables ---------------- */
+
+.wp-list-table {
+    background: var(--shsas-surface);
+    color: var(--shsas-text);
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius);
+    overflow: hidden;
+}
+.wp-list-table thead th, .wp-list-table thead td, .wp-list-table tfoot th,
+.wp-list-table thead th a, .wp-list-table thead td a {
+    background: var(--shsas-surface-2) !important;
+    /* Real bug, found via computed-style check: WP core's own
+       .wp-list-table thead th color (#2c3338, a near-black) was
+       winning this cascade fight — background was correctly dark but
+       text stayed near-black-on-near-black, nearly unreadable (every
+       list-table column header on the site: Posts, Plugins, Media,
+       Users...). !important, same pattern as every other core-default
+       fight already won in this file. */
+    color: var(--shsas-text-dim) !important;
+    border-bottom: 1px solid var(--shsas-border);
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: .06em;
+}
+.wp-list-table tbody tr { background: var(--shsas-surface); }
+.wp-list-table.striped tbody tr:nth-child(odd), .wp-list-table tbody tr.alternate {
+    background: var(--shsas-surface-2);
+}
+.wp-list-table tbody tr:hover { background: color-mix(in srgb, var(--shsas-accent) 8%, var(--shsas-surface)); }
+.wp-list-table td, .wp-list-table th { border-color: var(--shsas-border); color: var(--shsas-text); }
+/* Real critique caught live: every row-title link inherited the
+   global body.wp-admin a accent color, so an entire list of posts/
+   pages/etc. read as a solid block of pink — monotonous, and it
+   drowns out the actual visual hierarchy (which row is hovered/
+   selected) instead of supporting it. Row content stays on the
+   neutral text color by default, same as any other body copy; the
+   accent shows up only on hover/focus, where it actually means
+   something ("this is the interactive thing under your cursor"). The
+   global accent-link rule stays as-is everywhere else (nav, notices,
+   real navigational links) — this is scoped to table body content
+   specifically. */
+.wp-list-table tbody td a, .wp-list-table tbody td a:visited {
+    color: var(--shsas-text);
+}
+.wp-list-table tbody td a:hover, .wp-list-table tbody td a:focus {
+    color: var(--shsas-accent);
+}
+.wp-list-table .row-title { font-weight: 600; }
+
+/* Another orphaned-white-box instance from the same systematic pass:
+   the Media Library's filter/view-switcher toolbar (.wp-filter) ships
+   a hardcoded white background from core, untouched by the generic
+   .wp-list-table rules above since it isn't a table at all. */
+.wp-filter, .media-toolbar {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+}
+
+/* ---------------- forms ---------------- */
+
+/* Real, serious bug found auditing General Settings AND WooCommerce
+   Settings: `.form-table th` (every field label on every classic
+   settings screen in wp-admin — General, Writing, Reading, Discussion,
+   WooCommerce's tabs, any peer plugin using WP's own Settings API) was
+   never given a color rule at all, so it sat on WP core's own default
+   near-black (#1d2327) — invisible-by-degrees against this skin's dark
+   surfaces. The table headers bug fixed earlier was the same root
+   cause in a different WP core component; this is the settings-form
+   equivalent and is arguably more serious since it's the actual field
+   labels, not just column headers. */
+.form-table th, .form-table th label {
+    color: var(--shsas-text) !important;
+    font-weight: 600;
+}
+.form-table td label { color: var(--shsas-text-dim); }
+.form-table td p.description, .form-table .description { color: var(--shsas-text-dim) !important; }
+
+.wp-admin input[type="text"], .wp-admin input[type="search"], .wp-admin input[type="email"],
+.wp-admin input[type="url"], .wp-admin input[type="password"], .wp-admin input[type="number"],
+.wp-admin input[type="date"], .wp-admin select, .wp-admin textarea {
+    background: var(--shsas-surface);
+    border-color: var(--shsas-border);
+    color: var(--shsas-text);
+    border-radius: var(--shsas-radius-sm);
+    min-height: 36px;
+}
+.wp-admin textarea { min-height: 80px; }
+/* Select2 (WooCommerce's "enhanced select" — country/state, selling/
+   shipping locations, product categories, and any peer plugin using
+   the same wc-enhanced-select convention) hides the real <select> and
+   renders its own widget, so the plain `select` rule above never
+   touches it — confirmed live on WooCommerce Settings, a fully white
+   dropdown next to otherwise-themed dark inputs. Covers the closed
+   control, its open dropdown panel (appended to <body>, not a
+   descendant of the field), and the in-panel search box. */
+.select2-container .select2-selection {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+    min-height: 36px;
+}
+.select2-container .select2-selection__rendered { color: var(--shsas-text) !important; }
+.select2-container .select2-selection__arrow b { border-color: var(--shsas-text-dim) transparent transparent transparent !important; }
+.select2-dropdown {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+}
+.select2-search--dropdown .select2-search__field {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+.select2-results__option {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+}
+.select2-results__option--highlighted, .select2-results__option[aria-selected="true"] {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-accent) !important;
+}
+/* Native checkbox/radio — accent-color is the real, modern, low-code
+   way to theme a native control's checked-state fill without
+   reaching for a fragile custom-pseudo-element replacement; every
+   evergreen browser supports it. Unstyled otherwise these render as
+   plain white OS-default boxes, a real clash against a dark skin. */
+.wp-admin input[type="checkbox"], .wp-admin input[type="radio"] {
+    accent-color: var(--shsas-accent);
+    background: var(--shsas-surface);
+    border-color: var(--shsas-border-strong);
+}
+/* WP core's own select arrow is a hardcoded dark-grey SVG background-
+   image — invisible against a dark control. Swap for a currentColor-
+   matched inline SVG. Real bug caught live on the Posts list screen:
+   the replacement image alone isn't enough — WP core's own select
+   rule sets background-position/-size for ITS specific SVG's internal
+   proportions; without re-declaring position/size/repeat here too,
+   the new image rendered stretched/tiled across the whole control
+   (looked like a strikethrough through the text), not as a small
+   corner arrow. All four properties now set together as a real unit,
+   not just the image swapped in isolation. */
+.wp-admin select {
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%206l5%205%205-5%202%201-7%207-7-7z%22%20fill%3D%22%23eef0f3%22%2F%3E%3C%2Fsvg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 8px center !important;
+    background-size: 16px 16px !important;
+    padding-right: 28px !important;
+}
+:root[data-shsas-theme="light"] .wp-admin select {
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%206l5%205%205-5%202%201-7%207-7-7z%22%20fill%3D%22%23191b1f%22%2F%3E%3C%2Fsvg%3E") !important;
+}
+
+/* ---------------- Screen Options / Help panels ---------------- */
+/* Real gap: the two tab buttons top-right of every admin screen, and
+   the panels they open, are entirely unstyled by default — stark
+   white against this skin's dark ground otherwise. */
+
+#screen-meta-links .show-settings {
+    background: var(--shsas-surface-2);
+    border-color: var(--shsas-border);
+    color: var(--shsas-text-dim);
+    border-radius: var(--shsas-radius-sm) var(--shsas-radius-sm) 0 0;
+}
+#screen-meta-links .show-settings:hover, #screen-meta-links .show-settings.is-toggled {
+    color: var(--shsas-text);
+    background: var(--shsas-surface-3);
+}
+#screen-meta {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text);
+}
+#screen-meta a { color: var(--shsas-accent); }
+#screen-options-wrap fieldset legend, .metabox-prefs label { color: var(--shsas-text); }
+#contextual-help-wrap, #contextual-help-back { background: var(--shsas-surface) !important; }
+#contextual-help-columns { color: var(--shsas-text); }
+#contextual-help-columns h2, #contextual-help-columns h3 { color: var(--shsas-text); }
+.contextual-help-tabs a { color: var(--shsas-text-dim); }
+.contextual-help-tabs .active a { color: var(--shsas-text); background: var(--shsas-surface-2); }
+
+/* ---------------- admin bar: notifications, updates, comments, "New" ---------------- */
+/* These are separate DOM trees from the plain top-menu items already
+   covered under "admin bar" above — WP core gives each its own bubble
+   count + its own dropdown panel with real content (avatars, post
+   titles), not just a link list. */
+
+#wpadminbar #wp-admin-bar-comments .ab-icon:before,
+#wpadminbar #wp-admin-bar-updates .ab-icon:before,
+#wpadminbar #wp-admin-bar-new-content .ab-icon:before {
+    color: var(--shsas-text-dim);
+}
+#wpadminbar .ab-icon, #wpadminbar .ab-item:before {
+    color: var(--shsas-text-dim);
+}
+/* Unread/count bubbles (comment moderation count, update count) — one
+   consistent accent treatment instead of WP core's default red, so it
+   reads as part of THIS skin's own language rather than a leftover
+   default clashing with everything just re-themed around it. */
+#wpadminbar .ab-item .count-0, #wpadminbar .ab-item .pending-count { display: none; }
+#wpadminbar .ab-item .count-1, #wpadminbar .ab-item .comment-count,
+#wpadminbar .ab-item .update-plugins, #wpadminbar .ab-item .plugin-count,
+#wpadminbar .ab-item .theme-count, #wpadminbar .ab-item .translation-count,
+#wpadminbar .ab-item .core-updates {
+    background: var(--shsas-accent) !important;
+    color: var(--shsas-accent-text) !important;
+    /* Bigger, easier-to-read count badges — WP core's own is a tiny
+       ~16px pill with 9px text, genuinely hard to read at a glance.
+       Real min-width (not just padding) so a 2-digit count doesn't
+       squeeze back down to the old cramped size. */
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    min-width: 20px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+    padding: 0 5px !important;
+    border-radius: 10px !important;
+}
+/* Same "bigger, easier to read" treatment for this skin's own shared
+   UI badges (bhy-badge, used throughout this ecosystem's own admin
+   screens for status pills — Debug Tools, etc.) — consistent sizing
+   logic as the admin-bar counts above, not a second separate scale. */
+.bhy-badge {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    padding: 3px 10px !important;
+    border-radius: 10px !important;
+    line-height: 1.4 !important;
+}
+/* Real dropdown PANELS (not just the top-bar trigger) — e.g. "New"
+   menu, the updates flyout — share the same quicklinks submenu
+   treatment already defined above for consistency. */
+#wpadminbar .quicklinks .ab-sub-wrapper, #wpadminbar #wp-admin-bar-new-content .ab-submenu {
+    background: var(--shsas-surface) !important;
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius-sm);
+}
+#wpadminbar #wp-admin-bar-new-content .ab-submenu .ab-item {
+    color: var(--shsas-text-dim) !important;
+}
+#wpadminbar #wp-admin-bar-new-content .ab-submenu li:hover .ab-item {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+}
+
+/* ---------------- notices/toasts ---------------- */
+
+.notice, div.updated, div.error {
+    background: var(--shsas-surface) !important;
+    border-left-width: 4px;
+    border-radius: var(--shsas-radius-sm);
+    color: var(--shsas-text);
+    box-shadow: var(--shsas-shadow);
+}
+.notice-success, div.updated { border-left-color: var(--shsas-success) !important; }
+.notice-error, div.error { border-left-color: var(--shsas-danger) !important; }
+.notice-warning { border-left-color: var(--shsas-warning) !important; }
+.notice-info { border-left-color: var(--shsas-info) !important; }
+
+/* ---------------- login screen ---------------- */
+
+body.login {
+    background: var(--shsas-bg);
+    font-family: var(--shsas-font);
+}
+body.login #login h1 a {
+    background-size: contain;
+    /* WP core's login logo is a fixed dark-grey SVG — nearly invisible
+       against this skin's dark ground. Real accessibility miss left
+       unfixed otherwise, not a cosmetic nitpick: a login page's own
+       brand mark should be visibly legible. Left alone entirely in
+       light mode, where the default already has real contrast. */
+    filter: brightness(2.2);
+}
+:root[data-shsas-theme="light"] body.login #login h1 a { filter: none; }
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) body.login #login h1 a { filter: none; }
+}
+body.login form {
+    background: var(--shsas-surface);
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius);
+    box-shadow: var(--shsas-shadow);
+}
+body.login label { color: var(--shsas-text-dim); }
+body.login input[type="text"], body.login input[type="password"] {
+    background: var(--shsas-surface-2);
+    border-color: var(--shsas-border);
+    color: var(--shsas-text);
+    border-radius: var(--shsas-radius-sm);
+}
+body.login .button-primary {
+    background: var(--shsas-accent);
+    border-color: var(--shsas-accent);
+    text-shadow: none;
+    box-shadow: none;
+    border-radius: var(--shsas-radius-sm);
+}
+body.login #nav a, body.login #backtoblog a { color: var(--shsas-text-dim); }
+body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-accent); }
+
+/* ---------------- theme toggle ---------------- */
+
+#wp-admin-bar-shsas-theme-toggle .ab-item {
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer;
+}
+#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
+    font-size: 15px; line-height: 1;
+    display: inline-block;
+    transition: transform 320ms ease;
+}
+/* admin-skin.js toggles this class for one animation cycle on click —
+   a real crossfade/rotate instead of the icon just instantly swapping
+   from sun to moon, "motion should ease and settle, not snap" per
+   direct feedback. */
+#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon.shsas-spin { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+    #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { transition: none; }
+}
+
+/* ---------------- command palette trigger (admin bar) ---------------- */
+
+/* Direct feedback: the palette existed but nothing surfaced it. A
+   real, visible, labeled trigger — not just a hidden Cmd/Ctrl+K —
+   sitting right in the admin bar where the theme toggle already lives. */
+#wp-admin-bar-shsas-palette-trigger .ab-item {
+    display: flex; align-items: center; gap: 7px;
+    cursor: pointer;
+}
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon { font-size: 14px; line-height: 1; }
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label { font-size: 13px; }
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd {
+    font: 10px/1 var(--shsas-font);
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--shsas-surface-3);
+    border: 1px solid var(--shsas-border);
+    color: var(--shsas-text-dim);
+}
+@media (max-width: 782px) {
+    #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label,
+    #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd { display: none; }
+}
+
+/* ---------------- command palette ---------------- */
+
+.shsas-palette-backdrop {
+    position: fixed; inset: 0; z-index: 100000;
+    background: rgba(10, 6, 4, .55);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 12vh;
+    backdrop-filter: blur(2px);
+}
+.shsas-palette {
+    width: min(560px, 92vw);
+    background: var(--shsas-surface);
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius);
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .6);
+    overflow: hidden;
+    font-family: var(--shsas-font);
+}
+.shsas-palette-input {
+    width: 100%; box-sizing: border-box;
+    background: var(--shsas-surface);
+    color: var(--shsas-text);
+    border: none; border-bottom: 1px solid var(--shsas-border);
+    padding: 16px 18px;
+    font-size: 16px;
+}
+.shsas-palette-input:focus { outline: none; }
+.shsas-palette-list {
+    list-style: none; margin: 0; padding: 8px;
+    max-height: 50vh; overflow-y: auto;
+}
+.shsas-palette-item {
+    padding: 10px 12px;
+    border-radius: var(--shsas-radius-sm);
+    color: var(--shsas-text-dim);
+    cursor: pointer;
+    display: flex; justify-content: space-between; gap: 12px;
+    min-height: 40px; align-items: center;
+}
+.shsas-palette-item .shsas-palette-parent { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.shsas-palette-item[aria-selected="true"] {
+    background: color-mix(in srgb, var(--shsas-accent) 18%, var(--shsas-surface));
+    color: var(--shsas-text);
+}
+.shsas-palette-empty { padding: 20px; color: var(--shsas-text-dim); text-align: center; }
+.shsas-palette-hint {
+    padding: 8px 14px;
+    font-size: 11px;
+    color: var(--shsas-text-dim);
+    border-top: 1px solid var(--shsas-border);
+    display: flex; gap: 14px;
+}
+.shsas-palette-hint kbd {
+    background: var(--shsas-surface-2);
+    border: 1px solid var(--shsas-border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+}
+
+/* ---------------- block editor (Gutenberg) chrome ---------------- */
+
+/* Real, serious fundamentals gap found auditing "custom plugins + Etch
+   compatibility": this skin themes classic wp-admin (list tables,
+   .postbox meta boxes, forms) but the block editor's OWN chrome — the
+   Settings sidebar, the block inserter, popovers/modals — is a
+   completely separate @wordpress/components-based UI with its own
+   class vocabulary, none of which anything above ever touched. It
+   rendered as a stark white panel next to an otherwise fully dark
+   screen, and — concretely, not hypothetically — this is exactly
+   where every peer plugin injects its own PluginDocumentSettingPanel
+   (confirmed live: a "Supporter access" panel from this ecosystem's
+   own monetization plugin was sitting in that unstyled white sidebar)
+   and exactly the surface Etch operates in (per
+   plugins/ETCH-COMPATIBILITY-NOTES.md — Etch authors through real
+   Gutenberg, this sidebar/inserter chrome is Etch's own operating
+   surface, not something separate from it). The content CANVAS
+   deliberately stays on the theme's own front-end tokens (see
+   own-ur-shit-theme's editor-style.css — "what an editor sees while
+   writing should match what a visitor sees") — everything below is
+   scoped to the surrounding CHROME only, never .editor-styles-wrapper
+   or its contents, so that WYSIWYG guarantee stays intact. */
+.interface-interface-skeleton__sidebar,
+.interface-interface-skeleton__secondary-sidebar,
+.edit-post-sidebar,
+.block-editor-inserter__popover .components-popover__content,
+.block-editor-block-inspector {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text);
+}
+.interface-interface-skeleton__sidebar .components-panel,
+.interface-interface-skeleton__sidebar .components-panel__body,
+.block-editor-block-inspector .components-panel__body {
+    background: transparent !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text);
+}
+.interface-interface-skeleton__sidebar .components-panel__body-title button,
+.interface-interface-skeleton__sidebar .components-panel__body-toggle,
+.block-editor-block-inspector .components-panel__body-title {
+    color: var(--shsas-text) !important;
+}
+.interface-interface-skeleton__sidebar .components-base-control__label,
+.interface-interface-skeleton__sidebar label,
+.block-editor-block-inspector label {
+    color: var(--shsas-text-dim) !important;
+}
+.interface-interface-skeleton__sidebar .components-tab-panel__tabs,
+.editor-post-publish-panel,
+.block-editor-inserter__menu,
+.block-editor-inserter__tabs,
+.components-modal__frame,
+.components-popover__content {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text);
+    border-color: var(--shsas-border) !important;
+}
+.components-modal__header {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+}
+.components-tab-panel__tabs-item {
+    color: var(--shsas-text-dim) !important;
+}
+.components-tab-panel__tabs-item.is-active {
+    color: var(--shsas-accent) !important;
+    box-shadow: inset 0 -2px 0 0 var(--shsas-accent) !important;
+}
+/* Gutenberg's own text/select/search inputs use @wordpress/components
+   markup (.components-text-control__input etc.), a different class
+   family than the plain wp-admin `input[type=text]` rule above — needs
+   its own coverage, same reasoning as the Select2 fix. */
+.components-text-control__input,
+.components-select-control__input,
+.components-search-control__input,
+.components-textarea-control__input,
+.block-editor-inserter__search input {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+.block-editor-block-types-list__item {
+    color: var(--shsas-text) !important;
+}
+.block-editor-block-types-list__item:hover {
+    background: var(--shsas-surface-2) !important;
+}
+.block-editor-block-types-list__item-icon {
+    background: var(--shsas-surface-2) !important;
+}
+/* Real bug found live: @wordpress/components' own <Button> (used
+   everywhere in this chrome — "Set featured image", the featured-image
+   toggle, every plugin panel's own buttons) ships a near-black default
+   text color (#1e1e1e, core's Gutenberg default) with no background of
+   its own — invisible-by-degrees against a dark sidebar, same failure
+   mode as the .form-table th bug found earlier in classic wp-admin,
+   just in the block-editor's own component library instead. */
+.interface-interface-skeleton__sidebar .components-button,
+.block-editor-block-inspector .components-button,
+.components-modal__frame .components-button,
+.components-popover__content .components-button {
+    color: var(--shsas-text) !important;
+}
+.interface-interface-skeleton__sidebar .components-button:hover,
+.block-editor-block-inspector .components-button:hover {
+    color: var(--shsas-accent) !important;
+}
+.interface-interface-skeleton__sidebar .components-button.is-primary,
+.components-modal__frame .components-button.is-primary {
+    background: var(--shsas-accent) !important;
+    color: var(--shsas-accent-text) !important;
+}
+/* Post status/publish widgets (a real .editor-post-status control
+   living directly in the sidebar) and the top document-outline/
+   options popover (an .interface-more-menu-dropdown popover) both use
+   plain @wordpress/components buttons/menu-items, covered by the same
+   panel/popover rules above — no extra selector needed there, noted
+   for anyone auditing this section later so it isn't "rediscovered". */
+
+/* ---------------- mobile ---------------- */
+
+@media (max-width: 782px) {
+    /* WP core's own admin breakpoint — the toggled-open mobile menu is
+       already full-width; the real gap is tap-target size AND text
+       size, both bigger here, not smaller — a small screen is exactly
+       where "easy to read, easy to tap without a mis-tap" matters
+       most, the opposite of the old default (WP core actually SHRINKS
+       table-header text at this width, which this skin corrects). */
+    #adminmenu a.menu-top { font-size: 16px; min-height: 48px; }
+    .wp-admin .button, .wp-admin .button-primary { min-height: 48px; padding: 0 18px; font-size: 15px; }
+    /* 16px, not smaller, on any real text input on mobile — below 16px
+       iOS Safari auto-zooms the whole page on focus, a genuinely
+       disorienting behavior for exactly the audience this is for. */
+    .wp-admin input[type="text"], .wp-admin input[type="search"], .wp-admin input[type="email"],
+    .wp-admin input[type="url"], .wp-admin input[type="password"], .wp-admin input[type="number"],
+    .wp-admin input[type="date"], .wp-admin select, .wp-admin textarea {
+        font-size: 16px;
+        min-height: 48px;
+    }
+    .wp-list-table thead th, .wp-list-table thead td { font-size: 13px; }
+    body.wp-admin p, body.wp-admin li, body.wp-admin td, body.wp-admin .description { font-size: 15px; }
+    .shsas-palette { width: 94vw; }
+    .shsas-palette-backdrop { padding-top: 8vh; }
+    .shsas-palette-input { font-size: 17px; }
+}
