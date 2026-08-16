@@ -22,6 +22,61 @@
  * (padding-bottom) — this stylesheet does not duplicate that.
  */
 
+/* Depth-aware cross-document navigation — front-end half of the same
+   feature built for wp-admin (self-hosted-self-admin-skin), direct
+   feedback: "Frontend and admin." Real requirement, not decoration:
+   this whole site is server-rendered, so every link click is a full
+   page load with zero visual continuity by default. functions.php's
+   oust_print_nav_depth_script() (wp_head priority 1) stamps
+   data-oust-nav-direction/-depth on <html> before each real
+   navigation; the rules below are the actual payoff — same two
+   treatments as the admin skin (lateral slide within a site section,
+   softer zoom-through jumping between sections), same haze-on-exit
+   language, so the whole ecosystem's navigation feels like one
+   consistent hand rather than admin and front end each inventing
+   their own motion language independently. */
+@supports (view-transition-name: none) {
+    @view-transition { navigation: auto; }
+}
+@supports (view-transition-name: root) {
+    ::view-transition-old(root), ::view-transition-new(root) {
+        animation: none;
+        mix-blend-mode: normal;
+    }
+    ::view-transition-old(root) { z-index: 1; }
+    ::view-transition-new(root) { z-index: 2; }
+}
+:root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-old(root) { animation: oust-nav-lateral-out-fwd 420ms cubic-bezier(.4, 0, .2, 1) both; }
+:root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-new(root) { animation: oust-nav-lateral-in-fwd 420ms cubic-bezier(.2, 0, .2, 1) both; }
+:root[data-oust-nav-depth="lateral"][data-oust-nav-direction="back"]::view-transition-old(root) { animation: oust-nav-lateral-out-back 420ms cubic-bezier(.4, 0, .2, 1) both; }
+:root[data-oust-nav-depth="lateral"][data-oust-nav-direction="back"]::view-transition-new(root) { animation: oust-nav-lateral-in-back 420ms cubic-bezier(.2, 0, .2, 1) both; }
+:root[data-oust-nav-depth="jump"]::view-transition-old(root) { animation: oust-nav-jump-out 380ms ease-in both; }
+:root[data-oust-nav-depth="jump"]::view-transition-new(root) { animation: oust-nav-jump-in 380ms ease-out both; }
+
+@keyframes oust-nav-lateral-out-fwd { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-3%); opacity: 0; } }
+@keyframes oust-nav-lateral-in-fwd { from { transform: translateX(3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes oust-nav-lateral-out-back { from { transform: translateX(0); opacity: 1; } to { transform: translateX(3%); opacity: 0; } }
+@keyframes oust-nav-lateral-in-back { from { transform: translateX(-3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes oust-nav-jump-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.015); opacity: 0; } }
+@keyframes oust-nav-jump-in { from { transform: scale(.985); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Same real bug already caught and fixed on the admin side, applied
+   here from the start: the rules above are more specific (extra
+   attribute selectors) than a plain animation:none reduced-motion
+   override would be, so a naive override here would silently lose the
+   cascade. Matched at equal specificity so reduced-motion genuinely
+   wins. */
+@media (prefers-reduced-motion: reduce) {
+    :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-old(root),
+    :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="forward"]::view-transition-new(root),
+    :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="back"]::view-transition-old(root),
+    :root[data-oust-nav-depth="lateral"][data-oust-nav-direction="back"]::view-transition-new(root),
+    :root[data-oust-nav-depth="jump"]::view-transition-old(root),
+    :root[data-oust-nav-depth="jump"]::view-transition-new(root) {
+        animation: none;
+    }
+}
+
 /* ---------------- Reset ---------------- */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }

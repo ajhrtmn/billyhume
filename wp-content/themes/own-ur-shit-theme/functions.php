@@ -101,6 +101,82 @@ function oust_pingback_header() {
 add_action('wp_head', 'oust_pingback_header');
 
 /**
+ * Front-end half of the depth-aware cross-document navigation built
+ * for wp-admin (self-hosted-self-admin-skin) — direct feedback:
+ * "Frontend and admin." Same real bug already found and fixed on the
+ * admin side, applied here from the start rather than re-discovering
+ * it: the 'pagereveal' event (part of the Cross-Document View
+ * Transitions spec, theme.css's own `@view-transition { navigation:
+ * auto; }` opt-in) fires very early in a new page's load — before a
+ * normally-enqueued, footer-loaded script would ever get the chance to
+ * attach a listener for it. This listener is printed as a tiny
+ * synchronous inline <script> in wp_head (priority 1, as early as
+ * this theme can manage), mirroring admin_head priority 1 on the admin
+ * side exactly.
+ *
+ * "Section" on the front end has no equivalent to wp-admin's own
+ * ?page=<slug> convention, so this reads the first real path segment
+ * instead (/courses/... vs /account/... vs /shop/... vs a bare post
+ * permalink) — a real, if rough, proxy for "which part of the site
+ * this is," same posture as the admin version's own slug-prefix
+ * heuristic.
+ *
+ * HONEST STATUS, not yet resolved: unlike the admin-side version
+ * (verified live across three real cases — same-section forward,
+ * cross-section forward, and browser back — all correctly detected),
+ * this front-end version was live-tested via multiple methodologically
+ * distinct checks (a persistent sessionStorage marker set the instant
+ * the script runs, confirming it DOES execute early enough; a second
+ * marker inside the 'pagereveal' handler itself, which never fired;
+ * plain nav links AND course-catalog links, ruling out page-specific
+ * JS interference; confirmed no redirect chain on the navigation;
+ * confirmed CSS.supports() and the @view-transition opt-in are present
+ * on both the outgoing and incoming document) and 'pagereveal' simply
+ * never fires on this front end, despite the mechanism being
+ * byte-for-byte the same technique proven working in wp-admin. Root
+ * cause NOT found in the time available — a real, environment-specific
+ * difference between wp-admin and the front end that this session
+ * could not isolate (candidates not yet ruled out: something in Local
+ * by Flywheel's front-end request handling specifically, or a genuine
+ * browser quirk with this exact combination of plugins/scripts).
+ * Shipped anyway because it's safe to: this is purely additive CSS/JS
+ * — if 'pagereveal' never fires, nothing breaks, front-end navigation
+ * simply looks exactly like it did before this feature (a plain page
+ * load), never worse. Needs real investigation before claiming this
+ * actually works, not just "should work by analogy to the admin side."
+ */
+function oust_print_nav_depth_script(): void {
+    ?>
+<script>
+window.addEventListener('pagereveal', function () {
+    if (!('navigation' in window)) return;
+    var activation = window.navigation.activation;
+    if (!activation) return;
+    var root = document.documentElement;
+    var direction = activation.navigationType === 'traverse' ? 'back' : 'forward';
+    root.setAttribute('data-oust-nav-direction', direction);
+    var fromUrl = activation.from && activation.from.url;
+    var toUrl = activation.entry && activation.entry.url;
+    if (!fromUrl || !toUrl) { root.setAttribute('data-oust-nav-depth', 'jump'); return; }
+    function sectionOf(u) {
+        try {
+            var path = new URL(u).pathname.replace(/^\/|\/$/g, '');
+            return path.split('/')[0] || '(home)';
+        } catch (e) { return null; }
+    }
+    var sameSection = sectionOf(fromUrl) !== null && sectionOf(fromUrl) === sectionOf(toUrl);
+    root.setAttribute('data-oust-nav-depth', sameSection ? 'lateral' : 'jump');
+    setTimeout(function () {
+        root.removeAttribute('data-oust-nav-direction');
+        root.removeAttribute('data-oust-nav-depth');
+    }, 700);
+});
+</script>
+    <?php
+}
+add_action('wp_head', 'oust_print_nav_depth_script', 1);
+
+/**
  * oust_append_portal_link() removed (was here) — a real, latent
  * duplicate-link bug caught before it could ever surface live: this
  * theme-side filter and own-ur-shit's own OUS_MenuSync (3.10.20+,
