@@ -24,6 +24,39 @@
  * as low-contrast colored paragraphs.
  */
 
+/* "Streaming navigation" — direct request: "I love creating organic
+   flow and transitions between relevant parts of the system...
+   streaming navigation is huge for me." wp-admin is a traditional
+   server-rendered app: every sidebar click is a full page load, hard-
+   cutting between screens with zero visual continuity. The Cross-
+   Document View Transitions spec (Chrome/Edge 126+, 2024) exists
+   exactly for this case — a genuinely obscure, CSS-ONLY opt-in (no JS
+   at all) that gives same-origin full navigations a real crossfade
+   instead of a hard cut, using the browser's own before/after page
+   snapshots.
+   Verified live before relying on it, the same way every other
+   cross-document API claim in this file has been checked rather than
+   assumed: injected this exact rule and confirmed a real `pageswap`
+   event fires on navigation. That first check also surfaced the real
+   requirement driving WHY this lives here, in the actual stylesheet,
+   rather than injected ad hoc — the spec needs the opt-in present on
+   BOTH the outgoing and incoming document at parse time. An ad hoc
+   injected <style> on only the source page produced a pageswap event
+   with no viewTransition attached (confirmed: e.viewTransition was
+   null) — exactly the outcome the spec describes when only one side
+   opts in. Landing it in this stylesheet, loaded on every admin
+   screen, satisfies both sides automatically.
+   Unsupported browsers (Firefox, Safari as of this writing) simply
+   keep today's instant navigation — this is additive, nothing to fall
+   back FROM. No explicit prefers-reduced-motion guard needed here:
+   the browser's own default cross-document transition already reduces
+   to a simple opacity crossfade under that setting, per spec. */
+@supports (view-transition-name: none) {
+    @view-transition {
+        navigation: auto;
+    }
+}
+
 :root {
     /* Neutral ramp — dark mode. Direct correction: "I want a warmer
        grey, and more color diversity" / "too much cool and blue" — the
@@ -1829,6 +1862,66 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     }
     ::view-transition-old(root) { z-index: 1; }
     ::view-transition-new(root) { z-index: 2; }
+}
+
+/* Depth-aware cross-document navigation — direct feedback: "I like
+   different transitions and animations depending on the depth of the
+   navigation element in the UX narrative." admin-skin.js's pagereveal
+   listener stamps data-shsas-nav-direction (forward/back, from the
+   Navigation API's real activation.navigationType) and
+   data-shsas-nav-depth (lateral/jump, from comparing the outgoing and
+   incoming page's own menu-slug prefix) onto <html> before each real
+   wp-admin page navigation. These rules are the actual visual payoff:
+   two genuinely different feelings for two genuinely different kinds
+   of move, not one flat crossfade applied everywhere.
+     - lateral: staying inside the same sidebar section — a horizontal
+       slide, new content entering from the direction you're
+       conceptually moving (right for forward, left for back), old
+       content exiting the opposite way. Reads as "moved sideways
+       within one place."
+     - jump: crossing into a different top-level section — a softer
+       scale+fade "zoom through" instead of a directional slide, since
+       there's no single "left/right" that means anything between two
+       unrelated sections. Reads as "arrived somewhere new," an
+       intentionally calmer, less kinetic cue than the lateral slide.
+   All four keyframes read from the SAME haze token
+   (--shsas-haze-brightness) for the outgoing page's dip, so the
+   navigation transition and the sidebar's own resting/focus system
+   share one consistent "dim what's leaving" language rather than
+   inventing a new brightness curve just for this. */
+:root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="forward"]::view-transition-old(root) { animation: shsas-nav-lateral-out-fwd 420ms cubic-bezier(.4, 0, .2, 1) both; }
+:root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="forward"]::view-transition-new(root) { animation: shsas-nav-lateral-in-fwd 420ms cubic-bezier(.2, 0, .2, 1) both; }
+:root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="back"]::view-transition-old(root) { animation: shsas-nav-lateral-out-back 420ms cubic-bezier(.4, 0, .2, 1) both; }
+:root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="back"]::view-transition-new(root) { animation: shsas-nav-lateral-in-back 420ms cubic-bezier(.2, 0, .2, 1) both; }
+:root[data-shsas-nav-depth="jump"]::view-transition-old(root) { animation: shsas-nav-jump-out 380ms ease-in both; }
+:root[data-shsas-nav-depth="jump"]::view-transition-new(root) { animation: shsas-nav-jump-in 380ms ease-out both; }
+
+@keyframes shsas-nav-lateral-out-fwd { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-3%); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
+@keyframes shsas-nav-lateral-in-fwd { from { transform: translateX(3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes shsas-nav-lateral-out-back { from { transform: translateX(0); opacity: 1; } to { transform: translateX(3%); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
+@keyframes shsas-nav-lateral-in-back { from { transform: translateX(-3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes shsas-nav-jump-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.015); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
+@keyframes shsas-nav-jump-in { from { transform: scale(.985); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Reduced-motion: the browser's own cross-document default already
+   reduces to a plain opacity crossfade under this setting per spec —
+   but that fallback only applies when THIS file leaves animation:none
+   in place. Since the rules above override animation with real
+   transform-driven keyframes at higher specificity, they'd otherwise
+   keep running even under prefers-reduced-motion. Explicitly reset
+   back to a same-specificity animation:none here so this ecosystem's
+   own reduced-motion guarantee — every animation in this codebase gets
+   a real opt-out — holds for these too, not just for the ones that
+   happen to be simple enough to rely on the browser default. */
+@media (prefers-reduced-motion: reduce) {
+    :root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="forward"]::view-transition-old(root),
+    :root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="forward"]::view-transition-new(root),
+    :root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="back"]::view-transition-old(root),
+    :root[data-shsas-nav-depth="lateral"][data-shsas-nav-direction="back"]::view-transition-new(root),
+    :root[data-shsas-nav-depth="jump"]::view-transition-old(root),
+    :root[data-shsas-nav-depth="jump"]::view-transition-new(root) {
+        animation: none;
+    }
 }
 
 /* ---------------- command palette trigger (admin bar) ---------------- */

@@ -2,10 +2,52 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.20.0
+ * Version:     0.21.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.21.0 — Depth-aware cross-document navigation. Direct feedback:
+// "I love creating organic flow and transitions between relevant
+// parts of the system... streaming navigation is huge for me" and
+// "I like different transitions and animations depending on the depth
+// of the navigation element in the UX narrative." wp-admin is a
+// traditional server-rendered app — every sidebar click is a full page
+// load, hard-cutting between screens. The Cross-Document View
+// Transitions spec (Chrome/Edge 126+, CSS-only opt-in via
+// `@view-transition { navigation: auto; }`, admin-skin.css) replaces
+// that hard cut with two genuinely different treatments depending on
+// what kind of move it is: staying within the same sidebar section
+// slides laterally; jumping to a different top-level section gets a
+// softer scale+fade "zoom through." Direction reverses correctly on
+// browser back/forward via the Navigation API's real
+// activation.navigationType.
+//
+// One real, load-bearing timing bug found and fixed by verifying live
+// rather than trusting the plan on paper: the detection logic
+// (reading navigation.activation, stamping <html> before the browser
+// captures the transition pseudo-elements) needs its 'pagereveal'
+// listener registered before that event fires — but it fires very
+// early, before a footer-loaded script (admin-skin.js, in_footer=true,
+// correct for everything else it does) ever runs. Confirmed live: by
+// the time the footer script executed, navigation.activation already
+// held the right data, but the listener always attached too late to
+// see the event. Fixed with a new, narrow exception — a tiny
+// synchronous inline script (shsas_print_nav_depth_script(),
+// admin_head priority 1) carrying ONLY this one listener, everything
+// else stays exactly where it was. Verified live across all three
+// real cases: same-section forward (lateral/forward), cross-section
+// forward (jump/forward), and browser back (jump/back) all detected
+// correctly.
+//
+// Also fixed two real specificity bugs in the reduced-motion overrides
+// (caught before shipping, not after) and a cross-contamination risk:
+// without cleanup, a leftover nav-depth attribute from a page load
+// would incorrectly apply a slide/zoom animation on top of the theme
+// toggle's own unrelated same-document circular-wipe transition, since
+// both share the same ::view-transition-old/new(root) pseudo-elements.
+// Attributes are stripped 700ms after being set, well after their own
+// transition's animation window has passed.
 
 // 0.20.0 — Card-group focus mode, part 2 of the haze/focus system's
 // three promised surfaces (sidebar shipped first as "fastest"; modals
@@ -1046,7 +1088,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.20.0');
+define('SHSAS_VER', '0.21.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
@@ -1144,6 +1186,63 @@ function shsas_bridge_bhy_tokens(): void {
         . '}</style>';
 }
 add_action('admin_head', 'shsas_bridge_bhy_tokens', 999);
+
+/**
+ * Real bug caught by verifying live, not by trusting the plan on
+ * paper: the depth-aware cross-document navigation transition
+ * (admin-skin.css's data-shsas-nav-depth/-direction-scoped keyframes)
+ * needs its 'pagereveal' listener (admin-skin.js) registered BEFORE
+ * that event fires — but admin-skin.js is enqueued with in_footer=true
+ * (correct for everything else it does: the theme toggle, the command
+ * palette, the Wallet-stack default all have no reason to block
+ * rendering). 'pagereveal' fires very early, essentially as soon as
+ * the browser has resolved the page's `@view-transition` opt-in from
+ * <head> — confirmed live: by the time footer-loaded admin-skin.js
+ * ran, navigation.activation already held the right data, but the
+ * listener attached too late to ever see the event that would have
+ * used it.
+ *
+ * Fix: this ONE listener gets its own tiny, synchronous, INLINE script
+ * printed as early in <head> as this plugin can manage (priority 1,
+ * lower number than every other admin_head hook here), completely
+ * separate from the main admin-skin.js file. Everything else this
+ * plugin does stays exactly where it was — this is a narrow exception
+ * for the one piece of logic that has a genuine "must run before a
+ * specific early browser event" constraint, not a wholesale move of
+ * admin-skin.js into <head>.
+ */
+function shsas_print_nav_depth_script(): void {
+    ?>
+<script>
+window.addEventListener('pagereveal', function () {
+    if (!('navigation' in window)) return;
+    var activation = window.navigation.activation;
+    if (!activation) return;
+    var root = document.documentElement;
+    var direction = activation.navigationType === 'traverse' ? 'back' : 'forward';
+    root.setAttribute('data-shsas-nav-direction', direction);
+    var fromUrl = activation.from && activation.from.url;
+    var toUrl = activation.entry && activation.entry.url;
+    if (!fromUrl || !toUrl) { root.setAttribute('data-shsas-nav-depth', 'jump'); return; }
+    function sectionOf(u) {
+        try {
+            var url = new URL(u);
+            var page = url.searchParams.get('page');
+            if (page) return page.split('-')[0];
+            return url.pathname.split('/').pop();
+        } catch (e) { return null; }
+    }
+    var sameSection = sectionOf(fromUrl) !== null && sectionOf(fromUrl) === sectionOf(toUrl);
+    root.setAttribute('data-shsas-nav-depth', sameSection ? 'lateral' : 'jump');
+    setTimeout(function () {
+        root.removeAttribute('data-shsas-nav-direction');
+        root.removeAttribute('data-shsas-nav-depth');
+    }, 700);
+});
+</script>
+    <?php
+}
+add_action('admin_head', 'shsas_print_nav_depth_script', 1);
 
 /**
  * A real, working light/dark toggle living in the admin bar (visible

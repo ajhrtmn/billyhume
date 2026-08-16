@@ -318,4 +318,17 @@
             });
         });
     })();
+
+    /* Depth-aware cross-document navigation's 'pagereveal' listener
+     * intentionally does NOT live here. Real bug found by verifying
+     * live: this file loads in_footer=true (correct for everything
+     * else in it), but 'pagereveal' fires very early — before a
+     * footer-loaded script has ever run — so a listener registered
+     * here would always attach after the event it needs already
+     * passed. It's printed instead as a tiny synchronous inline
+     * <script> in <head> (self-hosted-self-admin-skin.php,
+     * shsas_print_nav_depth_script(), admin_head priority 1) where it
+     * can actually run in time. See that function for the real
+     * implementation; the CSS keyframes it drives live in
+     * admin-skin.css under "Depth-aware cross-document navigation". */
 })();
