@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) exit;
  *   1. GET /wp-json/ous/v1/openapi.json — the raw spec, importable into
  *      Postman, Insomnia, real Swagger UI, or any other OpenAPI tool a
  *      dev already has.
- *   2. Own Ur Shit → API Docs — a plain, dependency-free in-admin
+ *   2. The Self-Hosted Self → API Docs — a plain, dependency-free in-admin
  *      viewer of the same spec (no Swagger-UI CDN pulled in, matching
  *      this ecosystem's "no build step, no external runtime
  *      dependency" convention — see OUS_Notifications' admin-bar
@@ -178,7 +178,7 @@ class OUS_ApiDocs {
         return [
             'openapi' => '3.0.0',
             'info' => [
-                'title' => 'Own Ur Shit ecosystem API',
+                'title' => 'The Self-Hosted Self ecosystem API',
                 'version' => defined('OUS_VER') ? OUS_VER : '1.0.0',
                 'description' => 'Auto-generated from this site\'s live registered REST routes. Only ecosystem-owned namespaces (ous/, bhi/, bh*) are included.',
             ],

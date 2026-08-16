@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * Two independent layers of "optional," on purpose:
  *
  * 1. SITE-WIDE: the site holder decides whether this feature exists on
- *    their install at all (Own Ur Shit → Security). Off by default.
+ *    their install at all (The Self-Hosted Self → Security). Off by default.
  *    While off, nothing changes about login for anyone — no code
  *    field, no enforcement, completely inert.
  * 2. PER-USER: even with the site setting on, 2FA is opt-in per
@@ -184,7 +184,7 @@ class BHI_TwoFactor {
     public static function render_profile_fields(\WP_User $user): void {
         if (!self::site_enabled()) {
             if (current_user_can('manage_options')) {
-                echo '<h2>Two-Factor Authentication</h2><p class="description">Disabled site-wide. Turn it on under <a href="' . esc_url(admin_url('admin.php?page=ous-security')) . '">Own Ur Shit → Security</a> before anyone can enroll.</p>';
+                echo '<h2>Two-Factor Authentication</h2><p class="description">Disabled site-wide. Turn it on under <a href="' . esc_url(admin_url('admin.php?page=ous-security')) . '">The Self-Hosted Self → Security</a> before anyone can enroll.</p>';
             }
             return;
         }

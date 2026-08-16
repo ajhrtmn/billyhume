@@ -972,6 +972,76 @@ class BHI_Portal {
     transition:opacity .12s ease, transform .12s ease;
   }
   .bhi-tip-bubble.is-visible { opacity:1; transform:translateY(0); }
+
+  /* ---- Portal icons: dashicons -> Lucide ----
+     Direct request to replace stock icons everywhere, extended to the
+     FRONT-END portal. Worth stating why this is CSS-only rather than a
+     PHP rewrite across nine plugins: every portal panel (this file plus
+     each peer plugin's own class-portal-panel.php — bh-contest,
+     bh-courses, bh-feedback, bh-monetization-woo, bh-tickets,
+     bh-registry, bh-streaming) renders its icon as
+     `<span class="dashicons dashicons-NAME">`, passing the dashicon
+     name through a shared 'icon' => ... panel-registration key. That
+     shared convention means ONE mask rule per name here re-skins every
+     plugin at once, with zero changes to any peer plugin's PHP and no
+     new cross-plugin coupling — exactly the kind of thing the
+     ecosystem's "peers depend only on the core" rule is for. A peer
+     plugin that later registers some other dashicon simply keeps the
+     font glyph (graceful, not broken) until a mask is added here.
+
+     mask-image (not background-image) so background-color drives the
+     color, letting these inherit currentColor and stay correct in every
+     panel context — the same technique used for the admin sidebar and
+     admin bar, so all three surfaces now share one icon language. */
+  .bhi-portal .dashicons[class*="dashicons-"] {
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: contain; mask-size: contain;
+    /* The glyph itself must go, or it renders underneath the mask. */
+    font-size: 0 !important;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+    /* Default size lives HERE, in the base rule, deliberately — an
+       earlier draft put it in a trailing
+       `.bhi-portal .dashicons:not([style*="width"])` catch-all, which
+       computes to (0,3,0) and would have silently BEATEN the three
+       context-specific size rules below at (0,2,0), collapsing the
+       wallet chip / achievement badge / empty-state icons to the wrong
+       size. Caught by working the specificity out rather than assuming
+       source order would settle it. */
+    width: 20px; height: 20px;
+  }
+  .bhi-portal .dashicons-admin-users { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-admin-users.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-admin-users.svg'); ?>); }
+  .bhi-portal .dashicons-layout { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-layout.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-layout.svg'); ?>); }
+  .bhi-portal .dashicons-dashboard { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-dashboard.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-dashboard.svg'); ?>); }
+  .bhi-portal .dashicons-star-filled { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-star-filled.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-star-filled.svg'); ?>); }
+  .bhi-portal .dashicons-money-alt { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-money-alt.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-money-alt.svg'); ?>); }
+  .bhi-portal .dashicons-exit { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-exit.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-exit.svg'); ?>); }
+  .bhi-portal .dashicons-bell { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-bell.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-bell.svg'); ?>); }
+  .bhi-portal .dashicons-welcome-learn-more { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-welcome-learn-more.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-welcome-learn-more.svg'); ?>); }
+  .bhi-portal .dashicons-microphone { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-microphone.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-microphone.svg'); ?>); }
+  .bhi-portal .dashicons-calendar-alt { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-calendar-alt.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-calendar-alt.svg'); ?>); }
+  .bhi-portal .dashicons-awards { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-awards.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-awards.svg'); ?>); }
+  .bhi-portal .dashicons-format-chat { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-format-chat.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-format-chat.svg'); ?>); }
+  .bhi-portal .dashicons-cart { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-cart.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-cart.svg'); ?>); }
+  .bhi-portal .dashicons-media-default { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-media-default.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-media-default.svg'); ?>); }
+  .bhi-portal .dashicons-format-audio { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-format-audio.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-format-audio.svg'); ?>); }
+  .bhi-portal .dashicons-sos { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-sos.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-sos.svg'); ?>); }
+  .bhi-portal .dashicons-index-card { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-index-card.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-index-card.svg'); ?>); }
+  .bhi-portal .dashicons-admin-generic { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-admin-generic.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-admin-generic.svg'); ?>); }
+  .bhi-portal .dashicons-groups { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-groups.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-groups.svg'); ?>); }
+  .bhi-portal .dashicons-chart-bar { -webkit-mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-chart-bar.svg'); ?>); mask-image:url(<?php echo esc_url(OUS_URL . 'assets/icons/pi-chart-bar.svg'); ?>); }
+  /* The three size rules further up (wallet chip 16px, achievement
+     badge 14px, empty-state 32px) set font-size to size the old glyph;
+     with a mask, width/height are what matter. Each is prefixed with
+     .bhi-portal here to reach (0,3,0) — matching the base rule's
+     specificity so source order decides, and these come later, so they
+     win. Without that prefix they'd be (0,2,0) and lose. */
+  .bhi-portal .bhi-portal-wallet-chip .dashicons { width:16px; height:16px; }
+  .bhi-portal .bhi-achievement-badge .dashicons { width:14px; height:14px; }
+  .bhi-portal .bhi-portal-empty .dashicons { width:32px; height:32px; }
 </style>
 </head>
 <body class="bhi-portal">

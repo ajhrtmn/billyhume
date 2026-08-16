@@ -2,10 +2,524 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.6.1
+ * Version:     0.16.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.16.1 — Last stock icon in the sidebar, found by auditing the live
+// DOM for any menu item still falling back to a font glyph rather than
+// assuming 0.13.0's sweep caught everything: WooCommerce's "Payments"
+// item. Its generated class is a raw query string
+// (`toplevel_page_admin?page=wc-settings&tab=checkout&from=PAYMENTS_
+// MENU_ITEM`), so `?`, `=` and `&` made it unusable as a plain class
+// selector — the earlier `.toplevel_page_woocommerce` selector simply
+// never matched it. Fixed with an attribute substring match on the
+// stable, meaningful tail (PAYMENTS_MENU_ITEM), which is both simpler
+// and more robust than escaping a URL WooCommerce could reasonably
+// re-order. Verified: 22 of 22 sidebar items now masked, zero stock
+// dashicons remaining.
+
+// 0.16.0 — The Wallet-stack pattern, direct request: "I like Apple's
+// Wallet metaphor as a way to organize similar but different stacks of
+// related things — almost like a containerized accordion — to reduce
+// the vertical space of screen real estate at smaller sizes and make
+// the most of the space available at larger sizes."
+//
+// Two halves, both real:
+// (1) Postboxes now animate open/closed instead of jump-cutting.
+// Verified live first that WP core collapses via a `.closed` CLASS
+// with NO inline style — that's what makes this animatable at all.
+// display can't be transitioned, so this uses the grid-template-rows
+// 1fr -> 0fr technique with .inside forced back to display:block, so
+// row height (not display) does the hiding. Guarded with :has() to
+// only apply where a postbox genuinely has the standard
+// header + .inside structure — anything unusual keeps core's own
+// behavior rather than being force-fit into a grid that might break
+// it. A closed card also drops to a shallower shadow: it's holding
+// less, so it sits closer to the page — same "shadow is the signal"
+// logic the hover state already uses. Verified on a real 3-metabox
+// edit screen: no clipping, no overflow, heights correct.
+// (2) Card GROUPS (.ous-cards, .bhy-card-grid) fan out into real
+// columns via auto-fit, so the column COUNT follows actual available
+// width rather than a hardcoded breakpoint — one column on a phone,
+// several on a wide display, continuously.
+//
+// Deliberately NOT applied to WP's own #dashboard-widgets columns:
+// those are drag-and-drop sortable with core JS that expects core's
+// container structure, and re-gridding them would risk breaking
+// sorting for a purely visual gain. A real "don't fight core where it
+// costs functionality" call, not an oversight.
+
+// 0.15.0 — Fluid sizing, direct request: "use fluid sizing tricks to
+// condense things and reclaim space and optimize UI flow per screen
+// and per GUI." Replaced fixed spacing literals with a real clamp()
+// scale (--shsas-space-1..6 on a 4px grid, matching the Track 4
+// design-system research and this ecosystem's own --bhy-space-*
+// precedent) plus --shsas-row-h for dense repeated rows. Each step
+// interpolates continuously between a tight small-screen value and a
+// roomier large-screen one instead of snapping at a breakpoint — the
+// old approach was one fixed value plus a 782px media query, so a
+// 900px window got full desktop padding it couldn't afford. Verified
+// across 375/600/768/900/1024/1280/1440/1920: rows run 44px -> 48px,
+// space-5 runs 16px -> 24px, nothing overflows, no horizontal scroll.
+// --shsas-row-h deliberately FLOORS at 44px (WCAG 2.5.5 comfortable-
+// tap minimum) — that's an accessibility floor, not a style choice.
+//
+// Which surfaced a real pre-existing accessibility bug: WP core
+// AUTO-folds the sidebar to icon-only below ~960px (body.auto-fold)
+// and hard-sets those rows to 34px, well under the 44px minimum —
+// at exactly the tablet width where touch is most plausible. Both
+// .folded and .auto-fold now respect the row-height token (height:auto
+// so min-height can actually govern rather than being pinned by core's
+// fixed height).
+
+// 0.14.1 — Real bug caught in a live responsive pass (direct
+// reminder: "don't forget responsive at all screen sizes"): WP core
+// hides non-essential admin-bar items below 782px, and that was
+// silently taking BOTH of this plugin's own additions with it — the
+// Cmd/K command palette and the light/dark toggle simply did not
+// exist on mobile. Backwards for the palette especially: it's a
+// quick-jump launcher, and mobile is exactly where it matters most,
+// since the entire sidebar is collapsed behind a hamburger there.
+// Both forced visible below 782px as compact icon-only buttons (label
+// and ⌘K hint still hide so they don't eat the narrow bar), with a
+// min-width keeping them at a real ~42px tap target rather than
+// collapsing to the 18px icon.
+
+// 0.14.0 — Admin-bar icons, completing the "replace all stock icons
+// everywhere... and branded admin bar icons and such" sweep. Six real
+// dashicon-driven items (WP logo, site name/home, updates, WP 6.3+'s
+// own command palette, comments, "New") now use the same Lucide set
+// and same mask-image technique as the sidebar, so they're recolorable
+// by this skin's own tokens rather than stuck as font glyphs.
+//
+// Also replaced this skin's OWN two admin-bar icons, which were raw
+// unicode characters (U+26B2 for the palette trigger, U+263C/U+263D
+// for the theme toggle) — genuinely the weakest icons in the whole UI,
+// since a text glyph renders as whatever the system font happens to
+// have and can't be stroke-matched to anything else. Both are now
+// masks: a real search icon, and a sun/moon pair keyed off
+// :root[data-shsas-theme] so the artwork swaps with the theme purely
+// in CSS. That let admin-skin.js drop its glyph-rewriting line
+// entirely (it now only owns the spin timing) — the JS was writing a
+// character that would have rendered underneath the mask, so removing
+// it was required, not just tidying. PHP spans emptied for the same
+// reason.
+
+// 0.13.1 — Real bug, direct feedback ("menu too much white space"),
+// found by measuring rather than eyeballing: every sidebar row was
+// rendering 64px tall, not the 44px intended. WP admin leaves these
+// links on `box-sizing: content-box`, so min-height:44px was the
+// CONTENT box and 10px+10px vertical padding stacked on top of it
+// (44 + 20 = 64). Across ~24 top-level items that's ~480px of
+// accidental vertical space — exactly the "airy/empty" read.
+// box-sizing:border-box makes min-height mean the real row height;
+// padding trimmed 10px -> 7px to match, so the 44px WCAG 2.5.5 touch
+// target is now the ACTUAL height rather than a floor padding
+// inflated past. Icon container 30px -> 24px in the same pass (the
+// drawn icon inside is only 20px, so 30px was 10px of pure padding
+// around every icon compounding the same problem), with the dashicon
+// glyph retuned 28px/30px -> 22px/24px to match — still meaningfully
+// larger than WP core's 20px default, which was the original point.
+//
+// Plus, per "keep Half-Blood Prince in mind and keep magical
+// animations": nav items now resolve OUT of haze on load — starting
+// blurred/dim/slightly-left, staggered 22ms per item — so the sidebar
+// reads as light gathering into focus down the column. Same
+// composing-with-light idea as the resting icon haze/glow system,
+// expressed in time rather than space. Deliberately short (260ms) and
+// small (3px drift/blur): a felt arrival, never a loading screen
+// between someone and their work. Full prefers-reduced-motion opt-out.
+
+// 0.13.0 — Icon sweep completed across the whole sidebar, direct
+// request: "replace all stock icons everywhere and all ecosystem icons
+// and branded admin bar icons and such." 0.12.0 covered WP core's own
+// 10 items; this covers everything else — this ecosystem's 6 branded
+// menus (The Self-Hosted Self hub, Design Suite, People, Contests,
+// Courses, Streaming), its 3 remaining raw-dashicon menus (OUS Debug,
+// BH Social, Tickets), and WooCommerce's 5 (Store, Products, Payments,
+// Analytics, Marketing). 24 Lucide icons vendored total.
+//
+// Deliberately done as skin-side CSS masks rather than by rewriting
+// each plugin's own PHP menu icon, for a real documented reason:
+// WP core's svg-painter.js rewrites every `fill` attribute (including
+// fill="none") on a data-URI menu icon to one solid scheme color and
+// strips strokes — OUS_MenuIcons' own class docblock documents hitting
+// exactly this. Lucide is stroke-based, so passing it through
+// add_menu_page() would render solid blobs. A CSS mask never goes
+// through svg-painter at all. Honest trade-off: each plugin's own
+// PHP icon still renders when this skin is inactive — correct
+// fallback behavior, and it keeps every peer plugin as portable as it
+// was before rather than coupling them to this skin.
+
+// 0.12.0 — Real icons, finally delivered: "find good icon replacement
+// even if not perfect. Something good looking is better than the
+// shitty default." Vendored 10 Lucide icons (assets/icons/, ISC
+// license, LICENSE file included) covering WP core's own standard
+// sidebar items (Dashboard/Posts/Media/Pages/Comments/Appearance/
+// Plugins/Users/Tools/Settings — the ones with a real WP-core
+// menu-icon-{type} class to hook). CSS mask-image (not
+// background-image) specifically so the existing --shsas-item-hue
+// wayfinding color AND the 0.11.0 haze/focus-glow filter system both
+// keep working unchanged on these icons — a mask recolors via
+// background-color, a background-image cannot be recolored by CSS at
+// all. Not exhaustive (peer-plugin top-level items keep their own
+// custom icons via the existing img/svg rules) — a real, good pick
+// shipped now rather than a stalled search for a theoretically
+// perfect one, per direct instruction.
+
+// 0.11.0 — The "haze" half of the two-rule accent system, direct
+// request: "one is the architectural foundation, and the other is the
+// 'half blood prince'-ification of WordPress in the neon rebel glow
+// juice kind of way, with a smoky cloudy hazy atmospheric depth and
+// clarity and focus hierarchy." A real depth-of-field mechanism, not
+// another glow: the sidebar's per-item wayfinding hue (already built)
+// now sits desaturated/dim at REST and sharpens to full saturation +
+// brightness + a real glow-bloom drop-shadow on hover/current — the
+// way a point of light gains a halo pulling into focus through haze.
+// Applied to all three icon-rendering modes (dashicon :before, <img>,
+// SVG background-image) — .before(7n+1)'s img/svg were deliberately
+// left untouched, matching their pre-existing "never colorized"
+// behavior rather than picking up an unintended reddish tint from this
+// change's fallback value. Applied to the ICON only, never the text
+// label, which stays fully legible always — blurring/desaturating
+// actual readable text for atmosphere would be a real accessibility
+// regression dressed up as a stylistic choice.
+//
+// Immediately followed by a direct refinement: "a spectrum blender of
+// different states of matter, stepped out with defaults but easily
+// utility-tunable." Refactored the hardcoded saturate/brightness/glow
+// numbers into real --shsas-haze-*/--shsas-focus-* tokens in :root —
+// every consumer (currently the sidebar icons, all three modes) now
+// reads the same shared scale instead of each rule carrying its own
+// magic numbers, so tuning "how hazy" or "how strong a glow" is one
+// edit that updates everywhere at once. Sidebar is the first, smallest
+// proof of concept — modal-backdrop haze and card-group spotlight
+// (the other two places this pattern belongs, per direct instruction)
+// are real, separate follow-on work, not attempted here.
+
+// 0.10.5 — Matching own-ur-shit 3.10.30's font correction: "less
+// kitschy fonts and still more diversity." Josefin Sans -> Jost — same
+// real 1920s German geometric-sans lineage (Erbar/Kabel-influenced)
+// but restrained, professional proportions instead of Josefin Sans's
+// more idiosyncratic tall/elongated ones. Same webfont URL change in
+// both enqueue functions (admin + login), same --shsas-font-display
+// token. Also grounding going forward: reference common, proven design
+// systems (Tailwind/Bootstrap/GitHub Primer/Basecamp/Material/Apple
+// HIG/Fluent) as a real baseline for scale decisions (radius, spacing,
+// elevation) rather than ad hoc values — this file's existing
+// --shsas-radius:10px/--shsas-radius-sm:6px already roughly track
+// Primer's 6px small radius and Tailwind's 8-12px range, a reasonable
+// starting point to keep auditing against rather than a fresh
+// departure needed right now.
+
+// 0.10.4 — Track 1 continues: bh-monetization-woo's Tier edit screen
+// (a classic-editor CPT, no block editor) surfaced a real, serious bug
+// that could affect ANY classic-editor CPT in this ecosystem, not just
+// this one: the generic `.wp-admin input[type="text"]` etc. rule never
+// had !important, and WP core's own higher-specificity #title rule
+// (an explicit white background) was winning outright — this skin's
+// warm cream text on a stark white field, nearly invisible. Every
+// other generic input has been one specific-enough competing core rule
+// away from the identical failure this whole session; !important
+// closes the class of bug, not just this screen, plus an explicit
+// #title rule for certainty. bh-streaming's PRO Registration wizard
+// also audited this round — genuinely clean already, no fixes needed.
+
+// 0.10.3 — The real diversification work promised in 0.10.2's
+// changelog: a new --shsas-item-hue custom property, set on each
+// sidebar li via the existing 7-cycle nth-of-type selectors (same set
+// that already colors each item's icon), now ALSO drives that item's
+// hover left-bar and "you are here" background fill — previously both
+// always used the single primary accent regardless of which colored
+// section was active. A real, non-arbitrary use of the diversity
+// already built into this file: the section you're actually in now
+// glows its own wayfinding color instead of every section
+// highlighting identically. Falls back to --shsas-accent for anything
+// outside the 7-cycle (there isn't anything, but a safe default
+// either way). Triple-checked coherent live across Dashboard, the
+// ecosystem hub, and the post editor's Publish button before this
+// commit, per direct instruction not to keep piling on unverified
+// changes.
+
+// 0.10.2 — Direct correction, immediately after 0.10.0/0.10.1's orange
+// swap: "too much of a pendulum with the orange, intelligent color
+// diversity, with the electric blue still primary, just find valuable
+// places to emphasize more shit with color and contrast." Reverted
+// --shsas-accent/--shsas-accent-text back to blue/white in all three
+// token blocks (dark, light, prefers-color-scheme fallback) — the warm
+// neutral-ramp correction from 0.10.0 stands, only the accent-hue
+// experiment is reverted. The darker jewel-tone orange hex from 0.10.0
+// is kept in the palette (still a real, useful hue for badges/sidebar
+// icons) even though it's no longer the accent. 0.10.1's
+// .components-button.is-primary fix (the Publish button) stays — it
+// was correct regardless of which hue --shsas-accent points at, and
+// now correctly renders blue again. Real diversification (using the
+// other six hues at genuine semantic moments, not just recoloring the
+// default) is the next actual work, tracked in the session's plan
+// file rather than guessed at here.
+
+// 0.10.1 — Immediately caught while verifying 0.10.0's palette swap
+// live: the block editor's actual Publish button
+// (.editor-post-publish-button__button, top toolbar) stayed WP core's
+// hardcoded blue — the existing .is-primary rule only ever covered
+// buttons living inside the sidebar/modal, never the toolbar. The
+// single most-clicked button in the whole editor was quietly the one
+// thing still "too blue" after the rest of the accent swap. Broadened
+// to every .components-button.is-primary regardless of container.
+
+// 0.10.0 — Palette correction, direct feedback ("I want a warmer grey,
+// and more color diversity" / "too much cool and blue" / "Jarvis it
+// up"): the neutral ramp (both themes, plus the prefers-color-scheme
+// fallback — all three kept in sync, per this file's own established
+// pattern) was rebuilt with a genuine warm undertone and real per-step
+// hue drift, replacing a ramp that was uniformly cool/blue-leaning
+// despite an old comment claiming "warm/cool alternation" it never
+// actually delivered. The primary accent moved from blue to orange —
+// warm (works WITH the new ramp instead of against it), genuinely
+// Googie/Streamline-Moderne-coded, and keeps cyan as a visually
+// distinct focus-ring hue instead of "hover and accent both read
+// blue." --shsas-accent-text flips to dark ink in dark mode (white-on-
+// orange measured a failing 2.35:1, dark-on-orange measured 7.67:1 —
+// verified) and the light-mode jewel-tone orange was darkened one
+// notch further than a simple desaturation would give specifically so
+// white accent-text still clears 4.5:1 now that orange carries the
+// PRIMARY-accent load, not just one hue among seven. Blue stays in the
+// seven-neon set (still used in the sidebar's per-item color cycling,
+// 1 of 7 items) — demoted from default, not removed.
+
+// 0.9.3 — Track 1 moves to bh-courses (never opened this session
+// before now): the course edit screen's own stats strip
+// (.bhc-course-stats, "N lessons · published · N total steps") had
+// correctly-inherited text color but a WP-core generic light-gray
+// background — same failure mode as bh-contest's .bh-stat, different
+// peer plugin's bespoke markup, confirmed via elementFromPoint scanning
+// after the class-name text-content search initially missed it
+// (screenshot pixel coordinates and DOM element bounds didn't line up
+// on the first few tries — worth remembering that a text-content
+// search across all descendants of the relevant postbox is more
+// reliable than guessing screenshot pixel positions when a bug is
+// small).
+
+// 0.9.2 — Direct request: "make all GUIs from WP, Woo, OUS, etc look
+// designed by one person." A real, confirmed gap: earlier fixes this
+// session gave .ous-card/.ous-metrics-card (own-ur-shit's own hardcoded
+// dashboards) the right COLORS but never the same SHAPE as a real
+// .postbox — no elevation/shadow, no shared radius token, no hover-
+// glow — so they read flatter/cheaper even once the palette matched.
+// Folded both into the shared .postbox/.card raised-surface rule
+// (background/border/radius/shadow/hover-glow all come from one place
+// now). Same finding, smaller scale, in the three badge-pill systems
+// (.bhy-badge, WooCommerce's .order-status, own-ur-shit's .ous-badge):
+// slightly different blur (4px vs 6px) and shadow spread (8px vs 10px)
+// between them — a small but real "different hand" tell — unified
+// into one shared grouped rule. Net effect: fewer, more consistent
+// rules (a real code-quality win, not just visual) AND every card/
+// badge in the ecosystem now genuinely shares one shape language
+// regardless of which system rendered it.
+
+// 0.9.1 — Whole-ecosystem plan, Track 1, first surface: WooCommerce's
+// Product edit screen, never actually opened before this session.
+// Two real bugs: `.panel-wrap.product_data` (the tabbed General/
+// Inventory/Shipping panel container) ships a hardcoded white
+// background — a visible white strip even though the tab content
+// above it was already correctly dark from generic form rules — and
+// the short-description classic editor's own tab pills
+// (.wp-switch-editor) + quicktags toolbar, a different, older editor
+// mechanism than the block editor's @wordpress/components already
+// fixed, unstyled light-gray.
+
+// 0.9.0 — Matching own-ur-shit 3.10.29's font correction: Righteous
+// (a 1970s-80s bubble-letter novelty face) replaced with Josefin
+// Sans (modeled on Rudolf Koch's Kabel and Paul Renner's Futura, both
+// 1927 — real period geometric-sans construction) after direct
+// feedback that Righteous read as a "cutesy version of Streamline
+// Moderne" rather than genuine period design reasoning. Same webfont
+// URL change in both enqueue functions (admin + login), same
+// --shsas-font-display token, and the h1 rule's weight/letter-spacing
+// retuned specifically for Josefin Sans's real 600 weight (Righteous
+// had only one weight and needed a synthesized fake bold) and its
+// taller, more tracked-out period-appropriate proportions.
+
+// 0.8.2 — Continuing the same "keep digging" audit: own-ur-shit's
+// Metrics dashboard (.ous-metrics-card) is a FOURTH separate hardcoded
+// styling mechanism found this session — its own inline <style> block
+// echoed directly from class-metrics.php, unrelated to the --bhy-*
+// tokens or the .ous-card stylesheet already fixed. Also covers the
+// sparkline charts themselves, real inline SVGs with a hardcoded
+// stroke="#2271b1" presentation attribute — legitimately overridden by
+// a real CSS stroke rule (presentation attributes have the lowest
+// possible specificity). Four distinct "this ecosystem hardcodes its
+// own light colors" mechanisms found and fixed in one session now
+// (--bhy-* tokens, .ous-card, .ous-metrics-card, plus every
+// WP-core/WooCommerce/@wordpress-components gap from earlier rounds) —
+// worth treating "assume there's a fifth" as the default going into
+// any screen not yet actually walked live.
+
+// 0.8.1 — Immediately re-auditing after 0.8.0's --bhy-* token bridge
+// (checking whether it actually closed the gaps it was meant to,
+// rather than assuming): confirmed live it DID fix bh-crm's "Smart
+// lists" card and a .bhy-alert-info notice, but the ecosystem
+// dashboard's own plugin-activation cards (admin.php?page=own-ur-shit,
+// .ous-card) were still white — traced to a THIRD, separate styling
+// mechanism: own-ur-shit/assets/css/admin.css, a small stylesheet that
+// predates the --bhy-* token system and hardcodes its own light colors
+// directly with no custom property to bridge at all. Fixed with a
+// direct override, same as every non-token-based fix this session,
+// plus the glow-for-importance treatment on its status badges
+// (Active/Inactive/Missing, alpha/beta/experimental feature-maturity
+// badges) — a plugin's active state is exactly the kind of real
+// importance signal that system exists for.
+
+// 0.8.0 — The single highest-leverage fix of this whole design audit,
+// found while chasing one white card on bh-crm's People screen: it
+// traced back to own-ur-shit's OWN shared admin design-token system
+// (BHY_UI::print_design_system_css(), class-ui.php) — a --bhy-*
+// custom-property convention used pervasively across bh-crm, bh-
+// contest, and own-ur-shit's own Design Suite/Setup Wizard/Reports/
+// Portal screens (including via inline `style="background:
+// var(--bhy-surface,#fff)"` rendered straight from PHP), hardcoded to
+// WP core's stock light-admin colors with zero dark-mode awareness.
+// Every one of those screens has been silently light-mode this whole
+// session regardless of anything this plugin did, because nothing
+// here ever redefined the SAME variable names — every previous fix in
+// this changelog has been a per-component override; this is the
+// upstream cause several of them share. Fixed with a soft interop
+// bridge (shsas_bridge_bhy_tokens(), admin_head priority 999 — must
+// fire after class-ui.php's own priority-10 hook to win the cascade
+// tie) that redefines the --bhy-* names to point at this skin's own
+// --shsas-* tokens. Not a hard dependency — pure CSS custom-property
+// redefinition, no PHP/class coupling — so this plugin stays exactly
+// as portable on a bare WordPress install as its own 0.1.0 changelog
+// entry promises; where own-ur-shit-style --bhy-* markup DOES exist,
+// it now re-themes for free instead of needing individual overrides.
+// Verified live: bh-crm's "Smart lists" card and the general .bhy-card/
+// .bhy-alert component family should be re-audited under this fix
+// before assuming they still need the one-off treatment Track A's
+// checklist originally planned for them.
+
+// 0.7.4 — Track A moves into peer-plugin bespoke UI (the least-audited
+// category — generic wp-core/WooCommerce rules obviously can't reach a
+// plugin's own hand-rolled admin widgets). First find: bh-contest's
+// Contest Results screen has its own stat-bar widget (.bh-stat —
+// "Total Votes"/"Unique Voters"/"Last Vote") with a hardcoded white
+// card background; text color was already fine. Also fixed, same
+// session, a real unrelated PHP fatal found while navigating here (not
+// this plugin's bug — own-ur-shit's OUS_PageSurface::add_meta_boxes()
+// crashed on WooCommerce's HPOS order screens; see own-ur-shit 3.10.28).
+
+// 0.7.3 — Track A continued: WooCommerce's Orders screen. The
+// dimension-field width regression from earlier this round (WooCommerce's
+// own narrow fixed-width Length/Width/Height fields clipping their
+// placeholder text against this skin's larger padding) also got a
+// version note there — noting it here since this batch is the actual
+// commit point. New finds: `.order-status` (the status pill on both
+// the Orders list and presumably the single-order screen) was a
+// completely unstyled WooCommerce-core light pill — the "orphaned
+// light box" failure mode in reverse (light box on a dark table
+// instead of the usual white-box-on-dark-chrome). A genuinely good
+// case for the glow-for-importance system from 0.7.0 rather than a
+// plain color fix: an order's status IS the kind of real importance
+// signal that treatment exists for, so it now shares the same
+// --shsas-glow mechanism as .bhy-badge, semantically mapped
+// (completed=success, processing=accent, pending/on-hold=warning,
+// cancelled/failed=danger, refunded=info).
+
+// 0.7.2 — Real, honest gap found doing a slow critical pass at real
+// desktop scale (direct feedback: "it all looks bad to me... don't
+// move on till its magical"): this session's ecosystem-wide font
+// rollout (Righteous + Atkinson Hyperlegible) only ever touched the
+// FRONT END's design tokens (own-ur-shit's BHY_Style --bh-font-*) —
+// this plugin's own --shsas-font/--shsas-font-display tokens were
+// never wired to them at all, so wp-admin — the exact surface being
+// looked at — hadn't visually changed one bit despite the whole font
+// effort. Fixed: same two fonts, loaded independently here (this
+// plugin stays standalone/portable per its own stated scope, no
+// dependency on own-ur-shit being active), applied as
+// --shsas-font (body, all running text) / --shsas-font-display
+// (Righteous, the ONE big page h1 per screen only — deliberately NOT
+// every h2/h3/postbox-header, which stay on the more legible body
+// face; a dense admin UI needs real scanability more than it needs
+// display-face flourish everywhere, same "useful over decorative"
+// rule as the rest of this session's brief). Righteous ships a single
+// weight (400, no true bold master) — font-weight/letter-spacing on h1
+// retuned for it specifically rather than reusing values tuned for the
+// old font.
+
+// 0.7.1 — Track A of the deep GUI audit (plan file), first item: the
+// media MODAL (Add Media, Set Featured Image, any image-select
+// control) is a genuinely different surface than the Media Library
+// grid PAGE fixed earlier this session — .media-modal-content and
+// .media-frame-content both ship their own hardcoded white background,
+// with the tab pills (.media-menu-item) defaulting to near-black text
+// on top. Confirmed live by actually clicking "Set featured image" on
+// a real post and watching the modal open, not guessed from the
+// already-fixed grid page. Full coverage: modal frame, title, tabs
+// (resting/hover/active), content area, attachment grid items and
+// selection outline, the right-hand details sidebar and its form
+// fields, and the close button.
+
+// 0.7.0 — The "neon on chalkboard / frosted glass that glows" importance-
+// signaling system, direct request (AJ's own words, saved to session
+// memory: "tourmalinated or rutilated quartz of different clarity and
+// color... but not gemmy" — material quality/translucency, explicitly
+// NOT another faceted ornament shape like the "art glass" mark and
+// diamond nav-marker already removed earlier this session). A new
+// `--shsas-glow` custom property (default: accent hue, swappable per
+// element via `data-tone`/`.bhy-badge-{success,warning,danger,info}`)
+// drives one consistent treatment — color-mix() background tint + soft
+// box-shadow glow + backdrop-filter blur ("frosted glass") — applied
+// ONLY to elements that already carry real semantic weight:
+// .bhy-badge, admin-bar count badges (the count itself IS the
+// importance signal, so it's on by default there), and .notice/
+// .updated/.error (a faint inset color bleed off the border edge,
+// ADDING to the existing solid border-color signal, never replacing
+// it — the accessible signal stays the border/background, the glow is
+// purely the "feels alive" layer on top). forced-colors:active strips
+// the glow/blur entirely, since it was never the primary accessible
+// signal to begin with. This is also the first concrete piece of the
+// "PS1/Xbox OG dashboard, but with modern UX sensibilities" reference
+// (the original Xbox dashboard's glowing translucent "blade" menus are
+// the literal precedent for this exact visual language) — see the
+// session's design-direction memory for the full brief. Ecosystem-wide
+// rollout (front end + theme, per "that goes ecosystem, front end,
+// backend, and theme") is a separate, larger change against
+// BHY_Style's shared badge_css() — tracked in the session's plan file,
+// not done in this admin-skin-only version.
+
+// 0.6.3 — Two more real bugs, direct feedback ("the alert/toast...
+// still sucks, as does the text in the tables"), both found by actually
+// triggering the real interaction rather than trusting a static
+// screenshot:
+// (1) Clicked Save on General Settings and watched the resulting
+// "Settings saved." notice render as a colored border with NO visible
+// text at all — WP core gives the <p>/<strong> inside a real notice an
+// explicit near-black (#1e1e1e), not inherited from the notice
+// container, so this skin's existing `.notice { color }` rule (which
+// also lacked !important) never reached it. This is likely the actual
+// "toast" being reported — every dismissible settings-saved
+// notification in the entire ecosystem was rendering invisible.
+// (2) `.wp-list-table td`'s color rule also lacked !important, and a
+// plugin row's own description text (.column-description p, Plugins
+// screen) has a more specific WP-core rule that was winning outright —
+// same failure, different table, confirmed live at #2c3338.
+
+// 0.6.2 — Starting the extensive, systematic GUI audit (checklist now
+// tracked in the session's plan file, not just ad hoc clicking). Three
+// more real bugs, all the same "background themed, text color never
+// set" failure mode as prior rounds, found in three DIFFERENT
+// component libraries:
+// (1) `.subsubsub .current` (the bold "All" list-table status filter)
+// measured pure black — a WP core default nothing had reached.
+// (2) `.nav-tab-wrapper`/`.nav-tab` (tabbed settings screens, e.g.
+// WooCommerce's General/Products/Shipping tabs) had zero coverage at
+// all.
+// (3) WooCommerce's OWN page title (.woocommerce-layout__header-heading,
+// rendered through @woocommerce/components' <Text>/Truncate, a
+// DIFFERENT package than core Gutenberg's @wordpress/components fixed
+// in 0.6.1) — same near-black-#1e1e1e default, third distinct
+// component library this exact bug class has now been found in.
 
 // 0.6.1 — Same audit, one more real bug in the block-editor chrome:
 // @wordpress/components' own <Button> (used everywhere in this
@@ -429,7 +943,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.6.1');
+define('SHSAS_VER', '0.16.1');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
@@ -447,6 +961,18 @@ function shsas_enqueue_assets(): void {
     // against this plugin's truncation rule on this exact install.
     // Defense in depth alongside the !important fix in the CSS itself.
     wp_enqueue_style('shsas-admin-skin', SHSAS_URL . 'assets/css/admin-skin.css', ['wp-admin'], SHSAS_VER);
+    // Same two fonts as the ecosystem-wide front-end default (own-ur-
+    // shit's BHY_Style::FONT_OPTIONS) — Righteous for display, Atkinson
+    // Hyperlegible for body — loaded independently here rather than via
+    // a class_exists() call into own-ur-shit, matching this plugin's
+    // own stated "standalone and portable" scope (it must keep working
+    // even if own-ur-shit isn't the active core plugin on some other
+    // install). Real gap this closes: the CSS tokens below
+    // (--shsas-font/--shsas-font-display) were pointing at these fonts
+    // with nothing fetching the actual webfont files — the exact same
+    // bug just fixed on the front end (BHY_Style::print_global_css()),
+    // just never wired into wp-admin at all in the first place.
+    wp_enqueue_style('shsas-fonts', 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap', [], SHSAS_VER);
     wp_enqueue_script('shsas-admin-skin', SHSAS_URL . 'assets/js/admin-skin.js', [], SHSAS_VER, true);
 
     // The command palette needs a flat list of every real admin-menu
@@ -465,8 +991,56 @@ add_action('admin_enqueue_scripts', 'shsas_enqueue_assets');
 // sense on a page with no admin menu yet).
 function shsas_enqueue_login_assets(): void {
     wp_enqueue_style('shsas-admin-skin', SHSAS_URL . 'assets/css/admin-skin.css', [], SHSAS_VER);
+    wp_enqueue_style('shsas-fonts', 'https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap', [], SHSAS_VER);
 }
 add_action('login_enqueue_scripts', 'shsas_enqueue_login_assets');
+
+/**
+ * Real, high-leverage bug found auditing bh-crm's People screen (Track
+ * A of the design audit): own-ur-shit's own shared admin design-token
+ * system (BHY_UI::print_design_system_css(), class-ui.php) defines a
+ * whole SECOND set of CSS custom properties — --bhy-surface,
+ * --bhy-ink, --bhy-border, --bhy-accent, etc. — that bh-crm, bh-contest,
+ * and own-ur-shit's own admin screens (Design Suite, Setup Wizard,
+ * Reports, the Portal, "Layer 3" components like .bhy-card/.bhy-alert)
+ * all reference directly, INCLUDING via inline `style="background:
+ * var(--bhy-surface,#fff)"` attributes rendered straight from PHP.
+ * Those tokens are hardcoded to WP core's stock LIGHT admin colors with
+ * no dark-mode awareness at all — every one of those screens was
+ * silently rendering in light mode no matter what this skin did,
+ * because nothing here ever redefined the SAME variable names.
+ *
+ * This is a soft interop bridge, not a hard dependency: it only
+ * redefines CSS custom properties by name (never calls any own-ur-shit
+ * PHP/class), so this plugin stays exactly as portable as its own
+ * doc comment above promises — on a bare WordPress install with no
+ * own-ur-shit, these variables are simply unused. Where own-ur-shit
+ * (or any plugin using this same, apparently ecosystem-wide --bhy-*
+ * naming convention) IS active, every one of its own components
+ * re-themes for free, instead of needing an individual CSS override
+ * per component the way every other fix in this file's changelog has
+ * worked so far.
+ *
+ * Priority 999 is load-bearing: class-ui.php's own token block is also
+ * a plain :root rule with equal specificity, printed via its own
+ * admin_head hook at the default priority (10) — later-in-source wins
+ * a specificity tie, so this MUST fire after it, not just be present.
+ */
+function shsas_bridge_bhy_tokens(): void {
+    echo '<style id="shsas-bhy-token-bridge">:root{'
+        . '--bhy-ink:var(--shsas-text);--bhy-ink-dim:var(--shsas-text-dim);'
+        . '--bhy-border:var(--shsas-border);--bhy-surface:var(--shsas-surface);'
+        . '--bhy-subtle:var(--shsas-surface-2);--bhy-accent:var(--shsas-accent);'
+        . '--bhy-success:var(--shsas-success);--bhy-success-bg:color-mix(in srgb,var(--shsas-success) 16%,var(--shsas-surface));'
+        . '--bhy-warning:var(--shsas-warning);--bhy-warning-bg:color-mix(in srgb,var(--shsas-warning) 16%,var(--shsas-surface));'
+        . '--bhy-danger:var(--shsas-danger);--bhy-danger-bg:color-mix(in srgb,var(--shsas-danger) 16%,var(--shsas-surface));'
+        . '--bhy-hover-tint:var(--shsas-surface-2);'
+        . '--bhy-selected-tint:color-mix(in srgb,var(--shsas-accent) 16%,var(--shsas-surface));'
+        . '--bhy-focus-ring:0 0 0 2px color-mix(in srgb,var(--shsas-accent) 25%,transparent);'
+        . '--bhy-radius:var(--shsas-radius);--bhy-radius-sm:var(--shsas-radius-sm);'
+        . '}</style>';
+}
+add_action('admin_head', 'shsas_bridge_bhy_tokens', 999);
 
 /**
  * A real, working light/dark toggle living in the admin bar (visible
@@ -488,13 +1062,20 @@ function shsas_admin_bar_toggle($wp_admin_bar): void {
     // as the theme toggle right next to it.
     $wp_admin_bar->add_node([
         'id' => 'shsas-palette-trigger',
-        'title' => '<span class="shsas-palette-trigger-icon" aria-hidden="true">&#9906;</span><span class="shsas-palette-trigger-label">Jump to&hellip;</span><kbd class="shsas-palette-trigger-kbd" aria-hidden="true">&#8984;K</kbd>',
+        // Empty span, not a unicode glyph — the artwork is a CSS mask
+        // (Lucide search icon) so it matches every other icon in the UI
+        // rather than being whatever the system font renders for U+26B2.
+        'title' => '<span class="shsas-palette-trigger-icon" aria-hidden="true"></span><span class="shsas-palette-trigger-label">Jump to&hellip;</span><kbd class="shsas-palette-trigger-kbd" aria-hidden="true">&#8984;K</kbd>',
         'href' => '#',
         'meta' => ['class' => 'shsas-palette-trigger', 'title' => 'Jump to any admin page (Cmd/Ctrl+K)'],
     ]);
     $wp_admin_bar->add_node([
         'id' => 'shsas-theme-toggle',
-        'title' => '<span class="shsas-toggle-icon" aria-hidden="true">&#9788;</span><span class="screen-reader-text">Toggle light/dark admin theme</span>',
+        // Empty span for the same reason as the palette trigger above —
+        // the sun/moon artwork is a CSS mask keyed off
+        // :root[data-shsas-theme], so it swaps with the theme
+        // automatically and matches the rest of the icon set.
+        'title' => '<span class="shsas-toggle-icon" aria-hidden="true"></span><span class="screen-reader-text">Toggle light/dark admin theme</span>',
         'href' => '#',
         'meta' => ['class' => 'shsas-theme-toggle', 'title' => 'Toggle light/dark admin theme'],
     ]);

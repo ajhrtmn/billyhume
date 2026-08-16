@@ -60,7 +60,7 @@ class OUS_MenuIcons {
         return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 
-    // Own Ur Shit hub — a small waveform/audio-meter mark (three bars),
+    // The Self-Hosted Self hub — a small waveform/audio-meter mark (three bars),
     // the one glyph in this set that represents the ecosystem itself
     // rather than one feature area within it.
     public static function hub(): string {

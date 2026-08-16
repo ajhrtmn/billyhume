@@ -26,7 +26,7 @@ class OUS_Privacy {
      */
     public static function register_exporter($exporters): array {
         $exporters['own-ur-shit-profile'] = [
-            'exporter_friendly_name' => __('Own Ur Shit — Profile', 'own-ur-shit'),
+            'exporter_friendly_name' => __('The Self-Hosted Self — Profile', 'own-ur-shit'),
             'callback' => [self::class, 'export_profile'],
         ];
         return $exporters;
@@ -38,7 +38,7 @@ class OUS_Privacy {
      */
     public static function register_eraser($erasers): array {
         $erasers['own-ur-shit-profile'] = [
-            'eraser_friendly_name' => __('Own Ur Shit — Profile', 'own-ur-shit'),
+            'eraser_friendly_name' => __('The Self-Hosted Self — Profile', 'own-ur-shit'),
             'callback' => [self::class, 'erase_profile'],
         ];
         return $erasers;
@@ -73,7 +73,7 @@ class OUS_Privacy {
         if ($has_data) {
             $data[] = [
                 'group_id' => 'own-ur-shit-profile',
-                'group_label' => __('Own Ur Shit Profile', 'own-ur-shit'),
+                'group_label' => __('The Self-Hosted Self Profile', 'own-ur-shit'),
                 'item_id' => 'profile-' . $user->ID,
                 'data' => $props,
             ];

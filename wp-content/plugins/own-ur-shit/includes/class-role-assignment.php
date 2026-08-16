@@ -58,7 +58,7 @@ class OUS_RoleAssignment {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['own-ur-shit-roles'] = ['label' => 'Own Ur Shit (Roles)', 'callback' => [self::class, 'run_tests']];
+        $suites['own-ur-shit-roles'] = ['label' => 'The Self-Hosted Self (Roles)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 

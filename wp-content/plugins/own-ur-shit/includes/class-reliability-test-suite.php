@@ -22,7 +22,7 @@ class OUS_ReliabilityTestSuite {
      * @return array<string, mixed>
      */
     public static function register($suites): array {
-        $suites['own-ur-shit-reliability'] = ['label' => 'Own Ur Shit — reliability (OUS_ReliableStore / log_throttled)', 'callback' => [self::class, 'run']];
+        $suites['own-ur-shit-reliability'] = ['label' => 'The Self-Hosted Self — reliability (OUS_ReliableStore / log_throttled)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 

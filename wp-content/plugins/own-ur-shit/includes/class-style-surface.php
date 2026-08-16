@@ -54,7 +54,7 @@ class OUS_StyleSurface {
      */
     public static function register($surfaces): array {
         $surfaces['ous-media-wizard'] = [
-            'group' => 'Own Ur Shit',
+            'group' => 'The Self-Hosted Self',
             'label' => 'Media & CDN Setup wizard',
             'render' => [self::class, 'media_wizard_preview'],
         ];

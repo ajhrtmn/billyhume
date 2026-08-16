@@ -42,13 +42,13 @@ class OUS_Dashboard {
         // class-menu-icons.php) is the actual ecosystem-membership
         // signal; this is the one glyph in that family that represents
         // the ecosystem hub itself rather than one feature area.
-        add_menu_page('Own Ur Shit', 'Own Ur Shit', 'manage_options', 'own-ur-shit', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
+        add_menu_page('The Self-Hosted Self', 'The Self-Hosted Self', 'manage_options', 'own-ur-shit', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
         // WordPress auto-creates a first submenu item duplicating the
         // top-level menu's own label unless explicitly overridden —
         // this replaces that duplicate with a clearer "Dashboard" label
-        // rather than literally repeating "Own Ur Shit" twice in the
+        // rather than literally repeating "The Self-Hosted Self" twice in the
         // sidebar.
-        add_submenu_page('own-ur-shit', 'Own Ur Shit', 'Dashboard', 'manage_options', 'own-ur-shit', [self::class, 'render']);
+        add_submenu_page('own-ur-shit', 'The Self-Hosted Self', 'Dashboard', 'manage_options', 'own-ur-shit', [self::class, 'render']);
     }
 
     public static function enqueue_assets(string $hook): void {
@@ -83,7 +83,7 @@ class OUS_Dashboard {
 
     public static function render(): void {
         echo '<div class="wrap ous-dashboard">';
-        echo '<h1>Own Ur Shit</h1>';
+        echo '<h1>The Self-Hosted Self</h1>';
         echo '<p class="description">One dashboard for the whole ecosystem. Activate pieces in order below — dependencies get activated automatically when you activate something that needs them.</p>';
 
         // First-run nudge: a brand-new install lands on this same page (own-ur-shit's own
@@ -174,11 +174,11 @@ class OUS_Dashboard {
         if (is_plugin_active('query-monitor/query-monitor.php')) {
             // 3.4.58 — this used to just point at QM's own generic
             // toolbar panel; class-qm-integration.php now registers a
-            // real "Own Ur Shit" tab INSIDE that panel showing this
+            // real "The Self-Hosted Self" tab INSIDE that panel showing this
             // request's own OUS_DebugLog entries, so this card can say
             // something more specific than "go look at a third-party
             // tool."
-            echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page), including an "Own Ur Shit" tab showing this request\'s own log entries.</p>';
+            echo '<p class="ous-card-desc">&#9989; Query Monitor is active — its panel lives in the admin toolbar (top of every admin page), including an "The Self-Hosted Self" tab showing this request\'s own log entries.</p>';
         } else {
             echo '<p class="ous-card-desc">Not installed. A recommended, free, self-hosted diagnostic tool (queries, hooks, HTTP requests, PHP errors) — optional, not bundled with this ecosystem.</p>';
             echo '<a class="button" href="' . esc_url(admin_url('plugin-install.php?s=query-monitor&tab=search&type=term')) . '">Install Query Monitor</a>';

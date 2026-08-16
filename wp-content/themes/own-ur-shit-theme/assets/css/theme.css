@@ -118,9 +118,20 @@ body.admin-bar .oust-site-header { top: 32px; }
     display: flex; align-items: center; justify-content: space-between; gap: 24px;
     height: 72px;
 }
+/* Real bug, caught live measuring actual layout: .oust-site-brand and
+   .oust-primary-nav were both default flex-shrink:1 in the same row,
+   but the nav's own items are white-space:nowrap (can't shrink below
+   their own text width at all), so 100% of any shrink pressure landed
+   on the brand name instead — confirmed live, it crushed down to
+   ~136px and ellipsis-truncated "Billy Hume Blank test" to "Billy Hume
+   B…" well before the nav gave up an inch. Brand identity is the wrong
+   thing to sacrifice first. flex-shrink:0 here (paired with
+   .oust-primary-nav's own overflow-x:auto below) moves the "what gives
+   when it's tight" decision to the secondary nav instead of the
+   primary brand mark. */
 .oust-site-brand {
     display: flex; flex-direction: column; justify-content: center; gap: 2px;
-    text-decoration: none; min-width: 0;
+    text-decoration: none; flex-shrink: 0;
 }
 .oust-site-brand:hover { color: var(--bh-text, #EDDFCB); }
 .oust-site-brand-kicker {
@@ -134,7 +145,28 @@ body.admin-bar .oust-site-header { top: 32px; }
 }
 .oust-site-brand .custom-logo { max-height: 44px; width: auto; display: block; }
 
-.oust-primary-nav { min-width: 0; }
+/* min-width:0 (so this can shrink at all inside a flex row) PLUS a
+   real overflow escape hatch: if this nav's own natural width still
+   exceeds whatever room is left after the brand mark keeps its full
+   width above, scroll horizontally within the nav's own lane instead
+   of silently clipping items off-screen with no way to reach them. A
+   deliberately THIN, visible, on-brand scrollbar rather than a hidden
+   one — an invisible scroll affordance is its own real usability trap
+   (a person has no way to know there's more nav to find), so this
+   stays honest about the state rather than pretending the overflow
+   isn't there. A real production menu (this test site's own 10-item
+   nav is inflated with QA-artifact entries like "Test Post 1"/"Contest
+   Test Page") should rarely if ever actually need to scroll — this is
+   a safety net for when it does, not the primary UX. */
+.oust-primary-nav {
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--bh-border, #3D1B14) transparent;
+}
+.oust-primary-nav::-webkit-scrollbar { height: 4px; }
+.oust-primary-nav::-webkit-scrollbar-track { background: transparent; }
+.oust-primary-nav::-webkit-scrollbar-thumb { background: var(--bh-border, #3D1B14); border-radius: 4px; }
 .oust-nav-list {
     display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0;
 }
@@ -217,6 +249,17 @@ body.admin-bar .oust-site-header { top: 32px; }
     border-bottom: 1px solid var(--bh-border, #3D1B14);
     clip-path: polygon(0 0, 100% 0, 100% calc(100% - 18px), 50% 100%, 0 calc(100% - 18px));
 }
+/* Real, found-not-invented "magic" gap: a prefers-reduced-motion guard
+   already existed below for this element's animation — but the
+   animation itself was never actually written, so the starburst has
+   sat completely static this whole time. A slow ambient rotation is
+   the obvious finish: radiating implied-motion light rays are a real
+   Googie/atomic-age motif (sunburst clocks, diner signage), not
+   invented decoration, and a 140s rotation is slow enough to read as
+   ambient/alive rather than a distraction competing with the actual
+   heading text in front of it. transform-origin stays centered
+   (inherits from the translate(-50%,-50%) below) so it spins in place
+   rather than orbiting. */
 .oust-hero-starburst {
     position: absolute; top: 50%; left: 50%; width: min(900px, 140vw); height: min(900px, 140vw);
     transform: translate(-50%, -50%); z-index: 0; pointer-events: none;
@@ -227,6 +270,11 @@ body.admin-bar .oust-site-header { top: 32px; }
     );
     -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 70%);
     mask-image: radial-gradient(circle, #000 0%, transparent 70%);
+    animation: oust-starburst-spin 140s linear infinite;
+}
+@keyframes oust-starburst-spin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 .oust-hero-boomerang {
     position: absolute; z-index: 0; pointer-events: none; opacity: .5;
@@ -586,3 +634,482 @@ body.admin-bar .oust-site-header { top: 32px; }
    currently theme ships no sidebar template, this only affects the
    footer widget area check in functions.php. */
 .oust-no-sidebar .oust-container { max-width: 1200px; }
+
+/* ================================================================
+   WooCommerce
+   ================================================================
+   Real gap found auditing the front end: grepping this file for any
+   WooCommerce selector returned ZERO matches — the entire storefront
+   (shop archive, single product, cart, checkout) rendered in stock
+   WooCommerce styling, completely disconnected from the rest of the
+   site. Measured live before writing any of this: product cards had
+   no background/border/radius at all, "Add to cart" was WooCommerce's
+   default light grey (#e9e6ed) with grey text, and the ordering
+   <select> was raw white/black/Arial. Typography was already
+   inheriting correctly (Atkinson/Josefin) — so this is specifically
+   about surfaces, controls, and rhythm, not type.
+
+   Everything below is deliberately built from the SAME vocabulary the
+   rest of the site already uses rather than a parallel "shop theme":
+   product cards reuse .bhc-course-card's exact treatment (surface +
+   border + 10px radius + translateY(-4px) hover with an accent-tinted
+   glow), buttons reuse the pill/accent language, and every color is a
+   --bh-* token so a re-themed site re-themes the store too. That's
+   the whole point — a visitor should not be able to tell where the
+   theme ends and WooCommerce begins. */
+
+/* ---- shop archive: toolbar ---- */
+.woocommerce .woocommerce-result-count { color: var(--bh-text-dim, #B99584); font-size: 14px; margin: 0; }
+.woocommerce .woocommerce-ordering select,
+.woocommerce select.orderby {
+    background: var(--bh-surface, #220C0A); color: var(--bh-text, #EDDFCB);
+    border: 1px solid var(--bh-border, #3D1B14); border-radius: var(--bh-radius-sm, 8px);
+    padding: 8px 12px; font-family: inherit; font-size: 14px; min-height: 40px;
+}
+.woocommerce .woocommerce-ordering select:focus,
+.woocommerce select.orderby:focus {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 2px; border-color: var(--bh-accent, #C1503A);
+}
+
+/* ---- shop archive: product grid ----
+   auto-fit/minmax rather than WooCommerce's own float-based columns,
+   so the column COUNT follows real available width instead of a fixed
+   per-theme number — same approach as the admin card grids and
+   bh-courses' own catalog. */
+.woocommerce ul.products {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+    gap: 20px; margin: 0; padding: 0; list-style: none; align-items: start;
+}
+.woocommerce ul.products::before, .woocommerce ul.products::after { display: none; }
+.woocommerce ul.products li.product {
+    width: auto !important; float: none !important; margin: 0 !important; clear: none !important;
+    background: var(--bh-surface, #220C0A);
+    border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 10px;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.woocommerce ul.products li.product:hover {
+    transform: translateY(-4px);
+    border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent, #C1503A) 35%, transparent), 0 4px 8px rgba(0, 0, 0, .06);
+}
+@media (prefers-reduced-motion: reduce) {
+    .woocommerce ul.products li.product { transition: none; }
+    .woocommerce ul.products li.product:hover { transform: none; }
+}
+/* Image sits flush to the card's top edge (negative margin cancels the
+   card padding) and keeps one fixed aspect for every product, so a
+   grid of mixed-ratio uploads still reads as one tidy row rather than
+   a jagged one — same fix bh-courses' own catalog cards use. */
+.woocommerce ul.products li.product a img {
+    margin: -16px -16px 0; width: calc(100% + 32px); max-width: none;
+    aspect-ratio: 1 / 1; object-fit: cover; display: block;
+    border-radius: 10px 10px 0 0; background: var(--bh-surface-2, #2C120E);
+    transition: transform .3s ease;
+}
+.woocommerce ul.products li.product:hover a img { transform: scale(1.04); }
+@media (prefers-reduced-motion: reduce) {
+    .woocommerce ul.products li.product a img,
+    .woocommerce ul.products li.product:hover a img { transition: none; transform: none; }
+}
+.woocommerce ul.products li.product .woocommerce-loop-product__title {
+    font-family: var(--bh-font-display, sans-serif); font-size: 16px; font-weight: 600;
+    color: var(--bh-text, #EDDFCB); padding: 0; margin: 8px 0 0; line-height: 1.3;
+}
+.woocommerce ul.products li.product a:hover .woocommerce-loop-product__title { color: var(--bh-accent, #C1503A); }
+.woocommerce ul.products li.product .price {
+    color: var(--bh-text, #EDDFCB); font-size: 15px; font-weight: 700; margin: 0;
+}
+.woocommerce ul.products li.product .price del { color: var(--bh-text-dim, #B99584); font-weight: 400; opacity: .7; }
+.woocommerce ul.products li.product .price ins { text-decoration: none; color: var(--bh-accent, #C1503A); }
+/* Pushes the button to the card's bottom edge so every card's CTA
+   lines up across a row regardless of title length. */
+.woocommerce ul.products li.product .button { margin-top: auto; }
+
+/* ---- buttons (shared across archive/single/cart/checkout) ---- */
+.woocommerce a.button,
+.woocommerce button.button,
+.woocommerce input.button,
+.woocommerce #respond input#submit,
+.woocommerce a.button.alt,
+.woocommerce button.button.alt,
+.woocommerce input.button.alt,
+.woocommerce #respond input#submit.alt {
+    background: var(--bh-accent, #C1503A);
+    color: var(--bh-accent-contrast, #150705);
+    border: none; border-radius: 999px;
+    padding: 10px 18px; font-family: inherit; font-size: 14px; font-weight: 600;
+    line-height: 1.2; min-height: 40px; text-decoration: none;
+    transition: filter .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.woocommerce a.button:hover,
+.woocommerce button.button:hover,
+.woocommerce input.button:hover,
+.woocommerce #respond input#submit:hover,
+.woocommerce a.button.alt:hover,
+.woocommerce button.button.alt:hover,
+.woocommerce input.button.alt:hover {
+    background: var(--bh-accent, #C1503A);
+    color: var(--bh-accent-contrast, #150705);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--bh-accent, #C1503A) 60%, transparent);
+}
+.woocommerce a.button:active, .woocommerce button.button:active, .woocommerce input.button:active { transform: translateY(0); }
+.woocommerce a.button:focus-visible,
+.woocommerce button.button:focus-visible,
+.woocommerce input.button:focus-visible {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .woocommerce a.button, .woocommerce button.button, .woocommerce input.button { transition: none; }
+    .woocommerce a.button:hover, .woocommerce button.button:hover, .woocommerce input.button:hover { transform: none; }
+}
+/* Secondary/"outlined" actions (Continue shopping, Update cart) —
+   same shape, quieter weight, so the real CTA stays the loudest thing
+   on the page. */
+.woocommerce a.button.wc-backward,
+.woocommerce button[name="update_cart"],
+.woocommerce input[name="update_cart"] {
+    background: transparent; color: var(--bh-text, #EDDFCB);
+    border: 1px solid var(--bh-border, #3D1B14);
+}
+.woocommerce a.button.wc-backward:hover,
+.woocommerce button[name="update_cart"]:hover {
+    background: var(--bh-surface-2, #2C120E); color: var(--bh-text, #EDDFCB);
+    border-color: var(--bh-accent, #C1503A);
+}
+
+/* ---- single product ---- */
+.woocommerce div.product .product_title {
+    font-family: var(--bh-font-display, sans-serif); color: var(--bh-text, #EDDFCB);
+    font-weight: 700; letter-spacing: -.01em;
+}
+.woocommerce div.product p.price,
+.woocommerce div.product span.price {
+    color: var(--bh-text, #EDDFCB); font-size: 24px; font-weight: 700;
+}
+.woocommerce div.product p.price del { color: var(--bh-text-dim, #B99584); font-weight: 400; }
+.woocommerce div.product p.price ins { text-decoration: none; color: var(--bh-accent, #C1503A); }
+.woocommerce div.product .woocommerce-product-details__short-description { color: var(--bh-text-dim, #B99584); }
+.woocommerce div.product .quantity .qty {
+    background: var(--bh-surface, #220C0A); color: var(--bh-text, #EDDFCB);
+    border: 1px solid var(--bh-border, #3D1B14); border-radius: var(--bh-radius-sm, 8px);
+    padding: 8px; min-height: 40px; font-family: inherit;
+}
+.woocommerce div.product .product_meta { color: var(--bh-text-dim, #B99584); font-size: 13px; }
+.woocommerce div.product .product_meta a { color: var(--bh-accent, #C1503A); }
+/* Product tabs — WooCommerce ships these as faux-3D bordered tabs;
+   flattened to the same quiet underline idiom the rest of the site
+   uses for tabbed nav. */
+.woocommerce div.product .woocommerce-tabs ul.tabs { padding: 0; margin: 0 0 20px; border-bottom: 1px solid var(--bh-border, #3D1B14); }
+.woocommerce div.product .woocommerce-tabs ul.tabs::before { display: none; }
+.woocommerce div.product .woocommerce-tabs ul.tabs li {
+    background: transparent; border: none; border-radius: 0; margin: 0 4px 0 0; padding: 0;
+}
+.woocommerce div.product .woocommerce-tabs ul.tabs li::before,
+.woocommerce div.product .woocommerce-tabs ul.tabs li::after { display: none; }
+.woocommerce div.product .woocommerce-tabs ul.tabs li a {
+    color: var(--bh-text-dim, #B99584); font-weight: 600; padding: 10px 14px; display: inline-block;
+    border-bottom: 2px solid transparent;
+}
+.woocommerce div.product .woocommerce-tabs ul.tabs li.active a,
+.woocommerce div.product .woocommerce-tabs ul.tabs li a:hover {
+    color: var(--bh-text, #EDDFCB); border-bottom-color: var(--bh-accent, #C1503A);
+}
+
+/* ---- cart / checkout tables ---- */
+.woocommerce table.shop_table {
+    background: var(--bh-surface, #220C0A);
+    border: 1px solid var(--bh-border, #3D1B14); border-radius: 10px;
+    border-collapse: separate; border-spacing: 0; overflow: hidden; color: var(--bh-text, #EDDFCB);
+}
+.woocommerce table.shop_table th {
+    background: var(--bh-surface-2, #2C120E); color: var(--bh-text-dim, #B99584);
+    font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+    padding: 12px 14px; border-bottom: 1px solid var(--bh-border, #3D1B14);
+}
+.woocommerce table.shop_table td {
+    padding: 14px; border-top: 1px solid var(--bh-border, #3D1B14); color: var(--bh-text, #EDDFCB);
+}
+.woocommerce table.shop_table tbody tr:hover { background: color-mix(in srgb, var(--bh-accent, #C1503A) 6%, transparent); }
+.woocommerce table.shop_table a { color: var(--bh-text, #EDDFCB); }
+.woocommerce table.shop_table a:hover { color: var(--bh-accent, #C1503A); }
+.woocommerce table.shop_table .product-remove a.remove {
+    color: var(--bh-text-dim, #B99584) !important; background: transparent;
+    font-size: 20px; line-height: 1;
+}
+.woocommerce table.shop_table .product-remove a.remove:hover {
+    color: var(--bh-danger, #b32d2e) !important; background: transparent;
+}
+.woocommerce .cart_totals h2,
+.woocommerce-checkout h3,
+.woocommerce-checkout .woocommerce-billing-fields h3 {
+    font-family: var(--bh-font-display, sans-serif); color: var(--bh-text, #EDDFCB);
+}
+
+/* ---- checkout form fields ---- */
+.woocommerce form .form-row label,
+.woocommerce-checkout label { color: var(--bh-text-dim, #B99584); font-size: 14px; }
+.woocommerce form .form-row input.input-text,
+.woocommerce form .form-row textarea,
+.woocommerce form .form-row select,
+.woocommerce-checkout input.input-text,
+.woocommerce-checkout textarea,
+.woocommerce-checkout select,
+.woocommerce .select2-container .select2-selection--single {
+    background: var(--bh-surface, #220C0A) !important; color: var(--bh-text, #EDDFCB) !important;
+    border: 1px solid var(--bh-border, #3D1B14) !important; border-radius: var(--bh-radius-sm, 8px) !important;
+    padding: 10px 12px; font-family: inherit; font-size: 15px; min-height: 42px;
+}
+.woocommerce form .form-row input.input-text:focus,
+.woocommerce form .form-row textarea:focus,
+.woocommerce form .form-row select:focus,
+.woocommerce-checkout input.input-text:focus {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 2px;
+    border-color: var(--bh-accent, #C1503A) !important;
+}
+.woocommerce .select2-container .select2-selection--single .select2-selection__rendered { color: var(--bh-text, #EDDFCB) !important; line-height: 42px; }
+.woocommerce .select2-dropdown { background: var(--bh-surface, #220C0A); border-color: var(--bh-border, #3D1B14); color: var(--bh-text, #EDDFCB); }
+.woocommerce .select2-results__option--highlighted { background: var(--bh-accent, #C1503A) !important; color: var(--bh-accent-contrast, #150705) !important; }
+.woocommerce-checkout #payment {
+    background: var(--bh-surface-2, #2C120E); border-radius: 10px; border: 1px solid var(--bh-border, #3D1B14);
+}
+.woocommerce-checkout #payment ul.payment_methods { border-bottom: 1px solid var(--bh-border, #3D1B14); }
+.woocommerce-checkout #payment div.payment_box {
+    background: var(--bh-surface, #220C0A); color: var(--bh-text-dim, #B99584);
+}
+.woocommerce-checkout #payment div.payment_box::before { border-bottom-color: var(--bh-surface, #220C0A); }
+
+/* ---- messages ---- */
+.woocommerce-message, .woocommerce-info, .woocommerce-error {
+    background: var(--bh-surface, #220C0A); color: var(--bh-text, #EDDFCB);
+    border-top: none; border-left: 4px solid var(--bh-accent, #C1503A);
+    border-radius: var(--bh-radius-sm, 8px); padding: 14px 18px;
+}
+.woocommerce-message::before, .woocommerce-info::before, .woocommerce-error::before { display: none; }
+.woocommerce-message { border-left-color: var(--bh-success, #1DB954); }
+.woocommerce-error { border-left-color: var(--bh-danger, #b32d2e); }
+.woocommerce-message a.button, .woocommerce-info a.button { float: none; margin-left: 12px; }
+
+/* ---- responsive ---- */
+@media (max-width: 600px) {
+    .woocommerce ul.products { grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 14px; }
+    .woocommerce ul.products li.product { padding: 12px; }
+    .woocommerce ul.products li.product a img { margin: -12px -12px 0; width: calc(100% + 24px); }
+    .woocommerce ul.products li.product .woocommerce-loop-product__title { font-size: 14px; }
+    /* Cart/checkout tables get genuinely unusable at phone width in
+       WooCommerce's default layout — let them scroll horizontally
+       inside their own lane rather than forcing the whole page wide. */
+    .woocommerce table.shop_table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Real layout bug, caught live on a single product page: WooCommerce's
+   single-product template still lays out with FLOATS (.woocommerce-
+   product-gallery floats left, .summary floats right). Nothing closes
+   those floats, so the very next thing this theme renders — single.php's
+   own prev/next post nav — got squeezed into the leftover ~46px gutter
+   beside them, wrapping its titles into an unreadable vertical sliver.
+   Measured, not guessed: nav computed 46px wide inside a 1200px
+   container while its own child overflowed to 106px.
+   Clearing on div.product fixes it at the source, so ANYTHING following
+   a product (post nav, comments, related products, a plugin's own
+   appended block) lays out correctly rather than each one needing its
+   own clear. */
+.woocommerce div.product::after {
+    content: ''; display: table; clear: both;
+}
+
+/* ---- storefront "magic" layer ----
+   Same composing-with-light language the admin skin and portal use, so
+   the shop reads as part of one designed system rather than a bolted-on
+   store. Three restrained moments, each doing a real job:
+
+   1. Product cards resolve OUT of haze on load, staggered down the
+      grid — light gathering into focus, matching the admin sidebar's
+      own entrance. Short (280ms) and small (4px/3px blur): a felt
+      arrival, never a loading screen between someone and the thing
+      they came to buy.
+   2. The price gains a soft accent glow on card hover — the one number
+      a shopper is actually hunting for, lit up exactly when they're
+      looking at that card. Importance signalled by light, not by
+      shouting louder in size or weight.
+   3. Sale badges get the frosted-glass treatment (tint + blur + bloom)
+      already used for badges everywhere else in the ecosystem.
+   All three fully opt out under prefers-reduced-motion. */
+.woocommerce ul.products li.product {
+    animation: oust-card-in 280ms ease-out both;
+}
+@keyframes oust-card-in {
+    from { opacity: 0; filter: blur(3px); transform: translateY(4px); }
+    to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+}
+.woocommerce ul.products li.product:nth-child(6n+1) { animation-delay: 0ms; }
+.woocommerce ul.products li.product:nth-child(6n+2) { animation-delay: 40ms; }
+.woocommerce ul.products li.product:nth-child(6n+3) { animation-delay: 80ms; }
+.woocommerce ul.products li.product:nth-child(6n+4) { animation-delay: 120ms; }
+.woocommerce ul.products li.product:nth-child(6n+5) { animation-delay: 160ms; }
+.woocommerce ul.products li.product:nth-child(6n+6) { animation-delay: 200ms; }
+
+.woocommerce ul.products li.product .price {
+    transition: color .2s ease, text-shadow .2s ease;
+}
+.woocommerce ul.products li.product:hover .price {
+    color: var(--bh-accent, #C1503A);
+    text-shadow: 0 0 14px color-mix(in srgb, var(--bh-accent, #C1503A) 55%, transparent);
+}
+
+.woocommerce span.onsale {
+    background: color-mix(in srgb, var(--bh-accent, #C1503A) 22%, var(--bh-surface-2, #2C120E));
+    color: var(--bh-text, #EDDFCB);
+    border: 1px solid color-mix(in srgb, var(--bh-accent, #C1503A) 45%, transparent);
+    box-shadow: 0 0 10px -2px color-mix(in srgb, var(--bh-accent, #C1503A) 55%, transparent);
+    -webkit-backdrop-filter: blur(6px) saturate(140%); backdrop-filter: blur(6px) saturate(140%);
+    border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 700;
+    min-height: 0; min-width: 0; line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .woocommerce ul.products li.product { animation: none; }
+    .woocommerce ul.products li.product .price { transition: none; }
+}
+@media (forced-colors: active) {
+    .woocommerce span.onsale { box-shadow: none; backdrop-filter: none; }
+}
+
+/* ---- WooCommerce Blocks (cart / checkout) ----
+   Real finding, caught by checking the live cart rather than assuming
+   the classic-template rules above covered it: this site's cart and
+   checkout are the newer BLOCK-based ones, not the classic
+   [woocommerce_cart] shortcode templates. That's an entirely separate
+   class namespace (wc-block-*, 39 distinct classes on the cart page
+   alone) — table.shop_table doesn't exist there at all, and the
+   "Proceed to Checkout" button was still rendering stock grey
+   (rgb(50,55,60)) with square corners while everything around it was
+   themed. Since this is the actual path a customer takes to give you
+   money, leaving it stock would undercut the whole storefront pass.
+
+   WooCommerce Blocks exposes real CSS custom properties for its own
+   button/base colors, so several of these are set at the container
+   level and inherited, rather than overriding every descendant. */
+.wp-block-woocommerce-cart,
+.wp-block-woocommerce-checkout,
+.wc-block-components-sidebar-layout {
+    --wc-blocks-color-primary: var(--bh-accent, #C1503A);
+    color: var(--bh-text, #EDDFCB);
+}
+/* Primary actions: Proceed to Checkout, Place Order. */
+.wc-block-cart__submit-button,
+.wc-block-components-checkout-place-order-button,
+.wc-block-components-button:not(.is-link) {
+    background: var(--bh-accent, #C1503A) !important;
+    color: var(--bh-accent-contrast, #150705) !important;
+    border: none !important; border-radius: 999px !important;
+    font-family: inherit; font-weight: 600; min-height: 44px;
+    transition: filter .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.wc-block-cart__submit-button:hover,
+.wc-block-components-checkout-place-order-button:hover,
+.wc-block-components-button:not(.is-link):hover {
+    filter: brightness(1.08); transform: translateY(-1px);
+    box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--bh-accent, #C1503A) 60%, transparent);
+}
+.wc-block-components-button:not(.is-link):focus-visible,
+.wc-block-cart__submit-button:focus-visible {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .wc-block-cart__submit-button,
+    .wc-block-components-button:not(.is-link) { transition: none; }
+    .wc-block-cart__submit-button:hover,
+    .wc-block-components-button:not(.is-link):hover { transform: none; }
+}
+/* Text links (Remove item, Edit) stay quiet but on-brand. */
+.wc-block-components-button.is-link,
+.wc-block-cart-item__remove-link {
+    color: var(--bh-text-dim, #B99584) !important; text-decoration: underline;
+}
+.wc-block-components-button.is-link:hover,
+.wc-block-cart-item__remove-link:hover { color: var(--bh-accent, #C1503A) !important; }
+
+/* Structure: rows, headers, totals panel. */
+.wc-block-cart-items__header {
+    color: var(--bh-text-dim, #B99584); font-size: 12px; text-transform: uppercase;
+    letter-spacing: .06em; font-weight: 700;
+    border-bottom: 1px solid var(--bh-border, #3D1B14);
+}
+.wc-block-cart-items__row,
+.wc-block-components-order-summary-item {
+    border-bottom: 1px solid var(--bh-border, #3D1B14);
+}
+.wc-block-components-product-name { color: var(--bh-text, #EDDFCB) !important; font-weight: 600; }
+.wc-block-components-product-name:hover { color: var(--bh-accent, #C1503A) !important; }
+.wc-block-components-product-price,
+.wc-block-components-totals-item__value,
+.wc-block-components-formatted-money-amount { color: var(--bh-text, #EDDFCB); }
+.wc-block-components-totals-item__label { color: var(--bh-text-dim, #B99584); }
+/* The cart/checkout sidebar is the one panel that should read as a
+   real raised surface — it's the running total, the thing a shopper
+   keeps glancing back at. */
+.wc-block-components-sidebar {
+    background: var(--bh-surface, #220C0A);
+    border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 10px; padding: 20px;
+}
+.wc-block-cart__totals-title,
+.wc-block-components-title {
+    color: var(--bh-text-dim, #B99584) !important;
+    font-family: var(--bh-font-display, sans-serif);
+}
+.wc-block-components-totals-footer-item .wc-block-components-totals-item__value {
+    color: var(--bh-text, #EDDFCB); font-size: 20px; font-weight: 700;
+}
+
+/* Quantity stepper + form fields. */
+.wc-block-components-quantity-selector {
+    background: var(--bh-surface-2, #2C120E);
+    border: 1px solid var(--bh-border, #3D1B14); border-radius: 999px;
+}
+.wc-block-components-quantity-selector__input,
+.wc-block-components-quantity-selector__button {
+    background: transparent !important; color: var(--bh-text, #EDDFCB) !important;
+}
+.wc-block-components-quantity-selector__button:hover { color: var(--bh-accent, #C1503A) !important; }
+.wc-block-components-text-input input[type="text"],
+.wc-block-components-text-input input[type="email"],
+.wc-block-components-text-input input[type="tel"],
+.wc-block-components-textarea,
+.wc-block-components-combobox-control input,
+.wc-block-components-select__container {
+    background: var(--bh-surface, #220C0A) !important; color: var(--bh-text, #EDDFCB) !important;
+    border: 1px solid var(--bh-border, #3D1B14) !important;
+    border-radius: var(--bh-radius-sm, 8px) !important;
+}
+.wc-block-components-text-input label,
+.wc-block-components-checkout-step__title,
+.wc-block-components-address-form label { color: var(--bh-text-dim, #B99584) !important; }
+.wc-block-components-text-input input:focus,
+.wc-block-components-textarea:focus {
+    outline: 2px solid var(--bh-accent, #C1503A); outline-offset: 2px;
+}
+/* Panels: coupon accordion, payment/shipping option rows. */
+.wc-block-components-panel,
+.wc-block-components-radio-control-accordion-option,
+.wc-block-components-radio-control__option {
+    background: var(--bh-surface-2, #2C120E);
+    border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: var(--bh-radius-sm, 8px);
+    color: var(--bh-text, #EDDFCB);
+}
+.wc-block-components-radio-control__option--checked-option-highlighted,
+.wc-block-components-radio-control-accordion-option--checked-option-highlighted {
+    border-color: var(--bh-accent, #C1503A);
+    box-shadow: 0 0 0 1px var(--bh-accent, #C1503A),
+                0 0 14px -6px color-mix(in srgb, var(--bh-accent, #C1503A) 60%, transparent);
+}
+.wc-block-components-notice-banner {
+    background: var(--bh-surface, #220C0A) !important; color: var(--bh-text, #EDDFCB) !important;
+    border-radius: var(--bh-radius-sm, 8px);
+}

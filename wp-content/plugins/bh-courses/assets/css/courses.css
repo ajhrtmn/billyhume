@@ -471,24 +471,65 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    courses.js enforces the same "can't skip ahead" rule the per-step
    Back buttons already relied on. */
 .bhc-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+/* Direct request: "replace the letters with icons in the courses as
+   well. Update sizes as necessary and add subtle hue hints for the
+   user depending upon lesson type." Was single letters (T/I/V/Q/R/!/
+   C/A-B) — a real legibility problem at 26px (an 11px letter in a
+   circle reads as noise, and 'A/B' at 8px was genuinely unreadable),
+   and letters only work if you already know the legend. Real Lucide
+   icons (ISC, vendored — see assets/icons/LICENSE) instead: a
+   glanceable shape per type. Dot sized up 26px -> 30px to give a real
+   20px icon room to breathe without crowding the border ring.
+   mask-image rather than background-image specifically so
+   background-color still drives the color — that's what makes the
+   per-type hue hint below possible at all. */
 .bhc-stepper-dot {
-    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--bh-border);
-    background: var(--bh-surface); color: var(--bh-text-dim); font-size: 11px; font-weight: 700;
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--bh-border);
+    background: var(--bh-surface); color: var(--bh-text-dim);
     cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;
     padding: 0;
 }
-.bhc-stepper-dot::before { content: 'T'; }
-.bhc-stepper-image::before { content: 'I'; }
-.bhc-stepper-video::before { content: 'V'; }
-.bhc-stepper-quiz::before { content: 'Q'; }
-.bhc-stepper-resource::before { content: 'R'; }
-.bhc-stepper-callout::before { content: '!'; }
-.bhc-stepper-checklist::before { content: '\2713'; }
-.bhc-stepper-chord-chart::before { content: 'C'; }
-.bhc-stepper-audio-compare::before { content: 'A/B'; font-size: 8px; }
+.bhc-stepper-dot::before {
+    content: '';
+    width: 16px; height: 16px;
+    background-color: var(--bhc-step-hue, var(--bh-text-dim));
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-image: url(../icons/step-text.svg); mask-image: url(../icons/step-text.svg);
+}
+.bhc-stepper-image::before { -webkit-mask-image: url(../icons/step-image.svg); mask-image: url(../icons/step-image.svg); }
+.bhc-stepper-video::before { -webkit-mask-image: url(../icons/step-video.svg); mask-image: url(../icons/step-video.svg); }
+.bhc-stepper-quiz::before { -webkit-mask-image: url(../icons/step-quiz.svg); mask-image: url(../icons/step-quiz.svg); }
+.bhc-stepper-resource::before { -webkit-mask-image: url(../icons/step-resource.svg); mask-image: url(../icons/step-resource.svg); }
+.bhc-stepper-callout::before { -webkit-mask-image: url(../icons/step-callout.svg); mask-image: url(../icons/step-callout.svg); }
+.bhc-stepper-checklist::before { -webkit-mask-image: url(../icons/step-checklist.svg); mask-image: url(../icons/step-checklist.svg); }
+.bhc-stepper-chord-chart::before { -webkit-mask-image: url(../icons/step-chord-chart.svg); mask-image: url(../icons/step-chord-chart.svg); }
+.bhc-stepper-audio-compare::before { -webkit-mask-image: url(../icons/step-audio-compare.svg); mask-image: url(../icons/step-audio-compare.svg); }
+
+/* The "subtle hue hints depending upon lesson type" half — one custom
+   property per type, deliberately drawn from the site's own themeable
+   --bh-cat-* category palette rather than new invented literals, so a
+   site that re-themes its palette re-themes these too. Kept SUBTLE by
+   design: the hue tints the small icon inside the dot, not the dot's
+   whole fill or border — the existing done/current/disabled states
+   stay the primary, unambiguous progress signal, and type is a
+   secondary at-a-glance hint layered under it rather than a competing
+   one. Text deliberately keeps the neutral --bh-text-dim default (it's
+   the most common type by far; coloring it too would make the whole
+   stepper read as noise rather than making the special types pop). */
+.bhc-stepper-image { --bhc-step-hue: var(--bh-cat-3, var(--bh-accent)); }
+.bhc-stepper-video { --bhc-step-hue: var(--bh-cat-7, var(--bh-accent)); }
+.bhc-stepper-quiz { --bhc-step-hue: var(--bh-cat-2, var(--bh-accent)); }
+.bhc-stepper-resource { --bhc-step-hue: var(--bh-cat-5, var(--bh-accent)); }
+.bhc-stepper-callout { --bhc-step-hue: var(--bh-cat-4, var(--bh-accent)); }
+.bhc-stepper-checklist { --bhc-step-hue: var(--bh-cat-6, var(--bh-accent)); }
+.bhc-stepper-chord-chart { --bhc-step-hue: var(--bh-cat-8, var(--bh-accent)); }
+.bhc-stepper-audio-compare { --bhc-step-hue: var(--bh-cat-1, var(--bh-accent)); }
+
 .bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
-.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); color: var(--bh-accent); }
-.bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); color: var(--bh-text); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
+.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); }
+.bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
 

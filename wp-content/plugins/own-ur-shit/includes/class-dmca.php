@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) exit;
  * Per-site DMCA designated-agent contact info, admin-editable, plus a
  * [bh_dmca_notice] shortcode that renders it publicly.
  *
- * Own Ur Shit is open-source software installed by independent site
+ * The Self-Hosted Self is open-source software installed by independent site
  * owners — it is NOT itself a hosted service, so it cannot register a
  * DMCA agent on anyone's behalf. Each site owner who wants safe-harbor
  * protection has to register their OWN agent directly with the U.S.
@@ -51,7 +51,7 @@ class OUS_DMCA {
         echo '<div class="wrap"><h1>DMCA Agent</h1>';
         echo '<p class="description">This info is shown publicly wherever you place the <code>[bh_dmca_notice]</code> shortcode, as the contact point for copyright takedown notices.</p>';
         echo '<div class="notice notice-warning"><p><strong>This form does not register anything with the U.S. Copyright Office.</strong> ';
-        echo 'Own Ur Shit is open-source software you run on your own site — you, not this plugin, are the legal service provider. ';
+        echo 'The Self-Hosted Self is open-source software you run on your own site — you, not this plugin, are the legal service provider. ';
         echo 'To actually get DMCA safe-harbor protection, register your own agent at ';
         echo '<a href="https://www.copyright.gov/dmca-directory/" target="_blank" rel="noopener">copyright.gov/dmca-directory</a> ';
         echo '(small fee, renews every 3 years) and keep it current there. Enter the same info here so it displays on your site.</p></div>';
@@ -111,7 +111,7 @@ class OUS_DMCA {
     public static function render_shortcode(): string {
         if (!self::is_configured()) {
             return current_user_can('manage_options')
-                ? '<p><em>DMCA agent info not yet configured — set it under Own Ur Shit &gt; DMCA Agent.</em></p>'
+                ? '<p><em>DMCA agent info not yet configured — set it under The Self-Hosted Self &gt; DMCA Agent.</em></p>'
                 : '';
         }
 

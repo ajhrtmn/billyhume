@@ -1012,7 +1012,7 @@ class BHY_UI {
     /** @return array<int, string> */
     public static function hidden_submenu_slugs(): array {
         // 'ous-debug' itself used to live here too, back when Debug Tools
-        // was a submenu under the main "Own Ur Shit" hub — it's now its
+        // was a submenu under the main "The Self-Hosted Self" hub — it's now its
         // own top-level "OUS Debug" menu (see class-debug.php), so
         // there's no longer a hub submenu entry for it to pin. API Docs
         // still hangs under THAT top-level menu (alongside Debug Tools'

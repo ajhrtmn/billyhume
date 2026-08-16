@@ -1,11 +1,135 @@
 <?php
 /**
- * Plugin Name: Own Ur Shit
+ * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.25
+ * Version:     3.10.31
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.31 — Front-end portal icons: dashicons -> Lucide, completing
+// the "replace all stock icons everywhere" sweep across the third and
+// last surface (wp-admin sidebar and admin bar were done in the admin
+// skin). 20 Lucide icons vendored to assets/icons/ (ISC, LICENSE
+// included), applied as CSS masks in class-portal.php's own front-end
+// style block.
+//
+// Deliberately CSS-only rather than a PHP rewrite across nine plugins:
+// every portal panel (this plugin plus bh-contest, bh-courses,
+// bh-feedback, bh-monetization-woo, bh-tickets, bh-registry,
+// bh-streaming) registers its icon through the SAME shared
+// 'icon' => 'dashicons-NAME' panel key and renders it as
+// <span class="dashicons dashicons-NAME">. That shared convention
+// means one mask rule per name re-skins every plugin at once, with
+// zero peer-plugin PHP changes and no new cross-plugin coupling —
+// exactly what the ecosystem's "peers depend only on the core" rule is
+// for. A peer registering some other dashicon keeps its font glyph
+// (graceful, not broken) until a mask is added here.
+//
+// One real bug caught while writing it, by working out specificity
+// rather than trusting source order: the default size started life in
+// a trailing `.bhi-portal .dashicons:not([style*="width"])` catch-all
+// at (0,3,0), which would have silently BEATEN the three
+// context-specific size rules at (0,2,0) and collapsed the wallet
+// chip / achievement badge / empty-state icons to the wrong size.
+// Default moved into the base rule; the three specific rules prefixed
+// with .bhi-portal to tie at (0,3,0) and win on order. Verified live:
+// 9 icons on the portal, all masked, wallet chip correctly 16px while
+// the rest hold 20px.
+
+// 3.10.30 — One more font correction, direct feedback: "I want less
+// kitschy fonts and still more diversity." Josefin Sans (3.10.29) is
+// real period reasoning but its tall, idiosyncratic proportions still
+// read as costume-y at display sizes. Swapped display font to Jost —
+// same 1920s German geometric-sans lineage (Erbar/Kabel-influenced,
+// the same family Futura itself grew from) but genuinely restrained,
+// professional proportions. Added to BHY_Style::FONT_OPTIONS and set
+// as the new font_display default; Josefin Sans and Righteous both
+// stay in the option list, neither removed, just no longer default.
+// font_body (Atkinson Hyperlegible) unchanged.
+
+// 3.10.29 — Direct correction on 3.10.27's font choice: "I don't want
+// a cutesy version of Streamline Moderne... think like the great
+// designers of the time would when approaching problem solving and
+// design sensibility, just with modern wisdom of how people use
+// things." Righteous (a 1970s-80s bubble-letter novelty face) was the
+// wrong era AND the wrong sensibility for that brief — decoration
+// wearing a retro label, not real period design reasoning. Replaced
+// the ecosystem-wide font_display default with Josefin Sans, which is
+// explicitly modeled on Rudolf Koch's Kabel (1927) and Paul Renner's
+// Futura (1927) — genuine 1920s-30s geometric-sans construction, not a
+// pastiche of it — while staying legible at real UI sizes a 1927
+// display face wouldn't necessarily have been designed for (the
+// "modern wisdom" half of the brief). Both Righteous and the earlier
+// Space Grotesk stay in FONT_OPTIONS as real, selectable alternatives.
+// font_body (Atkinson Hyperlegible) is unchanged — that choice was
+// never about the retro aesthetic, it was a straight accessibility
+// pick, and stands on its own reasoning either way.
+
+// 3.10.28 — Real, site-breaking bug caught live while auditing
+// WooCommerce's Orders screen for the admin-skin design pass: opening
+// ANY single order (the "Edit" action on the Orders list, or
+// admin.php?page=wc-orders&action=edit) fataled with "Argument #2
+// ($post) must be of type WP_Post,
+// Automattic\WooCommerce\Admin\Overrides\Order given" —
+// OUS_PageSurface::add_meta_boxes() (class-page-surface.php) was typed
+// to require a real \WP_Post, but WordPress core's own add_meta_boxes
+// action legitimately fires with WHATEVER object a given admin screen
+// hooks it with — WooCommerce's HPOS order screens pass their own
+// Order object, not a WP_Post, and always have (this is documented
+// core behavior, not a WooCommerce bug). The old strict type hint
+// crashed before the method's own post-type filter even got to run,
+// since PHP validates a class-typed parameter before executing the
+// function body. Loosened to `object` + a real instanceof \WP_Post
+// guard as the first line of the method — every legitimate post-edit
+// screen this was built for is completely unaffected, every screen
+// that fires this hook with something else (WooCommerce orders, and
+// potentially other plugins/screens this ecosystem hasn't hit yet)
+// now degrades to a no-op instead of a fatal error. Confirmed live:
+// the single-order screen now loads instead of showing a raw PHP
+// error stack.
+
+// 3.10.27 — Direct design-direction request (Streamline Moderne
+// architecture + Googie neon, applied ecosystem-wide): added Righteous
+// (a genuine 1970s-80s retro-futurist display face) and Atkinson
+// Hyperlegible (Braille Institute, SIL OFL, purpose-built for low-
+// vision legibility) to BHY_Style::FONT_OPTIONS and set them as the new
+// site-wide font_display/font_body defaults (class-style.php) — applied
+// live via the Design Suite and confirmed saved (was Space Grotesk /
+// Inter, both kept as selectable alternatives, not removed).
+//
+// Fixing that surfaced a real, pre-existing gap, not something this
+// change introduced: BHY_Style::google_fonts_url() — the thing that
+// actually fetches the webfont FILE a --bh-font-* variable references —
+// was only ever called from class-public-profile.php, never hooked
+// globally, even though the CSS variables THEMSELVES were already
+// correctly printed site-wide via print_global_css()'s existing wp_head
+// hook. Every ordinary front-end page (homepage, any post) had
+// --bh-font-display pointing at a font that was never actually
+// fetched, silently falling back to the browser default — invisible
+// with a subtle font choice, glaring the moment a distinctive display
+// face was set as the real default (confirmed live: the homepage h1
+// reported computed font-family "Righteous, sans-serif" while visually
+// still rendering plain sans-serif, and zero fonts.googleapis.com
+// network requests fired on that page at all). Fixed by echoing the
+// same google_fonts_url() output as a <link> inside print_global_css()
+// itself, right alongside the CSS variables it's needed for — one
+// mechanism, one hook, matches the pattern this method's own doc
+// comment already established for the token-availability fix.
+// NOT yet verified on every front-end page template (only the homepage
+// and Design Suite's own live preview so far) or against the block-
+// editor iframe's separate font-loading path — worth a wider check.
+
+// 3.10.26 — Display-only rebrand: "Own Ur Shit" -> "The Self-Hosted
+// Self" everywhere a user or admin actually sees the name (Plugin Name
+// header — cascades automatically to every peer plugin's "Requires:"
+// line in the Plugins list, since that's rendered from this plugin's
+// own Name header, not a hardcoded string — the shared ecosystem
+// banner in class-banner.php, the theme's own Theme Name header, the
+// Element Prefab block's title). Deliberately NOT a technical rename —
+// class prefixes (OUS_*), file/folder names, text domains, DB option
+// keys, and the git repo name are all unchanged; only what's actually
+// displayed changed. Local-only change, not yet deployed.
 
 // 3.10.25 — Real, site-breaking bug caught live on the very first
 // click of 3.10.24's new "Check now" button: OUS_GithubUpdates::
@@ -1167,7 +1291,7 @@ if (!defined('ABSPATH')) exit;
 // deliberately done BEFORE the bh-contest conversion starts (not after): "good
 // use of Query Monitor where needed." New includes/class-qm- integration.php
 // registers a real QM_Collector + QM_Output pair — Query Monitor's own admin-
-// toolbar panel now gets an "Own Ur Shit" tab showing THIS request's own
+// toolbar panel now gets an "The Self-Hosted Self" tab showing THIS request's own
 // OUS_DebugLog entries (errors/warnings/info, same fields Debug Tools' Console &
 // Logs table already shows), so triaging a bug while actively building bh-
 // contest's real surface doesn't mean bouncing between QM and a separate admin
@@ -1459,7 +1583,7 @@ if (!defined('ABSPATH')) exit;
 // 403'd because its GET form dropped post_type on submit — see bh-contest 3.1.3
 // for the fix; own-ur-shit itself was audited alongside it (bh-contest, BHY_*
 // styles, bh-crm, Debug Tools) for the same bug class and no other instance was
-// found. (2) New OUS_CodebaseDocs (class-codebase-docs.php, "Own Ur Shit →
+// found. (2) New OUS_CodebaseDocs (class-codebase-docs.php, "The Self-Hosted Self →
 // Codebase Docs"): renders CODEBASE-WALKTHROUGH.md as real in-admin HTML, and
 // turns every file-path mention in that doc into a "View live code" toggle that
 // fetches the file's ACTUAL current contents via a locked-down AJAX endpoint
@@ -1469,7 +1593,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.25');
+define('OUS_VER', '3.10.31');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

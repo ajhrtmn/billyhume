@@ -284,7 +284,7 @@ class BHC_Render_Lesson {
             $annotations_attr = $annotations ? ' data-annotations="' . esc_attr(wp_json_encode($annotations)) . '"' : '';
             if ($step['source'] === 'upload') {
                 // wp_get_attachment_url() is the one API surface an
-                // offload plugin (see Own Ur Shit's dashboard entry for
+                // offload plugin (see The Self-Hosted Self's dashboard entry for
                 // Advanced Media Offloader) rewrites transparently —
                 // this plain <video> tag needs zero changes whether the
                 // file is on this server's disk or Cloudflare R2.

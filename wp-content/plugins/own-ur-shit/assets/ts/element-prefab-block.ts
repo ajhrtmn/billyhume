@@ -51,7 +51,7 @@ interface WpBlockEditProps<A> {
     var Placeholder = components.Placeholder;
 
     blocks.registerBlockType('own-ur-shit/element-prefab', {
-        title: __('Element Prefab (Own Ur Shit)', 'own-ur-shit'),
+        title: __('Element Prefab (The Self-Hosted Self)', 'own-ur-shit'),
         description: __('Embeds a saved Design Suite prefab (a node + its children) live in this post.', 'own-ur-shit'),
         icon: 'layout',
         category: 'widgets',

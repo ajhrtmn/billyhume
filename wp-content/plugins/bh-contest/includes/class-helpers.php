@@ -274,7 +274,7 @@ class BH_Helpers {
 
     // The bar for "ready to submit a track" — driven by the specific
     // contest's own contact-field configuration above, checked against
-    // profile data from the Own Ur Shit core plugin (BHI_Profiles) now
+    // profile data from the The Self-Hosted Self core plugin (BHI_Profiles) now
     // that identity is shared across the ecosystem rather than owned by
     // this plugin. Voters never have to clear this — only checked at
     // submission time.

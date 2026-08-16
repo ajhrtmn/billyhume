@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
  * the plugin (the admin metabox's mock-flag persistence, class-
  * player.php's SEO output) never has to duplicate the pattern check.
  *
- * Real ISRC issuance needs Own Ur Shit itself to be a registered ISRC
+ * Real ISRC issuance needs The Self-Hosted Self itself to be a registered ISRC
  * registrant with a national ISRC agency — a real institutional
  * application, not something this class can do. Until that exists,
  * this only recognizes/generates a clearly-fake placeholder so a
@@ -42,7 +42,7 @@ class BHS_ISRC {
         $r = self::registrant();
 
         echo '<div class="wrap"><h1>ISRC Registrant</h1>';
-        echo '<p class="description">Part of the Own Ur Shit ecosystem — see bh-streaming/README.md.</p>';
+        echo '<p class="description">Part of the The Self-Hosted Self ecosystem — see bh-streaming/README.md.</p>';
 
         echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>What this actually is:</strong> every real ISRC starts with a "registrant code" — a 2-letter country code plus a 3-character registrant identifier — issued to ONE organization by a national ISRC agency after a real, offline application. This page has nowhere to click "apply" from, on purpose: the current live application process for each country wasn\'t independently re-verified in this session, so rather than link to a URL that might be stale or wrong, the honest thing is to say plainly — search "[your country] ISRC registrant application" for your own national agency, complete that application yourself, and come back here once you have a real registrant code to enter below. Until then, every track keeps using the clearly-fake placeholder codes (BHS_ISRC::issue()\'s mock path).</p>';

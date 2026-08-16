@@ -80,7 +80,7 @@ class OUS_SetupWizard {
         echo '<h1>Guided Setup</h1>';
 
         if (isset($_GET['ous_wizard_error'])) {
-            echo '<div class="bhy-alert bhy-alert-danger"><p>Something didn\'t work — you can always finish this from the main <a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">Own Ur Shit dashboard</a> instead.</p></div>';
+            echo '<div class="bhy-alert bhy-alert-danger"><p>Something didn\'t work — you can always finish this from the main <a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">The Self-Hosted Self dashboard</a> instead.</p></div>';
         }
         if (isset($_GET['ous_wizard_saved'])) {
             echo '<div class="bhy-alert bhy-alert-success"><p>Saved.</p></div>';
@@ -107,7 +107,7 @@ class OUS_SetupWizard {
 
     private static function render_step_welcome(): void {
         echo '<h2>Welcome</h2>';
-        echo '<p>This walks you through getting the whole Own Ur Shit ecosystem running on a fresh install: activating every piece, setting your brand basics, and confirming you\'re ready to get paid. Takes a few minutes — nothing here is a one-way door, you can change any of it later from the main dashboard or Design Suite.</p>';
+        echo '<p>This walks you through getting the whole The Self-Hosted Self ecosystem running on a fresh install: activating every piece, setting your brand basics, and confirming you\'re ready to get paid. Takes a few minutes — nothing here is a one-way door, you can change any of it later from the main dashboard or Design Suite.</p>';
         echo '<p><a class="button button-primary button-hero" href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard&step=2')) . '">Get started</a></p>';
     }
 
@@ -207,7 +207,7 @@ class OUS_SetupWizard {
                . ($gateways ? ' — payments are configured and ready.' : ' — <strong>no payment method is active yet</strong>, set one up in <a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout')) . '">WooCommerce → Payments</a> before selling anything.')
                . '</li>';
         }
-        echo '<li><a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">Own Ur Shit dashboard</a> — the full ecosystem overview.</li>';
+        echo '<li><a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">The Self-Hosted Self dashboard</a> — the full ecosystem overview.</li>';
         echo '</ul>';
         self::step_nav(4);
     }

@@ -163,7 +163,7 @@ class BHI_Reports {
                 ['.bhc-course-view', 'BH Courses — course detail page'],
                 ['.bh-player-root', 'BH Contest — submission/voting player'],
                 ['.bhs-player', 'BH Streaming — audio player'],
-                ['.bhy-shell', 'Own Ur Shit — portal/account UI'],
+                ['.bhy-shell', 'The Self-Hosted Self — portal/account UI'],
             ];
             function detectSurface() {
                 for (var i = 0; i < SURFACE_MARKERS.length; i++) {

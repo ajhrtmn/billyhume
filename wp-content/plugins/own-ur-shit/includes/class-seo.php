@@ -111,7 +111,7 @@ class BH_SEO {
 
         echo "# " . $site_name . "\n\n";
         if ($description) echo "> " . $description . "\n\n";
-        echo "This site is self-hosted on Own Ur Shit, an independent musician's own platform — not a rented profile on a third-party service. Content below is organized for easy reference.\n\n";
+        echo "This site is self-hosted on The Self-Hosted Self, an independent musician's own platform — not a rented profile on a third-party service. Content below is organized for easy reference.\n\n";
 
         $sections = apply_filters('bh_llms_txt_sections', []);
         foreach ($sections as $section) {

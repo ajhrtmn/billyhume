@@ -128,8 +128,26 @@ class OUS_PageSurface {
      * opt-in wrap + hiding the native editor once managed).
      * ================================================================= */
 
-    public static function add_meta_boxes(string $post_type, \WP_Post $post): void {
+    // Real, site-breaking bug caught live: WordPress core's own
+    // `add_meta_boxes` action fires with a SECOND argument that is only
+    // a \WP_Post on genuine post-edit screens. WooCommerce's HPOS order
+    // screens (Orders list "Edit" action, wc-orders admin.php page)
+    // fire this exact same action with an
+    // Automattic\WooCommerce\Admin\Overrides\Order object instead — a
+    // real WordPress-core-documented behavior of that hook (any screen
+    // can call do_action('add_meta_boxes', $screen_id, $whatever_object)
+    // per core's own add_meta_boxes() wrapper in wp-admin), not a
+    // WooCommerce bug. The old \WP_Post type hint fatal-errored on
+    // every single WooCommerce order screen the instant this method was
+    // called — before the post-type check below even got a chance to
+    // run, since PHP validates a typed parameter's class before the
+    // function body executes. Loosened to `object` + a real instanceof
+    // guard so the type check itself can't crash the page; the
+    // pre-existing MANAGED_POST_TYPES check below still does the real
+    // filtering work for legitimate post-edit screens.
+    public static function add_meta_boxes(string $post_type, object $post): void {
         if (!in_array($post_type, self::MANAGED_POST_TYPES, true)) return;
+        if (!$post instanceof \WP_Post) return;
 
         add_meta_box(
             'ous_design_suite_toggle', 'Design Suite',

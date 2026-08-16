@@ -104,7 +104,7 @@ define('BHMP_URL',  plugin_dir_url(__FILE__));
 // CLAUDE.md's Phase 2/3 notes) — filterable so a future pass or a
 // manual admin change doesn't need a code edit.
 if (!defined('BHMP_DEFAULT_LIST_NAME')) {
-    define('BHMP_DEFAULT_LIST_NAME', 'Own Ur Shit Fans');
+    define('BHMP_DEFAULT_LIST_NAME', 'The Self-Hosted Self Fans');
 }
 
 foreach (['sync', 'scheduled-sync', 'instant-sync', 'debug'] as $f) {
@@ -121,7 +121,7 @@ foreach (['sync', 'scheduled-sync', 'instant-sync', 'debug'] as $f) {
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH MailPoet</strong> requires the <strong>Own Ur Shit</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH MailPoet</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }
@@ -154,7 +154,7 @@ add_action('plugins_loaded', function () {
     add_action('admin_notices', function () {
         if (class_exists('\MailPoet\API\API')) return;
         if (!current_user_can('activate_plugins')) return;
-        echo '<div class="notice notice-info is-dismissible"><p><strong>BH MailPoet</strong> is active but MailPoet itself isn\'t installed yet — contact sync is idle until it is. Install MailPoet from the Own Ur Shit dashboard or WordPress.org.</p></div>';
+        echo '<div class="notice notice-info is-dismissible"><p><strong>BH MailPoet</strong> is active but MailPoet itself isn\'t installed yet — contact sync is idle until it is. Install MailPoet from the The Self-Hosted Self dashboard or WordPress.org.</p></div>';
     });
 }, 20); // after BHCORE_LOADED-defining bootstrap, same ordering convention as bh-contest.php
 

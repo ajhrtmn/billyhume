@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: BH Live
- * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on Own Ur Shit's shared identity and style tokens.
+ * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on The Self-Hosted Self's shared identity and style tokens.
  * Version:     0.9.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
@@ -71,7 +71,7 @@ add_action('plugins_loaded', ['BHL_Activator', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Live</strong> requires the <strong>Own Ur Shit</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Live</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

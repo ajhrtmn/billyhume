@@ -204,7 +204,7 @@ class OUS_MediaWizard {
         delete_transient('ous_media_wizard_test_result');
 
         echo '<div class="wrap"><h1>Media &amp; CDN Setup</h1>';
-        echo '<p class="description">Part of the Own Ur Shit ecosystem — see <code>ROADMAP-guided-setup-wizards.md</code> for the full plan this implements.</p>';
+        echo '<p class="description">Part of the The Self-Hosted Self ecosystem — see <code>ROADMAP-guided-setup-wizards.md</code> for the full plan this implements.</p>';
 
         if ($has_advmo && $current_provider) {
             $label = self::PROVIDERS[$current_provider]['name'] ?? $current_provider;

@@ -55,7 +55,7 @@ if (class_exists('QM_Collector')) {
         public $id = 'ous';
 
         public function name() {
-            return 'Own Ur Shit';
+            return 'The Self-Hosted Self';
         }
 
         public function process() {
@@ -77,7 +77,7 @@ if (class_exists('QM_Collector')) {
 if (class_exists('QM_Output_Html')) {
     class OUS_QM_Output extends QM_Output_Html {
         public function name() {
-            return 'Own Ur Shit';
+            return 'The Self-Hosted Self';
         }
 
         public function output() {
@@ -87,7 +87,7 @@ if (class_exists('QM_Output_Html')) {
             $this->before_non_tabular_output();
 
             if (!$rows) {
-                echo '<div class="qm-notice"><p>No Own Ur Shit log entries on this request.</p></div>';
+                echo '<div class="qm-notice"><p>No The Self-Hosted Self log entries on this request.</p></div>';
                 $this->after_non_tabular_output();
                 return;
             }
@@ -118,7 +118,7 @@ if (class_exists('QM_Output_Html')) {
                 if (($row['level'] ?? '') === 'error') { $has_error = true; break; }
             }
             $menu[] = $this->menu([
-                'title' => esc_html('Own Ur Shit' . ($count ? " ({$count})" : '')),
+                'title' => esc_html('The Self-Hosted Self' . ($count ? " ({$count})" : '')),
             ]);
             return $menu;
         }

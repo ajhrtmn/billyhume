@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) exit;
  * Narrowed scope as of the identity migration: this class now only
  * renders the [bh_contest_player] shortcode. Registration, login,
  * logout, session, profile, and email verification all live in the
- * Own Ur Shit core plugin now — see BHI_Auth. Kept the class name to
+ * The Self-Hosted Self core plugin now — see BHI_Auth. Kept the class name to
  * avoid a larger renaming cascade across every file that still
  * legitimately references "the thing that renders the player."
  */

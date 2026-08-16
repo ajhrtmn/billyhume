@@ -3,9 +3,27 @@
 <div class="oust-container oust-container-narrow">
     <?php while (have_posts()) : the_post(); ?>
         <?php
+        // Real bug, caught live: this template is the fallback single
+        // view for EVERY post type that doesn't have its own dedicated
+        // single-{post_type}.php (Courses, Contests, Tracks, Tiers —
+        // this ecosystem's own CPTs all land here, not just 'post').
+        // get_the_category() only ever returns anything for the
+        // built-in 'post' type, so every one of those CPT pages was
+        // silently showing the literal word "Post" as its kicker — a
+        // Course detail page read "POST" above its own title. Falls
+        // back to the post type's own real singular label (Course,
+        // Contest, Track, Tier...) instead of a hardcoded generic
+        // string, only using the actual category name when one exists
+        // (still the right, more specific choice for a real blog post).
         $cats = get_the_category();
+        if ($cats) {
+            $kicker = esc_html($cats[0]->name);
+        } else {
+            $post_type_obj = get_post_type_object(get_post_type());
+            $kicker = $post_type_obj ? esc_html($post_type_obj->labels->singular_name) : __('Post', 'own-ur-shit-theme');
+        }
         get_template_part('template-parts/page-header', null, [
-            'kicker' => $cats ? esc_html($cats[0]->name) : __('Post', 'own-ur-shit-theme'),
+            'kicker' => $kicker,
             'title' => get_the_title(),
             'lede' => get_the_date() . ' &middot; ' . esc_html(get_the_author()),
         ]);

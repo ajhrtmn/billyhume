@@ -26,7 +26,7 @@ class BHC_Privacy {
      */
     public static function register_exporter($exporters): array {
         $exporters['bh-courses-progress'] = [
-            'exporter_friendly_name' => __('Own Ur Shit — Course Progress', 'bh-courses'),
+            'exporter_friendly_name' => __('The Self-Hosted Self — Course Progress', 'bh-courses'),
             'callback' => [self::class, 'export'],
         ];
         return $exporters;
@@ -38,7 +38,7 @@ class BHC_Privacy {
      */
     public static function register_eraser($erasers): array {
         $erasers['bh-courses-progress'] = [
-            'eraser_friendly_name' => __('Own Ur Shit — Course Progress', 'bh-courses'),
+            'eraser_friendly_name' => __('The Self-Hosted Self — Course Progress', 'bh-courses'),
             'callback' => [self::class, 'erase'],
         ];
         return $erasers;

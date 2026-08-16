@@ -26,7 +26,7 @@ class BHS_Privacy {
      */
     public static function register_exporter(array $exporters): array {
         $exporters['bh-streaming-activity'] = [
-            'exporter_friendly_name' => __('Own Ur Shit — Streaming Activity', 'bh-streaming'),
+            'exporter_friendly_name' => __('The Self-Hosted Self — Streaming Activity', 'bh-streaming'),
             'callback' => [self::class, 'export'],
         ];
         return $exporters;
@@ -38,7 +38,7 @@ class BHS_Privacy {
      */
     public static function register_eraser(array $erasers): array {
         $erasers['bh-streaming-activity'] = [
-            'eraser_friendly_name' => __('Own Ur Shit — Streaming Activity', 'bh-streaming'),
+            'eraser_friendly_name' => __('The Self-Hosted Self — Streaming Activity', 'bh-streaming'),
             'callback' => [self::class, 'erase'],
         ];
         return $erasers;

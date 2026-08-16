@@ -33,7 +33,7 @@ class BH_Element_TestSuite {
      * @return array<string, mixed>
      */
     public static function register($suites): array {
-        $suites['own-ur-shit-elements'] = ['label' => 'Own Ur Shit (Design Suite / elements)', 'callback' => [self::class, 'run']];
+        $suites['own-ur-shit-elements'] = ['label' => 'The Self-Hosted Self (Design Suite / elements)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 

@@ -486,7 +486,7 @@ class OUS_Notifications {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['own-ur-shit-notifications'] = ['label' => 'Own Ur Shit (Notifications)', 'callback' => [self::class, 'run_tests']];
+        $suites['own-ur-shit-notifications'] = ['label' => 'The Self-Hosted Self (Notifications)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 

@@ -140,7 +140,7 @@ add_action('ous_github_updates_register', function () {
     if (!class_exists('OUS_GithubUpdates')) return;
     OUS_GithubUpdates::register('own-ur-shit-theme', [
         'type' => 'theme',
-        'label' => 'Own Ur Shit (theme)',
+        'label' => 'The Self-Hosted Self (theme)',
         'stylesheet' => 'own-ur-shit-theme',
         'repo' => apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume'),
         'branch' => apply_filters('ous_github_updates_default_branch', 'dev'),

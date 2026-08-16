@@ -56,7 +56,7 @@ if (!defined('ABSPATH')) exit;
 // are bucketed/labeled on the way to that same existing markup.
 
 /**
- * One shared Debug Tools page under Own Ur Shit, extensible the same
+ * One shared Debug Tools page under The Self-Hosted Self, extensible the same
  * way the dashboard registry and style gallery already are: any plugin
  * registers its own section via a filter, entirely from its own
  * bootstrap — this class never needs to know bh-contest or bh-streaming

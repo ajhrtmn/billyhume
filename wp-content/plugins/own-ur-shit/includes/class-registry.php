@@ -42,7 +42,7 @@ if (!defined('ABSPATH')) exit;
  *                // Optional: custom admin pages (NOT post types or
  *                // taxonomies — see the caution above) this plugin
  *                // owns, each with its real callback, so they can be
- *                // relocated as direct submenus under Own Ur Shit.
+ *                // relocated as direct submenus under The Self-Hosted Self.
  *                'admin_menus' => [
  *                    ['slug' => 'bh-lyrics-settings', 'label' => 'Lyrics Settings',
  *                     'callback' => ['BHL_Admin', 'render'], 'old_parent' => 'edit.php?post_type=bhs_track'],
@@ -79,7 +79,7 @@ if (!defined('ABSPATH')) exit;
  * 2. Zero-code auto-discovery via a custom plugin header. Any plugin
  *    whose main file's docblock includes a line like:
  *
- *        * Ecosystem: Own Ur Shit
+ *        * Ecosystem: The Self-Hosted Self
  *
  *    shows up automatically in a lightweight, minimal card even if it
  *    never calls the filter above — see discover_unregistered() below.
@@ -125,7 +125,7 @@ class OUS_Registry {
         // reveal controls), not generic ecosystem-hub functionality, so
         // they stay right where BH_Admin/BH_Console already register
         // them — nested under the Contest CPT's own top-level menu —
-        // rather than being pulled out into Own Ur Shit's menu the way
+        // rather than being pulled out into The Self-Hosted Self's menu the way
         // bh-crm's People page is. This was tried the other way (both
         // relocated here) and reverted on purpose.
         'bh-contest' => [
@@ -301,7 +301,7 @@ class OUS_Registry {
     ];
 
     const HEADER_FIELD = 'Ecosystem';
-    const HEADER_VALUE = 'Own Ur Shit';
+    const HEADER_VALUE = 'The Self-Hosted Self';
 
     // The full, merged registry — built-ins plus anything a filter
     // contributed. Every entry gets the same set of keys filled in

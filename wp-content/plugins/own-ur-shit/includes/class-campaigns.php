@@ -259,7 +259,7 @@ class OUS_Campaigns {
      * @return array<string, mixed>
      */
     public static function register_test_suite($suites): array {
-        $suites['own-ur-shit-campaigns'] = ['label' => 'Own Ur Shit (Campaigns)', 'callback' => [self::class, 'run_tests']];
+        $suites['own-ur-shit-campaigns'] = ['label' => 'The Self-Hosted Self (Campaigns)', 'callback' => [self::class, 'run_tests']];
         return $suites;
     }
 

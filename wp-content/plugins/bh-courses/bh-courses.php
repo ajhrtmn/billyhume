@@ -1,12 +1,35 @@
 <?php
 /**
  * Plugin Name: BH Courses
- * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on Own Ur Shit's shared identity.
- * Version:     0.4.80
+ * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
+ * Version:     0.4.81
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.81 — Direct request: "replace the letters with icons in the
+// courses as well. Update sizes as necessary and add subtle hue hints
+// for the user depending upon lesson type." The lesson stepper's dots
+// rendered single letters via CSS content (T/I/V/Q/R/!/C, plus 'A/B'
+// at 8px) — a real legibility problem at 26px, and letters only work
+// if you already know the legend. Now real Lucide icons (ISC,
+// vendored to assets/icons/ with its LICENSE) masked via
+// mask-image, dot sized 26px -> 30px so a 16px icon has room without
+// crowding the border ring. mask-image (not background-image)
+// specifically because background-color then drives the color — which
+// is what makes the second half possible: a per-type hue hint
+// (--bhc-step-hue) drawn from the site's own themeable --bh-cat-*
+// palette rather than new invented literals, so a re-themed site
+// re-themes these too. Deliberately subtle — the hue tints only the
+// small icon INSIDE the dot, never the dot's fill/border, so the
+// existing done/current/disabled states stay the primary, unambiguous
+// progress signal and type stays a secondary at-a-glance hint. Text
+// steps keep the neutral default (most common type by far; coloring
+// them too would make the whole stepper read as noise). No
+// accessibility regression: class-render-lesson.php already emits a
+// real aria-label AND title ("Step N: Type") per dot independent of
+// the visual glyph, verified before changing anything.
 
 // 0.4.80 — Real UX gap found live: clicking "Courses" itself (the
 // synced menu group's own label, not a child course) went nowhere —
@@ -396,7 +419,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.80');
+define('BHC_VER',  '0.4.81');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
@@ -495,7 +518,7 @@ add_action('plugins_loaded', ['BHC_Sessions', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>Own Ur Shit</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }
@@ -598,7 +621,7 @@ add_action('plugins_loaded', function () {
     add_action('wp_ajax_bhc_submit_review', ['BHC_Reviews', 'ajax_submit_review']);
 });
 
-// Self-registration into the Own Ur Shit dashboard — zero changes
+// Self-registration into the The Self-Hosted Self dashboard — zero changes
 // needed to the core, same filter contract documented in the core's
 // own class-registry.php.
 add_filter('ous_registered_plugins', function ($plugins) {

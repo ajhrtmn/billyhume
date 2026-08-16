@@ -41,11 +41,15 @@
         var icon = document.querySelector('#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon');
         if (icon) {
             // A real transition instead of an instant swap: spin the icon
-            // out, swap the glyph at the halfway point, let it spin back in.
+            // out and let it spin back in. The sun/moon ARTWORK itself is
+            // now a CSS mask keyed off :root[data-shsas-theme] (set on the
+            // line above), not a text glyph this function writes — so the
+            // icon swap happens via CSS the moment the attribute flips,
+            // and this function only owns the spin timing. Previously it
+            // wrote a unicode character here; that would now fight the
+            // mask (a stray glyph rendering underneath it), so it's
+            // deliberately gone rather than left as dead-but-harmless.
             icon.classList.add('shsas-spin');
-            setTimeout(function () {
-                icon.textContent = next === 'light' ? String.fromCharCode(9789) : String.fromCharCode(9788);
-            }, 160);
             setTimeout(function () { icon.classList.remove('shsas-spin'); }, 320);
         }
     }

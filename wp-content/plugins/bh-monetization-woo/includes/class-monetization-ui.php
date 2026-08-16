@@ -68,7 +68,7 @@ class BHM_MonetizationUI {
         }
 
         if (!(BH_Commerce::available())) {
-            echo '<p class="description">Install WooCommerce (Own Ur Shit → Monetization Settings) to turn any of this on.</p>';
+            echo '<p class="description">Install WooCommerce (The Self-Hosted Self → Monetization Settings) to turn any of this on.</p>';
             return;
         }
 

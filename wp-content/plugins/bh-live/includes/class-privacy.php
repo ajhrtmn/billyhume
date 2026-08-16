@@ -19,7 +19,7 @@ class BHL_Privacy {
      */
     public static function register_exporter(array $exporters): array {
         $exporters['bh-live-chat'] = [
-            'exporter_friendly_name' => __('Own Ur Shit — Live Chat', 'bh-live'),
+            'exporter_friendly_name' => __('The Self-Hosted Self — Live Chat', 'bh-live'),
             'callback' => [self::class, 'export'],
         ];
         return $exporters;
@@ -31,7 +31,7 @@ class BHL_Privacy {
      */
     public static function register_eraser(array $erasers): array {
         $erasers['bh-live-chat'] = [
-            'eraser_friendly_name' => __('Own Ur Shit — Live Chat', 'bh-live'),
+            'eraser_friendly_name' => __('The Self-Hosted Self — Live Chat', 'bh-live'),
             'callback' => [self::class, 'erase'],
         ];
         return $erasers;

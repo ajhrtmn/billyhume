@@ -93,7 +93,7 @@ class BHCRM_People {
     }
 
     // No add_menu() here anymore — this page is registered as a submenu
-    // of Own Ur Shit instead of its own top-level menu (see the 'bh-crm'
+    // of The Self-Hosted Self instead of its own top-level menu (see the 'bh-crm'
     // entry in the core's class-registry.php, applied by OUS_MenuMerge).
     // render() below is unchanged either way; only where WordPress hangs
     // it in the admin sidebar changed.

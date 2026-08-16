@@ -114,7 +114,7 @@ class BHM_Tiers {
             // WooCommerce's own extensions (Subscriptions, Bookings,
             // etc.) follow, rather than a bare top-level "Supporter
             // Tiers" item competing for sidebar space against both
-            // WooCommerce and Own Ur Shit. Falls back to a real
+            // WooCommerce and The Self-Hosted Self. Falls back to a real
             // top-level menu if WooCommerce isn't active yet (this
             // plugin's whole premise needs it eventually, but an admin
             // configuring things BEFORE installing WooCommerce — or
@@ -147,7 +147,7 @@ class BHM_Tiers {
         $has_wc = BH_Commerce::available();
 
         if (!$has_wc) {
-            echo '<p class="description">WooCommerce isn\'t active yet — this tier will start selling automatically once it is. See <strong>Own Ur Shit → Monetization Settings</strong> to install it.</p>';
+            echo '<p class="description">WooCommerce isn\'t active yet — this tier will start selling automatically once it is. See <strong>The Self-Hosted Self → Monetization Settings</strong> to install it.</p>';
         }
 
         // Cover image — plain attachment-ID meta + a wp.media picker

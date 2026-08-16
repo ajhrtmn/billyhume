@@ -93,7 +93,7 @@ class OUS_Banner {
             if (!h1) return;
             var b = document.createElement("div"); b.className = "ous-banner";
             var msg = document.createElement("span");
-            msg.innerHTML = "Part of the <a href=\"' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '\">Own Ur Shit</a> ecosystem.";
+            msg.innerHTML = "Part of the <a href=\"' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '\">The Self-Hosted Self</a> ecosystem.";
             var close = document.createElement("button");
             close.type = "button"; close.className = "ous-banner-close"; close.setAttribute("aria-label", "Dismiss");
             close.innerHTML = "&times;";

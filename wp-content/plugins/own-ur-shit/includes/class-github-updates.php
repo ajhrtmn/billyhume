@@ -165,7 +165,7 @@ class OUS_GithubUpdates {
         if (wp_get_theme('own-ur-shit-theme')->exists()) {
             self::register('own-ur-shit-theme', [
                 'type' => 'theme',
-                'label' => 'Own Ur Shit (theme)',
+                'label' => 'The Self-Hosted Self (theme)',
                 'stylesheet' => 'own-ur-shit-theme',
                 'repo' => $default_repo,
                 'branch' => $default_branch,

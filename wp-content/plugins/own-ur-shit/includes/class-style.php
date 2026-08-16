@@ -67,6 +67,22 @@ class BHY_Style {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
         echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
         echo '<style id="bh-badge">' . self::badge_css() . '</style>';
+        // Real gap found live (2026-08-15): --bh-font-display/--bh-font-body
+        // were already correctly set site-wide by inline_css() above, but
+        // google_fonts_url() — the thing that actually loads the WEBFONT
+        // FILE those variables reference — was only ever called from
+        // class-public-profile.php, never hooked globally. Every ordinary
+        // front-end page (the homepage, any post/page) had the CSS
+        // variable pointing at a font that was never fetched, silently
+        // falling back to the browser default — invisible with a subtle
+        // font choice, glaring the moment a distinctive display face
+        // (Righteous) was set as the actual default. Skip entirely for
+        // 'System UI' (google_fonts_url() already omits it — no url() to
+        // print — but guard here too rather than emit an empty href).
+        $fonts_url = self::google_fonts_url();
+        if ($fonts_url !== '') {
+            echo '<link rel="stylesheet" id="bhy-google-fonts" href="' . esc_url($fonts_url) . '">';
+        }
     }
 
     /**
@@ -205,9 +221,23 @@ class BHY_Style {
         'color_overlay'     => '#0D0504D1',
         'cat_color_1' => '#C1503A', 'cat_color_2' => '#D9A441', 'cat_color_3' => '#B8785A', 'cat_color_4' => '#8C3B2E',
         'cat_color_5' => '#C98B5E', 'cat_color_6' => '#A66A4D', 'cat_color_7' => '#D96C4D', 'cat_color_8' => '#7A4A38',
-        'font_display'        => 'Space Grotesk',
+        // Direct request, applied ecosystem-wide (front end, wp-admin,
+        // theme): Jost for display + Atkinson Hyperlegible for body
+        // (accessibility-purpose-built). Two corrections deep now:
+        // Righteous (1970s-80s bubble-letter novelty) -> Josefin Sans
+        // (real 1920s-30s geometric-sans reasoning, but its tall,
+        // idiosyncratic proportions still read as "kitschy" at display
+        // sizes per direct feedback) -> Jost. Jost is modeled on the
+        // same period lineage (Erbar/Kabel-influenced 1920s German
+        // geometric sans, the same family Futura itself grew out of)
+        // but with genuinely restrained, professional proportions —
+        // real period reasoning without the costume-y edge. Josefin
+        // Sans stays in FONT_OPTIONS below as a real, selectable
+        // alternative, not removed. Was Space Grotesk / Inter before
+        // that, also kept.
+        'font_display'        => 'Jost',
         'font_display_custom' => '',
-        'font_body'           => 'Inter',
+        'font_body'           => 'Atkinson Hyperlegible',
         'font_body_custom'    => '',
         'font_scale'  => '1',
         'space_scale' => '1',
@@ -217,18 +247,34 @@ class BHY_Style {
     ];
 
     const FONT_OPTIONS = [
-        'Space Grotesk'    => 'Space+Grotesk:wght@500;600;700',
-        'Inter'            => 'Inter:wght@400;500;600;700',
-        'Poppins'          => 'Poppins:wght@400;500;600;700',
-        'Montserrat'       => 'Montserrat:wght@400;500;600;700',
-        'Playfair Display' => 'Playfair+Display:wght@500;600;700',
-        'Bebas Neue'       => 'Bebas+Neue',
-        'Oswald'           => 'Oswald:wght@400;500;600;700',
-        'DM Sans'          => 'DM+Sans:wght@400;500;600;700',
-        'Sora'             => 'Sora:wght@500;600;700',
-        'Work Sans'        => 'Work+Sans:wght@400;500;600;700',
-        'Roboto Mono'      => 'Roboto+Mono:wght@400;500;600;700',
-        'System UI'        => null,
+        'Space Grotesk'         => 'Space+Grotesk:wght@500;600;700',
+        'Inter'                 => 'Inter:wght@400;500;600;700',
+        'Poppins'               => 'Poppins:wght@400;500;600;700',
+        'Montserrat'            => 'Montserrat:wght@400;500;600;700',
+        'Playfair Display'      => 'Playfair+Display:wght@500;600;700',
+        'Bebas Neue'            => 'Bebas+Neue',
+        'Oswald'                => 'Oswald:wght@400;500;600;700',
+        'DM Sans'               => 'DM+Sans:wght@400;500;600;700',
+        'Sora'                  => 'Sora:wght@500;600;700',
+        'Work Sans'             => 'Work+Sans:wght@400;500;600;700',
+        'Roboto Mono'           => 'Roboto+Mono:wght@400;500;600;700',
+        // Jost — real 1920s German geometric-sans lineage (see the
+        // DEFAULTS comment above for the Righteous->Josefin Sans->Jost
+        // history) with restrained, professional proportions instead
+        // of Josefin Sans's more idiosyncratic ones — paired with a
+        // body face chosen specifically for accessibility (Atkinson
+        // Hyperlegible, Braille Institute, SIL OFL — purpose-built to
+        // distinguish easily-confused characters like 1/l/I and 0/O
+        // for low-vision readers). Josefin Sans and Righteous both kept
+        // in this list (not removed) as real, selectable alternatives;
+        // neither is the default anymore. All free/OFL, all fetchable
+        // via this exact same Google Fonts mechanism as every other
+        // option here.
+        'Jost'                  => 'Jost:wght@400;500;600;700',
+        'Josefin Sans'          => 'Josefin+Sans:wght@400;600;700',
+        'Righteous'             => 'Righteous',
+        'Atkinson Hyperlegible' => 'Atkinson+Hyperlegible:wght@400;700',
+        'System UI'             => null,
     ];
 
     const THEME_GROUPS = [

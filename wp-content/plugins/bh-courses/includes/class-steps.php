@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) exit;
  * rendered with wp_get_attachment_url()) is the simple default and
  * needs nothing extra — and because it's regular WordPress media, it's
  * exactly the kind of file an offload plugin (Cloudflare R2 etc., see
- * Own Ur Shit's own dashboard) rewrites automatically, with zero
+ * The Self-Hosted Self's own dashboard) rewrites automatically, with zero
  * changes needed here. 'url' (a plain external URL — Cloudflare Stream,
  * Bunny Stream, a YouTube/Vimeo embed) is for when real adaptive-
  * bitrate delivery matters more than "just store the file somewhere

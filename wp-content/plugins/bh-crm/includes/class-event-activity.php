@@ -170,7 +170,7 @@ class BHCRM_Event_Activity {
         echo '</tbody></table></div>';
 
         if (self::total_count($user_id) > self::DETAIL_LIMIT) {
-            echo '<p class="description">Showing the ' . (int) self::DETAIL_LIMIT . ' most recent events. Older events aren\'t shown here — see the Event Tracking Debug Tools section (Own Ur Shit) for aggregate counts.</p>';
+            echo '<p class="description">Showing the ' . (int) self::DETAIL_LIMIT . ' most recent events. Older events aren\'t shown here — see the Event Tracking Debug Tools section (The Self-Hosted Self) for aggregate counts.</p>';
         }
     }
 }

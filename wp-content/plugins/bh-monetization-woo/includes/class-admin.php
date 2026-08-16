@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
  * with 'wporg_slug' => 'woocommerce' as a real, on-demand-installable
  * dependency, exactly the pattern the core's own class-registry.php
  * docblock documents for third-party plugins — the "Install from
- * WordPress.org" button on the Own Ur Shit dashboard handles the actual
+ * WordPress.org" button on the The Self-Hosted Self dashboard handles the actual
  * install/activate, this plugin never bundles or redistributes
  * WooCommerce itself.
  */
@@ -72,7 +72,7 @@ class BHM_Admin {
         echo '<div class="wrap"><h1>Monetization Settings</h1>';
 
         if (!$has_wc) {
-            echo '<div class="notice notice-warning"><p><strong>WooCommerce isn\'t installed yet.</strong> Every monetization feature (tiers, purchases, tips, pay-per-play) stays completely inactive — zero cost, zero UI clutter on your track/release screens — until you install it. Go to <strong>Own Ur Shit</strong> and click "Install from WordPress.org" next to WooCommerce.</p></div>';
+            echo '<div class="notice notice-warning"><p><strong>WooCommerce isn\'t installed yet.</strong> Every monetization feature (tiers, purchases, tips, pay-per-play) stays completely inactive — zero cost, zero UI clutter on your track/release screens — until you install it. Go to <strong>The Self-Hosted Self</strong> and click "Install from WordPress.org" next to WooCommerce.</p></div>';
         } else {
             echo '<p>WooCommerce is active. ' . ($has_subs
                 ? 'WooCommerce Subscriptions is also active — supporter tiers bill on a real recurring schedule.'

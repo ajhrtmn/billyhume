@@ -25,23 +25,35 @@
  */
 
 :root {
-    /* Neutral ramp — dark mode: warm/cool alternation for depth. */
-    --shsas-bg: #121316;
-    --shsas-surface: #1a1c20;
-    --shsas-surface-2: #23262b;
-    --shsas-surface-3: #2d3138;
-    --shsas-border: #3a3f47;
-    --shsas-border-strong: #4c525c;
-    --shsas-text: #eef0f3;
-    --shsas-text-dim: #a8afb9;
-    --shsas-text-faint: #7b7e83; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+    /* Neutral ramp — dark mode. Direct correction: "I want a warmer
+       grey, and more color diversity" / "too much cool and blue" — the
+       old ramp (#121316 etc.) was uniformly blue-leaning at every step
+       despite this file's own comment claiming "warm/cool alternation"
+       (it never actually did that). Rebuilt as a genuine warm-neutral
+       ramp — a walnut/umber undertone, not literal brown — with real
+       per-step hue drift (each step nudges slightly warmer or cooler
+       within the same warm family) for actual depth instead of one
+       flat tint repeated at different lightness values. Contrast
+       re-verified with the same real relative-luminance math used
+       earlier this session, not re-guessed. */
+    --shsas-bg: #16140f;
+    --shsas-surface: #1e1b15;
+    --shsas-surface-2: #282319;
+    --shsas-surface-3: #322c1f;
+    --shsas-border: #45402f;
+    --shsas-border-strong: #5c5540;
+    --shsas-text: #f2ede1;
+    --shsas-text-dim: #b3ab97;
+    --shsas-text-faint: #8f8672; /* WCAG-AA-verified 5.1:1 against --shsas-bg, real math not a guess */
 
     /* Neon rainbow, ~60° apart, tuned bright/saturated enough to read
-       clearly against the near-black ground above. Electric blue added
-       as the new primary accent (direct request) — pink stays in the
-       set for danger/error, where a red-family hue is the correct
-       semantic (blue reads as "informational/interactive," not
-       "something's wrong," in every established UI convention). */
+       clearly against the near-black ground above. Direct correction:
+       blue had become the default for nearly everything (buttons,
+       links, focus, badge fallback) which — stacked on the old cool
+       neutral ramp — read as "too much cool and blue" overall; kept in
+       the set (it's a genuinely useful hue) but demoted from the
+       default/primary role below, in favor of real diversity across
+       the seven. */
     --shsas-neon-blue: #2f7dff;
     --shsas-neon-pink: #ff3ea5;
     --shsas-neon-orange: #ff8a3d;
@@ -52,7 +64,16 @@
 
     /* Semantic assignments — real hues, not a muted-down "safe"
        version of them, but each one deliberately doing exactly one
-       job so the rainbow stays purposeful rather than random. */
+       job so the rainbow stays purposeful rather than random. Briefly
+       tried moving the primary accent to orange (to match the new warm
+       neutral ramp) — direct correction: "too much of a pendulum with
+       the orange... electric blue still primary... intelligent color
+       diversity... find valuable places to emphasize more with color."
+       Blue stays primary; diversity comes from actually USING the
+       other six hues at real semantic moments (badge tones, sidebar
+       wayfinding, notice types — see the grep-for-uses audit noted in
+       this version's changelog) rather than from swapping which hue
+       owns the default "this is interactive" role. */
     --shsas-accent: var(--shsas-neon-blue);
     --shsas-accent-secondary: var(--shsas-neon-cyan);
     --shsas-accent-text: #f5f9ff;
@@ -65,28 +86,104 @@
     --shsas-radius: 10px;
     --shsas-radius-sm: 6px;
     --shsas-shadow: 0 12px 28px -14px rgba(0, 0, 0, .6);
-    --shsas-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    /* Fluid spacing scale — direct request: "use fluid sizing tricks to
+       condense things and reclaim space and optimize UI flow per screen
+       and per GUI." A 4px-grid scale (matching the Track 4 design-system
+       research: Tailwind/Material/Fluent all use 4px, Primer/Apple 8px —
+       4 splits the difference and matches this ecosystem's own existing
+       --bhy-space-* tokens), but each step CLAMPS between a tight small-
+       screen value and a roomier large-screen one instead of being a
+       fixed number. That reclaims real estate on a laptop/tablet without
+       making a large display feel cramped, and does it continuously
+       rather than snapping at a breakpoint — the previous approach was
+       one fixed value plus a 782px media query, which meant a 900px
+       window got desktop-sized padding it couldn't afford.
+       The vw coefficients are deliberately small (~0.25vw per step): at
+       1440px the top of each range is reached, at 380px the bottom —
+       so the whole range is exercised across real devices rather than
+       bottoming out immediately. */
+    --shsas-space-1: clamp(3px, 0.15vw + 2px, 4px);
+    --shsas-space-2: clamp(6px, 0.25vw + 4px, 8px);
+    --shsas-space-3: clamp(8px, 0.4vw + 6px, 12px);
+    --shsas-space-4: clamp(11px, 0.5vw + 8px, 16px);
+    --shsas-space-5: clamp(16px, 0.8vw + 12px, 24px);
+    --shsas-space-6: clamp(20px, 1.1vw + 15px, 32px);
+    /* Row height for dense, repeated list rows (sidebar items). Floors
+       at the 44px WCAG 2.5.5 comfortable-tap minimum — never smaller,
+       that's an accessibility floor, not a style choice — and only
+       grows slightly on very large displays where the extra breathing
+       room reads as intentional rather than wasteful. */
+    --shsas-row-h: clamp(44px, 0.5vw + 40px, 48px);
+
+    /* The "haze <-> focus" depth-of-field spectrum, tokenized rather
+       than hardcoded per rule — direct request: "a spectrum blender of
+       different states of matter, stepped out with defaults but easily
+       utility-tunable." Two named steps for now (matches what's
+       actually built: sidebar icons at rest vs. hover/current) — real
+       intermediate steps (a third "settling" state, mid-transition)
+       are a genuine next step once this two-pole version proves out,
+       not invented speculatively here. Every consumer of this system
+       (currently just the sidebar icons) reads these tokens instead of
+       its own magic numbers, so tuning "how hazy is hazy" or "how
+       strong is the glow bloom" is a single edit here that updates
+       every use at once — this is the actual "utility-tunable" part,
+       since WP core's own sidebar markup can't take a real utility
+       CLASS (we don't control that HTML), only a CSS custom property
+       read by a selector we do control. A future front-end use (where
+       markup IS ours to write) could add real `.shsas-hazy`/
+       `.shsas-focused` utility classes built from these exact same
+       tokens rather than reinventing the scale. */
+    --shsas-haze-saturate: .45;
+    --shsas-haze-brightness: .8;
+    --shsas-focus-saturate: 1.3;
+    --shsas-focus-brightness: 1.25;
+    --shsas-focus-glow-blur: 6px;
+    --shsas-focus-glow-strength: 70%;
+    /* Same two fonts as the ecosystem-wide front-end default (own-ur-
+       shit's BHY_Style --bh-font-body/--bh-font-display) — Atkinson
+       Hyperlegible for body (Braille Institute, purpose-built for low-
+       vision legibility — directly reinforces this file's own
+       accessibility work), Jost for display/headings. Two corrections
+       deep: Righteous (1970s-80s bubble-letter novelty, wrong era) ->
+       Josefin Sans (real 1920s-30s geometric-sans reasoning, but its
+       tall, idiosyncratic proportions still read "kitschy" at display
+       sizes per direct feedback) -> Jost — same period lineage
+       (Erbar/Kabel-influenced 1920s German geometric sans, the family
+       Futura itself grew from) with genuinely restrained, professional
+       proportions instead. Real system-font fallback stack kept after
+       each in case the webfont request is ever blocked (offline dev, a
+       strict CSP) — never a broken/invisible heading. */
+    --shsas-font: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --shsas-font-display: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --shsas-speed: 220ms;
 }
 
 :root[data-shsas-theme="light"] {
-    /* Neutral ramp — light mode: same warm/cool alternation, inverted. */
-    --shsas-bg: #f4f5f7;
+    /* Neutral ramp — light mode: same warm-neutral correction as dark
+       mode above, inverted. Real per-step warm drift, not a flat tint
+       repeated at different lightness values. */
+    --shsas-bg: #f7f3ec;
     --shsas-surface: #ffffff;
-    --shsas-surface-2: #ebedf0;
-    --shsas-surface-3: #dfe2e7;
-    --shsas-border: #d3d7dd;
-    --shsas-border-strong: #b9bec7;
-    --shsas-text: #191b1f;
-    --shsas-text-dim: #565d68;
-    --shsas-text-faint: #6f6b66; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+    --shsas-surface-2: #f0e9dc;
+    --shsas-surface-3: #e6dcc9;
+    --shsas-border: #d8cbae;
+    --shsas-border-strong: #c2b190;
+    --shsas-text: #241f16;
+    --shsas-text-dim: #5f5642;
+    --shsas-text-faint: #6d6449; /* WCAG-AA-verified 5.3:1+ against --shsas-bg, real math not a guess */
 
     /* Same neons, deepened/desaturated just enough to keep real
        contrast on a light ground — "jewel tone" versions of the exact
-       same six hues, not a different palette. */
+       same seven hues, not a different palette. Blue reverted to
+       primary accent (see the dark-mode block's comment for the
+       "pendulum" correction) — the darker orange (#b8500f) is kept
+       as-is even though orange is no longer the accent; it's still a
+       real, useful hue in the set and the darker value reads fine
+       wherever orange shows up (a badge tone, a sidebar icon). */
     --shsas-neon-blue: #1a5fd6;
     --shsas-neon-pink: #c81e79;
-    --shsas-neon-orange: #c65a12;
+    --shsas-neon-orange: #b8500f;
     --shsas-neon-yellow: #8a6d00;
     --shsas-neon-lime: #3f8f22;
     --shsas-neon-cyan: #0f8f8a;
@@ -101,7 +198,7 @@
     --shsas-warning: var(--shsas-neon-yellow);
     --shsas-info: var(--shsas-neon-violet);
 
-    --shsas-shadow: 0 10px 22px -14px rgba(30, 32, 36, .25);
+    --shsas-shadow: 0 10px 22px -14px rgba(36, 31, 22, .25);
 }
 
 /* Respect the OS default the instant the page paints, before any JS
@@ -109,19 +206,19 @@
    localStorage) always wins once present, in either direction. */
 @media (prefers-color-scheme: light) {
     :root:not([data-shsas-theme]) {
-        --shsas-bg: #f4f5f7;
+        --shsas-bg: #f7f3ec;
         --shsas-surface: #ffffff;
-        --shsas-surface-2: #ebedf0;
-        --shsas-surface-3: #dfe2e7;
-        --shsas-border: #d3d7dd;
-        --shsas-border-strong: #b9bec7;
-        --shsas-text: #191b1f;
-        --shsas-text-dim: #565d68;
-        --shsas-text-faint: #6f6b66; /* WCAG-AA-verified 4.5:1+ against --shsas-bg, real math not a guess */
+        --shsas-surface-2: #f0e9dc;
+        --shsas-surface-3: #e6dcc9;
+        --shsas-border: #d8cbae;
+        --shsas-border-strong: #c2b190;
+        --shsas-text: #241f16;
+        --shsas-text-dim: #5f5642;
+        --shsas-text-faint: #6d6449; /* WCAG-AA-verified 5.3:1+ against --shsas-bg, real math not a guess */
 
         --shsas-neon-blue: #1a5fd6;
         --shsas-neon-pink: #c81e79;
-        --shsas-neon-orange: #c65a12;
+        --shsas-neon-orange: #b8500f;
         --shsas-neon-yellow: #8a6d00;
         --shsas-neon-lime: #3f8f22;
         --shsas-neon-cyan: #0f8f8a;
@@ -136,7 +233,7 @@
         --shsas-warning: var(--shsas-neon-yellow);
         --shsas-info: var(--shsas-neon-violet);
 
-        --shsas-shadow: 0 10px 22px -14px rgba(30, 32, 36, .25);
+        --shsas-shadow: 0 10px 22px -14px rgba(36, 31, 22, .25);
     }
 }
 
@@ -172,6 +269,18 @@ body.wp-admin, body.wp-admin #wpcontent, body.wp-admin #wpbody-content {
 .woocommerce-layout__header-wrapper, .woocommerce-layout__primary {
     background: transparent !important;
 }
+/* Real bug, same failure mode as .components-button (0.6.1) and
+   .form-table th (0.4.12), found on this exact screen: WooCommerce's
+   own @woocommerce/components package renders its page title through
+   a <Text>/Truncate component (.woocommerce-layout__header-heading)
+   which — like core Gutenberg's own components — ships a near-black
+   default (#1e1e1e) with no color rule of this skin's ever reaching
+   it. A DIFFERENT package than @wordpress/components, so 0.6.1's
+   .components-button fix didn't cover it — same bug, third distinct
+   component library it's been found in now. */
+.woocommerce-layout__header-heading, .woocommerce-layout .components-text {
+    color: var(--shsas-text) !important;
+}
 body.wp-admin { font-family: var(--shsas-font); }
 /* Real, plain-language accessibility request: bigger, easier-to-read
    text and more breathing room between lines than WP core's own
@@ -201,17 +310,24 @@ body.wp-admin *:focus-visible {
    breathing room, everything a touch slimmer/quieter than a typical
    bold-and-cramped admin heading — restraint is the flourish here,
    the rainbow underline below is the one loud moment left. */
-.wrap { padding-top: 6px; }
+.wrap { padding-top: var(--shsas-space-2); }
 .wrap h1, .wrap h1.wp-heading-inline {
     color: var(--shsas-text);
-    /* Real perceptual-contrast fix: the color pair itself already
-       measures very high (15-16:1, well past WCAG AA/AAA), so "not
-       enough contrast" here is a WEIGHT problem, not a color one —
-       500 reads as thin/quiet at this size, which feels low-contrast
-       even where the math says otherwise. True bold instead. */
-    font-weight: 700;
+    /* Jost only on the ONE big page title per screen, not every h2/h3
+       (postbox headers, settings sections) — those stay on the body
+       face for real scanability in a dense admin UI, matching this
+       brief's own "useful and helpful more than anything" rule. Jost
+       has a real 600 weight — semi-bold reads as confident without
+       over-darkening the page. Kept the slight positive letter-
+       spacing tuned for the previous font (Josefin Sans) — Jost's
+       proportions are more neutral/restrained but a touch of tracking
+       still suits real period Moderne display type in general and
+       reads fine here; revisit if it ever looks too loose at this
+       specific size. */
+    font-family: var(--shsas-font-display);
+    font-weight: 600;
     font-size: 27px;
-    letter-spacing: -.005em;
+    letter-spacing: .01em;
     position: relative;
     /* Wright's horizontal emphasis: a full-width quiet ground line
        under the whole title band, not a boxed heading. Direct
@@ -219,8 +335,8 @@ body.wp-admin *:focus-visible {
        mark entirely rather than trying to tone it down; one thin
        single-hue accent segment is the whole flourish, not a jeweled
        icon competing with the page title for attention. */
-    padding-bottom: 18px;
-    margin-bottom: 28px;
+    padding-bottom: var(--shsas-space-4);
+    margin-bottom: var(--shsas-space-6);
     border-bottom: 1px solid var(--shsas-border);
 }
 .wrap h1::after {
@@ -280,6 +396,57 @@ body.wp-admin *:focus-visible {
    the sidebar, WP core's admin-bar dashicons default to 20px. */
 #wpadminbar .ab-icon:before, #wpadminbar .ab-item:before {
     font-size: 22px !important;
+}
+
+/* Admin-bar icons swapped to the same Lucide set as the sidebar,
+   completing "replace all stock icons everywhere... and branded admin
+   bar icons and such." Same mask-image technique and same reasoning
+   as the sidebar: a mask keeps these recolorable by this skin's own
+   tokens (a dashicon font glyph can only take `color`, and a
+   background-image can't be recolored at all), and it's the only way
+   to put a stroke-based icon here without WP's own icon-font markup
+   fighting it. Six real dashicon-driven items (WP logo, site
+   name/home, updates, WP 6.3+'s own command palette, comments, "New")
+   plus this skin's own two, which were using raw unicode glyphs (⚲
+   and ☼/☽) — genuinely the weakest icons in the whole UI, since a
+   text glyph can't be stroke-matched to anything. */
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before,
+#wpadminbar #wp-admin-bar-site-name > .ab-item:before,
+#wpadminbar #wp-admin-bar-updates .ab-icon:before,
+#wpadminbar #wp-admin-bar-command-palette .ab-icon:before,
+#wpadminbar #wp-admin-bar-comments .ab-icon:before,
+#wpadminbar #wp-admin-bar-new-content .ab-icon:before,
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon,
+#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
+    content: '' !important;
+    display: inline-block !important;
+    width: 18px; height: 18px;
+    vertical-align: middle;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: contain; mask-size: contain;
+    /* The glyph's own font metrics no longer apply once it's a mask —
+       zero them so the icon box isn't pushed around by a leftover
+       22px line-box. */
+    font-size: 0 !important;
+    line-height: 18px !important;
+}
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before { -webkit-mask-image: url(../icons/ab-wplogo.svg); mask-image: url(../icons/ab-wplogo.svg); }
+#wpadminbar #wp-admin-bar-site-name > .ab-item:before { -webkit-mask-image: url(../icons/ab-home.svg); mask-image: url(../icons/ab-home.svg); }
+#wpadminbar #wp-admin-bar-updates .ab-icon:before { -webkit-mask-image: url(../icons/ab-updates.svg); mask-image: url(../icons/ab-updates.svg); }
+#wpadminbar #wp-admin-bar-command-palette .ab-icon:before { -webkit-mask-image: url(../icons/ab-cmdk.svg); mask-image: url(../icons/ab-cmdk.svg); }
+#wpadminbar #wp-admin-bar-comments .ab-icon:before { -webkit-mask-image: url(../icons/ab-comments.svg); mask-image: url(../icons/ab-comments.svg); }
+#wpadminbar #wp-admin-bar-new-content .ab-icon:before { -webkit-mask-image: url(../icons/ab-new.svg); mask-image: url(../icons/ab-new.svg); }
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon { -webkit-mask-image: url(../icons/ab-search.svg); mask-image: url(../icons/ab-search.svg); }
+/* Sun at rest (currently-dark, click for light); admin-skin.js swaps
+   the glyph character on toggle — a real moon icon for the inverse
+   state, keyed off the same data-shsas-theme attribute the rest of the
+   palette already reads, so the two stay in sync without JS changes. */
+#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-sun.svg); mask-image: url(../icons/ab-sun.svg); }
+:root[data-shsas-theme="light"] #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-moon.svg); mask-image: url(../icons/ab-moon.svg); }
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-moon.svg); mask-image: url(../icons/ab-moon.svg); }
 }
 /* WP core gives the "W" logo (far top-left) its own hardcoded blue
    (#0073aa-ish), independent of the rest of the toolbar's icon color —
@@ -349,19 +516,59 @@ body.wp-admin *:focus-visible {
     background: var(--shsas-surface) !important;
 }
 #adminmenu li.menu-top {
-    margin: 3px 8px;
+    margin: var(--shsas-space-1) var(--shsas-space-2);
+    /* "Half-Blood Prince" atmosphere applied to arrival, not just to
+       resting state: nav items resolve OUT of haze on page load —
+       starting blurred, dim and slightly left — rather than snapping
+       into place. Staggered per item (see nth-child below) so the
+       sidebar reads as light gathering into focus down the column,
+       the same composing-with-light idea as the icon haze/glow
+       system, in time rather than in space. Deliberately short
+       (260ms) and small (3px drift, 3px blur) — a felt moment on
+       arrival, not a loading screen standing between someone and
+       their work. */
+    animation: shsas-menu-in 260ms ease-out both;
+}
+@keyframes shsas-menu-in {
+    from { opacity: 0; filter: blur(3px); transform: translateX(-3px); }
+    to { opacity: 1; filter: blur(0); transform: translateX(0); }
+}
+/* Stagger: 8 steps at 22ms, cycling — enough to read as a cascade
+   without the last item in a long menu arriving noticeably late. */
+#adminmenu li.menu-top:nth-child(8n+1) { animation-delay: 0ms; }
+#adminmenu li.menu-top:nth-child(8n+2) { animation-delay: 22ms; }
+#adminmenu li.menu-top:nth-child(8n+3) { animation-delay: 44ms; }
+#adminmenu li.menu-top:nth-child(8n+4) { animation-delay: 66ms; }
+#adminmenu li.menu-top:nth-child(8n+5) { animation-delay: 88ms; }
+#adminmenu li.menu-top:nth-child(8n+6) { animation-delay: 110ms; }
+#adminmenu li.menu-top:nth-child(8n+7) { animation-delay: 132ms; }
+#adminmenu li.menu-top:nth-child(8n+8) { animation-delay: 154ms; }
+@media (prefers-reduced-motion: reduce) {
+    #adminmenu li.menu-top { animation: none; }
 }
 #adminmenu a.menu-top {
     color: var(--shsas-text-dim);
     display: flex;
     align-items: center;
-    gap: 10px;
-    /* Real touch-target fix: WP core's default admin-menu row is
-       ~34px tall — below the WCAG 2.5.5 / iOS HIG 44px comfortable-tap
-       minimum. min-height (not a fixed height) so a genuinely long,
-       wrapped label can still grow past it rather than clipping. */
-    min-height: 44px;
-    padding: 10px 12px;
+    gap: var(--shsas-space-3);
+    /* Real bug, direct feedback ("menu too much white space") — found
+       by measuring, not eyeballing: every row was rendering 64px tall,
+       not the 44px this rule intends. WP admin leaves these links on
+       `box-sizing: content-box`, so min-height:44px was the CONTENT
+       box and the 10px+10px vertical padding stacked ON TOP of it
+       (44 + 20 = 64). Across ~24 top-level items that's ~480px of
+       accidental vertical space — the whole sidebar reading as airy/
+       empty. border-box makes min-height mean what it was always
+       meant to mean: the real row height, padding included.
+       Padding trimmed 10px -> 7px vertical to match, so the 44px
+       touch target (WCAG 2.5.5 / iOS HIG comfortable-tap minimum,
+       the original and still-correct goal) is now the ACTUAL height
+       rather than a floor that padding inflated past. min-height (not
+       height) still lets a genuinely long, wrapped label grow rather
+       than clip. */
+    box-sizing: border-box;
+    min-height: var(--shsas-row-h);
+    padding: var(--shsas-space-2) var(--shsas-space-3);
     border-radius: var(--shsas-radius-sm);
     font-size: 13px;
     font-weight: 400;
@@ -370,9 +577,17 @@ body.wp-admin *:focus-visible {
     white-space: normal;
     transition: background-color var(--shsas-speed) ease, color var(--shsas-speed) ease, box-shadow var(--shsas-speed) ease;
 }
+/* 24px container, not 30px — the actual drawn icon inside is 20px
+   (the mask size), so a 30px box was 10px of pure padding around
+   every icon, stacking with the row's own padding and contributing
+   directly to the "too much white space" the row-height fix above
+   addresses. 24px still centers a 20px icon comfortably and keeps
+   the row at its intended 44px (24 + 7 + 7 = 38, under the 44px
+   min-height, so the touch target still governs rather than the
+   icon). */
 #adminmenu div.wp-menu-image {
     flex: 0 0 auto;
-    width: 30px; height: 30px;
+    width: 24px; height: 24px;
     display: flex; align-items: center; justify-content: center;
     transition: transform var(--shsas-speed) ease;
 }
@@ -412,12 +627,52 @@ body.wp-admin *:focus-visible {
 @media (prefers-color-scheme: light) {
     :root:not([data-shsas-theme]) #adminmenu div.wp-menu-image img { filter: brightness(0); }
 }
-#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(300deg); }
-#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(0deg); }
-#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(70deg); }
-#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(150deg); }
-#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(230deg); }
-#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image img { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(30deg); }
+/* DRY refactor + the same "haze at rest, glow in focus" depth-of-field
+   pass as the dashicon :before rule above, using ONE hue-rotate
+   custom property per item (--shsas-item-hue-deg, set on the LI
+   alongside --shsas-item-hue below) instead of six near-duplicate
+   filter chains that only differed by their hue-rotate() argument —
+   fewer rules, same visual result, one place to add the haze/glow
+   states instead of six. Real code-quality win alongside the design
+   one. Resting state desaturates via saturate(1.8) — lower than the
+   colorized baseline's saturate(6) but still enough to read a hue,
+   just quieter; hover/current pushes saturate(6) back to full plus a
+   real glow-bloom drop-shadow, mirroring the dashicon version exactly. */
+#adminmenu li.menu-top:nth-of-type(7n+2) { --shsas-item-hue-deg: 300deg; }
+#adminmenu li.menu-top:nth-of-type(7n+3) { --shsas-item-hue-deg: 0deg; }
+#adminmenu li.menu-top:nth-of-type(7n+4) { --shsas-item-hue-deg: 70deg; }
+#adminmenu li.menu-top:nth-of-type(7n+5) { --shsas-item-hue-deg: 150deg; }
+#adminmenu li.menu-top:nth-of-type(7n+6) { --shsas-item-hue-deg: 230deg; }
+#adminmenu li.menu-top:nth-of-type(7n+7) { --shsas-item-hue-deg: 30deg; }
+/* nth-of-type(7n+1) deliberately excluded from this rule (and the .svg
+   version below) — the original design never colorized that slot's
+   img/svg icons at all (only the dashicon-font :before rule covers
+   :nth-of-type(7n+1), with a real blue), so it must keep the plain
+   brightness(0) invert(1) base rather than inherit a hue-rotate(0deg)
+   that — combined with sepia(1)/saturate() — would tint it reddish as
+   an unintended side effect of this refactor's fallback value. */
+#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image img {
+    filter: brightness(0) invert(1) sepia(1) saturate(1.8) hue-rotate(var(--shsas-item-hue-deg)) brightness(var(--shsas-haze-brightness));
+    transition: filter var(--shsas-speed) ease;
+}
+#adminmenu li.menu-top:nth-of-type(7n+2):hover div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+3):hover div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+4):hover div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+5):hover div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+6):hover div.wp-menu-image img,
+#adminmenu li.menu-top:nth-of-type(7n+7):hover div.wp-menu-image img,
+#adminmenu li.menu-top.current div.wp-menu-image img,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image img {
+    filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(var(--shsas-item-hue-deg, 0deg)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
+}
+@media (prefers-reduced-motion: reduce) {
+    #adminmenu li.menu-top div.wp-menu-image img { transition: none; }
+}
 
 /* Real THIRD icon-rendering mode found live, missed by both rules
    above: add_menu_page() passed a base64 SVG data URI renders as
@@ -438,21 +693,45 @@ body.wp-admin *:focus-visible {
 @media (prefers-color-scheme: light) {
     :root:not([data-shsas-theme]) #adminmenu div.wp-menu-image.svg { filter: brightness(0); }
 }
-#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(300deg); }
-#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(0deg); }
-#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(70deg); }
-#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(150deg); }
-#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(230deg); }
-#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image.svg { filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(30deg); }
-/* Bigger, clearer sidebar icons — WP core's own dashicon glyph is
-   font-size-driven (font: normal 20px/1 dashicons on this exact
-   :before), so "bigger" means resizing the glyph itself, not just its
-   container. line-height kept equal to font-size so the glyph stays
-   vertically centered in the (also-enlarged) box above. */
+/* Same haze-at-rest/glow-in-focus pattern as the img version above,
+   reusing the same --shsas-item-hue-deg custom property (already set
+   per nth-of-type on the LI, no need to redefine it here) — 7n+1
+   excluded for the same reason (never colorized originally). */
+#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image.svg {
+    filter: brightness(0) invert(1) sepia(1) saturate(1.8) hue-rotate(var(--shsas-item-hue-deg)) brightness(var(--shsas-haze-brightness));
+    transition: filter var(--shsas-speed) ease;
+}
+#adminmenu li.menu-top:nth-of-type(7n+2):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+3):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+4):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+5):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+6):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:nth-of-type(7n+7):hover div.wp-menu-image.svg,
+#adminmenu li.menu-top.current div.wp-menu-image.svg,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image.svg {
+    filter: brightness(0) invert(1) sepia(1) saturate(6) hue-rotate(var(--shsas-item-hue-deg, 0deg)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
+}
+@media (prefers-reduced-motion: reduce) {
+    #adminmenu li.menu-top div.wp-menu-image.svg { transition: none; }
+}
+/* Clearer sidebar icons — WP core's own dashicon glyph is font-size-
+   driven (font: normal 20px/1 dashicons on this exact :before), so
+   sizing it means resizing the glyph itself, not just its container.
+   Retuned from 28px/30px down to 22px/24px to match the 24px
+   container above (was 30px) — the old values were sized for a
+   container that no longer exists and would have overflowed it.
+   line-height kept equal to the container height so the glyph stays
+   vertically centered. Still meaningfully larger than WP core's own
+   20px default, which was the original point. */
 #adminmenu div.wp-menu-image:before {
-    font-size: 28px !important;
-    line-height: 30px !important;
-    width: 30px !important;
+    font-size: 22px !important;
+    line-height: 24px !important;
+    width: 24px !important;
 }
 #adminmenu a.menu-top .wp-menu-name {
     flex: 1 1 auto;
@@ -496,8 +775,13 @@ body.wp-admin *:focus-visible {
        this skin's tokens. Against this skin's light surfaces that reads
        as a stray dark smudge, not an accent. Replace with a themed
        accent-colored bar so the hover state stays legible but on-brand
-       in both themes. */
-    box-shadow: inset 4px 0 0 0 var(--shsas-accent) !important;
+       in both themes. Uses the item's own wayfinding hue (falling back
+       to the primary accent for anything outside the 7-cycle) rather
+       than always the primary accent — same reasoning as the "you are
+       here" background fill below: reinforces which section you're
+       touching by ITS color, not one uniform signal regardless of
+       which item. */
+    box-shadow: inset 4px 0 0 0 var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
 /* One calm, native-feeling "you are here" idiom — a soft rounded
    fill, plus the accent-colored icon (below) — no extra marker shape
@@ -506,7 +790,7 @@ body.wp-admin *:focus-visible {
    already removed for the same reason). */
 #adminmenu li.menu-top.current > a.menu-top,
 #adminmenu li.wp-has-current-submenu > a.menu-top {
-    background: color-mix(in srgb, var(--shsas-accent) 16%, var(--shsas-surface)) !important;
+    background: color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) 16%, var(--shsas-surface)) !important;
     color: var(--shsas-text) !important;
     font-weight: 600;
 }
@@ -565,21 +849,209 @@ body.wp-admin *:focus-visible {
    stays recognizable by its own color everywhere, not just at rest;
    "this is the current section" is still communicated separately by
    the background fill (below), so the two signals don't compete. */
-#adminmenu li.menu-top:nth-of-type(7n+1) div.wp-menu-image:before { color: var(--shsas-neon-blue); }
-#adminmenu li.menu-top:nth-of-type(7n+2) div.wp-menu-image:before { color: var(--shsas-neon-pink); }
-#adminmenu li.menu-top:nth-of-type(7n+3) div.wp-menu-image:before { color: var(--shsas-neon-orange); }
-#adminmenu li.menu-top:nth-of-type(7n+4) div.wp-menu-image:before { color: var(--shsas-neon-lime); }
-#adminmenu li.menu-top:nth-of-type(7n+5) div.wp-menu-image:before { color: var(--shsas-neon-cyan); }
-#adminmenu li.menu-top:nth-of-type(7n+6) div.wp-menu-image:before { color: var(--shsas-neon-violet); }
-#adminmenu li.menu-top:nth-of-type(7n+7) div.wp-menu-image:before { color: var(--shsas-neon-yellow); }
-/* Hover/current still gets a brightness lift so the state change
-   itself stays perceptible, not just the background fill — without
-   swapping away from the item's own assigned hue. */
+/* --shsas-item-hue set on the LI itself (not just the icon) so the
+   SAME per-item color is available to the hover bar and "you are here"
+   background fill below, not just the icon glyph — direct request:
+   "intelligent color diversity... find valuable places to emphasize
+   more with color." A real, non-arbitrary use of the existing 7-hue
+   wayfinding set: the section you're actually in now glows ITS OWN
+   color instead of every section highlighting identically in the one
+   primary accent regardless of which one it is — reinforces the same
+   "find this by color" idea the icons already do, rather than
+   competing with it. */
+#adminmenu li.menu-top:nth-of-type(7n+1) { --shsas-item-hue: var(--shsas-neon-blue); }
+#adminmenu li.menu-top:nth-of-type(7n+2) { --shsas-item-hue: var(--shsas-neon-pink); }
+#adminmenu li.menu-top:nth-of-type(7n+3) { --shsas-item-hue: var(--shsas-neon-orange); }
+#adminmenu li.menu-top:nth-of-type(7n+4) { --shsas-item-hue: var(--shsas-neon-lime); }
+#adminmenu li.menu-top:nth-of-type(7n+5) { --shsas-item-hue: var(--shsas-neon-cyan); }
+#adminmenu li.menu-top:nth-of-type(7n+6) { --shsas-item-hue: var(--shsas-neon-violet); }
+#adminmenu li.menu-top:nth-of-type(7n+7) { --shsas-item-hue: var(--shsas-neon-yellow); }
+/* The "haze" half of the two-rule accent system, direct request: "one
+   is the architectural foundation, the other is the Half-Blood-Prince-
+   ification... neon rebel glow juice... smoky cloudy hazy atmospheric
+   depth and clarity and focus hierarchy." Read as a real depth-of-
+   field mechanism, not another glow: at rest, an item's own wayfinding
+   hue sits desaturated/dim — present, scannable, but not shouting —
+   then sharpens to full saturation + brightness + an actual glow BLOOM
+   (drop-shadow, not just a brighter fill) on hover/current, the way a
+   photographed point of light gains a halo pulling into focus through
+   haze. First, smallest, fastest instance of this pattern — sidebar
+   only for now; modal-backdrop haze and card-group spotlight are
+   separate, larger pieces of the same idea, tracked for later, not
+   guessed at here. Applied to the ICON only, never the text label —
+   the label stays on --shsas-text-dim at full clarity always, since
+   blurring/desaturating actual READABLE text for atmosphere would be
+   a real accessibility regression, not a stylistic one. */
+#adminmenu li.menu-top div.wp-menu-image:before {
+    color: var(--shsas-item-hue);
+    filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
+    transition: filter var(--shsas-speed) ease;
+}
 #adminmenu li.menu-top:hover div.wp-menu-image:before,
 #adminmenu li.menu-top.current div.wp-menu-image:before,
 #adminmenu li.wp-has-current-submenu div.wp-menu-image:before {
-    filter: brightness(1.25) saturate(1.15);
+    filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
 }
+@media (prefers-reduced-motion: reduce) {
+    #adminmenu li.menu-top div.wp-menu-image:before { transition: none; }
+}
+
+/* Direct, repeated request finally delivered: real icons instead of
+   default dashicons for WP core's own standard sidebar items (the
+   ones with a genuine WP-core menu-icon-{type} class to hook —
+   Dashboard/Posts/Media/Pages/Comments/Appearance/Plugins/Users/
+   Tools/Settings). Lucide (ISC license, vendored — see
+   assets/icons/LICENSE) was this session's own research conclusion:
+   restrained, geometric, uniform-stroke line icons — real functional
+   reduction rather than decoration, the same "would a real period
+   designer argue for this" test the rest of this brief uses. Not
+   pixel-matched to WP core's own icon choices, not exhaustive (this
+   ecosystem's own peer-plugin top-level items still use their own
+   custom icons via the existing img/svg rules above) — a real,
+   good-looking replacement for the default set, per direct
+   instruction ("something good looking is better than the shitty
+   default") rather than a stalled search for a perfect one.
+   mask-image (not background-image) so the SAME --shsas-item-hue
+   wayfinding color and haze/focus-glow filter system already built
+   above keeps working unchanged — a mask recolors via
+   background-color, unlike a background-image which can't be
+   recolored by CSS at all. content:'' clears WP core's own dashicon
+   glyph character so nothing doubles up underneath the mask. */
+#adminmenu li.menu-icon-dashboard div.wp-menu-image:before,
+#adminmenu li.menu-icon-post div.wp-menu-image:before,
+#adminmenu li.menu-icon-media div.wp-menu-image:before,
+#adminmenu li.menu-icon-page div.wp-menu-image:before,
+#adminmenu li.menu-icon-comments div.wp-menu-image:before,
+#adminmenu li.menu-icon-appearance div.wp-menu-image:before,
+#adminmenu li.menu-icon-plugins div.wp-menu-image:before,
+#adminmenu li.menu-icon-users div.wp-menu-image:before,
+#adminmenu li.menu-icon-tools div.wp-menu-image:before,
+#adminmenu li.menu-icon-settings div.wp-menu-image:before {
+    content: '' !important;
+    display: block;
+    width: 20px !important; height: 20px;
+    margin: 0 auto;
+    background-color: var(--shsas-item-hue) !important;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: contain; mask-size: contain;
+}
+#adminmenu li.menu-icon-dashboard div.wp-menu-image:before { -webkit-mask-image: url(../icons/dashboard.svg); mask-image: url(../icons/dashboard.svg); }
+#adminmenu li.menu-icon-post div.wp-menu-image:before { -webkit-mask-image: url(../icons/post.svg); mask-image: url(../icons/post.svg); }
+#adminmenu li.menu-icon-media div.wp-menu-image:before { -webkit-mask-image: url(../icons/media.svg); mask-image: url(../icons/media.svg); }
+#adminmenu li.menu-icon-page div.wp-menu-image:before { -webkit-mask-image: url(../icons/page.svg); mask-image: url(../icons/page.svg); }
+#adminmenu li.menu-icon-comments div.wp-menu-image:before { -webkit-mask-image: url(../icons/comments.svg); mask-image: url(../icons/comments.svg); }
+#adminmenu li.menu-icon-appearance div.wp-menu-image:before { -webkit-mask-image: url(../icons/appearance.svg); mask-image: url(../icons/appearance.svg); }
+#adminmenu li.menu-icon-plugins div.wp-menu-image:before { -webkit-mask-image: url(../icons/plugins.svg); mask-image: url(../icons/plugins.svg); }
+#adminmenu li.menu-icon-users div.wp-menu-image:before { -webkit-mask-image: url(../icons/users.svg); mask-image: url(../icons/users.svg); }
+#adminmenu li.menu-icon-tools div.wp-menu-image:before { -webkit-mask-image: url(../icons/tools.svg); mask-image: url(../icons/tools.svg); }
+#adminmenu li.menu-icon-settings div.wp-menu-image:before { -webkit-mask-image: url(../icons/settings.svg); mask-image: url(../icons/settings.svg); }
+
+/* Direct request: "replace all stock icons everywhere and all
+   ecosystem icons and branded admin bar icons and such." Same
+   mask-image treatment as WP core's own items above, extended to every
+   remaining top-level menu — this ecosystem's own plugins (which ship
+   hand-authored base64-SVG data URIs via OUS_MenuIcons) plus
+   WooCommerce's. Done HERE rather than by rewriting each plugin's own
+   PHP icon for a real, documented reason: WP core's svg-painter.js
+   rewrites every `fill` attribute (including fill="none") on a
+   data-URI menu icon to one solid scheme color and strips strokes
+   entirely — see OUS_MenuIcons' own class docblock, which was written
+   after hitting exactly that. Lucide is stroke-based, so passing it
+   through add_menu_page() would render solid blobs. A CSS mask sidesteps
+   svg-painter completely (it never sees these), keeps every icon in the
+   same visual family, and keeps them recolorable by the same
+   --shsas-item-hue wayfinding + haze/glow system as everything else.
+   Trade-off, stated honestly: these are skin-side overrides, so each
+   plugin's own PHP-side icon still renders if this skin is inactive —
+   that's the correct fallback behavior (never a broken icon), not an
+   oversight, and it keeps every peer plugin as portable as before. */
+#adminmenu li.toplevel_page_own-ur-shit div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-design div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image,
+#adminmenu li.menu-icon-bh_contest div.wp-menu-image,
+#adminmenu li.menu-icon-bh_course div.wp-menu-image,
+#adminmenu li.menu-icon-bhs_track div.wp-menu-image,
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce div.wp-menu-image,
+#adminmenu li.menu-icon-product div.wp-menu-image,
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image {
+    background-image: none !important;
+    background-color: var(--shsas-item-hue) !important;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: 20px 20px; mask-size: 20px 20px;
+    filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
+    transition: filter var(--shsas-speed) ease;
+}
+/* Their dashicon-font :before (where one exists — Debug/Social/Tickets/
+   Products/Analytics/Marketing use a dashicon rather than a data URI)
+   must be blanked so a glyph doesn't render on top of the mask. */
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image:before,
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image:before,
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image:before,
+#adminmenu li.menu-icon-product div.wp-menu-image:before,
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image:before,
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image:before {
+    content: '' !important;
+    display: none !important;
+}
+#adminmenu li.toplevel_page_own-ur-shit:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-design:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-crm-hub:hover div.wp-menu-image,
+#adminmenu li.menu-icon-bh_contest:hover div.wp-menu-image,
+#adminmenu li.menu-icon-bh_course:hover div.wp-menu-image,
+#adminmenu li.menu-icon-bhs_track:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_ous-debug:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-social:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-tickets:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce:hover div.wp-menu-image,
+#adminmenu li.menu-icon-product:hover div.wp-menu-image,
+#adminmenu li[class*="toplevel_page_wc-admin"]:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce-marketing:hover div.wp-menu-image,
+#adminmenu li.current div.wp-menu-image,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image {
+    filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
+}
+#adminmenu li.toplevel_page_own-ur-shit div.wp-menu-image { -webkit-mask-image: url(../icons/ous-hub.svg); mask-image: url(../icons/ous-hub.svg); }
+#adminmenu li.toplevel_page_bh-design div.wp-menu-image { -webkit-mask-image: url(../icons/ous-design.svg); mask-image: url(../icons/ous-design.svg); }
+#adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image { -webkit-mask-image: url(../icons/ous-people.svg); mask-image: url(../icons/ous-people.svg); }
+#adminmenu li.menu-icon-bh_contest div.wp-menu-image { -webkit-mask-image: url(../icons/ous-contests.svg); mask-image: url(../icons/ous-contests.svg); }
+#adminmenu li.menu-icon-bh_course div.wp-menu-image { -webkit-mask-image: url(../icons/ous-courses.svg); mask-image: url(../icons/ous-courses.svg); }
+#adminmenu li.menu-icon-bhs_track div.wp-menu-image { -webkit-mask-image: url(../icons/ous-streaming.svg); mask-image: url(../icons/ous-streaming.svg); }
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image { -webkit-mask-image: url(../icons/ous-debug.svg); mask-image: url(../icons/ous-debug.svg); }
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image { -webkit-mask-image: url(../icons/ous-social.svg); mask-image: url(../icons/ous-social.svg); }
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image { -webkit-mask-image: url(../icons/ous-tickets.svg); mask-image: url(../icons/ous-tickets.svg); }
+#adminmenu li.toplevel_page_woocommerce div.wp-menu-image { -webkit-mask-image: url(../icons/wc-store.svg); mask-image: url(../icons/wc-store.svg); }
+#adminmenu li.menu-icon-product div.wp-menu-image { -webkit-mask-image: url(../icons/wc-products.svg); mask-image: url(../icons/wc-products.svg); }
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image { -webkit-mask-image: url(../icons/wc-analytics.svg); mask-image: url(../icons/wc-analytics.svg); }
+/* WooCommerce's Payments item is the one menu whose generated class is
+   a raw query string — `toplevel_page_admin?page=wc-settings&tab=
+   checkout&from=PAYMENTS_MENU_ITEM` — so `?`, `=` and `&` make it
+   unusable as a plain class selector without escaping every one. An
+   attribute substring match on the stable, meaningful tail is both
+   simpler and more robust than escaping a URL that WooCommerce could
+   reasonably re-order. Found by auditing the live DOM for any sidebar
+   item still falling back to a font glyph rather than assuming the
+   earlier pass caught everything — it was the only one left. */
+#adminmenu li[class*="PAYMENTS_MENU_ITEM"] div.wp-menu-image {
+    background-image: none !important;
+    background-color: var(--shsas-item-hue) !important;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: center; mask-position: center;
+    -webkit-mask-size: 20px 20px; mask-size: 20px 20px;
+    -webkit-mask-image: url(../icons/wc-payments.svg); mask-image: url(../icons/wc-payments.svg);
+    filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
+    transition: filter var(--shsas-speed) ease;
+}
+#adminmenu li[class*="PAYMENTS_MENU_ITEM"]:hover div.wp-menu-image {
+    filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
+}
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image { -webkit-mask-image: url(../icons/wc-marketing.svg); mask-image: url(../icons/wc-marketing.svg); }
+
 #collapse-button { color: var(--shsas-text-dim); }
 #collapse-button:hover { color: var(--shsas-text); }
 .folded #collapse-menu .collapse-button-icon:before { color: var(--shsas-text-dim); }
@@ -595,7 +1067,24 @@ body.wp-admin *:focus-visible {
     padding: 6px;
 }
 .folded #adminmenu .wp-submenu a { padding-left: 12px; }
-.folded #adminmenu a.menu-top { justify-content: center; padding: 8px; }
+/* Real accessibility gap caught doing a live pass at 900px: WP core
+   AUTO-folds the sidebar to icon-only below ~960px (body.auto-fold),
+   and its own folded rule hard-sets min-height/height to 34px —
+   overriding this file's --shsas-row-h and dropping every nav row
+   well under the 44px WCAG 2.5.5 comfortable-tap minimum. That's
+   exactly the tablet-ish width where touch is most plausible, so it's
+   the worst place to lose the target. Both .folded (manually
+   collapsed) and .auto-fold (width-triggered) covered — they're
+   different classes for the same visual state and core styles them
+   separately. height:auto so min-height can actually govern rather
+   than being pinned by core's fixed height. */
+.folded #adminmenu a.menu-top,
+.auto-fold #adminmenu a.menu-top {
+    justify-content: center;
+    padding: var(--shsas-space-2);
+    min-height: var(--shsas-row-h) !important;
+    height: auto !important;
+}
 
 /* ---------------- cards / postboxes / meta boxes ---------------- */
 
@@ -604,14 +1093,96 @@ body.wp-admin *:focus-visible {
    redundant weight. Border kept, but faint — just enough to hold an
    edge on a display with no shadow rendering (print, forced-colors),
    never the primary signal. */
-.postbox, .stuffbox, .bhy-card, .card {
+/* One shared "raised surface" idiom for every card-shaped thing in
+   this ecosystem, regardless of which underlying system it comes
+   from — WP core (.postbox/.stuffbox/.card), this skin's own
+   (.bhy-card, bridged from own-ur-shit's --bhy-* tokens), and
+   own-ur-shit's two separate hardcoded-stylesheet card families
+   (.ous-card, .ous-metrics-card) folded in here too. Direct request:
+   "make all GUIs from WP, Woo, OUS, etc look designed by one person"
+   — before this, .ous-card/.ous-metrics-card had matching COLORS
+   (fixed in an earlier round) but not matching SHAPE: no elevation,
+   no radius token, no hover-glow, so they read as flatter/cheaper
+   next to a real .postbox even once the palette matched. One rule,
+   one shape language, for all of them now. */
+.postbox, .stuffbox, .bhy-card, .card, .ous-card, .ous-metrics-card {
     background: var(--shsas-surface) !important;
     border: 1px solid color-mix(in srgb, var(--shsas-border) 55%, transparent) !important;
     border-radius: var(--shsas-radius);
     box-shadow: var(--shsas-shadow);
-    margin-bottom: 24px;
+    margin-bottom: var(--shsas-space-5);
     transition: box-shadow var(--shsas-speed) ease, border-color var(--shsas-speed) ease;
 }
+
+/* ---- Wallet-stack accordion ----
+   Direct request: "I like Apple's Wallet metaphor as a way to organize
+   similar but different stacks of related things — almost like a
+   containerized accordion — to reduce the vertical space of screen
+   real estate at smaller sizes and make the most of the space
+   available at larger sizes."
+
+   WP core collapses a postbox by adding a `.closed` CLASS and letting
+   CSS do `display:none` on .inside — verified live, it sets no inline
+   style — which means this is genuinely animatable rather than an
+   instant jump-cut. display can't be transitioned, so this uses the
+   grid-template-rows 1fr -> 0fr technique: the box becomes a two-row
+   grid (header, content) and the content row is animated to zero
+   height. .inside is forced back to display:block so the row height,
+   not display, is what hides it.
+
+   Real constraint respected: this only applies to postboxes that
+   genuinely have the standard two-child header+inside structure
+   (:has() guards it), so a postbox with unusual internals is left on
+   core's own behavior rather than being force-fit into a grid that
+   might break its layout. */
+.postbox:has(> .postbox-header):has(> .inside) {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    transition: box-shadow var(--shsas-speed) ease,
+                border-color var(--shsas-speed) ease,
+                grid-template-rows 260ms cubic-bezier(.2, .7, .3, 1);
+}
+.postbox:has(> .postbox-header):has(> .inside).closed {
+    grid-template-rows: auto 0fr;
+}
+.postbox:has(> .postbox-header):has(> .inside) > .inside {
+    display: block !important;
+    overflow: hidden;
+    min-height: 0;
+}
+/* A closed card reads as a shallower plane — it's holding less, so it
+   sits closer to the page. Same "shadow is the signal" logic the
+   hover state already uses, applied to collapsed state. */
+.postbox.closed {
+    box-shadow: 0 4px 12px -8px rgba(0, 0, 0, .5);
+}
+@media (prefers-reduced-motion: reduce) {
+    .postbox:has(> .postbox-header):has(> .inside) { transition: none; }
+}
+/* The other half of the Wallet idea — "make the most of the space
+   available at larger sizes." Card GROUPS that are a plain vertical
+   stack in WP core (this ecosystem's own .ous-cards plugin grid, the
+   .bhy-card lists on Debug Tools/Reports) fan out into real columns
+   once there's room, using auto-fit so the column COUNT follows the
+   actual available width rather than a hardcoded breakpoint guess —
+   one column on a phone, two on a tablet, three or more on a wide
+   display, continuously. Deliberately NOT applied to WP's own
+   #dashboard-widgets: those columns are drag-and-drop sortable with
+   their own JS that expects core's container structure, and
+   re-gridding them would risk breaking sorting for a purely visual
+   gain — a real "don't fight core where it costs functionality" call,
+   not an oversight. */
+.ous-cards,
+.bhy-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    gap: var(--shsas-space-5);
+    align-items: start;
+}
+/* Inside a grid the per-card bottom margin becomes double-spacing —
+   gap already owns the rhythm there. */
+.ous-cards > .ous-card,
+.bhy-card-grid > .bhy-card { margin-bottom: 0; }
 /* Family resemblance with the front-end's course-card hover (bh-
    courses' .bhc-course-card:hover — translateY lift + accent-tinted
    glow). No transform here deliberately: unlike a front-end card,
@@ -622,12 +1193,12 @@ body.wp-admin *:focus-visible {
    same "this surface is alive" cue without the layout-shift downside,
    consistent with this file's own established Eames "shadow is the
    signal" stance. */
-.postbox:hover, .card:hover {
+.postbox:hover, .card:hover, .ous-card:hover, .ous-metrics-card:hover {
     border-color: color-mix(in srgb, var(--shsas-accent) 35%, var(--shsas-border)) !important;
     box-shadow: 0 16px 32px -14px color-mix(in srgb, var(--shsas-accent) 22%, transparent), var(--shsas-shadow);
 }
 @media (prefers-reduced-motion: reduce) {
-    .postbox, .card { transition: none; }
+    .postbox, .card, .ous-card, .ous-metrics-card { transition: none; }
 }
 /* WP core's plain .card (Tools screen, some settings pages) is a
    DIFFERENT class than .postbox/.bhy-card above but the same "raised
@@ -736,7 +1307,24 @@ body.wp-admin *:focus-visible {
     background: var(--shsas-surface-2);
 }
 .wp-list-table tbody tr:hover { background: color-mix(in srgb, var(--shsas-accent) 8%, var(--shsas-surface)); }
-.wp-list-table td, .wp-list-table th { border-color: var(--shsas-border); color: var(--shsas-text); }
+/* Real bug, direct feedback ("the text in the tables sucks"): this
+   rule set color on the <td>/<th> itself but WITHOUT !important, and a
+   plugin row's own description text lives in a nested <p>
+   (.column-description p, on the Plugins list specifically) that WP
+   core gives its own explicit near-black color (#2c3338) — a more
+   specific/later rule that was winning outright, not just inheriting
+   past a weak parent color. Confirmed live: .column-description p
+   measured #2c3338 (WP core's default) even after this rule existed.
+   !important plus an explicit nested-element selector, matching every
+   other cascade fight already won in this file. */
+.wp-list-table td, .wp-list-table th {
+    border-color: var(--shsas-border);
+    color: var(--shsas-text) !important;
+}
+.wp-list-table td p, .wp-list-table td span, .wp-list-table td div,
+.wp-list-table .plugin-description p {
+    color: var(--shsas-text-dim) !important;
+}
 /* Real critique caught live: every row-title link inherited the
    global body.wp-admin a accent color, so an entire list of posts/
    pages/etc. read as a solid block of pink — monotonous, and it
@@ -764,6 +1352,32 @@ body.wp-admin *:focus-visible {
     background: var(--shsas-surface-2) !important;
     border-color: var(--shsas-border) !important;
 }
+/* Real bug, found in the systematic sweep: `.subsubsub .current` (the
+   bold/active list-table status filter — "All" on Plugins, Posts,
+   etc.) measured pure black (#000), a WP core default with no color
+   rule reaching it at all — the exact same "background themed, text
+   color never set" failure as .form-table th, just in a smaller
+   component nobody had clicked into yet. Plain (non-current) items
+   were already fine (inherit body text-dim correctly); only the bold
+   .current state was actually broken. */
+.subsubsub .current { color: var(--shsas-accent) !important; }
+.subsubsub a { color: var(--shsas-text-dim); }
+.subsubsub a:hover { color: var(--shsas-text); }
+/* `.nav-tab-wrapper` (tabbed settings screens — WooCommerce's General/
+   Products/Shipping tabs, any peer plugin using WP's own tab
+   convention) had zero coverage; same audit. */
+.nav-tab-wrapper { border-bottom-color: var(--shsas-border) !important; }
+.nav-tab {
+    background: transparent;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text-dim) !important;
+}
+.nav-tab:hover { color: var(--shsas-text) !important; }
+.nav-tab-active, .nav-tab-active:hover {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+    border-bottom-color: var(--shsas-surface) !important;
+}
 
 /* ---------------- forms ---------------- */
 
@@ -783,17 +1397,54 @@ body.wp-admin *:focus-visible {
 }
 .form-table td label { color: var(--shsas-text-dim); }
 .form-table td p.description, .form-table .description { color: var(--shsas-text-dim) !important; }
+/* Real bug, found on bh-courses' Lesson edit screen: `.description`
+   OUTSIDE a `.form-table` (a plain <p class="description"> inside any
+   ordinary postbox — very common WP-core markup, any plugin can use
+   it) was never covered, only the .form-table-scoped version above —
+   it fell through to WP core's own default #646970, measurably
+   darker/lower-contrast than this skin's own --shsas-text-dim
+   (#a8afb9), not a total invisibility bug like earlier finds but a
+   real, avoidable contrast shortfall against this file's own
+   established token. */
+.description { color: var(--shsas-text-dim) !important; }
 
+/* Real, serious bug found on bh-monetization-woo's Tier edit screen
+   (a classic-editor CPT, no block editor): the classic post-title
+   field (#title) rendered as a stark WHITE input with this skin's warm
+   cream text color on top — nearly invisible, near-white-on-white.
+   Root cause: this whole rule never had !important, and WP core ships
+   its own higher-specificity #title rule with an explicit white
+   background that was winning outright — every generic input here was
+   quietly one cascade-tie away from the same failure, this just
+   happened to be the one with a competing core rule specific enough to
+   actually lose. Any OTHER classic-editor CPT in this ecosystem could
+   have hit the identical bug; !important closes the whole class of it,
+   not just this one screen. */
 .wp-admin input[type="text"], .wp-admin input[type="search"], .wp-admin input[type="email"],
 .wp-admin input[type="url"], .wp-admin input[type="password"], .wp-admin input[type="number"],
 .wp-admin input[type="date"], .wp-admin select, .wp-admin textarea {
-    background: var(--shsas-surface);
-    border-color: var(--shsas-border);
-    color: var(--shsas-text);
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
     border-radius: var(--shsas-radius-sm);
     min-height: 36px;
 }
+#title {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
 .wp-admin textarea { min-height: 80px; }
+/* Real layout bug, caught live on WooCommerce's Shipping tab: the
+   Length/Width/Height dimension fields are a genuinely narrow,
+   WP/WooCommerce-core-fixed width (~59px) — this skin's own 14px body
+   font-size (bumped up from core's smaller default for readability,
+   same accessibility reasoning as everywhere else in this file) left
+   too little room for the placeholder text to render without clipping
+   ("Length" -> "Leng"). Tighter horizontal padding on just these
+   specific narrow fields restores legible placeholders without
+   touching the font-size win everywhere else. */
+.wc_input_dimensions { padding: 0 6px !important; }
 /* Select2 (WooCommerce's "enhanced select" — country/state, selling/
    shipping locations, product categories, and any peer plugin using
    the same wc-enhanced-select convention) hides the real <select> and
@@ -909,8 +1560,14 @@ body.wp-admin *:focus-visible {
 #wpadminbar .ab-item .update-plugins, #wpadminbar .ab-item .plugin-count,
 #wpadminbar .ab-item .theme-count, #wpadminbar .ab-item .translation-count,
 #wpadminbar .ab-item .core-updates {
-    background: var(--shsas-accent) !important;
+    background: color-mix(in srgb, var(--shsas-accent) 78%, var(--shsas-surface)) !important;
     color: var(--shsas-accent-text) !important;
+    /* Same glow language as .bhy-badge just below — the count itself
+       IS the importance signal here (something needs attention), so it
+       gets the treatment by default rather than needing an opt-in. */
+    box-shadow: 0 0 8px -1px color-mix(in srgb, var(--shsas-accent) 60%, transparent);
+    -webkit-backdrop-filter: blur(4px) saturate(140%);
+    backdrop-filter: blur(4px) saturate(140%);
     /* Bigger, easier-to-read count badges — WP core's own is a tiny
        ~16px pill with 9px text, genuinely hard to read at a glance.
        Real min-width (not just padding) so a 2-digit count doesn't
@@ -927,13 +1584,56 @@ body.wp-admin *:focus-visible {
    UI badges (bhy-badge, used throughout this ecosystem's own admin
    screens for status pills — Debug Tools, etc.) — consistent sizing
    logic as the admin-bar counts above, not a second separate scale. */
-.bhy-badge {
+.bhy-badge, .order-status, .ous-badge {
     font-size: 12px !important;
     font-weight: 700 !important;
     padding: 3px 10px !important;
     border-radius: 10px !important;
     line-height: 1.4 !important;
 }
+/* "Neon on chalkboard" / tourmalinated-quartz glow: importance signaled
+   by hue + a soft light-bleed, not by a shape — direct request, and
+   explicitly NOT another faceted "gem" ornament (that idiom was
+   removed earlier this session for reading as decoration with no job).
+   The material reference is translucency and clarity, not a silhouette:
+   a frosted (backdrop-blur) surface with color diffusing through it
+   unevenly, like light through mineral inclusions, applied only to
+   elements that already carry real semantic weight (a status badge, a
+   notice, the primary action) — never as an added flourish on
+   something plain. `--shsas-glow` is set per semantic hue so the same
+   one rule works for accent/success/warning/danger/info alike. */
+.bhy-badge, .order-status, .ous-badge {
+    --shsas-glow: var(--shsas-accent);
+    background: color-mix(in srgb, var(--shsas-glow) 22%, var(--shsas-surface-2)) !important;
+    color: var(--shsas-text) !important;
+    border: 1px solid color-mix(in srgb, var(--shsas-glow) 45%, transparent);
+    box-shadow: 0 0 10px -2px color-mix(in srgb, var(--shsas-glow) 55%, transparent);
+    -webkit-backdrop-filter: blur(6px) saturate(140%);
+    backdrop-filter: blur(6px) saturate(140%);
+}
+/* Semantic hue swaps just the one custom property — a caller opts in
+   with `data-tone="success"` etc. (or these existing utility classes,
+   where a plugin already uses them) rather than this file guessing
+   meaning from badge text content. */
+.bhy-badge[data-tone="success"], .bhy-badge-success { --shsas-glow: var(--shsas-success); }
+.bhy-badge[data-tone="warning"], .bhy-badge-warning { --shsas-glow: var(--shsas-warning); }
+.bhy-badge[data-tone="danger"], .bhy-badge-danger { --shsas-glow: var(--shsas-danger); }
+.bhy-badge[data-tone="info"], .bhy-badge-info { --shsas-glow: var(--shsas-info); }
+@media (forced-colors: active) {
+    .bhy-badge, .order-status, .ous-badge { box-shadow: none !important; backdrop-filter: none !important; forced-color-adjust: none; }
+}
+/* WooCommerce's own order-status pill (Orders list + single-order
+   screen) and own-ur-shit's .ous-badge now share .bhy-badge's exact
+   shape/glow rule above (grouped selector) — a real, unstyled
+   orphaned-light-box find from the audit, and a genuinely good fit
+   for the glow-for-importance language: an order's status IS an
+   importance signal. Only the semantic hue mapping is unique per
+   system from here down. */
+.order-status.status-completed { --shsas-glow: var(--shsas-success); }
+.order-status.status-processing { --shsas-glow: var(--shsas-accent); }
+.order-status.status-pending, .order-status.status-on-hold { --shsas-glow: var(--shsas-warning); }
+.order-status.status-cancelled, .order-status.status-failed { --shsas-glow: var(--shsas-danger); }
+.order-status.status-refunded { --shsas-glow: var(--shsas-info); }
 /* Real dropdown PANELS (not just the top-bar trigger) — e.g. "New"
    menu, the updates flyout — share the same quicklinks submenu
    treatment already defined above for consistency. */
@@ -956,13 +1656,53 @@ body.wp-admin *:focus-visible {
     background: var(--shsas-surface) !important;
     border-left-width: 4px;
     border-radius: var(--shsas-radius-sm);
-    color: var(--shsas-text);
+    color: var(--shsas-text) !important;
     box-shadow: var(--shsas-shadow);
+}
+/* Real bug, direct feedback ("the alert/toast... still sucks"): the
+   rule above set color on the .notice CONTAINER, but WP core gives its
+   own <p>/<strong> inside a real settings-saved notice an explicit
+   near-black (#1e1e1e) — not inherited, an explicit rule of core's own
+   — so the actual message text was rendering fully invisible (near-
+   black on this skin's near-black surface) even though the colored
+   left-border accent and background were both correctly themed.
+   Confirmed live by actually clicking Save on General Settings and
+   reading the empty-looking result, not guessed from a static
+   screenshot. */
+.notice p, .notice strong, div.updated p, div.updated strong,
+div.error p, div.error strong {
+    color: var(--shsas-text) !important;
 }
 .notice-success, div.updated { border-left-color: var(--shsas-success) !important; }
 .notice-error, div.error { border-left-color: var(--shsas-danger) !important; }
 .notice-warning { border-left-color: var(--shsas-warning) !important; }
 .notice-info { border-left-color: var(--shsas-info) !important; }
+/* Same "light diffusing through translucent material" glow as
+   .bhy-badge — a soft colored bleed reading off the border edge, not a
+   separate shape or ornament, so a notice's semantic hue registers at
+   a glance before anyone reads its text. Deliberately faint (12%
+   background tint, low-opacity shadow) — a notice already has a solid
+   4px border-color signal; this ADDS a felt sense of "this matters",
+   it doesn't replace the existing accessible signal. */
+.notice-success, div.updated {
+    background: color-mix(in srgb, var(--shsas-success) 7%, var(--shsas-surface)) !important;
+    box-shadow: var(--shsas-shadow), inset 40px 0 30px -30px color-mix(in srgb, var(--shsas-success) 20%, transparent);
+}
+.notice-error, div.error {
+    background: color-mix(in srgb, var(--shsas-danger) 7%, var(--shsas-surface)) !important;
+    box-shadow: var(--shsas-shadow), inset 40px 0 30px -30px color-mix(in srgb, var(--shsas-danger) 20%, transparent);
+}
+.notice-warning {
+    background: color-mix(in srgb, var(--shsas-warning) 7%, var(--shsas-surface)) !important;
+    box-shadow: var(--shsas-shadow), inset 40px 0 30px -30px color-mix(in srgb, var(--shsas-warning) 20%, transparent);
+}
+.notice-info {
+    background: color-mix(in srgb, var(--shsas-info) 7%, var(--shsas-surface)) !important;
+    box-shadow: var(--shsas-shadow), inset 40px 0 30px -30px color-mix(in srgb, var(--shsas-info) 20%, transparent);
+}
+@media (forced-colors: active) {
+    .notice, div.updated, div.error { box-shadow: none !important; }
+}
 
 /* ---------------- login screen ---------------- */
 
@@ -1046,6 +1786,26 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     color: var(--shsas-text-dim);
 }
 @media (max-width: 782px) {
+    /* Real bug, caught doing a live responsive pass: WP core hides
+       non-essential admin-bar items entirely below 782px, which took
+       BOTH of this plugin's own additions with it — the command
+       palette and the theme toggle simply did not exist on mobile.
+       That's backwards for the palette especially: it's a quick-jump
+       launcher, and mobile is exactly where it matters most, since
+       the whole sidebar is collapsed behind a hamburger there. Forced
+       visible (with !important — core's own rule is what's hiding
+       them). The text label and ⌘K hint still hide, so each is a
+       compact icon-only button rather than eating the narrow bar;
+       min-width keeps them at a real 44px-ish tap target rather than
+       shrinking to the icon's own 18px. */
+    #wp-admin-bar-shsas-palette-trigger,
+    #wp-admin-bar-shsas-theme-toggle { display: block !important; }
+    #wp-admin-bar-shsas-palette-trigger > .ab-item,
+    #wp-admin-bar-shsas-theme-toggle > .ab-item {
+        min-width: 42px;
+        justify-content: center;
+        padding: 0 8px !important;
+    }
     #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label,
     #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd { display: none; }
 }
@@ -1217,10 +1977,21 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 .block-editor-block-inspector .components-button:hover {
     color: var(--shsas-accent) !important;
 }
-.interface-interface-skeleton__sidebar .components-button.is-primary,
-.components-modal__frame .components-button.is-primary {
+/* Real bug, caught live in the "one person" palette pass: this rule
+   only covered .is-primary buttons living INSIDE the sidebar/modal —
+   the actual Publish button (.editor-post-publish-button__button,
+   the editor's own TOP TOOLBAR, not the sidebar) was never touched at
+   all and stayed on WP core's hardcoded blue (#3858e9) even after the
+   accent moved to orange everywhere else — the single most-clicked
+   button in the whole editor was quietly the one thing still "too
+   blue." Broadened to every .components-button.is-primary regardless
+   of container. */
+.components-button.is-primary {
     background: var(--shsas-accent) !important;
     color: var(--shsas-accent-text) !important;
+}
+.components-button.is-primary:hover {
+    filter: brightness(1.08);
 }
 /* Post status/publish widgets (a real .editor-post-status control
    living directly in the sidebar) and the top document-outline/
@@ -1228,6 +1999,166 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    plain @wordpress/components buttons/menu-items, covered by the same
    panel/popover rules above — no extra selector needed there, noted
    for anyone auditing this section later so it isn't "rediscovered". */
+
+/* ---------------- media modal (Thickbox / Featured Image / Add Media) ---------------- */
+
+/* Real bug, Track A of the systematic audit: this is a genuinely
+   different surface than the Media Library GRID PAGE (upload.php,
+   already fixed) — the same media browser rendered as a MODAL (Add
+   Media, Set Featured Image, any image-select control) ships its own
+   hardcoded white .media-modal-content/.media-frame-content, with the
+   tab pills (.media-menu-item) defaulting to WP core's near-black text
+   on top. Header/tabs/content area were all white; only the filter
+   toolbar row (.media-toolbar, already covered above) happened to be
+   dark, producing a jarring half-and-half modal. */
+.media-modal-content, .media-frame-content, .media-frame-router {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text);
+}
+.media-frame-title, .media-frame-menu-heading { color: var(--shsas-text) !important; }
+.media-frame-router { border-bottom-color: var(--shsas-border) !important; }
+.media-menu-item {
+    color: var(--shsas-text-dim) !important;
+    background: transparent !important;
+}
+.media-menu-item:hover { color: var(--shsas-text) !important; }
+.media-menu-item.active {
+    color: var(--shsas-accent) !important;
+    box-shadow: inset 0 -2px 0 0 var(--shsas-accent) !important;
+}
+.media-frame-content, .attachments-browser, .attachments {
+    background: var(--shsas-bg) !important;
+}
+.attachment { color: var(--shsas-text); }
+.attachment .thumbnail { background: var(--shsas-surface-2); }
+.attachment.selected .thumbnail:after {
+    border-color: var(--shsas-accent) !important;
+    box-shadow: 0 0 0 1px var(--shsas-accent) !important;
+}
+.media-sidebar, .media-frame-toolbar, .media-toolbar-primary, .media-toolbar-secondary {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text);
+    border-color: var(--shsas-border) !important;
+}
+.media-sidebar label, .media-sidebar .setting span:not(.button) {
+    color: var(--shsas-text-dim) !important;
+}
+.media-sidebar .setting input, .media-sidebar .setting textarea, .media-sidebar .setting select {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+.compat-item label { color: var(--shsas-text-dim) !important; }
+.media-modal .media-modal-close {
+    color: var(--shsas-text-dim);
+    background: var(--shsas-surface-2);
+    border-radius: 50%;
+}
+.media-modal .media-modal-close:hover { color: var(--shsas-text); }
+
+/* ---------------- peer-plugin bespoke widgets ---------------- */
+
+/* bh-contest's own stat-bar widget (Contest Results admin screen —
+   "Total Votes"/"Unique Voters"/"Last Vote") ships a hardcoded white
+   card background, same orphaned-white-box pattern as everything else
+   in this audit, just in a peer plugin's own bespoke markup instead of
+   a WP-core/WooCommerce component this time — confirmed live, text
+   color was already fine (correctly inheriting), only the background
+   was wrong. */
+.bh-stat {
+    background: var(--shsas-surface) !important;
+    border: 1px solid var(--shsas-border);
+    border-radius: var(--shsas-radius);
+}
+.bh-stat-label { color: var(--shsas-text-dim) !important; }
+
+/* bh-courses' own course-stats strip (the course edit screen's own
+   "N lessons · published · N total steps" summary line, .bhc-course-
+   stats) — text color was already correctly themed (inherited fine)
+   but the background was WP core's own generic light-gray default
+   (#f6f7f7), the same failure mode as .bh-stat above in a different
+   peer plugin's bespoke markup. */
+.bhc-course-stats {
+    background: var(--shsas-surface-2) !important;
+    border-radius: var(--shsas-radius-sm);
+}
+
+/* own-ur-shit's own ecosystem-dashboard cards (admin.php?page=own-ur-
+   shit — the "Install & Activate Everything" plugin grid) — a real,
+   separate discovery from the --bhy-* token bridge just above: this
+   is a THIRD styling mechanism in the same ecosystem, a small
+   self-contained stylesheet (assets/css/admin.css) that predates the
+   --bhy-* token system entirely and hardcodes its own light colors
+   directly, not through any custom property at all — the token bridge
+   fix has no effect here since there's no var() to redefine. Status
+   badges (Active/Inactive/Missing, feature-maturity alpha/beta/
+   experimental) get the same glow-for-importance language as
+   .bhy-badge/.order-status, since a plugin's active/inactive state IS
+   exactly this kind of real importance signal. */
+/* Background/border/radius/shadow/hover-glow for .ous-card itself now
+   come from the shared .postbox-family rule above — only its child
+   text elements need their own color here. */
+.ous-card-desc { color: var(--shsas-text-dim) !important; }
+.ous-card-meta { color: var(--shsas-text-faint) !important; }
+/* Same badge-pill shape/glow as .bhy-badge/.order-status below —
+   previously a slightly different blur (4px vs 6px) and shadow spread
+   (8px vs 10px), a small but real "different hand" tell now unified
+   into one shared shape via the .bhy-badge, .order-status, .ous-badge
+   grouped rule further down this file. */
+.ous-badge-active { --shsas-glow: var(--shsas-success); }
+.ous-badge-inactive, .ous-badge-alpha { --shsas-glow: var(--shsas-warning); }
+.ous-badge-missing { --shsas-glow: var(--shsas-text-dim); }
+.ous-badge-beta { --shsas-glow: var(--shsas-accent); }
+.ous-badge-experimental { --shsas-glow: var(--shsas-info); }
+
+/* own-ur-shit's Metrics dashboard (admin.php?page=ous-metrics) — a
+   FOURTH separate hardcoded-CSS mechanism found this session (after
+   the --bhy-* token system, the .ous-card dashboard stylesheet, and
+   now this one): its own inline <style> block, echoed directly from
+   class-metrics.php, with light colors and no custom properties at
+   all. The sparkline chart itself is an inline SVG with a hardcoded
+   stroke="#2271b1" attribute (an SVG presentation attribute — real
+   CSS legitimately overrides it, lower specificity than any rule). */
+.ous-metrics-card {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+}
+.ous-metrics-card h3 { color: var(--shsas-text-dim) !important; }
+.ous-metrics-card .ous-metrics-value { color: var(--shsas-text) !important; }
+.ous-metrics-card .ous-metrics-sub { color: var(--shsas-text-dim) !important; }
+.ous-metrics-source { color: var(--shsas-text-faint) !important; }
+.ous-metrics-spark polyline { stroke: var(--shsas-accent) !important; }
+
+/* WooCommerce's Product edit screen (Track 1, next surface per the
+   plan) — two real bugs, neither covered by any prior fix since this
+   screen had never actually been opened this session before now:
+   `.panel-wrap.product_data` (the tabbed General/Inventory/Shipping/
+   etc. panel container itself, wrapping the tab content) ships a
+   hardcoded white background — a visible white strip at the bottom
+   edge of the postbox even though the tab CONTENT above it was
+   already correctly dark (from the generic input/form rules). The
+   short-description classic editor's own tab pills
+   (.wp-switch-editor "Visual"/"Code") and quicktags toolbar
+   (.quicktags-toolbar) are a different, older WP editor mechanism
+   than the block editor's @wordpress/components fixed earlier —
+   never covered by those rules, confirmed unstyled light-gray here. */
+.panel-wrap.product_data { background: transparent !important; }
+.wp-switch-editor {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text-dim) !important;
+    border-color: var(--shsas-border) !important;
+}
+.wp-switch-editor.switch-tmce.html-active,
+.wp-switch-editor.switch-html.tmce-active { color: var(--shsas-text) !important; }
+.quicktags-toolbar {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+}
+.quicktags-toolbar input.button {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
 
 /* ---------------- mobile ---------------- */
 

@@ -21,7 +21,7 @@ class OUS_CoreTestSuite {
      * @return array<string, mixed>
      */
     public static function register($suites): array {
-        $suites['own-ur-shit'] = ['label' => 'Own Ur Shit (core)', 'callback' => [self::class, 'run']];
+        $suites['own-ur-shit'] = ['label' => 'The Self-Hosted Self (core)', 'callback' => [self::class, 'run']];
         return $suites;
     }
 
