@@ -2,10 +2,45 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.26.1
+ * Version:     0.27.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.27.0 — Systematic sweep of two more real, previously-unaudited
+// surfaces, following a plan-vs-reality reconciliation pass ("We need
+// to get all work together on the same page... so we don't waste time
+// on completed tasks" — a stale planning doc had claimed several
+// things were still open that were, in fact, already done; this
+// version covers the two gaps that turned out to be genuinely real):
+//
+// 1. jQuery UI's datepicker (`.ui-datepicker`) — completely untouched,
+//    still default jQuery UI theme (white bg, grey chrome). Found live
+//    via the one confirmed real usage anywhere in this ecosystem:
+//    WooCommerce's "Schedule" sale-price-dates control on the Product
+//    edit screen. Themed header/calendar/today-highlight/button-pane
+//    to match this skin's existing popover idiom.
+//
+// 2. The Customizer (`customize.php`) — a whole screen this skin's
+//    CSS was already loading on (admin_enqueue_scripts fires there
+//    same as anywhere else) but never actually reached: its <body>
+//    carries `wp-customizer`, not `wp-admin`, and nearly every existing
+//    rule in this file is scoped to body.wp-admin. Confirmed live
+//    (getComputedStyle on document.body.className) before writing a
+//    single rule, rather than guessing why nothing applied. Added a
+//    parallel body.wp-customizer-scoped section covering the sidebar
+//    chrome, section/panel titles, control inputs, and the Publish
+//    button — deliberately leaving #customize-preview (the live-
+//    preview IFRAME, which renders the real, already-themed front end)
+//    untouched, same WYSIWYG-parity reasoning as the block-editor
+//    canvas. A follow-up contrast sweep on the newly-dark screen found
+//    and fixed four more explicit-color holdouts the container rules
+//    didn't reach: the "You are customizing X" breadcrumb, the Help
+//    toggle, plain <p> tags inside a customize-control (no .description
+//    class to hook), the Themes panel's hardcoded-blue "Change" button,
+//    and the nav-menu-locations "(Current: X)" label.
+//
+// NOT runtime-verified beyond this session's own live browser checks.
 
 // 0.26.1 — Direct follow-up: "Make sure text still works." Re-ran the
 // live contrast sweep (same real relative-luminance math, not a guess)
@@ -1307,7 +1342,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.26.1');
+define('SHSAS_VER', '0.27.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

@@ -1754,6 +1754,53 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     background: var(--shsas-surface-2) !important;
     color: var(--shsas-accent) !important;
 }
+/* Real gap from the reconciliation sweep: jQuery UI's datepicker
+   (appended to <body>, same "not a descendant of the field" shape as
+   Select2's own dropdown above) was completely untouched — still
+   default jQuery UI theme (white bg, grey text, grey header). Found
+   live via WooCommerce's "Schedule" sale-price-dates control (Product
+   edit screen), the one confirmed real usage of this component
+   anywhere in the ecosystem — Design Suite's own color/date inputs
+   turned out to be native <input type=color">, not this component, so
+   this was the only place actually worth checking. */
+.ui-datepicker {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+    box-shadow: var(--shsas-shadow);
+}
+.ui-datepicker-header {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
+.ui-datepicker-title { color: var(--shsas-text) !important; }
+.ui-datepicker-prev, .ui-datepicker-next { cursor: pointer; }
+.ui-datepicker-prev span, .ui-datepicker-next span { filter: invert(1); }
+.ui-datepicker-calendar th { color: var(--shsas-text-dim) !important; }
+.ui-datepicker-calendar td { border-color: var(--shsas-border) !important; }
+.ui-datepicker-calendar td a {
+    background: transparent !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
+.ui-datepicker-calendar td a.ui-state-hover {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-accent) !important;
+}
+.ui-datepicker-calendar .ui-datepicker-today a {
+    background: color-mix(in srgb, var(--shsas-accent) 16%, var(--shsas-surface-2)) !important;
+    color: var(--shsas-accent) !important;
+}
+.ui-datepicker-buttonpane {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+}
+.ui-datepicker-buttonpane button {
+    background: transparent !important;
+    color: var(--shsas-text-dim) !important;
+}
+.ui-datepicker-buttonpane button:hover { color: var(--shsas-accent) !important; }
 /* Native checkbox/radio — accent-color is the real, modern, low-code
    way to theme a native control's checked-state fill without
    reaching for a fragile custom-pseudo-element replacement; every
@@ -2028,6 +2075,82 @@ div.error p, div.error strong {
    this now-bright-cyan background measured 1.55, real regression
    caught by re-running the same contrast sweep after that change. */
 .components-drop-zone__content-text { color: var(--shsas-bg) !important; }
+
+/* ---------------- Customizer ---------------- */
+
+/* A whole real surface found untouched by the reconciliation sweep,
+   root-caused rather than patched blind: `customize.php`'s <body> never
+   gets the `wp-admin` class every other rule in this file is scoped to
+   (it's `wp-core-ui wp-customizer ...` instead), so literally none of
+   the existing body.wp-admin-scoped coverage — inputs, buttons, the
+   sidebar rules — ever reached this screen, even though the stylesheet
+   itself is enqueued here same as anywhere else in wp-admin. Scoped to
+   body.wp-customizer as its own parallel root, not retrofitted onto
+   body.wp-admin selectors. #customize-preview (the live-preview
+   IFRAME) is deliberately left alone — it renders the real front end,
+   already themed by the theme itself, same WYSIWYG-parity reasoning as
+   the block-editor canvas above. */
+body.wp-customizer #customize-controls,
+body.wp-customizer .wp-full-overlay-sidebar,
+body.wp-customizer #customize-header-actions,
+body.wp-customizer #customize-footer-actions,
+body.wp-customizer .customize-controls-close {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+}
+body.wp-customizer .accordion-section-title,
+body.wp-customizer .customize-section-title,
+body.wp-customizer .customize-section-back {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text-dim) !important;
+    border-color: var(--shsas-border) !important;
+}
+body.wp-customizer .accordion-section-title:hover,
+body.wp-customizer .control-section.open > .accordion-section-title {
+    background: var(--shsas-surface-3) !important;
+    color: var(--shsas-text) !important;
+}
+body.wp-customizer .customize-pane-child { background: var(--shsas-surface) !important; }
+body.wp-customizer #customize-controls label,
+body.wp-customizer #customize-controls .customize-control-title,
+body.wp-customizer #customize-controls .description {
+    color: var(--shsas-text-dim) !important;
+}
+body.wp-customizer #customize-controls input[type="text"],
+body.wp-customizer #customize-controls input[type="url"],
+body.wp-customizer #customize-controls input[type="email"],
+body.wp-customizer #customize-controls textarea,
+body.wp-customizer #customize-controls select {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+body.wp-customizer #save {
+    background: var(--shsas-accent) !important;
+    color: var(--shsas-accent-text) !important;
+    border-color: var(--shsas-accent) !important;
+}
+/* Two more real bugs, same live sweep: the "You are customizing X"
+   breadcrumb (h2.preview-notice, shown when drilled into a panel/
+   section) and the Help toggle both set their own explicit WP-core
+   grey (rgb(80,87,94)), not inherited from .accordion-section-title's
+   fix above — and every plain <p> inside a customize-control (menu-
+   location help text, "Click Next to start adding links...") has that
+   same hardcoded grey with no .description class to target. */
+body.wp-customizer .preview-notice,
+body.wp-customizer .customize-help-toggle {
+    color: var(--shsas-text-dim) !important;
+}
+body.wp-customizer .customize-control p {
+    color: var(--shsas-text-dim) !important;
+}
+/* Two more explicit-color holdouts, same sweep: the Themes panel's own
+   "Change" button hardcodes WP core's literal blue (#3858e9, not even
+   the --wp-admin-theme-color variable this skin already overrides
+   elsewhere), and the "(Current: Primary Menu)" location label sets
+   the same grey as everything else in this section. */
+body.wp-customizer .change-theme { color: var(--shsas-accent) !important; }
+body.wp-customizer .theme-location-set { color: var(--shsas-text-dim) !important; }
 
 /* ---------------- login screen ---------------- */
 
