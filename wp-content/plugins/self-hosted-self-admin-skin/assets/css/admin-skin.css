@@ -2095,11 +2095,15 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    experimental) get the same glow-for-importance language as
    .bhy-badge/.order-status, since a plugin's active/inactive state IS
    exactly this kind of real importance signal. */
-/* Background/border/radius/shadow/hover-glow for .ous-card itself now
-   come from the shared .postbox-family rule above — only its child
-   text elements need their own color here. */
-.ous-card-desc { color: var(--shsas-text-dim) !important; }
-.ous-card-meta { color: var(--shsas-text-faint) !important; }
+/* Background/border/radius/shadow/hover-glow for .ous-card itself come
+   from the shared .postbox-family rule above.
+   The per-element COLOR overrides that used to live here are gone:
+   own-ur-shit 3.10.32 migrated assets/css/admin.css to consume --bhy-*
+   tokens, which this plugin's token bridge already remaps, so the
+   colors now arrive on their own. Deleting them rather than leaving
+   them as harmless duplicates is the point of that migration — two
+   places setting the same color is exactly how the original
+   inconsistency happened. */
 /* Same badge-pill shape/glow as .bhy-badge/.order-status below —
    previously a slightly different blur (4px vs 6px) and shadow spread
    (8px vs 10px), a small but real "different hand" tell now unified
@@ -2111,23 +2115,19 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 .ous-badge-beta { --shsas-glow: var(--shsas-accent); }
 .ous-badge-experimental { --shsas-glow: var(--shsas-info); }
 
-/* own-ur-shit's Metrics dashboard (admin.php?page=ous-metrics) — a
-   FOURTH separate hardcoded-CSS mechanism found this session (after
-   the --bhy-* token system, the .ous-card dashboard stylesheet, and
-   now this one): its own inline <style> block, echoed directly from
-   class-metrics.php, with light colors and no custom properties at
-   all. The sparkline chart itself is an inline SVG with a hardcoded
-   stroke="#2271b1" attribute (an SVG presentation attribute — real
-   CSS legitimately overrides it, lower specificity than any rule). */
-.ous-metrics-card {
-    background: var(--shsas-surface) !important;
-    border-color: var(--shsas-border) !important;
-}
-.ous-metrics-card h3 { color: var(--shsas-text-dim) !important; }
-.ous-metrics-card .ous-metrics-value { color: var(--shsas-text) !important; }
-.ous-metrics-card .ous-metrics-sub { color: var(--shsas-text-dim) !important; }
-.ous-metrics-source { color: var(--shsas-text-faint) !important; }
-.ous-metrics-spark polyline { stroke: var(--shsas-accent) !important; }
+/* own-ur-shit's Metrics dashboard (admin.php?page=ous-metrics) used to
+   need a full block of colour overrides here — it was a separate
+   hardcoded-CSS mechanism (its own inline <style> echoed from
+   class-metrics.php, plus a sparkline SVG with a literal
+   stroke="#2271b1"), with no custom properties for the token bridge to
+   reach. own-ur-shit 3.10.32 migrated both to --bhy-* tokens, so all
+   of it now themes itself through the bridge and every one of those
+   overrides has been deleted as genuinely dead. Shape (radius/shadow/
+   hover-glow) still comes from the shared .postbox-family rule above,
+   since the plugin's own CSS has no opinion about elevation.
+   Verified live after the migration: card background resolves to the
+   warm surface token and the sparkline stroke computes to the accent,
+   with no rule from this file involved. */
 
 /* WooCommerce's Product edit screen (Track 1, next surface per the
    plan) — two real bugs, neither covered by any prior fix since this

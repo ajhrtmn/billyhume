@@ -2,10 +2,39 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.31
+ * Version:     3.10.32
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.32 — Code-quality pass, not a visual change: migrated this
+// plugin's two remaining hardcoded-CSS surfaces onto the shared
+// --bhy-* token system (BHY_UI::print_design_system_css()).
+// assets/css/admin.css (.ous-card and the status/maturity badges) and
+// class-metrics.php's inline <style> block both predated that system
+// and hardcoded WP core's default light palette (#fff, #dcdcde,
+// #646970, #1d2327) with no custom property anywhere — which is
+// exactly why the admin-skin plugin had to override those class names
+// one by one from the outside in order to theme them. Every value now
+// reads a token with its previous literal kept as the var() fallback,
+// so a stock install renders identically while any consumer that
+// redefines the tokens re-themes these screens for free.
+//
+// Also: OUS_Metrics::sparkline_svg()'s $color default is now
+// 'var(--bhy-accent, #2271b1)' rather than the bare literal. An SVG
+// stroke attribute accepts a var() reference like any CSS value, and
+// esc_attr() passes it through unchanged (verified) — confirmed live
+// that the polyline's computed stroke now resolves through the token
+// rather than needing the skin's own !important override.
+//
+// Net effect beyond tidiness: the admin skin deleted a whole block of
+// now-dead colour overrides in the same pass, so these colours are
+// defined in ONE place instead of two. Two places setting the same
+// colour is precisely how the original inconsistency arose. Real
+// behaviour check done live on both screens (Metrics + the ecosystem
+// dashboard) before and after: pixel-identical, and the "Installed,
+// inactive" badges actually IMPROVED — they now pick up the real
+// --bhy-warning amber instead of a one-off cream literal.
 
 // 3.10.31 — Front-end portal icons: dashicons -> Lucide, completing
 // the "replace all stock icons everywhere" sweep across the third and
@@ -1593,7 +1622,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.31');
+define('OUS_VER', '3.10.32');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

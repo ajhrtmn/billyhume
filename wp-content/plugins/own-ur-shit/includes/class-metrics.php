@@ -121,8 +121,19 @@ class OUS_Metrics {
     // instinct applied earlier). Good enough for "is this trending up
     // or down at a glance," not meant to replace a real charting tool
     // for deeper analysis later.
-    /** @param array<string, int> $trend */
-    public static function sparkline_svg($trend, string $color = '#2271b1'): string {
+    /**
+     * $color defaults to the shared --bhy-accent token rather than a
+     * hardcoded #2271b1. An SVG `stroke` attribute accepts a var()
+     * reference the same as any CSS value, so this inherits whatever
+     * the active token set defines — the admin skin previously had to
+     * override this exact polyline's stroke from its own stylesheet to
+     * theme it, which is no longer necessary. The literal is retained
+     * as the var() fallback so a context with no tokens loaded still
+     * renders a visible line rather than defaulting to black.
+     *
+     * @param array<string, int> $trend
+     */
+    public static function sparkline_svg($trend, string $color = 'var(--bhy-accent, #2271b1)'): string {
         $values = array_values($trend);
         $max = max(1, max($values));
         $count = count($values);
@@ -150,14 +161,24 @@ class OUS_Metrics {
             return;
         }
 
+        // Every value below reads a --bhy-* token (BHY_UI::
+        // print_design_system_css(), class-ui.php) with the previous
+        // hardcoded hex kept as its fallback — identical rendering on a
+        // stock install, but this block now participates in the shared
+        // token system instead of being a parallel one. It previously
+        // hardcoded WP core's light palette (#fff/#dcdcde/#646970),
+        // which is why the admin skin had to override these exact class
+        // names from the outside to theme them; consuming the tokens
+        // means anything that redefines them re-themes this screen for
+        // free, with no knowledge of this file.
         echo '<style>
-            .ous-metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
-            .ous-metrics-card { background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 16px 18px; }
-            .ous-metrics-card h3 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .03em; color: #646970; }
-            .ous-metrics-card .ous-metrics-value { font-size: 28px; font-weight: 700; color: #1d2327; line-height: 1.2; }
-            .ous-metrics-card .ous-metrics-sub { font-size: 12px; color: #646970; margin-top: 2px; }
-            .ous-metrics-card .ous-metrics-spark { margin-top: 8px; }
-            .ous-metrics-source { font-size: 11px; color: #a7aaad; margin-top: 10px; text-transform: uppercase; letter-spacing: .03em; }
+            .ous-metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--bhy-space-4, 16px); margin-top: var(--bhy-space-4, 16px); }
+            .ous-metrics-card { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px); padding: var(--bhy-space-4, 16px) var(--bhy-space-4, 18px); }
+            .ous-metrics-card h3 { margin: 0 0 4px; font-size: var(--bhy-text-base, 13px); text-transform: uppercase; letter-spacing: .03em; color: var(--bhy-ink-dim, #646970); }
+            .ous-metrics-card .ous-metrics-value { font-size: var(--bhy-text-2xl, 28px); font-weight: 700; color: var(--bhy-ink, #1d2327); line-height: 1.2; }
+            .ous-metrics-card .ous-metrics-sub { font-size: var(--bhy-text-sm, 12px); color: var(--bhy-ink-dim, #646970); margin-top: 2px; }
+            .ous-metrics-card .ous-metrics-spark { margin-top: var(--bhy-space-2, 8px); }
+            .ous-metrics-source { font-size: var(--bhy-text-xs, 11px); color: var(--bhy-ink-dim, #a7aaad); margin-top: var(--bhy-space-3, 10px); text-transform: uppercase; letter-spacing: .03em; }
         </style>';
 
         echo '<div class="ous-metrics-grid">';

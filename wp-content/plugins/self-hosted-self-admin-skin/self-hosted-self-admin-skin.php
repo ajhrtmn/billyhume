@@ -2,10 +2,30 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.16.1
+ * Version:     0.17.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.17.0 — Deleted code, no new features: own-ur-shit 3.10.32 migrated
+// its .ous-card stylesheet and class-metrics.php's inline <style> onto
+// the shared --bhy-* tokens, which this plugin's own token bridge
+// (0.8.0) already remaps. That made an entire block of colour
+// overrides here genuinely dead — .ous-card-desc/.ous-card-meta, the
+// whole .ous-metrics-card group, and the .ous-metrics-spark polyline
+// stroke — so they're removed rather than left as harmless-looking
+// duplicates. Two places setting the same colour is exactly how the
+// original inconsistency happened, and leaving dead !important rules
+// around is how the NEXT person gets misled about where a colour
+// actually comes from.
+//
+// Shape rules (radius/shadow/hover-glow, via the shared .postbox
+// family selector) deliberately stay: the plugin's own CSS has no
+// opinion about elevation, so that genuinely is this skin's job.
+// Verified live on both screens after deleting: pixel-identical,
+// with the card background resolving to the warm surface token and
+// the sparkline stroke computing to the accent with no rule from this
+// file involved.
 
 // 0.16.1 — Last stock icon in the sidebar, found by auditing the live
 // DOM for any menu item still falling back to a font glyph rather than
@@ -943,7 +963,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.16.1');
+define('SHSAS_VER', '0.17.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
