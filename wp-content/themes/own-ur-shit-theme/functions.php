@@ -121,29 +121,29 @@ add_action('wp_head', 'oust_pingback_header');
  * this is," same posture as the admin version's own slug-prefix
  * heuristic.
  *
- * HONEST STATUS, not yet resolved: unlike the admin-side version
- * (verified live across three real cases — same-section forward,
- * cross-section forward, and browser back — all correctly detected),
- * this front-end version was live-tested via multiple methodologically
- * distinct checks (a persistent sessionStorage marker set the instant
- * the script runs, confirming it DOES execute early enough; a second
- * marker inside the 'pagereveal' handler itself, which never fired;
- * plain nav links AND course-catalog links, ruling out page-specific
- * JS interference; confirmed no redirect chain on the navigation;
- * confirmed CSS.supports() and the @view-transition opt-in are present
- * on both the outgoing and incoming document) and 'pagereveal' simply
- * never fires on this front end, despite the mechanism being
- * byte-for-byte the same technique proven working in wp-admin. Root
- * cause NOT found in the time available — a real, environment-specific
- * difference between wp-admin and the front end that this session
- * could not isolate (candidates not yet ruled out: something in Local
- * by Flywheel's front-end request handling specifically, or a genuine
- * browser quirk with this exact combination of plugins/scripts).
- * Shipped anyway because it's safe to: this is purely additive CSS/JS
- * — if 'pagereveal' never fires, nothing breaks, front-end navigation
- * simply looks exactly like it did before this feature (a plain page
- * load), never worse. Needs real investigation before claiming this
- * actually works, not just "should work by analogy to the admin side."
+ * STATUS: confirmed working (2026-08-16), correcting an earlier false
+ * "never fires" finding. That earlier conclusion came from a genuinely
+ * flawed test: a listener attached via injected devtools-style JS on
+ * the OUTGOING page, after that page had already fully loaded, then
+ * checked after navigating away — but 'pagereveal' fires on the
+ * INCOMING document's own window, which is a completely separate
+ * JS realm from the outgoing page; a listener on page A's window can
+ * never observe an event on page B's window regardless of whether the
+ * feature works. That flawed methodology was applied identically on
+ * the admin side during a supposed "re-check," which also came back
+ * negative — the giveaway that the TEST was broken, not either
+ * feature, since the admin side was previously proven working by a
+ * real click-through test.
+ *
+ * Re-verified properly this time: temporary sessionStorage markers
+ * written directly inside this exact function (both "script executed"
+ * and "pagereveal fired", timestamped) survive real navigation because
+ * they're printed fresh into every page's own <head> — not injected
+ * from a previous page. A real mouse click on the theme's own nav
+ * links (Home -> Sample Page -> Contest Test Page) fired 'pagereveal'
+ * reliably, ~20-45ms after the script itself ran, on every hop tested.
+ * Debug instrumentation removed after confirming; the mechanism below
+ * is unchanged from before this investigation — it was never broken.
  */
 function oust_print_nav_depth_script(): void {
     ?>
