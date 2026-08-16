@@ -695,9 +695,34 @@ body.admin-bar .oust-site-header { top: 32px; }
     border-color: var(--bh-accent, #C1503A);
     box-shadow: 0 16px 32px -12px color-mix(in srgb, var(--bh-accent, #C1503A) 35%, transparent), 0 4px 8px rgba(0, 0, 0, .06);
 }
+/* Card-group focus mode — the front-end half of the admin skin's own
+   card-grid haze/focus rule (self-hosted-self-admin-skin/assets/css/
+   admin-skin.css, .ous-cards:has(...)), same "Half-Blood Prince"
+   depth-of-field language this ecosystem's design brief describes:
+   hovering one product card recedes its SIBLINGS into haze while the
+   hovered card itself stays exactly as sharp as always. :has() makes
+   this possible with zero JS — unsupported browsers simply don't get
+   the recede effect, the grid and hover state both still work exactly
+   as before, never broken. Literal values (not custom properties) to
+   match this file's own established pattern — every --bh-* token here
+   is a var() with an inline fallback printed by PHP, not something a
+   NEW single-use local token would meaningfully improve on. */
+.woocommerce ul.products:has(li.product:hover) li.product:not(:hover) {
+    filter: saturate(.5) brightness(.85) blur(1.5px);
+    transition: filter .2s ease;
+}
 @media (prefers-reduced-motion: reduce) {
     .woocommerce ul.products li.product { transition: none; }
     .woocommerce ul.products li.product:hover { transform: none; }
+    /* Real specificity bug caught before shipping, not after: a plain
+       `.woocommerce ul.products li.product { transition: none; }` here
+       is LESS specific than the card-group focus-mode rule above
+       (which carries an extra :has() and :not() pseudo-class), so it
+       would have silently lost the cascade and reduced-motion users
+       would still have gotten the sibling-recede transition. Matched
+       here at equal specificity so this reduced-motion override
+       actually wins. */
+    .woocommerce ul.products:has(li.product:hover) li.product:not(:hover) { transition: none; }
 }
 /* Image sits flush to the card's top edge (negative margin cancels the
    card padding) and keeps one fixed aspect for every product, so a

@@ -140,6 +140,13 @@
     --shsas-focus-brightness: 1.25;
     --shsas-focus-glow-blur: 6px;
     --shsas-focus-glow-strength: 70%;
+    /* Card-group focus mode's own recede amount — deliberately a
+       SEPARATE token from --shsas-focus-glow-blur above: that one sizes
+       a drop-shadow glow radius on the focused item, this one sizes a
+       literal blur() filter on a group's UNFOCUSED siblings. Same
+       spectrum-blender philosophy, different axis of the same haze
+       system, so each stays independently tunable. */
+    --shsas-focus-sibling-blur: 1.5px;
     /* Same two fonts as the ecosystem-wide front-end default (own-ur-
        shit's BHY_Style --bh-font-body/--bh-font-display) — Atkinson
        Hyperlegible for body (Braille Institute, purpose-built for low-
@@ -1183,6 +1190,44 @@ body.wp-admin *:focus-visible {
    gap already owns the rhythm there. */
 .ous-cards > .ous-card,
 .bhy-card-grid > .bhy-card { margin-bottom: 0; }
+
+/* Card-group focus mode — part 2 of the "two-rule accent system"'s
+   haze/focus half (own words: "one is the architectural foundation,
+   the other is the Half-Blood-Prince-ification... smoky cloudy hazy
+   atmospheric depth and clarity and focus hierarchy"). Part 1 (the
+   sidebar's resting-vs-hover icon haze) shipped first as the fastest
+   surface, with modals and card groups explicitly logged as the other
+   two expected surfaces. This is card groups: hovering any one card in
+   a group recedes its SIBLINGS into haze — desaturated, dimmed, softly
+   blurred — while the hovered card stays exactly as sharp as it always
+   was. Same depth-of-field language as the sidebar, same tokens, a
+   different trigger (:hover on a sibling rather than the item's own
+   state) because a card grid's "what matters right now" signal is
+   relative to the whole group, not each card in isolation.
+   :has() (Chrome/Edge/Safari 2023+, no fallback needed — group siblings
+   simply don't recede in an unsupported browser, never broken, just
+   less atmospheric) is what makes this possible without JS: the whole
+   group's hover state becomes queryable from a single selector. Scoped
+   to :not(:hover) so the actual hovered card is completely unaffected
+   by its own group's rule — only siblings recede. */
+.ous-cards:has(> .ous-card:hover) > .ous-card:not(:hover),
+.bhy-card-grid:has(> .bhy-card:hover) > .bhy-card:not(:hover) {
+    filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness)) blur(var(--shsas-focus-sibling-blur));
+    transition: filter var(--shsas-speed) ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ous-cards > .ous-card, .bhy-card-grid > .bhy-card { transition: none; }
+    /* Real specificity bug caught before shipping: a plain
+       `.ous-cards > .ous-card { transition: none; }` here is LESS
+       specific than the focus-mode rule above (extra :has()/:not()
+       pseudo-classes), so it would have silently lost the cascade and
+       reduced-motion users would still have gotten the sibling-recede
+       transition. Matched at equal specificity so this override
+       actually wins — same bug, same fix, applied identically in the
+       front-end theme's mirror of this rule. */
+    .ous-cards:has(> .ous-card:hover) > .ous-card:not(:hover),
+    .bhy-card-grid:has(> .bhy-card:hover) > .bhy-card:not(:hover) { transition: none; }
+}
 /* Family resemblance with the front-end's course-card hover (bh-
    courses' .bhc-course-card:hover — translateY lift + accent-tinted
    glow). No transform here deliberately: unlike a front-end card,

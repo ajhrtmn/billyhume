@@ -2,11 +2,23 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.81
+ * Version:     0.4.82
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.82 — Card-group focus mode: hovering a course card in .bhc-
+// catalog recedes its SIBLINGS into haze (desaturated/dimmed/softly
+// blurred) while the hovered card stays exactly as sharp as its own
+// :hover rule already makes it — the third and last mirror of a rule
+// shipped simultaneously in the admin skin (.ous-cards) and the theme
+// (WooCommerce product grid), same "Half-Blood Prince" depth-of-field
+// language, :has()-driven, zero JS, unsupported browsers just don't
+// get the recede effect. Reduced-motion override written at matching
+// specificity from the start (a real bug was caught and fixed in the
+// other two mirrors first — a lower-specificity override there would
+// have silently lost the cascade).
 
 // 0.4.81 — Direct request: "replace the letters with icons in the
 // courses as well. Update sizes as necessary and add subtle hue hints
@@ -419,7 +431,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.81');
+define('BHC_VER',  '0.4.82');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

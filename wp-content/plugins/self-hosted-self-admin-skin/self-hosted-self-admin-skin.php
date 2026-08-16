@@ -2,10 +2,34 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.19.0
+ * Version:     0.20.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.20.0 — Card-group focus mode, part 2 of the haze/focus system's
+// three promised surfaces (sidebar shipped first as "fastest"; modals
+// are the remaining one). Hovering any card in .ous-cards/.bhy-card-
+// grid recedes its SIBLINGS into haze (desaturated/dimmed/blurred)
+// while the hovered card stays exactly as sharp as always — same
+// tokens as the sidebar's own haze/focus system, :has()-driven, zero
+// JS. New --shsas-focus-sibling-blur token (kept separate from
+// --shsas-focus-glow-blur, which sizes a drop-shadow radius, not a
+// blur() filter — different axis of the same spectrum). Mirrored
+// identically in the front-end theme (WooCommerce product grid) and
+// bh-courses (catalog), so every card grid in the ecosystem now shares
+// this behavior.
+//
+// One real specificity bug caught before shipping, in all three
+// mirrors: the reduced-motion override was written at LOWER
+// specificity than the :has()/:not() rule it was meant to suppress, so
+// it would have silently lost the cascade and reduced-motion users
+// would still have gotten the transition. Fixed by matching
+// specificity in the override, same bug/fix applied identically
+// across the admin skin, theme, and bh-courses versions of this rule.
+// Verified live via a real pointer hover (not a simulated event): the
+// hovered card computes filter:none, its sibling computes the full
+// saturate/brightness/blur stack.
 
 // 0.19.0 — View Transitions API on the theme toggle: a real circular
 // "reveal wipe" expanding out from the actual click point when
@@ -1022,7 +1046,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.19.0');
+define('SHSAS_VER', '0.20.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

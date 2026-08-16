@@ -95,6 +95,27 @@
     .bhc-course-card { transition: none; }
     .bhc-course-card:hover { transform: none; }
 }
+/* Card-group focus mode — same rule, same reasoning, as the admin
+   skin's .ous-cards:has(...) and the theme's WooCommerce product-grid
+   mirror: hovering one course card recedes its SIBLINGS into haze
+   (desaturated/dimmed/softly blurred) while the hovered card stays
+   exactly as sharp as its own :hover rule above already makes it.
+   Same "Half-Blood Prince" depth-of-field language as the sidebar's
+   original haze/focus system, applied to the one remaining un-mirrored
+   card grid in the ecosystem. :has() only — no JS, and an unsupported
+   browser just doesn't get the recede effect, never a broken grid. */
+.bhc-catalog:has(.bhc-course-card:hover) .bhc-course-card:not(:hover) {
+    filter: saturate(.5) brightness(.85) blur(1.5px);
+    transition: filter .2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    /* Matched at the same specificity as the rule above (extra
+       :has()/:not()) — the same real bug caught and fixed identically
+       in the admin skin and theme versions of this rule: a lower-
+       specificity override here would silently lose the cascade and
+       reduced-motion users would still get the transition. */
+    .bhc-catalog:has(.bhc-course-card:hover) .bhc-course-card:not(:hover) { transition: none; }
+}
 /* Every card gets the same shape now — a fixed 16:9 slot, whether it
    holds a real thumbnail or the gradient placeholder below — instead of
    only some cards having an image block and others skipping straight to
