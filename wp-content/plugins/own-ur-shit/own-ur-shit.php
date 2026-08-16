@@ -2,10 +2,19 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.33
+ * Version:     3.10.34
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.34 — Task #8 (in-context tooltips), judicious pass: added a
+// real BHY_UI::tip() to Guided Setup's "Wordmark" field (step 3, Brand
+// basics) — real graphic-design jargon on the very first onboarding
+// screen a brand-new operator sees, for an ecosystem whose actual
+// target user is an independent musician, not a designer. Also
+// explains the unexplained two-input split (first part / accent part)
+// so it reads as an intentional two-tone brand mechanism rather than a
+// confusing duplicate field.
 
 // 3.10.33 — The FIFTH hardcoded-styling mechanism, found by grepping
 // admin-facing PHP for literal `color:#`/`background:#` inside echoed
@@ -1654,7 +1663,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.33');
+define('OUS_VER', '3.10.34');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

@@ -144,7 +144,17 @@ class OUS_SetupWizard {
         wp_nonce_field('ous_wizard_save_brand');
         echo '<input type="hidden" name="action" value="ous_wizard_save_brand">';
 
-        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Wordmark</label>';
+        // Real jargon gap on the very first screen a brand-new operator
+        // sees: "wordmark" is a genuine graphic-design term (a logo made
+        // of styled text rather than a symbol) that this ecosystem's own
+        // target user — an independent musician, not a designer — has no
+        // reason to already know. The two-input split (why not one field?)
+        // is also unexplained: it's what lets the site name render in two
+        // colors/weights (e.g. "Billy" + "Hume") everywhere the brand
+        // name appears, matching the front-end header's own two-tone
+        // treatment — worth saying, not assuming.
+        $wordmark_tip = class_exists('BHY_UI') ? BHY_UI::tip('Your site name as styled text, no logo file needed. Split into two parts so they can render in different colors/weights everywhere your brand name shows up — leave the second part blank for one plain name.') : '';
+        echo '<p><label style="display:block;font-weight:600;margin-bottom:4px;">Wordmark' . $wordmark_tip . '</label>';
         echo '<span style="display:flex;gap:8px;max-width:400px;">';
         echo '<input type="text" name="brand_part1" value="' . esc_attr($s['brand_part1'] ?? '') . '" placeholder="First part" style="flex:1;">';
         echo '<input type="text" name="brand_part2" value="' . esc_attr($s['brand_part2'] ?? '') . '" placeholder="Accent part" style="flex:1;">';

@@ -2,12 +2,23 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.16
+ * Version:     0.5.17
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.17 — Task #8 (in-context tooltips), judicious pass: added a real
+// BHY_UI::tip() to the tier-edit screen's Monthly price field. The
+// price is more load-bearing than it looks — it's the ONLY signal that
+// ranks tiers against each other for gating (bh-courses' lesson gate
+// and this plugin's own post-gate both say "requires this tier OR any
+// higher-priced one," already tooltipped on THOSE consuming screens),
+// but nothing on the tier's own editing screen previously said so. An
+// artist reordering tiers by price had no in-context way to learn that
+// changing a price can silently change who already qualifies for a
+// gated lesson/post elsewhere.
 
 // 0.5.16 — Tier-gating for ordinary Posts and Pages (new class-post-
 // gate.php, BHM_PostGate). BHM_Gate::get_required_tier()/
@@ -249,7 +260,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.16');
+define('BHM_VER',  '0.5.17');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

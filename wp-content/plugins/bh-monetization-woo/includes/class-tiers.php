@@ -166,7 +166,18 @@ class BHM_Tiers {
         echo '<button type="button" class="button" id="bhm-tier-cover-choose">' . ($cover_image_id ? 'Change image' : 'Choose image') . '</button> ';
         echo '<button type="button" class="button" id="bhm-tier-cover-remove" style="display:' . ($cover_image_id ? 'inline-block' : 'none') . ';">Remove</button></p>';
 
-        echo '<p><label><strong>Monthly price (USD)</strong><br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? BHM_Money::price($price) : '') . '" style="width:160px;"></label></p>';
+        // This price is more load-bearing than it looks: it's the ONLY
+        // signal that ranks tiers against each other for gating
+        // (bh-courses' lesson gate and this plugin's own post-gate both
+        // say "requires this tier OR any higher-priced one" — already
+        // tooltipped on THOSE consuming screens). Nothing on this
+        // editing screen previously explained that the number typed
+        // here silently becomes that rank — a real judicious-tooltip
+        // gap, not decoration: the price field IS the mechanism, and an
+        // artist reordering tiers by price has no other place to learn
+        // that.
+        $price_rank_tip = class_exists('BHY_UI') ? BHY_UI::tip('This price also sets this tier\'s rank for access gating — a supporter tier "requires" here means this price or higher, so raising or lowering it can change who already qualifies.') : '';
+        echo '<p><label><strong>Monthly price (USD)</strong>' . $price_rank_tip . '<br><input type="number" step="0.01" min="0.50" name="bhm_price" value="' . esc_attr($price ? BHM_Money::price($price) : '') . '" style="width:160px;"></label></p>';
 
         // Annual pricing — optional, on top of the always-present monthly
         // price rather than replacing it (Patreon itself offers annual as
