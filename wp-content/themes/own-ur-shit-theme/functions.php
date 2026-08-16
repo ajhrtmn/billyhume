@@ -101,6 +101,45 @@ function oust_pingback_header() {
 add_action('wp_head', 'oust_pingback_header');
 
 /**
+ * Real gap, found live during a production-readiness audit:
+ * BH_SEO::set_page_data() (own-ur-shit/includes/class-seo.php) is a
+ * real, working shared renderer — confirmed live on bh-course/
+ * bh-contest/bh-registry/bh-streaming pages, all of which call it
+ * themselves — but nothing has ever called it for a plain WordPress
+ * Page or Post, the theme's own default content types. Confirmed:
+ * both the homepage and a real Page had zero meta description, zero
+ * OG tags, zero JSON-LD. is_singular(['page','post']) deliberately
+ * excludes every other CPT (bh_course etc.), which already set their
+ * own richer page data (schema.org Course/Person/etc.) elsewhere —
+ * this is only the fallback for the two built-in types nothing else
+ * covers. Hooked on template_redirect (fires before wp_head) — see
+ * BHC_Render_Course's own set_seo_data() fix this same session for
+ * why that timing matters (the_content-time calls are too late).
+ */
+function oust_set_seo_data() {
+    if (!class_exists('BH_SEO') || !is_singular(['page', 'post'])) return;
+    $post_id = get_queried_object_id();
+    if (!$post_id) return;
+    // Real bug caught live: wp_strip_all_tags() strips HTML but not
+    // shortcodes, so a post whose content is just a bare shortcode
+    // embed (e.g. "[bh_contest_player contest=\"24\"]") leaked the
+    // literal shortcode syntax into the meta description. get_the_excerpt()
+    // handles both cases correctly on its own (a real manual excerpt if
+    // set, otherwise wp_trim_excerpt()'s own auto-summary of post_content
+    // with strip_shortcodes() already applied) — no need to branch on
+    // has_excerpt() at all.
+    $excerpt = get_the_excerpt($post_id);
+    BH_SEO::set_page_data([
+        'title' => get_the_title($post_id) . ' — ' . get_bloginfo('name'),
+        'description' => $excerpt ?: get_bloginfo('description'),
+        'url' => get_permalink($post_id),
+        'image' => has_post_thumbnail($post_id) ? get_the_post_thumbnail_url($post_id, 'large') : null,
+        'type' => is_singular('post') ? 'article' : 'website',
+    ]);
+}
+add_action('template_redirect', 'oust_set_seo_data');
+
+/**
  * Front-end half of the depth-aware cross-document navigation built
  * for wp-admin (self-hosted-self-admin-skin) — direct feedback:
  * "Frontend and admin." Same real bug already found and fixed on the

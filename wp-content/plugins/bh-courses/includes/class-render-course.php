@@ -97,42 +97,66 @@ class BHC_Render_Course {
         return ob_get_clean();
     }
 
+    /**
+     * Real, live-verified bug (production-readiness sweep, 2026-08-16):
+     * this SEO-setting logic used to live inline at the top of
+     * render_course() below, which only ever runs from the `the_content`
+     * filter (a shortcode/block render, or the CPT's own single-view
+     * `the_content` hook in bh-courses.php) — i.e. DURING template
+     * body output. `wp_head` (where BH_SEO::render_head_tags() actually
+     * echoes the tags) has already fired by then on every normal
+     * WordPress page load (get_header() runs before the_content()) — so
+     * this call was always too late to matter. Confirmed live: a real
+     * course detail page had zero meta description/OG tags despite
+     * this exact code "setting" them every time it rendered. Extracted
+     * so it can also be called from `template_redirect` (fires before
+     * headers) for the one case that actually needs to win the race —
+     * see bh-courses.php's own `template_redirect` hook. Left in place
+     * here too since render_course() is also reachable via the
+     * `[bh_course]` shortcode/block embedded on an arbitrary OTHER
+     * page, where "too late for THIS page's own SEO" doesn't apply the
+     * same way and the existing behavior (best-effort, may or may not
+     * win depending on template structure) is unchanged.
+     */
+    public static function set_seo_data(int $course_id): void {
+        if (!class_exists('BH_SEO')) return;
+        $instructor = BHC_PostTypes::instructor($course_id);
+        BH_SEO::set_page_data([
+            'title' => get_the_title($course_id) . ' — ' . get_bloginfo('name'),
+            'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: (get_the_title($course_id) . ', a course on ' . get_bloginfo('name')),
+            'url' => get_permalink($course_id),
+            'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
+            'type' => 'website',
+            'schema' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'Course',
+                'name' => get_the_title($course_id),
+                'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: null,
+                'url' => get_permalink($course_id),
+                'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
+                'provider' => [
+                    '@type' => 'Organization',
+                    'name' => get_bloginfo('name'),
+                    'sameAs' => home_url(),
+                ],
+                'hasCourseInstance' => $instructor ? [
+                    '@type' => 'CourseInstance',
+                    'courseMode' => 'online',
+                    'instructor' => [
+                        '@type' => 'Person',
+                        'name' => $instructor->display_name ?: $instructor->user_login,
+                    ],
+                ] : null,
+            ],
+        ]);
+    }
+
     /** @param mixed $atts */
     public static function render_course($atts): string {
         $course_id = (int) ($atts['id'] ?? get_the_ID());
         if (!$course_id || get_post_type($course_id) !== 'bh_course') return '';
 
-        if (class_exists('BH_SEO')) {
-            $instructor = BHC_PostTypes::instructor($course_id);
-            BH_SEO::set_page_data([
-                'title' => get_the_title($course_id) . ' — ' . get_bloginfo('name'),
-                'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: (get_the_title($course_id) . ', a course on ' . get_bloginfo('name')),
-                'url' => get_permalink($course_id),
-                'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
-                'type' => 'website',
-                'schema' => [
-                    '@context' => 'https://schema.org',
-                    '@type' => 'Course',
-                    'name' => get_the_title($course_id),
-                    'description' => wp_strip_all_tags(get_post_field('post_content', $course_id)) ?: null,
-                    'url' => get_permalink($course_id),
-                    'image' => has_post_thumbnail($course_id) ? get_the_post_thumbnail_url($course_id, 'large') : null,
-                    'provider' => [
-                        '@type' => 'Organization',
-                        'name' => get_bloginfo('name'),
-                        'sameAs' => home_url(),
-                    ],
-                    'hasCourseInstance' => $instructor ? [
-                        '@type' => 'CourseInstance',
-                        'courseMode' => 'online',
-                        'instructor' => [
-                            '@type' => 'Person',
-                            'name' => $instructor->display_name ?: $instructor->user_login,
-                        ],
-                    ] : null,
-                ],
-            ]);
-        }
+        self::set_seo_data($course_id);
 
         $uid = get_current_user_id();
         // Real gap found live: a course with no required tier set was

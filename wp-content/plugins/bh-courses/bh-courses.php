@@ -2,11 +2,27 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.85
+ * Version:     0.4.86
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.86 — Real SEO timing bug, found live during a production-
+// readiness audit: BH_SEO::set_page_data() was only ever called from
+// inside the `the_content` filter (a course's single-view render, or
+// the [bh_course] shortcode/block) — but BH_SEO echoes its tags at
+// wp_head priority 1, which fires before the_content() ever runs on a
+// normal page load. Confirmed live: a real course detail page had
+// zero meta description, zero OG tags, zero JSON-LD despite this
+// exact code "setting" them every render. Extracted the SEO-setting
+// logic into BHC_Render_Course::set_seo_data() so it can also be
+// called from a new template_redirect hook (fires before headers) for
+// a course's own single-view page — confirmed live afterward: real
+// meta description, og:title, and Course schema.org JSON-LD all now
+// render. The existing the_content-time call is left in place for the
+// shortcode/block-embedded-elsewhere case, where this fix doesn't
+// apply the same way.
 
 // 0.4.85 — Real content-integrity bug, found live: several lessons
 // showed Gutenberg's "Block contains unexpected or invalid content"
@@ -543,7 +559,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.85');
+define('BHC_VER',  '0.4.86');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
@@ -713,6 +729,19 @@ add_action('plugins_loaded', function () {
             return $out;
         }
         return $content;
+    });
+
+    // Real bug, production-readiness sweep 2026-08-16: BH_SEO's tags
+    // are echoed at wp_head (priority 1), which fires before the_content()
+    // ever runs — the `the_content` filter above (and render_course()
+    // itself) called BH_SEO::set_page_data() far too late to matter for
+    // a course's own single-view page, confirmed live (zero meta/OG
+    // tags on a real course detail page). template_redirect fires
+    // before headers, so this actually wins the race.
+    add_action('template_redirect', function () {
+        if (is_singular('bh_course') && class_exists('BHC_Render_Course')) {
+            BHC_Render_Course::set_seo_data(get_queried_object_id());
+        }
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
