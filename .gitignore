@@ -92,3 +92,10 @@ wp-content/plugins/*/tests/.phpunit.result.cache
 # Note: If you wish to whitelist themes,
 # uncomment the next line
 #/wp-content/themes
+
+# AI Dev Run workflow (.github/workflows/ai-run.yml) runtime artifacts —
+# TASK_SPEC.md and every *.log are generated fresh each run and uploaded
+# as a workflow artifact already; committing them would just accumulate
+# noise across every mobile-triggered run.
+/.ai_workflow/*
+!/.ai_workflow/.gitkeep

@@ -1,0 +1,162 @@
+name: AI Dev Run (Claude + Gemini orchestration)
+
+# Trigger this from GitHub Mobile: repo -> Actions tab -> "AI Dev Run"
+# workflow -> "Run workflow" -> type your instruction in the `prompt`
+# field -> Run. No desktop needed.
+#
+# Requires two repo secrets before this can run (Settings -> Secrets
+# and variables -> Actions -> New repository secret):
+#   ANTHROPIC_API_KEY  - from https://console.anthropic.com/settings/keys
+#   GEMINI_API_KEY     - from https://aistudio.google.com/apikey
+# (Named for what each CLI actually reads at runtime, not the
+# CLAUDE_API_KEY/GEMINI_API_KEY names in the original request — the
+# real Anthropic env var is ANTHROPIC_API_KEY. Rename in the `env:`
+# blocks below if your key secrets are named differently.)
+#
+# NOT yet exercised: this file has not been run in this repository. It
+# was written to spec and is believed correct, but "written correctly"
+# and "verified working in your GitHub org's actual runner environment"
+# are different claims — expect to debug the first real run, most
+# likely around exact CLI install/invocation syntax for `claude` and
+# `gemini`, since both tools' CLI flags can change between versions and
+# neither was installed/tested locally before writing this.
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "What do you want built/fixed? (plain English)"
+        required: true
+        type: string
+
+concurrency:
+  group: ai-dev-run
+  cancel-in-progress: false # never cancel a run that might be mid-commit
+
+jobs:
+  ai-orchestrated-run:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code + Gemini CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          npm install -g @google/gemini-cli
+          claude --version
+          gemini --version
+
+      - name: Prep workspace
+        run: mkdir -p .ai_workflow
+
+      # ---------------------------------------------------------------
+      # Step 1 — Architect phase: Claude reads the mobile prompt + the
+      # codebase and writes a precise spec, nothing else. Headless
+      # (-p), no interactive approval loop available on a runner.
+      # ---------------------------------------------------------------
+      - name: "Step 1: Claude writes TASK_SPEC.md"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "Read the codebase enough to understand its real structure and conventions, then write a precise, actionable technical specification for the following request. Write ONLY the spec (file paths to touch, exact function/component names to add or change, the shape of any new data, edge cases, and explicit non-goals) to .ai_workflow/TASK_SPEC.md — do not write any implementation code yourself in this step. Request from mobile: ${{ inputs.prompt }}" \
+            --output-format text \
+            --allowedTools "Read,Grep,Glob,Write" \
+            > .ai_workflow/step1_claude.log 2>&1 || (cat .ai_workflow/step1_claude.log && exit 1)
+
+          test -s .ai_workflow/TASK_SPEC.md || (echo "::error::Claude did not produce .ai_workflow/TASK_SPEC.md" && exit 1)
+          echo "--- TASK_SPEC.md ---"
+          cat .ai_workflow/TASK_SPEC.md
+
+      # ---------------------------------------------------------------
+      # Step 2 — Bulk implementation: Gemini reads the spec + codebase
+      # and writes the high-volume scaffolding directly to files. This
+      # is the token-saving step — Gemini, not Claude, burns tokens on
+      # boilerplate.
+      # ---------------------------------------------------------------
+      - name: "Step 2: Gemini implements from TASK_SPEC.md"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          gemini -p "Implement exactly what is described in .ai_workflow/TASK_SPEC.md. Read that file first, then the surrounding codebase for existing conventions (naming, style, file layout) and match them. Write real, complete code directly to the target files described in the spec — no placeholders, no TODOs. Do not touch files outside what the spec calls for." \
+            --yolo \
+            > .ai_workflow/step2_gemini.log 2>&1 || (cat .ai_workflow/step2_gemini.log && exit 1)
+
+          echo "--- git diff after Gemini's pass ---"
+          git status --porcelain
+          git --no-pager diff --stat
+
+      # ---------------------------------------------------------------
+      # Step 3 — Quality & resilience: Claude reviews Gemini's output,
+      # runs tests, fixes bugs, and only commits once the suite is
+      # green. Wrapped in a rate-limit backoff loop, since a headless
+      # multi-step run is exactly where a transient 429 shouldn't kill
+      # the whole job.
+      # ---------------------------------------------------------------
+      - name: "Step 3: Claude reviews, tests, fixes, and commits"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          max_attempts=6
+          attempt=1
+          success=0
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "=== Claude review/fix attempt $attempt of $max_attempts ==="
+
+            claude -p "Gemini just implemented the spec in .ai_workflow/TASK_SPEC.md (see .ai_workflow/step2_gemini.log for its own run log). Review every file it touched (git diff against the previous commit) for correctness, security, and fit with this codebase's existing conventions. Run this project's actual test/lint commands and fix any real failures yourself — keep iterating until the suite is genuinely green, not just until errors stop appearing in one pass. Do not weaken or delete a test to make it pass. When everything is clean, stage and commit the verified changes with a real, specific commit message describing what was built (not 'AI changes'), and push to the current branch. If there is nothing to commit (Gemini produced nothing usable), say so plainly instead of committing an empty or fabricated change." \
+              --output-format text \
+              --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
+              > .ai_workflow/step3_claude_attempt_${attempt}.log 2>&1
+            exit_code=$?
+
+            if [ $exit_code -eq 0 ]; then
+              success=1
+              break
+            fi
+
+            # Rate/usage-limit signal check — look for the kind of text
+            # Anthropic's API/CLI actually surfaces for a 429/usage-limit,
+            # rather than assuming every non-zero exit is a rate limit.
+            if grep -qiE "rate.?limit|usage limit|429|overloaded|please wait" ".ai_workflow/step3_claude_attempt_${attempt}.log"; then
+              echo "::warning::Anthropic rate/usage limit hit on attempt $attempt — sleeping 5 minutes before retry."
+              tail -n 20 ".ai_workflow/step3_claude_attempt_${attempt}.log"
+              sleep 300
+              attempt=$((attempt + 1))
+              continue
+            fi
+
+            # A real, non-rate-limit failure — don't blindly retry a bug
+            # six times, surface it now.
+            echo "::error::Claude Step 3 failed for a non-rate-limit reason on attempt $attempt."
+            cat ".ai_workflow/step3_claude_attempt_${attempt}.log"
+            exit 1
+          done
+
+          if [ $success -ne 1 ]; then
+            echo "::error::Exhausted $max_attempts attempts, still rate-limited. Giving up for this run — re-trigger manually later."
+            exit 1
+          fi
+
+          echo "--- Final Step 3 log ---"
+          cat ".ai_workflow/step3_claude_attempt_${attempt}.log"
+
+      - name: Upload run logs (always, even on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-run-logs
+          path: .ai_workflow/*.log
+          retention-days: 14
