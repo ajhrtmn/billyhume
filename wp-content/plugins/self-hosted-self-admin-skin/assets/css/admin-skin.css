@@ -2240,6 +2240,16 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 .block-editor-block-inspector .components-panel__body-title {
     color: var(--shsas-text) !important;
 }
+/* The "block card" — the selected block's own name + description,
+   shown at the very top of the Block Inspector tab ("Paragraph" /
+   "Start with the basic building block of all narrative.") — measured
+   a 1.03 contrast ratio, near-invisible. Same untouched near-black WP
+   core default as everything else fixed in this pass; simply never
+   reached because .components-panel__body above only covers PANEL
+   bodies, and the block card sits outside/above any panel. */
+.block-editor-block-card__name,
+.block-editor-block-card__title { color: var(--shsas-text) !important; }
+.block-editor-block-card__description { color: var(--shsas-text-dim) !important; }
 .interface-interface-skeleton__sidebar .components-base-control__label,
 .interface-interface-skeleton__sidebar label,
 .block-editor-block-inspector label {

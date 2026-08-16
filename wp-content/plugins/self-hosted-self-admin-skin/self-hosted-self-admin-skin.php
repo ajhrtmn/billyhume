@@ -2,10 +2,22 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.25.0
+ * Version:     0.25.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.25.1 — One more real Gutenberg bug found continuing the light-mode/
+// editor sweep: the Block Inspector's own "block card" (the selected
+// block's name + description shown at the very top of the tab — e.g.
+// "Paragraph" / "Start with the basic building block...") measured a
+// 1.03 contrast ratio, near-invisible. Same untouched WP-core near-
+// black default as everything else fixed this pass; never reached
+// because the existing .components-panel__body rule only covers PANEL
+// bodies, and the block card sits outside/above any panel. Name gets
+// full --shsas-text, description gets --shsas-text-dim — matching the
+// same title/secondary-text hierarchy already used everywhere else in
+// this file, not flat single-color text.
 
 // 0.25.0 — Direct request: "Gutenberg editor needs theming." The
 // sidebar/inspector/inserter chrome was already covered (0.9.x era,
@@ -1217,7 +1229,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.25.0');
+define('SHSAS_VER', '0.25.1');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
