@@ -2,10 +2,42 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.32
+ * Version:     3.10.33
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.33 — The FIFTH hardcoded-styling mechanism, found by grepping
+// admin-facing PHP for literal `color:#`/`background:#` inside echoed
+// markup after the .ous-card/.ous-metrics-card token migration
+// (3.10.32) closed the first four. class-debug-log.php's Console &
+// Logs table was styling log-level pills, the file:line pointer, the
+// request-ID chip, and the expandable detail row with literal INLINE
+// style="" attributes (color:#d63638, background:#f0f0f1, etc.) — a
+// genuinely worse case than a hardcoded stylesheet, since an inline
+// style beats any external CSS rule outright short of !important. No
+// theme, including the admin skin, could have restyled this screen
+// without injecting its own inline styles back in via JS.
+//
+// Fixed with real CSS classes (print_log_styles_once(), same
+// print-once pattern as this file's own copy/expand <script> helpers)
+// reading --bhy-* tokens with the previous literals kept as var()
+// fallbacks. The level pill's color is now driven by a
+// data-level="error|warning|info" attribute + three tiny selector
+// rules rather than a per-row inline background.
+//
+// One real bug caught by checking computed style rather than assuming
+// the class alone would work: the request-ID chip is an <a>, and the
+// admin skin's global `body.wp-admin a { color: var(--shsas-accent); }`
+// rule (3 simple selectors) beat a bare single-class `.ous-log-req-chip`
+// rule (2 simple selectors) on specificity, so the chip rendered full
+// link-blue instead of the quiet muted tone intended for a small
+// metadata affordance. Fixed by doubling the class in the selector
+// (`.ous-log-req-chip.ous-log-req-chip`) to raise specificity past the
+// skin's rule, rather than reaching for !important. Verified live via
+// getComputedStyle on the real rendered rows after the fix: pill
+// resolves to the accent token, chip to ink-dim, "ok" text to the
+// success token — all through the bridge, not a hardcoded literal.
 
 // 3.10.32 — Code-quality pass, not a visual change: migrated this
 // plugin's two remaining hardcoded-CSS surfaces onto the shared
@@ -1622,7 +1654,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.32');
+define('OUS_VER', '3.10.33');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

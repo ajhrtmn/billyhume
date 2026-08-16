@@ -538,6 +538,7 @@ class OUS_DebugLog {
     // and any last recorded insert failure from log() itself above.
     private static function health_check(): void {
         global $wpdb;
+        self::print_log_styles_once();
         $table = self::table();
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
 
@@ -555,15 +556,15 @@ class OUS_DebugLog {
 
         echo '<div class="bhy-card" style="margin-bottom:16px;">';
         echo '<h4 style="margin-top:0;">Logging health check</h4>';
-        echo '<p>Table <code>' . esc_html($table) . '</code>: ' . ($exists ? '<span style="color:#00a32a;">exists</span>' : '<span style="color:#d63638;font-weight:600;">does NOT exist — no log() call anywhere in the ecosystem can be recorded</span>') . '</p>';
+        echo '<p>Table <code>' . esc_html($table) . '</code>: ' . ($exists ? '<span class="ous-log-ok">exists</span>' : '<span class="ous-log-bad-strong">does NOT exist — no log() call anywhere in the ecosystem can be recorded</span>') . '</p>';
         if ($exists && $missing_cols) {
-            echo '<p style="color:#d63638;font-weight:600;">Missing column(s): ' . esc_html(implode(', ', $missing_cols)) . ' — the table exists but predates the current schema, so every insert() referencing these columns fails.</p>';
+            echo '<p class="ous-log-bad-strong">Missing column(s): ' . esc_html(implode(', ', $missing_cols)) . ' — the table exists but predates the current schema, so every insert() referencing these columns fails.</p>';
         }
         echo '<p>DB schema version — stored: <code>' . esc_html($db_version_stored) . '</code>, code expects: <code>' . esc_html($db_version_code) . '</code>'
-           . ($db_version_stored !== $db_version_code ? ' <span style="color:#d63638;font-weight:600;">— mismatch, migration has not run on this install</span>' : ' <span style="color:#00a32a;">— up to date</span>')
+           . ($db_version_stored !== $db_version_code ? ' <span class="ous-log-bad-strong">— mismatch, migration has not run on this install</span>' : ' <span class="ous-log-ok">— up to date</span>')
            . '</p>';
         if ($last_failure && is_array($last_failure)) {
-            echo '<p style="color:#d63638;"><strong>Last recorded insert failure</strong> (' . esc_html($last_failure['at'] ?? '') . '): <code>' . esc_html($last_failure['error'] ?? '') . '</code></p>';
+            echo '<p class="ous-log-bad"><strong>Last recorded insert failure</strong> (' . esc_html($last_failure['at'] ?? '') . '): <code>' . esc_html($last_failure['error'] ?? '') . '</code></p>';
         }
         OUS_Debug::button('bh-console', 'health_check_insert', 'Run a test log entry now');
         echo '</div>';
@@ -644,8 +645,6 @@ class OUS_DebugLog {
         if (!$rows) {
             echo '<p class="description">No log entries match these filters. Nothing to triage — that\'s a good sign.</p>';
         } else {
-            $colors = ['error' => '#d63638', 'warning' => '#dba617', 'info' => '#2271b1'];
-
             // Plain-text dump of exactly the rows currently visible
             // (respects every filter above) — one line per entry, newest
             // first, same order as the table, including the file/line
@@ -669,16 +668,19 @@ class OUS_DebugLog {
             $i = 0;
             foreach ($rows as $r) {
                 $i++;
-                $color = $colors[$r['level']] ?? '#646970';
                 $has_detail = $r['trace'] || $r['file'] || $r['url'];
                 $detail_id = 'ous-log-detail-' . $i;
 
                 echo '<tr' . ($has_detail ? ' style="cursor:pointer;" onclick="bhToggleLogDetail(\'' . esc_js($detail_id) . '\')"' : '') . '>';
-                echo '<td><span style="color:#fff;background:' . esc_attr($color) . ';padding:2px 8px;border-radius:3px;font-size:11px;">' . esc_html(strtoupper($r['level'])) . '</span></td>';
+                // Color comes from the .ous-log-level-pill[data-level]
+                // rules printed once by print_log_styles_once() — a real
+                // CSS class reading --bhy-* tokens, not the inline
+                // style="color:#fff;background:#d63638" this used to be.
+                echo '<td><span class="ous-log-level-pill" data-level="' . esc_attr($r['level']) . '">' . esc_html(strtoupper($r['level'])) . '</span></td>';
                 echo '<td>' . esc_html($r['source'] ?: '&#8212;') . '</td>';
                 echo '<td>' . esc_html($r['message']);
                 if ($r['file']) {
-                    echo ' <code style="font-size:11px;color:#646970;">' . esc_html($r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '')) . '</code>';
+                    echo ' <code class="ous-log-meta">' . esc_html($r['file'] . ':' . $r['line'] . ($r['col'] ? ':' . $r['col'] : '')) . '</code>';
                 }
                 // A clickable request-ID chip on every row that has one —
                 // stopPropagation so clicking it navigates to the filtered
@@ -690,9 +692,9 @@ class OUS_DebugLog {
                 // that happened around it" with a single click.
                 if (!empty($r['request_id'])) {
                     $req_url = admin_url('admin.php?page=ous-debug&ous_log_request=' . rawurlencode($r['request_id']));
-                    echo ' <a href="' . esc_url($req_url) . '" onclick="event.stopPropagation();" title="Show every log entry from this same request" style="font-size:10px;font-family:monospace;color:#646970;background:#f0f0f1;padding:1px 5px;border-radius:3px;text-decoration:none;">#' . esc_html($r['request_id']) . '</a>';
+                    echo ' <a href="' . esc_url($req_url) . '" onclick="event.stopPropagation();" title="Show every log entry from this same request" class="ous-log-req-chip">#' . esc_html($r['request_id']) . '</a>';
                 }
-                if ($has_detail) echo ' <span style="color:#2271b1;font-size:11px;">[details &#9662;]</span>';
+                if ($has_detail) echo ' <span class="ous-log-details-hint">[details &#9662;]</span>';
                 echo '</td>';
                 echo '<td>' . ($r['user_id'] ? esc_html(get_userdata($r['user_id']) ? get_userdata($r['user_id'])->user_login : ('#' . $r['user_id'])) : '&#8212;') . '</td>';
                 echo '<td>' . esc_html(human_time_diff(strtotime($r['created_at']), current_time('timestamp')) . ' ago') . '</td>';
@@ -707,7 +709,7 @@ class OUS_DebugLog {
                 echo '</td></tr>';
 
                 if ($has_detail) {
-                    echo '<tr id="' . esc_attr($detail_id) . '" style="display:none;"><td colspan="6" style="background:#f6f7f7;">';
+                    echo '<tr id="' . esc_attr($detail_id) . '" class="ous-log-detail-row" style="display:none;"><td colspan="6">';
                     if ($r['url']) echo '<p style="margin:4px 0;"><strong>Request:</strong> ' . esc_html($r['request_method']) . ' <code>' . esc_html($r['url']) . '</code></p>';
                     if ($r['context']) echo '<p style="margin:4px 0;"><strong>Context:</strong> <code>' . esc_html($r['context']) . '</code></p>';
                     if ($r['trace']) {
@@ -797,6 +799,59 @@ class OUS_DebugLog {
         global $wpdb;
         $wpdb->query("TRUNCATE TABLE " . self::table());
         return 'Console/error log cleared.';
+    }
+
+    // The fifth hardcoded-styling mechanism found in this ecosystem's
+    // Track 2 code-quality pass — after --bhy-* tokens, admin.css,
+    // class-metrics.php's inline block, and (fixed the same round)
+    // class-portal.php's dashicon layer, this file was styling its log
+    // rows with literal hex INLINE `style=""` attributes
+    // (color:#d63638, background:#f0f0f1, etc.). That's a genuinely
+    // worse case than the other four: an inline style beats any
+    // external stylesheet rule outright, so the admin skin could not
+    // have themed this screen even with !important short of injecting
+    // its own inline styles back via JS. Real classes, reading --bhy-*
+    // tokens, fix that at the source — printed once here (same
+    // print-once pattern as the copy/expand scripts below) rather than
+    // enqueued as a separate stylesheet, since this section already
+    // prints its own <script> blocks the same way and Debug Tools has
+    // no dedicated CSS file to add these three classes to.
+    private static function print_log_styles_once(): void {
+        static $printed = false;
+        if ($printed) return;
+        $printed = true;
+        ?>
+        <style>
+        .ous-log-ok { color: var(--bhy-success, #00a32a); }
+        .ous-log-bad { color: var(--bhy-danger, #d63638); }
+        .ous-log-bad-strong { color: var(--bhy-danger, #d63638); font-weight: 600; }
+        .ous-log-level-pill {
+            color: var(--bhy-danger-contrast, #fff);
+            background: var(--ous-log-level-color, var(--bhy-ink-dim, #646970));
+            padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+        }
+        .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); }
+        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); }
+        .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); }
+        .ous-log-meta { font-size: 11px; color: var(--bhy-ink-dim, #646970); }
+        /* Real specificity bug caught by checking computed style, not
+           assuming: this is an <a>, and the admin skin's global
+           `body.wp-admin a { color: var(--shsas-accent); }` (element +
+           class + element = 3 simple selectors) beats a bare
+           `.ous-log-req-chip` class rule (2 simple selectors) — the
+           chip rendered full link-blue instead of the quiet muted tone
+           intended for a small metadata affordance. Doubled the class
+           on the element itself (safe: PHP always renders this exact
+           combination) to raise this rule's own specificity past the
+           skin's, without reaching for !important. */
+        .ous-log-req-chip.ous-log-req-chip {
+            font-size: 10px; font-family: monospace; color: var(--bhy-ink-dim, #646970);
+            background: var(--bhy-subtle, #f0f0f1); padding: 1px 5px; border-radius: 3px; text-decoration: none;
+        }
+        .ous-log-details-hint { color: var(--bhy-accent, #2271b1); font-size: 11px; }
+        .ous-log-detail-row td { background: var(--bhy-subtle, #f6f7f7); }
+        </style>
+        <?php
     }
 
     // Same window.bhCopyToClipboard helper class-test-runner.php prints
