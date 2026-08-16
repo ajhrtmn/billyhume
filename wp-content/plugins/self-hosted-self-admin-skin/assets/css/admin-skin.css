@@ -1363,6 +1363,56 @@ body.wp-admin *:focus-visible {
     .wp-admin .button-primary:hover { transform: none; }
 }
 
+/* Real bug, found live: WP core's Plugins -> Add New screen (.plugin-
+   card) hardcodes background:#fff with no admin-skin override existing
+   anywhere in this file — child text already correctly inherits the
+   dark-theme light color (transparent background), so light text was
+   landing on a stark white card, nearly invisible. A genuinely
+   unaudited screen this whole session (Track 1's checklist had this
+   flagged as never confirmed) — checked, and it really was broken,
+   not a false alarm. */
+.plugin-card {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+}
+.plugin-card .name h3 { color: var(--shsas-text); }
+.plugin-card .desc { color: var(--shsas-text-dim); }
+.plugin-card .action-links { border-color: var(--shsas-border) !important; }
+/* .plugin-card-bottom (the star-rating/"Compatible with your version"
+   footer strip) is a SEPARATE element with its own independently
+   hardcoded background — fixing .plugin-card above didn't reach it,
+   confirmed live before assuming one rule would cover the whole card. */
+.plugin-card-bottom {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text-dim) !important;
+}
+.plugin-card-bottom .vers.column-compatibility { color: var(--shsas-text-dim); }
+/* Real bug, found on a second, more thorough pass after direct
+   feedback ("still can't read text") — the first sweep only checked
+   LEAF elements (no children), which structurally excluded this exact
+   case: <cite>By <a>Author</a></cite> has its own direct text node
+   ("By ") alongside a child <a>, so a leaf-only scan walked right past
+   it while the "By " text itself sat at a 1.34 contrast ratio
+   (near-black on the dark card) on every single plugin card on this
+   screen — the single most repeated, most visible instance of this
+   whole bug class found this session. Real lesson: a leaf-only DOM
+   scan is not sufficient for finding low-contrast text; an element
+   with children can still have its OWN unstyled text directly. */
+.plugin-card .authors cite { color: var(--shsas-text-dim); }
+/* Real bug, direct feedback ("card body text too") — the description
+   paragraph was STILL near-black after the .plugin-card/.plugin-card-
+   bottom/.authors fixes above, because none of those actually reached
+   it: WP core's `.widefat ol, .widefat p, .widefat ul { color:
+   #2c3338; }` rule (meant for list-table body text) also matches this
+   <p>, since the whole plugin-browse grid sits inside a .widefat
+   wrapper structurally — confirmed via a live matching-rules query,
+   not a guess. My earlier `.plugin-card .desc` rule targeted the
+   wrapping DIV, one level too shallow to beat a rule aimed at the
+   <p> itself. Fixed by targeting the <p> directly with !important,
+   matching how every other WP-core color override in this file wins. */
+.plugin-card .desc p { color: var(--shsas-text-dim) !important; }
+
 /* ---------------- tables ---------------- */
 
 .wp-list-table {
@@ -1449,6 +1499,21 @@ body.wp-admin *:focus-visible {
 .subsubsub .current { color: var(--shsas-accent) !important; }
 .subsubsub a { color: var(--shsas-text-dim); }
 .subsubsub a:hover { color: var(--shsas-text); }
+/* The EXACT same failure mode as .subsubsub .current above, just on
+   Plugins -> Add New's own "Featured/Popular/Recommended/Favorites"
+   tab strip (.wp-filter .filter-links, a genuinely different WP-core
+   convention from .subsubsub despite looking almost identical) —
+   confirmed via a real page-wide contrast scan, not a guess: the
+   active tab measured a 1.02 contrast ratio (rgb(29,35,39) near-black
+   text on a dark page background), functionally invisible. The
+   "Search Plugins" label/placeholder in the same toolbar measured
+   2.13 — also fixed here rather than left as a smaller, still-real
+   problem next to the one just found. */
+.wp-filter .filter-links .current { color: var(--shsas-accent) !important; }
+.wp-filter .filter-links a { color: var(--shsas-text-dim); }
+.wp-filter .filter-links a:hover { color: var(--shsas-text); }
+.wp-filter .search-form label,
+.wp-filter .search-form .screen-reader-text + label { color: var(--shsas-text-dim); }
 /* `.nav-tab-wrapper` (tabbed settings screens — WooCommerce's General/
    Products/Shipping tabs, any peer plugin using WP's own tab
    convention) had zero coverage; same audit. */

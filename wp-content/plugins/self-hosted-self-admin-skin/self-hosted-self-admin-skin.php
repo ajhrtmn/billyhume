@@ -2,10 +2,58 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.22.0
+ * Version:     0.23.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.23.1 — Two more real bugs on the same Plugins -> Add New screen,
+// found from direct feedback ("still can't read text" / "card body
+// text too") after 0.23.0's fixes weren't actually the full story:
+//   - <cite>By <a>Author</a></cite> on every plugin card had a 1.34
+//     contrast ratio (near-black text). My first sweep only checked
+//     LEAF elements (no children) and structurally walked right past
+//     this — <cite> has its own direct text node ("By ") alongside a
+//     child <a>, exactly the shape a leaf-only scan misses. Real
+//     lesson, not just a fix: an element WITH children can still carry
+//     its own unstyled text directly; a thorough contrast scan can't
+//     be leaf-only.
+//   - The plugin description <p> was STILL near-black (1.34) after
+//     0.23.0's .plugin-card/.plugin-card-bottom fixes, because neither
+//     reached it: WP core's `.widefat ol, .widefat p, .widefat ul`
+//     rule (meant for list-table body text) also matches this <p>,
+//     since the whole plugin-browse grid sits inside a .widefat
+//     wrapper structurally — confirmed via a live matching-rules
+//     query. Checked whether this same root cause reaches the
+//     Installed Plugins screen too (it doesn't — already correct
+//     there) before considering this done.
+
+// 0.23.0 — Plugins -> Add New screen, a genuinely unaudited screen
+// this whole session (Track 1's checklist had .plugin-card flagged as
+// never confirmed) — checked, and it really was broken, not a false
+// alarm. Three real, distinct bugs found via a live contrast scan
+// (not a guess):
+//   - .plugin-card hardcoded background:#fff from WP core, with light
+//     dark-theme text landing on top of it — nearly invisible. Fixed,
+//     plus .plugin-card-bottom (the rating/compatibility footer strip),
+//     a SEPARATE element with its own independently hardcoded
+//     background that fixing .plugin-card alone didn't reach —
+//     confirmed live before assuming one rule covered the whole card.
+//   - .wp-filter .filter-links .current (the Featured/Popular/
+//     Recommended/Favorites tab strip's active tab) measured a 1.02
+//     contrast ratio — rgb(29,35,39) near-black text on the dark page
+//     background, functionally invisible. Same failure mode as the
+//     already-fixed .subsubsub .current, a genuinely different WP-core
+//     convention despite looking almost identical — first chased the
+//     WRONG .current element (the sidebar submenu's, already correctly
+//     styled) before re-scoping the search correctly.
+//   - The "Search Plugins" field label measured 2.13 — also fixed
+//     rather than left as a smaller, still-real problem next to the
+//     one just found.
+// One real link-color case (3.28, below WCAG AA's 4.5:1) deliberately
+// left alone: it's the SAME accent-blue link color used consistently
+// on every other admin screen, not a local bug — fixing it here would
+// make links inconsistent between screens, which is worse.
 
 // 0.22.0 — Modal/overlay haze, the third and last of the three
 // promised haze/focus surfaces (own words: "all three, start with
@@ -1107,7 +1155,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.22.0');
+define('SHSAS_VER', '0.23.1');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
