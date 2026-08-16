@@ -2,10 +2,23 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.34
+ * Version:     3.10.35
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.35 — Real follow-up bug in 3.10.33's own log-level pill fix,
+// found by the admin skin's systematic reconciliation sweep: the pill
+// used one hardcoded white text color (var(--bhy-danger-contrast,
+// #fff) — a token that was never actually defined anywhere in
+// class-ui.php, so it always fell through to its own #fff default) for
+// all three levels. White reads fine against the danger (red) and info
+// (blue) background colors, but the admin skin's own --bhy-warning
+// bridges to a bright neon yellow (#f5d90a) — white-on-yellow measured
+// roughly 1.4:1, functionally invisible. Each level now sets its own
+// paired text color (--ous-log-level-text) alongside its own
+// background color, rather than one shared assumption that never held
+// for all three.
 
 // 3.10.34 — Task #8 (in-context tooltips), judicious pass: added a
 // real BHY_UI::tip() to Guided Setup's "Wordmark" field (step 3, Brand
@@ -1663,7 +1676,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.34');
+define('OUS_VER', '3.10.35');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

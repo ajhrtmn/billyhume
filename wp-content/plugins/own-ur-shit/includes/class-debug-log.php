@@ -826,13 +826,22 @@ class OUS_DebugLog {
         .ous-log-bad { color: var(--bhy-danger, #d63638); }
         .ous-log-bad-strong { color: var(--bhy-danger, #d63638); font-weight: 600; }
         .ous-log-level-pill {
-            color: var(--bhy-danger-contrast, #fff);
+            color: var(--ous-log-level-text, #fff);
             background: var(--ous-log-level-color, var(--bhy-ink-dim, #646970));
             padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
         }
-        .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); }
-        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); }
-        .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); }
+        /* Real bug, found live in the admin-skin theming sweep: this
+           used one hardcoded white text color (var(--bhy-danger-
+           contrast, #fff) -- a token that was never actually defined
+           anywhere, so it always fell through to its own #fff
+           fallback) for all three levels. White reads fine on the
+           danger/info colors but the admin skin's own --bhy-warning
+           bridges to a bright neon yellow (#f5d90a) -- white-on-yellow
+           measured ~1.4:1, functionally invisible. Each level now sets
+           its own real text color alongside its own background. */
+        .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); --ous-log-level-text: #fff; }
+        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: #1e1e1e; }
+        .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); --ous-log-level-text: #fff; }
         .ous-log-meta { font-size: 11px; color: var(--bhy-ink-dim, #646970); }
         /* Real specificity bug caught by checking computed style, not
            assuming: this is an <a>, and the admin skin's global

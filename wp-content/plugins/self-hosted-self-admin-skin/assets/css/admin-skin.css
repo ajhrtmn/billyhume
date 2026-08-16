@@ -1512,6 +1512,31 @@ pre code { background: transparent !important; padding: 0; }
     background: var(--shsas-surface-2);
 }
 .wp-list-table tbody tr:hover { background: color-mix(in srgb, var(--shsas-accent) 8%, var(--shsas-surface)); }
+/* The exact same near-black .wp-list-table thead bug above, just on
+   plain `table.widefat` — a genuinely different WP-core table style
+   used for settings/reference-style tables, not the sortable list-
+   table, and (unlike .wp-list-table) not consistently wrapped in the
+   shared .bhy-table-wrap component either. Found live in two separate
+   places in own-ur-shit's own Debug Tools screen: the auto-generated
+   API Docs section (every column header — "Param", "In", "Required",
+   "Type", "Description" — across the whole live REST route table
+   measured 1.22, 90 flagged elements collapsing to this one cause),
+   and the Event Tracking widget's own stats table, which wasn't even
+   wrapped in .bhy-table-wrap and so wasn't touched at all — solid
+   white, not just an invisible header. Broadened from the original,
+   .bhy-table-wrap-scoped fix to cover any table.widefat directly. */
+table.widefat {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+}
+table.widefat thead th, table.widefat thead td,
+table.widefat tfoot th, table.widefat tfoot td {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text-dim) !important;
+    border-bottom-color: var(--shsas-border) !important;
+}
+table.widefat tbody td, table.widefat tbody th { color: var(--shsas-text) !important; border-color: var(--shsas-border) !important; }
+table.widefat.striped tbody tr:nth-child(odd) { background: var(--shsas-surface-2) !important; }
 /* Real bug, direct feedback ("the text in the tables sucks"): this
    rule set color on the <td>/<th> itself but WITHOUT !important, and a
    plugin row's own description text lives in a nested <p>

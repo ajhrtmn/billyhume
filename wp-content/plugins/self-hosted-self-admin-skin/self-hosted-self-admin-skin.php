@@ -2,10 +2,40 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.27.0
+ * Version:     0.28.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.28.0 — Continuing the systematic sweep onto own-ur-shit's own
+// Debug Tools screen (API Docs, Event Tracking sections). Two real
+// bugs, both on `table.widefat` (a genuinely different WP-core table
+// style than `.wp-list-table`, not consistently wrapped in the shared
+// .bhy-table-wrap component either): the auto-generated API Docs
+// section's REST-route table had every column header at a 1.22
+// contrast ratio (90 flagged elements, one shared cause), and the
+// Event Tracking widget's own stats table wasn't touched AT ALL —
+// solid white, not wrapped in .bhy-table-wrap so the original narrower
+// fix never reached it. Broadened from a .bhy-table-wrap-scoped rule
+// to cover any table.widefat directly (background, borders, striping,
+// thead/tbody text) rather than patching two more one-off selectors.
+//
+// A companion bug in own-ur-shit's own class-debug-log.php (separate
+// plugin, own changelog entry below) was also found and fixed in the
+// same pass: the log-level pill's warning state was rendering white
+// text on a bright yellow background.
+//
+// Also worth noting for future contrast sweeps: this pass caught a
+// real bug in the SWEEP SCRIPT itself, not the page — some computed
+// background-colors (anything that started life as a color-mix()
+// expression) serialize as `color(srgb r g b)` rather than
+// `rgb(r,g,b)`, which the earlier ad hoc regex-based parser silently
+// failed to match, producing several false "1.09 ratio" readings on
+// .bhy-badge variants that were actually fine (7.5-10.3:1 once parsed
+// correctly). Re-verified with a corrected parser before trusting any
+// of this pass's findings.
+//
+// NOT runtime-verified beyond this session's own live browser checks.
 
 // 0.27.0 — Systematic sweep of two more real, previously-unaudited
 // surfaces, following a plan-vs-reality reconciliation pass ("We need
@@ -1342,7 +1372,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.27.0');
+define('SHSAS_VER', '0.28.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
