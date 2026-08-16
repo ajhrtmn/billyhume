@@ -52,6 +52,20 @@ class BH_SEO {
         remove_action('wp_head', 'rel_canonical');
     }
 
+    /**
+     * Real gap, found live fixing the template_redirect-timing bug
+     * above: multiple independent template_redirect hooks (a specific
+     * plugin's own content-type handler, plus the theme's generic
+     * Page/Post fallback) can both fire for the SAME request — without
+     * this, whichever happens to register last wins by registration-
+     * order luck, not by design. A fallback consumer (the theme) should
+     * check this first and skip entirely if something more specific
+     * already claimed the page, rather than risk overwriting it.
+     */
+    public static function has_page_data(): bool {
+        return self::$page_data !== null;
+    }
+
     public static function render_head_tags(): void {
         if (!self::$page_data) return;
         $d = self::$page_data;
@@ -85,6 +99,42 @@ class BH_SEO {
             echo '<script type="application/ld+json">' . wp_json_encode($schema) . '</script>' . "\n";
         }
         echo "<!-- /BH_SEO -->\n";
+    }
+
+    /**
+     * Real, shared fix for a real, repeated bug (production-readiness
+     * sweep, 2026-08-16): bh-courses, bh-contest, bh-streaming, and
+     * bh-registry all called set_page_data() from INSIDE their own
+     * shortcode's render() — which only runs during the_content(),
+     * always after wp_head (where the tags actually echo) has already
+     * fired. Confirmed live on bh-courses: a real course page rendered
+     * zero meta/OG/JSON-LD despite the code "setting" them every
+     * render — fixed there by adding a template_redirect hook, which
+     * needs the shortcode's own attributes available BEFORE the_content()
+     * runs. This is that lookup, written once here instead of every
+     * plugin re-implementing its own shortcode-regex parsing: given a
+     * shortcode tag, returns that shortcode's own attributes as found
+     * in the CURRENT queried post's raw content, or null if that
+     * shortcode isn't present (not singular, no post, tag not found).
+     * First match wins — every consumer of this method embeds at most
+     * one instance of its own shortcode per page in practice.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function shortcode_atts_on_current_page(string $tag): ?array {
+        if (!is_singular()) return null;
+        $post = get_post();
+        if (!$post || !has_shortcode($post->post_content, $tag)) return null;
+
+        // get_shortcode_regex()'s capture groups are numbered, not
+        // named — group 3 is the raw "inside the opening tag" attribute
+        // string (see wp-includes/shortcodes.php's own regex comments).
+        preg_match('/' . get_shortcode_regex([$tag]) . '/s', $post->post_content, $m);
+        if (empty($m[3])) return [];
+        // shortcode_parse_atts()'s own PHPDoc guarantees array return
+        // (PHPStan flagged the old is_array() ternary here as dead code
+        // because of that stub) — no defensive check needed.
+        return shortcode_parse_atts($m[3]);
     }
 
     /**

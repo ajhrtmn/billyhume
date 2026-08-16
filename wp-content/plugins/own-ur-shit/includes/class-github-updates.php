@@ -58,6 +58,24 @@ if (!defined('ABSPATH')) exit;
  */
 class OUS_GithubUpdates {
     const JOB_HOOK = 'ous_github_update_check';
+    // Real bug, direct field report ("Check now button not working"):
+    // check_all() ran up to ~13 sequential wp_remote_get() calls
+    // (10s timeout each) inside ONE job — a slow host or several slow
+    // responses could exceed PHP's max_execution_time and get silently
+    // killed mid-loop (a hard timeout kill isn't a catchable exception,
+    // so run_one()'s try/catch never sees it, nothing gets logged as
+    // failed, and the job's row is just left orphaned in 'running').
+    // Confirmed live: only 3 of ~13 sources got fresh data from one
+    // "Check now" click, the rest silently stayed "not checked yet"
+    // with no error anywhere. Fanned out to one job per source instead
+    // of one job for all of them — each source now gets its own
+    // atomic claim, its own retry/backoff on failure, and a stuck or
+    // slow source can no longer block or corrupt the others' state.
+    // This doesn't eliminate worst-case wall-clock time for a single
+    // "run everything due right now" request, but it means whatever
+    // doesn't finish in one pass is genuinely retried on the next
+    // cron tick / button click, not silently stuck forever.
+    const JOB_HOOK_ONE = 'ous_github_update_check_one';
 
     /** @var array<string, array<string, mixed>> */
     private static $sources = [];
@@ -70,8 +88,27 @@ class OUS_GithubUpdates {
 
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run_check']);
+            OUS_Jobs::register(self::JOB_HOOK_ONE, [self::class, 'run_check_one']);
             add_action('init', [self::class, 'maybe_schedule_first_run']);
         }
+    }
+
+    /**
+     * Queues one independent job per registered source, instead of one
+     * job that loops all of them — see this class's own JOB_HOOK_ONE
+     * comment above for why. Used by both the recurring daily check
+     * and the "Check now" button.
+     */
+    private static function enqueue_all_checks(): void {
+        foreach (array_keys(self::$sources) as $key) {
+            OUS_Jobs::enqueue(self::JOB_HOOK_ONE, ['key' => $key], 0);
+        }
+    }
+
+    /** @param array<string, mixed> $args */
+    public static function run_check_one($args = []): void {
+        $key = (string) ($args['key'] ?? '');
+        if ($key !== '') self::check_one($key);
     }
 
     public static function maybe_schedule_first_run(): void {
@@ -90,7 +127,7 @@ class OUS_GithubUpdates {
         // recurring job forever" reasoning as every other self-
         // rescheduling OUS_Jobs consumer in this ecosystem.
         OUS_Jobs::enqueue(self::JOB_HOOK, [], self::interval());
-        self::check_all();
+        self::enqueue_all_checks();
     }
 
     /**
@@ -288,9 +325,25 @@ class OUS_GithubUpdates {
         if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
         check_admin_referer('ous_github_check_now');
 
+        $redirect_args = ['page' => 'ous-debug'];
+
         if (class_exists('OUS_Jobs')) {
-            OUS_Jobs::enqueue(self::JOB_HOOK, [], 0);
-            $message = 'Queued a GitHub check — use Job Queue\'s "Run due jobs now" below to process it immediately, or wait a moment for it to run in the background.';
+            self::enqueue_all_checks();
+            $message = 'Queued a GitHub check — running it now.';
+            // Real UX bug, direct field report: this used to just tell
+            // the user, in prose, to go click a SEPARATE "Run due jobs
+            // now" button elsewhere on the page — on a host where
+            // WP-Cron doesn't fire reliably (a real risk on some
+            // managed hosts), "Check now" visibly did nothing and the
+            // table stayed "not checked yet" forever unless the user
+            // noticed and clicked that other button by hand. Fixed by
+            // auto-submitting that EXACT existing button (a real,
+            // separate request — see render_debug_section()'s own
+            // script below) rather than re-combining the two calls
+            // into one request, which is exactly the site-breaking
+            // synchronous-timeout bug this async design was already
+            // built to fix (see this file's own version history).
+            $redirect_args['ous_run_jobs'] = '1';
         } else {
             // OUS_Jobs isn't active for some reason — fall back to the
             // old inline behavior rather than silently doing nothing;
@@ -301,7 +354,7 @@ class OUS_GithubUpdates {
         }
 
         if (class_exists('OUS_Toast')) OUS_Toast::queue($message, 'success');
-        wp_safe_redirect(add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg($redirect_args, admin_url('admin.php')));
         exit;
     }
 
@@ -476,6 +529,39 @@ class OUS_GithubUpdates {
         wp_nonce_field('ous_github_check_now');
         echo '<button class="button">Check now</button>';
         echo '</form>';
+
+        // Real UX fix, direct field report: "Check now" only ever
+        // QUEUES its job (async, to avoid the site-breaking synchronous
+        // timeout this file's own version history already fixed once)
+        // — this auto-submits the Job Queue section's own existing
+        // "Run due jobs now" button as a real, separate follow-up
+        // request the instant this page loads after a Check-now
+        // redirect, so it feels like one click instead of requiring the
+        // user to notice and manually click a second, differently-
+        // located button. Targets that button by its own stable hidden-
+        // input signature (OUS_Debug::button('bh-jobs', 'run_now', ...))
+        // rather than anything fragile like text content or DOM order.
+        // history.replaceState strips the query flag immediately so a
+        // page refresh doesn't loop.
+        if (isset($_GET['ous_run_jobs'])) {
+            ?>
+<script>
+(function () {
+    var forms = document.querySelectorAll('form');
+    for (var i = 0; i < forms.length; i++) {
+        var plugin = forms[i].querySelector('input[name="ous_plugin"][value="bh-jobs"]');
+        var action = forms[i].querySelector('input[name="ous_debug_action"][value="run_now"]');
+        if (plugin && action) { forms[i].submit(); break; }
+    }
+    if (window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('ous_run_jobs');
+        window.history.replaceState({}, '', url);
+    }
+})();
+</script>
+            <?php
+        }
 
         $status = get_option('ous_github_update_status', []);
 

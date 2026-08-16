@@ -118,6 +118,16 @@ add_action('wp_head', 'oust_pingback_header');
  */
 function oust_set_seo_data() {
     if (!class_exists('BH_SEO') || !is_singular(['page', 'post'])) return;
+    // Real gap caught right after the initial fix shipped: a page
+    // whose content is a plugin shortcode (e.g. [bh_contest_player])
+    // can have BOTH this generic fallback AND that plugin's own,
+    // more-specific template_redirect hook fire for the same request.
+    // Without this check, whichever hook happens to register last
+    // would silently overwrite the other's data — worked correctly by
+    // registration-order luck when first tested, not by design. This
+    // is only ever a FALLBACK — bail immediately if anything more
+    // specific already claimed the page.
+    if (BH_SEO::has_page_data()) return;
     $post_id = get_queried_object_id();
     if (!$post_id) return;
     // Real bug caught live: wp_strip_all_tags() strips HTML but not
@@ -137,7 +147,11 @@ function oust_set_seo_data() {
         'type' => is_singular('post') ? 'article' : 'website',
     ]);
 }
-add_action('template_redirect', 'oust_set_seo_data');
+// Priority 20 (not the default 10): belt-and-suspenders alongside the
+// has_page_data() check above — makes the "fallback runs after
+// anything more specific" intent explicit in the hook registration
+// itself, not just enforced by the runtime check.
+add_action('template_redirect', 'oust_set_seo_data', 20);
 
 /**
  * Front-end half of the depth-aware cross-document navigation built

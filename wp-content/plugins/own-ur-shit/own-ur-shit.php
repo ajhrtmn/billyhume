@@ -2,10 +2,54 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.36
+ * Version:     3.10.38
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.38 — Real gap, direct field report: self-hosted-self-admin-skin
+// was never registered in OUS_Registry at all, despite being ours to
+// author/bundle exactly like every peer plugin already listed there —
+// invisible on the ecosystem dashboard's "Install & Activate
+// Everything" list and its own plugin card, and (since GitHub Updates'
+// load_sources() auto-derives its own source list from any entry here
+// with a 'bundled_zip') never checked for updates either. Added the
+// registry entry (no 'check_class' — this plugin is deliberately
+// plain procedural PHP, matching the existing Advanced Media Offloader
+// precedent for "no check_class needed") and generated its own bundled
+// zip (previously didn't exist). Verified live: now shows Active on
+// the ecosystem dashboard and appears in the GitHub Updates table.
+
+// 3.10.37 — Real bug, direct field report: "Check now button not
+// working on dev." Root cause, found by actually reproducing it live
+// rather than guessing: check_all() ran up to ~13 sequential
+// wp_remote_get() calls (10s timeout each) inside ONE queued job — on
+// a real deployed host (as opposed to this local dev environment) a
+// few slow responses can exceed PHP's max_execution_time and get the
+// whole job silently killed mid-loop. A hard execution-time kill isn't
+// a catchable PHP exception, so run_one()'s own try/catch never sees
+// it, nothing gets logged as failed anywhere, and the job's row is
+// just left orphaned — exactly matching the reported symptom (every
+// row stuck on "not checked yet" with zero visible error). Fixed two
+// separate things:
+//   1. Fanned out to one independent queued job per source instead of
+//      one job looping all of them, so a slow/stuck source can't block
+//      or corrupt the others' state, and whatever doesn't finish in
+//      one pass genuinely gets retried on the next cron tick or button
+//      click instead of being silently stuck forever.
+//   2. A real UX gap on top of the reliability bug: "Check now" only
+//      ever QUEUED its job and told the user, in prose, to go click a
+//      SEPARATE "Run due jobs now" button elsewhere on the page. Now
+//      auto-submits that exact existing button as a real second
+//      request the instant the page reloads, so it feels like one
+//      click — without recombining the two calls into one request,
+//      which is exactly the site-breaking synchronous-timeout bug this
+//      async design was already built to fix once before (see this
+//      file's own earlier changelog: "Check now ran synchronously,
+//      timed out the whole site").
+// Verified live: before this fix, one "Check now" click left 10 of 13
+// sources stuck on "not checked yet" with zero errors logged; after,
+// all 13 completed in a single pass.
 
 // 3.10.36 — A SIXTH hardcoded-styling instance, found by the admin
 // skin's continuing contrast sweep: OUS_Revisions' own version-history
@@ -1691,7 +1735,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.36');
+define('OUS_VER', '3.10.38');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

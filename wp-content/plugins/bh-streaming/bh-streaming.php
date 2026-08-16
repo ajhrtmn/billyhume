@@ -2,11 +2,20 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.28
+ * Version:     0.5.29
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.29 — Same SEO-timing bug found and fixed on bh-courses this
+// session, same fix here: BHS_Player's maybe_set_seo_data() only ever
+// ran during the_content() (the [bh_streaming] shortcode's own
+// render), always after wp_head — where BH_SEO actually echoes its
+// tags — has already fired. Added a template_redirect hook that looks
+// up the shortcode's own track/release attributes on the current page
+// early, via BH_SEO::shortcode_atts_on_current_page() (own-ur-shit),
+// and calls the same existing method — no change to its own logic.
 
 // 0.5.28 — Real, visible bug: the Metrics dashboard's D3 charts
 // (stats-charts.ts/.js) hardcoded #C1503A — the FRONT-END --bh-accent
@@ -144,7 +153,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.28');
+define('BHS_VER',  '0.5.29');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

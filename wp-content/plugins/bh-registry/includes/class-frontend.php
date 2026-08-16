@@ -25,6 +25,33 @@ class BHR_Frontend {
         // this ecosystem's "search shouldn't take people where they
         // aren't allowed to go" standard.
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
+        add_action('template_redirect', [self::class, 'maybe_set_seo_data_early']);
+    }
+
+    /**
+     * Real bug, production-readiness sweep 2026-08-16: the SEO block
+     * inside render() below only ever runs during the_content(),
+     * always after wp_head — where BH_SEO actually echoes its tags —
+     * has already fired. Same bug, same fix pattern as bh-courses/
+     * bh-contest/bh-streaming: detect the shortcode on the current page
+     * BEFORE the_content() runs (via BH_SEO's shared helper, own-ur-shit)
+     * and set the same page-level data early. This shortcode takes no
+     * attributes that change the data, so only presence matters here.
+     */
+    public static function maybe_set_seo_data_early(): void {
+        if (!class_exists('BH_SEO')) return;
+        if (BH_SEO::shortcode_atts_on_current_page('bh_registry') === null) return;
+        self::set_seo_data();
+    }
+
+    private static function set_seo_data(): void {
+        if (!class_exists('BH_SEO')) return;
+        BH_SEO::set_page_data([
+            'title' => 'Artist Registry — ' . get_bloginfo('name'),
+            'description' => 'Browse independent artists and their feeds on ' . get_bloginfo('name') . '.',
+            'url' => get_permalink() ?: home_url('/'),
+            'type' => 'website',
+        ]);
     }
 
     public static function maybe_remember_registry_page(int $post_id): void {
@@ -116,15 +143,13 @@ class BHR_Frontend {
         // client-rendered (no server-side artist list to enumerate into
         // an ItemList, unlike bh-courses' catalog), so this is page-level
         // only — a real title/description for the one directory page,
-        // not a per-artist result.
-        if (class_exists('BH_SEO')) {
-            BH_SEO::set_page_data([
-                'title' => 'Artist Registry — ' . get_bloginfo('name'),
-                'description' => 'Browse independent artists and their feeds on ' . get_bloginfo('name') . '.',
-                'url' => get_permalink() ?: home_url('/'),
-                'type' => 'website',
-            ]);
-        }
+        // not a per-artist result. Left in place alongside the early
+        // template_redirect hook above — harmless if it runs twice
+        // (set_page_data() is idempotent), and still useful for the
+        // rare case render() is reached without the early hook having
+        // matched (e.g. embedded via do_shortcode() outside the queried
+        // post's own content).
+        self::set_seo_data();
 
         return '
         <div class="bhr-app" id="bhr-app">

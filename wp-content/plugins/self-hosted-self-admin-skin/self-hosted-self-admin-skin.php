@@ -2,10 +2,29 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.28.0
+ * Version:     0.29.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.29.0 — Real bug, direct field report (mobile screenshots): the
+// admin sidebar's nav icons rendered ON TOP of their own text labels
+// on a real narrow/mobile viewport ("The Self-H[icon]ted Self",
+// "Design Sui[icon]e", etc.), instead of to the left of them. Root
+// cause: WP core's own .auto-fold rule (admin-menu.css) sets
+// div.wp-menu-image to position:absolute with a fixed left offset
+// sized for core's OWN default icon-only collapsed column — meant to
+// pair with core's own .wp-menu-name{position:absolute;left:-999px}
+// that hides the text label entirely in that state. This skin's
+// mobile menu keeps the label visible (better UX than core's icon-
+// only collapse) but never reset the ICON out of that absolute
+// positioning to match, so it landed directly on top of the now-
+// visible text instead of beside it. Confirmed via computed style
+// before fixing (position:absolute, left:78px, sitting on the label)
+// and reproduced/re-verified live using the real mobile menu toggle,
+// not a guessed viewport state. Fixed by restoring the icon to normal
+// flex flow in that same responsive state; verified no desktop
+// regression afterward.
 
 // 0.28.0 — Continuing the systematic sweep onto own-ur-shit's own
 // Debug Tools screen (API Docs, Event Tracking sections). Two real
@@ -1372,7 +1391,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.28.0');
+define('SHSAS_VER', '0.29.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

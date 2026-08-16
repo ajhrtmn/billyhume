@@ -1,3 +1,139 @@
+# Field Reports (2026-08-16, mobile screenshots against dev-ous.wasmer.app)
+
+Direct field data: a batch of real phone screenshots taken against the
+**deployed** `dev-ous.wasmer.app` instance — a genuinely different
+environment from `localhost:10008` (Local by Flywheel), which is where
+this entire session's own live verification has happened. That
+distinction turned out to matter a lot — see the first item below.
+
+## Environment gap — likely explains several "why does this look
+## broken/stale" reports at once
+
+The front-end screenshots show pink branding and the literal text "OWN
+UR SHIT" — this session's rebrand to "The Self-Hosted Self" plus the
+full warm-noir palette overhaul landed in the theme back on 2026-08-15
+(commit `f081fcd` and after; local theme is now at 1.3.2). CLAUDE.md
+already documents the likely cause: **Wasmer's auto-deploy pulls
+`wp-content/plugins/` from GitHub on every push but never
+`wp-content/themes/`** — no `wasmer.toml` in this repo controls that
+scope, so it's a host-dashboard setting outside this codebase's direct
+control. The existing, intended workaround is exactly the GitHub
+Updates "Check now"/"Update now" mechanism (`OUS_GithubUpdates`) — the
+live site is meant to self-update the theme by pulling from GitHub
+directly, bypassing Wasmer's broken deploy scope. That mechanism was
+also reported broken this same round (see below) — fixed and verified
+locally, but **not yet confirmed against the actual dev-ous.wasmer.app
+site**, since this session has no direct access to it. Recommend: once
+this branch is pushed, log into dev-ous.wasmer.app directly and click
+"Check now" → "Update now" for the theme there, and report back
+whether it actually pulls the current palette/rebrand — that's the
+real test of whether this diagnosis is correct.
+
+## Fixed this round, verified live (all on localhost, all committed)
+
+1. **Sidebar nav icons overlapping their own text labels on mobile**
+   ("The Self-H[icon]ted Self", "Design Sui[icon]e", etc.) — root
+   cause: WP core's own `.auto-fold` responsive CSS sets
+   `div.wp-menu-image` to `position:absolute` with a fixed left offset
+   sized for core's own icon-only collapsed column (meant to pair with
+   core's own `.wp-menu-name{left:-999px}` that hides the label
+   entirely in that state). This skin keeps the label visible instead
+   (better UX) but never reset the icon to match, so it rendered on
+   top of the now-visible text. Fixed, reproduced/re-verified live with
+   the real mobile menu toggle both before and after.
+2. **Admin Skin plugin missing from the ecosystem dashboard, the
+   "Install & Activate Everything" bundle, and GitHub Updates** — it
+   was simply never registered in `OUS_Registry` at all, despite being
+   ours to author/bundle like every peer plugin. Added the registry
+   entry and generated its own bundled zip (didn't exist before).
+   Confirmed live: shows Active on the dashboard, appears in GitHub
+   Updates.
+3. **GitHub Updates "Check now" — real bug, not just UX.** Root cause:
+   `check_all()` ran up to ~13 sequential `wp_remote_get()` calls (10s
+   timeout each) inside ONE queued job. A few slow responses can
+   exceed PHP's `max_execution_time` and get the whole job silently
+   killed mid-loop — a hard timeout kill isn't a catchable exception,
+   so nothing gets logged as failed anywhere, matching the reported
+   symptom exactly (every row stuck "not checked yet," zero visible
+   error). Fanned out to one independent job per source (each with its
+   own atomic claim/retry) instead of one job looping all of them.
+   Also fixed the UX gap on top: "Check now" only ever queued a job
+   and told the user, in prose, to go click a SEPARATE "Run due jobs
+   now" button elsewhere — now auto-submits that exact button as a
+   real second request the instant the page reloads, without
+   recombining the two calls into one request (which is the exact
+   site-breaking synchronous-timeout bug this async design already
+   fixed once before). Verified live: before, one click left 10 of 13
+   sources stuck; after, all 13 completed in one pass.
+
+## Still open — real, needs a dedicated pass (not yet touched)
+
+Screenshots showed several more real issues on dev-ous.wasmer.app that
+weren't reproduced/fixed this round (some may be downstream of the
+stale-theme gap above, some are independent):
+
+- **WooCommerce Settings (Payments, Shipping tabs) and WooCommerce
+  Home dashboard render completely unstyled** — stark default white/
+  light WC admin, no dark-theme tokens at all. Given this session's
+  admin-skin CSS already covers plenty of WooCommerce surfaces
+  (Orders, Products, single-order screens per the master plan's
+  history), this specific gap (Settings tabs, the WC Home "Things to
+  do next"/Inbox/Stats widgets) needs its own live sweep — genuinely
+  unaudited territory, not a regression.
+- **bh-courses Sessions admin — the calendar grid renders blank**
+  (header row S M T W T F S with no date cells under it). Real
+  rendering bug, not yet investigated.
+- **Media & CDN Setup wizard — provider cards appear dimmed/disabled**
+  in the screenshot. Needs a live check to confirm whether this is
+  real (a stuck loading/disabled state) or a screenshot-timing
+  artifact — this session's own history has hit the latter before
+  (the Browser pane's screenshot-desync bug), so verify via computed
+  style before assuming it's real.
+- **Course-completion screen's "Get share image" renders a broken-image
+  icon** instead of the actual share card. Real bug in share-card
+  generation or its display path — not yet investigated.
+- **Front-end WP admin bar (for logged-in users) needs the same dark
+  theming pass** the wp-admin skin already gets — currently unstyled/
+  default, a real, named gap ("The admin bar on the front end needs
+  style consideration too").
+- **A layout bug on scroll**: the Debug Tools page's own sticky
+  section-jump header stays fixed while the WP admin bar scrolls away,
+  leaving a visible gap where the admin bar used to be. Needs a real
+  sticky-positioning fix (likely a `top` offset that assumes the admin
+  bar is always present, not accounting for it scrolling out of a
+  mobile viewport).
+- **Ecosystem dashboard's plugin-card list — direct UX feedback**: "This
+  doesn't feel like great UX either." Two concrete asks bundled with
+  this: (1) let each plugin card check/update its own GitHub status
+  directly (not just centrally on the Debug Tools page), and (2) make
+  sure any NEW plugin built from here forward gets a dashboard card as
+  one of the first build steps — a process convention to add wherever
+  this ecosystem's own build checklist lives (CLAUDE.md or this plan),
+  not just a one-time fix.
+- **Haze/blur system — real feature request, not a bug**: "I like the
+  blur/haze, but I'd almost prefer it to be automatic and dynamic
+  depending on what is close to the focal parts of the UI, so if it's
+  closer to off screen it's blurrier, but it automatically comes into
+  focus as it comes into real view." Currently the haze system
+  (sidebar/card-groups/modals, admin-skin.css) is hover-triggered only.
+  This asks for a genuinely different mechanism: continuous,
+  scroll/viewport-proximity-driven blur (something near the viewport
+  edge is blurrier; it sharpens as it approaches the visual center) —
+  likely an `IntersectionObserver` or scroll-position calculation
+  driving a CSS custom property per element, not a small tweak. Real,
+  bounded, standalone piece of design-system work — worth scoping
+  properly rather than bolting on ad hoc.
+
+## Standing permission, noted for future work
+
+"I don't mind using unsplash and other 3rd party visual assets so long
+as they are open source/Creative Commons/public domain, or otherwise
+free to use for this purpose." — applies to any future placeholder
+art, hero imagery, or empty-state illustrations; no need to ask each
+time within those license bounds.
+
+---
+
 # Production-Readiness Plan (2026-08-16)
 
 Direct request: "research and analyze... to determine what else we can

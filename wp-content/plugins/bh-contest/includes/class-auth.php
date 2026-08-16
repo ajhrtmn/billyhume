@@ -12,6 +12,69 @@ if (!defined('ABSPATH')) exit;
 class BH_Auth {
     public static function init(): void {
         add_shortcode('bh_contest_player', [self::class, 'render']);
+        add_action('template_redirect', [self::class, 'maybe_set_seo_data_early']);
+    }
+
+    /**
+     * Real bug, production-readiness sweep 2026-08-16: set_page_data()
+     * below (inside render()) only ever runs during the_content(),
+     * which is always after wp_head — where BH_SEO actually echoes its
+     * tags — has already fired. Confirmed the exact same bug on
+     * bh-courses first (a real course page had zero meta/OG tags
+     * despite the code "setting" them every render) and fixed it with
+     * this same template_redirect-early-lookup pattern there. Uses
+     * BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) instead of
+     * re-parsing the shortcode regex here, since bh-streaming/
+     * bh-registry need the identical lookup.
+     */
+    public static function maybe_set_seo_data_early(): void {
+        if (!class_exists('BH_SEO')) return;
+        $atts = BH_SEO::shortcode_atts_on_current_page('bh_contest_player');
+        if ($atts === null) return;
+        self::set_seo_data($atts);
+    }
+
+    /**
+     * Extracted from render() below so the exact same resolve-and-set
+     * logic can also run early, from maybe_set_seo_data_early() above,
+     * before the_content() would otherwise run it too late. Private —
+     * this plugin's own render() and early hook are the only callers;
+     * no cross-class use, so no reason to widen the surface.
+     * @param mixed $atts
+     */
+    private static function set_seo_data($atts): void {
+        if (!class_exists('BH_SEO')) return;
+        $atts = shortcode_atts(['contest' => ''], $atts, 'bh_contest_player');
+        $raw  = trim((string) $atts['contest']);
+        $cid  = $raw !== '' ? BH_Helpers::resolve_contest($raw) : 0;
+        if (!$cid) return;
+
+        $start = get_post_meta($cid, '_bh_start', true);
+        $end   = get_post_meta($cid, '_bh_end', true);
+        $desc  = wp_strip_all_tags(get_post_field('post_content', $cid)) ?: (get_the_title($cid) . ' — vote now on ' . get_bloginfo('name'));
+
+        BH_SEO::set_page_data([
+            'title' => get_the_title($cid) . ' — ' . get_bloginfo('name'),
+            'description' => $desc,
+            'url' => get_permalink($cid),
+            'type' => 'website',
+            'schema' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'Event',
+                'name' => get_the_title($cid),
+                'description' => $desc,
+                'url' => get_permalink($cid),
+                'eventAttendanceMode' => 'https://schema.org/OnlineEventAttendanceMode',
+                'eventStatus' => 'https://schema.org/EventScheduled',
+                'startDate' => $start ? mysql2date('c', $start) : null,
+                'endDate' => $end ? mysql2date('c', $end) : null,
+                'organizer' => [
+                    '@type' => 'Organization',
+                    'name' => get_bloginfo('name'),
+                    'url' => home_url(),
+                ],
+            ],
+        ]);
     }
 
     /** @param mixed $atts */
@@ -47,38 +110,16 @@ class BH_Auth {
             return OUS_Visibility::render_login_notice(__('Log in to view this contest.', 'bh-contest'));
         }
 
-        if ($cid && class_exists('BH_SEO')) {
-            $start = get_post_meta($cid, '_bh_start', true);
-            $end   = get_post_meta($cid, '_bh_end', true);
-            $desc  = wp_strip_all_tags(get_post_field('post_content', $cid)) ?: (get_the_title($cid) . ' — vote now on ' . get_bloginfo('name'));
-
-            BH_SEO::set_page_data([
-                'title' => get_the_title($cid) . ' — ' . get_bloginfo('name'),
-                'description' => $desc,
-                'url' => get_permalink($cid),
-                'type' => 'website',
-                'schema' => [
-                    '@context' => 'https://schema.org',
-                    '@type' => 'Event',
-                    'name' => get_the_title($cid),
-                    'description' => $desc,
-                    'url' => get_permalink($cid),
-                    // Music-contest voting is inherently online — no
-                    // physical venue exists to report, so 'location'
-                    // is deliberately omitted rather than filled with
-                    // a placeholder that would misrepresent the event.
-                    'eventAttendanceMode' => 'https://schema.org/OnlineEventAttendanceMode',
-                    'eventStatus' => 'https://schema.org/EventScheduled',
-                    'startDate' => $start ? mysql2date('c', $start) : null,
-                    'endDate' => $end ? mysql2date('c', $end) : null,
-                    'organizer' => [
-                        '@type' => 'Organization',
-                        'name' => get_bloginfo('name'),
-                        'url' => home_url(),
-                    ],
-                ],
-            ]);
-        }
+        // Real duplicate work, left in deliberately (not a bug): the
+        // template_redirect hook above already set this earlier in the
+        // SAME request whenever it could — this second call only ever
+        // does anything additional when render() is reached a way the
+        // early hook couldn't predict (e.g. embedded via a block/
+        // do_shortcode() call outside the queried post's own content).
+        // set_page_data() is idempotent (last-write-wins on the same
+        // request), so calling it twice with identical data is
+        // harmless, not a correctness risk.
+        self::set_seo_data($atts);
 
         static $i = 0; $i++;
         $attrs = 'class="bh-player-root" id="bh-player-root-' . $i . '" data-contest="' . esc_attr($cid ?: '') . '"';

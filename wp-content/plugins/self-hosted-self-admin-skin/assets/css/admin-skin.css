@@ -1157,6 +1157,24 @@ body.wp-admin *:focus-visible {
     min-height: var(--shsas-row-h) !important;
     height: auto !important;
 }
+/* Real bug, direct field report with mobile screenshots: WP core's own
+   .auto-fold rule (admin-menu.css) sets div.wp-menu-image to
+   position:absolute with a fixed left offset sized for its OWN
+   default icon-only collapsed column — meant to be paired with core's
+   matching .wp-menu-name{position:absolute;left:-999px} that hides the
+   text label entirely in that state. This skin's own mobile menu
+   keeps the text label visible (a deliberate, better UX than core's
+   icon-only collapse), but never reset the ICON back out of that
+   absolute positioning to match — so on a real narrow/mobile viewport
+   the icon rendered on top of the now-visible label instead of beside
+   it, confirmed live via computed style (position:absolute, left:78px,
+   sitting directly over the text). Restoring the icon to the same
+   normal flex-flow position the desktop rule above already gives it
+   fixes this without touching core's own icon-only collapse behavior
+   anywhere it's actually still wanted (a plain, unmodified WP install). */
+.auto-fold #adminmenu div.wp-menu-image {
+    position: static !important;
+}
 
 /* ---------------- cards / postboxes / meta boxes ---------------- */
 

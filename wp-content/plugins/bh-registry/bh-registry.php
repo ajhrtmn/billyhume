@@ -2,12 +2,22 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.12
+ * Version:     0.1.13
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.13 — Same SEO-timing bug found and fixed on bh-courses this
+// session, same fix here: BHR_Frontend::render()'s SEO block only ever
+// ran during the_content() (the [bh_registry] shortcode's own
+// render), always after wp_head — where BH_SEO actually echoes its
+// tags — has already fired. Extracted into its own set_seo_data()
+// method and added a template_redirect hook that detects the
+// shortcode on the current page early, via
+// BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) — confirmed
+// live, the Artist Registry page now renders real meta/OG tags.
 
 // 0.1.12 — Real bug fix surfaced by own-ur-shit's own final PHPStan
 // level 6 brick (typing OUS_Debug::button() with a real `: void`
@@ -51,7 +61,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.12');
+define('BHR_VER',  '0.1.13');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

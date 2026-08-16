@@ -86,6 +86,26 @@ if (!defined('ABSPATH')) exit;
  */
 class OUS_Registry {
     private const DEFAULTS = [
+        // Real gap, direct field report: this plugin was never
+        // registered here at all, despite being ours to author/bundle
+        // exactly like every peer plugin above — invisible on the
+        // ecosystem dashboard's "Install & Activate Everything" list
+        // and its own plugin card, and (since GitHub Updates'
+        // load_sources() auto-derives its own source list from any
+        // entry here with a 'bundled_zip') never checked for updates
+        // either. No 'check_class' — this plugin is deliberately plain
+        // procedural PHP (no classes at all, see its own main file),
+        // matching the precedent the Advanced Media Offloader entry
+        // below already sets for "no check_class needed, WP's own
+        // active-plugin detection via 'file' is enough."
+        'self-hosted-self-admin-skin' => [
+            'label' => 'Admin Skin',
+            'file' => 'self-hosted-self-admin-skin/self-hosted-self-admin-skin.php',
+            'depends_on' => [],
+            'description' => 'The wp-admin visual/UX reskin every screen in this ecosystem\'s own admin is themed by — dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a Cmd/Ctrl+K command palette. Standalone and portable; works with any theme.',
+            'dashboard_link' => 'admin.php?page=ous-debug',
+            'bundled_zip' => 'self-hosted-self-admin-skin.zip',
+        ],
         'bh-crm' => [
             'label' => 'BH CRM',
             'file' => 'bh-crm/bh-crm.php',

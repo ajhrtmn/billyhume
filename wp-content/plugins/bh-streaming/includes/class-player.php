@@ -16,6 +16,23 @@ class BHS_Player {
         // existing public card — it doesn't bypass whatever lock/gate
         // BHM_Gate already enforces for actual playback.
         add_filter('ous_search_providers', [self::class, 'register_search_provider']);
+        add_action('template_redirect', [self::class, 'maybe_set_seo_data_early']);
+    }
+
+    /**
+     * Real bug, production-readiness sweep 2026-08-16: maybe_set_seo_data()
+     * below (called from render()) only ever runs during the_content(),
+     * always after wp_head — where BH_SEO actually echoes its tags —
+     * has already fired. Same bug, same fix pattern as bh-courses and
+     * bh-contest: look up the shortcode's own attributes on the current
+     * page BEFORE the_content() runs, via BH_SEO's shared helper
+     * (own-ur-shit), and call the exact same method early.
+     */
+    public static function maybe_set_seo_data_early(): void {
+        if (!class_exists('BH_SEO')) return;
+        $atts = BH_SEO::shortcode_atts_on_current_page('bh_streaming');
+        if ($atts === null) return;
+        self::maybe_set_seo_data($atts);
     }
 
     /**

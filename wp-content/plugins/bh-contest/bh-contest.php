@@ -2,11 +2,22 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.29
+ * Version:     3.7.30
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.30 — Same SEO-timing bug found and fixed on bh-courses this
+// session, same fix here: BH_Auth::render()'s SEO block only ever ran
+// during the_content() (the [bh_contest_player] shortcode's own
+// render), always after wp_head — where BH_SEO actually echoes its
+// tags — has already fired. Extracted the SEO-setting logic into its
+// own set_seo_data($atts) method and added a template_redirect hook
+// that looks up the shortcode's own attributes on the current page
+// early, via BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) —
+// confirmed live, a real contest-embedding page now renders a real
+// Event schema.org JSON-LD and meta description instead of nothing.
 
 // 3.7.29 — Not a behavior change: live-verified the Reveal Party's
 // already-shipped anime.js v4 integration (reveal.js) against the
@@ -330,7 +341,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.29');
+define('BH_VER',        '3.7.30');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible
