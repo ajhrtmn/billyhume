@@ -739,6 +739,22 @@ video.bhc-step-video {
 .bhc-btn:hover { background: var(--bh-accent-hover, var(--bh-accent-soft)); }
 .bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
 .bhc-btn-secondary { background: transparent; border: 1px solid var(--bh-border); color: var(--bh-text); }
+/* Real gap closed: BHC_Gate::render_paywall_notice() previously either
+   delegated entirely to bh-monetization-woo's .bhm-paywall (tier-gated
+   courses) or fell back to a bare, genuinely UNSTYLED sentence
+   (.bhc-paywall was referenced but never had CSS at all — harmless
+   while it was only ever a rare "BH Monetization not installed" edge
+   case, not acceptable now that a purchase-only course hits this path
+   as its NORMAL paywall). Matches .bhm-paywall's own card treatment
+   exactly (background/border/radius/padding) for visual consistency
+   between the two notice types when both render stacked together. */
+.bhc-paywall {
+    background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border);
+    border-radius: 8px; padding: 20px; color: var(--bh-text);
+}
+.bhc-paywall + .bhc-paywall { margin-top: 12px; }
+.bhc-paywall-title { margin-top: 0; }
+.bhc-btn-buy-once { margin-top: 12px; }
 .bhc-btn-secondary:hover { background: var(--bh-border); }
 
 .bhc-quiz-question { border: none; margin-bottom: 16px; }

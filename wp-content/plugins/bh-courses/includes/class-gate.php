@@ -242,9 +242,66 @@ class BHC_Gate {
         return 'This lesson isn\'t available yet.';
     }
 
+    // Real gap closed: the catalog's "Buy once — $X" badge (class-
+    // render-catalog.php) was pure discovery — nothing on the course's
+    // OWN detail page, the actual decision point, ever offered a real
+    // checkout button. Worse than just missing: BHM_Gate::render_
+    // paywall_notice(0) (no tier set) falls all the way through to a
+    // bare "This content requires supporter access" line with no CTA
+    // at all — exactly the state a purchase-only course (the main case
+    // this feature exists for) was left in. This method now builds a
+    // real notice for that case directly rather than delegating to a
+    // tier-shaped notice that has nothing to say about a purchase.
     public static function render_paywall_notice(int $course_id): string {
+        $tier_notice = '';
         if (class_exists('BHM_Gate')) {
-            return BHM_Gate::render_paywall_notice(self::required_tier($course_id));
+            $required_tier = self::required_tier($course_id);
+            // A benefit-gated course (required_benefit() set) has no
+            // single tier ID to hand BHM_Gate::render_paywall_notice()
+            // — that function's whole shape is tier-specific ("for
+            // <tier name> supporters"), and there's no equivalent
+            // benefit-shaped notice built. Skipped rather than passing
+            // it a tier ID that would render a misleading tier name.
+            if ($required_tier) {
+                $tier_notice = BHM_Gate::render_paywall_notice($required_tier);
+            }
+        }
+
+        $buy_notice = '';
+        if (self::has_purchase_option($course_id) && class_exists('BH_Commerce') && BH_Commerce::available()) {
+            $product_id = (int) get_post_meta($course_id, '_bhm_purchase_wc_product_id', true);
+            if ($product_id) {
+                // wc_price(), not BHM_Money::price() — real bug caught by
+                // checking the live rendered page rather than trusting
+                // the code on paper: BHM_Money::price() deliberately
+                // returns a bare decimal string with no currency symbol
+                // (it exists to fill a form INPUT's value="", e.g. the
+                // admin price field, where a "$" would be wrong inside
+                // an already-labeled "USD" field). Using it here, in
+                // user-facing prose, rendered "Buy once — 29.00" with no
+                // dollar sign at all. wc_price() is WooCommerce's real
+                // currency formatter (real symbol, correct locale/
+                // currency formatting) and is safe to echo unescaped —
+                // the universal WooCommerce convention, not a special
+                // case here.
+                $price_display = function_exists('wc_price') ? wc_price(self::purchase_price_cents($course_id) / 100) : '$' . number_format(self::purchase_price_cents($course_id) / 100, 2);
+                $buy_url = function_exists('wc_get_cart_url') ? wc_get_cart_url() . '?add-to-cart=' . $product_id : '';
+                if ($buy_url) {
+                    $buy_notice = '<div class="bhc-paywall bhc-paywall-purchase">'
+                        . '<p class="bhc-paywall-title">Or buy this course outright for <strong>' . $price_display . '</strong> — yours to keep, no supporter tier required.</p>'
+                        . '<a class="bhc-btn bhc-btn-buy-once" href="' . esc_url($buy_url) . '">Buy once — ' . $price_display . '</a>'
+                        . '</div>';
+                }
+            }
+        }
+
+        if ($tier_notice || $buy_notice) {
+            // Both shown together (tier-gated AND purchasable) reads as
+            // two real options, not a confusing duplicate paywall — "or
+            // buy it outright" only makes sense worded as an
+            // alternative when a tier notice is ALSO present, hence the
+            // literal "Or" in $buy_notice's own copy above.
+            return $tier_notice . $buy_notice;
         }
         return '<div class="bhc-paywall"><p>This content requires supporter access.</p></div>';
     }

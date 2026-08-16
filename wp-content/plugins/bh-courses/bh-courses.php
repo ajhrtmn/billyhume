@@ -2,11 +2,45 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.83
+ * Version:     0.4.84
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.84 — The real gap flagged in 0.4.83's own changelog: a purchase-
+// only course (the main case the whole feature exists for) had no
+// actual checkout button anywhere. The catalog badge was discovery
+// only, and BHC_Gate::render_paywall_notice() delegated entirely to
+// BHM_Gate::render_paywall_notice($tier_id) — which, when no tier is
+// set at all, falls all the way through to a bare "This content
+// requires supporter access" line with zero CTA. BHC_Gate now builds
+// a real "Buy once — $X" notice with a genuine add-to-cart link
+// directly, shown alongside the tier notice when both apply ("Or buy
+// this course outright...") or alone when the course is purchase-only.
+//
+// Two real bugs caught by checking the live rendered page rather than
+// trusting the code on paper:
+//   - BHM_Money::price() was the wrong function for user-facing prose
+//     — it deliberately returns a bare decimal with no currency symbol
+//     (built for a labeled form input's value=""), so both the
+//     catalog badge and the new paywall notice rendered "$29.00" as
+//     "29.00" with no dollar sign. Fixed in both places to use
+//     wc_price(), WooCommerce's real formatter, echoed unescaped per
+//     the standard WC convention.
+//   - .bhc-paywall had no CSS at all — a pre-existing, previously
+//     harmless gap (it was only ever a rare "BH Monetization not
+//     installed" fallback) that became load-bearing the moment a
+//     purchase-only course started hitting this path as its NORMAL
+//     paywall. Now styled to match bh-monetization-woo's own
+//     .bhm-paywall card treatment exactly, so the two notice types
+//     look like one designed system when they render stacked together.
+//
+// Verified live end-to-end, not just reasoned through: real add-to-
+// cart click through the actual rendered button, confirmed the
+// correct product ("Mastering for Bedroom Producers (Course
+// Purchase)", $29.00) landed in a real WooCommerce cart, then removed
+// it again to leave no test data behind.
 
 // 0.4.83 — Per-course one-time purchase, direct request: "Billy also
 // would prefer a one time purchase for access to the courses." A
@@ -480,7 +514,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.83');
+define('BHC_VER',  '0.4.84');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

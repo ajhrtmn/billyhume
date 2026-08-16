@@ -212,7 +212,15 @@ class BHC_Render_Catalog {
         // this catalog card's job is discovery, not checkout.
         $buy_once_badge = '';
         if ($locked && class_exists('BHC_Gate') && BHC_Gate::has_purchase_option($course->ID)) {
-            $buy_once_badge = '<span class="bhc-buy-once-badge">Buy once — ' . esc_html(class_exists('BHM_Money') ? BHM_Money::price(BHC_Gate::purchase_price_cents($course->ID)) : number_format(BHC_Gate::purchase_price_cents($course->ID) / 100, 2)) . '</span>';
+            // wc_price(), not BHM_Money::price() — same real bug found
+            // and fixed in BHC_Gate::render_paywall_notice(): BHM_Money
+            // ::price() deliberately has no currency symbol (built for
+            // a labeled form input's value=""), so this badge was
+            // rendering "Buy once — 29.00" with no "$". wc_price() is
+            // WooCommerce's real formatter and is safe to echo
+            // unescaped (the standard WC convention).
+            $price_display = function_exists('wc_price') ? wc_price(BHC_Gate::purchase_price_cents($course->ID) / 100) : '$' . number_format(BHC_Gate::purchase_price_cents($course->ID) / 100, 2);
+            $buy_once_badge = '<span class="bhc-buy-once-badge">Buy once — ' . $price_display . '</span>';
         }
 
         // Title now overlays the thumbnail itself (poster-card style)
