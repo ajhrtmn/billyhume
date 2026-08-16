@@ -111,7 +111,19 @@ class BHM_Entitlements {
                 $object_id = (int) get_post_meta($product_id, '_bhm_purchase_object_id', true);
                 $object_type = get_post_meta($product_id, '_bhm_purchase_object_type', true);
                 if ($object_id) {
-                    self::grant_entitlement($user_id, 'purchase', $object_type === 'bhs_release' ? 'release' : 'track', $object_id, $order_id, null, null);
+                    // Extended for bh-courses' one-time course purchase —
+                    // previously a binary ternary that would have granted
+                    // a course entitlement with scope='track', wrong
+                    // metadata (though the actual UNLOCK check, BHM_Gate
+                    // ::user_owns_object(), only filters on object_id and
+                    // type='purchase', never scope — so this specific bug
+                    // wouldn't have broken access, just mislabeled the
+                    // entitlements table's own data. Fixed anyway: wrong
+                    // data is a real bug even when nothing currently
+                    // reads the wrong field).
+                    $scope_by_type = ['bhs_release' => 'release', 'bh_course' => 'course'];
+                    $scope = $scope_by_type[$object_type] ?? 'track';
+                    self::grant_entitlement($user_id, 'purchase', $scope, $object_id, $order_id, null, null);
                     continue;
                 }
 

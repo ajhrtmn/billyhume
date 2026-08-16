@@ -277,6 +277,16 @@
 .bhc-card-instructor img { border-radius: 50%; }
 .bhc-card-rating { color: var(--bh-accent); font-weight: 600; }
 .bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
+/* "Buy once" catalog hint — same pill shape as .bhc-badge-difficulty
+   (border + surface-2 fill), but accent-colored to read as a real,
+   actionable price rather than a passive metadata tag like difficulty/
+   lesson-count sitting right next to it. */
+.bhc-buy-once-badge {
+    background: color-mix(in srgb, var(--bh-accent, #C1503A) 14%, var(--bh-surface-2, var(--bh-surface)));
+    border: 1px solid color-mix(in srgb, var(--bh-accent, #C1503A) 40%, transparent);
+    color: var(--bh-accent, #C1503A);
+    border-radius: 999px; padding: 2px 9px; font-weight: 700; text-transform: none; letter-spacing: normal;
+}
 .bhc-continue-btn { margin-top: auto; }
 
 /* ---- catalog: filter/sort/search bar ----

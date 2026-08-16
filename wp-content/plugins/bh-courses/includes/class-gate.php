@@ -83,8 +83,48 @@ class BHC_Gate {
     // an individual track inherits its release's gating in bh-streaming
     // where relevant, and keeps authoring simple (set the tier once, on
     // the course).
+    // Standing kill-switch for the whole one-time-purchase feature —
+    // filter, not an admin-UI checkbox, matching this ecosystem's own
+    // convention for "off in one line, no deploy" (bhm_extra_
+    // entitlement_check, ous_debug_tools). Real reason this exists:
+    // the feature touches actual money/entitlement logic and shipped
+    // same-day as this docblock — `add_filter('bhc_course_purchase_
+    // enabled', '__return_false')` in a must-use plugin or theme
+    // functions.php disables it everywhere in one call: the admin UI
+    // section stops rendering, the save handler stops syncing a WC
+    // product, and this gate stops granting access via purchase
+    // ownership (falls through to tier-only, same as before this
+    // feature existed). Safe to flip off at any time before a real
+    // purchase has happened; NOT retroactive once someone has actually
+    // bought a course (see purchase_feature_enabled()'s own note).
+    public static function purchase_feature_enabled(): bool {
+        return (bool) apply_filters('bhc_course_purchase_enabled', true);
+    }
+
     public static function user_can_access_course(int $user_id, int $course_id): bool {
         if (!class_exists('BHM_Gate')) return true; // bh-monetization-woo not active: nothing gates anything
+
+        // One-time purchase check, deliberately FIRST and unconditional
+        // — real bug avoided by reading BHM_Gate::user_has_tier_access()
+        // before assuming this "just worked": that function returns
+        // true immediately when no tier is required
+        // (`if (!$required_tier) return true;`), meaning it NEVER
+        // reaches its own purchase-fallback check for a course sold
+        // purely as a one-time purchase with no tier set at all — the
+        // exact main case this feature exists for. Checking ownership
+        // here, independent of whichever gating model (or none) the
+        // tier selects below are set to, is what actually makes "buy
+        // this course outright, no tier required" work.
+        //
+        // Deliberately still checked even when purchase_feature_
+        // enabled() is false: the toggle stops NEW purchases from being
+        // configured/sold (UI + save handler below), it does not revoke
+        // access someone already legitimately paid for — an entitlement
+        // already in the database keeps working regardless of the
+        // feature flag, matching how this ecosystem never wants a
+        // config toggle to unilaterally break something already paid
+        // for.
+        if (BHM_Gate::user_owns_object($user_id, $course_id)) return true;
 
         $benefit = self::required_benefit($course_id);
         if ($benefit) {
@@ -93,6 +133,22 @@ class BHC_Gate {
 
         $tier = self::required_tier($course_id);
         return BHM_Gate::user_has_tier_access($user_id, $tier, $course_id);
+    }
+
+    // Whether this course has been configured to sell as a one-time
+    // purchase at all — the catalog/portal CTA and lesson-download
+    // eligibility both need this same yes/no without re-deriving it.
+    // Also the single choke point for the kill switch: every UI
+    // consumer of this (catalog badge, any future detail-page CTA)
+    // inherits "off" automatically the moment purchase_feature_
+    // enabled() is flipped, with zero changes needed at each call site.
+    public static function has_purchase_option(int $course_id): bool {
+        if (!self::purchase_feature_enabled()) return false;
+        return self::purchase_price_cents($course_id) > 0;
+    }
+
+    public static function purchase_price_cents(int $course_id): int {
+        return (int) get_post_meta($course_id, '_bhc_purchase_price_cents', true);
     }
 
     // Two independent checks: tier access (above) is "are you ALLOWED

@@ -2,12 +2,41 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.17
+ * Version:     0.5.18
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.18 — Backend support for bh-courses' new per-course one-time
+// purchase (bh-courses 0.4.83). Three real, targeted fixes made while
+// wiring a third caller into existing infrastructure, not new
+// mechanisms:
+//   - BHM_Gate::user_owns_object(int, int): bool — extracted from
+//     duplicated inline SQL that used to live separately inside both
+//     user_has_tier_access() and user_has_benefit(). The actual reason
+//     this needed extracting, not just DRY for its own sake:
+//     user_has_tier_access() short-circuits to true when no tier is
+//     required, meaning its own inline purchase-check was NEVER
+//     reachable for an object sold purely as a one-time purchase with
+//     no tier at all — exactly bh-courses' main use case. A real,
+//     independently-callable helper is what makes that configuration
+//     work.
+//   - BHM_ProductSync::sync_object_purchase_product()'s product-naming
+//     ternary extended from binary (bhs_release vs. everything-else-
+//     is-Track) to a real label map including bh_course — the old
+//     ternary would have named every course product "... (Track
+//     Purchase)".
+//   - BHM_Entitlements::on_order_completed()'s object_type -> scope
+//     ternary similarly extended to map bh_course -> 'course' — a real
+//     data-quality fix (the actual unlock check never filters on
+//     scope, only object_id + type='purchase', so this wasn't a live
+//     access bug, but a granted entitlement row would otherwise have
+//     been mislabeled scope='track' for a course purchase).
+// NOT runtime-verified: on_order_completed() itself, through a real
+// completed WooCommerce order — see bh-courses 0.4.83's own changelog
+// for the full verification/non-verification breakdown.
 
 // 0.5.17 — Task #8 (in-context tooltips), judicious pass: added a real
 // BHY_UI::tip() to the tier-edit screen's Monthly price field. The
@@ -260,7 +289,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.17');
+define('BHM_VER',  '0.5.18');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

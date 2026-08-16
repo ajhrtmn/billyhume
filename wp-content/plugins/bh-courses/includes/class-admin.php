@@ -378,6 +378,32 @@ class BHC_Admin {
                 echo '<option value="' . esc_attr($key) . '"' . selected($required_benefit, $key, false) . '>' . esc_html($label) . '</option>';
             }
             echo '</select></label></p>';
+
+            // One-time purchase — direct request: "Billy also would
+            // prefer a one time purchase for access to the courses."
+            // Deliberately independent of the tier selects above, not a
+            // third mutually-exclusive radio option: a course can be
+            // tier-gated, purchasable outright, both (either path
+            // unlocks it — BHC_Gate::user_can_access_course() checks
+            // purchase ownership FIRST, unconditionally, before either
+            // tier check), or neither (open). $0/blank = no purchase
+            // option offered, same "absence means off" default every
+            // other optional field on this screen already uses.
+            //
+            // Gated on BHC_Gate::purchase_feature_enabled() — a real,
+            // one-line kill switch for this whole feature
+            // (`add_filter('bhc_course_purchase_enabled', '__return_
+            // false')`) since it touches real money/entitlement logic.
+            // Hidden entirely rather than shown-but-disabled: an author
+            // seeing a price field that quietly does nothing would be a
+            // worse experience than the field not being there at all.
+            if (class_exists('BHC_Gate') && BHC_Gate::purchase_feature_enabled()) {
+                $purchase_price_cents = (int) get_post_meta($post->ID, '_bhc_purchase_price_cents', true);
+                $purchase_tip = class_exists('BHY_UI') ? BHY_UI::tip('Sells this course outright, independent of any tier above — a one-time buyer gets in even with no supporter tier at all, and a tier-gated course can ALSO offer this as an alternative for someone who just wants this one course.') : '';
+                echo '<h4>One-time purchase</h4>';
+                echo '<p><label><strong>Buy-once price (USD)</strong>' . $purchase_tip . '<br><input type="number" step="0.01" min="0" name="bhc_purchase_price" value="' . esc_attr($purchase_price_cents ? BHM_Money::price($purchase_price_cents) : '') . '" style="width:160px;" placeholder="0.00"></label></p>';
+                echo '<p class="description">Leave blank/zero to not offer this course as a one-time purchase.</p>';
+            }
         } else {
             echo '<p class="description"><em>Install &amp; activate BH Monetization to gate this course behind a supporter tier.</em></p>';
         }
@@ -410,6 +436,24 @@ class BHC_Admin {
             $key = sanitize_key($_POST['bhc_required_benefit']);
             $known_keys = array_keys(BHM_Tiers::benefit_registry());
             update_post_meta($post_id, '_bhm_required_benefit', in_array($key, $known_keys, true) ? $key : '');
+        }
+        // One-time purchase price — same "only ever written if the
+        // select rendered" safety as the tier fields above (a crafted
+        // POST on a site without BH Monetization does nothing, since
+        // BHC_Gate::user_can_access_course()'s purchase check is itself
+        // guarded on class_exists('BHM_Gate')). Sync the WooCommerce
+        // product in the same save, mirroring exactly how BHM_Tiers::
+        // save() keeps its own tier product in sync on every save —
+        // same established pattern, not a new one. Also gated on the
+        // same kill-switch the admin field itself is gated on — a
+        // crafted/stale POST while the feature is toggled off must not
+        // silently create a new WooCommerce product behind the switch.
+        if (isset($_POST['bhc_purchase_price']) && class_exists('BHM_Tiers') && class_exists('BHC_Gate') && BHC_Gate::purchase_feature_enabled()) {
+            $price_cents = BHM_Money::parse($_POST['bhc_purchase_price']);
+            update_post_meta($post_id, '_bhc_purchase_price_cents', $price_cents);
+            if ($price_cents > 0 && class_exists('BHM_ProductSync') && class_exists('BH_Commerce') && BH_Commerce::available()) {
+                BHM_ProductSync::sync_object_purchase_product($post_id, 'bh_course', $price_cents);
+            }
         }
 
         self::maybe_create_course_page($post_id);

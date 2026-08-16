@@ -200,6 +200,21 @@ class BHC_Render_Catalog {
         }
         $title_html = '<h3 class="bh-clamp-2 bhc-card-thumb-title"><a href="' . esc_url(get_permalink($course->ID)) . '" title="' . esc_attr($course_title) . '">' . esc_html($title_display) . '</a>' . ($locked ? ' <span class="bhc-lock">&#128274;</span>' : '') . '</h3>';
 
+        // "Buy once" price hint — direct request: "Billy also would
+        // prefer a one time purchase for access to the courses." A
+        // locked card previously gave a browsing fan zero information
+        // about whether/how to unlock it; this is the minimum real
+        // signal (price + that it's a one-time option, not a
+        // subscription) at the point they'd actually decide to click
+        // in. The real "Buy now" checkout button itself belongs on the
+        // course's own detail page (where BHC_Gate::user_can_access_
+        // course() is already checked for the full paywall notice) —
+        // this catalog card's job is discovery, not checkout.
+        $buy_once_badge = '';
+        if ($locked && class_exists('BHC_Gate') && BHC_Gate::has_purchase_option($course->ID)) {
+            $buy_once_badge = '<span class="bhc-buy-once-badge">Buy once — ' . esc_html(class_exists('BHM_Money') ? BHM_Money::price(BHC_Gate::purchase_price_cents($course->ID)) : number_format(BHC_Gate::purchase_price_cents($course->ID) / 100, 2)) . '</span>';
+        }
+
         // Title now overlays the thumbnail itself (poster-card style)
         // instead of sitting in plain text below it — the scrim div is
         // a bottom-anchored gradient purely for text legibility over
@@ -215,6 +230,7 @@ class BHC_Render_Catalog {
         echo '<div class="bhc-card-meta">';
         if ($difficulty_label) echo '<span class="bh-badge bhc-badge bhc-badge-difficulty bhc-difficulty-' . esc_attr(BHC_PostTypes::difficulty($course->ID)) . '">' . esc_html($difficulty_label) . '</span>';
         echo '<span class="bhc-card-lesson-count">' . (int) $lesson_count . ' lesson' . ($lesson_count === 1 ? '' : 's') . '</span>';
+        echo $buy_once_badge;
         if (class_exists('BHC_Reviews')) {
             $rating = BHC_Reviews::average_rating($course->ID);
             if ($rating['count'] > 0) {

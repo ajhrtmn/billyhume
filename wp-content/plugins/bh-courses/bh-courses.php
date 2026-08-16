@@ -2,11 +2,60 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.82
+ * Version:     0.4.83
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.83 — Per-course one-time purchase, direct request: "Billy also
+// would prefer a one time purchase for access to the courses." A
+// course can now be tier-gated, sold as a one-time purchase, both
+// (either path unlocks it), or neither (open) — set independently, no
+// forced either/or.
+//
+// New: `_bhc_purchase_price_cents` course meta + admin UI field
+// ("One-time purchase" section, class-admin.php), auto-syncing a real
+// WooCommerce simple product on save via bh-monetization-woo's
+// existing BHM_ProductSync::sync_object_purchase_product() (the same
+// generic one-time-purchase sync track/release purchases already use
+// — genuinely reused, not duplicated). BHC_Gate::user_can_access_
+// course() checks purchase ownership FIRST, unconditionally, before
+// either tier check — real bug avoided by reading BHM_Gate::user_has_
+// tier_access() before assuming this "just worked": that function
+// returns true immediately when no tier is required, meaning it never
+// reaches its own purchase-fallback check for a course sold purely as
+// a one-time purchase with no tier at all, which is the main case this
+// feature exists for. A new BHM_Gate::user_owns_object() helper (also
+// DRYing up duplicated SQL that used to be inlined twice in that
+// class) makes the check reachable independent of tier state.
+//
+// A real kill switch, not just a feature: BHC_Gate::purchase_feature_
+// enabled() (filter `bhc_course_purchase_enabled`, default true) — one
+// `add_filter(..., '__return_false')` call hides the admin field,
+// stops the save handler from syncing a new WC product, and stops the
+// catalog "Buy once" badge, without touching an entitlement anyone has
+// already legitimately paid for (the toggle controls new exposure, not
+// existing access). Verified LIVE end to end, not just reasoned
+// through: saved a real course with a $29.00 price through the actual
+// wp-admin block-editor save flow, confirmed the meta persisted across
+// a reload, confirmed a real WooCommerce product ("... (Course
+// Purchase)", virtual, correctly priced) was auto-created, and
+// confirmed the kill-switch filter correctly hides the field and
+// restores it cleanly with the saved value intact.
+//
+// A catalog "Buy once — $X" hint now shows on a locked course card
+// that has a purchase option (class-render-catalog.php) — discovery
+// signal only; the actual checkout button belongs on the course detail
+// page and is the natural next piece of this feature, not yet built.
+//
+// NOT runtime-verified: an actual completed WooCommerce order granting
+// the entitlement end-to-end (bh-monetization-woo's on_order_completed()
+// scope-mapping fix, same commit) — that side was code-reviewed against
+// the existing, already-proven track/release purchase path (same
+// function, same SQL shape, a small targeted fix extending a binary
+// ternary to a real map) but not exercised through a real checkout in
+// this session.
 
 // 0.4.82 — Card-group focus mode: hovering a course card in .bhc-
 // catalog recedes its SIBLINGS into haze (desaturated/dimmed/softly
@@ -431,7 +480,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.82');
+define('BHC_VER',  '0.4.83');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the

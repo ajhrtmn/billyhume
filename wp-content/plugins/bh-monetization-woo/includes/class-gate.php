@@ -49,6 +49,28 @@ class BHM_Gate {
         return (int) get_post_meta($post_id, '_bhm_required_tier', true);
     }
 
+    // Extracted (not new logic) from the identical inline query that
+    // used to live separately inside both user_has_tier_access() and
+    // user_has_benefit() below — a real DRY fix made while adding a
+    // THIRD caller: BHC_Gate::user_can_access_course() needs this exact
+    // check reachable on its own, independent of any tier requirement.
+    // That's the actual reason this couldn't stay inlined: both
+    // existing callers only ever reach their own inline version of this
+    // query AFTER a tier-requirement short-circuit (user_has_tier_
+    // access() returns true immediately when $required_tier is 0,
+    // NEVER reaching the purchase check) — exactly wrong for "sold as a
+    // one-time purchase with no tier requirement at all," which is a
+    // real, intended configuration for a course, not an edge case to
+    // work around.
+    public static function user_owns_object(int $user_id, int $object_id): bool {
+        if (!$user_id || !$object_id) return false;
+        global $wpdb;
+        $t = $wpdb->prefix . 'bhm_entitlements';
+        return (bool) (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type = 'purchase' AND object_id = %d", $user_id, $object_id
+        ));
+    }
+
     // True if $user_id has an active grant at $tier_id OR ANY higher
     // tier (tiers are ordered by price — see BHM_Tiers::ordered_ids()),
     // OR a standing account-wide streaming-tier entitlement, OR a
@@ -78,12 +100,7 @@ class BHM_Gate {
         // bought outright) also satisfies its own tier requirement,
         // regardless of tier rank — buying the thing directly always
         // unlocks the thing.
-        if ($object_id) {
-            $owns = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type = 'purchase' AND object_id = %d", $user_id, $object_id
-            ));
-            if ($owns) return true;
-        }
+        if ($object_id && self::user_owns_object($user_id, $object_id)) return true;
 
         // The extension point: any other plugin can grant access for
         // reasons this plugin has no way to know about in advance — a
@@ -133,14 +150,7 @@ class BHM_Gate {
         // directly, same as user_has_tier_access() above — buying the
         // thing outright doesn't care which gating model the content
         // happened to be using.
-        if ($object_id) {
-            global $wpdb;
-            $t = $wpdb->prefix . 'bhm_entitlements';
-            $owns = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type = 'purchase' AND object_id = %d", $user_id, $object_id
-            ));
-            if ($owns) return true;
-        }
+        if ($object_id && self::user_owns_object($user_id, $object_id)) return true;
 
         return (bool) apply_filters('bhm_extra_entitlement_check', false, $user_id, 0, $object_id);
     }

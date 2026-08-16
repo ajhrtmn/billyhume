@@ -130,7 +130,13 @@ class BHM_ProductSync {
         $meta_key = '_bhm_purchase_wc_product_id';
         $existing_id = (int) get_post_meta($object_id, $meta_key, true);
         $title = get_the_title($object_id);
-        $name = $title . ' (' . ($post_type === 'bhs_release' ? 'Album' : 'Track') . ' Purchase)';
+        // Extended for bh-courses' one-time course purchase (previously
+        // a binary ternary that mislabeled anything that wasn't a
+        // release as a "Track Purchase" — harmless while the only two
+        // real callers were tracks/releases, a real bug the moment a
+        // third object type showed up).
+        $labels = ['bhs_release' => 'Album', 'bh_course' => 'Course'];
+        $name = $title . ' (' . ($labels[$post_type] ?? 'Track') . ' Purchase)';
 
         if (class_exists('BH_Commerce')) {
             $product_id = BH_Commerce::upsert_product($existing_id, [
