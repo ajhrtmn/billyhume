@@ -2,10 +2,29 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.21.0
+ * Version:     0.22.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.22.0 — Modal/overlay haze, the third and last of the three
+// promised haze/focus surfaces (own words: "all three, start with
+// sidebar" — sidebar and card-groups both shipped earlier this
+// session). The command palette's backdrop already had a blur, but a
+// hardcoded rgba(10,6,4,.55) + flat 2px blur, completely disconnected
+// from the tokenized haze system the other two surfaces use — a real,
+// if subtle, inconsistency: three separately-invented approximations
+// of "the world recedes when something takes focus" instead of one
+// shared system. Now reads --shsas-haze-saturate/-brightness through
+// backdrop-filter (which supports saturate()/brightness() exactly like
+// a regular filter) plus a new --shsas-haze-backdrop-blur token (kept
+// separate from the smaller --shsas-focus-sibling-blur — a backdrop
+// covers the whole page, not one adjacent card, so it earns its own
+// tunable value). Turning the spectrum-blender knob now affects the
+// sidebar, card groups, and this backdrop together. Verified live:
+// backdrop-filter computes to blur(6px) saturate(0.45) brightness(0.8)
+// — the exact haze token values — while the palette itself stays fully
+// sharp on top.
 
 // 0.21.0 — Depth-aware cross-document navigation. Direct feedback:
 // "I love creating organic flow and transitions between relevant
@@ -1088,7 +1107,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.21.0');
+define('SHSAS_VER', '0.22.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

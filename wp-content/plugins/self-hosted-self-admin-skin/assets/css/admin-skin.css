@@ -180,6 +180,14 @@
        spectrum-blender philosophy, different axis of the same haze
        system, so each stays independently tunable. */
     --shsas-focus-sibling-blur: 1.5px;
+    /* Modal/overlay recede — the third and last of the three promised
+       haze/focus surfaces (sidebar and card-groups shipped earlier this
+       session). A backdrop needs a LARGER blur than a sibling card
+       (it's covering the whole page behind a real dialog, not one
+       adjacent card), hence its own token rather than reusing
+       --shsas-focus-sibling-blur — same "different axis of the same
+       spectrum" reasoning as that token's own comment. */
+    --shsas-haze-backdrop-blur: 6px;
     /* Same two fonts as the ecosystem-wide front-end default (own-ur-
        shit's BHY_Style --bh-font-body/--bh-font-display) — Atkinson
        Hyperlegible for body (Braille Institute, purpose-built for low-
@@ -1970,12 +1978,24 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 
 /* ---------------- command palette ---------------- */
 
+/* Modal/overlay haze — third and last of the three promised haze/focus
+   surfaces. Was a hardcoded rgba(10,6,4,.55) dim + a flat 2px blur,
+   disconnected from the tokenized haze system the sidebar and
+   card-group surfaces already use — real, if subtle, inconsistency:
+   "the world recedes when something takes focus" should be ONE system
+   with one tuning knob, not three separately-invented approximations
+   of the same idea. Now shares --shsas-haze-saturate/-brightness (via
+   backdrop-filter, which DOES support saturate()/brightness() the same
+   as a regular filter) plus its own --shsas-haze-backdrop-blur, so
+   turning the spectrum-blender knob affects the sidebar, card groups,
+   AND this backdrop together, not each independently by accident. */
 .shsas-palette-backdrop {
     position: fixed; inset: 0; z-index: 100000;
-    background: rgba(10, 6, 4, .55);
+    background: color-mix(in srgb, var(--shsas-bg, #0a0604) 55%, transparent);
     display: flex; align-items: flex-start; justify-content: center;
     padding-top: 12vh;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(var(--shsas-haze-backdrop-blur)) saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
+    -webkit-backdrop-filter: blur(var(--shsas-haze-backdrop-blur)) saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
 }
 .shsas-palette {
     width: min(560px, 92vw);
