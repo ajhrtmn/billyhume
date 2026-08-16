@@ -84,12 +84,23 @@
     // animation on a fresh innerHTML swap. Staggered entry + a bigger
     // flourish on the winner specifically. v4's API uses shorthand
     // property names (x/y, not translateX/translateY) and an 'ease'
-    // param rather than v3's 'easing' — confirmed against the real
-    // v4.5.0 source/README before use; the exact easing string name and
-    // whether 'opacity'/'scale' are literally valid property names in
-    // v4 were NOT independently doc-verified beyond reasonable inference
-    // from one confirmed README example — worth a real-browser check
-    // before relying on this.
+    // param rather than v3's 'easing'.
+    //
+    // Live-verified (not just doc-inferred) against this exact vendored
+    // file: loaded the real bundle in a real browser and ran the exact
+    // calls below in isolation. Confirmed real, working behavior for
+    // every property/param this file uses — opacity interpolates
+    // correctly frame-to-frame, y produces a real translateY() (not a
+    // silent no-op on an unrecognized key), 'outCubic'/'inOutQuad' are
+    // real eased curves rather than a fallback to linear (a mid-
+    // animation sample landed at a non-linear point, not the halfway
+    // value linear would produce), the winner's scale keyframe pulses
+    // through 1.08 and settles back to 1, and anime.stagger(90) returns
+    // a real per-index delay function (staggered elements sampled
+    // mid-animation showed the first already animating while the
+    // second/third had not started yet, exactly as a 90ms stagger
+    // should). The earlier "not independently verified" caveat is
+    // resolved — this was a real gap, not paranoia, and is now closed.
     function animateReveal(type) {
         var anime = win.anime;
         if (typeof anime === 'undefined')

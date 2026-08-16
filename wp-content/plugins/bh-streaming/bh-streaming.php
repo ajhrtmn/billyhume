@@ -2,11 +2,25 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.27
+ * Version:     0.5.28
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.28 — Real, visible bug: the Metrics dashboard's D3 charts
+// (stats-charts.ts/.js) hardcoded #C1503A — the FRONT-END --bh-accent
+// default — for every line/area/bar. Two problems, not one: hardcoded
+// at all, AND the wrong token FAMILY for where this screen lives.
+// class-stats.php's Metrics page is wp-admin, where --bh-* isn't even
+// defined (confirmed live: reads empty) — the real admin accent is
+// --bhy-accent (own-ur-shit's own token system). Verified live on this
+// install: --bhy-accent computes to #2f7dff (blue), so every chart was
+// rendering in orange against an otherwise all-blue admin skin. Fixed
+// with a bhsChartAccent() helper reading the real token at render
+// time, literal kept as fallback. Recompiled via the project's own
+// `npm run build:bh-streaming`, verified live: charts now render in
+// the real accent blue.
 
 // 0.5.27 — TypeScript pilot: converted player.js (state, per-view
 // rendering, the playback/queue engine, Media Session, likes/
@@ -130,7 +144,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.27');
+define('BHS_VER',  '0.5.28');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

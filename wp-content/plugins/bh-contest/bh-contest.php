@@ -2,11 +2,24 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.7.28
+ * Version:     3.7.29
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.7.29 — Not a behavior change: live-verified the Reveal Party's
+// already-shipped anime.js v4 integration (reveal.js) against the
+// exact vendored bundle rather than trusting the doc-inference the
+// comment there had flagged as unconfirmed. Loaded the real file in a
+// real browser and ran the exact calls this file makes in isolation:
+// opacity/y/scale all interpolate correctly frame-to-frame, 'outCubic'
+// and 'inOutQuad' produce real eased curves (not a silent fallback to
+// linear), and anime.stagger(90) returns a real per-index delay
+// function (staggered elements sampled mid-animation showed the first
+// already animating while later ones hadn't started, exactly as
+// intended). The file's own "not independently verified" caveat is
+// resolved and updated to record what was actually checked.
 
 // 3.7.28 — Real UX gap found live: clicking "Contests" itself (the
 // synced menu group's own label, not a child contest) went nowhere —
@@ -317,7 +330,7 @@ if (!defined('ABSPATH')) exit;
 // 3.7.11 — [bh_judge_panel] now enqueues player.css + new judging.css instead
 // of rendering unstyled, and fixes button classes that referenced a
 // nonexistent bh-btn-secondary class.
-define('BH_VER',        '3.7.28');
+define('BH_VER',        '3.7.29');
 
 // 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 // Design Suite style surface (class-style-surfaces.php), previously invisible

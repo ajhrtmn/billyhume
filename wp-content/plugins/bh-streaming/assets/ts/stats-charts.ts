@@ -20,6 +20,29 @@
 
 declare const d3: any;
 
+// Real, visible bug found by checking computed color on the live admin
+// screen rather than assuming a hex literal was harmless: this file
+// hardcoded #C1503A (the FRONT-END --bh-accent default) for every
+// chart's line/area/bars. Two things wrong with that, not one — it's
+// hardcoded at all, AND it's the wrong token FAMILY for where this
+// screen lives. This is wp-admin (class-stats.php's own admin page),
+// where --bh-* isn't even defined (confirmed live: reads empty) —
+// the real admin accent is --bhy-accent (own-ur-shit's own design-
+// token system, class-ui.php), which the admin skin bridges to its
+// own --shsas-accent. Verified live on this exact install: --bhy-
+// accent computes to #2f7dff (blue), so every chart was rendering in
+// orange against an otherwise all-blue admin skin — a real "doesn't
+// look designed by one person" defect, not a cosmetic nit.
+// Read once at call time (charts render after DOMContentLoaded, by
+// which point BHY_UI's own print_design_system_css() has already run
+// and set the custom property on :root) with the old literal kept as
+// the fallback for the case where own-ur-shit's token CSS hasn't
+// loaded for some reason.
+function bhsChartAccent(): string {
+    var v = getComputedStyle(document.documentElement).getPropertyValue('--bhy-accent').trim();
+    return v || '#C1503A';
+}
+
 interface BHSTimeSeriesRow {
     date: string;
     value: number;
@@ -60,10 +83,10 @@ interface BHSTimeSeriesRow {
             .y0(y(0))
             .y1(function (d: any) { return y(d.value); });
 
-        svg.append('path').datum(data).attr('fill', '#C1503A').attr('fill-opacity', 0.25).attr('d', area);
+        svg.append('path').datum(data).attr('fill', bhsChartAccent()).attr('fill-opacity', 0.25).attr('d', area);
 
         var line = d3.line().x(function (d: any) { return x(d.date); }).y(function (d: any) { return y(d.value); });
-        svg.append('path').datum(data).attr('fill', 'none').attr('stroke', '#C1503A').attr('stroke-width', 2).attr('d', line);
+        svg.append('path').datum(data).attr('fill', 'none').attr('stroke', bhsChartAccent()).attr('stroke-width', 2).attr('d', line);
 
         svg.append('g').attr('transform', 'translate(0,' + (height - margin.bottom) + ')')
             .call(d3.axisBottom(x).ticks(Math.min(data.length, 8)).tickSizeOuter(0));
@@ -74,7 +97,7 @@ interface BHSTimeSeriesRow {
             .attr('cx', function (d: any) { return x(d.date); })
             .attr('cy', function (d: any) { return y(d.value); })
             .attr('r', 3)
-            .attr('fill', '#C1503A')
+            .attr('fill', bhsChartAccent())
             .append('title')
             .text(function (d: any) { return d.date.toISOString().slice(0, 10) + ': ' + d.value + ' plays'; });
     }
@@ -98,7 +121,7 @@ interface BHSTimeSeriesRow {
             .attr('y', function (d: any) { return y(d[labelKey]); })
             .attr('width', function (d: any) { return x(+d[valueKey]) - margin.left; })
             .attr('height', y.bandwidth())
-            .attr('fill', '#C1503A');
+            .attr('fill', bhsChartAccent());
 
         svg.selectAll('.bhs-bar-label').data(data).enter().append('text')
             .attr('x', margin.left - 6)
