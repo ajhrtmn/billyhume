@@ -1566,8 +1566,64 @@ pre code { background: transparent !important; padding: 0; }
    were already fine (inherit body text-dim correctly); only the bold
    .current state was actually broken. */
 .subsubsub .current { color: var(--shsas-accent) !important; }
-.subsubsub a { color: var(--shsas-text-dim); }
-.subsubsub a:hover { color: var(--shsas-text); }
+/* Real specificity bug, found live via a fresh contrast sweep (not the
+   same pass that wrote the comment above, which wrongly assumed this
+   was fine): body.wp-admin a { color: var(--shsas-accent) } is TWO
+   elements + one class (0,1,2), beating this rule's one class + one
+   element (0,1,1) regardless of source order — the Dashboard's own
+   Activity widget (#latest-comments .subsubsub, real <a> tags, "All
+   (1)" / "Mine (0)" etc.) was rendering full accent-blue instead of
+   the intended dimmer text-dim, a 3.10 contrast ratio against the dark
+   surface — not broken as badly as .current's old pure-black bug, but
+   the same category: a rule that never actually won the cascade it
+   was written to win. */
+.subsubsub a { color: var(--shsas-text-dim) !important; }
+.subsubsub a:hover { color: var(--shsas-text) !important; }
+/* The " | " separator character and the "(1)"/"(0)" count spans both
+   live OUTSIDE (the separator) or have their OWN explicit color
+   (.count/.all-count) rather than inheriting from the .subsubsub a fix
+   just above — a real, separate hardcoded WP-core grey
+   (rgb(100,105,112)), still measuring 3.10 after the .subsubsub a fix
+   alone. Caught by re-checking the exact flagged element rather than
+   assuming the first fix covered it. */
+.subsubsub li,
+.subsubsub .count { color: var(--shsas-text-dim) !important; }
+/* Dashboard -> Activity widget's own sub-headings ("Recently
+   Published", "Recent Comments") ship a literal near-black
+   rgb(29,35,39), same hardcoded WP-core value as the Plugins tab-strip
+   bug below — .postbox .inside's color rule doesn't reach it since
+   this h3 sets its own explicit color rather than inheriting. Found by
+   the same live contrast sweep as the .subsubsub fix just above. */
+#dashboard_activity h3 { color: var(--shsas-text) !important; }
+/* Three more real bugs in the Dashboard's Activity widget, same live
+   sweep: (1) the "Recently Published" list's own date/title <li>/<span>
+   ship the same hardcoded rgb(100,105,112) grey as the .subsubsub bug
+   above — a recurring WP-core literal, not a one-off; (2) the Recent
+   Comments list gives every "even" row (#the-comment-list li.comment)
+   a real, explicit near-white zebra-stripe background
+   (rgb(246,247,247)) that nothing here had touched, so this skin's own
+   light text was rendering on a bright card with no theming at all —
+   the actual root cause of "Hi, this is a comment..." reading as
+   invisible, not a text-color problem; (3) its own "Reply" button
+   (button-link, no explicit color override) was inheriting the cyan
+   focus color on top of that same untouched light background. */
+#published-posts li, #published-posts li span { color: var(--shsas-text-dim) !important; }
+#latest-comments #the-comment-list li.comment {
+    background: var(--shsas-surface-2) !important;
+    border-bottom-color: var(--shsas-border) !important;
+}
+#latest-comments .comment-author,
+#latest-comments .comment-meta,
+#latest-comments .row-actions {
+    color: var(--shsas-text-dim) !important;
+}
+/* WooCommerce's own dismissible admin notice ("Your store doesn't
+   include...") — the notice container itself was already reading this
+   skin's text token correctly, but its own close-X link
+   (a.woocommerce-message-close) sets an explicit near-black #1e1e1e,
+   invisible against the now-dark notice. */
+a.woocommerce-message-close.notice-dismiss { color: var(--shsas-text-dim) !important; }
+a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !important; }
 /* The EXACT same failure mode as .subsubsub .current above, just on
    Plugins -> Add New's own "Featured/Popular/Recommended/Favorites"
    tab strip (.wp-filter .filter-links, a genuinely different WP-core
@@ -1955,8 +2011,23 @@ div.error p, div.error strong {
     background: var(--shsas-surface) !important;
     color: var(--shsas-text-dim);
 }
-.block-editor-block-breadcrumb button { color: var(--shsas-text-dim) !important; }
+/* The "Meta Boxes" collapse toggle inside .edit-post-meta-boxes-main
+   is a real @wordpress/components Button with its own explicit
+   #1e1e1e color — doesn't inherit the container rule above, same
+   "component sets its own color" failure mode as everywhere else in
+   this file. Caught by re-running the contrast sweep, not visible at
+   this viewport size in a screenshot. */
+.edit-post-meta-boxes-main__presenter button { color: var(--shsas-text-dim) !important; }
+.block-editor-block-breadcrumb button,
+.block-editor-block-breadcrumb__current span { color: var(--shsas-text-dim) !important; }
 .block-editor-block-breadcrumb button:hover { color: var(--shsas-accent) !important; }
+/* The drop-zone that appears over "Set featured image" while dragging
+   a file (@wordpress/components DropZone) tints its own background
+   with --wp-admin-theme-color at near-full opacity — a real side
+   effect of the global focus-color override just above: white text on
+   this now-bright-cyan background measured 1.55, real regression
+   caught by re-running the same contrast sweep after that change. */
+.components-drop-zone__content-text { color: var(--shsas-bg) !important; }
 
 /* ---------------- login screen ---------------- */
 
@@ -2311,7 +2382,8 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     background: var(--shsas-surface-2) !important;
     color: var(--shsas-text-dim);
 }
-.editor-document-bar__post-title { color: var(--shsas-text) !important; }
+.editor-document-bar__post-title,
+.editor-post-card-panel__title-name { color: var(--shsas-text) !important; }
 .editor-document-bar__post-type-label,
 .editor-document-bar__shortcut { color: var(--shsas-text-dim) !important; }
 /* The header's own icon-only buttons (Document Overview/list-view

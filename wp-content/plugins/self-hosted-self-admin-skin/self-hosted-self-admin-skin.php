@@ -2,10 +2,40 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.26.0
+ * Version:     0.26.1
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.26.1 — Direct follow-up: "Make sure text still works." Re-ran the
+// live contrast sweep (same real relative-luminance math, not a guess)
+// after 0.26.0 and found real regressions/gaps in two categories:
+//
+// Regressions caused BY 0.26.0's own --wp-admin-theme-color override:
+// the drag-and-drop zone over "Set featured image" tints its own
+// background with that same variable at near-full opacity, so white
+// drop-zone text now sat on bright cyan (1.55) — recolored the text,
+// not the variable, since the variable itself is correct everywhere
+// else. Two more Gutenberg-specific misses from the same pass:
+// .editor-post-card-panel__title-name (a second, differently-named
+// post-title element alongside .editor-document-bar__post-title) and
+// .block-editor-block-breadcrumb__current's own span both still had
+// near-black text (1.03).
+//
+// Pre-existing bugs, unrelated to 0.26.0, just never audited before
+// and caught by the same sweep: the Dashboard's Activity widget
+// ("Recently Published" h3 headings, its own date list items) and
+// Recent Comments widget (WP core's own "even" row zebra-stripe
+// background, rgb(246,247,247), never themed — the actual root cause
+// of comment text reading as invisible, not a text-color bug at all;
+// its "Reply" button inherited the same untouched light background) —
+// plus .subsubsub's own count/li elements and WooCommerce's dismissible-
+// notice close link, both hardcoded WP-core/plugin greys nothing here
+// had reached yet. The .subsubsub a fix from a much earlier pass never
+// actually won its own cascade (body.wp-admin a's specificity beat it)
+// — a real, previously-undetected specificity bug, not new.
+//
+// NOT runtime-verified beyond this session's own live browser checks.
 
 // 0.26.0 — Direct feedback on the Gutenberg pass, in two rounds: "Not
 // quite magical and sleek", then "It's also just got a lot of random
@@ -1277,7 +1307,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.26.0');
+define('SHSAS_VER', '0.26.1');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
