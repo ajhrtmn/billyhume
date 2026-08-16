@@ -34,10 +34,50 @@
         return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
 
-    function toggleTheme() {
+    // View Transitions API (document.startViewTransition) — shipped
+    // Chrome/Edge 111 (2023), Safari 18 (2024), genuinely underrated:
+    // most sites still cross-fade or jump-cut a full-page state change
+    // rather than reaching for the one native API built exactly for
+    // this. Used here for a circular "reveal" wipe expanding out from
+    // the actual click point on the theme toggle — a real, literal
+    // instance of this ecosystem's own "composing with light" brief
+    // (a light/dark boundary radiating outward), and a natural fit for
+    // the "Half-Blood Prince" cinematic-transition language elsewhere
+    // in this file, using a real browser primitive instead of another
+    // hand-rolled CSS animation.
+    //
+    // Feature-detected with a full functional fallback: browsers
+    // without support (Firefox as of this writing) just get the old
+    // instant swap — the SAME toggle, not a broken one. Also gated on
+    // prefers-reduced-motion, same as every other animation in this
+    // file — the wipe is a flourish, the toggle itself must work
+    // identically either way.
+    function toggleTheme(originEvent) {
         var next = currentTheme() === 'light' ? 'dark' : 'light';
-        root.setAttribute('data-shsas-theme', next);
-        try { window.localStorage.setItem(STORAGE_KEY, next); } catch (e) { /* non-fatal — toggle still works for this page view */ }
+        function applyThemeChange() {
+            root.setAttribute('data-shsas-theme', next);
+            try { window.localStorage.setItem(STORAGE_KEY, next); } catch (e) { /* non-fatal — toggle still works for this page view */ }
+        }
+        var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var canWipe = typeof document.startViewTransition === 'function' && originEvent && !reducedMotion;
+        if (canWipe) {
+            var x = originEvent.clientX, y = originEvent.clientY;
+            // Radius that guarantees full coverage regardless of which
+            // corner of the screen the click happened nearest to.
+            var endRadius = Math.hypot(
+                Math.max(x, window.innerWidth - x),
+                Math.max(y, window.innerHeight - y)
+            );
+            var transition = document.startViewTransition(applyThemeChange);
+            transition.ready.then(function () {
+                document.documentElement.animate(
+                    { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + endRadius + 'px at ' + x + 'px ' + y + 'px)'] },
+                    { duration: 520, easing: 'ease-in-out', pseudoElement: '::view-transition-new(root)' }
+                );
+            });
+        } else {
+            applyThemeChange();
+        }
         var icon = document.querySelector('#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon');
         if (icon) {
             // A real transition instead of an instant swap: spin the icon
@@ -58,7 +98,7 @@
         var toggle = e.target.closest && e.target.closest('#wp-admin-bar-shsas-theme-toggle');
         if (!toggle) return;
         e.preventDefault();
-        toggleTheme();
+        toggleTheme(e);
     });
 
     document.addEventListener('click', function (e) {

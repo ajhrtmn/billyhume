@@ -1766,6 +1766,26 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { transition: none; }
 }
 
+/* View Transitions API (admin-skin.js's toggleTheme()) — the browser's
+   OWN default is a 250ms crossfade between old/new full-page snapshots,
+   which would visibly fight the deliberate circular wipe the JS drives
+   via document.documentElement.animate() on ::view-transition-new(root).
+   animation:none here hands full control to that JS-driven clip-path
+   animation instead of layering two competing transitions.
+   z-index ordering is the actual mechanism of a "reveal wipe": the new
+   (post-toggle) snapshot sits ABOVE the old one and is clipped to an
+   expanding circle, so what's actually visible outside the circle is
+   still the OLD snapshot showing through underneath — exactly a light
+   spreading outward, not a fade. */
+@supports (view-transition-name: root) {
+    ::view-transition-old(root), ::view-transition-new(root) {
+        animation: none;
+        mix-blend-mode: normal;
+    }
+    ::view-transition-old(root) { z-index: 1; }
+    ::view-transition-new(root) { z-index: 2; }
+}
+
 /* ---------------- command palette trigger (admin bar) ---------------- */
 
 /* Direct feedback: the palette existed but nothing surfaced it. A
