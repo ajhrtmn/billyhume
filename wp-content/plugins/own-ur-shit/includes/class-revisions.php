@@ -203,7 +203,26 @@ class OUS_Revisions {
                 add_query_arg(['action' => $restore_action, 'object_id' => (int) $object_id, 'version' => (int) $r['version']], admin_url('admin-post.php')),
                 $nonce_action, 'ous_revisions_nonce'
             );
-            echo '<div style="break-inside:avoid;margin-bottom:10px;padding:10px;border:1px solid #dcdcde;border-radius:4px;background:#fff;">';
+            // Real bug, found live via the admin skin's contrast sweep:
+            // this was hardcoded hex (border:#dcdcde, background:#fff)
+            // with zero token backing — a sixth hardcoded-styling
+            // mechanism the earlier "assume there's a fifth" sweep
+            // never reached, because it's a genuinely shared service
+            // (OUS_Revisions) rather than any one screen's own markup.
+            // Measured a 1.17 contrast ratio (solid white background,
+            // the bare "Version #N" <div> had no color of its own at
+            // all), functionally invisible against the admin skin's
+            // dark theme. Fixed by reusing the EXISTING .bhy-card class
+            // (class-ui.php) rather than inventing var(--bhy-*)-backed
+            // inline styles — admin-skin.css themes cards by CLASS
+            // NAME with !important (.postbox, .bhy-card, .ous-card...
+            // all share one rule), not by redefining the --bhy-*
+            // custom properties themselves, so a plain var() fallback
+            // here would have stayed light-mode-only regardless of
+            // theme. .bhy-card already provides equivalent background/
+            // border/radius/padding — only the masonry-specific
+            // break-inside rule still needs to be inline.
+            echo '<div class="bhy-card" style="break-inside:avoid;">';
             echo '<div style="font-weight:600;">Version #' . (int) $r['version'] . '</div>';
             echo '<div class="description" style="margin:2px 0;">' . esc_html(mysql2date('M j, Y g:ia', $r['created_at'])) . '</div>';
             echo '<div class="description" style="margin:0 0 8px;">' . ($user ? esc_html($user->display_name) : 'system') . ($r['label'] ? ' — ' . esc_html($r['label']) : '') . '</div>';

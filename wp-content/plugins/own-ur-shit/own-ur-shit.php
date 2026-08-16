@@ -2,10 +2,25 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.35
+ * Version:     3.10.36
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.36 — A SIXTH hardcoded-styling instance, found by the admin
+// skin's continuing contrast sweep: OUS_Revisions' own version-history
+// card (a genuinely shared service — CRM, Courses, anywhere else with
+// object history) rendered with a raw inline style="...background:#fff"
+// and zero token backing. The bare "Version #N" line had no color of
+// its own at all, measuring 1.17 contrast once the card's own solid-
+// white background sat against the admin skin's dark theme. Fixed by
+// reusing the existing .bhy-card class (already covered by admin-
+// skin.css's own class-based !important overrides) instead of adding
+// var(--bhy-*)-backed inline styles — those custom properties are only
+// ever defined with light-mode literals in class-ui.php; admin-skin.css
+// themes shared cards by CLASS NAME, not by redefining the tokens
+// themselves, so a plain var() fallback here would have stayed
+// light-mode-only regardless of theme.
 
 // 3.10.35 — Real follow-up bug in 3.10.33's own log-level pill fix,
 // found by the admin skin's systematic reconciliation sweep: the pill
@@ -1676,7 +1691,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.35');
+define('OUS_VER', '3.10.36');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from
