@@ -2,10 +2,58 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.25.1
+ * Version:     0.26.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.26.0 — Direct feedback on the Gutenberg pass, in two rounds: "Not
+// quite magical and sleek", then "It's also just got a lot of random
+// white splotch blocks." Both real, both found live via computed-style
+// checks (not screenshot guesses at this viewport size):
+//
+// Round 1 ("not magical and sleek") — two things making the now-dark
+// sidebar read as flat/functional rather than designed:
+//   1. The Post/Block tab bar at the very top of the document sidebar
+//      (.editor-sidebar__panel-tabs) still had a stark white
+//      background — a genuinely different component than the
+//      inserter's .components-tab-panel__tabs already covered, missed
+//      entirely. Given the same glowing accent underline every other
+//      tab component in this file already uses on its active state.
+//   2. Root-caused a bigger pattern: a lot of @wordpress/components'
+//      own focus/active/selected treatment reads the CSS custom
+//      property --wp-admin-theme-color directly, not through anything
+//      a *:focus-visible rule can reach — confirmed live that body's
+//      own --wp-admin-theme-color was still WP core's stock #3858e9,
+//      and that a plain mouse click (not keyboard) on the "Tags" panel
+//      toggle doesn't even trigger :focus-visible on a <button> per
+//      spec. Overriding the custom property itself, once, at the same
+//      body.wp-admin scope core sets it at, fixes every downstream
+//      consumer at the source — recolored to --shsas-focus (the
+//      existing cyan focus token, not the accent) to match the
+//      existing *:focus-visible outline rule already using it.
+//      Also gave the Tags/Categories FormTokenField's own token pills
+//      the same badge/pill "composing with light" treatment already
+//      unified across .bhy-badge/.order-status/.ous-badge, instead of
+//      leaving WP core's flat grey pills as a third, competing style.
+//
+// Round 2 ("random white splotch blocks") — rather than keep guessing
+// from screenshots, scanned every element on the page live for a
+// near-white computed background-color. Found four real, unrelated
+// gaps in one pass: the block editor's OWN Notice component
+// (.components-notice — a completely different class family than the
+// classic-admin .notice/div.updated already covered, so a "This block
+// contains unexpected content" warning was rendering solid white; same
+// left-border-glow treatment applied, not a competing style), the
+// classic meta-box area at the bottom of the block editor screen
+// (.edit-post-meta-boxes-main — its own .postbox children were already
+// themed, the CONTAINER around them wasn't), the bottom status bar
+// (.interface-interface-skeleton__footer), and the block breadcrumb
+// list living inside it (.block-editor-block-breadcrumb).
+//
+// NOT runtime-verified beyond this session's own live browser checks
+// (computed-style scans + visual screenshot, both in this exact
+// environment) — no separate QA pass on a different install.
 
 // 0.25.1 — One more real Gutenberg bug found continuing the light-mode/
 // editor sweep: the Block Inspector's own "block card" (the selected
@@ -1229,7 +1277,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.25.1');
+define('SHSAS_VER', '0.26.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

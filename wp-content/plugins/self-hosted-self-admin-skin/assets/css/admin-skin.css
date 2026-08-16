@@ -344,6 +344,30 @@ body.wp-admin p, body.wp-admin li, body.wp-admin td, body.wp-admin .description 
 body.wp-admin a { color: var(--shsas-accent); }
 body.wp-admin a:hover, body.wp-admin a:focus { color: var(--shsas-focus); }
 
+/* Real root-cause fix, direct feedback on the Gutenberg pass ("Not
+   quite magical and sleek"): a LOT of @wordpress/components' own focus/
+   active/selected treatment (the document-sidebar tab underline, the
+   Tags panel toggle's focus ring, form-token-field border-on-focus)
+   reads --wp-admin-theme-color directly rather than going through any
+   selector this file could target with a *:focus-visible outline rule
+   below — button-element clicks don't even trigger :focus-visible in
+   most browsers (keyboard-only for buttons per spec), so a plain mouse
+   click on the "Tags" panel toggle was rendering WP core's own stock
+   blue (#3858e9, confirmed live via getComputedStyle on body) with
+   nothing here ever touching it. Overriding the CSS custom property
+   itself, once, at the same body.wp-admin scope core sets it at, fixes
+   every downstream consumer of it at the source instead of chasing
+   each component's own focus mechanism individually. --shsas-focus
+   (not --shsas-accent) to match the existing *:focus-visible outline
+   rule just below — one consistent "this is a focus indicator" hue
+   across the whole skin, distinct from the accent used for buttons/
+   links/badges. */
+body.wp-admin {
+    --wp-admin-theme-color: var(--shsas-focus);
+    --wp-admin-theme-color-darker-10: var(--shsas-focus);
+    --wp-admin-theme-color-darker-20: var(--shsas-focus);
+}
+
 /* A visible, high-contrast focus ring everywhere, keyboard or not —
    the single highest-leverage accessibility change available: WP
    core's default focus treatment is a thin blue box-shadow that
@@ -1899,6 +1923,40 @@ div.error p, div.error strong {
 @media (forced-colors: active) {
     .notice, div.updated, div.error { box-shadow: none !important; }
 }
+/* Real gap, direct feedback ("random white splotch blocks") — the
+   block editor's OWN notice component (@wordpress/components' Notice,
+   e.g. a "This block contains unexpected or invalid content" or a
+   plugin-registered warning above the canvas) is a completely
+   different class family from the classic-admin .notice/div.updated
+   covered above, so none of that coverage ever reached it. Same
+   left-border-glow treatment, not a competing style. */
+.components-notice {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+    border-left-width: 4px;
+    box-shadow: var(--shsas-shadow);
+}
+.components-notice__content { color: var(--shsas-text) !important; }
+.components-notice.is-success { border-left-color: var(--shsas-success) !important; background: color-mix(in srgb, var(--shsas-success) 7%, var(--shsas-surface)) !important; }
+.components-notice.is-error { border-left-color: var(--shsas-danger) !important; background: color-mix(in srgb, var(--shsas-danger) 7%, var(--shsas-surface)) !important; }
+.components-notice.is-warning { border-left-color: var(--shsas-warning) !important; background: color-mix(in srgb, var(--shsas-warning) 7%, var(--shsas-surface)) !important; }
+.components-notice.is-info { border-left-color: var(--shsas-info) !important; background: color-mix(in srgb, var(--shsas-info) 7%, var(--shsas-surface)) !important; }
+/* Three more real, found-not-guessed white blocks, all confirmed live
+   via a computed-style scan of every element on the page (not another
+   screenshot guess) after the same "random white splotch" feedback:
+   the classic meta-box area at the bottom of the block editor screen
+   (.edit-post-meta-boxes-main — its own .postbox children were already
+   themed, but the CONTAINER behind/around them wasn't), the block
+   editor's bottom status bar, and the breadcrumb list living inside
+   it. */
+.edit-post-meta-boxes-main,
+.interface-interface-skeleton__footer,
+.block-editor-block-breadcrumb {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text-dim);
+}
+.block-editor-block-breadcrumb button { color: var(--shsas-text-dim) !important; }
+.block-editor-block-breadcrumb button:hover { color: var(--shsas-accent) !important; }
 
 /* ---------------- login screen ---------------- */
 
@@ -2182,12 +2240,58 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    or its contents, so that WYSIWYG guarantee stays intact. */
 .interface-interface-skeleton__sidebar,
 .interface-interface-skeleton__secondary-sidebar,
+.interface-complementary-area,
 .edit-post-sidebar,
+.editor-sidebar,
 .block-editor-inserter__popover .components-popover__content,
 .block-editor-block-inspector {
     background: var(--shsas-surface) !important;
     color: var(--shsas-text);
 }
+/* The Post/Block tab bar living at the very top of the document
+   sidebar (.editor-sidebar__panel-tabs) is a genuinely different
+   component than the inserter's own .components-tab-panel__tabs
+   (already covered further below) — missed by every earlier pass
+   because it never showed up distinctly in a screenshot at this
+   viewport size, only caught via a direct computed-style check after
+   "not quite magical and sleek" feedback: still a stark white bar.
+   Given the same glowing-underline treatment as every other tab
+   component in this file rather than a flat color swap, since the
+   active state otherwise has nothing marking it as "composing with
+   light" the way the rest of this skin does. Button classes here are
+   emotion-hashed (change across builds) — targeted by the stable
+   role/aria attributes @wordpress/components always renders instead. */
+.editor-sidebar__panel-tabs {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+}
+.editor-sidebar__panel-tabs button[role="tab"] {
+    color: var(--shsas-text-dim) !important;
+}
+.editor-sidebar__panel-tabs button[role="tab"]:hover {
+    color: var(--shsas-text) !important;
+}
+.editor-sidebar__panel-tabs button[role="tab"][aria-selected="true"] {
+    color: var(--shsas-accent) !important;
+    box-shadow: inset 0 -2px 0 0 var(--shsas-accent) !important;
+    text-shadow: 0 0 10px color-mix(in srgb, var(--shsas-accent) 45%, transparent);
+}
+/* Tags/Categories field (@wordpress/components FormTokenField) —
+   still shipping WP core's flat grey token pills against this now-dark
+   sidebar. Reuses the badge/pill "composing with light" treatment
+   already unified across .bhy-badge/.order-status/.ous-badge (shape
+   unification pass, 0.9.2) rather than a third, competing pill style. */
+.components-form-token-field__input-container {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+}
+.components-form-token-field__token {
+    background: color-mix(in srgb, var(--shsas-accent) 18%, var(--shsas-surface-2)) !important;
+    color: var(--shsas-text) !important;
+}
+.components-form-token-field__token-text { color: var(--shsas-text) !important; }
+.components-form-token-field__remove-token { color: var(--shsas-text-dim) !important; }
+.components-form-token-field__remove-token:hover { color: var(--shsas-accent) !important; }
 /* Real gap in the chrome coverage above, direct request ("Gutenberg
    editor needs theming") — the sidebar/inserter/inspector were fixed
    here already, but the top toolbar itself (title, Save draft,
