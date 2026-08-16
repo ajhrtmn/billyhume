@@ -2,10 +2,43 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.17.0
+ * Version:     0.18.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.18.0 — Wallet-stack default collapse, closing a real gap Track 3's
+// design-vision fidelity check surfaced: the postbox accordion (0.16.0)
+// built the mechanism (animatable open/closed via grid-template-rows)
+// but WP core's own postbox open/closed state starts fully OPEN for
+// every user, so a first-time mobile visitor still saw every dashboard
+// card fully expanded — the exact vertical-space problem the Apple
+// Wallet metaphor exists to solve was never actually produced, only
+// the interaction to fix it manually.
+//
+// Fixed in admin-skin.js: on a visitor's first mobile-width (<=782px)
+// page load only (localStorage-gated so it never fires again for them
+// and never fights a later explicit choice), every postbox but the
+// first per column gets collapsed by dispatching a real click on WP
+// core's own .handlediv button — not a cosmetic class toggle. That
+// matters: a real click runs through window.postboxes and persists the
+// resulting closed state via WP's own user-meta ajax call, so it
+// becomes a genuine saved preference, verified live to survive a fresh
+// reload, not something a reload would silently undo.
+//
+// One real bug caught by verifying live rather than trusting the logic
+// on paper: the first version fired on DOMContentLoaded and appeared to
+// run (the localStorage flag got set) but nothing actually closed —
+// root cause was a script-ordering race: WP core's postboxes.js binds
+// its own .handlediv click delegation via jQuery, and there's no
+// guarantee that binding exists yet when a DOMContentLoaded listener
+// fires. Moved to window 'load', which only fires after every script
+// (jQuery-based ones included) has executed — confirmed via direct
+// testing that the simulated click now lands on a bound handler.
+// Desktop width verified unaffected: the flag correctly never gets set
+// and no box is force-collapsed there, matching the metaphor's other
+// half (fan out to use available room at large sizes, already covered
+// by the existing auto-fit card grids).
 
 // 0.17.0 — Deleted code, no new features: own-ur-shit 3.10.32 migrated
 // its .ous-card stylesheet and class-metrics.php's inline <style> onto
@@ -963,7 +996,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.17.0');
+define('SHSAS_VER', '0.18.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

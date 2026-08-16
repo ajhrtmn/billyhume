@@ -218,4 +218,64 @@
             backdrop ? closePalette() : openPalette();
         }
     });
+
+    /* ---------------- Wallet-stack default collapse ----------------
+     * Direct request: "I like Apple's Wallet metaphor... to reduce the
+     * vertical space of screen real estate at smaller sizes." 0.16.0
+     * built the actual accordion (postboxes animate open/closed via
+     * grid-template-rows instead of core's instant jump-cut) but that
+     * alone doesn't produce the Wallet EFFECT — WP's own postbox open/
+     * closed state is a per-user preference that starts fully OPEN for
+     * everyone, so a first-time mobile visitor still saw every
+     * dashboard card expanded, the exact vertical-space problem the
+     * metaphor exists to solve. Caught by measuring the real dashboard
+     * at 375px width rather than assuming the CSS mechanism alone was
+     * the whole feature.
+     *
+     * Fix: on a visitor's very first mobile-width page load ONLY
+     * (localStorage-gated so this never fires again for them, and
+     * never fights a choice they make afterward), collapse every
+     * postbox but the first per column to a peeking header — by
+     * dispatching a real click on WP core's own .handlediv toggle, not
+     * by cosmetically adding a CSS class. That matters: a real click
+     * runs through window.postboxes and persists the resulting closed
+     * state via WP's own user-meta ajax call, so it becomes a genuine
+     * saved preference (the same as if the user had closed it
+     * themselves) rather than something a plain reload would silently
+     * undo. The first box per column stays open on purpose — a real
+     * Wallet stack always shows the top card's content, not just a
+     * stack of bare headers.
+     */
+    (function applyWalletDefault() {
+        function isMobileWidth() { return window.innerWidth <= 782; }
+        var APPLIED_KEY = 'shsas-wallet-default-applied';
+        var applied;
+        try { applied = window.localStorage.getItem(APPLIED_KEY); } catch (e) { applied = '1'; /* storage blocked — don't repeat every load */ }
+        if (applied === '1' || !isMobileWidth()) return;
+
+        // window 'load' (not DOMContentLoaded), and deliberately so —
+        // a real bug caught by verifying live rather than trusting the
+        // logic on paper: WP core's postboxes.js binds its .handlediv
+        // click delegation itself via jQuery, and on a first page load
+        // there's no guarantee that binding has attached before THIS
+        // script's own DOMContentLoaded listener fires — if this ran
+        // first, the simulated click landed on a button with no
+        // listener yet and silently did nothing (confirmed live: the
+        // flag was set, meaning this code DID run, but nothing actually
+        // closed). 'load' fires only after every script, including
+        // jQuery-based ones, has executed — the safe point to assume
+        // WP's own handler is already bound. The extra delay is
+        // imperceptible for a one-time background default.
+        window.addEventListener('load', function () {
+            try { window.localStorage.setItem(APPLIED_KEY, '1'); } catch (e) { /* non-fatal — worst case this runs again next load */ }
+            document.querySelectorAll('.postbox-container').forEach(function (container) {
+                var boxes = container.querySelectorAll('.postbox');
+                boxes.forEach(function (box, i) {
+                    if (i === 0 || box.classList.contains('closed')) return;
+                    var handle = box.querySelector('.handlediv');
+                    if (handle) handle.click();
+                });
+            });
+        });
+    })();
 })();
