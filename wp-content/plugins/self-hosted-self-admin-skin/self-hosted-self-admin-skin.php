@@ -2,10 +2,37 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.24.0
+ * Version:     0.25.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.25.0 — Direct request: "Gutenberg editor needs theming." The
+// sidebar/inspector/inserter chrome was already covered (0.9.x era,
+// see that section's own docblock), and the canvas is deliberately
+// left on the theme's own front-end tokens for a real WYSIWYG
+// guarantee — but the TOP TOOLBAR itself (.edit-post-header: title,
+// Save draft, Preview, Publish, undo/redo/list-view/options) was never
+// reached at all. Confirmed live: a genuinely stark white bar sitting
+// directly above an already-dark sidebar and canvas — not a contrast
+// bug on its own (black text on white reads fine), the same "designed
+// by two people" coherence break this whole session has hunted
+// everywhere else, just in a screen that hadn't been opened yet this
+// pass.
+//
+// A second, real contrast bug surfaced once the bar itself went dark:
+// three of its own icon-only buttons (Document Overview, View,
+// Options) render a near-black icon, genuinely invisible against the
+// new dark background — confirmed these are live, enabled, functional
+// buttons, not a muted disabled state. Traced to the actual source
+// before fixing it in the wrong layer: each icon has no explicit fill
+// attribute, so it inherits fill:currentColor from its OWN button's
+// text color — fixed there, not by forcing every svg's fill directly,
+// which would have also clobbered two buttons that were already
+// correctly colored (Block Inserter's near-white icon on its blue
+// background, Settings' white icon on its own pressed-dark state) —
+// both deliberately excluded via :not(.is-primary):not(.is-pressed),
+// confirmed live both still render correctly after the fix.
 
 // 0.24.0 — Direct request: "confirm light mode ecosystem wide." Toggled
 // the skin to light mode and re-ran the same live contrast-scan
@@ -1190,7 +1217,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.24.0');
+define('SHSAS_VER', '0.25.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

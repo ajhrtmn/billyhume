@@ -2188,6 +2188,46 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     background: var(--shsas-surface) !important;
     color: var(--shsas-text);
 }
+/* Real gap in the chrome coverage above, direct request ("Gutenberg
+   editor needs theming") — the sidebar/inserter/inspector were fixed
+   here already, but the top toolbar itself (title, Save draft,
+   Preview, Publish, the undo/redo/list-view icons) was never reached
+   at all: confirmed live, a genuinely stark white bar sitting above an
+   otherwise fully dark screen — not a contrast bug (black text on
+   white is plenty readable on its own), the same "designed by two
+   people" coherence break this whole session has hunted everywhere
+   else. The canvas itself is correctly left alone (see this section's
+   own docblock above) — this is chrome, the same category as the
+   sidebar it sits directly beside. */
+.edit-post-header, .editor-header {
+    background: var(--shsas-surface) !important;
+    border-bottom-color: var(--shsas-border) !important;
+}
+.editor-document-bar {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text-dim);
+}
+.editor-document-bar__post-title { color: var(--shsas-text) !important; }
+.editor-document-bar__post-type-label,
+.editor-document-bar__shortcut { color: var(--shsas-text-dim) !important; }
+/* The header's own icon-only buttons (Document Overview/list-view
+   toggle, View/preview dropdown, Options kebab menu) render a near-
+   black icon (rgb(30,30,30)) — invisible on the now-dark toolbar —
+   confirmed these are genuinely enabled/functional buttons, not a
+   disabled state that happened to look muted on purpose. Traced to the
+   actual source before fixing it in the wrong place: each icon has no
+   explicit fill attribute, so it inherits `fill: currentColor` from
+   its OWN button's `color` — the real bug is the button's text color,
+   not something to override at the svg level directly. Deliberately
+   excludes .is-primary (Block Inserter — blue bg, its own near-white
+   color already correct) and .is-pressed (the sidebar-toggle Settings
+   button — dark bg, its own white color already correct) so this only
+   touches the genuinely broken plain/transparent-background buttons,
+   confirmed live both exceptions still render correctly afterward. */
+.edit-post-header button:not(.is-primary):not(.is-pressed),
+.editor-header button:not(.is-primary):not(.is-pressed) {
+    color: var(--shsas-text) !important;
+}
 .interface-interface-skeleton__sidebar .components-panel,
 .interface-interface-skeleton__sidebar .components-panel__body,
 .block-editor-block-inspector .components-panel__body {
