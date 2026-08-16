@@ -2,10 +2,45 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.23.1
+ * Version:     0.24.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.24.0 — Direct request: "confirm light mode ecosystem wide." Toggled
+// the skin to light mode and re-ran the same live contrast-scan
+// methodology across the dashboard, Plugins -> Add New, Metrics, and
+// Debug Tools. Two real, severe bugs found, both invisible in dark
+// mode by pure coincidence, not because dark mode was actually more
+// correct:
+//   - .welcome-panel-header-wrap — WP core's own fixed-dark decorative
+//     header (present identically in both themes, unrelated to admin
+//     color scheme in core's own design) had no admin-skin rule at
+//     all. In dark mode, --shsas-text (light) happened to already be
+//     readable against this always-dark zone. In light mode,
+//     --shsas-text switches to a dark brown, producing dark-on-dark —
+//     the "Welcome to WordPress!" heading was nearly invisible on
+//     first load. Fixed by forcing this one zone's text to a fixed
+//     light color regardless of theme, since its background is also
+//     fixed regardless of theme.
+//   - Every <code>/<kbd> tag ecosystem-wide (REST routes, table names,
+//     option keys — dozens on Debug Tools alone) had ZERO admin-skin
+//     coverage, relying entirely on WP core's default styling
+//     (background: rgba(0,0,0,.07), a muted olive-green text color).
+//     That combination happens to read fine against a dark surface
+//     (measured fine in dark mode) but is a 1.28 contrast ratio —
+//     functionally invisible — against a light one. Fixed with real
+//     tokens (--shsas-surface-2 background, --shsas-text color, not
+//     --shsas-accent — using the link/accent color here would make
+//     every code snippet visually read as clickable when it isn't).
+//     Verified correct in BOTH themes via a real toggle + reload, not
+//     just light mode alone, since this rule now governs both.
+// One false alarm caught and correctly dismissed before "fixing" it:
+// the welcome panel's "Dismiss" close link also flagged as low-
+// contrast by the scan, but a live screenshot confirmed it's
+// correctly positioned within the same always-dark header zone as the
+// heading — white text there is right, not a bug; the scan's
+// background-detection just didn't walk to the correct ancestor.
 
 // 0.23.1 — Two more real bugs on the same Plugins -> Add New screen,
 // found from direct feedback ("still can't read text" / "card body
@@ -1155,7 +1190,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.23.1');
+define('SHSAS_VER', '0.24.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

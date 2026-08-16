@@ -1322,6 +1322,25 @@ body.wp-admin *:focus-visible {
 }
 .welcome-panel-column-container h3 { color: var(--shsas-text) !important; }
 .welcome-panel-column-container .welcome-icon:before { color: var(--shsas-accent) !important; }
+/* Real bug, direct request to confirm light mode ecosystem-wide —
+   found immediately on the very first screen checked, and only in
+   light mode: `.welcome-panel-header-wrap` (WP core's own fixed dark
+   decorative header — a textured dark zone with the "Welcome to
+   WordPress!" heading, unrelated to admin color scheme in core's own
+   design, present identically in both this skin's themes) never had
+   its own rule here. In dark mode this coincidentally looked correct,
+   since --shsas-text (light) happened to already be readable against
+   a dark background — the same bug existed there too, just invisible
+   by coincidence of two independent defaults lining up. The moment
+   --shsas-text switches to light mode's dark-brown value, this
+   ALWAYS-dark zone got dark-on-dark text, nearly invisible. Fixed by
+   forcing this one zone's text to a fixed light color regardless of
+   the active theme — correct because its background is also fixed
+   regardless of theme, not because light text is "the right color"
+   generally. */
+.welcome-panel-header-wrap h2,
+.welcome-panel-header-wrap p { color: #f2ede1 !important; }
+.welcome-panel-header-wrap a { color: #8bb8ff !important; }
 
 /* ---------------- buttons ---------------- */
 
@@ -1422,6 +1441,32 @@ body.wp-admin *:focus-visible {
     border-radius: var(--shsas-radius);
     overflow: hidden;
 }
+/* Real bug, direct request to confirm light mode ecosystem-wide — a
+   genuinely widespread one, not a single spot: WP core's default
+   <code>/<kbd> styling (background: rgba(0,0,0,.07), a muted olive-
+   green text color, rgb(63,143,34)) was never overridden anywhere in
+   this file at all — every single REST route/table/option-name <code>
+   tag on Debug Tools alone (dozens on one screen) measured a 1.28
+   contrast ratio in light mode, near-invisible. This is exactly the
+   kind of bug that hides in dark mode by coincidence: a semi-
+   transparent black tint over a DARK surface plus that same green text
+   happens to read fine against dark backgrounds specifically, so nine-
+   plus months of dark-mode-only testing never surfaced it. Fixed with
+   real tokens so it's correct in both themes on purpose, not by luck. */
+code, kbd {
+    /* --shsas-text, not --shsas-accent — inline code distinguished by
+       background tint + monospace only, same convention real dev
+       tools (GitHub, VS Code) use. Using the accent/link color here
+       would make every code snippet visually read as a clickable link
+       when it isn't one — a real usability ambiguity on a screen like
+       this one that's mostly a list of REST routes. */
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 0.9em;
+}
+pre code { background: transparent !important; padding: 0; }
 .wp-list-table thead th, .wp-list-table thead td, .wp-list-table tfoot th,
 .wp-list-table thead th a, .wp-list-table thead td a {
     background: var(--shsas-surface-2) !important;
