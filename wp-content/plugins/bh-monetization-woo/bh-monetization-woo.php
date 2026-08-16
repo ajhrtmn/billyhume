@@ -2,12 +2,49 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.18
+ * Version:     0.5.19
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.19 — Downloadable lesson video, direct request: "Can we make
+// video downloadable as well?" BHM_Downloads::gather_files() gets a
+// new bh_course branch (checked first, independent of the existing
+// BHS_API guard, which is specific to bh-streaming and has nothing to
+// do with whether a course's videos can be gathered): walks the
+// course's real lesson order (BHC_PostTypes::lesson_order()) and each
+// lesson's real steps (BHC_Steps::get()), collecting only
+// source==='upload' video steps' real attachment URLs. Cloudflare
+// Stream and YouTube/Vimeo embed steps are silently skipped — never a
+// file to download in the first place, and this ecosystem's own
+// standing "don't claim a capability that isn't actually there"
+// convention rules out a fake affordance for them. In practice there
+// was never a per-step "Download" button to gate anyway — delivery is
+// entirely through WooCommerce's own native "My Downloads" account
+// page, which structurally only ever lists what actually got attached.
+//
+// Real abuse protection, scoped to course video specifically (track/
+// release purchases deliberately left at WC's unlimited default,
+// unchanged — pre-existing behavior with no reason to alter here):
+// WooCommerce's own native download_limit/download_expiry product
+// props, set on the course-purchase product the moment its files are
+// attached. 8 downloads / 180 days by default, both filterable
+// (bhm_course_download_limit, bhm_course_download_expiry_days) rather
+// than hardcoded. Chosen over a hand-rolled parallel rate-limiter:
+// video files are typically far larger than an audio track, making
+// this the real place bandwidth cost matters, and WC's own mechanism
+// is already battle-tested rather than new, payment-adjacent code to
+// get right under time pressure.
+//
+// NOT runtime-verified through an actual completed WooCommerce order
+// with a real uploaded lesson video — code-reviewed against
+// attach_for_item()'s existing, already-proven track/release path
+// (same function, same WC_Product_Download API, confirmed
+// set_download_limit()/set_download_expiry() are real methods on this
+// install's actual WooCommerce version before using them) but not
+// exercised end-to-end this session.
 
 // 0.5.18 — Backend support for bh-courses' new per-course one-time
 // purchase (bh-courses 0.4.83). Three real, targeted fixes made while
@@ -289,7 +326,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.18');
+define('BHM_VER',  '0.5.19');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::
