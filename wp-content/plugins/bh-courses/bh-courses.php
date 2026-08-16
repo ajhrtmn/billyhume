@@ -2,11 +2,40 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.84
+ * Version:     0.4.85
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.4.85 — Real content-integrity bug, found live: several lessons
+// showed Gutenberg's "Block contains unexpected or invalid content"
+// error with an "Attempt recovery" button. Root cause: bhc/text and
+// bhc/quiz's own save() functions (courses-studio-blocks.ts) had both
+// been changed at some point from producing no static markup to
+// wrapping their content in a real <div class="wp-block-...">, but any
+// lesson saved BEFORE that change kept the old, wrapper-less
+// serialization — which no longer matches what the CURRENT save()
+// produces, so the client-side validator flags a mismatch. For
+// bhc/quiz specifically this was a real data-loss risk, not just
+// cosmetic: its questions are stored as nested child blocks (not an
+// attribute), and "Attempt recovery" would have discarded them.
+//
+// Fixed on this install by hand via the REST API (content-only, no
+// data lost — the existing content/child-blocks were re-wrapped in the
+// element the current save() expects, nothing regenerated or
+// discarded), then turned into a real, version-gated migration
+// (BHC_Activator::maybe_migrate_content(), own option/version counter,
+// separate from the schema DB_VERSION above) so the same fix reaches
+// any other install still running old lesson content, automatically,
+// on next load — not just this one database. Confirmed idempotent
+// against already-fixed content (re-running produces zero further
+// changes, no double-wrapping) before wiring it into plugins_loaded.
+//
+// NOT runtime-verified beyond this session's own live browser checks
+// (this exact install, this exact content) — the migration's general
+// correctness against a genuinely different install's stale content
+// shapes is reasoned through, not separately tested.
 
 // 0.4.84 — The real gap flagged in 0.4.83's own changelog: a purchase-
 // only course (the main case the whole feature exists for) had no
@@ -514,7 +543,7 @@ if (!defined('ABSPATH')) exit;
 // button; and a manual-override "mark complete" action on the Student Progress
 // admin page for the ordinary support-request case
 // (BHC_ProgressAdmin::maybe_handle_override()).
-define('BHC_VER',  '0.4.84');
+define('BHC_VER',  '0.4.85');
 // QA fix (2026-07-21, caught live during Phase 1 LMS-v3 video-overlay
 // verification): this constant is what actually cache-busts every
 // enqueued JS/CSS file (wp_enqueue_script/style's $ver arg) — the
@@ -608,6 +637,7 @@ foreach (['post-types', 'activator', 'admin', 'steps', 'progress', 'achievements
 register_activation_hook(__FILE__, ['BHC_Activator', 'activate']);
 register_activation_hook(__FILE__, ['BHC_Sessions', 'activate']);
 add_action('plugins_loaded', ['BHC_Activator', 'maybe_upgrade']);
+add_action('plugins_loaded', ['BHC_Activator', 'maybe_migrate_content']);
 add_action('plugins_loaded', ['BHC_Sessions', 'maybe_upgrade']);
 
 add_action('plugins_loaded', function () {

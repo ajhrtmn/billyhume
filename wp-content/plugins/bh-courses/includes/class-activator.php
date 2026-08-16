@@ -25,6 +25,85 @@ class BHC_Activator {
         }
     }
 
+    // Content-repair migration, separate concern from the schema
+    // version above (own option, own version counter) — same "cheap
+    // early-return on every load, only marks itself done on real
+    // success" pattern. Real bug found live 2026-08-16: bhc/text and
+    // bhc/quiz's save() functions were both changed at some point from
+    // producing no static markup to wrapping their content in a real
+    // <div class="wp-block-...">. Any lesson saved BEFORE that change
+    // kept the old, wrapper-less serialization, which no longer
+    // matches what the CURRENT save() produces — Gutenberg's own
+    // client-side validator flags this as "Block contains unexpected
+    // or invalid content" and offers an "Attempt recovery" button that
+    // would have silently discarded bhc/quiz's real child questions
+    // (they're stored as nested child blocks, not an attribute — a
+    // real data-loss risk, not just a cosmetic one). 6 lessons on this
+    // install hit this (5 for bhc/text, 3 for bhc/quiz, one lesson only
+    // in the quiz set) — already hand-fixed via the REST API this
+    // session, but that fix lived only in this install's database.
+    // This migration makes the same fix portable to any other install
+    // still running old content, and to any lesson that slips through
+    // in the future.
+    const CONTENT_MIGRATION_VERSION = '1';
+
+    public static function maybe_migrate_content(): void {
+        if (version_compare(get_option('bhc_content_migration_version', '0'), self::CONTENT_MIGRATION_VERSION, '>=')) return;
+        if (self::fix_stale_block_markup()) {
+            update_option('bhc_content_migration_version', self::CONTENT_MIGRATION_VERSION);
+        }
+    }
+
+    private static function fix_stale_block_markup(): bool {
+        $lessons = get_posts([
+            'post_type' => 'bh_lesson',
+            'post_status' => 'any',
+            'numberposts' => -1,
+            'fields' => 'ids',
+        ]);
+        foreach ($lessons as $lesson_id) {
+            $post = get_post($lesson_id);
+            if (!$post) continue;
+            $content = $post->post_content;
+            $fixed = self::fix_stale_text_blocks($content);
+            $fixed = self::fix_stale_quiz_blocks($fixed);
+            if ($fixed !== $content) {
+                wp_update_post(['ID' => $lesson_id, 'post_content' => $fixed]);
+            }
+        }
+        return true;
+    }
+
+    // bhc/text's save() wraps its `content` attribute in
+    // <div class="wp-block-bhc-text">...</div> — a self-closed
+    // `<!-- wp:bhc/text {...} /-->` comment (the old, dynamic-era
+    // shape) has nowhere to source that div from, so re-derive it
+    // straight from the same attribute the block already stores.
+    private static function fix_stale_text_blocks(string $content): string {
+        $pattern = '/<!--\s*wp:bhc\/text\s*(\{[^}]*\})\s*\/-->/';
+        return (string) preg_replace_callback($pattern, function ($m) {
+            $attrs = json_decode($m[1], true);
+            if (!is_array($attrs)) return $m[0];
+            $text_content = $attrs['content'] ?? '';
+            $attrs_json = wp_json_encode($attrs);
+            return '<!-- wp:bhc/text ' . $attrs_json . ' --><div class="wp-block-bhc-text">' . $text_content . '</div><!-- /wp:bhc/text -->';
+        }, $content);
+    }
+
+    // bhc/quiz is a container (its real questions are nested
+    // bhc/quiz-question child blocks, not an attribute) — the old
+    // shape had those children sitting directly inside the quiz's
+    // open/close comment pair with no wrapper div. Fixed by wrapping
+    // the EXISTING inner content as-is, never touching the children
+    // themselves, so no question data is at risk.
+    private static function fix_stale_quiz_blocks(string $content): string {
+        $pattern = '/(<!-- wp:bhc\/quiz \{[^}]*\} -->)([\s\S]*?)(<!-- \/wp:bhc\/quiz -->)/';
+        return (string) preg_replace_callback($pattern, function ($m) {
+            if (strpos(ltrim($m[2]), '<div class="wp-block-bhc-quiz"') === 0) return $m[0]; // already correct
+            return $m[1] . '<div class="wp-block-bhc-quiz">' . $m[2] . '</div>' . $m[3];
+        }, $content);
+    }
+
     private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
