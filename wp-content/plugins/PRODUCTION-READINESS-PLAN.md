@@ -498,7 +498,38 @@ from a prior session's own testing — flagging here rather than
 silently clearing it.
 
 **No confirmed functional gap found.**
-### bh-video — not started
+### bh-video — audited (2026-08-21), one real gap fixed
+
+**Overall: real, complete SPA and admin upload flow — one confirmed
+"undiscoverable feature" gap, fixed.** Read all 7 includes files;
+verified live.
+
+**What's genuinely real:** `[bh_video]` is a genuine browse/playback
+SPA (real REST-backed search/genre-filter, real `<video>` element
+playback, chapters support) — confirmed working live via its own
+auto-generated `assets/js/video-player.js`, not a static stub. Admin
+upload flow is fully wired: a real `wp.media()` picker scoped to
+`library: { type: 'video' }`, a real `save_post_bhv_video` handler.
+This plugin's own changelog already shows real, honest self-correction
+history (a `register_taxonomy()` `show_in_menu` behavior caught and
+fixed via reading WP core source directly, an `attachment_id`
+false-return type caught via PHPStan).
+
+**Confirmed real gap, found and FIXED (bh-video 0.4.3, commit
+`563e3b2`)**: unlike bh-registry (`BHR_Activator::
+maybe_create_default_pages()`) and bh-streaming, this plugin never
+auto-created a landing page for its own shortcode on activation.
+Confirmed live before fixing: zero `bhv_video` posts existed on this
+install and no page anywhere referenced `[bh_video]` — the SPA and
+its REST API were both fully real and working, just genuinely
+undiscoverable to an admin who didn't already know to hand-create a
+page and paste the shortcode in, despite the plugin's own description
+promising "a standalone video catalog and player." Added
+`BHV_Activator::maybe_create_default_pages()`, mirroring
+`BHR_Activator`'s exact version-gated pattern. Verified live: visiting
+any wp-admin screen now creates a real "Videos" page, confirmed via
+direct DB query and a live screenshot of the correctly-rendering
+(empty, since no videos exist yet) SPA.
 ### bh-mailpoet — not started
 ### bh-streaming — not started (real player walkthrough specifically)
 ### own-ur-shit core — not started (last, deliberately)
