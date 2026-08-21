@@ -530,7 +530,59 @@ promising "a standalone video catalog and player." Added
 any wp-admin screen now creates a real "Videos" page, confirmed via
 direct DB query and a live screenshot of the correctly-rendering
 (empty, since no videos exist yet) SPA.
-### bh-mailpoet — not started
+### bh-mailpoet — audited (2026-08-21), genuinely verified end to end
+
+**Overall: a real chance to close this plugin's own long-standing
+"NOT runtime-verified" disclosure, and it passed completely.** This
+plugin's own docblock (`class-sync.php`) has honestly flagged since
+it was written that its MailPoet API calls (`getLists`, `addList`,
+`getSubscriber`, `addSubscriber`, `subscribeToList`,
+`unsubscribeFromLists`) were written against MailPoet's DOCUMENTED
+API surface, never against the real installed plugin, since MailPoet
+was never installed on this repo. Per AJ's own suggestion mid-session
+("Might should install mailpoet"), installed the real MailPoet plugin
+(5.36.0, official WordPress.org release) — the single highest-value
+thing this audit step could do, turning a "reasoned through" gap into
+an actually-checked one.
+
+**Verified for real, not just read:**
+- Every method signature `BHMP_Sync` calls
+  (`\MailPoet\API\MP\v1\API::getLists()`, `addList()`, `getSubscriber()`,
+  `addSubscriber()`, `subscribeToList()`, `unsubscribeFromLists()`) was
+  grepped directly out of the real installed
+  `wp-content/plugins/mailpoet/lib/API/MP/v1/API.php` — every one
+  matches exactly, including parameter shapes.
+- Triggered a REAL sync via Debug Tools' "Sync now" button: **92
+  synced, 0 failed**, confirmed live in the admin UI.
+- Confirmed via direct DB query that real subscriber rows actually
+  landed in MailPoet's own `wp_mailpoet_subscribers` table (3,039 total
+  after sync, real emails/names), and that `get_or_create_list_id()`
+  correctly auto-created a real MailPoet segment ("The Self-Hosted Self
+  Fans") rather than silently failing or duplicating.
+- `BHMP_InstantSync` — read all 5 real-time hooks (`user_register`,
+  `profile_update`, `woocommerce_order_status_completed`,
+  `bhm_entitlement_granted`, and the ecosystem's own `bh_event_emitted`
+  bus for 7 specific event types) and confirmed every single claim in
+  the Debug Tools UI's own copy ("real-time sync also runs on
+  registration, profile updates, WooCommerce order completion,
+  entitlement grants, and the ecosystem's own event bus") is backed by
+  a real, correctly-wired hook — not UI copy overselling what the code
+  does.
+
+**No confirmed functional gap** — this plugin was already honestly
+self-aware about its one real unknown (untested against a live
+MailPoet install), and that unknown is now closed, cleanly.
+
+**Deferred, per AJ's own direction** ("We will likely wanna skin
+mailpoet's GUI as needed when we get to the bh-mailpoet step"):
+MailPoet's own admin UI (a large, actively-developed third-party React
+app) hasn't completed its onboarding wizard on this install yet, so
+its real working screens (Emails, Subscribers, Automations) aren't
+reachable to audit visually today. A light contrast check of the
+currently-visible onboarding/homepage screen came back clean (zero
+findings), but a full skin pass is explicitly scoped as future,
+opportunistic work once MailPoet is actually being used day-to-day —
+not attempted this round.
 ### bh-streaming — not started (real player walkthrough specifically)
 ### own-ur-shit core — not started (last, deliberately)
 

@@ -7,14 +7,16 @@ if (!defined('ABSPATH')) exit;
  * harmless no-op with MailPoet absent — same posture as every other
  * class_exists()-guarded cross-plugin touch in this ecosystem.
  *
- * NOT runtime-verified against a live MailPoet install — see
- * bh-mailpoet.php's own changelog note. \MailPoet\API\API::MP('v1')'s
+ * Runtime-verified against a real, official MailPoet install (5.36.0)
+ * as of bh-mailpoet 1.1.4 — see that version's changelog entry for the
+ * full verification (every method signature below matched exactly
+ * against MailPoet's own installed source, and a real Debug Tools sync
+ * run produced 92 synced/0 failed with subscriber rows confirmed
+ * directly in MailPoet's own database). \MailPoet\API\API::MP('v1')'s
  * method names/signatures used below (getLists, addList, getSubscriber,
- * addSubscriber, subscribeToList, unsubscribeFromLists) are from
- * MailPoet's documented public API surface, not read out of the
- * installed plugin's own source (it isn't installed on this repo).
- * Confirm against the real MailPoet codebase before depending on this
- * in production.
+ * addSubscriber, subscribeToList, unsubscribeFromLists) are MailPoet's
+ * documented public API surface, now confirmed to match the real
+ * installed plugin too.
  */
 class BHMP_Sync {
     public static function init(): void {

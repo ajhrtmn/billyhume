@@ -2,11 +2,34 @@
 /**
  * Plugin Name: BH MailPoet
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
- * Version:     1.1.3
+ * Version:     1.1.4
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.1.4 — Closes this plugin's own long-standing "NOT runtime-
+// verified" disclosure (class-sync.php's docblock, present since this
+// plugin was first written): the real MailPoet plugin was never
+// installed on this repo before, so every \MailPoet\API\MP\v1\API call
+// this plugin makes (getLists, addList, getSubscriber, addSubscriber,
+// subscribeToList, unsubscribeFromLists) was written against
+// MailPoet's documented API surface, never checked against the real
+// thing. A functional-depth audit installed the real, official
+// MailPoet plugin (5.36.0) and actually ran it: every method signature
+// grepped directly out of the real installed
+// wp-content/plugins/mailpoet/lib/API/MP/v1/API.php matches exactly,
+// and a real "Sync now" (Debug Tools) run produced 92 synced / 0
+// failed, confirmed via direct DB query that real subscriber rows
+// landed in MailPoet's own wp_mailpoet_subscribers table and that
+// get_or_create_list_id() correctly auto-created a real MailPoet
+// segment rather than silently failing. BHMP_InstantSync's real-time
+// hooks (registration, profile update, WooCommerce order completion,
+// entitlement grants, the ecosystem's own bh_event_emitted bus) were
+// also read and confirmed to match exactly what the Debug Tools UI's
+// own copy claims they do. No code change — this changelog entry
+// exists purely to record that the disclosure is now resolved, not
+// speculative.
 
 // 1.1.3 — Added the missing 'bundled_zip' key to this plugin's own
 // 'ous_registered_plugins' self-registration (found while auditing
@@ -95,7 +118,7 @@ if (!defined('ABSPATH')) exit;
 // its own developer docs) before relying on this in production; `php -l`
 // is clean on every file here, but that only proves valid PHP syntax,
 // not that these calls match MailPoet's real method signatures.
-define('BHMP_VER',  '1.1.3');
+define('BHMP_VER',  '1.1.4');
 define('BHMP_PATH', plugin_dir_path(__FILE__));
 define('BHMP_URL',  plugin_dir_url(__FILE__));
 
