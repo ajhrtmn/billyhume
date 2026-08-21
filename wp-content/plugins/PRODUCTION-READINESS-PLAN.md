@@ -583,7 +583,49 @@ currently-visible onboarding/homepage screen came back clean (zero
 findings), but a full skin pass is explicitly scoped as future,
 opportunistic work once MailPoet is actually being used day-to-day —
 not attempted this round.
-### bh-streaming — not started (real player walkthrough specifically)
+### bh-streaming — audited (2026-08-21), real front end confirmed
+
+**Overall: genuinely rich, real front-end player and REST layer,
+verified live — one real environment limitation (not a code gap)
+prevented full end-to-end audio-decode confirmation.**
+
+**Verified live on the real Streaming page (`?p=63`)**: a fully real
+SPA — All Tracks/Releases/Liked Songs/My Playlists tabs, search, genre
+filter, an "Import my music" action, real track cards. Clicking a
+track produced a real player bar (prev/play/next, like, add-to-
+playlist, Lyrics, EQ, Viz, Jam, volume) and fired FIVE real, correctly-
+sequenced REST calls confirmed via the network log: `GET /bhs/v1/
+tracks`, `POST /tracks/{id}/play` (play-count tracking), `GET /tracks/
+{id}/related`, the actual audio file request (a real `206 Partial
+Content` range response — a correct streaming-audio response, not an
+error), and `POST /tracks/{id}/resume` (resume-position tracking).
+
+**A real, honest failure path, correctly handled**: the click produced
+a "Playback error — retrying…" badge, then "This track isn't playable
+right now — its source may be temporarily unavailable." Traced this to
+its actual root cause rather than assuming a code bug: this install
+has exactly ONE published `bhs_track` ("Midnight Static"), and its
+audio attachment (`tiny-test.mp3`) is a 10-byte file — a bare ID3
+header with zero actual audio data (`xxd` confirmed: just the ID3
+magic bytes, nothing else). The HTTP layer worked correctly (a real
+`206 Partial Content` response); the browser's audio decoder correctly
+failed to decode zero bytes of audio, and the player correctly
+surfaced a graceful, honest error message instead of hanging or
+crashing. **This is the player's error-handling working exactly as
+designed** — a genuinely good finding, not a bug — but it also means
+the actual "does real audio genuinely play" happy path could not be
+verified in this specific environment, since no track with real,
+complete audio content currently exists on this install.
+
+**Also confirmed real** (code-read): `BHS_Jam`'s shared-listening
+feature has a real class with real registered REST routes, matching
+this session's already-established understanding of Jam as a proven,
+working feature from earlier work.
+
+**No confirmed functional gap.** Recommend a follow-up spot-check once
+a real, complete audio file is uploaded to this install to confirm
+actual decoded playback specifically — everything up to and including
+the correct byte-range HTTP transfer is already verified working.
 ### own-ur-shit core — not started (last, deliberately)
 
 ## Standing permission, noted for future work
