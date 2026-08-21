@@ -2,10 +2,55 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.38
+ * Version:     3.10.39
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.39 — Two real bugs found in class-share-card.php
+// (BH_ShareCard, the shared social-share-image generator behind both
+// bh-courses' course-completion card and bh-contest's submission
+// cards), both surfaced by finally activating every installed plugin
+// locally rather than testing against a partial subset — Advanced
+// Media Offloader activation for the previous version's fix turned up
+// the second gap below purely as a side effect of poking at a nearby
+// live share-card URL.
+//   1. Direct field report: a broken-image icon in place of the share
+//      card on the deployed environment, not reproducible on this
+//      local install. Root cause: output_png() called generate()
+//      (which unconditionally calls imagettftext()/imagettfbbox())
+//      BEFORE sending the image/png header — on any host whose GD
+//      build lacks FreeType support (common on locked-down shared
+//      hosting; confirmed this local install's own GD build DOES have
+//      it, which is exactly why it never reproduced here), that call
+//      either fatals or emits a warning into the response body,
+//      corrupting the PNG bytes the browser then fails to decode.
+//      Added a gd_capable() guard (checks imagettftext/imagettfbbox
+//      exist, gd_info()'s 'FreeType Support', and the two vendored
+//      font files are readable) plus a try/catch safety net around
+//      generate() itself, both falling back to a new render_fallback()
+//      — a real, valid, still-on-brand PNG using only
+//      imagefilledrectangle() (no text, so nothing in the fallback
+//      path can hit the same FreeType-dependent call), instead of a
+//      broken response.
+//   2. Found live while verifying fix #1 (screenshotting a real
+//      generated card to confirm the normal path was unchanged): every
+//      card style's bottom-corner wordmark was hardcoded to 'OWN UR
+//      SHIT' — this ecosystem's own pre-rebrand software name, not the
+//      artist's actual site brand the surrounding comment says it's
+//      meant to identify ("identifies which site/brand this came from
+//      once it's out in a social feed on its own"). Every share card
+//      generated since the rebrand has been silently advertising the
+//      wrong name. Added site_mark() (reads get_bloginfo('name'),
+//      uppercased) and replaced all 4 hardcoded instances.
+// Verified live: gd_capable()'s normal-path behavior confirmed
+// unchanged (a real completed course's share card still renders
+// correctly, screenshotted); the wordmark fix confirmed via the same
+// live screenshot, now reading "BILLY HUME BLANK TEST" instead of "OWN
+// UR SHIT". The FreeType-missing fallback path itself could not be
+// exercised live (this install's GD has FreeType) — logic reviewed
+// carefully instead (gd_capable() returning false is the only way
+// into render_fallback(), which uses no TTF-dependent calls at all).
 
 // 3.10.38 — Real gap, direct field report: self-hosted-self-admin-skin
 // was never registered in OUS_Registry at all, despite being ours to
@@ -1735,7 +1780,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.38');
+define('OUS_VER', '3.10.39');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

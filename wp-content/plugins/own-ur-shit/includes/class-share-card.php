@@ -45,6 +45,54 @@ class BH_ShareCard {
         return OUS_PATH . 'assets/fonts/' . $name;
     }
 
+    // Real bug, found via live verification of the GD-fallback fix
+    // above: every card style's corner wordmark was hardcoded to
+    // 'OWN UR SHIT' — this ecosystem's OWN pre-rebrand software name,
+    // not the artist's actual site brand the comment above each call
+    // site says it's meant to identify. Reads the live site name
+    // instead, same as any other "which site is this" mark should.
+    private static function site_mark(): string {
+        return mb_strtoupper(get_bloginfo('name'));
+    }
+
+    // Real field report: a broken-image icon in place of the share
+    // card on a deployed environment that couldn't be reproduced
+    // locally. Root cause traced to output_png() calling generate()
+    // (which calls imagettftext()/imagettfbbox() unconditionally)
+    // BEFORE sending the image/png header — on a host whose GD build
+    // lacks FreeType support (common on locked-down shared hosting,
+    // unlike this local install's own GD build), that call either
+    // fatals or emits a warning into the response body, corrupting the
+    // PNG bytes the browser then fails to decode. This guard lets
+    // output_png() detect that case up front and degrade to a plain
+    // solid-fill card (still real image bytes, still a valid PNG,
+    // still useful as a placeholder) instead of a broken response.
+    private static function gd_capable(): bool {
+        if (!function_exists('imagettftext') || !function_exists('imagettfbbox')) return false;
+        $info = function_exists('gd_info') ? gd_info() : [];
+        if (empty($info['FreeType Support'])) return false;
+        return is_readable(self::font('WorkSans-Variable.ttf')) && is_readable(self::font('BebasNeue-Regular.ttf'));
+    }
+
+    // Deliberately minimal — no text rendering, so nothing here can
+    // hit the same FreeType-dependent path that triggered the fallback
+    // in the first place. Still a real 1200x630 PNG, still on-brand
+    // (reads the live palette same as render_brand()), just without
+    // the title/eyebrow/subtitle text a TTF-less host can't draw.
+    /**
+     * @param mixed $entity_id
+     * @return \GdImage
+     */
+    private static function render_fallback($entity_id) {
+        $s = class_exists('BH_Style') ? BH_Style::get($entity_id) : [];
+        $bg = $s['color_bg'] ?? '#170807';
+        $accent = $s['color_accent'] ?? '#C1503A';
+        $im = imagecreatetruecolor(self::WIDTH, self::HEIGHT);
+        imagefilledrectangle($im, 0, 0, self::WIDTH, self::HEIGHT, self::gd_color($im, $bg));
+        imagefilledrectangle($im, 0, self::HEIGHT - 14, self::WIDTH, self::HEIGHT, self::gd_color($im, $accent));
+        return $im;
+    }
+
     // Hex string ("#RRGGBB" or "#RRGGBBAA") -> GD color index on $im.
     // The 8-digit form (BH_Style's own color_overlay values) drops the
     // alpha byte — GD's alpha model (0-127, inverted) doesn't map
@@ -173,7 +221,7 @@ class BH_ShareCard {
         // Small wordmark, bottom-right — identifies which site/brand
         // this came from once it's out in a social feed on its own,
         // detached from any surrounding page chrome.
-        $mark = 'OWN UR SHIT';
+        $mark = self::site_mark();
         $box = imagettfbbox(18, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];
         imagettftext($im, 18, 0, self::WIDTH - 80 - $mark_width, self::HEIGHT - 50, $accent_color, $body_font, $mark);
@@ -238,7 +286,7 @@ class BH_ShareCard {
         // bottom-left up to the top-right band only), so this sits on
         // the plain dark background, not the accent band; $dark here
         // would be invisible against that near-black background.
-        $mark = 'OWN UR SHIT';
+        $mark = self::site_mark();
         $box = imagettfbbox(20, 0, $body_font, $mark);
         $mark_width = $box[2] - $box[0];
         imagettftext($im, 20, 0, self::WIDTH - 80 - $mark_width, self::HEIGHT - 45, $white, $body_font, $mark);
@@ -302,7 +350,7 @@ class BH_ShareCard {
             imagettftext($im, 24, 0, (int) ((self::WIDTH - $tw) / 2), $y, $accent, $body_font, $subtitle);
         }
 
-        $mark = 'OWN UR SHIT';
+        $mark = self::site_mark();
         $box = imagettfbbox(16, 0, $body_font, $mark);
         $mw = $box[2] - $box[0];
         imagettftext($im, 16, 0, (int) ((self::WIDTH - $mw) / 2), self::HEIGHT - $margin - 22, $cream, $body_font, $mark);
@@ -356,7 +404,7 @@ class BH_ShareCard {
             imagettftext($im, 24, 0, $x, $y, self::gd_color($im, '#9AA5C0'), $body_font, $subtitle);
         }
 
-        $mark = 'OWN UR SHIT';
+        $mark = self::site_mark();
         $mbox = imagettfbbox(16, 0, $body_font, $mark);
         $mw = $mbox[2] - $mbox[0];
         imagettftext($im, 16, 0, self::WIDTH - 44 - $mw, self::HEIGHT - 40, self::gd_color($im, '#9AA5C0'), $body_font, $mark);
@@ -372,7 +420,17 @@ class BH_ShareCard {
     // boilerplate.
     /** @param array<string, mixed> $args */
     public static function output_png(array $args, string $filename = 'share-card.png'): void {
-        $im = self::generate($args);
+        if (self::gd_capable()) {
+            try {
+                $im = self::generate($args);
+            } catch (\Throwable $e) {
+                if (class_exists('OUS_DebugLog')) OUS_DebugLog::log('warning', 'share_card: falling back to plain card after generate() threw: ' . $e->getMessage(), [], 'share_card');
+                $im = self::render_fallback($args['entity_id'] ?? null);
+            }
+        } else {
+            if (class_exists('OUS_DebugLog')) OUS_DebugLog::log('warning', 'share_card: GD build lacks FreeType/TTF support — serving plain fallback card, no text.', [], 'share_card');
+            $im = self::render_fallback($args['entity_id'] ?? null);
+        }
         header('Content-Type: image/png');
         header('Content-Disposition: inline; filename="' . sanitize_file_name($filename) . '"');
         header('Cache-Control: public, max-age=3600');
