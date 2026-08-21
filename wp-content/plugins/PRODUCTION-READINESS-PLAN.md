@@ -114,9 +114,27 @@ stale-theme gap above, some are independent):
   artifact — this session's own history has hit the latter before
   (the Browser pane's screenshot-desync bug), so verify via computed
   style before assuming it's real.
-- **Course-completion screen's "Get share image" renders a broken-image
-  icon** instead of the actual share card. Real bug in share-card
-  generation or its display path — not yet investigated.
+- ~~**Course-completion screen's "Get share image" renders a broken-
+  image icon**~~ — **FIXED (2026-08-21, own-ur-shit 3.10.39, commit
+  `73664ed`)**. Root cause: `BH_ShareCard::output_png()` called
+  `generate()` (unconditional `imagettftext()`) before sending the
+  `image/png` header — on any host whose GD build lacks FreeType
+  support, that call fatals or emits a warning into the response body,
+  corrupting the PNG bytes. Not reproducible on this local install
+  (its own GD build has FreeType), so this was reasoned through and
+  fixed defensively rather than reproduced end-to-end: added a
+  `gd_capable()` guard plus a try/catch safety net, both falling back
+  to a new `render_fallback()` (a real, valid, on-brand PNG using only
+  `imagefilledrectangle()`, nothing FreeType-dependent) instead of a
+  broken response. Also found and fixed, live, a second real bug
+  while verifying this one: every card style's corner wordmark was
+  hardcoded to the pre-rebrand name "OWN UR SHIT" instead of the
+  actual site name — every share card generated since the rebrand had
+  been silently advertising the wrong brand. Verified live: the
+  normal (FreeType-present) path renders unchanged, screenshotted;
+  wordmark now correctly reads the live site name. The fallback path
+  itself (FreeType actually missing) could not be exercised live in
+  this environment — logic-reviewed instead, not screenshot-verified.
 - **Front-end WP admin bar (for logged-in users) needs the same dark
   theming pass** the wp-admin skin already gets — currently unstyled/
   default, a real, named gap ("The admin bar on the front end needs
@@ -148,6 +166,31 @@ stale-theme gap above, some are independent):
   driving a CSS custom property per element, not a small tweak. Real,
   bounded, standalone piece of design-system work — worth scoping
   properly rather than bolting on ad hoc.
+
+## Activate-everything sweep (2026-08-21)
+
+Direct request: "activate everything in the ecosystem locally to make
+sure we cover them all in our fixes as well." This local install had 8
+plugins sitting inactive (Advanced Media Offloader, BH Feedback, BH
+Live, BH MailPoet, BH Registry, BH Social, BH Tickets, plus one more)
+— exactly how the Media & CDN Setup wizard bug above went undetected
+for so long (its entire provider-card section is gated behind
+`class_exists()` on the Advanced Media Offloader class, so it had
+never actually rendered on this install before this session). Bulk-
+activated all 8 via the Plugins screen; now 17/17 active.
+
+Verification done with WP_DEBUG_LOG temporarily enabled (reverted
+before finishing, per this project's own standing convention) plus a
+live contrast sweep on every newly-active plugin's own admin screen:
+`own-ur-shit` dashboard, Media & CDN Setup (incl. the BH Live
+Owncast/Cloudflare-Stream section), Registry Submissions, Feedback
+Requests, BH Social, Support Tickets, Monetization Settings. All clean
+— zero contrast findings, zero PHP errors logged beyond the expected
+"ADVMO: no cloud provider configured yet" notice (benign, provider
+simply isn't configured). No further theming gaps found from this
+pass; the two real bugs it did surface (Media wizard dimmed cards,
+share-card GD/FreeType fallback + stale watermark) are documented and
+fixed above.
 
 ## Standing permission, noted for future work
 
