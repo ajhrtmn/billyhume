@@ -192,6 +192,141 @@ pass; the two real bugs it did surface (Media wizard dimmed cards,
 share-card GD/FreeType fallback + stale watermark) are documented and
 fixed above.
 
+## Functional-depth audit (2026-08-21) — new tracked initiative
+
+Direct request: "make sure that everything is actually doing what it's
+supposed to be doing... verses just literal interpretations of the
+ideas and rules... go through them all serially and meticulously."
+This is a different axis than everything above — the visual/CSS
+sweeps confirm screens RENDER correctly; this checks whether each
+plugin's actual features DO the real job they claim to, live, as a
+real user, not just whether the UI is present and themed.
+
+**Stock-take.** Version number is a rough proxy for how much real
+iteration a plugin has had, and it matches what's actually been
+exercised this session:
+- **Deep, live-verified, real end-to-end flows already**: `bh-contest`
+  (v3.7.30 — submit/vote/reveal), `bh-courses` (v0.4.86 — enroll/
+  lesson/quiz/tier-gate), `bh-crm` (v2.4.21), `bh-monetization-woo`
+  (v0.5.19 — purchase/entitlement). Not re-auditing these here.
+- **Touched only superficially so far** (contrast sweeps, PHPStan
+  typing, registry entries — never actually exercised as a live user
+  flow): `bh-streaming` (v0.5.29 — Pro Wizard spot-checked only,
+  player never walked end-to-end), `bh-registry` (v0.1.13),
+  `bh-feedback` (v0.1.5), `bh-live` (v0.9.4), `bh-social` (v0.3.4),
+  `bh-tickets` (v1.0.1), `bh-video` (v0.4.2), `bh-mailpoet` (v1.1.3).
+  These are this initiative's actual scope.
+
+**Method, confirmed with AJ directly (2026-08-21):**
+1. Read the plugin's own stated purpose (its description, its slice of
+   VISION.md/ROADMAP docs).
+2. Walk its real admin UI AND portal/front-end surface as an actual
+   user would — does the primary action produce the real, correct
+   effect (DB write, external call, entitlement grant, notification),
+   not just "does it render."
+3. Judge each core feature: genuinely purposeful/integrated, honestly-
+   scoped-but-limited (fine, as long as it says so — see the Vizio Ads
+   precedent below), or a literal/shallow stand-in for something
+   bigger.
+4. **Small, clear gaps get fixed and live-verified immediately. Larger
+   gaps (a real multi-day feature build) get logged here with a clear
+   scope, not started ad hoc** — confirmed preference over cataloging
+   everything first or over-building mid-audit.
+5. **Third-party integrations** (YouTube/Twitch/Meta for bh-social,
+   Owncast/Cloudflare for bh-live, MailPoet): verify the code path
+   critically — does it do real work when credentials ARE present, does
+   it fail gracefully when they're not — without needing live
+   third-party credentials in this environment, per AJ's own call.
+
+**A good-faith precedent already found, worth calibrating against**:
+`bh-social/includes/class-vizio-ads.php` — a real DB-backed draft-
+capture implementation with an honest doc comment explaining exactly
+why it's `get_status(): 'manual_handoff'` rather than a fake self-serve
+API integration (Vizio has no public self-serve ads API). This is the
+target shape: honestly-scoped is fine, silently-pretending is not.
+
+**Confirmed order** (least-audited/highest stub-risk first, since
+contest/courses/crm/monetization already earned trust): `bh-social` →
+`bh-tickets` → `bh-feedback` → `bh-live` → `bh-registry` → `bh-video`
+→ `bh-mailpoet` → `bh-streaming` (real end-to-end player walkthrough,
+despite the higher version number) → `own-ur-shit` core last (biggest
+surface, most other plugins depend on it).
+
+### bh-social — audited (2026-08-21)
+
+**Overall: real, honest code, one confirmed functional gap.** Read
+every platform class plus `class-admin.php`'s full handler/render
+inventory, then verified live against `admin.php?page=bh-social`
+(previously never rendered here — inactive until this session's
+activate-everything pass).
+
+**What's genuinely real and working, not stubs:**
+- YouTube/Twitch/Meta/TikTok: real OAuth2 flows (state-nonce-protected
+  callbacks, token refresh, credential round-trip through
+  `wp_options`), real API calls (`wp_remote_get`/`wp_remote_post`
+  against each platform's actual documented endpoints, not mocked),
+  real `OUS_Jobs`-backed stats-pull cron writing to a real
+  `wp_bhso_platform_stats` table, and a real PHPUnit test suite
+  exercising credential persistence and validation. The UI itself is
+  honestly labeled — "Alpha"/"Experimental" `OUS_Badge`s with specific,
+  accurate caveats per platform (Meta's app-review timeline, TikTok's
+  HTTPS-only redirect + sandbox limits), plus a page-level banner:
+  "every integration below is real, working code... but 'alpha' here
+  specifically means not yet verified against a live account." This is
+  exactly the honest-scoping bar to hold every other plugin to.
+- Ads draft-capture (Roku/Spotify/Amazon DSP/Samsung/Vizio): fully
+  wired end-to-end (save/list/delete, real DB-backed drafts, "Open
+  {Platform} Manager" handoff link) — a correctly-scoped feature given
+  none of these 5 platforms have a public self-serve API, confirmed via
+  each class's own research-backed doc comments (Vizio's is the
+  clearest example: "included for completeness/honest signaling only").
+- No front-end/portal surface exists for this plugin (no shortcode,
+  no public stats display) — checked against VISION.md/
+  ROADMAP-platform-evolution.md, this is correctly scoped as an
+  artist-internal ops tool, not a missing feature.
+
+**Confirmed real gap**: the actual "organic **cross-posting**" half of
+the plugin's own description — the whole reason `cross_post()`/
+`enqueue_cross_post()` exist on `BHSO_YouTube`, `BHSO_Meta`, and
+`BHSO_TikTok` — has **zero UI entry point anywhere in the ecosystem**.
+Confirmed by grepping every `add_action('admin_post_...')` registration
+in `bh-social.php`/`class-admin.php`: connect, disconnect, and
+stats-pull are wired for all 4 platforms, but only **Twitch** got a
+matching feature UI ("Send a chat announcement" — a real form,
+`handle_twitch_announce()`, wired and working). YouTube/Meta/TikTok's
+video cross-post methods are real, tested, callable code with no
+caller anywhere — not in `bh-social` itself, not in `bh-video`, not in
+`bh-streaming`, not in `bh-contest` (grepped all three for any
+`BHSO_*`/`cross_post` reference — zero hits). A user cannot actually
+cross-post a video through this plugin today, despite it being the
+plugin's headline feature.
+
+**Scoped fix, not started (logged per "fix small, log big")**: add a
+"Cross-post a video" form to each of the 3 platform sections in
+`class-admin.php`'s `render_youtube_section()`/`render_meta_section()`/
+`render_tiktok_section()`, following the exact two patterns already
+proven elsewhere in this codebase — Twitch's own announce form (same
+file, `render_twitch_section()`) for the form/handler/nonce shape, and
+`bh-video/includes/class-admin.php`'s existing `wp.media()` JS picker
+for attachment selection (so this isn't inventing a third UI pattern).
+Needs: 3 new `admin_post_bhso_{platform}_cross_post` handlers calling
+the existing `enqueue_cross_post()` methods (already correctly
+signatured and job-queue-backed), 3 small forms (attachment picker +
+title/description/privacy fields, platform-specific), each gated
+behind `$status === 'connected'` same as the existing stats section.
+Real but bounded — roughly the same shape as the Twitch announce
+feature, times three. Not built this session; flagged for a dedicated
+pass.
+
+### bh-tickets — not started
+### bh-feedback — not started
+### bh-live — not started
+### bh-registry — not started
+### bh-video — not started
+### bh-mailpoet — not started
+### bh-streaming — not started (real player walkthrough specifically)
+### own-ur-shit core — not started (last, deliberately)
+
 ## Standing permission, noted for future work
 
 "I don't mind using unsplash and other 3rd party visual assets so long
