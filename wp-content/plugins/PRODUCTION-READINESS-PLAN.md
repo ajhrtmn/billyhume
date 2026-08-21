@@ -1,3 +1,72 @@
+# Consolidated open-work plan (2026-08-21, late session) — READ THIS FIRST
+
+Direct request: "Let's fix the things we skipped from the previous
+pass, plan to audit the ecosystem and fold all current work into that
+together." This section is the single, current, prioritized list —
+everything below it is backing detail/history, same relationship the
+existing "RECONCILIATION"-style sections in this doc already have to
+their own detail sections. Checked every "still open" claim against
+this session's actual git log before listing it here, not copied
+blind from stale prose.
+
+## Genuinely still open (never touched this session, confirmed by grep)
+
+In rough priority order:
+
+1. **Front-end WP admin bar theming** — the wp-admin skin themes the
+   admin bar in wp-admin; the SAME admin bar for logged-in users on
+   the front end never got the same pass. Real, named gap, not
+   started.
+2. **Debug Tools sticky-header/admin-bar scroll gap** — the page's own
+   sticky section-jump header stays fixed while the WP admin bar
+   scrolls away on mobile, leaving a visible gap. Needs a real
+   sticky-positioning fix (likely a `top` offset that doesn't assume
+   the admin bar is always present). Not started.
+3. **Ecosystem dashboard plugin-card UX** — two concrete asks: (a) let
+   each plugin card check/update its own GitHub status inline, not
+   just centrally on Debug Tools; (b) a process convention that every
+   NEW plugin gets a dashboard card as one of its first build steps.
+   Not started.
+4. **Haze/blur system → dynamic, scroll-proximity-driven** (real
+   feature request, not a bug) — currently hover-triggered only;
+   asked for continuous viewport-proximity blur (blurrier near the
+   edge, sharpens toward center), likely `IntersectionObserver`-driven.
+   Real, bounded, standalone design-system work. Not started.
+5. **Wasmer theme-deploy-gap verification** — still genuinely
+   unconfirmed from either side; needs AJ to check dev-ous.wasmer.app's
+   own GitHub Updates → "Update now" behavior directly, since this
+   session has no access to that environment. Blocked on AJ, not on
+   code.
+
+## New this pass — the federated music-library gap (2026-08-21)
+
+Direct vision check from AJ: hosting + publishing a public feed
+already works (`bh-streaming`'s `BHS_Feeds` import/export), and the
+decentralized, verified "who's out there" directory already works
+(`bh-registry`, its own domain-ownership + protocol-openness
+verification — the non-blockchain version of what AJ described).
+Two real gaps against the actual vision, confirmed by reading
+`class-streaming-bridge.php` and `class-api.php`'s `list_artists()`:
+
+1. **Admin curation is search-only, not browse-all** — the existing
+   bridge only gives a search box on the Feed Sources screen; being
+   registered doesn't make an artist surfaced automatically, only
+   *findable if searched for by name*. The REST endpoint
+   (`GET /bhr/v1/artists`) already fully supports a blank-search
+   browse-all query with protocol filtering — this is a pure admin-UI
+   gap, no backend work needed. **In progress** — confirmed with AJ to
+   do this one first (small, contained, real payoff), before treating
+   gap 2 below as its own proper design pass.
+2. **No fan-facing cross-site library at all** — everything today is
+   admin-curated onto one site's own catalog; a fan has no way to
+   search the global registry themselves or build a personal library
+   spanning multiple independent sites. Genuinely new feature, real
+   open design questions (where it lives, storage, cross-site
+   playback) — explicitly scoped as its OWN design pass, not started
+   until gap 1 lands and is confirmed working.
+
+---
+
 # Field Reports (2026-08-16, mobile screenshots against dev-ous.wasmer.app)
 
 Direct field data: a batch of real phone screenshots taken against the
@@ -108,12 +177,13 @@ stale-theme gap above, some are independent):
   visible error) exactly. Needs live devtools Network/Console
   verification against the actual dev-ous.wasmer.app page to confirm
   which — not fixable further from this environment alone.
-- **Media & CDN Setup wizard — provider cards appear dimmed/disabled**
-  in the screenshot. Needs a live check to confirm whether this is
-  real (a stuck loading/disabled state) or a screenshot-timing
-  artifact — this session's own history has hit the latter before
-  (the Browser pane's screenshot-desync bug), so verify via computed
-  style before assuming it's real.
+- ~~**Media & CDN Setup wizard — provider cards appear dimmed/
+  disabled**~~ — **FIXED, verified live (2026-08-21, admin-skin
+  0.31.0, commit `78ac991`)**. See the "Activate-everything sweep"
+  section below for the full story — the gated section had never
+  actually rendered on this install before, confirmed real (not a
+  screenshot artifact) by activating Advanced Media Offloader locally
+  to reproduce it.
 - ~~**Course-completion screen's "Get share image" renders a broken-
   image icon**~~ — **FIXED (2026-08-21, own-ur-shit 3.10.39, commit
   `73664ed`)**. Root cause: `BH_ShareCard::output_png()` called
