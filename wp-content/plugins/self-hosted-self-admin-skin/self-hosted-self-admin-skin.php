@@ -2,10 +2,31 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.30.0
+ * Version:     0.31.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.31.0 — Direct field report ("Media & CDN Setup wizard provider
+// cards appear dimmed/disabled"). This screen (own-ur-shit's
+// class-media-wizard.php) is entirely gated behind
+// class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')
+// — that plugin was installed but never ACTIVE on this local install,
+// so the gated section had genuinely never rendered here before,
+// meaning nobody had actually seen this screen live prior to this
+// field report. Activated it locally to reproduce and confirm: real
+// bug, not a screenshot artifact. Root cause matches the recurring
+// shape from the WooCommerce fixes above — the provider-choice cards
+// and credential blocks carry their own inline `background:#fff` (this
+// file's markup predates the admin-skin token system and was never
+// swept), plain white boxes on this skin's dark page background, which
+// reads as flat/washed-out ("dimmed") next to the rest of the themed
+// admin. Scoped the fix to this screen's own body class
+// (.the-self-hosted-self_page_ous-media-setup) since the underlying
+// markup is otherwise unclassed generic labels/divs shared by no other
+// screen. Verified live (contrast sweep clean, screenshot confirms the
+// cards now read as real themed surfaces) — deactivated Advanced Media
+// Offloader again afterward to restore this install's original state.
 
 // 0.30.0 — Direct field report ("WooCommerce Settings and WC Home
 // dashboard render completely unstyled"), confirmed real via a full
@@ -1427,7 +1448,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.30.0');
+define('SHSAS_VER', '0.31.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

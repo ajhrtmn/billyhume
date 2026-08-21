@@ -1334,6 +1334,24 @@ body.wp-admin *:focus-visible {
 .wc-shipping-zone-methods li {
     color: var(--shsas-text-dim) !important;
 }
+/* Media & CDN Setup wizard (own-ur-shit/includes/class-media-wizard.php)
+   — direct field report ("provider cards appear dimmed/disabled").
+   Confirmed real live (Advanced Media Offloader activated locally to
+   render the gated section, which had never been exercised before):
+   the provider-choice cards and credential-entry blocks carry their
+   own inline background:#fff, plain white boxes floating on this
+   skin's dark page background — not actually disabled, just entirely
+   unthemed, which reads as flat/washed-out next to the rest of the
+   admin. Inline style="" wins over an unqualified rule, hence
+   !important. */
+.the-self-hosted-self_page_ous-media-setup .ous-wizard-providers label,
+.the-self-hosted-self_page_ous-media-setup .ous-provider-fields {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+}
+.the-self-hosted-self_page_ous-media-setup .ous-wizard-providers label .description {
+    color: var(--shsas-text-dim) !important;
+}
 .woocommerce-dismissable-list__header,
 .woocommerce-dismissable-list__header *,
 .woocommerce-recommended-shipping-extensions .woocommerce-pill {

@@ -72,17 +72,42 @@ Screenshots showed several more real issues on dev-ous.wasmer.app that
 weren't reproduced/fixed this round (some may be downstream of the
 stale-theme gap above, some are independent):
 
-- **WooCommerce Settings (Payments, Shipping tabs) and WooCommerce
-  Home dashboard render completely unstyled** — stark default white/
-  light WC admin, no dark-theme tokens at all. Given this session's
-  admin-skin CSS already covers plenty of WooCommerce surfaces
-  (Orders, Products, single-order screens per the master plan's
-  history), this specific gap (Settings tabs, the WC Home "Things to
-  do next"/Inbox/Stats widgets) needs its own live sweep — genuinely
-  unaudited territory, not a regression.
-- **bh-courses Sessions admin — the calendar grid renders blank**
-  (header row S M T W T F S with no date cells under it). Real
-  rendering bug, not yet investigated.
+- ~~**WooCommerce Settings (Payments, Shipping tabs) and WooCommerce
+  Home dashboard render completely unstyled**~~ — **FIXED, verified
+  live (2026-08-21, admin-skin 0.30.0, commit `9a4356c`)**. Confirmed
+  real via a live WCAG contrast sweep (not just the screenshot): WC's
+  newer `@woocommerce/components` + Emotion CSS-in-JS screens are a
+  genuinely different rendering layer from classic PHP admin markup,
+  same gap already documented for the block editor — each
+  sub-component sets its OWN explicit background/text color instead of
+  inheriting. Fixed WC Home (task/inbox cards, stats overview, Jetpack
+  promo card, count badges — including a second classless `<span>`
+  duplicate of an already-fixed title, the same text rendered twice in
+  the DOM), the admin bar's own "Store coming soon" site-visibility
+  badge (site-wide, not WC-Home-specific), the Payments tab's
+  extension badge/payment-count pill/expand button, and the Shipping
+  tab's blank-state copy plus recommended-extensions panel. Re-swept
+  all three screens clean after fixing (zero findings) — but only
+  checked against localhost:10008, not yet confirmed against
+  dev-ous.wasmer.app.
+- ~~**bh-courses Sessions admin — the calendar grid renders blank**~~ —
+  **INVESTIGATED (2026-08-21), no code bug found; likely environment-
+  specific.** Full source read (`class-sessions-admin.php`,
+  `sessions-admin.ts`/`.js`, vendored FullCalendar v7.0.2) plus a live
+  check against localhost:10008 confirms the calendar renders and
+  initializes correctly there (real events, real date grid,
+  `FullCalendar` global defined) — the PHP/JS/data pipeline is
+  internally consistent, no functional bug in the shipped code. Most
+  likely explanation on the deployed site: either the 777KB vendored
+  `fullcalendar.global.js` failing to load there (404/stale-cache/
+  permissions), or a caching/minification/optimization layer on
+  dev-ous.wasmer.app rewriting the `<script>` tag to add `async`/
+  `defer`/`type="module"` — the JS guards on `typeof FullCalendar ===
+  'undefined'` and fails silently (no console error) if the global
+  never attaches, matching the reported symptom (empty grid, no
+  visible error) exactly. Needs live devtools Network/Console
+  verification against the actual dev-ous.wasmer.app page to confirm
+  which — not fixable further from this environment alone.
 - **Media & CDN Setup wizard — provider cards appear dimmed/disabled**
   in the screenshot. Needs a live check to confirm whether this is
   real (a stuck loading/disabled state) or a screenshot-timing
