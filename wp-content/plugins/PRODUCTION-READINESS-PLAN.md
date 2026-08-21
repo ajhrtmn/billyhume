@@ -371,7 +371,45 @@ glow treatment this project's own design brief calls for — switched to
 `--bh-accent-muted-bg`, matching the low-alpha treatment already used
 elsewhere in `theme.css`. Both verified live, screenshotted, full
 contrast sweep clean.
-### bh-feedback — not started
+### bh-feedback — audited (2026-08-21), no gaps found
+
+**Overall: genuinely excellent, no confirmed functional gap.** Read
+all 8 includes files (submit/upload/wallet-debit, the self-serve
+claim/release/complete reviewer queue, portal panel). This is the
+most carefully-reasoned plugin audited so far, despite its low version
+number (0.1.5) — a real reminder that version count tracks ITERATION,
+not quality; this plugin just hasn't needed many fixes.
+
+**What's genuinely real:** `BHF_Requests::handle_submit()` — real
+atomic wallet debit (`BHM_Wallet::debit()`, fails cleanly on
+insufficient balance rather than ever creating an unpaid request),
+real reversal-on-post-creation-failure (mirrors
+`BHM_Entitlements`' own refund-reversal posture), a real scoped-and-
+reverted `upload_files` capability grant for the audio upload (same
+trust-boundary pattern as `class-public-profile.php`), and a real
+sha1-file-hash duplicate-submission detector surfaced to the reviewer
+(not silently auto-rejected). `BHF_Queue::claim()`/`release()`/
+`complete()` — real atomic conditional-UPDATE claim locking (same
+TOCTOU-safe pattern `BHM_Wallet::debit()` uses), and a real, honestly-
+documented cache-invalidation bug the plugin's OWN test suite caught
+in a prior session (`clean_post_cache()` needed after a raw `$wpdb`
+postmeta UPDATE, since that bypasses WP's object cache). Both the
+reviewer queue (claim/release/complete, with the duplicate-flag
+surfaced) and the submitter form are fully wired to real portal UI
+(`class-portal-panel.php`) — verified live (`/wp-admin/admin.php?
+page=bh-feedback-requests` renders correctly).
+
+**A deliberate non-finding, worth recording as a real judgment
+call**: unlike bh-tickets' new-ticket notification gap (fixed this
+session), reviewers here do NOT get notified when a new request is
+submitted — only the submitter gets notified on completion. Did NOT
+flag this as a gap: this plugin is explicitly a self-serve PULL queue
+by its own description ("any account with the Reviewer job claims it
+from a shared queue"), and the submitter-facing copy already sets a
+multi-day turnaround expectation per tier — a periodic-check model is
+the correct, intended design here, not an oversight the way bh-
+tickets' silence was. Applying the same fix mechanically to both
+would have been wrong for this one.
 ### bh-live — not started
 ### bh-registry — not started
 ### bh-video — not started
