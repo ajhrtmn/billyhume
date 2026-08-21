@@ -318,7 +318,59 @@ Real but bounded — roughly the same shape as the Twitch announce
 feature, times three. Not built this session; flagged for a dedicated
 pass.
 
-### bh-tickets — not started
+### bh-tickets — audited (2026-08-21)
+
+**Overall: real, complete, correctly-wired feature. One real gap found
+and fixed.** Read all 7 includes files, then verified live end to end:
+submitted a real ticket through the portal (`/account/?panel=tickets`),
+confirmed it appeared correctly in the staff list and detail view
+(`admin.php?page=bh-tickets`), status-change and assignment dropdowns
+present and wired to real handlers.
+
+**What's genuinely real:** `BHT_Tickets::create()`/`BHT_Replies::add()`
+— real DB-backed CRUD, real `BHCRM_Links` requester relationship, real
+`BH_Event` emission for the activity log, a real bh-crm activity-
+summary integration (`register_crm_activity()`). Staff list/detail/
+reply/status/assign are all fully wired with real nonces and capability
+checks (`bhcore_manage_tickets`) — no dead buttons, no decorative-only
+controls.
+
+**Confirmed real gap, found and FIXED live (bh-tickets 1.0.2, own-
+ur-shit not touched, commit `663ce3b`)**: `BHT_Replies::maybe_notify()`
+already handled staff-reply → requester and requester-reply → assignee
+notifications, and its own doc comment openly admitted a brand-new,
+UNASSIGNED ticket notified nobody at all. That gap was real and live —
+`bht/ticket_created` fired for the event log but nothing ever listened
+to it for a notification. A support plugin whose own description
+promises "staff triage from wp-admin" needs staff to actually learn a
+ticket exists. Added `BHT_Tickets::notify_staff_new_ticket()`, notifying
+every `bhcore_manage_tickets` holder (skipping the creator). Verified
+live: submitted a real ticket, confirmed via direct DB query this
+install has exactly one staff account (the ticket's own creator) — zero
+notification rows is the CORRECT result here (self-notification is
+deliberately skipped). The "notify a different real staff member" path
+itself couldn't be exercised without a second staff account in this
+environment; reviewed the logic carefully instead against the identical,
+already-proven pattern in `maybe_notify()` right above it.
+
+**Minor, not fixed**: `BHT_Tickets::set_status()` emits a `BH_Event`
+for the log but doesn't directly notify the requester of a status
+change (only a reply does). Arguably fine — a bare status flip without
+comment is lower-urgency than a reply — logged here as a real but minor
+observation, not a confirmed gap worth blocking on.
+
+**Also fixed live while verifying the above** (own-ur-shit 3.10.40,
+commit `663ce3b`), two direct field reports on the portal shell itself
+(not bh-tickets-specific — these reach every peer plugin's portal
+panel): `.bhi-portal-main` had zero generic form-element styling (only
+the login page's own fields were themed), so bh-tickets' New Ticket
+form rendered as stark unstyled white boxes; and `.bhi-portal-nav
+a.is-active` used a flat, fairly saturated `--bh-accent-soft` fill
+("ugly contrast" per direct feedback) instead of the restrained accent-
+glow treatment this project's own design brief calls for — switched to
+`--bh-accent-muted-bg`, matching the low-alpha treatment already used
+elsewhere in `theme.css`. Both verified live, screenshotted, full
+contrast sweep clean.
 ### bh-feedback — not started
 ### bh-live — not started
 ### bh-registry — not started
