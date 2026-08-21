@@ -2,10 +2,46 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.29.0
+ * Version:     0.30.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.30.0 — Direct field report ("WooCommerce Settings and WC Home
+// dashboard render completely unstyled"), confirmed real via a full
+// live contrast sweep (WCAG relative-luminance JS, walking the DOM for
+// the nearest real background) rather than the screenshot alone. Root
+// cause on every single finding this round was the SAME shape already
+// documented in this file's own changelog for the block editor: WC's
+// newer admin screens (WooCommerce Home, Payments settings, Shipping
+// settings) are built on @woocommerce/components + Emotion CSS-in-JS,
+// a genuinely different rendering layer from classic PHP admin markup
+// that never inherits this skin's body.wp-admin-scoped rules, and each
+// sub-component sets its OWN explicit background/text color rather
+// than inheriting from a parent card. Found and fixed by walking each
+// screen live, not by reading markup: WC Home's task/inbox cards
+// (.woocommerce-task-card, .woocommerce-inbox-message, plus a second
+// classless <span> duplicate of an already-fixed title — the same
+// text rendered twice in the DOM, only one instance originally
+// caught), the Stats Overview widget (.woocommerce-summary__item's own
+// white background, .woocommerce-summary__item-delta's own grey pill,
+// several components-truncate spans), the Jetpack traffic-stats promo
+// card's bare classless <h2> and its @wordpress/components Button (the
+// same hardcoded #1e1e1e Button-text bug found repeatedly elsewhere in
+// this file), the task/inbox count badges (.woocommerce-badge, its own
+// hardcoded light-grey pill), the "Store coming soon" site-visibility
+// badge in the admin bar itself (site-wide, not WC-Home-specific — the
+// <a> carries its own light pill background, not inherited), the
+// Payments tab's "Official" extension badge / payment-method-count
+// pill / "More payment options" expand button, and the Shipping tab's
+// blank-state help copy plus its "Recommended shipping solutions"
+// panel (another @woocommerce/components card, same pattern again).
+// Re-verified clean via a full contrast sweep on all three screens
+// after fixing — zero findings remaining on WC Home, Payments, and
+// Shipping. NOT independently verified against dev-ous.wasmer.app —
+// only checked live against localhost:10008; the original field report
+// screenshots were taken against the deployed environment, so confirm
+// there too once this deploys.
 
 // 0.29.0 — Real bug, direct field report (mobile screenshots): the
 // admin sidebar's nav icons rendered ON TOP of their own text labels
@@ -1391,7 +1427,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.29.0');
+define('SHSAS_VER', '0.30.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 

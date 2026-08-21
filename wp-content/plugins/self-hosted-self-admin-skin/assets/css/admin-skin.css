@@ -1203,6 +1203,142 @@ body.wp-admin *:focus-visible {
     margin-bottom: var(--shsas-space-5);
     transition: box-shadow var(--shsas-speed) ease, border-color var(--shsas-speed) ease;
 }
+/* Real bug, direct field report: WooCommerce's Home dashboard
+   (admin.php?page=wc-admin) is built entirely on @wordpress/components'
+   generic Card surface (.components-surface.components-card) — the
+   task list, stats overview, activity panel, and every inbox message
+   all rendered solid white with zero token coverage. Genuinely
+   different rendering layer than the .postbox/.card family above
+   (React, not classic PHP markup), same "modern admin screen the
+   classic sweep never reaches" category as the Gutenberg editor
+   chrome and the WooCommerce Payment Settings screen, both already
+   fixed this same pass. Themed as its own real card surface (matching
+   this skin's existing card-shape unification) rather than folded
+   into the selector list above, since its internal header/body/footer
+   sub-parts need their own text-color rules the simpler .postbox-style
+   cards don't have. */
+.components-surface.components-card {
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+    box-shadow: var(--shsas-shadow) !important;
+}
+.components-card__header,
+.components-card__body,
+.components-card__footer {
+    /* Real bug caught re-verifying live: these sub-parts each get
+       their OWN explicit background from WooCommerce's Emotion
+       (CSS-in-JS) styles — not inherited from the outer .components-card
+       rule above — so the first pass here only fixed the card's own
+       edges while every header/body/footer strip inside it stayed a
+       slightly-off-white. */
+    background: var(--shsas-surface) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+.woocommerce-inbox-message,
+.woocommerce-task-card,
+.woocommerce-stats-overview,
+.woocommerce-layout__activity-panel-wrapper {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+}
+/* Real bug, re-verified live: the task-list ROWS use
+   .woocommerce-experimental-list__item, a distinct, newer class from
+   the .woocommerce-list__item already fixed for the Payments screen's
+   provider cards above — same component family, different version,
+   never caught by that earlier fix. */
+.woocommerce-experimental-list__item {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
+/* The "Start customizing your store" task-card heading is a bare,
+   classless <h1> inside .components-card — inherits nothing from any
+   rule above since its own near-black color is set explicitly by
+   WooCommerce's own styles, not left to inherit. */
+.woocommerce-task-card h1,
+.woocommerce-homescreen-card h1 {
+    color: var(--shsas-text) !important;
+}
+.woocommerce-inbox-message__title,
+.woocommerce-inbox-message__title * { color: var(--shsas-text) !important; }
+.woocommerce-inbox-message__date { color: var(--shsas-text-dim) !important; }
+/* Real bug, same sweep: WooCommerce's Home "Things to do next" step
+   counter badge (the numbered circle before each item) and the Stats
+   Overview widget's own labels/values all set their own explicit
+   near-black color, not inherited from any rule above. */
+.woocommerce-task-list__item .woocommerce-task-list__item-before,
+.woocommerce-stats-overview__label,
+.woocommerce-stats-overview__value,
+.woocommerce-stats-overview__delta {
+    color: var(--shsas-text) !important;
+}
+/* Real bug, same sweep: the Stats Overview totals row
+   (.woocommerce-summary__item) sets its OWN explicit white background,
+   independent of the .components-surface.components-card fix above —
+   it's a plain <a>, not a Card component. Its label/value text was
+   already themed light by the fix above, so the white bg alone made it
+   unreadable. Same for the Jetpack traffic-stats promo card's bare,
+   classless <h2> (no component class to hook, needs a descendant
+   selector off its one real ancestor), the "Get Jetpack"/"No thanks"
+   buttons on that same promo (another @wordpress/components Button
+   with its own hardcoded #1e1e1e text — the recurring pattern), and
+   the "4"/"8" task/inbox-count badges (own hardcoded light-grey pill,
+   never themed). */
+.woocommerce-summary__item {
+    background: var(--shsas-surface) !important;
+}
+.woocommerce-summary__item-delta {
+    background: var(--shsas-surface-alt, var(--shsas-bg)) !important;
+    color: var(--shsas-text) !important;
+}
+.woocommerce-stats-overview__install-jetpack-promo h2 {
+    color: var(--shsas-text) !important;
+}
+.woocommerce-stats-overview__install-jetpack-promo .components-button {
+    color: var(--shsas-text) !important;
+}
+.woocommerce-badge {
+    background: var(--shsas-accent) !important;
+    color: var(--shsas-bg) !important;
+}
+/* Site-wide admin bar item (WooCommerce's "Store coming soon" site-
+   visibility badge), not WC Home-specific — the <a> itself carries its
+   own light pill background (not inherited from the admin bar), so
+   fixing text color alone wasn't enough; low contrast against the
+   themed admin bar bg without it. */
+#wp-admin-bar-woocommerce-site-visibility-badge .ab-item {
+    background: var(--shsas-surface-alt, var(--shsas-bg)) !important;
+    color: var(--shsas-text-dim) !important;
+}
+/* Payments settings tab (newer @woocommerce/components layer, same
+   Emotion CSS-in-JS pattern as the WC Home fixes above): the
+   "Official" extension badge pill and the "+N payment methods" logo
+   counter and the "More payment options" expand-section button all
+   set their own explicit near-black text, same recurring pattern. */
+.woocommerce-official-extension-badge,
+.woocommerce-woopayments-payment-methods-logos-count,
+.other-payment-gateways__header__title {
+    color: var(--shsas-text) !important;
+}
+/* Shipping settings tab: the zone-list blank-state help copy
+   (classic PHP markup, WooCommerce's own muted #515151 body-text
+   default) and the zone-methods "No shipping methods offered" list
+   item both need the themed dim/text colors; the "Recommended
+   shipping solutions" panel below is the same newer @woocommerce/
+   components layer as the rest of this file's WC fixes, its own
+   explicit near-black text again. */
+.wc-shipping-zones-blank-state p,
+.wc-shipping-zones-blank-state li,
+.wc-shipping-zone-methods li {
+    color: var(--shsas-text-dim) !important;
+}
+.woocommerce-dismissable-list__header,
+.woocommerce-dismissable-list__header *,
+.woocommerce-recommended-shipping-extensions .woocommerce-pill {
+    color: var(--shsas-text) !important;
+}
 
 /* ---- Wallet-stack accordion ----
    Direct request: "I like Apple's Wallet metaphor as a way to organize
@@ -1692,6 +1828,47 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     color: var(--shsas-text-dim) !important;
 }
 .nav-tab:hover { color: var(--shsas-text) !important; }
+/* Real bug, direct field report: `.nav-tab-wrapper` above never
+   actually got a BACKGROUND, only a border-color — invisible on the
+   classic Settings tabs (General/Shipping), where each tab's own
+   transparent bg + dark text was enough to read as themed, but
+   WooCommerce's newer React-based Payment Settings screen
+   (@woocommerce/components, a different rendering layer than the
+   classic PHP tabs, same "modern admin screen the classic CSS sweep
+   never reaches" category as the Gutenberg editor chrome fixed
+   earlier this session) uses the SAME .nav-tab-wrapper class
+   (.woo-nav-tab-wrapper) as its own top-level page background, with
+   real content sitting directly inside it — so the missing background
+   was a stark, large white panel here instead of a thin invisible
+   sliver. Also covers the payment-provider list cards
+   (.woocommerce-list__item, WooCommerce's own List component) and the
+   business-location dropdown wrapper, neither of which inherited
+   anything from the generic .nav-tab-wrapper fix. */
+.nav-tab-wrapper,
+.woo-nav-tab-wrapper {
+    background: var(--shsas-surface) !important;
+}
+.woocommerce-list__item {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+.woocommerce-list__item-title,
+.woocommerce-list__item-content { color: var(--shsas-text) !important; }
+.woocommerce-list__item-summary { color: var(--shsas-text-dim) !important; }
+.settings-payment-gateways__header-select-container {
+    background: var(--shsas-surface-2) !important;
+    border-color: var(--shsas-border) !important;
+    color: var(--shsas-text) !important;
+}
+/* Same "@wordpress/components Button ships its own explicit #1e1e1e
+   text color" bug already found and fixed inside the Gutenberg editor
+   chrome earlier this session — this is the identical component, just
+   reachable outside that scoped fix (WooCommerce's own React settings
+   screen, not the block editor). */
+.settings-payment-gateways__header-select-container .components-button {
+    color: var(--shsas-text) !important;
+}
 .nav-tab-active, .nav-tab-active:hover {
     background: var(--shsas-surface) !important;
     color: var(--shsas-text) !important;
