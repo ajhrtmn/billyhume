@@ -410,7 +410,53 @@ multi-day turnaround expectation per tier — a periodic-check model is
 the correct, intended design here, not an oversight the way bh-
 tickets' silence was. Applying the same fix mechanically to both
 would have been wrong for this one.
-### bh-live — not started
+### bh-live — audited (2026-08-21), no confirmed gap
+
+**Overall: the most ambitious plugin audited so far (18 files, 2,613
+lines), and consistently well-built throughout.** Read the stream-
+engine abstraction, both chat implementations, the front-end player,
+and the OBS Browser Source overlay system; verified live.
+
+**What's genuinely real:**
+- `BHL_StreamEngine`/`BHL_OwncastEngine` — real status polling against
+  Owncast's documented public `/api/status` endpoint, a real
+  `disconnect()` admin action (token-gated), and an honest docblock
+  explaining why there's deliberately no `start_stream()` (RTMP ingest
+  begins the moment OBS connects — outside WordPress's control by
+  Owncast's own design, not a missing feature).
+- `BHL_Chat` — abstracted SEPARATELY from the video engine (a real,
+  deliberate architecture decision per its own docblock, citing a named
+  planning doc), with TWO real implementations: `BHL_OwncastChat`
+  (real iframe embed) and `BHL_PollingChat` (a genuinely complete
+  native chat — real REST routes, real rate limiting, a real
+  transient-based mute mechanism matching bh-streaming's Jam feature,
+  per-stream message scoping, and a real cross-platform relay endpoint
+  with token auth for a future Twitch/YouTube chat bridge). The client
+  JS (`assets/js/chat.js`) is a real polling implementation, not a
+  static stub — confirmed real `fetch()` calls on a `setInterval`.
+- `BHL_Player`'s `[bh_live]` shortcode correctly sequences script
+  dependencies (chat.js loads before live-player.js specifically to
+  avoid a real race the plugin's own comment names) and gracefully
+  handles the unconfigured/offline state.
+- `BHL_Overlay` — real OBS Browser Source pages (chat overlay, contest-
+  votes overlay guarded by `class_exists('BH_API')`, a health-check
+  endpoint, and an automation bridge for local OBS control) served as
+  raw HTML bypassing the REST JSON envelope (the one correct way to do
+  this from inside a `register_rest_route` callback).
+
+**Verified live**: the `[bh_live]` shortcode on a real published page
+correctly rendered "Not live right now" (Owncast unconfigured on this
+install) rather than erroring or showing a blank void; the health
+overlay endpoint (`/wp-json/bhl/v1/overlay/6177/health`) returned a
+real, correctly-shaped JSON response reflecting the unconfigured state
+accurately (`"configured":false`).
+
+**No confirmed functional gap found.** This plugin sets the bar for
+what "honestly scoped and genuinely complete" looks like in this
+audit — on par with bh-feedback, and a useful contrast against
+bh-social's real gap (a fully-built backend with no UI to reach it) —
+everything checked in bh-live actually has both halves: real backend
+AND a real way to reach it.
 ### bh-registry — not started
 ### bh-video — not started
 ### bh-mailpoet — not started
