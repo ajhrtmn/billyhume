@@ -457,7 +457,47 @@ audit — on par with bh-feedback, and a useful contrast against
 bh-social's real gap (a fully-built backend with no UI to reach it) —
 everything checked in bh-live actually has both halves: real backend
 AND a real way to reach it.
-### bh-registry — not started
+### bh-registry — audited (2026-08-21), no confirmed gap
+
+**Overall: genuinely excellent, real end-to-end verification
+mechanism.** Read all 10 includes files; verified live on the real
+Artist Registry page (`?p=66`).
+
+**What's genuinely real:** `BHR_Verification` — a real, two-question
+trust mechanism, both parts independently checked: (1) domain
+ownership via a well-known-file challenge
+(`/.well-known/bh-registry-verify.txt`, exact-line-match on a random
+token, protocol-agnostic by design so ActivityPub and RSS submissions
+share one proof-of-control mechanism), and (2) protocol openness — a
+real `fetch_feed()`-based enclosure check for RSS/Podcasting 2.0
+(honestly duplicated from bh-streaming's identical logic rather than a
+hard cross-plugin dependency, with a flagged future de-dup path), and
+real ActivityPub actor discovery per spec (Accept header negotiation,
+real Actor-type + outbox validation, not "any URL that returns JSON").
+A link only ever verifies with BOTH checks passing; failure reasons
+are logged privately (`OUS_DebugLog`) rather than exposed publicly, a
+deliberate anti-gaming decision. Periodic re-verification runs daily,
+fans out to `OUS_Jobs` (one job per link) when the core job queue is
+active — same resilience pattern already fixed elsewhere in this
+session (`OUS_GithubUpdates`'s Check-Now bug), degrading gracefully to
+inline when it's not.
+
+**Verified live**: the real Artist Registry page renders a populated,
+searchable/filterable directory; clicking "Submit your link" opens a
+genuinely complete, correctly-themed submission modal (name/bio/email/
+protocol/URL, real copy explaining the domain-ownership requirement)
+wired to a real REST endpoint (`POST /bhr/v1/submissions`).
+
+**Not a code bug, worth noting**: the visible artist cards
+("Echo Parade `_bhr_seed_`", etc.) are this local install's own
+Debug Tools seed data (`BHR_Debug::seed()` — a deliberate, well-built
+dev fixture, tag embedded directly in the display name so "Reset
+Everything" can find and remove it later via `LIKE`). Left as-is
+rather than reset, since it may be an existing intentional fixture
+from a prior session's own testing — flagging here rather than
+silently clearing it.
+
+**No confirmed functional gap found.**
 ### bh-video — not started
 ### bh-mailpoet — not started
 ### bh-streaming — not started (real player walkthrough specifically)
