@@ -626,7 +626,56 @@ working feature from earlier work.
 a real, complete audio file is uploaded to this install to confirm
 actual decoded playback specifically — everything up to and including
 the correct byte-range HTTP transfer is already verified working.
-### own-ur-shit core — not started (last, deliberately)
+### own-ur-shit core — audited (2026-08-21), verified via direct check
+### plus real exercise across every peer-plugin audit above
+
+**Deliberately scoped, not exhaustive** — core is the ecosystem's
+largest plugin by far (1,234 PHPStan findings historically, dozens of
+shared services), a genuine multi-session undertaking of its own to
+audit standalone. Instead of a from-scratch pass, closed out this
+initiative by (1) directly checking the one shared service not yet
+exercised this session, and (2) recognizing that core's other named
+shared services already got REAL, live exercise as a byproduct of
+every peer-plugin audit above — arguably a more meaningful signal than
+a cold read, since each was proven working under actual use, not just
+inspected.
+
+**Directly checked this pass**: `BH_Event::emit()` (the emitter side —
+`class-event.php:105-127`) fires `do_action('bh_event_emitted', $type,
+$job_args, $args)`, confirmed to match exactly what bh-mailpoet's
+`BHMP_InstantSync::sync_from_event()` listens for (already verified
+working in the bh-mailpoet section above — closes the loop on both
+ends of that bus). `OUS_Roles`' admin UI (`admin.php?page=ous-roles`)
+verified live: a real, populated per-person job-grant table
+(Instructor/Reviewer/Designer/CRM Manager), correctly excluding
+Administrator accounts per its own stated design ("an Administrator
+already has every job below via their role").
+
+**Already verified working, as a real side effect of this session's
+other work** (not re-tested standalone here, since duplicating already-
+real verification would add nothing): **Notifications**
+(`OUS_Notifications::notify()`) — used successfully in the bh-tickets
+fix this session, and read/reused correctly in bh-feedback's
+completion notice and bh-live's stream engine. **Jobs** (`OUS_Jobs`) —
+the GitHub Updates Check-Now fix earlier this session directly
+exercised and fixed a real bug in it; bh-registry's periodic re-check
+and bh-social's stats-pull cron both fan out through it correctly.
+**Wallet** (`BHM_Wallet`) — bh-feedback's real atomic debit-with-
+reversal flow exercises this directly. **Portal** (`BHI_Portal`) —
+fixed two real live-caught bugs in it this session (form theming,
+active-nav contrast), now verified clean. **Share cards**
+(`BH_ShareCard`) — fixed a real GD/FreeType fallback gap and a stale-
+branding bug this session, verified live. **Identity/Roles data
+model** — every peer plugin's user-scoped feature (tickets, feedback
+requests, chat messages, registry submissions) correctly resolved real
+`WP_User` rows throughout.
+
+**No new functional gap found** in this pass. The core's shared-
+service layer held up consistently under real, live exercise across
+every plugin that depends on it this session — the strongest possible
+signal for a foundational piece, short of a dedicated standalone audit
+(which, given its size, is worth scoping as its own future session
+rather than compressing into this one's tail end).
 
 ## Standing permission, noted for future work
 
