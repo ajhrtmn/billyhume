@@ -2,11 +2,37 @@
 /**
  * Plugin Name: BH Tickets
  * Description: In-house support/issue ticketing, built on bh-crm's own identity model — a fan opens a ticket from their account portal, staff triage from wp-admin. No third-party helpdesk dependency.
- * Version:     1.0.1
+ * Version:     1.0.2
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 1.0.2 — Real gap found in a functional-depth audit (this plugin's
+// admin/portal UI was fully present, but "does it actually do the
+// job" had never been checked end to end). BHT_Replies::maybe_notify()
+// already handled staff-reply and requester-reply notifications, and
+// its own doc comment openly admitted a brand-new, unassigned ticket
+// notifies nobody at all — bht/ticket_created fired for the event log
+// but nothing ever listened to it for a real notification. A support
+// plugin whose own description promises "staff triage from wp-admin"
+// needs staff to actually find out a ticket exists rather than relying
+// on someone happening to check the list. Added
+// BHT_Tickets::notify_staff_new_ticket(), called from create():
+// notifies every account holding bhcore_manage_tickets (matches
+// get_users(['capability' => ...]) used elsewhere in this ecosystem —
+// bh-courses' class-sessions.php/class-admin.php), skipping the
+// creator themself so a staff member opening their own ticket doesn't
+// self-notify. Verified live: submitted a real ticket through the
+// portal (/account/?panel=tickets), confirmed via direct DB query that
+// this install currently has exactly one staff account (billy, the
+// ticket's own creator) — correctly produced zero notification rows,
+// since the only eligible recipient was the creator being skipped by
+// design. The "notify a DIFFERENT staff member" path itself couldn't
+// be exercised without a second real staff account in this
+// environment; logic reviewed carefully instead (same get_users()/
+// OUS_Notifications::notify() shape already proven working in
+// maybe_notify() just above it in class-replies.php).
 
 // 1.0.1 — Ecosystem quality Phase 2, brick 4/13: added native return
 // types and parameter types across all 9 includes files (70 findings,
@@ -45,7 +71,7 @@ if (!defined('ABSPATH')) exit;
 // starts with only a built-in implementation).
 // NOT runtime-verified against a live WordPress+MySQL install this
 // session; `php -l` clean on every file.
-define('BHT_VER',  '1.0.1');
+define('BHT_VER',  '1.0.2');
 define('BHT_PATH', plugin_dir_path(__FILE__));
 define('BHT_URL',  plugin_dir_url(__FILE__));
 

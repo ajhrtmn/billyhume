@@ -57,7 +57,41 @@ class BHT_Tickets {
             ]);
         }
 
+        self::notify_staff_new_ticket($ticket_id, $user_id, $subject);
+
         return $ticket_id;
+    }
+
+    // Real gap found in a functional-depth audit: BHT_Replies'
+    // maybe_notify() already handles staff-reply and requester-reply
+    // notifications, but its own doc comment openly says a brand-new,
+    // unassigned ticket notifies nobody — "no dedicated ticket-manager
+    // role/list beyond the bhcore_manage_tickets capability." That gap
+    // was never actually closed: bht/ticket_created fires for the
+    // event log but nothing ever listened to it for notification
+    // purposes. A support plugin whose own description promises "staff
+    // triage from wp-admin" needs staff to actually find out a ticket
+    // exists — closing it here rather than leaving new tickets
+    // invisible until someone happens to check the list. Notifies
+    // every account holding bhcore_manage_tickets (there's still no
+    // dedicated ticket-manager role/list to narrow it further — the
+    // same real constraint the reply-notification code already
+    // documented), skipping the creator themself in case a staff
+    // member opens a ticket on their own behalf.
+    private static function notify_staff_new_ticket(int $ticket_id, int $creator_id, string $subject): void {
+        if (!class_exists('OUS_Notifications')) return;
+        $staff = get_users(['capability' => 'bhcore_manage_tickets']);
+        if (!$staff) return;
+        $url = admin_url('admin.php?page=bh-tickets&ticket_id=' . $ticket_id);
+        foreach ($staff as $user) {
+            if ((int) $user->ID === $creator_id) continue;
+            OUS_Notifications::notify(
+                (int) $user->ID, 'ticket_created',
+                'New support ticket: ' . $subject,
+                'A new ticket needs triage.',
+                $url, 'BH Tickets'
+            );
+        }
     }
 
     /** @return array<string, mixed>|null */

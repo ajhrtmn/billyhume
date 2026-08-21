@@ -2,10 +2,54 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.39
+ * Version:     3.10.40
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.40 — Two real, live-caught bugs in the front-end portal shell
+// (class-portal.php), both direct field reports while verifying the
+// bh-tickets functional-depth audit's new-ticket-notification fix
+// live in the portal.
+//   1. "The styling on forms and such is bad": .bhi-portal-main (the
+//      wrapper around every peer plugin's actual panel content — bh-
+//      tickets' New Ticket form is what surfaced this, but it reaches
+//      any panel using plain HTML form elements) never had ANY generic
+//      input/textarea/select/button styling. Only the LOGIN page's own
+//      .bhi-login-field input had a themed treatment; the portal
+//      SHELL's actual panel content fell through to unstyled native
+//      browser chrome — a stark white box on this theme's dark
+//      surface, exactly the "orphaned white box" failure mode this
+//      whole ecosystem has been sweeping for, just never reached here
+//      before since this portal-shell CSS predates that sweep. Added a
+//      real .bhi-portal-main-scoped block covering every standard
+//      input type, textarea, select, and .button/button[type=submit],
+//      reusing the same --bh-* tokens and visual language the login
+//      page's own fields already established.
+//   2. "The menus selected active contrast is ugly": .bhi-portal-nav
+//      a.is-active used var(--bh-accent-soft, ...) as a flat
+//      background fill — but --bh-accent-soft (#E0A184 on the live
+//      warm-noir theme) is actually a solid, fairly saturated color
+//      despite its name, not a real soft tint, so the active nav item
+//      rendered as a jarring coral block. This directly violates this
+//      project's own standing design brief (smokey-grey-noir as the
+//      rule, neon/accent color as a restrained afterthought/glow, never
+//      a flat saturated block) — confirmed via computed style before
+//      fixing (bg rgb(224,161,132), a real solid fill, not a tint).
+//      Switched to var(--bh-accent-muted-bg, ...) — the same low-alpha
+//      translucent token theme.css already uses elsewhere for exactly
+//      this "accent as a glow, not a block" treatment — with an
+//      accent-colored left border and text instead of a filled
+//      background, matching the restrained active-state language the
+//      wp-admin sidebar's own per-item wayfinding highlight already
+//      uses.
+// Verified live: bh-tickets' New Ticket form now themed correctly (dark
+// surface, themed borders/focus state, styled Submit button); the
+// Overview panel's "Continue →"/"View submissions →" buttons (same
+// .button class, previously also unstyled) now render correctly too;
+// active nav state now a subtle accent glow on both Overview and
+// Support panels, no regression. Full contrast sweep on both pages:
+// zero findings.
 
 // 3.10.39 — Two real bugs found in class-share-card.php
 // (BH_ShareCard, the shared social-share-image generator behind both
@@ -1780,7 +1824,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.39');
+define('OUS_VER', '3.10.40');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

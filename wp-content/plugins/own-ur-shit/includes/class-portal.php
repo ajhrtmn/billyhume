@@ -819,7 +819,25 @@ class BHI_Portal {
   .bhi-portal-nav { width:220px; flex-shrink:0; background:var(--bh-surface, #fff); border-right:1px solid var(--bh-border, #e2e2e2); padding:24px 0; }
   .bhi-portal-nav a { display:flex; align-items:center; gap:10px; padding:11px 20px; color:var(--bh-text, #1d2327); text-decoration:none; font-size:14px; border-left:3px solid transparent; }
   .bhi-portal-nav a:hover { background:var(--bh-surface-2, #f6f7f7); }
-  .bhi-portal-nav a.is-active { background:var(--bh-accent-soft, #eef4ff); border-left-color:var(--bh-accent, #2271b1); font-weight:600; }
+  /* Real design-brief violation, direct feedback ("the menus selected
+     active contrast is ugly"): --bh-accent-soft (#E0A184 on the live
+     warm-noir theme) is a solid, fairly saturated color, not an actual
+     soft tint despite its name — using it as a flat fill read as a
+     jarring coral block behind the nav label, not the restrained
+     "neon as an afterthought/glow, never a flat saturated block"
+     balance the rest of this ecosystem's design language holds to
+     (the wp-admin sidebar's own current-item highlight uses a subtle
+     tinted glow, not a solid fill — same principle, applied here).
+     --bh-accent-muted-bg is this exact same low-alpha treatment
+     already used elsewhere in theme.css; color-mix() is the same
+     technique this codebase already reaches for when no muted token
+     exists for a given context. */
+  .bhi-portal-nav a.is-active {
+    background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #2271b1) 14%, transparent));
+    border-left-color: var(--bh-accent, #2271b1);
+    color: var(--bh-accent, #2271b1);
+    font-weight: 600;
+  }
   .bhi-portal-main { flex:1; min-width:0; padding:32px 40px; max-width:820px; }
   .bhi-portal-brand { padding:0 20px 20px; font-family:var(--bh-font-display, inherit); font-weight:700; font-size:16px; }
   .bhi-portal-wallet-chip {
@@ -833,6 +851,39 @@ class BHI_Portal {
      styling that then drifts from each other. */
   .bhi-portal-table { width:100%; border-collapse:collapse; margin-top:8px; }
   .bhi-portal-table th, .bhi-portal-table td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--bh-border, #e2e2e2); font-size:14px; }
+  /* Real gap found live (functional-depth audit, bh-tickets' "New
+     ticket" form): this portal shell only ever themed the LOGIN page's
+     own inputs (.bhi-login-field input, above) — plain form elements
+     inside a panel's actual content (bh-tickets' subject/body fields,
+     and by extension any other peer plugin's panel using bare
+     input/textarea/select/button) fell through to unstyled native
+     browser chrome, a stark white box on this theme's dark surface.
+     Scoped to .bhi-portal-main so it only reaches real panel content,
+     not the nav/login shell, which already have their own treatment. */
+  .bhi-portal-main input[type="text"], .bhi-portal-main input[type="email"],
+  .bhi-portal-main input[type="password"], .bhi-portal-main input[type="number"],
+  .bhi-portal-main input[type="date"], .bhi-portal-main input[type="search"],
+  .bhi-portal-main input[type="url"], .bhi-portal-main input[type="tel"],
+  .bhi-portal-main textarea, .bhi-portal-main select {
+    width: 100%; max-width: 480px; box-sizing: border-box; padding: 9px 11px;
+    border: 1px solid var(--bh-border, #e2e2e2); border-radius: var(--bh-radius-sm, 6px);
+    font-size: 14px; font-family: inherit; background: var(--bh-surface, #fff); color: var(--bh-text, inherit);
+  }
+  .bhi-portal-main textarea { width: 100%; max-width: 100%; }
+  .bhi-portal-main input:focus, .bhi-portal-main textarea:focus, .bhi-portal-main select:focus {
+    outline: none; border-color: var(--bh-accent, #2271b1);
+  }
+  .bhi-portal-main input::placeholder, .bhi-portal-main textarea::placeholder {
+    color: var(--bh-text-dim, #6b7280); opacity: 1;
+  }
+  .bhi-portal-main .button, .bhi-portal-main button[type="submit"], .bhi-portal-main button.button-primary {
+    display: inline-block; padding: 9px 18px; border: none; border-radius: var(--bh-radius-sm, 6px);
+    background: var(--bh-accent, #2271b1); color: var(--bh-accent-contrast, #fff); font-size: 14px;
+    font-weight: 600; font-family: inherit; cursor: pointer; text-decoration: none;
+  }
+  .bhi-portal-main .button:hover, .bhi-portal-main button[type="submit"]:hover {
+    background: var(--bh-accent-hover, var(--bh-accent-soft, #2271b1));
+  }
   /* QA fix: panels (bh-monetization-woo, bh-courses, bh-contest) were
      outputting bare h1/h2/p/ul/table with zero wrapping divs, so
      adjacent sections (e.g. "Active tiers" + "Wallet") visually blended
