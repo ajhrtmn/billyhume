@@ -15,7 +15,14 @@ if (!defined('ABSPATH')) exit;
  * bh-contest's votes table already establish for this ecosystem.
  */
 class BHR_Activator {
-    const DB_VERSION = '1.2';
+    // 1.4 exists solely to force the 1.3 migration to actually re-run:
+    // 1.3 marked itself successful (all four tables existed, which was
+    // all it checked) while dbDelta had silently skipped the new
+    // columns, so a site that already stamped 1.3 would never retry.
+    // The version-gate is cheap and the schema work is now idempotent
+    // (see ensure_column()), so bumping is the honest fix rather than
+    // hand-editing the stored option.
+    const DB_VERSION = '1.4';
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -92,23 +99,19 @@ class BHR_Activator {
         // (see class-verification.php): two separate questions, two
         // separate checks, one row.
         // discovered_via/discovered_from_peer_id: new in DB_VERSION 1.1,
-        // pure provenance for the peer gossip/announce layer (see
-        // class-gossip.php once it lands) — 'manual' (the existing
-        // POST /submissions path) or 'gossip' (arrived via an
-        // authenticated peer announce). Never affects verification
-        // itself: every link, regardless of how it was discovered, goes
-        // through the exact same BHR_Verification::verify_link() check.
-        // discovered_hop_count: new in DB_VERSION 1.2, added right after
-        // 1.1 while actually building the propagation logic — needed
-        // somewhere durable, since verification can be deferred/re-
-        // triggered by any of several paths (the queued job, the daily
-        // recheck cron, an admin's manual "re-check now") and fan-out
-        // (see BH_Event::emit('bhr/link_verified', ...) in
-        // verify_link()'s own success branch) needs to know the RIGHT
-        // hop_count to propagate at regardless of which path re-verified
-        // it — reading it off the link row itself, rather than trying to
-        // thread it through every possible job-args call site, is the
-        // one mechanism that stays correct no matter which trigger fires.
+        // pure provenance for the automatic-discovery layer (see
+        // class-crawl.php) — 'manual' (the existing POST /submissions
+        // path) or 'crawl' (arrived via a peer's manifest, regardless of
+        // whether that peer was itself found via direct crawl, the
+        // ActivityPub relay layer, or the search-index layer — all three
+        // funnel into the same bhr_peers table and the same crawl loop).
+        // Never affects verification itself: every link, regardless of
+        // how it was discovered, goes through the exact same
+        // BHR_Verification::verify_link() check. discovered_hop_count:
+        // new in DB_VERSION 1.2, kept in the 1.3 redesign — how many
+        // peer-hops from a genesis peer this candidate was found at,
+        // read off the link row (not threaded through job args) so it
+        // stays correct no matter which path re-triggers verification.
         // dbDelta diffs column-by-column against the existing table, so
         // this (and the 1.1 columns above) are safe additive ALTERs, not
         // a rebuild.
@@ -132,31 +135,34 @@ class BHR_Activator {
             KEY verification_status (verification_status)
         ) $charset;");
 
-        // New in DB_VERSION 1.1 — peer gossip/announce layer (real plan,
-        // scoped in full before any of this landed; see the project's
-        // plan file for the complete phased design). A "peer" is
-        // another bh-registry install an admin HERE has explicitly
-        // chosen to exchange announcements with — never auto-discovered,
-        // never a default relay (this ecosystem's own standing rule:
-        // no third-party service as the only implementation of anything
-        // critical, and no silent default trust). status: 'active'
-        // (gossip flows both ways), 'paused' (auto, after repeated
-        // liveness-check failures — see the future BHR_Peers::
-        // check_all_liveness()), 'blocked' (an admin explicitly stopped
-        // trusting announces FROM this peer — sticky, same shape as
-        // bhr_artists.status = 'rejected', never auto-reactivated).
-        // shared_secret is exchanged out-of-band (shown once, like a
-        // webhook key) when two admins each add the other as a peer —
-        // mutual, two-sided, matching how ActivityPub/Mastodon instances
-        // bootstrap federation trust.
+        // New in DB_VERSION 1.1, redesigned in 1.3 — automatic discovery
+        // layer (see the project's plan file for the full three-layer
+        // design: peer-crawl foundation + optional ActivityPub relay +
+        // optional search-index lookup, all funneling into this ONE
+        // table regardless of which layer found a given peer). A "peer"
+        // is another bh-registry install this site pulls a manifest
+        // from periodically — no authentication, no shared secret (the
+        // original 1.1/1.2 design used a mutual shared_secret for a
+        // PUSH model; redesigned to an open PULL/crawl model instead,
+        // see the 1.3 migration note below for why). status: 'active'
+        // (crawled normally), 'paused' (auto, after repeated crawl
+        // failures — see BHR_Peers::check_all_liveness()), 'blocked'
+        // (an admin explicitly stopped trusting this peer — sticky,
+        // same shape as bhr_artists.status = 'rejected', never
+        // auto-reactivated). discovered_hop: 0 for a manually-added
+        // (genesis) peer or one found via the relay/search-index layers
+        // (both treated as genesis-equivalent, not chained through an
+        // existing peer), N+1 for a peer discovered inside another
+        // peer's own manifest at hop N — bounds propagation the same
+        // conceptual way a TTL bounds network broadcast.
         $peers = $wpdb->prefix . 'bhr_peers';
         dbDelta("CREATE TABLE $peers (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             base_url varchar(255) NOT NULL,
             label varchar(190) DEFAULT '',
             status varchar(20) NOT NULL DEFAULT 'active',
-            shared_secret varchar(64) NOT NULL,
-            last_announced_at datetime DEFAULT NULL,
+            discovered_hop tinyint unsigned NOT NULL DEFAULT 0,
+            last_crawled_at datetime DEFAULT NULL,
             last_seen_at datetime DEFAULT NULL,
             fail_count int unsigned NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -165,14 +171,48 @@ class BHR_Activator {
             KEY status (status)
         ) $charset;");
 
-        // New in DB_VERSION 1.1 — dedup/hop-limiting ledger for the
-        // gossip layer. One row per (protocol,url) candidate hash,
-        // regardless of how many different peers re-announce the exact
-        // same candidate (a realistic mesh scenario — two peers both
-        // relaying the same original announcement) or how many times a
-        // loop would otherwise re-propagate it. seen_hash is
-        // sha256(protocol . '|' . normalized_url) — see
-        // BHR_Gossip::candidate_hash() once that class lands.
+        // Real bug caught by this plugin's own discovery test suite on
+        // its very first run, worth recording rather than silently
+        // fixing: dbDelta() did NOT add `discovered_hop tinyint
+        // unsigned ...` to the pre-existing bhr_peers table. dbDelta
+        // parses column definitions with its own regex rather than
+        // asking MySQL, and it is genuinely picky about type syntax —
+        // an unrecognized definition is skipped SILENTLY, with no error
+        // and no return value to check, so the migration "succeeded"
+        // while the column simply never appeared. The failure only
+        // surfaced downstream as an inexplicable failed INSERT.
+        //
+        // Fix, applied to every column change from here on: don't rely
+        // on dbDelta for ALTERs at all. dbDelta still creates tables
+        // (which it does reliably); every column add/drop on an
+        // existing table goes through the explicit, guarded helpers
+        // below, which ask MySQL what actually exists and issue a real
+        // ALTER. Deterministic, verifiable, and independently asserted
+        // by the schema tests in class-discovery-test-suite.php.
+        self::ensure_column($peers, 'discovered_hop', 'tinyint unsigned NOT NULL DEFAULT 0');
+        self::ensure_column($peers, 'last_crawled_at', 'datetime DEFAULT NULL');
+
+        // 1.3 cleanup: shared_secret/last_announced_at are dead weight
+        // after the push-model redesign. Justified as a real DROP (not
+        // left as permanent dead schema) specifically because zero real
+        // peer data exists anywhere yet — confirmed before writing this.
+        self::drop_column($peers, 'shared_secret');
+        self::drop_column($peers, 'last_announced_at');
+
+        // Same treatment for the bhr_links provenance columns — added
+        // via dbDelta in 1.1/1.2, so they may be missing on an install
+        // that ran those migrations and hit the same silent skip.
+        self::ensure_column($links, 'discovered_via', "varchar(20) NOT NULL DEFAULT 'manual'");
+        self::ensure_column($links, 'discovered_from_peer_id', 'bigint(20) unsigned DEFAULT NULL');
+        self::ensure_column($links, 'discovered_hop_count', 'tinyint unsigned NOT NULL DEFAULT 0');
+
+        // New in DB_VERSION 1.1 — dedup ledger, unchanged by the 1.3
+        // redesign (still exactly as useful for a crawl-discovered
+        // candidate as it was for a pushed one). One row per
+        // (protocol,url) candidate hash, regardless of how many
+        // different peers' manifests list the exact same candidate.
+        // seen_hash is sha256(protocol . '|' . normalized_url) — see
+        // BHR_Crawl::candidate_hash().
         $seen = $wpdb->prefix . 'bhr_gossip_seen';
         dbDelta("CREATE TABLE $seen (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -187,11 +227,45 @@ class BHR_Activator {
             UNIQUE KEY seen_hash (seen_hash)
         ) $charset;");
 
+        self::ensure_column($seen, 'min_hop_seen', 'tinyint unsigned NOT NULL DEFAULT 0');
+
         if ($wpdb->last_error) return false;
         $ok_artists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $artists)) === $artists;
         $ok_links   = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $links)) === $links;
         $ok_peers   = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $peers)) === $peers;
         $ok_seen    = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $seen)) === $seen;
         return $ok_artists && $ok_links && $ok_peers && $ok_seen;
+    }
+
+    /**
+     * Adds a column if (and only if) it isn't already there. Exists
+     * because dbDelta() silently skips column definitions it can't
+     * parse — see the long note at its call sites above for the real
+     * bug this caught. Asks MySQL what actually exists rather than
+     * trusting a parser.
+     *
+     * $definition is a trusted, hardcoded literal from this file only —
+     * never user input, so it's safe to interpolate (column names and
+     * types can't be bound as prepared-statement parameters anyway).
+     */
+    private static function ensure_column(string $table, string $column, string $definition): void {
+        global $wpdb;
+        if (!self::table_exists($table)) return;
+        $cols = $wpdb->get_col("SHOW COLUMNS FROM `$table`", 0);
+        if (in_array($column, (array) $cols, true)) return;
+        $wpdb->query("ALTER TABLE `$table` ADD COLUMN `$column` $definition");
+    }
+
+    private static function drop_column(string $table, string $column): void {
+        global $wpdb;
+        if (!self::table_exists($table)) return;
+        $cols = $wpdb->get_col("SHOW COLUMNS FROM `$table`", 0);
+        if (!in_array($column, (array) $cols, true)) return;
+        $wpdb->query("ALTER TABLE `$table` DROP COLUMN `$column`");
+    }
+
+    private static function table_exists(string $table): bool {
+        global $wpdb;
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
     }
 }

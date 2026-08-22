@@ -51,21 +51,14 @@ class BHR_API {
             'methods' => 'POST', 'callback' => [self::class, 'trigger_verify'], 'permission_callback' => '__return_true',
         ]);
 
-        // Peer gossip/announce — the only two routes in this namespace
-        // that are NOT __return_true. /peers/announce is real inbound
-        // discovery traffic that must be authenticated per-peer (see
-        // BHR_Gossip::check_peer_auth() — constant-time secret
-        // comparison, rejects unknown/inactive peers) before any DB
-        // write happens; /peers/handshake is deliberately open (a
-        // read-only self-description, same trust level as any other GET
-        // route here), used both at peer-add time and by the daily
-        // liveness cron.
-        if (class_exists('BHR_Gossip')) {
-            register_rest_route('bhr/v1', '/peers/announce', [
-                'methods' => 'POST', 'callback' => ['BHR_Gossip', 'handle_announce'], 'permission_callback' => ['BHR_Gossip', 'check_peer_auth'],
-            ]);
-            register_rest_route('bhr/v1', '/peers/handshake', [
-                'methods' => 'GET', 'callback' => ['BHR_Gossip', 'handshake'], 'permission_callback' => '__return_true',
+        // Automatic discovery — open, __return_true like every other
+        // read route in this namespace. No privileged inbound endpoint
+        // at all: discovery is pull-only, this site's own already-
+        // public verified-artist data plus the peers it already
+        // chooses to crawl, nothing more.
+        if (class_exists('BHR_Crawl')) {
+            register_rest_route('bhr/v1', '/peers/manifest', [
+                'methods' => 'GET', 'callback' => ['BHR_Crawl', 'handle_manifest'], 'permission_callback' => '__return_true',
             ]);
         }
     }
