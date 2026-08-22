@@ -48,15 +48,28 @@ verification — the non-blockchain version of what AJ described).
 Two real gaps against the actual vision, confirmed by reading
 `class-streaming-bridge.php` and `class-api.php`'s `list_artists()`:
 
-1. **Admin curation is search-only, not browse-all** — the existing
-   bridge only gives a search box on the Feed Sources screen; being
-   registered doesn't make an artist surfaced automatically, only
-   *findable if searched for by name*. The REST endpoint
-   (`GET /bhr/v1/artists`) already fully supports a blank-search
-   browse-all query with protocol filtering — this is a pure admin-UI
-   gap, no backend work needed. **In progress** — confirmed with AJ to
-   do this one first (small, contained, real payoff), before treating
-   gap 2 below as its own proper design pass.
+1. ~~**Admin curation is search-only, not browse-all**~~ — **FIXED,
+   verified live (2026-08-21, bh-registry 0.1.14, commit `ecbc2b1`)**.
+   Added a real "Browse Registry" admin screen under bh-streaming's own
+   menu (`class-streaming-bridge.php`'s `render_browse_page()`), still
+   guarded by `class_exists('BHS_Feeds')` — bh-registry still never
+   requires bh-streaming. Shows every verified feed-protocol artist as
+   a real card with a one-click "Add to my library" action that
+   creates a real `bhs_feed_source` post and triggers an IMMEDIATE sync
+   (`BHS_Feeds::sync_one_job()`, the same entry point cron/job-queue
+   already use) rather than waiting for the next cron tick, and
+   correctly marks already-added artists so there's no duplicate-add
+   path. Reuses `BHR_API`'s existing, already-tested query logic via
+   `rest_do_request()` (WordPress core's own internal REST dispatch)
+   instead of duplicating SQL. A real, useful side-finding along the
+   way: the registry's periodic re-verification (`BHR_Verification::
+   recheck_all()`, audited earlier as code-only) was CONFIRMED actually
+   running live — this install's own fake seed-data links (fake
+   `.test` domains) had already been correctly flipped from `verified`
+   to `failed` by the real cron job, exactly as designed. Verified the
+   new feature end-to-end by temporarily marking one seed link
+   verified, confirming the card/add/already-added states all worked
+   correctly via direct DB query, then reverting the test state.
 2. **No fan-facing cross-site library at all** — everything today is
    admin-curated onto one site's own catalog; a fan has no way to
    search the global registry themselves or build a personal library
