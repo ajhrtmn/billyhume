@@ -2,12 +2,22 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.19
+ * Version:     0.5.20
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.20 — class-downloads.php now bundles bh-streaming's new
+// BHS_Booklet ("CD jacket" bonus content — liner notes/lyrics sheet/
+// artwork/credits) as an additional real WooCommerce downloadable file
+// alongside a track or album's own audio quality encodes, class_exists()
+// guarded like every other cross-plugin touch. A separate per-order
+// metadata watermarking pass (buyer name/email embedded in the
+// delivered files) was built and live-tested this same session, then
+// explicitly killed by AJ before landing — this version carries no
+// watermarking code anywhere, plain files only, same as before.
 
 // 0.5.19 — Downloadable lesson video, direct request: "Can we make
 // video downloadable as well?" BHM_Downloads::gather_files() gets a
@@ -326,7 +336,7 @@ if (!defined('ABSPATH')) exit;
 // tier's complete state on every save; the tier edit screen gets a "Version
 // History" panel with Restore buttons that re-apply a prior version through
 // the same save path (including re-syncing the WooCommerce product).
-define('BHM_VER',  '0.5.19');
+define('BHM_VER',  '0.5.20');
 
 // 0.4.19 — "Get Paid" card on the Monetization Settings screen
 // (BHM_Admin::render_get_paid_card()): checks WC_Payment_Gateways::

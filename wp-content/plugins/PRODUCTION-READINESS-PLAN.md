@@ -189,10 +189,52 @@ confirmed** — it's read-verified, not live-verified, this session.
 **Scope note**: this is a genuinely large initiative — a new content-
 authoring system (4 content types) plus two distinct major front-end
 UX builds — comparable in size to the fan-library federation feature
-already shipped this session, or larger. Not started as code yet;
-logged here with real architecture so it can be picked up cold,
-pending AJ's call on when to start given how much has already landed
-this session.
+already shipped this session, or larger. The two browsing UX modes are
+still not started. **The bonus-content system landed this session**
+(`bh-streaming` 0.5.32, `bh-monetization-woo` 0.5.20) — see below.
+
+### Bonus content — shipped, no watermarking
+
+Built `BHS_Booklet` (new, `bh-streaming`): a shared metabox on both
+`bhs_track` and `bhs_release` for liner notes, credits, an artwork
+package (front/back/insert), and an "include lyrics sheet" toggle
+reusing the existing lyrics field — each independently optional, matching
+AJ's own confirmed answer. Renders as a real PDF via FPDF (already
+vendored, already proven by `bh-courses`' own certificate generator —
+reused, not a new dependency), generated once and cached as a real WP
+attachment with a content-hash check so unrelated purchases don't
+regenerate it. Wired into `BHM_Downloads::track_files()`/
+`gather_files()` so a real purchase bundles the booklet alongside the
+audio automatically, at both the track and album level.
+
+**DRM/watermarking — built, live-tested, then explicitly killed.** AJ
+asked about DRM directly; agreed real DRM conflicts with this
+project's own self-hosted/no-vendor-lock-in philosophy (same reasoning
+Bandcamp ships plain files), and instead asked for lightweight buyer-
+name/email metadata embedding as a courtesy deterrent — "do it for all
+downloads." Built `BHM_Watermark` (real, hand-rolled ID3v2.3 TXXX-frame
+writer for MP3, WAV/FLAC/AIFF deliberately left unsupported rather than
+risking corruption on formats never verified) plus PDF watermarking in
+the booklet generator, with real verification via WordPress's own
+bundled getID3 reader and a byte-level "audio data untouched" check.
+Hit a real debugging session (a genuine getID3-verification failure
+against a real MP3, mid-investigation when OPcache's `revalidate_freq`
+turned out to be serving stale bytecode across edits) — before that
+was resolved, AJ made the call to drop the feature entirely ("Let's
+just kill drm"). **Fully removed**: `class-watermark.php` deleted, all
+threading of order/buyer context through `BHM_Downloads` reverted,
+`BHS_Booklet::ensure_watermarked_url()` removed, watermark test suite
+entries removed. The booklet feature itself is unaffected — plain
+files, same as every other download in this ecosystem.
+
+Verified live: real liner notes saved and read back correctly on a
+real track; 11 new `OUS_TestRunner` tests (empty state, real PDF
+generation with `%PDF` magic-byte verification, caching/reuse,
+content-change regeneration, stale-attachment cleanup) all passing —
+581 ecosystem-wide tests, 580 passing, the 1 failure the same pre-
+existing/unrelated bh-tickets flake noted above. **Not yet verified
+via an actual WooCommerce purchase** — recommend a real purchase→
+download round-trip test before fully trusting this in production.
 
 ---
 

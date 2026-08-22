@@ -180,6 +180,16 @@ class BHM_Downloads {
                     $out[$title . ' — ' . $label] = $url;
                 }
             }
+
+            // The ALBUM's own bonus content (liner notes/credits/
+            // artwork stored on the bhs_release post itself), separate
+            // from any individual track's own booklet above — an album
+            // purchase should include both.
+            if (class_exists('BHS_Booklet')) {
+                $release_booklet_url = BHS_Booklet::ensure_url($object_id);
+                if ($release_booklet_url) $out['Digital Booklet (Album)'] = $release_booklet_url;
+            }
+
             return $out;
         }
 
@@ -236,6 +246,20 @@ class BHM_Downloads {
             $default_url = BHS_API::audio_url_for($track_id);
             if ($default_url) $out['standard'] = $default_url;
         }
+
+        // Bonus content, AJ's own "CD jacket" description — liner
+        // notes/lyrics sheet/artwork package/credits, whichever of
+        // those the artist actually filled in, bundled as one real PDF
+        // alongside the audio. class_exists() guarded like every other
+        // cross-file touch in this ecosystem; BHS_Booklet::ensure_url()
+        // itself already returns '' when there's genuinely nothing to
+        // include, so no separate has_any_content() check is needed
+        // here.
+        if (class_exists('BHS_Booklet')) {
+            $booklet_url = BHS_Booklet::ensure_url($track_id);
+            if ($booklet_url) $out['Digital Booklet'] = $booklet_url;
+        }
+
         return $out;
     }
 }

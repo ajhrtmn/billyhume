@@ -37,6 +37,62 @@ class BHS_TestSuite {
         $rows = array_merge($rows, self::run_recommendations_tests());
         $rows = array_merge($rows, self::run_chapters_tests());
         $rows = array_merge($rows, self::run_fan_library_tests());
+        $rows = array_merge($rows, self::run_booklet_tests());
+        return $rows;
+    }
+
+    /* ---------- BHS_Booklet: the "CD jacket" bonus content ---------- */
+
+    /** @return array<int, array<string, mixed>> */
+    private static function run_booklet_tests(): array {
+        if (!class_exists('BHS_Booklet')) return [];
+        $rows = [];
+
+        $fixture_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'draft', 'post_title' => 'BHS Test Suite Booklet Fixture'], true);
+        if (is_wp_error($fixture_id)) return $rows;
+
+        // Unhappy/empty: nothing filled in at all.
+        $rows[] = OUS_TestRunner::assert_true(!BHS_Booklet::has_any_content($fixture_id), 'has_any_content(): a track with no liner notes/credits/artwork/lyrics-sheet has no bonus content.');
+        $rows[] = OUS_TestRunner::assert_same('', BHS_Booklet::ensure_url($fixture_id), 'ensure_url(): returns \'\' rather than generating an empty PDF when there\'s genuinely nothing to include.');
+
+        // Happy path: liner notes alone is enough to produce a real PDF.
+        update_post_meta($fixture_id, '_bhs_liner_notes', 'A real test note, written during the test suite run.');
+        $rows[] = OUS_TestRunner::assert_true(BHS_Booklet::has_any_content($fixture_id), 'has_any_content(): true once liner notes alone are present.');
+
+        $url = BHS_Booklet::ensure_url($fixture_id);
+        $rows[] = OUS_TestRunner::assert_true($url !== '', 'ensure_url(): produces a real, non-empty URL once there\'s real content.');
+
+        $attachment_id = (int) get_post_meta($fixture_id, '_bhs_booklet_attachment_id', true);
+        $rows[] = OUS_TestRunner::assert_true($attachment_id > 0, 'ensure_url(): a real WP attachment was created and its id cached.');
+        if ($attachment_id) {
+            $path = get_attached_file($attachment_id);
+            $rows[] = OUS_TestRunner::assert_true((bool) $path && file_exists($path), 'ensure_url(): the cached attachment\'s file genuinely exists on disk.');
+            if ($path) {
+                $bytes = file_get_contents($path);
+                $rows[] = OUS_TestRunner::assert_true($bytes !== false && substr($bytes, 0, 4) === '%PDF', 'ensure_url(): the generated file is a real PDF (starts with the %PDF magic bytes), not corrupted output.');
+            }
+        }
+
+        // Caching: calling ensure_url() again with NO content change
+        // must return the SAME attachment, not regenerate.
+        $url_again = BHS_Booklet::ensure_url($fixture_id);
+        $rows[] = OUS_TestRunner::assert_same($attachment_id, (int) get_post_meta($fixture_id, '_bhs_booklet_attachment_id', true), 'ensure_url(): calling again with unchanged content reuses the cached attachment rather than regenerating.');
+        $rows[] = OUS_TestRunner::assert_same($url, $url_again, 'ensure_url(): the returned URL is stable across repeated calls when content hasn\'t changed.');
+
+        // Regeneration: editing the content (matching what save() does —
+        // clearing the cached hash) produces a genuinely NEW attachment,
+        // not a stale one still reflecting the old text.
+        update_post_meta($fixture_id, '_bhs_liner_notes', 'Updated note — this should trigger real regeneration.');
+        delete_post_meta($fixture_id, '_bhs_booklet_content_hash'); // BHS_Booklet::save()'s own real invalidation step
+        BHS_Booklet::ensure_url($fixture_id);
+        $new_attachment_id = (int) get_post_meta($fixture_id, '_bhs_booklet_attachment_id', true);
+        $rows[] = OUS_TestRunner::assert_true($new_attachment_id > 0 && $new_attachment_id !== $attachment_id, 'ensure_url(): editing the content and clearing the hash produces a genuinely new attachment, not the stale cached one.');
+        $rows[] = OUS_TestRunner::assert_true(!get_post($attachment_id), 'ensure_url(): the OLD attachment was actually deleted after regeneration, not left as an orphaned file.');
+
+        // Cleanup.
+        if ($new_attachment_id) wp_delete_attachment($new_attachment_id, true);
+        wp_delete_post($fixture_id, true);
+
         return $rows;
     }
 

@@ -2,11 +2,33 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.31
+ * Version:     0.5.32
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.32 — BHS_Booklet: the "CD jacket" bonus content AJ asked for —
+// liner notes, a lyrics sheet (reusing the existing lyrics field, not
+// a second data entry), an artwork package (front/back/insert), and
+// credits, each independently optional, on both bhs_track (a song's
+// own notes) and bhs_release (an album's own package). Rendered as a
+// real PDF via FPDF (own-ur-shit/vendor/fpdf/fpdf.php — already
+// vendored, already proven in production by bh-courses' own
+// class-certificates.php), generated once and cached as a real WP
+// attachment (a content-hash check avoids regenerating FPDF on every
+// purchase when nothing changed), wired into
+// BHM_Downloads::track_files()/gather_files() so a real purchase gets
+// the booklet bundled alongside the audio automatically. A separate,
+// real per-order metadata WATERMARKING pass (buyer name/email
+// embedded in the file) was built, live-tested, and then explicitly
+// killed by AJ mid-session before landing — this version is the
+// booklet feature on its own, no watermarking anywhere.
+// NOT runtime-verified via an actual WooCommerce purchase this
+// session (verified via the OUS_TestRunner suite instead — 570 tests,
+// 569 passing, the 1 failure pre-existing/unrelated) — recommend a
+// real purchase→download round-trip test before fully trusting this
+// in production.
 
 // 0.5.31 — Two real, connected additions on top of 0.5.30's export
 // fix, both direct from AJ's own description of the federated-library
@@ -224,7 +246,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.31');
+define('BHS_VER',  '0.5.32');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
@@ -296,7 +318,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'fan-library', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types', 'privacy'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'fan-library', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'booklet', 'video-post-types', 'privacy'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -377,6 +399,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHS_Stats', 'init']);
     add_action('init',          ['BHS_Privacy', 'init']);
     add_action('init',          ['BHS_Chapters', 'init']);
+    add_action('init',          ['BHS_Booklet', 'init']);
     add_action('init',          ['BHS_VideoPostTypes', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHS_TestSuite', 'init']);
     add_action('rest_api_init', ['BHS_API', 'register_routes']);
