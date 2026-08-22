@@ -116,7 +116,7 @@ class OUS_RoleAssignment {
         // own documented get_plugin_page_hook() failure was isolated to
         // submenus registered under the 'ous-debug' parent specifically
         // (API Docs, Codebase Docs), not this one.
-        $hook = add_submenu_page('own-ur-shit', 'Roles', 'Roles', 'manage_options', 'ous-roles', [self::class, 'render']);
+        $hook = add_submenu_page('ous', 'Roles', 'Roles', 'manage_options', 'ous-roles', [self::class, 'render']);
         if (!$hook && class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('error', 'add_submenu_page() for Roles FAILED (returned false).', [
                 'current_user_can(manage_options)' => current_user_can('manage_options') ? 'TRUE' : 'FALSE',

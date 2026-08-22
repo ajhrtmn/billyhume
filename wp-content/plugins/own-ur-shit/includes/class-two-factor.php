@@ -354,7 +354,7 @@ class BHI_TwoFactor {
     /* ---------------- site-wide toggle ---------------- */
 
     public static function add_settings_page(): void {
-        add_submenu_page('own-ur-shit', 'Security', 'Security', 'manage_options', 'ous-security', [self::class, 'render_settings_page']);
+        add_submenu_page('ous', 'Security', 'Security', 'manage_options', 'ous-security', [self::class, 'render_settings_page']);
     }
 
     public static function render_settings_page(): void {

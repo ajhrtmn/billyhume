@@ -866,7 +866,7 @@ if (!defined('ABSPATH')) exit;
 // (checking whether it actually closed the gaps it was meant to,
 // rather than assuming): confirmed live it DID fix bh-crm's "Smart
 // lists" card and a .bhy-alert-info notice, but the ecosystem
-// dashboard's own plugin-activation cards (admin.php?page=own-ur-shit,
+// dashboard's own plugin-activation cards (admin.php?page=ous,
 // .ous-card) were still white — traced to a THIRD, separate styling
 // mechanism: own-ur-shit/assets/css/admin.css, a small stylesheet that
 // predates the --bhy-* token system and hardcodes its own light colors

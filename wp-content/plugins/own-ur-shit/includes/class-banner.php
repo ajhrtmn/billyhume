@@ -54,7 +54,7 @@ class OUS_Banner {
     public static function maybe_print(): void {
         $screen = function_exists('get_current_screen') ? get_current_screen() : null;
         if (!$screen) return;
-        if (strpos($screen->id, 'own-ur-shit') !== false) return; // don't banner our own page
+        if (strpos($screen->id, 'ous') !== false) return; // don't banner our own page
 
         // Broad on purpose: this only needs to catch "probably one of
         // ours" well enough to show a nice-to-have banner, not gate any
@@ -93,7 +93,7 @@ class OUS_Banner {
             if (!h1) return;
             var b = document.createElement("div"); b.className = "ous-banner";
             var msg = document.createElement("span");
-            msg.innerHTML = "Part of the <a href=\"' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '\">The Self-Hosted Self</a> ecosystem.";
+            msg.innerHTML = "Part of the <a href=\"' . esc_url(admin_url('admin.php?page=ous')) . '\">The Self-Hosted Self</a> ecosystem.";
             var close = document.createElement("button");
             close.type = "button"; close.className = "ous-banner-close"; close.setAttribute("aria-label", "Dismiss");
             close.innerHTML = "&times;";

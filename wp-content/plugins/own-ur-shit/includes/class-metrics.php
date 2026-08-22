@@ -44,7 +44,7 @@ class OUS_Metrics {
     // class-media-wizard.php's own docblock for why 'own-ur-shit' is
     // used instead of 'ous-debug' on this specific install.
     public static function add_menu(): void {
-        add_submenu_page('own-ur-shit', 'Metrics', 'Metrics', 'manage_options', 'ous-metrics', [self::class, 'render']);
+        add_submenu_page('ous', 'Metrics', 'Metrics', 'manage_options', 'ous-metrics', [self::class, 'render']);
     }
 
     /**

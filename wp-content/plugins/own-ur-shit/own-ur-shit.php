@@ -2,10 +2,45 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.40
+ * Version:     3.10.41
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
+
+// 3.10.41 — Direct request: "Make sure no latent 'own ur shit's exist,
+// like in urls, fold it in." The plugin's internal codename was
+// genuinely visible to every admin, every time, in the browser address
+// bar — the top-level admin menu slug was the literal string
+// 'own-ur-shit' (admin.php?page=own-ur-shit), and every one of its 11
+// submenus (Reports, Media & CDN Setup, Metrics, Security, DMCA Agent/
+// Notices, Roles, Campaigns, Guided Setup, Portal Layout, plus the
+// dashboard itself) was parented under that exact same slug via
+// add_submenu_page('own-ur-shit', ...). Renamed the slug to 'ous' —
+// matching the short-code convention every submenu's own slug already
+// uses (ous-metrics, ous-security, etc.), so this isn't a new
+// convention, just closing the one place the ecosystem's public-facing
+// name ("The Self-Hosted Self") and internal short-code both existed
+// while the crude working codename alone leaked into the URL bar.
+// Touched: class-dashboard.php (the add_menu_page()/add_submenu_page()
+// registration itself, plus the enqueue_assets() hook-suffix check),
+// class-banner.php (screen-id check), class-menu-merge.php (default
+// parent for every OTHER plugin's admin_menus entries — bh-registry,
+// bh-tickets, bh-crm, etc. all inherit this automatically, no changes
+// needed in those plugins themselves), and every file with its own
+// add_submenu_page('own-ur-shit', ...) call (class-campaigns,
+// class-dmca, class-dmca-notices, class-media-wizard, class-metrics,
+// class-portal-layout, class-reports, class-role-assignment,
+// class-setup-wizard, class-two-factor). Text-domain strings
+// (__('...', 'own-ur-shit')) and the plugin folder name itself were
+// deliberately left untouched — the text domain isn't URL-visible, and
+// renaming the folder is materially riskier (it's how WordPress tracks
+// "which plugin is this" — a live production deploy on
+// billyhume.wasmer.app makes that not worth the risk for a URL-only
+// concern). Verified live: the dashboard and every submenu (13 items,
+// spot-checked via a real DOM read of the rendered sidebar) resolve
+// correctly under the new admin.php?page=ous URL and its ous-*
+// children; old own-ur-shit URLs simply no longer exist (no redirect
+// needed — nothing bookmarks these, they're wp-admin-only).
 
 // 3.10.40 — Two real, live-caught bugs in the front-end portal shell
 // (class-portal.php), both direct field reports while verifying the
@@ -1824,7 +1859,7 @@ if (!defined('ABSPATH')) exit;
 // dependency-free viewer alone rather than swapping in a Swagger-UI bundle, to
 // keep this ecosystem's own "no external JS/CDN" viewer convention intact; the
 // two pages cross-link instead.
-define('OUS_VER', '3.10.40');
+define('OUS_VER', '3.10.41');
 
 // 3.6.6 — Design Suite cleanup pass, AJ's own "bloated weird GUI and remnants of
 // stuff" report: (1) Real leftover test data found and deleted directly from

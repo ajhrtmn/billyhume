@@ -87,7 +87,7 @@ class OUS_Installer {
         // Real bug PHPStan caught: the 4th positional arg is $context
         // (string, default '') — this was passing false where WP core's
         // real signature (wp-admin/includes/file.php) expects a string.
-        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, '', null);
+        $creds = request_filesystem_credentials(admin_url('admin.php?page=ous'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 
         $result = unzip_file($zip_path, WP_PLUGIN_DIR);
@@ -106,7 +106,7 @@ class OUS_Installer {
         // Real bug PHPStan caught: the 4th positional arg is $context
         // (string, default '') — this was passing false where WP core's
         // real signature (wp-admin/includes/file.php) expects a string.
-        $creds = request_filesystem_credentials(admin_url('admin.php?page=own-ur-shit'), '', false, '', null);
+        $creds = request_filesystem_credentials(admin_url('admin.php?page=ous'), '', false, '', null);
         if (!WP_Filesystem($creds)) return false;
 
         $upgrader = new Plugin_Upgrader(new Automatic_Upgrader_Skin());

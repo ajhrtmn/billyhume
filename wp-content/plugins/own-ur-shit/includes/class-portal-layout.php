@@ -66,7 +66,7 @@ class OUS_PortalLayout {
     }
 
     public static function add_menu(): void {
-        add_submenu_page('own-ur-shit', 'Portal Layout', 'Portal Layout', 'manage_options', 'ous-portal-layout', [self::class, 'render']);
+        add_submenu_page('ous', 'Portal Layout', 'Portal Layout', 'manage_options', 'ous-portal-layout', [self::class, 'render']);
     }
 
     public static function render(): void {

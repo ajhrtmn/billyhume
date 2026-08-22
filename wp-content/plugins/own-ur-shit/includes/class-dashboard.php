@@ -42,17 +42,17 @@ class OUS_Dashboard {
         // class-menu-icons.php) is the actual ecosystem-membership
         // signal; this is the one glyph in that family that represents
         // the ecosystem hub itself rather than one feature area.
-        add_menu_page('The Self-Hosted Self', 'The Self-Hosted Self', 'manage_options', 'own-ur-shit', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
+        add_menu_page('The Self-Hosted Self', 'The Self-Hosted Self', 'manage_options', 'ous', [self::class, 'render'], OUS_MenuIcons::hub(), 3);
         // WordPress auto-creates a first submenu item duplicating the
         // top-level menu's own label unless explicitly overridden —
         // this replaces that duplicate with a clearer "Dashboard" label
         // rather than literally repeating "The Self-Hosted Self" twice in the
         // sidebar.
-        add_submenu_page('own-ur-shit', 'The Self-Hosted Self', 'Dashboard', 'manage_options', 'own-ur-shit', [self::class, 'render']);
+        add_submenu_page('ous', 'The Self-Hosted Self', 'Dashboard', 'manage_options', 'ous', [self::class, 'render']);
     }
 
     public static function enqueue_assets(string $hook): void {
-        if (strpos($hook, 'own-ur-shit') === false) return;
+        if (strpos($hook, 'ous') === false) return;
         wp_enqueue_style('ous-admin', OUS_URL . 'assets/css/admin.css', [], OUS_VER);
 
         // §3.2 v1 — this page renders the 'dashboard' surface's 'main'
@@ -279,13 +279,13 @@ class OUS_Dashboard {
     public static function handle_install(): void {
         $key = sanitize_key($_GET['plugin'] ?? '');
         if (!OUS_AdminGuard::verify_nonce_and_cap('install_plugins', $_GET['_wpnonce'] ?? '', 'ous_install_' . $key)) {
-            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
+            wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=not_allowed'));
             exit;
         }
 
         $installed = OUS_Installer::install($key);
         if ($installed) {
-            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_installed=1'));
+            wp_safe_redirect(admin_url('admin.php?page=ous&ous_installed=1'));
             exit;
         }
         // last_error() carries the SPECIFIC reason when install() has
@@ -293,22 +293,22 @@ class OUS_Dashboard {
         // docblock) — falls back to the existing generic "missing"
         // code for every other failure shape, unchanged.
         $code = (class_exists('OUS_Installer') && OUS_Installer::last_error()) ? OUS_Installer::last_error() : 'missing';
-        wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=' . $code));
+        wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=' . $code));
         exit;
     }
 
     public static function handle_activate(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_' . ($_GET['plugin'] ?? ''))) {
-            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
+            wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=not_allowed'));
             exit;
         }
 
         $key = sanitize_key($_GET['plugin'] ?? '');
         $ok = OUS_ActivationManager::activate_with_dependencies($key);
         wp_safe_redirect($ok
-            ? admin_url('admin.php?page=own-ur-shit&ous_activated=1')
-            : admin_url('admin.php?page=own-ur-shit&ous_error=activation_failed'));
+            ? admin_url('admin.php?page=ous&ous_activated=1')
+            : admin_url('admin.php?page=ous&ous_error=activation_failed'));
         exit;
     }
 
@@ -318,7 +318,7 @@ class OUS_Dashboard {
     public static function handle_activate_all(): void {
         if (!current_user_can('activate_plugins') || !current_user_can('install_plugins')
             || !wp_verify_nonce($_GET['_wpnonce'] ?? '', 'ous_activate_all')) {
-            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
+            wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=not_allowed'));
             exit;
         }
 
@@ -329,21 +329,21 @@ class OUS_Dashboard {
             }
         }
         wp_safe_redirect($all_ok
-            ? admin_url('admin.php?page=own-ur-shit&ous_activated=1')
-            : admin_url('admin.php?page=own-ur-shit&ous_error=activation_failed'));
+            ? admin_url('admin.php?page=ous&ous_activated=1')
+            : admin_url('admin.php?page=ous&ous_error=activation_failed'));
         exit;
     }
 
     public static function handle_activate_file(): void {
         $file = sanitize_text_field(wp_unslash($_GET['file'] ?? ''));
         if (!OUS_AdminGuard::verify_nonce_and_cap('activate_plugins', $_GET['_wpnonce'] ?? '', 'ous_activate_file_' . $file)) {
-            wp_safe_redirect(admin_url('admin.php?page=own-ur-shit&ous_error=not_allowed'));
+            wp_safe_redirect(admin_url('admin.php?page=ous&ous_error=not_allowed'));
             exit;
         }
         $result = activate_plugin($file);
         wp_safe_redirect(is_wp_error($result)
-            ? admin_url('admin.php?page=own-ur-shit&ous_error=activation_failed')
-            : admin_url('admin.php?page=own-ur-shit&ous_activated=1'));
+            ? admin_url('admin.php?page=ous&ous_error=activation_failed')
+            : admin_url('admin.php?page=ous&ous_activated=1'));
         exit;
     }
 }

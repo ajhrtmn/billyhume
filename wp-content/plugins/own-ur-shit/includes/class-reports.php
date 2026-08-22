@@ -412,7 +412,7 @@ class BHI_Reports {
 
     public static function add_admin_page(): void {
         add_submenu_page(
-            'own-ur-shit', 'Reports', 'Reports', 'manage_options', 'ous-reports', [self::class, 'render_admin_page']
+            'ous', 'Reports', 'Reports', 'manage_options', 'ous-reports', [self::class, 'render_admin_page']
         );
     }
 

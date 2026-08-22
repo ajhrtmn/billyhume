@@ -188,7 +188,7 @@ class OUS_MediaWizard {
     ];
 
     public static function add_menu(): void {
-        add_submenu_page('own-ur-shit', 'Media & CDN Setup', 'Media & CDN Setup', 'manage_options', 'ous-media-setup', [self::class, 'render']);
+        add_submenu_page('ous', 'Media & CDN Setup', 'Media & CDN Setup', 'manage_options', 'ous-media-setup', [self::class, 'render']);
     }
 
     public static function render(): void {

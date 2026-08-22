@@ -56,7 +56,7 @@ class OUS_MenuMerge {
                 if (!empty($item['old_parent'])) {
                     remove_submenu_page($item['old_parent'], $item['slug']);
                 }
-                $parent = array_key_exists('parent', $item) ? $item['parent'] : 'own-ur-shit';
+                $parent = array_key_exists('parent', $item) ? $item['parent'] : 'ous';
                 $capability = $item['capability'] ?? 'manage_options';
                 $hook = add_submenu_page($parent, $item['label'], $item['label'], $capability, $item['slug'], $item['callback']);
                 // Only log the FAILURE case ($hook === false), unthrottled.

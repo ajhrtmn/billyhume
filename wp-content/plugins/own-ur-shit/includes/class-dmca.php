@@ -41,7 +41,7 @@ class OUS_DMCA {
     }
 
     public static function add_menu(): void {
-        add_submenu_page('own-ur-shit', 'DMCA Agent', 'DMCA Agent', 'manage_options', 'ous-dmca-agent', [self::class, 'render']);
+        add_submenu_page('ous', 'DMCA Agent', 'DMCA Agent', 'manage_options', 'ous-dmca-agent', [self::class, 'render']);
     }
 
     public static function render(): void {

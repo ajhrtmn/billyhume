@@ -2,12 +2,34 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.15
+ * Version:     0.1.16
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.16 — Phase 0 of the peer gossip/announce discovery plan (real
+// gap found during a live cross-site federation test this session):
+// verifying this site's OWN feed on ANOTHER site's registry requires
+// publishing a token at https://{this-host}/.well-known/
+// bh-registry-verify.txt — a path outside wp-content that needs raw
+// filesystem/SSH access, confirmed genuinely unavailable on a real
+// Wasmer-hosted production install (wp-admin-only access) and a real
+// blocker on plenty of ordinary shared hosting too. Added
+// BHR_WellKnown (class-wellknown.php): self-serves that exact path via
+// a WP rewrite rule (same BHY_RewriteHealer::maybe_heal() self-healing
+// pattern BHI_Portal/BHM_Storefront already use), content from a new
+// admin-visible/regenerable bhr_wellknown_token option. A real static
+// file at the same path still wins if one exists — this only fills the
+// gap when one doesn't. BHR_Verification::check_domain_ownership()
+// itself is completely unchanged; it was always just an HTTP GET
+// against whatever host a submission claims — this only changes what
+// answers that GET on THIS site specifically. First piece of a larger,
+// fully-scoped peer gossip/announce plan (see the project's plan file)
+// — later phases add opt-in peer-to-peer propagation on top of this,
+// none of which is built yet.
+// NOT runtime-verified against a live install yet — `php -l` clean.
 
 // 0.1.15 — Adds GET /bhr/v1/artists/{id}/tracks: a read-only preview
 // of a registered artist's actual tracks (fetches and parses their
@@ -108,7 +130,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.15');
+define('BHR_VER',  '0.1.16');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 
@@ -123,7 +145,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['links', 'activator', 'verification', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
+foreach (['links', 'activator', 'verification', 'wellknown', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 
@@ -159,6 +181,7 @@ add_action('plugins_loaded', function () {
     add_action('admin_init',    ['BHR_Activator', 'maybe_create_default_pages']);
 
     add_action('init',          ['BHR_Frontend', 'init']);
+    add_action('init',          ['BHR_WellKnown', 'init']);
     add_action('init',          ['BHR_StyleSurface', 'init']);
     add_action('init',          ['BHR_Debug', 'init']);
     add_action('init',          ['BHR_Admin', 'init']);

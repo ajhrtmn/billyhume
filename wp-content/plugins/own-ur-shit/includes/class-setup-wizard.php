@@ -40,7 +40,7 @@ class OUS_SetupWizard {
         // A real submenu item (not just a dashboard link) so it's
         // findable again later — revisiting brand basics should work,
         // not just a first-run gate that vanishes.
-        add_submenu_page('own-ur-shit', 'Guided Setup', 'Guided Setup', 'manage_options', 'ous-setup-wizard', [self::class, 'render']);
+        add_submenu_page('ous', 'Guided Setup', 'Guided Setup', 'manage_options', 'ous-setup-wizard', [self::class, 'render']);
     }
 
     /* ---------------- step detection ---------------- */
@@ -80,7 +80,7 @@ class OUS_SetupWizard {
         echo '<h1>Guided Setup</h1>';
 
         if (isset($_GET['ous_wizard_error'])) {
-            echo '<div class="bhy-alert bhy-alert-danger"><p>Something didn\'t work — you can always finish this from the main <a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">The Self-Hosted Self dashboard</a> instead.</p></div>';
+            echo '<div class="bhy-alert bhy-alert-danger"><p>Something didn\'t work — you can always finish this from the main <a href="' . esc_url(admin_url('admin.php?page=ous')) . '">The Self-Hosted Self dashboard</a> instead.</p></div>';
         }
         if (isset($_GET['ous_wizard_saved'])) {
             echo '<div class="bhy-alert bhy-alert-success"><p>Saved.</p></div>';
@@ -126,7 +126,7 @@ class OUS_SetupWizard {
             echo '<p>' . (int) $active . ' of ' . (int) $total . ' pieces are active. One click installs and activates everything else, in the right dependency order (e.g. WooCommerce before Supporter Tiers).</p>';
             $url = wp_nonce_url(admin_url('admin-post.php?action=ous_wizard_activate_all'), 'ous_wizard_activate_all');
             echo '<p><a class="button button-primary button-hero" href="' . esc_url($url) . '">Install &amp; activate everything</a></p>';
-            echo '<p class="description">Prefer to pick pieces individually? Use the <a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">full dashboard</a> instead, then come back here.</p>';
+            echo '<p class="description">Prefer to pick pieces individually? Use the <a href="' . esc_url(admin_url('admin.php?page=ous')) . '">full dashboard</a> instead, then come back here.</p>';
         }
         echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=ous-setup-wizard&step=3')) . '">Continue</a></p>';
         self::step_nav(2);
@@ -217,7 +217,7 @@ class OUS_SetupWizard {
                . ($gateways ? ' — payments are configured and ready.' : ' — <strong>no payment method is active yet</strong>, set one up in <a href="' . esc_url(admin_url('admin.php?page=wc-settings&tab=checkout')) . '">WooCommerce → Payments</a> before selling anything.')
                . '</li>';
         }
-        echo '<li><a href="' . esc_url(admin_url('admin.php?page=own-ur-shit')) . '">The Self-Hosted Self dashboard</a> — the full ecosystem overview.</li>';
+        echo '<li><a href="' . esc_url(admin_url('admin.php?page=ous')) . '">The Self-Hosted Self dashboard</a> — the full ecosystem overview.</li>';
         echo '</ul>';
         self::step_nav(4);
     }

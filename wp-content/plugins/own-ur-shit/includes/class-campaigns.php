@@ -73,7 +73,7 @@ class OUS_Campaigns {
         // submenus already use without issue — VISION.md's own documented
         // get_plugin_page_hook() failure was isolated to submenus
         // registered under the 'ous-debug' parent specifically.
-        add_submenu_page('own-ur-shit', 'Campaigns', 'Campaigns', 'manage_options', 'ous-campaigns', [self::class, 'render']);
+        add_submenu_page('ous', 'Campaigns', 'Campaigns', 'manage_options', 'ous-campaigns', [self::class, 'render']);
     }
 
     private static function create(string $subject, string $body, string $segment_key, int $created_by): int {

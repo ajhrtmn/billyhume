@@ -74,6 +74,8 @@ class BHR_Admin {
         echo '<div class="wrap"><h1>Registry Submissions</h1>';
         echo '<p class="description">A link goes live in public browse/search automatically once verified — this page is for reviewing status and handling abuse, not approving every submission by hand.</p>';
 
+        self::render_identity_box();
+
         // Search + sortable columns — see BHY_UI::print_design_system_js().
         echo '<input type="text" class="bhy-table-search" data-target="#bhr-submissions-table" placeholder="Filter by artist or status&hellip;">';
 
@@ -107,6 +109,24 @@ class BHR_Admin {
             echo '</td></tr>';
         }
         echo '</tbody></table></div></div>';
+    }
+
+    // New in 0.1.16 (BHR_WellKnown). This is THIS site's own outbound
+    // identity — the token another site's registry expects to find at
+    // https://{this-host}/.well-known/bh-registry-verify.txt when
+    // THIS site submits its own feed there. Separate from every other
+    // token on this page, which are all INBOUND (challenges other
+    // sites' submitters must answer on their own domains).
+    private static function render_identity_box(): void {
+        if (!class_exists('BHR_WellKnown')) return;
+        $token = BHR_WellKnown::token();
+        $url   = BHR_WellKnown::challenge_url();
+        echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;">';
+        echo '<h2 style="margin-top:0;">This Site\'s Identity</h2>';
+        echo '<p class="description">When submitting THIS site\'s own feed to another site\'s registry, that site will fetch <code>' . esc_html($url) . '</code> and expect it to contain exactly this token. Self-served automatically — no filesystem access needed.</p>';
+        echo '<p><input type="text" readonly value="' . esc_attr($token) . '" style="width:100%;max-width:420px;font-family:monospace;" onclick="this.select();"></p>';
+        echo '<p>' . self::action_link(0, 'regenerate_wellknown_token', 'Regenerate token', null, 'Regenerate this site\'s outbound identity token? Any registry that already verified this site using the old token will need it re-verified.') . '</p>';
+        echo '</div>';
     }
 
     // Audit fix (2026-07-25): was hand-rolled inline hex-color styling —
@@ -160,6 +180,9 @@ class BHR_Admin {
                     $link = BHR_Links::find($link_id);
                     if ($link) BHR_Verification::verify_link($link);
                 }
+                break;
+            case 'regenerate_wellknown_token':
+                if (class_exists('BHR_WellKnown')) BHR_WellKnown::regenerate_token();
                 break;
         }
 

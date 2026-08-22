@@ -34,7 +34,7 @@ class OUS_DMCA_Notices {
     }
 
     public static function add_menu(): void {
-        add_submenu_page('own-ur-shit', 'DMCA Notices', 'DMCA Notices', 'manage_options', 'ous-dmca-notices', [self::class, 'render_admin_page']);
+        add_submenu_page('ous', 'DMCA Notices', 'DMCA Notices', 'manage_options', 'ous-dmca-notices', [self::class, 'render_admin_page']);
     }
 
     private static function table(): string {
