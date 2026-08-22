@@ -410,6 +410,32 @@ class BHS_Feeds {
             $aid = (int) get_post_meta($p->ID, '_bhs_audio_id', true);
             $external_url = get_post_meta($p->ID, '_bhs_external_audio_url', true);
             $audio_url = $aid ? wp_get_attachment_url($aid) : $external_url;
+
+            // Real, confirmed bug (2026-08-21, found building the fan-
+            // facing global-library feature): this loop never checked
+            // bhs_track_access_allowed at all — the SAME filter
+            // class-api.php's own /tracks endpoint already gates the
+            // local player's playback with — so a track requiring a
+            // paid tier/purchase had its real, full audio file exposed
+            // through this PUBLIC, unauthenticated feed regardless,
+            // completely bypassing the paywall for any external
+            // consumer (another site's importer, a podcast app, this
+            // session's own new registry preview endpoint). There's no
+            // logged-in user in this request context (a public feed
+            // fetch), so the filter correctly evaluates "not allowed"
+            // for any gated track here — exactly the safe default. A
+            // gated track falls back to its own hoster-set preview clip
+            // (_bhs_preview_audio_id, a short teaser file, never
+            // auto-derived from the real audio) if one exists; with
+            // neither access nor a preview set, the track is omitted
+            // from the public feed entirely rather than exposing
+            // nothing useful or the real file.
+            $access_allowed = apply_filters('bhs_track_access_allowed', true, $p->ID);
+            if (!$access_allowed) {
+                $preview_id = (int) get_post_meta($p->ID, '_bhs_preview_audio_id', true);
+                $audio_url = $preview_id ? wp_get_attachment_url($preview_id) : '';
+                $aid = $preview_id; // so the mime-type lookup below reads the preview file's real type, not the gated original's
+            }
             if (!$audio_url) continue;
 
             $item = $doc->createElement('item');

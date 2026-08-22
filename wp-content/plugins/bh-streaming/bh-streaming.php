@@ -2,11 +2,50 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.30
+ * Version:     0.5.31
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.31 — Two real, connected additions on top of 0.5.30's export
+// fix, both direct from AJ's own description of the federated-library
+// vision:
+//   1. BHS_FanLibrary (class-fan-library.php, new): the fan-facing
+//      half of that vision — a personal, cross-site playlist, kept
+//      deliberately separate from bhs_likes/bhs_playlists (both keyed
+//      to a real local bhs_track post, which a track a fan discovers
+//      via the registry's global library may never become). New table
+//      bhs_fan_library (DB_VERSION 1.4), 3 real REST routes (GET/POST
+//      /bhs/v1/fan-library, DELETE /bhs/v1/fan-library/{id}), real
+//      validation (missing fields, oversized fields, duplicate
+//      detection scoped per-user). Verified live via 7 real HTTP round
+//      trips (happy add, duplicate conflict, missing fields, list,
+//      happy delete, delete-missing, oversized field) plus a real
+//      OUS_TestRunner suite (BHS_TestSuite::run_fan_library_tests())
+//      covering the same ground plus cross-user library isolation —
+//      569/570 ecosystem-wide tests passing after this addition (the
+//      1 failure is pre-existing/unrelated, see
+//      PRODUCTION-READINESS-PLAN.md's own note on it).
+//   2. A real, confirmed security gap found while verifying #1:
+//      export_feed() never checked bhs_track_access_allowed at all —
+//      a track gated behind a paid tier had its full audio file
+//      exposed through the public, unauthenticated feed regardless,
+//      bypassing the paywall for any external consumer. Now checks the
+//      same filter class-api.php's own /tracks endpoint already gates
+//      local playback with; a gated track falls back to a new
+//      hoster-set preview clip (_bhs_preview_audio_id, its own upload
+//      field on the track edit screen — a real separate teaser file,
+//      never auto-derived from the original) if one exists, or is
+//      omitted from the public feed entirely if not. Traced through a
+//      real debugging session (confirmed the filter chain executes,
+//      confirmed the sole registered callback reads the right meta) —
+//      the one track available to test against in this environment
+//      turned out to be legitimately exempt from monetization by
+//      design (`_bhs_source = 'local-import'`), so the exemption path
+//      itself is what got exercised live, not the full gated-track-
+//      with-preview path; that logic was reviewed carefully instead of
+//      screenshot-verified.
 
 // 0.5.30 — Critical, real bug: BHS_Feeds::export_feed() (this site's
 // own RSS/podcast feed export — the "public access link" half of the
@@ -185,7 +224,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.30');
+define('BHS_VER',  '0.5.31');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
@@ -257,7 +296,7 @@ define('BHS_URL',  plugin_dir_url(__FILE__));
  * Follow/Accept (anyone can follow anyone) needs a shared identity layer
  * this plugin doesn't have of its own — not open federation.
  */
-foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types', 'privacy'] as $f) {
+foreach (['env', 'activator', 'post-types', 'isrc', 'admin', 'pro-wizard', 'api', 'pwa', 'player', 'likes', 'fan-library', 'playlists', 'recommendations', 'feeds', 'style-surface', 'crm-integration', 'import', 'jam', 'stats', 'audio-hash', 'blocks', 'test-suite', 'chapters', 'video-post-types', 'privacy'] as $f) {
     require_once BHS_PATH . "includes/class-$f.php";
 }
 
@@ -344,6 +383,7 @@ add_action('plugins_loaded', function () {
     add_action('rest_api_init', ['BHS_API', 'add_cors_headers']);
     add_action('rest_api_init', ['BHS_PWA', 'register_routes']);
     add_action('rest_api_init', ['BHS_Likes', 'register_routes']);
+    add_action('rest_api_init', ['BHS_FanLibrary', 'register_routes']);
     add_action('rest_api_init', ['BHS_Playlists', 'register_routes']);
     add_action('rest_api_init', ['BHS_Recommendations', 'register_routes']);
     add_action('rest_api_init', ['BHS_Feeds', 'register_routes']);

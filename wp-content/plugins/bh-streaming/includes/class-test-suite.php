@@ -36,6 +36,109 @@ class BHS_TestSuite {
         $rows = array_merge($rows, self::run_jam_skip_vote_tests());
         $rows = array_merge($rows, self::run_recommendations_tests());
         $rows = array_merge($rows, self::run_chapters_tests());
+        $rows = array_merge($rows, self::run_fan_library_tests());
+        return $rows;
+    }
+
+    /* ---------- BHS_FanLibrary: the fan-facing global-library feature ---------- */
+
+    // New feature (2026-08-21) — the "many plausible happy and unhappy
+    // paths and edge cases" standard AJ asked for applied deliberately:
+    // a clean add, a duplicate rejected as a real conflict (not a
+    // silent no-op or a second row), missing required fields, an
+    // oversized field beyond the column's real storage limit, deleting
+    // your own item, deleting an item that was never yours (or never
+    // existed — the same 404 either way, by design, since a caller
+    // can't distinguish the two and shouldn't be able to), and that a
+    // second, different user's library stays completely isolated from
+    // the first's — the actual point of this being a fan-scoped table.
+    /** @return array<int, array<string, mixed>> */
+    private static function run_fan_library_tests(): array {
+        if (!class_exists('BHS_FanLibrary')) return [];
+        $rows = [];
+        global $wpdb;
+        $table = $wpdb->prefix . 'bhs_fan_library';
+
+        $previous_user_id = get_current_user_id();
+        $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
+        $user_a = $admins ? (int) $admins[0] : 0;
+        // A second, distinct user id for the isolation test below —
+        // doesn't need to be a real registered account, just a
+        // different numeric id than $user_a, since the query itself is
+        // a plain WHERE user_id = %d with no foreign-key/existence
+        // requirement on wp_users.
+        $user_b = $user_a + 999900;
+
+        if (!$user_a) {
+            wp_set_current_user($previous_user_id);
+            return [['name' => 'BHS_FanLibrary tests', 'pass' => false, 'message' => 'Skipped — no administrator account found to run as.']];
+        }
+        wp_set_current_user($user_a);
+
+        $make_req = function (array $params): \WP_REST_Request {
+            $req = new \WP_REST_Request('POST', '/bhs/v1/fan-library');
+            foreach ($params as $k => $v) $req->set_param($k, $v);
+            return $req;
+        };
+
+        // Happy path: a complete, well-formed item.
+        $add_ok = BHS_FanLibrary::add_item($make_req([
+            'feed_url' => 'https://example.test/ts-feed.xml', 'track_guid' => 'ts-guid-1',
+            'title' => 'Test Suite Track', 'artist' => 'Test Suite Artist',
+            'audio_url' => 'https://example.test/track.mp3', 'artwork_url' => '', 'duration' => '210',
+        ]));
+        $rows[] = OUS_TestRunner::assert_true(!is_wp_error($add_ok), 'BHS_FanLibrary::add_item(): a complete, well-formed item is accepted.');
+        $added_id = !is_wp_error($add_ok) ? $add_ok->get_data()['id'] : 0;
+
+        // Unhappy: the exact same feed_url + track_guid for the SAME
+        // user is a real conflict, not a silent duplicate row.
+        $add_dup = BHS_FanLibrary::add_item($make_req([
+            'feed_url' => 'https://example.test/ts-feed.xml', 'track_guid' => 'ts-guid-1',
+            'title' => 'Test Suite Track', 'artist' => '', 'audio_url' => 'https://example.test/track.mp3',
+        ]));
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($add_dup) && $add_dup->get_error_code() === 'already_added', 'BHS_FanLibrary::add_item(): re-adding the same feed_url+track_guid for the same user is rejected as already_added, not duplicated.');
+
+        // Unhappy: missing required fields (no title, no audio_url).
+        $add_missing = BHS_FanLibrary::add_item($make_req(['feed_url' => 'https://example.test/other-feed.xml', 'track_guid' => 'ts-guid-2']));
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($add_missing) && $add_missing->get_error_code() === 'missing_fields', 'BHS_FanLibrary::add_item(): rejects an item missing title/audio_url rather than saving a broken row.');
+
+        // Edge case: a feed_url longer than the column's real
+        // varchar(191) storage limit — must be rejected with a clear
+        // reason, not silently truncated by MySQL or thrown as a raw
+        // DB error.
+        $long_url = 'https://example.test/' . str_repeat('x', 200) . '/feed.xml';
+        $add_long = BHS_FanLibrary::add_item($make_req(['feed_url' => $long_url, 'track_guid' => 'ts-guid-3', 'title' => 'T', 'audio_url' => 'https://example.test/t.mp3']));
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($add_long) && $add_long->get_error_code() === 'too_long', 'BHS_FanLibrary::add_item(): rejects a feed_url longer than the column can store, rather than a silent truncation or raw SQL error.');
+
+        // Isolation: a second user's library must never see the first
+        // user's items — the actual point of a fan-SCOPED table.
+        wp_set_current_user($user_b);
+        $list_req = new \WP_REST_Request('GET', '/bhs/v1/fan-library');
+        $list_b = BHS_FanLibrary::get_library($list_req);
+        $rows[] = OUS_TestRunner::assert_same(0, count($list_b->get_data()['items']), 'BHS_FanLibrary::get_library(): a different user sees zero of user A\'s items — libraries stay fan-scoped.');
+        wp_set_current_user($user_a);
+
+        // Happy path: delete your own real item.
+        if ($added_id) {
+            $del_req = new \WP_REST_Request('DELETE', '/bhs/v1/fan-library/' . $added_id);
+            $del_req->set_param('id', $added_id);
+            $del_ok = BHS_FanLibrary::remove_item($del_req);
+            $rows[] = OUS_TestRunner::assert_true(!is_wp_error($del_ok), 'BHS_FanLibrary::remove_item(): deleting your own real item succeeds.');
+        }
+
+        // Unhappy/edge: deleting an id that never existed (or isn't
+        // yours — indistinguishable by design, see this method's own
+        // comment) returns a real not_found, not a silent success.
+        $del_missing_req = new \WP_REST_Request('DELETE', '/bhs/v1/fan-library/999999999');
+        $del_missing_req->set_param('id', 999999999);
+        $del_missing = BHS_FanLibrary::remove_item($del_missing_req);
+        $rows[] = OUS_TestRunner::assert_true(is_wp_error($del_missing) && $del_missing->get_error_code() === 'not_found', 'BHS_FanLibrary::remove_item(): deleting a nonexistent id returns not_found rather than a silent success.');
+
+        // Cleanup — real DB rows this test suite itself created, same
+        // "leave no residue for the next suite run" discipline as
+        // every other method in this file.
+        $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE user_id IN (%d, %d)", $user_a, $user_b));
+        wp_set_current_user($previous_user_id);
         return $rows;
     }
 

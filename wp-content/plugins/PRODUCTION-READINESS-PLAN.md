@@ -9,6 +9,26 @@ their own detail sections. Checked every "still open" claim against
 this session's actual git log before listing it here, not copied
 blind from stale prose.
 
+## New, small, not yet root-caused (2026-08-21)
+
+Running the full Test Runner suite (570 tests, 18 suites) after the
+fan-library work below showed 569 passed, 1 failed, deterministically
+repeatable across two runs: `BHT_TestSuite::run_tests()`'s
+`for_user() includes the requester's own ticket` (bh-tickets). The
+test creates a brand-new real WP user
+(`OUS_Debug::get_or_create_test_user('bht_suite_requester', false)`,
+`$reuse_odds=false` always makes a fresh one) via `wp_insert_user()`,
+creates a ticket for it, then queries `BHT_Tickets::for_user()` for
+that same user id and finds nothing. Not caused by any file this
+session touched for the fan-library feature (confirmed via `git log`
+on the test file itself, last touched in an earlier PHPStan brick).
+Plausible but unconfirmed connection: this session's earlier
+activate-everything pass means `wp_insert_user()` now fires
+significantly more `user_register` hook work than before (bh-mailpoet
+alone makes a real MailPoet API call on every registration) — worth
+checking whether one of those hooks is throwing or interfering. Not
+investigated further this pass — flagged rather than silently ignored.
+
 ## Genuinely still open (never touched this session, confirmed by grep)
 
 In rough priority order:

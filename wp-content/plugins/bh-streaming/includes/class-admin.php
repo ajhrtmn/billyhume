@@ -189,6 +189,27 @@ class BHS_Admin {
             echo '<input type="hidden" id="bhs_audio_id" name="bhs_audio_id" value="' . esc_attr((string) $aid) . '">';
             echo '<div id="bhs_audio_preview">' . ($aurl ? "<audio controls src='" . esc_url($aurl) . "' style='width:100%;'></audio>" : '<p><em>No audio attached.</em></p>') . '</div>';
             echo '<p><button type="button" class="button" id="bhs_audio_upload">Choose audio…</button></p>';
+
+            // Real gap found building the fan-facing global-library
+            // feature (2026-08-21): the public feed export
+            // (BHS_Feeds::export_feed(), what a fan/another site
+            // actually gets to hear before deciding to buy in) needs to
+            // respect this track's own gating (bhs_track_access_allowed)
+            // the same way the local player already does — a gated
+            // track's real audio file must never leak out through an
+            // unauthenticated public feed. When gated, this preview
+            // clip (a separate, deliberately short/teaser file the
+            // hoster uploads themselves — no automatic audio-trimming
+            // infrastructure exists or is planned) is what gets exported
+            // instead; a gated track with no preview set is simply
+            // omitted from the public feed rather than exposing nothing
+            // useful or the full file.
+            $preview_id = (int) get_post_meta($post->ID, '_bhs_preview_audio_id', true);
+            $preview_url = $preview_id ? wp_get_attachment_url($preview_id) : '';
+            echo '<p style="margin-top:14px;"><strong>Public preview clip</strong> <span class="description">— only used if this track requires supporter access. A short, separate teaser file you choose; the full file above is never exposed to the public feed/global library for a gated track.</span></p>';
+            echo '<input type="hidden" id="bhs_preview_audio_id" name="bhs_preview_audio_id" value="' . esc_attr((string) $preview_id) . '">';
+            echo '<div id="bhs_preview_audio_preview">' . ($preview_url ? "<audio controls src='" . esc_url($preview_url) . "' style='width:100%;'></audio>" : '<p><em>No preview set.</em></p>') . '</div>';
+            echo '<p><button type="button" class="button" id="bhs_preview_audio_upload">Choose preview clip…</button></p>';
         }
 
         echo '<p><strong>Artwork</strong> <span class="description">(falls back to the release\'s artwork, or a generated placeholder)</span></p>';
@@ -315,6 +336,7 @@ class BHS_Admin {
                 });
             }
             pick('bhs_audio_upload', 'bhs_audio_id', 'bhs_audio_preview', false);
+            pick('bhs_preview_audio_upload', 'bhs_preview_audio_id', 'bhs_preview_audio_preview', false);
             pick('bhs_artwork_upload', 'bhs_artwork_id', 'bhs_artwork_preview', true);
         })();
         </script>
@@ -332,6 +354,7 @@ class BHS_Admin {
         if (!$is_external) {
             if (isset($_POST['bhs_artist']))   update_post_meta($post_id, '_bhs_artist', sanitize_text_field($_POST['bhs_artist']));
             if (isset($_POST['bhs_audio_id'])) update_post_meta($post_id, '_bhs_audio_id', (int) $_POST['bhs_audio_id']);
+            if (isset($_POST['bhs_preview_audio_id'])) update_post_meta($post_id, '_bhs_preview_audio_id', (int) $_POST['bhs_preview_audio_id']);
         }
         if (isset($_POST['bhs_artwork_id']))  update_post_meta($post_id, '_bhs_artwork_id', (int) $_POST['bhs_artwork_id']);
         if (isset($_POST['bhs_release_id']))  update_post_meta($post_id, '_bhs_release_id', (int) $_POST['bhs_release_id']);

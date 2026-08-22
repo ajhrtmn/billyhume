@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  * connection.
  */
 class BHS_Activator {
-    const DB_VERSION = '1.3'; // 1.2 added bhs_daily_stats; 1.3 renamed the bh_track/bh_release/bh_playlist post types to bhs_track/bhs_release/bhs_playlist — see rename_post_types_to_prefixed()
+    const DB_VERSION = '1.4'; // 1.2 added bhs_daily_stats; 1.3 renamed the bh_track/bh_release/bh_playlist post types to bhs_track/bhs_release/bhs_playlist — see rename_post_types_to_prefixed(); 1.4 added bhs_fan_library (the fan-facing global-library feature)
 
     public static function activate(): void {
         BHS_PostTypes::register();
@@ -146,12 +146,42 @@ class BHS_Activator {
         ) $charset;";
         dbDelta($sql4);
 
+        // Fan-facing global library (1.4): a genuinely separate table
+        // from bhs_likes/bhs_playlists (both keyed to a real local
+        // bhs_track post ID), since a track a fan discovers via the
+        // registry's own global-library browse may never become a
+        // permanent local post at all — this ecosystem's own "never
+        // re-host, just point at the real source" principle applied to
+        // fan curation instead of admin curation. feed_url/track_guid
+        // together identify a specific external track without needing
+        // a local post; VARCHAR(191) on both (not TEXT) so the unique
+        // key stays within InnoDB's index-length limit under utf8mb4.
+        $fan_library = $wpdb->prefix . 'bhs_fan_library';
+        $sql5 = "CREATE TABLE $fan_library (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL,
+            feed_url varchar(191) NOT NULL,
+            track_guid varchar(191) NOT NULL,
+            title varchar(255) NOT NULL,
+            artist varchar(255) NOT NULL DEFAULT '',
+            audio_url text NOT NULL,
+            artwork_url text NOT NULL,
+            duration varchar(20) NOT NULL DEFAULT '',
+            added_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY user_track (user_id, feed_url, track_guid),
+            KEY user_id (user_id)
+        ) $charset;";
+        dbDelta($sql5);
+
         if ($wpdb->last_error) return false;
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         $jam_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $jam));
         $part_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $participants));
         $stats_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $stats));
-        return $exists === $table && $jam_exists === $jam && $part_exists === $participants && $stats_exists === $stats;
+        $fan_library_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $fan_library));
+        return $exists === $table && $jam_exists === $jam && $part_exists === $participants
+            && $stats_exists === $stats && $fan_library_exists === $fan_library;
     }
 
     // Same pattern proven out in bh-contest: version-gated so this only
