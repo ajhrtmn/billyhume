@@ -64,6 +64,31 @@ class BHR_Verification {
                 'metadata'             => wp_json_encode($is_open['metadata']),
             ], ['id' => $link->id]);
             self::maybe_activate_artist($link->artist_id);
+
+            // Fires on EVERY successful verification, regardless of
+            // trigger (manual submit, daily recheck cron, admin re-check,
+            // or a gossip candidate's queued verification job) — one
+            // code path, no special-casing per origin. The real-time
+            // 'bh_event_emitted' listener (bh-registry.php's bootstrap)
+            // reads discovered_via/discovered_hop_count straight off
+            // $link (already present on the row this method was called
+            // with) to decide the correct fan-out hop_count — see
+            // BHR_Gossip::announce_verified_link(). Harmless no-op if
+            // BH_Event/OUS_Jobs aren't present (own-ur-shit core feature,
+            // not a hard dependency).
+            if (class_exists('BH_Event')) {
+                BH_Event::emit('bhr/link_verified', [
+                    'subject_type' => 'bhr_link',
+                    'subject_id'   => $link->id,
+                    'payload'      => [
+                        'artist_id'    => $link->artist_id,
+                        'discovered_via' => $link->discovered_via ?? 'manual',
+                        'hop_count'    => (int) ($link->discovered_hop_count ?? 0),
+                        'from_peer_id' => isset($link->discovered_from_peer_id) ? (int) $link->discovered_from_peer_id : null,
+                    ],
+                ]);
+            }
+
             return true;
         }
 
