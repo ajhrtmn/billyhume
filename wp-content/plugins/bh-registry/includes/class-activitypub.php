@@ -25,15 +25,9 @@ if (!defined('ABSPATH')) exit;
  * (SSRF guard, reachability, real-manifest check), one peers table,
  * one verification model. No layer gets its own trust tier.
  *
- * ON by default (direct product decision: discovery should work out of
- * the box, not wait on a switch). That is safe because "enabled" alone
- * does nothing outbound — sync_relay() returns immediately unless a
- * relay URL is also configured, so a fresh install federates with
- * nobody until someone names a relay. What being enabled DOES do is
- * make the inbox live, which is fine: every request to it must carry a
- * valid, fresh HTTP Signature from the key its own claimed actor
- * publishes, and unsigned/forged/replayed requests are rejected with a
- * 401 before any parsing or DB work (verified live).
+ * Off by default. Requires an admin to enable it and name a relay on
+ * the Registry Peers screen — a real outbound federation relationship
+ * is never something to open silently on someone's behalf.
  */
 class BHR_ActivityPub {
     const ACTOR_SLUG = 'bh-registry';
@@ -78,7 +72,7 @@ class BHR_ActivityPub {
     }
 
     public static function enabled(): bool {
-        return (bool) get_option('bhr_relay_enabled', true);
+        return (bool) get_option('bhr_relay_enabled', false);
     }
 
     public static function relay_url(): string {
@@ -150,11 +144,9 @@ class BHR_ActivityPub {
         $what = get_query_var('bhr_ap');
         if (!$what) return;
 
-        // The actor/webfinger documents are harmless to serve always.
-        // The inbox is live by default (see this class's docblock) but
-        // still respects an admin who has explicitly turned the layer
-        // off — 404 rather than accepting federation traffic a site
-        // has deliberately opted out of.
+        // The actor/webfinger documents are harmless to serve always,
+        // but the inbox genuinely shouldn't accept federation traffic
+        // for a site that hasn't opted in.
         if ($what === 'inbox' && !self::enabled()) {
             status_header(404);
             exit;

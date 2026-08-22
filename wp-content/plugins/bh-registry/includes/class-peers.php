@@ -88,14 +88,14 @@ class BHR_Peers {
     // (placeholder signals "already set," a blank submit preserves the
     // existing stored value rather than wiping it).
     private static function render_discovery_settings(): void {
-        $relay_enabled = (bool) get_option('bhr_relay_enabled', true);
+        $relay_enabled = (bool) get_option('bhr_relay_enabled', false);
         $relay_url     = (string) get_option('bhr_relay_url', '');
-        $search_enabled = (bool) get_option('bhr_search_enabled', true);
+        $search_enabled = (bool) get_option('bhr_search_enabled', false);
         $search_endpoint = (string) get_option('bhr_search_endpoint_url', '');
         $search_creds = get_option('bhr_search_credentials', ['api_key' => '']);
 
-        echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;"><h2 style="margin-top:0;">Automatic Discovery</h2>';
-        echo '<p class="description"><strong>Both on by default</strong>, so discovery works without setup. Each still needs an endpoint below before it can actually reach anything — until then it simply stays idle rather than calling anywhere. Either can find a peer this site has never heard of before; once found, that peer is crawled the same way any manually-added one is, and anything it offers is still verified independently here before it counts.</p>';
+        echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;"><h2 style="margin-top:0;">Automatic Discovery (optional)</h2>';
+        echo '<p class="description">Both off by default — real outbound calls to infrastructure you configure, never a silent default. Either can find a peer this site has never heard of before; once found, that peer is crawled the same way any manually-added one is.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bhr_save_discovery_settings');
         echo '<input type="hidden" name="action" value="bhr_save_discovery_settings">';
