@@ -2,109 +2,14 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.19
+ * Version:     0.1.18
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
 
-// 0.1.19 — Real redesign of 0.1.18's discovery mechanism, prompted by
-// direct, in-session feedback after 0.1.18 both caused a real
-// production outage (a mid-deploy race on Wasmer's file-sync, not a
-// genuine code bug — confirmed by a clean redeploy of the identical
-// code after a real wait) AND turned out to have a genuine, separate
-// design bug once live-tested: the "Add Peer" form only auto-generated
-// a secret, with no way to manually enter the secret the OTHER side
-// had generated, so two independently-added peers could never actually
-// agree on a shared secret — bidirectional gossip could never have
-// worked as built. That bug is what prompted the real question: "That
-// still requires human input? Not like web crawlers for discovery?",
-// then "It shouldn't be manual at all - 100% automatic", then "No
-// previous knowledge of one another should be required" — each a real
-// rejection of the mutual-secret-exchange model, not scope creep.
-//
-// Replaced entirely (not patched) with an open, unauthenticated
-// PULL/crawl model: class-gossip.php -> class-crawl.php (BHR_Gossip ->
-// BHR_Crawl, the whole mental model changed from push-announce to
-// pull-crawl). New GET /bhr/v1/peers/manifest (open, __return_true,
-// like every other read route here) replaces POST /peers/announce and
-// GET /peers/handshake entirely — no secret, no privileged inbound
-// endpoint, no per-relationship setup beyond knowing a base_url. A
-// daily cron crawls each active peer's manifest, ingests its verified
-// links as candidates (still, unchanged, only ever a thin pointer
-// queued for THIS site's own independent BHR_Verification::verify_link()
-// check — never a trust shortcut), and auto-follows each peer's own
-// known_peers list onward, hop-limited (bhr_peers.discovered_hop,
-// option bhr_crawl_max_hops, default 3) and capped
-// (BHR_Crawl::MAX_TOTAL_PEERS = 200) against unbounded growth from a
-// colluding cluster.
-//
-// New, real attack surface this pull redesign introduces versus the
-// reverted push design: this site now fetches URLs a REMOTE PEER
-// merely CLAIMS exist (its known_peers list), not just URLs a local
-// admin chose — a genuine SSRF vector if unguarded. Added
-// BHR_Crawl::is_safe_external_url(): resolves the host, rejects any
-// private/loopback/link-local/reserved-range IP (RFC1918, 127.0.0.0/8,
-// 169.254.0.0/16 — including cloud metadata endpoints — ::1, fc00::/7,
-// fe80::/10) and any non-http(s) scheme, checked before every single
-// outbound request to a peer-supplied URL, including the peer's own
-// base_url on every crawl (DNS can change after a peer was safely
-// added).
-//
-// Direct follow-up: "Most interested in search index and activity
-// pub" — the two mechanisms actually capable of true
-// zero-prior-knowledge discovery (neither site having ever heard of
-// the other), since nothing built from only two from-scratch nodes can
-// bootstrap that alone; every real decentralized system leans on
-// something already operating at internet scale for this (BitTorrent's
-// bootstrap nodes, Mastodon's relay/WebFinger model, DNS's root
-// servers). Built now: BHR_SearchDiscovery (class-search-discovery.php)
-// — an optional, OFF BY DEFAULT weekly job querying an admin-configured
-// search endpoint (a self-hostable SearXNG instance recommended over a
-// paid vendor API — genuinely avoids a silent third-party dependency;
-// a commercial API works too if that's what's configured) for other
-// public installs, feeding any confirmed-real hit into the exact same
-// BHR_Crawl::maybe_add_discovered_peer() pipeline a directly-crawled
-// peer-of-a-peer uses. Settings follow own-ur-shit's own established
-// Tier B pattern (class-media-wizard.php's Cloudflare Stream section —
-// confirmed via direct exploration, not guessed): toggle + credential,
-// password field always blank, a blank submit preserves the existing
-// stored value.
-//
-// ActivityPub relay integration (the other priority layer) is
-// DELIBERATELY NOT built in this version — real, existing Fediverse
-// relay infrastructure already solves zero-prior-knowledge discovery
-// for the activitypub protocol at internet scale today, but doing it
-// correctly needs a real minimal ActivityPub actor (WebFinger
-// discovery, an actor JSON endpoint, HTTP Signature verification for
-// authenticated Follow/Accept/Announce activities) — genuine
-// cryptographic-correctness-stakes protocol work, not something to
-// rush in the same fast-iterating session that already had one real
-// production incident from insufficiently-tested code. Settings
-// fields (bhr_relay_enabled, bhr_relay_url) ARE added to the Peers
-// screen now, stored for when the actor implementation lands, but
-// nothing reads them yet.
-//
-// Schema: DB_VERSION 1.2 -> 1.3 (class-activator.php). bhr_peers'
-// shared_secret/last_announced_at columns — genuinely dead after this
-// redesign — get a real ALTER TABLE DROP COLUMN (guarded, checks
-// existence first) rather than left as permanent unused schema;
-// justified specifically because zero real peer data exists anywhere
-// yet. New discovered_hop column added. bhr_links.discovered_via='crawl'
-// replaces the old 'gossip' value going forward (both mean "not
-// manually submitted" — provenance only, never affects verification).
-//
-// NOT runtime-verified against a live install yet at the time this
-// entry was written — `php -l` clean on every touched/new file. Given
-// 0.1.18's own incident, this version gets a real local-first
-// verification pass AND a genuine wait-before-recheck on live deploy
-// before being trusted, not an instant recheck (that's what produced
-// the false-alarm revert last time).
-
-// 0.1.18 — Phase 2 of the peer gossip/announce plan (REVERTED, see
-// 0.1.19 above — kept for incident record only, this version's own
-// push+secret design was replaced, not built on). Originally: the actual
+// 0.1.18 — Phase 2 of the peer gossip/announce plan: the actual
 // protocol. New POST /bhr/v1/peers/announce (the inbound receiver —
 // the ONLY route in this namespace that isn't __return_true;
 // authenticated via a per-peer shared secret checked with hash_equals()
@@ -300,7 +205,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.19');
+define('BHR_VER',  '0.1.18');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 
@@ -315,7 +220,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['links', 'activator', 'verification', 'wellknown', 'crawl', 'http-signature', 'activitypub', 'search-discovery', 'peers', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite', 'discovery-test-suite'] as $f) {
+foreach (['links', 'activator', 'verification', 'wellknown', 'gossip', 'peers', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 
@@ -357,10 +262,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHR_Admin', 'init']);
     add_action('init',          ['BHR_Peers', 'init']);
     add_action('init',          ['BHR_StreamingBridge', 'init']);
-    if (class_exists('OUS_TestRunner')) {
-        add_action('init', ['BHR_TestSuite', 'init']);
-        add_action('init', ['BHR_DiscoveryTestSuite', 'init']);
-    }
+    if (class_exists('OUS_TestRunner')) add_action('init', ['BHR_TestSuite', 'init']);
     add_action('rest_api_init', ['BHR_API', 'register_routes']);
     add_action('rest_api_init', ['BHR_API', 'add_cors_headers']);
 
@@ -379,55 +281,41 @@ add_action('plugins_loaded', function () {
     // still works identically on a core version without OUS_Jobs.
     if (class_exists('OUS_Jobs')) {
         OUS_Jobs::register('bhr_recheck_one_link', ['BHR_Verification', 'recheck_one']);
-        // Crawl-discovered candidates get verified through the exact
+        // Gossip-discovered candidates get verified through the exact
         // same handler manual/cron re-checks use — one code path, no
-        // separate "discovery verification" logic to drift out of sync
+        // separate "gossip verification" logic to drift out of sync
         // with the real thing.
         OUS_Jobs::register('bhr_verify_gossip_candidate', ['BHR_Verification', 'recheck_one']);
-        OUS_Jobs::register('bhr_crawl_one_peer', ['BHR_Crawl', 'crawl_one_peer']);
+        OUS_Jobs::register('bhr_gossip_announce_to_peer', ['BHR_Gossip', 'send_announce_to_peer']);
     }
 
-    // Daily peer crawl — replaces the old push+secret design's fan-out-
-    // on-verify entirely; nothing needs to be told about a newly-
-    // verified link anymore, since any peer crawling THIS site's own
-    // /peers/manifest will see it on their own next pass. Also serves
-    // as the liveness check (a peer that fails to answer its manifest
-    // is exactly as "not there" as one that failed a lighter ping would
-    // have been). Handler lives on BHR_Crawl (class-crawl.php).
-    if (!wp_next_scheduled('bhr_peer_crawl')) {
-        wp_schedule_event(time(), 'daily', 'bhr_peer_crawl');
+    // Peer gossip/announce: fires the moment ANY link verifies
+    // successfully (see BHR_Verification::verify_link()'s own emit()
+    // call) — a real-time listener, not a poll, so fan-out starts
+    // within the same request verification succeeded on (deferred to a
+    // queued job immediately, never inline — see
+    // BHR_Gossip::announce_verified_link()). class_exists()-guarded on
+    // both BH_Event and BHR_Gossip; a site with zero peers configured
+    // still fires this harmlessly (the fan-out loop is just empty).
+    if (class_exists('BH_Event')) {
+        BH_Event::register_event_type('bhr/link_verified', ['link_id' => 'int', 'artist_id' => 'int']);
+        add_action('bh_event_emitted', function ($type, $job_args, $args) {
+            if ($type !== 'bhr/link_verified' || !class_exists('BHR_Gossip')) return;
+            $payload = $args['payload'] ?? [];
+            BHR_Gossip::announce_verified_link(
+                (int) $job_args['subject_id'],
+                (string) ($payload['discovered_via'] ?? 'manual'),
+                (int) ($payload['hop_count'] ?? 0),
+                isset($payload['from_peer_id']) ? (int) $payload['from_peer_id'] : null
+            );
+        }, 10, 3);
     }
 
-    // Weekly search-index discovery sweep — off unless the admin has
-    // explicitly enabled it (BHR_SearchDiscovery::enabled(), checked
-    // inside run() itself too, so this schedule existing costs nothing
-    // on a site that's never turned it on). WP core ships no 'weekly'
-    // schedule by default (only hourly/twicedaily/daily) — registered
-    // below.
-    add_filter('cron_schedules', function ($schedules) {
-        if (!isset($schedules['weekly'])) {
-            $schedules['weekly'] = ['interval' => WEEK_IN_SECONDS, 'display' => 'Once Weekly'];
-        }
-        return $schedules;
-    });
-
-    if (class_exists('BHR_SearchDiscovery')) {
-        add_action('init', ['BHR_SearchDiscovery', 'init']);
-        if (!wp_next_scheduled('bhr_search_discovery_run')) {
-            wp_schedule_event(time(), 'weekly', 'bhr_search_discovery_run');
-        }
-    }
-
-    // ActivityPub relay layer — the third discovery mechanism. Its
-    // endpoints (WebFinger/actor) register unconditionally so the
-    // actor document is always resolvable, but the inbox 404s and no
-    // outbound federation happens at all unless an admin has enabled
-    // the layer AND named a relay (see BHR_ActivityPub::maybe_serve()
-    // and ::sync_relay()).
-    if (class_exists('BHR_ActivityPub')) {
-        BHR_ActivityPub::init();
-        if (!wp_next_scheduled('bhr_ap_relay_sync')) {
-            wp_schedule_event(time(), 'daily', 'bhr_ap_relay_sync');
-        }
+    // Daily peer-liveness sweep — same "is the other end still there"
+    // spirit as bhr_recheck_links above, just for peers instead of
+    // verified links. Handler lives on BHR_Peers (class-peers.php),
+    // registered via its own init() above.
+    if (!wp_next_scheduled('bhr_peer_liveness_check')) {
+        wp_schedule_event(time(), 'daily', 'bhr_peer_liveness_check');
     }
 });
