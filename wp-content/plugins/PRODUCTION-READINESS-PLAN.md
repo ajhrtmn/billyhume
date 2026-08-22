@@ -70,13 +70,42 @@ Two real gaps against the actual vision, confirmed by reading
    new feature end-to-end by temporarily marking one seed link
    verified, confirming the card/add/already-added states all worked
    correctly via direct DB query, then reverting the test state.
-2. **No fan-facing cross-site library at all** — everything today is
-   admin-curated onto one site's own catalog; a fan has no way to
-   search the global registry themselves or build a personal library
-   spanning multiple independent sites. Genuinely new feature, real
-   open design questions (where it lives, storage, cross-site
-   playback) — explicitly scoped as its OWN design pass, not started
-   until gap 1 lands and is confirmed working.
+2. **No fan-facing cross-site library at all** — genuinely new
+   feature, confirmed with AJ: personal cross-site playlist model
+   (never re-hosted, same non-re-hosting principle as admin import),
+   fans can search the WHOLE global registry, not just the local
+   catalog. **In progress** — confirmed to start building now.
+   Architecture: (a) a read-only track-preview endpoint per artist
+   (DONE — see below), (b) a new fan-scoped library table separate
+   from the existing `bhs_likes`/`bhs_playlists` (both keyed to local
+   `bhs_track` post IDs, which a not-yet-imported external track
+   doesn't have) — not started, (c) a new "Global Library" portal tab
+   — not started, (d) player support for playing a "virtual" external
+   track object — not started.
+
+**CRITICAL BUG FOUND AND FIXED while building this (2026-08-21,
+bh-streaming 0.5.30, commit `9aea6c3`)**: `BHS_Feeds::export_feed()` —
+this site's own RSS/podcast feed export, the "public access link" half
+of the entire federation feature — returned a `WP_REST_Response` with
+the `Content-Type` header manually overridden to
+`application/rss+xml`, but `WP_REST_Response`'s BODY always gets
+JSON-serialized by the REST server regardless of what header a
+callback sets. Every byte ever served at `/wp-json/bhs/v1/feed.xml`
+was a JSON-quoted string wearing real-XML-typed headers, not actual
+XML. **This means cross-site federation had never once worked since
+this method was written** — nothing had ever tried to parse it with a
+real feed parser until this session's new registry preview endpoint
+did, live, against both this install's own feed AND a second,
+genuinely separate real deployment (`billyhume.wasmer.app`, per AJ's
+own suggestion to test cross-site — confirmed reachable, confirmed
+running the same bug). Fixed using the exact bypass `bh-live`'s own
+`class-overlay.php` already established for "REST route needs to serve
+raw non-JSON content." Verified live: `curl -D -` now shows real
+unquoted XML; a real feed-parser round-trip against this exact feed
+now correctly extracts track data. **AJ's own note: the external site
+may need this pushed to master to actually receive it** (Wasmer's
+documented plugin-only auto-deploy) — flagged, not pushed from this
+session without explicit confirmation first.
 
 ---
 
