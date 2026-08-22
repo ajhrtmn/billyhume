@@ -344,6 +344,56 @@ body.wp-admin p, body.wp-admin li, body.wp-admin td, body.wp-admin .description 
 body.wp-admin a { color: var(--shsas-accent); }
 body.wp-admin a:hover, body.wp-admin a:focus { color: var(--shsas-focus); }
 
+/* Text selection. Direct field report ("it shouldn't be blue at all -
+   it looks broken"): selecting anything — a menu label, a token, a
+   table cell — painted the browser's DEFAULT selection blue straight
+   over the warm-noir palette. Nothing in this entire ecosystem styled
+   ::selection, so every surface (admin AND front end) inherited that
+   stock blue, which reads as a rendering fault rather than a choice,
+   and is the single most-seen "unstyled" moment in the whole UI since
+   people select text constantly without thinking about it.
+
+   Explicitly NOT a hue. Second half of the same field report ("any
+   color would — it's bad design"), and correct: a saturated block
+   behind text is a badge, and a selection isn't an importance signal,
+   it's a transient functional state. So this is the SURFACE LIFTING
+   rather than a color arriving — pure luminance, zero chroma, which
+   is also the only version that stays legible over every ground it
+   can land on.
+
+   Deliberately a translucent tint of the text color rather than a
+   fixed surface value: selection happens over cards, inputs, table
+   rows and the page ground alike, and one hardcoded color cannot look
+   right on all of them. A wash of the ink itself lifts whatever is
+   underneath by the same relative amount everywhere. Text color is
+   left alone so contrast stays exactly as designed.
+
+   -moz- prefix duplicated because ::selection and ::-moz-selection
+   cannot be combined in one selector list (an unknown pseudo-element
+   invalidates the WHOLE rule in every browser). */
+body.wp-admin ::selection,
+body.wp-admin input::selection,
+body.wp-admin textarea::selection {
+    background: rgba(242, 237, 225, 0.22);
+}
+body.wp-admin ::-moz-selection,
+body.wp-admin input::-moz-selection,
+body.wp-admin textarea::-moz-selection {
+    background: rgba(242, 237, 225, 0.22);
+}
+/* Light mode inverts the relationship — a light wash on a light
+   ground is invisible, so lift with the dark ink instead. */
+html[data-shsas-theme="light"] body.wp-admin ::selection,
+html[data-shsas-theme="light"] body.wp-admin input::selection,
+html[data-shsas-theme="light"] body.wp-admin textarea::selection {
+    background: rgba(36, 31, 22, 0.16);
+}
+html[data-shsas-theme="light"] body.wp-admin ::-moz-selection,
+html[data-shsas-theme="light"] body.wp-admin input::-moz-selection,
+html[data-shsas-theme="light"] body.wp-admin textarea::-moz-selection {
+    background: rgba(36, 31, 22, 0.16);
+}
+
 /* Real root-cause fix, direct feedback on the Gutenberg pass ("Not
    quite magical and sleek"): a LOT of @wordpress/components' own focus/
    active/selected treatment (the document-sidebar tab underline, the

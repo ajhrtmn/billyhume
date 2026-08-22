@@ -34,6 +34,58 @@ class BHR_Crawl {
     const MAX_TOTAL_PEERS = 200;
     const MAX_HOPS_DEFAULT = 3;
     const LIVENESS_FAIL_THRESHOLD = 5;
+    const SEEDED_OPTION = 'bhr_bootstrap_seeded';
+
+    /**
+     * Bootstrap seeds — the honest answer to "two sites that have never
+     * heard of each other should find each other with no setup."
+     *
+     * Nothing built from scratch by two isolated nodes can discover
+     * each other from nothing; SOMETHING has to be the first known
+     * point. Every real decentralized system solves this identically:
+     * BitTorrent ships default bootstrap nodes, Mastodon needs a known
+     * handle or relay, DNS has root servers. This is that, and it is
+     * deliberately the weakest possible form of it:
+     *
+     *   - It is a STARTING POINT, not an authority. A seed's only
+     *     power is to be crawled once, exactly like any other peer.
+     *   - It confers zero trust. Anything found through a seed is
+     *     re-verified locally by this site, same as everything else.
+     *   - It runs ONCE per install (bhr_bootstrap_seeded), so an admin
+     *     who deletes a seeded peer never has it silently reappear.
+     *   - It is filterable, so a fork, a private network, or a site
+     *     that wants no bootstrap at all can change or empty it.
+     *
+     * Once any single connection exists, the peer mesh takes over and
+     * seeds stop mattering — this only solves the cold-start moment.
+     *
+     * @return array<int, string>
+     */
+    public static function bootstrap_seeds(): array {
+        return array_values(array_filter(array_map(
+            [self::class, 'normalize_base_url'],
+            (array) apply_filters('bhr_bootstrap_seeds', ['https://billyhume.wasmer.app'])
+        )));
+    }
+
+    /**
+     * Adds the bootstrap seeds exactly once per install. Runs on the
+     * normal daily crawl rather than on activation, so a site that
+     * installs while offline still gets seeded on its first real
+     * crawl instead of silently never being seeded at all.
+     */
+    public static function maybe_seed_bootstrap(): void {
+        if (get_option(self::SEEDED_OPTION)) return;
+        // Stamp BEFORE attempting, so a seed host that is down can
+        // never cause this to retry forever on every crawl.
+        update_option(self::SEEDED_OPTION, current_time('mysql'), false);
+
+        $self = self::normalize_base_url(home_url());
+        foreach (self::bootstrap_seeds() as $seed) {
+            if ($seed === $self) continue; // never seed a site with itself
+            self::maybe_add_discovered_peer($seed, 0);
+        }
+    }
 
     /* ---------- inbound: serving our own manifest ---------- */
 
@@ -91,6 +143,12 @@ class BHR_Crawl {
      */
     public static function crawl_all_peers(bool $immediate = false): void {
         global $wpdb;
+
+        // Cold start: on the very first crawl an install has no peers
+        // at all, so there is nothing to crawl and discovery could
+        // never begin. Seeding here (once) is what closes that gap.
+        self::maybe_seed_bootstrap();
+
         $peers = $wpdb->get_results("SELECT id FROM {$wpdb->prefix}bhr_peers WHERE status = 'active'");
 
         if ($immediate || !class_exists('OUS_Jobs')) {

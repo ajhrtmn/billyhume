@@ -95,6 +95,23 @@ body {
     display: flex;
     flex-direction: column;
 }
+/* Text selection — same real field report that fixed the admin skin
+   ("it shouldn't be blue at all - it looks broken" / "any color would
+   - it's bad design"). Nothing in this ecosystem styled ::selection,
+   so the browser's stock blue painted straight over the warm palette
+   on the FRONT END too — the half real visitors actually see.
+
+   Pure luminance, no chroma: the surface lifts rather than a color
+   arriving. A translucent tint of the ink itself (rather than a fixed
+   color) is the only version that behaves over every ground it can
+   land on — hero, cards, tables, inputs — lifting each by the same
+   relative amount. Text color untouched so contrast stays as designed.
+
+   ::selection and ::-moz-selection cannot share a selector list: one
+   unknown pseudo-element invalidates the entire rule. */
+::selection { background: rgba(237, 223, 203, 0.24); }
+::-moz-selection { background: rgba(237, 223, 203, 0.24); }
+
 .oust-main { flex: 1 0 auto; }
 img { max-width: 100%; height: auto; display: block; }
 
