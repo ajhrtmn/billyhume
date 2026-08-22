@@ -57,6 +57,8 @@ class BHR_HttpSignature {
      * @param array<int, string>    $header_names
      */
     public static function sign(string $method, string $path, array $headers, array $header_names, string $private_key_pem, string $key_id): string {
+        if (!function_exists('openssl_sign') || !function_exists('openssl_pkey_get_private')) return '';
+
         $signing_string = self::signing_string($method, $path, $headers, $header_names);
 
         $key = openssl_pkey_get_private($private_key_pem);
@@ -97,6 +99,10 @@ class BHR_HttpSignature {
      * @param array<string, string> $headers
      */
     public static function verify(string $method, string $path, array $headers, string $signature_header, string $public_key_pem): bool {
+        // Fail CLOSED when crypto is unavailable — an unverifiable
+        // request must never be treated as verified.
+        if (!function_exists('openssl_verify') || !function_exists('openssl_pkey_get_public')) return false;
+
         $parts = self::parse_header($signature_header);
         if (empty($parts['signature']) || empty($parts['headers'])) return false;
 

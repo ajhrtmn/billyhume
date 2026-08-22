@@ -117,6 +117,9 @@ class BHR_DiscoveryTestSuite {
         if (!class_exists('BHR_HttpSignature')) {
             return [['name' => 'BHR_HttpSignature not loaded', 'pass' => false, 'message' => 'Skipped.']];
         }
+        if (!class_exists('BHR_ActivityPub') || !BHR_ActivityPub::crypto_available()) {
+            return [['name' => 'HTTP Signatures', 'pass' => true, 'message' => 'Skipped — this PHP build has no openssl, so the relay layer is correctly disabled here.']];
+        }
 
         $res = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         if (!$res) {

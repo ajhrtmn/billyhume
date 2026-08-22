@@ -77,7 +77,22 @@ class BHR_ActivityPub {
         return $redirect_url;
     }
 
+    /**
+     * Whether this PHP build can actually do the RSA work HTTP
+     * Signatures require. Checked before any openssl_* call in this
+     * layer — a missing extension must degrade to "relay federation
+     * unavailable", never to a fatal.
+     */
+    public static function crypto_available(): bool {
+        return function_exists('openssl_pkey_new')
+            && function_exists('openssl_pkey_export')
+            && function_exists('openssl_pkey_get_details')
+            && function_exists('openssl_sign')
+            && function_exists('openssl_verify');
+    }
+
     public static function enabled(): bool {
+        if (!self::crypto_available()) return false;
         return (bool) get_option('bhr_relay_enabled', true);
     }
 
@@ -111,6 +126,12 @@ class BHR_ActivityPub {
         if (is_array($stored) && !empty($stored['private']) && !empty($stored['public'])) {
             return $stored;
         }
+
+        // Not every PHP build ships openssl — notably some
+        // WASM/container runtimes. Without it this layer simply can't
+        // do signed federation, but it must degrade quietly rather
+        // than fatal the whole site on a plugin load.
+        if (!self::crypto_available()) return ['public' => '', 'private' => ''];
 
         $res = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
         if (!$res) return ['public' => '', 'private' => ''];
