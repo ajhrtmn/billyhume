@@ -2,74 +2,12 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.18
+ * Version:     0.1.17
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
-
-// 0.1.18 — Phase 2 of the peer gossip/announce plan: the actual
-// protocol. New POST /bhr/v1/peers/announce (the inbound receiver —
-// the ONLY route in this namespace that isn't __return_true;
-// authenticated via a per-peer shared secret checked with hash_equals()
-// for timing-safe comparison, class-gossip.php's check_peer_auth())
-// and GET /bhr/v1/peers/handshake (open, a read-only self-description
-// used at peer-add time and by the new daily liveness cron). New admin
-// screen (class-peers.php, BHR_Peers) for adding/blocking/deleting
-// peers — peering is always an explicit, mutual, admin-initiated
-// action; this plugin never auto-discovers or auto-trusts anything.
-//
-// Discovery and trust stay genuinely separate, on purpose: an accepted
-// announce candidate is a thin pointer (protocol+url only, nothing
-// else trusted) inserted through the EXACT SAME pending-row shape
-// POST /submissions already writes, then queued for this site's own
-// independent BHR_Verification::verify_link() check — completely
-// unchanged by any of this, never bypassed, never sped up. A peer
-// cannot make an artist appear "verified" by claiming so; only a real
-// domain-ownership + open-protocol check run BY THIS SITE can. Fan-out
-// to other peers only happens AFTER local verification succeeds (via
-// a new bhr/link_verified BH_Event, fired from verify_link()'s own
-// success branch, for ANY successfully-verified link regardless of
-// origin — one code path, no special-casing between manual and
-// gossip-discovered links), never on receipt of an unverified
-// candidate — a hostile/compromised peer cannot use this site to
-// inject a fake-verified artist into the wider gossip graph.
-//
-// Real, deliberate abuse-surface hardening, since this is the first
-// endpoint in the plugin that both accepts remote input AND triggers
-// further outbound HTTP + DB writes on receipt: hop-limiting (receiver
-// always clamps to its OWN configured ceiling, ignores whatever the
-// sender's message claims), loop prevention (never re-announce back to
-// the peer a candidate was just received from), dedup via a new
-// bhr_gossip_seen table (a candidate already seen — from ANY peer, not
-// just the same one twice — is neither re-queued for verification nor
-// re-fanned-out), per-peer rate limiting (OUS_ReliableStore, 30
-// announces/minute, checked before any DB write), a hard cap on
-// candidates-per-announce (20) and raw body size (~20KB) checked
-// before JSON decode, and verification is NEVER synchronous inside the
-// announce request itself — always deferred to a queued job, so an
-// inbound POST can never be used to make this site perform slow
-// outbound fetches on an attacker's own timer.
-//
-// DB_VERSION 1.1 -> 1.2 (class-activator.php): one more additive
-// bhr_links column, discovered_hop_count — found necessary while
-// actually wiring the fan-out logic (verification can be re-triggered
-// by several different paths — the queued job, the daily recheck cron,
-// a manual re-check — and the correct hop_count to propagate at needs
-// to survive all of them, so it lives on the row itself rather than
-// being threaded through every possible job-args call site).
-//
-// Rollout stays exactly as scoped: a site with zero peers configured
-// behaves byte-for-byte as it did before this version — /peers/announce
-// always 401s (no secret exists to authenticate against), the fan-out
-// loop in announce_verified_link() is always empty, and every existing
-// route/behavior (submissions, verify, artists, feed-url, tracks) is
-// completely untouched.
-// NOT runtime-verified against a live install yet — `php -l` clean on
-// every touched/new file. Live verification (a real 2-site peer
-// exchange) and the deterministic simulation test suite are Phase 5,
-// still to come.
 
 // 0.1.17 — Phase 1 of the peer gossip/announce plan: schema only, a
 // deliberate no-op deploy (DB_VERSION 1.0 -> 1.1, class-activator.php).
@@ -205,7 +143,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.18');
+define('BHR_VER',  '0.1.17');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 
@@ -220,7 +158,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['links', 'activator', 'verification', 'wellknown', 'gossip', 'peers', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
+foreach (['links', 'activator', 'verification', 'wellknown', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 
@@ -260,7 +198,6 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHR_StyleSurface', 'init']);
     add_action('init',          ['BHR_Debug', 'init']);
     add_action('init',          ['BHR_Admin', 'init']);
-    add_action('init',          ['BHR_Peers', 'init']);
     add_action('init',          ['BHR_StreamingBridge', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHR_TestSuite', 'init']);
     add_action('rest_api_init', ['BHR_API', 'register_routes']);
@@ -281,41 +218,5 @@ add_action('plugins_loaded', function () {
     // still works identically on a core version without OUS_Jobs.
     if (class_exists('OUS_Jobs')) {
         OUS_Jobs::register('bhr_recheck_one_link', ['BHR_Verification', 'recheck_one']);
-        // Gossip-discovered candidates get verified through the exact
-        // same handler manual/cron re-checks use — one code path, no
-        // separate "gossip verification" logic to drift out of sync
-        // with the real thing.
-        OUS_Jobs::register('bhr_verify_gossip_candidate', ['BHR_Verification', 'recheck_one']);
-        OUS_Jobs::register('bhr_gossip_announce_to_peer', ['BHR_Gossip', 'send_announce_to_peer']);
-    }
-
-    // Peer gossip/announce: fires the moment ANY link verifies
-    // successfully (see BHR_Verification::verify_link()'s own emit()
-    // call) — a real-time listener, not a poll, so fan-out starts
-    // within the same request verification succeeded on (deferred to a
-    // queued job immediately, never inline — see
-    // BHR_Gossip::announce_verified_link()). class_exists()-guarded on
-    // both BH_Event and BHR_Gossip; a site with zero peers configured
-    // still fires this harmlessly (the fan-out loop is just empty).
-    if (class_exists('BH_Event')) {
-        BH_Event::register_event_type('bhr/link_verified', ['link_id' => 'int', 'artist_id' => 'int']);
-        add_action('bh_event_emitted', function ($type, $job_args, $args) {
-            if ($type !== 'bhr/link_verified' || !class_exists('BHR_Gossip')) return;
-            $payload = $args['payload'] ?? [];
-            BHR_Gossip::announce_verified_link(
-                (int) $job_args['subject_id'],
-                (string) ($payload['discovered_via'] ?? 'manual'),
-                (int) ($payload['hop_count'] ?? 0),
-                isset($payload['from_peer_id']) ? (int) $payload['from_peer_id'] : null
-            );
-        }, 10, 3);
-    }
-
-    // Daily peer-liveness sweep — same "is the other end still there"
-    // spirit as bhr_recheck_links above, just for peers instead of
-    // verified links. Handler lives on BHR_Peers (class-peers.php),
-    // registered via its own init() above.
-    if (!wp_next_scheduled('bhr_peer_liveness_check')) {
-        wp_schedule_event(time(), 'daily', 'bhr_peer_liveness_check');
     }
 });

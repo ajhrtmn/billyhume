@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
  * bh-contest's votes table already establish for this ecosystem.
  */
 class BHR_Activator {
-    const DB_VERSION = '1.2';
+    const DB_VERSION = '1.1';
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -98,20 +98,8 @@ class BHR_Activator {
         // authenticated peer announce). Never affects verification
         // itself: every link, regardless of how it was discovered, goes
         // through the exact same BHR_Verification::verify_link() check.
-        // discovered_hop_count: new in DB_VERSION 1.2, added right after
-        // 1.1 while actually building the propagation logic — needed
-        // somewhere durable, since verification can be deferred/re-
-        // triggered by any of several paths (the queued job, the daily
-        // recheck cron, an admin's manual "re-check now") and fan-out
-        // (see BH_Event::emit('bhr/link_verified', ...) in
-        // verify_link()'s own success branch) needs to know the RIGHT
-        // hop_count to propagate at regardless of which path re-verified
-        // it — reading it off the link row itself, rather than trying to
-        // thread it through every possible job-args call site, is the
-        // one mechanism that stays correct no matter which trigger fires.
         // dbDelta diffs column-by-column against the existing table, so
-        // this (and the 1.1 columns above) are safe additive ALTERs, not
-        // a rebuild.
+        // this is a safe additive ALTER, not a rebuild.
         dbDelta("CREATE TABLE $links (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             artist_id bigint(20) unsigned NOT NULL,
@@ -125,7 +113,6 @@ class BHR_Activator {
             metadata longtext,
             discovered_via varchar(20) NOT NULL DEFAULT 'manual',
             discovered_from_peer_id bigint(20) unsigned DEFAULT NULL,
-            discovered_hop_count tinyint unsigned NOT NULL DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY artist_id (artist_id),
