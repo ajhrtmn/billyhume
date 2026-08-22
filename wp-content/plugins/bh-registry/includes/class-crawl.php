@@ -80,12 +80,21 @@ class BHR_Crawl {
     // Daily cron target — enqueues one job per active peer rather than
     // crawling all of them inline, same staggering convention the rest
     // of this ecosystem uses for fan-out-shaped work.
-    public static function crawl_all_peers(): void {
+    /**
+     * @param bool $immediate Run every peer inline instead of queueing.
+     *        The scheduled daily run queues (so one slow/hanging peer
+     *        can't stall the rest, and the queue's own retry/backoff
+     *        applies). An admin clicking "Crawl peers now" means NOW —
+     *        queueing there would show "ran" while nothing visibly
+     *        changed until the next cron tick, which is exactly the
+     *        kind of quietly-lying UI this project tries not to ship.
+     */
+    public static function crawl_all_peers(bool $immediate = false): void {
         global $wpdb;
         $peers = $wpdb->get_results("SELECT id FROM {$wpdb->prefix}bhr_peers WHERE status = 'active'");
 
-        if (!class_exists('OUS_Jobs')) {
-            foreach ($peers as $i => $peer) self::crawl_one_peer(['peer_id' => (int) $peer->id]);
+        if ($immediate || !class_exists('OUS_Jobs')) {
+            foreach ($peers as $peer) self::crawl_one_peer(['peer_id' => (int) $peer->id]);
             return;
         }
 

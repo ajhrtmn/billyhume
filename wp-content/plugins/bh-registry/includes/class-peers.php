@@ -272,7 +272,7 @@ class BHR_Peers {
                 $wpdb->delete($table, ['id' => $peer_id]);
                 break;
             case 'run_crawl':
-                if (class_exists('BHR_Crawl')) BHR_Crawl::crawl_all_peers();
+                if (class_exists('BHR_Crawl')) BHR_Crawl::crawl_all_peers(true);
                 wp_safe_redirect(admin_url('admin.php?page=bh-registry-peers&bhr_ran=crawl'));
                 exit;
             case 'run_search':
