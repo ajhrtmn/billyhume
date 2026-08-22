@@ -364,7 +364,29 @@ class BHS_Feeds {
 
     /* ---------- export ---------- */
 
-    public static function export_feed(): \WP_REST_Response {
+    // Real, confirmed bug found while building the fan-facing global-
+    // library preview (2026-08-21): this returned a WP_REST_Response
+    // with the Content-Type header overridden to application/rss+xml,
+    // but WP_REST_Response's body ALWAYS gets JSON-serialized by the
+    // REST server regardless of what header a callback sets — the
+    // header lied about the body's real shape, so the actual bytes
+    // ever served here were a JSON-quoted string ("<?xml
+    // version=\"1.0\"...") wrapped in real XML-typed headers, not real
+    // XML. Confirmed live: `curl -D -` against this exact route showed
+    // Content-Type: application/rss+xml with a JSON-string body, and
+    // SimplePie's fetch_feed() correctly rejected it as invalid XML
+    // ("Not well-formed") the moment anything actually tried to parse
+    // it as a feed. This means the entire cross-site federation
+    // feature — the actual point of this method, and the "public
+    // access link" half of the whole federated-library vision — had
+    // never once produced a real, consumable feed since this method
+    // was written; nothing had ever tried to parse it with a real feed
+    // parser until this session did. Same bypass bh-live's own
+    // class-overlay.php already uses for exactly this "REST route
+    // needs to serve raw non-JSON content" case: exit the REST
+    // response cycle entirely (status_header()/header()/echo/exit)
+    // instead of returning a WP_REST_Response at all.
+    public static function export_feed(): void {
         $doc = new DOMDocument('1.0', 'UTF-8');
         $rss = $doc->createElement('rss');
         $rss->setAttribute('version', '2.0');
@@ -417,8 +439,9 @@ class BHS_Feeds {
         }
 
         $xml = $doc->saveXML();
-        $response = new WP_REST_Response($xml, 200);
-        $response->header('Content-Type', 'application/rss+xml; charset=UTF-8');
-        return $response;
+        status_header(200);
+        header('Content-Type: application/rss+xml; charset=UTF-8');
+        echo $xml;
+        exit;
     }
 }

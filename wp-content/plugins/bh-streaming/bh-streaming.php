@@ -2,11 +2,43 @@
 /**
  * Plugin Name: BH Streaming
  * Description: An iTunes-like personal streaming library — releases, genres, shareable playlists, likes, lyrics, multi-quality audio, EQ, a visualizer, local-file import, a content-based recommendation engine, a gatekept RSS aggregator, shuffle/queue and shared-listening Jam sessions, and an aggregate artist metrics dashboard — installable as a PWA with reliable background audio.
- * Version:     0.5.29
+ * Version:     0.5.30
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.5.30 — Critical, real bug: BHS_Feeds::export_feed() (this site's
+// own RSS/podcast feed export — the "public access link" half of the
+// whole federation feature, and what another bh-streaming site's own
+// importer or any real podcast client is supposed to subscribe to)
+// returned a WP_REST_Response with the Content-Type header manually
+// overridden to application/rss+xml — but WP_REST_Response's BODY
+// always gets JSON-serialized by the REST server regardless of what
+// header a callback sets; overriding the header doesn't change that.
+// The result: every byte ever served at /wp-json/bhs/v1/feed.xml was
+// a JSON-quoted string ("<?xml version=\"1.0\"...") wearing real
+// XML-typed headers, not actual XML — confirmed live via `curl -D -`
+// and by pointing this session's own new registry track-preview
+// endpoint at it, where SimplePie's fetch_feed() correctly rejected
+// it as invalid XML ("Not well-formed"). This means cross-site feed
+// import/export — the entire point of this method, confirmed by
+// checking against a second, genuinely separate real deployment
+// (billyhume.wasmer.app) — had never once produced a real, consumable
+// feed since this method was written; nothing had ever actually tried
+// to parse it with a real feed parser until this session did. Fixed
+// using the exact same bypass bh-live's own class-overlay.php already
+// established for this "REST route needs to serve raw non-JSON
+// content" case: exit the REST response cycle entirely
+// (status_header()/header()/echo/exit) instead of returning a
+// WP_REST_Response. Verified live: `curl -D -` now shows real,
+// unquoted, valid XML; a real feed-parser round-trip (this session's
+// new bhr/v1/artists/{id}/tracks preview endpoint, pointed at this
+// exact feed) now correctly parses real track data out of it.
+// IMPORTANT: any other live deployment running this plugin (e.g.
+// billyhume.wasmer.app) needs this fix deployed via its own update
+// path before cross-site federation actually works against it —
+// flagged for AJ, not deployed from this session.
 
 // 0.5.29 — Same SEO-timing bug found and fixed on bh-courses this
 // session, same fix here: BHS_Player's maybe_set_seo_data() only ever
@@ -153,7 +185,7 @@ if (!defined('ABSPATH')) exit;
 // to discover a dead external feed was manually browsing post meta. Now logs an
 // info/warning entry on every ok<->down/degraded TRANSITION (not every check,
 // which runs on a schedule and would otherwise flood the log).
-define('BHS_VER',  '0.5.29');
+define('BHS_VER',  '0.5.30');
 
 // 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 // wizard (BHS_PROWizard) as its own surface (class-style-surface.php),

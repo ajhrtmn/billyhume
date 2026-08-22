@@ -2,12 +2,30 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.14
+ * Version:     0.1.15
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.15 — Adds GET /bhr/v1/artists/{id}/tracks: a read-only preview
+// of a registered artist's actual tracks (fetches and parses their
+// feed live via fetch_feed(), same enclosure-extraction approach
+// bh-streaming's own importer uses, never importing or storing
+// anything locally) — the piece a fan-facing "browse the global
+// library" feature needs that didn't exist anywhere: this registry
+// only ever knew ARTIST-level entries (a feed URL), never individual
+// tracks within one. Building and live-testing this endpoint is what
+// surfaced a real, significant, separate bug in bh-streaming's own
+// feed EXPORT (see bh-streaming 0.5.30's own changelog for the full
+// story) — this endpoint's honest "feed_unreachable" error, and the
+// real WP_Error message temporarily surfaced for debugging, is what
+// proved the export side had been silently broken this whole time.
+// Verified live end-to-end after that fix landed: pointed a temporary
+// test artist at this site's own real feed, confirmed real track data
+// (title/artist/audio_url/duration) round-tripped correctly, then
+// cleaned up the test data.
 
 // 0.1.14 — Real gap found in a direct vision check with AJ: the
 // bh-streaming bridge (class-streaming-bridge.php) only ever gave an
@@ -90,7 +108,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.14');
+define('BHR_VER',  '0.1.15');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

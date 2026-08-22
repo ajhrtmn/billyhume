@@ -29,6 +29,20 @@ class BHR_API {
         register_rest_route('bhr/v1', '/artists/(?P<id>\d+)/feed-url', [
             'methods' => 'GET', 'callback' => [self::class, 'get_feed_url'], 'permission_callback' => '__return_true',
         ]);
+        // Read-only track preview for a registered artist's feed — the
+        // piece a fan-facing "browse the global library" UI needs that
+        // didn't exist anywhere before: this registry always knew ARTIST-
+        // level entries (a feed URL), never individual tracks within one,
+        // since only bh-streaming's own importer ever parsed a feed down
+        // to track level, and only once an admin had already decided to
+        // permanently import it. This fetches and parses the feed live
+        // (same fetch_feed()/enclosure approach bh-streaming's own
+        // BHS_Feeds::sync_one() uses) WITHOUT importing or storing
+        // anything — a fan browsing the registry should be able to see
+        // what's actually on offer before any local record of it exists.
+        register_rest_route('bhr/v1', '/artists/(?P<id>\d+)/tracks', [
+            'methods' => 'GET', 'callback' => [self::class, 'get_artist_tracks'], 'permission_callback' => '__return_true',
+        ]);
 
         register_rest_route('bhr/v1', '/submissions', [
             'methods' => 'POST', 'callback' => [self::class, 'create_submission'], 'permission_callback' => '__return_true',
@@ -163,6 +177,53 @@ class BHR_API {
         ));
         if (!$link) return new WP_Error('not_found', 'No verified feed link for this artist.', ['status' => 404]);
         return new WP_REST_Response(['success' => true, 'feed_url' => $link->url], 200);
+    }
+
+    // Read-only preview of an artist's actual tracks — fetches and
+    // parses their feed live via fetch_feed() (WordPress core's own
+    // SimplePie-based parser, same as bh-streaming's own importer),
+    // requiring a real <enclosure> per item exactly like the openness
+    // check this registry already enforces at verification time. Never
+    // writes anything — no post, no cache table, nothing local created
+    // by browsing. A slow/unreachable remote feed here fails the same
+    // honest way get_feed_url() and the verification checks already do:
+    // a real WP_Error with the actual reason, not a silent empty list.
+    /** @return \WP_REST_Response|\WP_Error */
+    public static function get_artist_tracks(\WP_REST_Request $req) {
+        global $wpdb;
+        $artist_id = (int) $req->get_param('id');
+        $link = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}bhr_links
+             WHERE artist_id = %d AND protocol = 'feed' AND verification_status = 'verified'
+             ORDER BY verified_at DESC LIMIT 1", $artist_id
+        ));
+        if (!$link) return new WP_Error('not_found', 'No verified feed link for this artist.', ['status' => 404]);
+
+        require_once ABSPATH . WPINC . '/feed.php';
+        $feed = fetch_feed($link->url);
+        if (is_wp_error($feed)) {
+            return new WP_Error('feed_unreachable', 'Could not reach this artist\'s feed right now — try again shortly.', ['status' => 502]);
+        }
+
+        $artist = $wpdb->get_row($wpdb->prepare("SELECT display_name FROM {$wpdb->prefix}bhr_artists WHERE id = %d", $artist_id));
+        $artist_name = $artist ? $artist->display_name : '';
+
+        $items = $feed->get_items(0, 30); // same reasonable per-request cap as bh-streaming's own importer
+        $tracks = [];
+        foreach ($items as $item) {
+            $enclosure = $item->get_enclosure();
+            if (!$enclosure || !$enclosure->get_link()) continue; // no audio, nothing to preview
+            $tracks[] = [
+                'guid'       => $item->get_id(),
+                'title'      => $item->get_title() ?: 'Untitled',
+                'artist'     => $artist_name,
+                'audio_url'  => esc_url_raw($enclosure->get_link()),
+                'artwork_url' => !empty($item->get_thumbnail()['url']) ? esc_url_raw($item->get_thumbnail()['url']) : '',
+                'duration'   => $enclosure->get_duration() ?: '',
+            ];
+        }
+
+        return new WP_REST_Response(['success' => true, 'feed_url' => $link->url, 'tracks' => $tracks], 200);
     }
 
     /* ---------- submission ---------- */
