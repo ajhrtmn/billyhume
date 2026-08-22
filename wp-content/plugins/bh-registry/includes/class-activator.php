@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) exit;
  * bh-contest's votes table already establish for this ecosystem.
  */
 class BHR_Activator {
-    const DB_VERSION = '1.0';
+    const DB_VERSION = '1.1';
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -91,6 +91,15 @@ class BHR_Activator {
         // proof of control is checked independently of protocol-openness
         // (see class-verification.php): two separate questions, two
         // separate checks, one row.
+        // discovered_via/discovered_from_peer_id: new in DB_VERSION 1.1,
+        // pure provenance for the peer gossip/announce layer (see
+        // class-gossip.php once it lands) — 'manual' (the existing
+        // POST /submissions path) or 'gossip' (arrived via an
+        // authenticated peer announce). Never affects verification
+        // itself: every link, regardless of how it was discovered, goes
+        // through the exact same BHR_Verification::verify_link() check.
+        // dbDelta diffs column-by-column against the existing table, so
+        // this is a safe additive ALTER, not a rebuild.
         dbDelta("CREATE TABLE $links (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             artist_id bigint(20) unsigned NOT NULL,
@@ -102,15 +111,74 @@ class BHR_Activator {
             last_checked_at datetime DEFAULT NULL,
             fail_count int unsigned NOT NULL DEFAULT 0,
             metadata longtext,
+            discovered_via varchar(20) NOT NULL DEFAULT 'manual',
+            discovered_from_peer_id bigint(20) unsigned DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY artist_id (artist_id),
             KEY verification_status (verification_status)
         ) $charset;");
 
+        // New in DB_VERSION 1.1 — peer gossip/announce layer (real plan,
+        // scoped in full before any of this landed; see the project's
+        // plan file for the complete phased design). A "peer" is
+        // another bh-registry install an admin HERE has explicitly
+        // chosen to exchange announcements with — never auto-discovered,
+        // never a default relay (this ecosystem's own standing rule:
+        // no third-party service as the only implementation of anything
+        // critical, and no silent default trust). status: 'active'
+        // (gossip flows both ways), 'paused' (auto, after repeated
+        // liveness-check failures — see the future BHR_Peers::
+        // check_all_liveness()), 'blocked' (an admin explicitly stopped
+        // trusting announces FROM this peer — sticky, same shape as
+        // bhr_artists.status = 'rejected', never auto-reactivated).
+        // shared_secret is exchanged out-of-band (shown once, like a
+        // webhook key) when two admins each add the other as a peer —
+        // mutual, two-sided, matching how ActivityPub/Mastodon instances
+        // bootstrap federation trust.
+        $peers = $wpdb->prefix . 'bhr_peers';
+        dbDelta("CREATE TABLE $peers (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            base_url varchar(255) NOT NULL,
+            label varchar(190) DEFAULT '',
+            status varchar(20) NOT NULL DEFAULT 'active',
+            shared_secret varchar(64) NOT NULL,
+            last_announced_at datetime DEFAULT NULL,
+            last_seen_at datetime DEFAULT NULL,
+            fail_count int unsigned NOT NULL DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY base_url (base_url),
+            KEY status (status)
+        ) $charset;");
+
+        // New in DB_VERSION 1.1 — dedup/hop-limiting ledger for the
+        // gossip layer. One row per (protocol,url) candidate hash,
+        // regardless of how many different peers re-announce the exact
+        // same candidate (a realistic mesh scenario — two peers both
+        // relaying the same original announcement) or how many times a
+        // loop would otherwise re-propagate it. seen_hash is
+        // sha256(protocol . '|' . normalized_url) — see
+        // BHR_Gossip::candidate_hash() once that class lands.
+        $seen = $wpdb->prefix . 'bhr_gossip_seen';
+        dbDelta("CREATE TABLE $seen (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            seen_hash varchar(64) NOT NULL,
+            origin_base_url varchar(255) NOT NULL,
+            candidate_url varchar(500) NOT NULL,
+            protocol varchar(20) NOT NULL,
+            min_hop_seen tinyint unsigned NOT NULL DEFAULT 0,
+            first_seen_at datetime DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY seen_hash (seen_hash)
+        ) $charset;");
+
         if ($wpdb->last_error) return false;
         $ok_artists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $artists)) === $artists;
         $ok_links   = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $links)) === $links;
-        return $ok_artists && $ok_links;
+        $ok_peers   = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $peers)) === $peers;
+        $ok_seen    = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $seen)) === $seen;
+        return $ok_artists && $ok_links && $ok_peers && $ok_seen;
     }
 }

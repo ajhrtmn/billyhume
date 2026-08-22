@@ -2,12 +2,25 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.16
+ * Version:     0.1.17
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.17 — Phase 1 of the peer gossip/announce plan: schema only, a
+// deliberate no-op deploy (DB_VERSION 1.0 -> 1.1, class-activator.php).
+// Two new tables — bhr_peers (an admin-added gossip partner: base_url,
+// status, shared_secret, liveness tracking) and bhr_gossip_seen (a
+// dedup/hop-limiting ledger, one row per (protocol,url) candidate hash)
+// — plus two additive bhr_links columns (discovered_via,
+// discovered_from_peer_id, pure provenance). Nothing reads or writes
+// any of this yet; the actual protocol/REST routes/propagation logic
+// is Phase 2, still to come. Verified: SHOW TABLES check in
+// create_or_update_schema() now confirms all 4 tables, not just the
+// original 2, before marking the migration successful.
+// NOT runtime-verified against a live install yet — `php -l` clean.
 
 // 0.1.16 — Phase 0 of the peer gossip/announce discovery plan (real
 // gap found during a live cross-site federation test this session):
@@ -130,7 +143,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.16');
+define('BHR_VER',  '0.1.17');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 
