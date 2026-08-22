@@ -50,6 +50,24 @@ class BHR_API {
         register_rest_route('bhr/v1', '/submissions/(?P<link_id>\d+)/verify', [
             'methods' => 'POST', 'callback' => [self::class, 'trigger_verify'], 'permission_callback' => '__return_true',
         ]);
+
+        // Peer gossip/announce — the only two routes in this namespace
+        // that are NOT __return_true. /peers/announce is real inbound
+        // discovery traffic that must be authenticated per-peer (see
+        // BHR_Gossip::check_peer_auth() — constant-time secret
+        // comparison, rejects unknown/inactive peers) before any DB
+        // write happens; /peers/handshake is deliberately open (a
+        // read-only self-description, same trust level as any other GET
+        // route here), used both at peer-add time and by the daily
+        // liveness cron.
+        if (class_exists('BHR_Gossip')) {
+            register_rest_route('bhr/v1', '/peers/announce', [
+                'methods' => 'POST', 'callback' => ['BHR_Gossip', 'handle_announce'], 'permission_callback' => ['BHR_Gossip', 'check_peer_auth'],
+            ]);
+            register_rest_route('bhr/v1', '/peers/handshake', [
+                'methods' => 'GET', 'callback' => ['BHR_Gossip', 'handshake'], 'permission_callback' => '__return_true',
+            ]);
+        }
     }
 
     // Unlike bh-streaming's REST API (which stays same-origin by

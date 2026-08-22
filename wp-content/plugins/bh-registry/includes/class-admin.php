@@ -58,6 +58,7 @@ class BHR_Admin {
             'dashboard_link' => 'admin.php?page=bh-registry-review',
             'admin_menus'  => [
                 ['slug' => 'bh-registry-review', 'label' => 'Registry Submissions', 'callback' => [self::class, 'render']],
+                ['slug' => 'bh-registry-peers', 'label' => 'Registry Peers', 'callback' => ['BHR_Peers', 'render']],
             ],
         ];
         return $plugins;
