@@ -2,10 +2,13 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Search-index discovery layer — one of two optional, off-by-default
- * mechanisms capable of true zero-prior-knowledge discovery (the
- * other is the ActivityPub relay layer, a separate, larger piece of
- * protocol work). This one is simpler: query a configured search
+ * Search-index discovery layer — one of two mechanisms capable of
+ * true zero-prior-knowledge discovery (the other is the ActivityPub
+ * relay layer). ON by default, like the relay layer, so discovery
+ * works without setup; also like the relay layer, being enabled alone
+ * causes no outbound traffic at all — run() returns immediately
+ * unless a search endpoint has actually been configured. This one is
+ * the simpler of the two: query a configured search
  * endpoint for other public installs exposing the same well-known
  * manifest URL pattern, then feed any confirmed-real hit into the
  * exact same peer pipeline BHR_Crawl already uses for everything else
@@ -28,7 +31,7 @@ class BHR_SearchDiscovery {
     }
 
     public static function enabled(): bool {
-        return (bool) get_option('bhr_search_enabled', false);
+        return (bool) get_option('bhr_search_enabled', true);
     }
 
     // Weekly cadence, deliberately less frequent than the daily peer
