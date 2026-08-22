@@ -2,12 +2,41 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.13
+ * Version:     0.1.14
  * Requires PHP: 7.4
  * Requires Plugins: own-ur-shit
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
+
+// 0.1.14 — Real gap found in a direct vision check with AJ: the
+// bh-streaming bridge (class-streaming-bridge.php) only ever gave an
+// admin a search box on the Feed Sources screen — being registered
+// never surfaced an artist automatically, only made them findable if
+// searched for by name, nowhere close to "a global library the admin
+// has to choose from to curate." The REST endpoint (GET /bhr/v1/
+// artists) already fully supported a blank-search browse-all query
+// with protocol filtering — this was a pure admin-UI gap, no backend
+// work needed. Added a real "Browse Registry" admin screen
+// (BHR_StreamingBridge::render_browse_page(), still guarded by
+// class_exists('BHS_Feeds') — bh-registry still never requires
+// bh-streaming) showing every verified feed-protocol artist as a
+// card, with a real one-click "Add to my library" action
+// (handle_add_from_registry()) that creates a real bhs_feed_source
+// post and triggers an IMMEDIATE sync via BHS_Feeds::sync_one_job()
+// (the same public entry point the cron/job-queue fan-out already
+// use, not a duplicated fetch), rather than waiting up to 12 hours for
+// the next cron tick. Reuses BHR_API::list_artists()/get_feed_url()'s
+// real, already-tested query logic via rest_do_request() (WordPress
+// core's own internal REST dispatch) instead of duplicating SQL.
+// Verified live end-to-end: temporarily marked one seed link
+// verified, confirmed the card rendered, clicking "Add to my library"
+// created a real bhs_feed_source post with the correct feed URL meta
+// and correctly flipped the card to "Already in your library" —
+// confirmed via direct DB query, then reverted the test state
+// afterward. The second half of AJ's actual vision — a fan-facing,
+// platform-independent cross-site library — is explicitly scoped as
+// its own future design pass, not started here.
 
 // 0.1.13 — Same SEO-timing bug found and fixed on bh-courses this
 // session, same fix here: BHR_Frontend::render()'s SEO block only ever
@@ -61,7 +90,7 @@ if (!defined('ABSPATH')) exit;
 // 'active'/verified-only gate, so pending/rejected artists never surface in
 // search. Links to the registry directory page since no per-artist
 // canonical URL exists yet (the directory is one client-rendered page).
-define('BHR_VER',  '0.1.13');
+define('BHR_VER',  '0.1.14');
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));
 

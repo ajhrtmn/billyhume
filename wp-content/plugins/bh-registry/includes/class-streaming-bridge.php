@@ -19,6 +19,19 @@ class BHR_StreamingBridge {
     public static function init(): void {
         if (!class_exists('BHS_Player')) return;
         add_action('add_meta_boxes', [self::class, 'add_meta_box']);
+
+        // Real gap found in a direct vision check (2026-08-21): the
+        // meta-box above is search-only — an admin has to already know
+        // an artist's name. Being registered never surfaced anyone
+        // automatically, only made them findable if searched for. This
+        // is the actual "browse the global library and curate from it"
+        // experience — one click adds a registry artist as a real
+        // bhs_feed_source and triggers an immediate sync, rather than
+        // making the admin hand-create a post and copy a URL in first.
+        if (class_exists('BHS_Feeds')) {
+            add_action('admin_menu', [self::class, 'add_browse_page']);
+            add_action('admin_post_bhr_add_from_registry', [self::class, 'handle_add_from_registry']);
+        }
     }
 
     public static function add_meta_box(): void {
@@ -100,5 +113,118 @@ class BHR_StreamingBridge {
         })();
         </script>
         <?php
+    }
+
+    /* ---------- browse-all library (2026-08-21) ---------- */
+
+    public static function add_browse_page(): void {
+        add_submenu_page(
+            BHS_PostTypes::MENU_PARENT, 'Browse Registry', 'Browse Registry',
+            'manage_options', 'bhr-browse-registry', [self::class, 'render_browse_page']
+        );
+    }
+
+    // Every feed URL already in this site's own library, so the browse
+    // grid can show "Already added" instead of inviting a duplicate
+    // bhs_feed_source for the same artist.
+    /** @return array<string, bool> feed URL => true */
+    private static function existing_feed_urls(): array {
+        $sources = get_posts(['post_type' => 'bhs_feed_source', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids']);
+        $out = [];
+        foreach ($sources as $id) {
+            $url = get_post_meta($id, '_bhs_feed_url', true);
+            if ($url) $out[$url] = true;
+        }
+        return $out;
+    }
+
+    // Internal REST dispatch (WordPress core's own rest_do_request()) —
+    // reuses BHR_API::list_artists()'s real query/verification logic
+    // exactly as the public endpoint does, rather than duplicating the
+    // SQL here. No network round-trip; this is a same-process call.
+    /** @return array<int, array<string, mixed>> */
+    private static function browse_artists(): array {
+        $req = new WP_REST_Request('GET', '/bhr/v1/artists');
+        $req->set_param('protocol', 'feed');
+        $response = rest_do_request($req);
+        if ($response->is_error()) return [];
+        $data = $response->get_data();
+        return is_array($data['artists'] ?? null) ? $data['artists'] : [];
+    }
+
+    public static function render_browse_page(): void {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        BHY_UI::shell_open('Browse Registry', 'Every artist in the global BH Registry publishing an open feed — add one to your own library in a click. Nothing plays from here directly; adding a card creates a real Feed Source and pulls their tracks in the same way as any manually-added one.');
+
+        $artists = self::browse_artists();
+        $existing = self::existing_feed_urls();
+
+        if (isset($_GET['bhr_added'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>Added — syncing now, tracks will appear shortly.</p></div>';
+        }
+
+        if (!$artists) {
+            echo '<p>No verified artists in the registry yet.</p>';
+        } else {
+            echo '<div class="bhr-browse-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:16px;margin-top:16px;">';
+            foreach ($artists as $artist) {
+                $feed_link = null;
+                foreach ($artist['links'] as $link) {
+                    if ($link['protocol'] === 'feed') { $feed_link = $link; break; }
+                }
+                if (!$feed_link) continue;
+
+                $already = isset($existing[$feed_link['url']]);
+                echo '<div class="bhy-card">';
+                echo '<h3 style="margin-top:0;">' . esc_html($artist['display_name']) . '</h3>';
+                if ($artist['bio']) echo '<p class="description">' . esc_html(wp_trim_words($artist['bio'], 20)) . '</p>';
+                if ($already) {
+                    echo '<p><em>Already in your library.</em></p>';
+                } else {
+                    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+                    echo '<input type="hidden" name="action" value="bhr_add_from_registry">';
+                    echo '<input type="hidden" name="artist_id" value="' . (int) $artist['id'] . '">';
+                    wp_nonce_field('bhr_add_from_registry_' . $artist['id']);
+                    echo '<button type="submit" class="button button-primary">Add to my library</button>';
+                    echo '</form>';
+                }
+                echo '</div>';
+            }
+            echo '</div>';
+        }
+
+        BHY_UI::shell_close();
+    }
+
+    public static function handle_add_from_registry(): void {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $artist_id = (int) ($_POST['artist_id'] ?? 0);
+        if (!$artist_id || !check_admin_referer('bhr_add_from_registry_' . $artist_id)) wp_die('Security check failed.');
+
+        $req = new WP_REST_Request('GET', '/bhr/v1/artists/' . $artist_id . '/feed-url');
+        $response = rest_do_request($req);
+        $feed_url = $response->is_error() ? '' : (string) ($response->get_data()['feed_url'] ?? '');
+
+        if ($feed_url === '') {
+            wp_safe_redirect(admin_url('edit.php?post_type=bhs_track&page=bhr-browse-registry&bhr_error=1'));
+            exit;
+        }
+
+        $post_id = wp_insert_post([
+            'post_type'   => 'bhs_feed_source',
+            'post_status' => 'publish',
+            'post_title'  => 'Registry import #' . $artist_id,
+        ], true);
+
+        if (!is_wp_error($post_id)) {
+            update_post_meta($post_id, '_bhs_feed_url', esc_url_raw($feed_url));
+            // The real, immediate sync — same public entry point the
+            // twice-daily cron and OUS_Jobs fan-out both already use
+            // (class-feeds.php), not a duplicated fetch/parse here.
+            if (class_exists('BHS_Feeds')) BHS_Feeds::sync_one_job(['feed_id' => $post_id]);
+        }
+
+        wp_safe_redirect(admin_url('edit.php?post_type=bhs_track&page=bhr-browse-registry&bhr_added=1'));
+        exit;
     }
 }
