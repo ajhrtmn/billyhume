@@ -127,6 +127,73 @@ may need this pushed to master to actually receive it** (Wasmer's
 documented plugin-only auto-deploy) — flagged, not pushed from this
 session without explicit confirmation first.
 
+## New this pass — album purchase, bonus content, and a real UX
+## overhaul for browsing/curation (2026-08-21)
+
+Direct requests from AJ, arriving in a burst while the fan-library
+work above was in progress. Checked what already exists before
+scoping anything as new — a few pieces are real, working
+infrastructure already; genuinely new work is called out as such.
+
+**Already built, not a gap** (confirmed by reading the code, not yet
+personally verified end-to-end via a real purchase this session):
+`BHM_Downloads` already delivers whatever quality encodes a track/
+release has as real, secure WooCommerce downloadable files (same
+mechanism this session already proved out for bh-courses' lesson-
+video downloads) once a fan actually purchases. `bh-streaming`'s own
+quality-encode system already has a `"Lossless (WAV / AIFF / FLAC)"`
+tier label, deliverable through that same path. **Recommend a real
+live purchase→download round-trip test before treating this as fully
+confirmed** — it's read-verified, not live-verified, this session.
+
+**Genuinely new, confirmed with AJ directly:**
+
+1. **CD-jacket bonus content** — four independent, optional content
+   types a purchaser can receive alongside the audio: a lyrics sheet
+   (can likely reuse the lyrics data that already exists for
+   streaming, packaged as a real download instead of an in-browser
+   overlay), liner notes/artist commentary (new admin-authored free-
+   text field), a full artwork package (front/back/insert images,
+   beyond the thumbnail already used for browsing), and structured
+   credits (who played/produced what — a new small data model, not
+   free text). Each is independently optional per track/release, not
+   an all-or-nothing bundle. Architecture: new per-track/release meta
+   fields + a small admin authoring UI (matching the existing
+   metabox patterns in `bh-streaming/includes/class-admin.php`), then
+   wire each set piece into `BHM_Downloads::attach_for_item()` as
+   additional downloadable files alongside the audio quality encodes
+   it already attaches.
+2. **Format delivery** — confirmed: bundle everything the admin
+   uploaded (every quality encode becomes its own downloadable file,
+   matching `BHM_Downloads`' existing per-encode attachment pattern
+   already) rather than a new checkout-time format-picker UI. This is
+   the smaller/simpler of the two options and needs no new checkout
+   flow — mostly already correct by construction once bonus content
+   is wired in.
+3. **The browsing/curation UX overhaul** — confirmed: two genuinely
+   separate, real modes, not one blended experience:
+   - **A guided, step-through album listen** — AJ's own "almost like
+     the courses" framing: reuse bh-courses' step/progress UI pattern
+     (ordered steps, progress tracking, per-step content) for a
+     linear, guided listen-through-the-album experience, with liner
+     notes/lyrics surfacing in sync with each track as it plays —
+     genuinely new front-end work, no existing equivalent in
+     bh-streaming today.
+   - **A cinematic, full-bleed browsing surface** — Apple Music-level
+     ambient/discovery browsing: large album art, smooth transitions,
+     a full-screen now-playing takeover, explicitly targeted to feel
+     more luxurious/svelte than Apple Music itself. Independent of the
+     guided mode above — a fan chooses which experience they want, not
+     one compromise between the two.
+
+**Scope note**: this is a genuinely large initiative — a new content-
+authoring system (4 content types) plus two distinct major front-end
+UX builds — comparable in size to the fan-library federation feature
+already shipped this session, or larger. Not started as code yet;
+logged here with real architecture so it can be picked up cold,
+pending AJ's call on when to start given how much has already landed
+this session.
+
 ---
 
 # Field Reports (2026-08-16, mobile screenshots against dev-ous.wasmer.app)
