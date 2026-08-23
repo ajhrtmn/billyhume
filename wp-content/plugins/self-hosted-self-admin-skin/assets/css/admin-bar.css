@@ -43,13 +43,20 @@
 
 /* The left group yields. min-width:0 is the load-bearing part — without
    it a flex item refuses to shrink below its content width, which is
-   precisely how the 151px overrun happened. */
+   precisely how the 151px overrun happened.
+
+   NO overflow:hidden here, and that is deliberate: an earlier pass had
+   it, and it CLIPPED every dropdown, because the submenus are
+   absolutely-positioned children of these list items. That produced
+   the "About WordPress" panel colliding with the site-name item
+   instead of hanging below it. Width is controlled by shedding items
+   at breakpoints (below) rather than by clipping, precisely so the
+   flyouts stay free to escape the bar. */
 #wpadminbar #wp-admin-bar-root-default {
     display: flex;
     align-items: stretch;
     flex: 1 1 auto;
     min-width: 0;
-    overflow: hidden;
 }
 
 /* The right group never yields and never overlaps: float replaced with
@@ -92,27 +99,74 @@
 
 /* Anything a plugin drops inside a bar item — badges, counters, pills —
    gets vertically centred with its label rather than sitting on the
-   text baseline. */
+   text baseline.
+
+   `gap` is doing real work here, not just tidiness: making .ab-item a
+   flex container drops whitespace-only text nodes between its inline
+   children, which is why "Howdy, Billy Hume" rendered as the run-on
+   "Howdy,Billy Hume". A gap restores that separation as actual layout
+   instead of relying on a collapsible space character. */
+#wpadminbar .ab-top-menu > li > .ab-item,
+#wpadminbar .ab-top-secondary > li > .ab-item {
+    gap: 6px;
+}
 #wpadminbar .ab-top-menu > li > .ab-item > *,
 #wpadminbar .ab-top-secondary > li > .ab-item > * {
     display: inline-flex;
     align-items: center;
 }
+/* Breathing room between items. WP's stock bar packs them flush, which
+   is what made the row read as cramped once everything else was
+   aligned — a real "add some padding so it looks designed" fix rather
+   than leaving default density. */
+#wpadminbar .ab-top-menu > li > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-empty-item {
+    padding: 0 11px !important;
+}
+#wpadminbar .ab-top-secondary > li > .ab-item {
+    padding: 0 10px !important;
+}
+/* The avatar sits tight against the name without this. */
+#wpadminbar #wp-admin-bar-my-account > .ab-item img.avatar {
+    margin-left: 2px;
+    border-radius: 999px;
+}
 
 /* ---------- graceful degradation before anything can collide ---------- */
 
-/* Below ~1100px, shed the widest low-priority items in priority order
-   rather than letting the bar overflow. Deliberately keeps the site
-   name, the command palette, notifications and the account menu — the
-   things people actually reach for — and drops passive readouts first.
-   Query Monitor's readout is the widest single item on this install. */
-@media screen and (max-width: 1100px) {
+/* Priority-based shedding. This has to do ALL the width control on its
+   own, because the left group deliberately does NOT clip (clipping it
+   is what previously ate the dropdowns). So the rule is: drop passive
+   readouts early and generously rather than letting anything reach the
+   account menu and overlap it.
+
+   Order is by how often a person actually clicks the thing: Query
+   Monitor's timing readout and WooCommerce's status badge are glanceable
+   noise; updates/comments counters are duplicated in the sidebar
+   anyway; the site name, command palette, notifications and account
+   menu stay to the end. Thresholds are set against this install's real
+   item count (measured, not guessed) with headroom, since a bar that
+   overlaps at any width is worse than one that shows less. */
+@media screen and (max-width: 1400px) {
     #wpadminbar #wp-admin-bar-query-monitor { display: none; }
 }
-@media screen and (max-width: 900px) {
+@media screen and (max-width: 1200px) {
     #wpadminbar #wp-admin-bar-wc-status,
-    #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge,
-    #wpadminbar #wp-admin-bar-updates { display: none; }
+    #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge { display: none; }
+}
+@media screen and (max-width: 1040px) {
+    #wpadminbar #wp-admin-bar-updates,
+    #wpadminbar #wp-admin-bar-comments { display: none; }
+}
+@media screen and (max-width: 920px) {
+    /* Palette keeps its icon, loses the "Jump to…" label and shortcut
+       hint — the icon alone is still a target, and ⌘K still works. */
+    #wpadminbar #wp-admin-bar-shsas-palette-trigger .ab-label,
+    #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-kbd-hint { display: none; }
+    #wpadminbar #wp-admin-bar-new-content .ab-label { display: none; }
+}
+@media screen and (max-width: 860px) {
+    #wpadminbar #wp-admin-bar-site-name .ab-label { display: none; }
 }
 @media screen and (max-width: 782px) {
     /* WP already switches the bar to its own touch layout here; let
@@ -126,6 +180,17 @@
         overflow: visible;
     }
     #wpadminbar #wp-admin-bar-top-secondary { float: right !important; margin-left: 0; }
+}
+
+/* Last-resort guarantee: even if some plugin adds an item we have no
+   breakpoint for, the account menu keeps its own opaque ground and
+   sits above, so the failure mode is "something is hidden behind the
+   account menu" rather than "two labels printed on top of each other".
+   Belt and braces, not the primary mechanism. */
+#wpadminbar #wp-admin-bar-top-secondary {
+    position: relative;
+    z-index: 2;
+    background: var(--shsas-surface-2, #282319);
 }
 
 /* ---------- front-end parity ---------- */
@@ -193,4 +258,61 @@
     padding-bottom: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
+}
+
+
+/* ---------- duplicate command palette ----------
+   WP core now ships its OWN command palette item (#wp-admin-bar-command-
+   palette, 72px) and this skin adds a richer "Jump to…" trigger
+   (#wp-admin-bar-shsas-palette-trigger, 139px). Both were rendering,
+   which is what produced the doubled "⌘ ⌘K" glyphs in the bar — two
+   controls, same shortcut, same job, 211px of bar between them.
+   Core's is hidden: ours carries a visible label and hint, and ⌘K
+   still opens it either way. */
+#wpadminbar #wp-admin-bar-command-palette { display: none; }
+
+/* ---------- third-party badge treatment ----------
+   "Store coming soon" (WooCommerce) rendered as a stark white box —
+   core-adjacent markup with its own inline-ish styling, completely
+   outside this skin's language, and the single most visually jarring
+   thing in the bar. Notifications' count had the same problem in red.
+   Both become the same quiet pill the sidebar counts now use: veil
+   ground, hairline ring, tabular figures. Status, not alarm. */
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge .ab-item,
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge .ab-label {
+    background: var(--shsas-hover-veil, rgba(255,255,255,0.055)) !important;
+    color: var(--shsas-text-dim, #b3ab97) !important;
+    box-shadow: inset 0 0 0 1px var(--shsas-border, rgba(255,255,255,.14));
+    border-radius: 999px !important;
+    padding: 0 10px !important;
+    height: 22px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: .01em;
+}
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge > .ab-item {
+    height: 32px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 11px !important;
+}
+/* Notification count: was a hard red block. Danger hue is retained
+   because an unread count IS a real signal — but as a restrained pill
+   rather than a slab, and only when non-zero. */
+#wpadminbar #wp-admin-bar-bhcore-notifications .bhcore-notif-count,
+#wpadminbar #wp-admin-bar-bhcore-notifications .count,
+#wpadminbar #wp-admin-bar-bhcore-notifications .ab-label > span {
+    background: color-mix(in srgb, var(--shsas-danger, #ff3ea5) 22%, transparent) !important;
+    color: var(--shsas-text, #f2ede1) !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shsas-danger, #ff3ea5) 55%, transparent);
+    border-radius: 999px !important;
+    min-width: 20px;
+    height: 18px;
+    line-height: 18px !important;
+    padding: 0 6px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
 }

@@ -3260,3 +3260,102 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     background: var(--shsas-press-veil) !important;
     color: var(--shsas-text) !important;
 }
+
+/* ---------- WordPress About / What's New screens ----------
+   about.php ships its OWN stylesheet (about.css) written against a
+   white page: near-white section backgrounds, mid-grey body copy,
+   thin grey rules. This skin had ZERO rules for it (confirmed by
+   grep), so the page inherited the dark ground while keeping text
+   colours chosen for white — the result being body copy at roughly
+   grey-on-black, effectively unreadable, which is exactly what the
+   screenshots showed.
+
+   Treated as a content surface rather than re-skinned block by block:
+   give the container this skin's own ink and let the headings and
+   copy inherit, instead of trying to chase every element core happens
+   to ship. The one thing that DOES need explicit handling is core's
+   light section panels — they stay light on purpose (they frame
+   screenshots), so text inside them must go dark, not inherit the
+   page ink. */
+.about__container,
+.about-wrap {
+    color: var(--shsas-text) !important;
+}
+.about__container h1, .about__container h2, .about__container h3,
+.about__container h4, .about__container p, .about__container li,
+.about-wrap h1, .about-wrap h2, .about-wrap h3, .about-wrap h4,
+.about-wrap p, .about-wrap li {
+    color: var(--shsas-text) !important;
+}
+.about__container .is-vertically-aligned-top p,
+.about__container .about__section-item p,
+.about-wrap .about__section p {
+    color: var(--shsas-text-dim) !important;
+}
+/* Core's own light panels keep their light ground (they exist to
+   frame product screenshots) — so flip their contents back to dark
+   ink rather than leaving pale text on a pale panel. */
+.about__container .has-subtle-background-color,
+.about__container .has-white-background-color,
+.about__container [class*="has-light"] {
+    color: #241f16 !important;
+}
+.about__container .has-subtle-background-color h1,
+.about__container .has-subtle-background-color h2,
+.about__container .has-subtle-background-color h3,
+.about__container .has-subtle-background-color p,
+.about__container .has-white-background-color h1,
+.about__container .has-white-background-color h2,
+.about__container .has-white-background-color h3,
+.about__container .has-white-background-color p {
+    color: #241f16 !important;
+}
+/* Nav tabs on this screen render as a wrapping row with stray rules
+   under each item; give them the same calm treatment as the rest of
+   the skin's tabs and stop the underline fragments. */
+.about__container .about__header-navigation,
+.about-wrap .nav-tab-wrapper {
+    border-bottom: 1px solid var(--shsas-border) !important;
+    gap: 4px;
+}
+.about__container .about__header-navigation .nav-tab,
+.about-wrap .nav-tab {
+    background: transparent !important;
+    border: 0 !important;
+    color: var(--shsas-text-dim) !important;
+    border-radius: var(--shsas-radius-sm) var(--shsas-radius-sm) 0 0 !important;
+}
+.about__container .about__header-navigation .nav-tab:hover,
+.about-wrap .nav-tab:hover {
+    background: var(--shsas-hover-veil) !important;
+    color: var(--shsas-text) !important;
+}
+.about__container .about__header-navigation .nav-tab-active,
+.about-wrap .nav-tab-active {
+    background: var(--shsas-hover-veil) !important;
+    color: var(--shsas-text) !important;
+    box-shadow: inset 0 -2px 0 0 var(--shsas-accent);
+}
+/* Media on this page overflowed the container horizontally. */
+.about__container img,
+.about-wrap img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* .about__header is a LIGHT hero panel core paints deliberately
+   (rgb(235,232,229)) — so the page ink applied above rendered the
+   "WordPress 7.0" title at 1.04:1 against it, i.e. invisible. Caught
+   by walking every text node on the screen and computing its real
+   contrast against its nearest painted ancestor rather than trusting
+   the page to look right. Anything sitting on a light panel here gets
+   dark ink; the panels themselves stay light because they exist to
+   frame product screenshots. */
+.about__container .about__header,
+.about__container .about__header * {
+    color: #241f16 !important;
+}
+.about__container .about__header .about__header-badge,
+.about__container .about__header-navigation .nav-tab {
+    color: inherit !important;
+}
