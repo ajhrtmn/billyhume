@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<ruleset name="Own Ur Shit — security sniffs">
+    <description>
+        Security only. Two deliberate scoping decisions, both measured:
+
+        1. WPCS's FORMATTING sniffs are not enabled. 72k lines in an
+           established, internally-consistent style; a wholesale reformat
+           would bury real findings under tens of thousands of whitespace
+           diffs.
+
+        2. WordPress.DB.PreparedSQL* is not enabled. Measured: 614 of its
+           findings are table-name interpolation (`FROM $table`, where
+           $table comes from a *_Tables owner class), and a table name
+           CANNOT be bound as a prepared-statement parameter in MySQL —
+           it is a language limitation, not a defect. Every one of those
+           queries already uses %d/%s placeholders for the actual user
+           data. Leaving the sniff on would mean 614 permanent false
+           positives drowning the real signal. Prepared-SQL correctness
+           is instead protected by review plus the *_Tables classes,
+           which make the interpolated value provably a private
+           constant rather than user input.
+    </description>
+
+    <file>wp-content/plugins/own-ur-shit</file>
+    <file>wp-content/plugins/bh-contest</file>
+    <file>wp-content/plugins/bh-courses</file>
+    <file>wp-content/plugins/bh-crm</file>
+    <file>wp-content/plugins/bh-feedback</file>
+    <file>wp-content/plugins/bh-live</file>
+    <file>wp-content/plugins/bh-mailpoet</file>
+    <file>wp-content/plugins/bh-monetization-woo</file>
+    <file>wp-content/plugins/bh-registry</file>
+    <file>wp-content/plugins/bh-social</file>
+    <file>wp-content/plugins/bh-streaming</file>
+    <file>wp-content/plugins/bh-tickets</file>
+    <file>wp-content/plugins/bh-video</file>
+    <file>wp-content/plugins/self-hosted-self-admin-skin</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/assets/js/*</exclude-pattern>
+    <exclude-pattern>*/tests/*</exclude-pattern>
+
+    <arg name="extensions" value="php"/>
+    <arg name="parallel" value="8"/>
+    <arg value="ps"/>
+
+    <rule ref="WordPress.Security.EscapeOutput">
+        <properties>
+            <!-- This ecosystem's own escaping/rendering helpers. Without these
+                 registered, every call through them reads as unescaped output. -->
+            <property name="customEscapingFunctions" type="array">
+                <element value="bhy_badge_html"/>
+                <element value="bhy_alert_html"/>
+            </property>
+        </properties>
+    </rule>
+
+    <rule ref="WordPress.Security.ValidatedSanitizedInput"/>
+
+    <rule ref="WordPress.Security.NonceVerification">
+        <properties>
+            <!-- OUS_AdminGuard::verify_nonce_and_cap() is this ecosystem's
+                 standard nonce+capability gate (33 call sites). WPCS only
+                 recognises core's check_admin_referer()/wp_verify_nonce()
+                 by default, so without this every guarded handler is
+                 reported as unprotected. -->
+            <property name="customNonceVerificationFunctions" type="array">
+                <element value="verify_nonce_and_cap"/>
+            </property>
+        </properties>
+    </rule>
+
+    <config name="minimum_wp_version" value="6.5"/>
+</ruleset>

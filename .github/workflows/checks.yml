@@ -1,4 +1,4 @@
-name: Checks (PHPStan, PHPUnit, TypeScript)
+name: Checks (PHPStan, PHPUnit, PHPCS, TypeScript, Stylelint, Vitest)
 
 # Fires on every push/PR against dev and master — the two branches real
 # work lands on. Deliberately NOT on `stable` (deploy-ftp.yml already
@@ -31,7 +31,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           coverage: none
 
       - name: Composer install
@@ -42,6 +42,16 @@ jobs:
 
       - name: PHPUnit (pure-logic suites)
         run: composer test
+
+      # Security sniffs (escaping / sanitization / nonce) on CHANGED files only.
+      # Non-blocking for now: adopting WPCS on a mature 72k-line codebase
+      # surfaces ~1,200 pre-existing low-severity findings, and a gate that
+      # fails on day one is a gate that gets disabled. This surfaces findings
+      # on the PR; flip continue-on-error off once the touched-file debt is
+      # paid down. See wp-content/plugins/TOOLING-EVALUATION.md.
+      - name: PHPCS security sniffs (changed files)
+        continue-on-error: true
+        run: bash tools/phpcs-changed.sh origin/${{ github.base_ref || 'master' }}
 
   typescript:
     runs-on: ubuntu-latest
@@ -71,3 +81,34 @@ jobs:
         run: npm run build:bh-streaming
       - name: Build bh-courses
         run: npm run build:bh-courses
+
+      # Fails the build on real CSS errors (malformed syntax, deprecated
+      # values). Duplicate-selector findings are warnings, since this
+      # codebase layers selectors deliberately.
+      - name: Stylelint
+        run: npm run lint:css
+
+      - name: Unit tests (Vitest)
+        run: npm run test:unit
+
+  # Logged-out front-end UX audit — contrast, clipping, overflow, touch
+  # targets across 6 widths. Needs no credentials, so it runs on every PR.
+  # The authenticated admin audit (tests/ux/admin.spec.ts) is deliberately
+  # NOT run here: it needs WP_ADMIN_USER/WP_ADMIN_PASS secrets and a
+  # provisioned WordPress install, which this workflow doesn't stand up.
+  ux-audit:
+    runs-on: ubuntu-latest
+    if: false   # enable once CI provisions a WordPress instance to audit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm ci
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: UX audit (logged-out)
+        run: npx playwright test --project=public

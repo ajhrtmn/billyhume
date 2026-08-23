@@ -1,7 +1,7 @@
 {
   "name": "own-ur-shit-dev-tooling",
   "private": true,
-  "description": "Dev-only tooling for this repo's TypeScript sources (wp-content/plugins/*/assets/ts/). Not a runtime dependency — every plugin still enqueues plain, pre-compiled .js from assets/js/ via wp_enqueue_script(), same as before. TypeScript exists purely as a dev-time authoring/type-checking layer; there is no bundler and no change to how scripts are loaded on the live site. node_modules/ is gitignored (regenerated via `npm install`), same posture as vendor/ for composer.json.",
+  "description": "Dev-only tooling for this repo: TypeScript sources (wp-content/plugins/*/assets/ts/), CSS linting, unit tests, and browser-driven UX audits. Not a runtime dependency \u2014 plugins ship pre-compiled .js and plain .css, and the FTP deploy syncs plugin folders verbatim with no build step. node_modules/ is gitignored.",
   "scripts": {
     "build:own-ur-shit": "tsc -p wp-content/plugins/own-ur-shit/tsconfig.json",
     "watch:own-ur-shit": "tsc -p wp-content/plugins/own-ur-shit/tsconfig.json --watch",
@@ -12,9 +12,29 @@
     "build:bh-streaming": "tsc -p wp-content/plugins/bh-streaming/tsconfig.json",
     "watch:bh-streaming": "tsc -p wp-content/plugins/bh-streaming/tsconfig.json --watch",
     "build:bh-courses": "tsc -p wp-content/plugins/bh-courses/tsconfig.json",
-    "watch:bh-courses": "tsc -p wp-content/plugins/bh-courses/tsconfig.json --watch"
+    "watch:bh-courses": "tsc -p wp-content/plugins/bh-courses/tsconfig.json --watch",
+    "lint:css": "stylelint \"wp-content/plugins/{own-ur-shit,bh-*,self-hosted-self-admin-skin}/assets/css/*.css\"",
+    "lint:css:fix": "npm run lint:css -- --fix",
+    "format:css": "node tools/expand-css.js wp-content/plugins/{own-ur-shit,bh-*,self-hosted-self-admin-skin}/assets/css/*.css",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "audit:ux": "playwright test",
+    "audit:ux:ui": "playwright test --ui",
+    "build:all": "npm run build:own-ur-shit && npm run build:bh-contest && npm run build:bh-crm && npm run build:bh-streaming && npm run build:bh-courses",
+    "check": "npm run build:all && npm run lint:css && npm run test:unit",
+    "storybook:fixtures": "php tools/gen-storybook-fixtures.php",
+    "storybook": "npm run storybook:fixtures && storybook dev -p 6006 --no-open",
+    "storybook:build": "npm run storybook:fixtures && storybook build -o storybook-static"
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "@playwright/test": "^1.62.1",
+    "@storybook/addon-a11y": "^10.5.10",
+    "@storybook/html-vite": "^10.5.10",
+    "storybook": "^10.5.10",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   }
 }

@@ -48,8 +48,6 @@ parameters:
         # for real dynamic properties, not a suppression. See the stub
         # file's own docblock.
         - phpstan-stubs/wp-post-nav-menu-item.stub.php
-    scanDirectories:
-        - wp-content/plugins/own-ur-shit
     scanFiles:
         # Real WooCommerce stub package (php-stubs/woocommerce-stubs) —
         # eliminates the large "Function wc_get_product not found"/"Class
@@ -70,6 +68,14 @@ parameters:
         # PHPStan actually type-check real FPDF method calls instead of
         # reporting the whole class as unknown.
         - wp-content/plugins/own-ur-shit/vendor/fpdf/fpdf.php
+        # Timber is a real runtime dependency now, vendored into the core
+        # plugin and installed at build time. Listed explicitly rather than
+        # via scanDirectories because excludePaths' */vendor/* rule filters
+        # the directory walk but NOT explicit scanFiles entries — the same
+        # reason FPDF is listed this way directly above.
+        - wp-content/plugins/own-ur-shit/vendor/timber/timber/src/Timber.php
+    scanDirectories:
+        - wp-content/plugins/own-ur-shit
     # WooCommerce is now stubbed for real (scanFiles above) — bumping to
     # level 6+ later will likely still need an Action Scheduler stub
     # (as_schedule_single_action() etc., used by OUS_Jobs) for full

@@ -42,6 +42,64 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ---- build before deploy ----
+      # The FTP sync ships plugin folders verbatim and the host runs nothing
+      # but PHP + WordPress: no composer install, no npm, no autoloader
+      # generation. So anything a plugin needs at runtime has to be BUILT
+      # here and staged as part of the folder.
+      #
+      # Two artifacts are produced:
+      #   1. assets/js/*.js from assets/ts/*.ts (tsc, no bundler)
+      #   2. each plugin's own vendor/ dir, from its own composer.json if it
+      #      has one (Timber/Twig live here)
+      #
+      # Both are committed today, so this is currently a VERIFICATION step —
+      # it fails the deploy if the committed artifacts are stale rather than
+      # silently shipping a mismatch. That property is worth keeping even
+      # once the build is doing real work.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dev tooling
+        run: |
+          npm ci
+          composer install --no-interaction --prefer-dist
+
+      - name: Build TypeScript
+        run: npm run build:all
+
+      - name: Install each plugin's runtime dependencies
+        run: |
+          set -euo pipefail
+          for plugin in $PLUGIN_FOLDERS; do
+            manifest="wp-content/plugins/$plugin/composer.json"
+            if [ -f "$manifest" ]; then
+              echo "::group::composer install (runtime) — $plugin"
+              composer install                 --working-dir="wp-content/plugins/$plugin"                 --no-dev --optimize-autoloader --no-interaction --prefer-dist
+              echo "::endgroup::"
+            fi
+          done
+
+      # A stale committed artifact is a silent production bug: the site would
+      # run yesterday's JS. Fail loudly instead.
+      - name: Fail if built artifacts are stale
+        run: |
+          set -euo pipefail
+          if ! git diff --quiet -- 'wp-content/plugins/*/assets/js/*.js'; then
+            echo "::error::Committed .js is out of date with its .ts source. Run 'npm run build:all' and commit the result."
+            git diff --stat -- 'wp-content/plugins/*/assets/js/*.js'
+            exit 1
+          fi
+          echo "Built artifacts match their sources."
+
       # Stage only the ecosystem plugin folders above into a clean directory
       # so the FTP sync step below can never touch anything else, even if
       # PLUGIN_FOLDERS is edited incorrectly later.
