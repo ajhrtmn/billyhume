@@ -13,11 +13,16 @@
    sat blank during that fetch with zero indication anything was
    loading. */
 .bhcrm-kanban-board[data-loading="1"] {
-    position: relative; min-height: 120px;
+    position: relative;
+    min-height: 120px;
 }
 .bhcrm-kanban-board[data-loading="1"]::after {
     content: 'Loading board…';
-    position: absolute; top: 20px; left: 0; color: var(--bhy-ink-dim, #646970); font-size: 13px;
+    position: absolute;
+    top: 20px;
+    left: 0;
+    color: var(--bhy-ink-dim, #646970);
+    font-size: 13px;
 }
 
 /* Track-It-style progress bar (BHCRM_Subtasks::render_progress_bar())
@@ -137,7 +142,9 @@
     margin-bottom: 8px;
     padding-bottom: 6px;
     border-bottom: 2px solid var(--bhy-border, #dcdcde);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .bhcrm-kanban-column-count {
@@ -286,7 +293,9 @@
    2026-07-25 audit fix) instead of a native confirm() — the armed state
    needs to read as clearly "one more click deletes this" without a dialog. */
 .bhcrm-delete-btn.is-armed, .bhcrm-subtask-delete-btn.is-armed {
-    background: #d63638; border-color: #d63638; color: #fff;
+    background: #d63638;
+    border-color: #d63638;
+    color: #fff;
 }
 
 .bhcrm-kanban-add-card {
@@ -317,7 +326,10 @@
 
 .bhcrm-sticky-card-title {
     font-weight: 600;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .bhcrm-sticky-card-notes {

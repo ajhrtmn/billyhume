@@ -66,7 +66,7 @@ html.bhcore-scroll-locked {
 .bhcore-toast-msg {
     flex: 1;
     min-width: 0;
-    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 .bhcore-toast-close {

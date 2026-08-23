@@ -30,7 +30,9 @@
     padding: var(--bhy-space-4, 18px) var(--bhy-space-5, 20px);
 }
 .ous-card-header {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: var(--bhy-space-2, 8px);
 }
 /* Was #555 — a one-off that matched neither --bhy-ink (#1d2327) nor
@@ -56,9 +58,18 @@
 /* Status trio: is this PLUGIN installed and running. Semantic tokens
    (success/warning) where one genuinely applies; "missing" stays neutral
    because absence isn't an error state, just a fact. */
-.ous-badge-active { background: var(--bhy-success-bg, #dafbe1); color: var(--bhy-success, #1a7f37); }
-.ous-badge-inactive { background: var(--bhy-warning-bg, #f0e6c8); color: var(--bhy-warning, #8a5a00); }
-.ous-badge-missing { background: var(--bhy-subtle, #f0f0f1); color: var(--bhy-ink-dim, #787c82); }
+.ous-badge-active {
+    background: var(--bhy-success-bg, #dafbe1);
+    color: var(--bhy-success, #1a7f37);
+}
+.ous-badge-inactive {
+    background: var(--bhy-warning-bg, #f0e6c8);
+    color: var(--bhy-warning, #8a5a00);
+}
+.ous-badge-missing {
+    background: var(--bhy-subtle, #f0f0f1);
+    color: var(--bhy-ink-dim, #787c82);
+}
 
 /* Feature-maturity badges (OUS_Badge) — distinct from the install-status
    trio above (active/inactive/missing describe whether a PLUGIN is
@@ -68,6 +79,15 @@
    keep their own literals because the token set has no blue/violet
    member to point at — a real gap worth noting rather than forcing
    them onto a semantically wrong token just to look consistent. */
-.ous-badge-alpha { background: var(--bhy-warning-bg, #f0e6c8); color: var(--bhy-warning, #8a5a00); }
-.ous-badge-beta { background: #dbe9ff; color: #1a4d99; }
-.ous-badge-experimental { background: #f3e3ff; color: #6b2fa3; }
+.ous-badge-alpha {
+    background: var(--bhy-warning-bg, #f0e6c8);
+    color: var(--bhy-warning, #8a5a00);
+}
+.ous-badge-beta {
+    background: #dbe9ff;
+    color: #1a4d99;
+}
+.ous-badge-experimental {
+    background: #f3e3ff;
+    color: #6b2fa3;
+}

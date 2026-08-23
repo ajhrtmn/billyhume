@@ -67,11 +67,24 @@
    not just this widget. Everything below is scoped under .bh-container
    specifically so neither direction of leakage happens. */
 .bh-container, .bh-container * { box-sizing: border-box; }
-.bh-container :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
-.bh-container :where(a) { text-decoration: none; color: inherit; }
+.bh-container :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.bh-container :where(a) {
+    text-decoration: none;
+    color: inherit;
+}
 .bh-container :where(button, input, select, textarea) {
-    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
-    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    line-height: normal;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0;
+    background: none;
 }
 .bh-container { line-height: 1.4; }
 
@@ -100,7 +113,13 @@
     letter-spacing: -0.02em;
 }
 .bh-brand span { color: var(--bh-accent); }
-.bh-brand-logo { display: block; max-height: calc(36px * var(--bh-font-scale)); max-width: 220px; width: auto; height: auto; }
+.bh-brand-logo {
+    display: block;
+    max-height: calc(36px * var(--bh-font-scale));
+    max-width: 220px;
+    width: auto;
+    height: auto;
+}
 
 /* Task #80 — a genuinely new, additive header zone (player.js's
  * injectHeaderExtra(), fed by bh-contest's real 'header_extra'
@@ -113,7 +132,11 @@
  * header_extra content renders BYTE-IDENTICAL to before this feature
  * existed. Only takes part in the layout once real content is injected. */
 .bh-header-extra:empty { display: none; }
-.bh-header-extra { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
+.bh-header-extra {
+    display: flex;
+    align-items: center;
+    gap: calc(10px * var(--bh-space-scale));
+}
 
 /* Task #80 follow-up — three more additive zones, same :empty-hides-it
  * reasoning as .bh-header-extra above (an unused zone renders byte-
@@ -155,12 +178,23 @@
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 .bh-btn:active { transform: scale(0.97); }
-.bh-btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+.bh-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+    transform: none;
+}
 
-.bh-btn-primary { background: var(--bh-accent); color: #150705; }
+.bh-btn-primary {
+    background: var(--bh-accent);
+    color: #150705;
+}
 .bh-btn-primary:hover { background: var(--bh-accent-soft); }
 
-.bh-btn-outline { background: transparent; color: var(--bh-text); border: 1px solid var(--bh-border); }
+.bh-btn-outline {
+    background: transparent;
+    color: var(--bh-text);
+    border: 1px solid var(--bh-border);
+}
 .bh-btn-outline:hover { border-color: var(--bh-text-dim); }
 
 
@@ -180,12 +214,20 @@
 }
 
 /* ---------------- Track list ---------------- */
-.bh-tracklist { display: flex; flex-direction: column; }
+.bh-tracklist {
+    display: flex;
+    flex-direction: column;
+}
 
 /* Category tabs — same pill language as buttons elsewhere, so this reads
    as part of the same system rather than a bolted-on control. Only ever
    shown when a contest defines 2+ categories (see renderCategoryTabs). */
-.bh-category-tabs { display: flex; gap: calc(8px * var(--bh-space-scale)); margin-bottom: calc(18px * var(--bh-space-scale)); flex-wrap: wrap; }
+.bh-category-tabs {
+    display: flex;
+    gap: calc(8px * var(--bh-space-scale));
+    margin-bottom: calc(18px * var(--bh-space-scale));
+    flex-wrap: wrap;
+}
 /* Audit fix (2026-07-25) — persistent votes-remaining indicator, see
    BHContestPlayer.renderVotesRemaining(). A small quiet pill rather
    than a full-width text line: it's a persistent status readout, not
@@ -230,7 +272,11 @@
     border-color: var(--bh-cat-color, var(--bh-text-dim));
     background: color-mix(in srgb, var(--bh-cat-color, var(--bh-text-dim)) 14%, transparent);
 }
-.bh-cat-tab.active { background: var(--bh-cat-color, var(--bh-accent)); color: #150705; border-color: var(--bh-cat-color, var(--bh-accent)); }
+.bh-cat-tab.active {
+    background: var(--bh-cat-color, var(--bh-accent));
+    color: #150705;
+    border-color: var(--bh-cat-color, var(--bh-accent));
+}
 .bh-results-tabs { margin-bottom: 14px; }
 
 .bh-track-row {
@@ -245,7 +291,10 @@
     transition: background 0.15s ease;
 }
 .bh-track-row:hover { background-color: var(--bh-surface); }
-.bh-track-row:last-child { border-bottom: none; margin-bottom: 0; }
+.bh-track-row:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
 
 /* Signature element: a deterministic gradient "disc" standing in for
    missing artwork, spinning only while its track is the one playing. */
@@ -265,10 +314,25 @@
 .bh-disc.spinning { animation: bh-spin 2.6s linear infinite; }
 @keyframes bh-spin { to { transform: rotate(360deg); } }
 
-.bh-track-details { flex-grow: 1; min-width: 0; }
-.bh-track-title, .bh-track-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bh-track-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); }
-.bh-track-artist { color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); margin-top: 2px; }
+.bh-track-details {
+    flex-grow: 1;
+    min-width: 0;
+}
+.bh-track-title, .bh-track-artist {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bh-track-title {
+    font-family: var(--bh-font-display);
+    font-weight: 600;
+    font-size: calc(15px * var(--bh-font-scale));
+}
+.bh-track-artist {
+    color: var(--bh-text-dim);
+    font-size: calc(13px * var(--bh-font-scale));
+    margin-top: 2px;
+}
 
 .bh-vote-btn {
     flex: 0 0 auto;
@@ -294,7 +358,10 @@
     border-color: var(--bh-cat-color, var(--bh-accent));
 }
 .bh-vote-btn.voted .bh-check { display: inline-flex; }
-.bh-vote-btn:disabled { opacity: 0.6; cursor: default; }
+.bh-vote-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
 
 .bh-empty {
     padding: calc(48px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale));
@@ -307,7 +374,9 @@
 /* ---------------- Now-playing bar ---------------- */
 .bh-now-playing-bar {
     position: fixed;
-    bottom: 0; left: 0; width: 100%;
+    bottom: 0;
+    left: 0;
+    width: 100%;
     height: var(--bh-bar-height);
     background-color: var(--bh-surface);
     border-top: 1px solid var(--bh-border);
@@ -331,33 +400,90 @@
    leaving a stray 7px gap between the two bars. */
 body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 56px); }
 
-.bh-np-track { display: flex; align-items: center; gap: calc(12px * var(--bh-space-scale)); width: 240px; flex: 0 0 auto; overflow: hidden; }
-.bh-now-playing-bar .bh-disc { width: calc(var(--bh-disc-size) * 0.9); height: calc(var(--bh-disc-size) * 0.9); }
-.bh-np-info { font-size: calc(13px * var(--bh-font-scale)); line-height: 1.4; overflow: hidden; color: var(--bh-text-dim); }
-.bh-np-info strong { display: block; color: var(--bh-text); font-family: var(--bh-font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bh-np-track {
+    display: flex;
+    align-items: center;
+    gap: calc(12px * var(--bh-space-scale));
+    width: 240px;
+    flex: 0 0 auto;
+    overflow: hidden;
+}
+.bh-now-playing-bar .bh-disc {
+    width: calc(var(--bh-disc-size) * 0.9);
+    height: calc(var(--bh-disc-size) * 0.9);
+}
+.bh-np-info {
+    font-size: calc(13px * var(--bh-font-scale));
+    line-height: 1.4;
+    overflow: hidden;
+    color: var(--bh-text-dim);
+}
+.bh-np-info strong {
+    display: block;
+    color: var(--bh-text);
+    font-family: var(--bh-font-display);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
-.bh-scrubber-container { flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
-.bh-time { font-size: calc(11px * var(--bh-font-scale)); color: var(--bh-text-dim); font-variant-numeric: tabular-nums; width: 32px; flex: 0 0 auto; }
+.bh-scrubber-container {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: calc(10px * var(--bh-space-scale));
+}
+.bh-time {
+    font-size: calc(11px * var(--bh-font-scale));
+    color: var(--bh-text-dim);
+    font-variant-numeric: tabular-nums;
+    width: 32px;
+    flex: 0 0 auto;
+}
 .bh-time:last-child { text-align: right; }
 
 .bh-scrubber {
-    width: 100%; cursor: pointer; -webkit-appearance: none; appearance: none;
-    height: 4px; border-radius: 3px; background: var(--bh-border); touch-action: none;
+    width: 100%;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--bh-border);
+    touch-action: none;
 }
 .bh-scrubber::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
-    border-radius: 50%; background: var(--bh-accent); cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--bh-accent);
+    cursor: pointer;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent) 20%, transparent);
 }
 .bh-scrubber::-moz-range-thumb {
-    width: 13px; height: 13px; border: none; border-radius: 50%; background: var(--bh-accent); cursor: pointer;
+    width: 13px;
+    height: 13px;
+    border: none;
+    border-radius: 50%;
+    background: var(--bh-accent);
+    cursor: pointer;
 }
 
 .bh-play-pause {
     flex: 0 0 auto;
-    background: var(--bh-accent); color: #150705;
-    border: none; border-radius: 50%; width: 42px; height: 42px;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    background: var(--bh-accent);
+    color: #150705;
+    border: none;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: transform 0.15s ease, background 0.15s ease;
 }
 .bh-play-pause:hover { background: var(--bh-accent-soft); }
@@ -365,15 +491,32 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 
 /* ---------------- Modals ---------------- */
 .bh-modal {
-    display: none; position: fixed; inset: 0; background: var(--bh-overlay, rgba(13,5,4,0.82));
-    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-    z-index: 10000; align-items: center; justify-content: center; padding: calc(16px * var(--bh-space-scale)); box-sizing: border-box;
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--bh-overlay, rgba(13,5,4,0.82));
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    padding: calc(16px * var(--bh-space-scale));
+    box-sizing: border-box;
 }
 .bh-modal-content {
-    background: var(--bh-surface); padding: calc(36px * var(--bh-space-scale)); border-radius: var(--bh-radius);
+    background: var(--bh-surface);
+    padding: calc(36px * var(--bh-space-scale));
+    border-radius: var(--bh-radius);
     border: 1px solid var(--bh-border);
-    width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto;
-    display: flex; flex-direction: column; gap: calc(14px * var(--bh-space-scale)); position: relative; box-sizing: border-box;
+    width: 100%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: calc(14px * var(--bh-space-scale));
+    position: relative;
+    box-sizing: border-box;
 }
 /* Results has more to show per row (rank, song, category badge, votes) —
    the shared 400px form-modal width reads cramped once that badge shows
@@ -381,15 +524,38 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
    they're just forms. */
 .bh-results-modal .bh-modal-content { max-width: 560px; }
 .bh-share-modal .bh-modal-content { max-width: 480px; }
-.bh-share-cards { display: flex; gap: calc(12px * var(--bh-space-scale)); }
-.bh-share-card-link {
-    flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center;
-    padding: calc(10px * var(--bh-space-scale)); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
-    color: var(--bh-text); font-size: calc(12px * var(--bh-font-scale));
+.bh-share-cards {
+    display: flex;
+    gap: calc(12px * var(--bh-space-scale));
 }
-.bh-share-card-link:hover { border-color: var(--bh-accent); color: var(--bh-accent); }
-.bh-share-card-thumb { width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: calc(var(--bh-radius) - 2px); background: var(--bh-surface-2); }
-.bh-share-hint { font-size: calc(12px * var(--bh-font-scale)); color: var(--bh-text-dim); }
+.bh-share-card-link {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    text-align: center;
+    padding: calc(10px * var(--bh-space-scale));
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius);
+    color: var(--bh-text);
+    font-size: calc(12px * var(--bh-font-scale));
+}
+.bh-share-card-link:hover {
+    border-color: var(--bh-accent);
+    color: var(--bh-accent);
+}
+.bh-share-card-thumb {
+    width: 100%;
+    aspect-ratio: 1200 / 630;
+    object-fit: cover;
+    border-radius: calc(var(--bh-radius) - 2px);
+    background: var(--bh-surface-2);
+}
+.bh-share-hint {
+    font-size: calc(12px * var(--bh-font-scale));
+    color: var(--bh-text-dim);
+}
 /* The "what happens next" beat — set apart from the plain share-hint
    text below it so a fan's eye actually lands on it, not just the
    generic "you're in" heading. --bh-surface-2 + --bh-accent is this
@@ -399,33 +565,74 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
    was a real contrast failure (~1.5:1), caught and fixed before this
    shipped. */
 .bh-share-next {
-    background: var(--bh-surface-2); color: var(--bh-accent); font-weight: 600;
+    background: var(--bh-surface-2);
+    color: var(--bh-accent);
+    font-weight: 600;
     border-left: 3px solid var(--bh-accent);
-    font-size: calc(13px * var(--bh-font-scale)); padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
+    font-size: calc(13px * var(--bh-font-scale));
+    padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
     border-radius: var(--bh-radius);
 }
 .bh-share-next:empty { display: none; }
-.bh-share-contest-link { color: var(--bh-accent); word-break: break-all; }
-.bh-share-link-row { display: flex; align-items: center; gap: calc(8px * var(--bh-space-scale)); }
-.bh-share-link-row .bh-share-contest-link { flex: 1; min-width: 0; }
+.bh-share-contest-link {
+    color: var(--bh-accent);
+    word-break: break-all;
+}
+.bh-share-link-row {
+    display: flex;
+    align-items: center;
+    gap: calc(8px * var(--bh-space-scale));
+}
+.bh-share-link-row .bh-share-contest-link {
+    flex: 1;
+    min-width: 0;
+}
 .bh-copy-link-btn {
-    flex-shrink: 0; font-size: calc(11px * var(--bh-font-scale)); padding: calc(4px * var(--bh-space-scale)) calc(10px * var(--bh-space-scale));
-    border-radius: var(--bh-radius-sm, var(--bh-radius)); border: 1px solid var(--bh-border); background: var(--bh-surface-2); color: var(--bh-text);
-    cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+    font-size: calc(11px * var(--bh-font-scale));
+    padding: calc(4px * var(--bh-space-scale)) calc(10px * var(--bh-space-scale));
+    border-radius: var(--bh-radius-sm, var(--bh-radius));
+    border: 1px solid var(--bh-border);
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 .bh-copy-link-btn:hover { border-color: var(--bh-accent); }
-.bh-copy-link-btn.is-copied { background: var(--bh-accent); border-color: var(--bh-accent); color: #fff; }
-.bh-modal-content h2 { font-family: var(--bh-font-display); font-weight: 600; margin: 0 0 4px; }
-.bh-close { position: absolute; top: 16px; right: 20px; font-size: calc(22px * var(--bh-font-scale)); cursor: pointer; color: var(--bh-text-dim); line-height: 1; }
+.bh-copy-link-btn.is-copied {
+    background: var(--bh-accent);
+    border-color: var(--bh-accent);
+    color: #fff;
+}
+.bh-modal-content h2 {
+    font-family: var(--bh-font-display);
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+.bh-close {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: calc(22px * var(--bh-font-scale));
+    cursor: pointer;
+    color: var(--bh-text-dim);
+    line-height: 1;
+}
 .bh-close:hover { color: var(--bh-text); }
 
 .bh-modal-content input, .bh-modal-content textarea, .bh-modal-content select {
-    padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale)); background: var(--bh-surface-2); color: var(--bh-text);
-    border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm);
-    font-size: max(16px, calc(16px * var(--bh-font-scale))); /* never below 16px — prevents iOS focus zoom — but still scales up past it */ font-family: var(--bh-font-body); box-sizing: border-box;
+    padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    font-size: max(16px, calc(16px * var(--bh-font-scale))); /* never below 16px — prevents iOS focus zoom — but still scales up past it */
+    font-family: var(--bh-font-body);
+    box-sizing: border-box;
 }
 .bh-modal-content input:focus, .bh-modal-content textarea:focus, .bh-modal-content select:focus {
-    outline: none; border-color: var(--bh-accent);
+    outline: none;
+    border-color: var(--bh-accent);
 }
 /* flex-shrink:0 — a <textarea> has an implicit overflow:auto, which
    (per the flexbox spec) disables the automatic content-based minimum
@@ -433,23 +640,44 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
    toward zero when the modal's stack of fields runs tight on space.
    Caught live: the notes field rendered at ~18px tall (less than one
    line) despite rows="3", clipping its own placeholder text. */
-.bh-modal-content textarea { resize: vertical; flex-shrink: 0; min-height: calc(60px * var(--bh-space-scale)); }
-.bh-modal-content small { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: -6px; }
+.bh-modal-content textarea {
+    resize: vertical;
+    flex-shrink: 0;
+    min-height: calc(60px * var(--bh-space-scale));
+}
+.bh-modal-content small {
+    color: var(--bh-text-dim);
+    font-size: calc(12px * var(--bh-font-scale));
+    margin-top: -6px;
+}
 /* Placeholders default to a browser-chosen gray that has no relationship
    to the theme — can read too bright, too dim, or just visibly "off"
    depending on the palette in use. Pinned to the same dim-text token
    used everywhere else. Firefox defaults placeholder opacity to ~0.54,
    so opacity:1 is needed here or the color above renders extra-faint. */
 .bh-modal-content input::placeholder, .bh-modal-content textarea::placeholder {
-    color: var(--bh-text-dim); opacity: 1;
+    color: var(--bh-text-dim);
+    opacity: 1;
 }
 /* Password show/hide — matches the modal's own flex/gap column so the
    wrapper behaves exactly like a bare input would. */
 .bh-pass-wrap { position: relative; }
-.bh-pass-wrap .bh-pass { width: 100%; padding-right: calc(40px * var(--bh-space-scale)); }
+.bh-pass-wrap .bh-pass {
+    width: 100%;
+    padding-right: calc(40px * var(--bh-space-scale));
+}
 .bh-pass-toggle {
-    position: absolute; right: calc(8px * var(--bh-space-scale)); top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 6px; color: var(--bh-text-dim);
+    position: absolute;
+    right: calc(8px * var(--bh-space-scale));
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 6px;
+    color: var(--bh-text-dim);
 }
 .bh-pass-toggle:hover { color: var(--bh-text); }
 
@@ -471,21 +699,45 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
    confirm the exact mechanism, so this closes the most plausible gap
    without touching the working .bh-select-trigger styling at all. */
 .bh-select-native {
-    position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1;
-    appearance: none; -webkit-appearance: none; -moz-appearance: none; background: transparent; border: none;
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background: transparent;
+    border: none;
 }
 .bh-select-trigger {
-    display: flex; align-items: center; justify-content: space-between; gap: calc(8px * var(--bh-space-scale));
-    width: 100%; padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
-    background: var(--bh-surface-2); color: var(--bh-text);
-    border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm);
-    font-family: var(--bh-font-body); font-size: max(16px, calc(16px * var(--bh-font-scale))); text-align: left; cursor: pointer; box-sizing: border-box;
-    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(8px * var(--bh-space-scale));
+    width: 100%;
+    padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    font-family: var(--bh-font-body);
+    font-size: max(16px, calc(16px * var(--bh-font-scale)));
+    text-align: left;
+    cursor: pointer;
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
     transition: border-color 0.15s ease;
 }
 .bh-select-trigger:hover { border-color: var(--bh-text-dim); }
 .bh-select-wrap.open .bh-select-trigger { border-color: var(--bh-accent); }
-.bh-select-chevron { flex: 0 0 auto; color: var(--bh-text-dim); transition: transform 0.15s ease; }
+.bh-select-chevron {
+    flex: 0 0 auto;
+    color: var(--bh-text-dim);
+    transition: transform 0.15s ease;
+}
 .bh-select-wrap.open .bh-select-chevron { transform: rotate(180deg); }
 .bh-select-menu {
     /* JS (BHPlayer.enhanceSelect()) switches this to `position:fixed` with
@@ -494,61 +746,167 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
        — this absolute/z-index:20 pair is only the pre-JS/no-JS fallback
        shape. z-index bumped past .bh-modal's own 10000 since a `fixed`
        menu stacks against the whole page, not just this local context. */
-    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 10001;
-    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.45); max-height: 220px; overflow-y: auto;
-    display: none; padding: calc(4px * var(--bh-space-scale));
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 10001;
+    background: var(--bh-surface-2);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    max-height: 220px;
+    overflow-y: auto;
+    display: none;
+    padding: calc(4px * var(--bh-space-scale));
 }
 .bh-select-wrap.open .bh-select-menu { display: block; }
 .bh-select-option {
-    padding: calc(9px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale)); border-radius: calc(var(--bh-radius-sm) * 0.7); font-size: calc(14px * var(--bh-font-scale)); color: var(--bh-text);
-    cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: calc(9px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
+    border-radius: calc(var(--bh-radius-sm) * 0.7);
+    font-size: calc(14px * var(--bh-font-scale));
+    color: var(--bh-text);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .bh-select-option:hover { background: color-mix(in srgb, var(--bh-accent) 16%, transparent); }
-.bh-select-option.selected { color: var(--bh-accent); font-weight: 600; }
+.bh-select-option.selected {
+    color: var(--bh-accent);
+    font-weight: 600;
+}
 
 /* Native checkboxes can at least take a theme color without a full
    rebuild — accent-color is supported everywhere this plugin already
    relies on color-mix(), so it's a safe, low-effort match for the rest
    of the form controls. */
-.bh-modal-content input[type=checkbox] { accent-color: var(--bh-accent); width: 15px; height: 15px; }
+.bh-modal-content input[type="checkbox"] {
+    accent-color: var(--bh-accent);
+    width: 15px;
+    height: 15px;
+}
 
 /* Fan-data rows on the sign-up and submit forms: text input plus an
    inline "public" consent checkbox, each field's own row so the consent
    flag is unambiguously tied to that one name. */
-.bh-reg-extra { display: flex; flex-direction: column; gap: calc(10px * var(--bh-space-scale)); }
-.bh-field-row { display: flex; align-items: center; gap: calc(10px * var(--bh-space-scale)); }
-.bh-field-row input { flex: 1; min-width: 0; }
-.bh-pub-toggle {
-    display: flex; align-items: center; gap: calc(5px * var(--bh-space-scale)); white-space: nowrap;
-    color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); cursor: pointer; user-select: none;
+.bh-reg-extra {
+    display: flex;
+    flex-direction: column;
+    gap: calc(10px * var(--bh-space-scale));
 }
-.bh-pub-toggle input { width: auto; padding: 0; }
+.bh-field-row {
+    display: flex;
+    align-items: center;
+    gap: calc(10px * var(--bh-space-scale));
+}
+.bh-field-row input {
+    flex: 1;
+    min-width: 0;
+}
+.bh-pub-toggle {
+    display: flex;
+    align-items: center;
+    gap: calc(5px * var(--bh-space-scale));
+    white-space: nowrap;
+    color: var(--bh-text-dim);
+    font-size: calc(12px * var(--bh-font-scale));
+    cursor: pointer;
+    user-select: none;
+}
+.bh-pub-toggle input {
+    width: auto;
+    padding: 0;
+}
 
-.bh-modal-content .bh-btn { justify-content: center; padding: calc(12px * var(--bh-space-scale)); font-size: calc(14px * var(--bh-font-scale)); margin-top: calc(4px * var(--bh-space-scale)); }
-.bh-modal-content a { color: var(--bh-text-dim); text-decoration: none; font-size: calc(13px * var(--bh-font-scale)); }
+.bh-modal-content .bh-btn {
+    justify-content: center;
+    padding: calc(12px * var(--bh-space-scale));
+    font-size: calc(14px * var(--bh-font-scale));
+    margin-top: calc(4px * var(--bh-space-scale));
+}
+.bh-modal-content a {
+    color: var(--bh-text-dim);
+    text-decoration: none;
+    font-size: calc(13px * var(--bh-font-scale));
+}
 .bh-modal-content a:hover { color: var(--bh-text); }
 .bh-modal-content p { margin: 0; }
 
 .bh-file-label {
-    display: flex; align-items: center; padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale)); background: var(--bh-surface-2);
-    border: 1px dashed var(--bh-border); border-radius: var(--bh-radius-sm);
-    color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); cursor: pointer; transition: border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    padding: calc(12px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
+    background: var(--bh-surface-2);
+    border: 1px dashed var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    color: var(--bh-text-dim);
+    font-size: calc(13px * var(--bh-font-scale));
+    cursor: pointer;
+    transition: border-color 0.15s ease;
 }
 .bh-file-label:hover { border-color: var(--bh-text-dim); }
-.bh-file-input { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; }
+.bh-file-input {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
 
 /* Honeypot — hidden from people and screen readers, present for bots */
-.bh-hp { position: absolute !important; left: -9999px !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.bh-hp {
+    position: absolute !important;
+    left: -9999px !important;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
 
 /* ---------------- Results list ---------------- */
-.bh-results-subhead { font-family: var(--bh-font-display); font-size: calc(13px * var(--bh-font-scale)); text-transform: uppercase; letter-spacing: 0.04em; color: var(--bh-text-dim); margin: calc(18px * var(--bh-space-scale)) 0 calc(6px * var(--bh-space-scale)); }
+.bh-results-subhead {
+    font-family: var(--bh-font-display);
+    font-size: calc(13px * var(--bh-font-scale));
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bh-text-dim);
+    margin: calc(18px * var(--bh-space-scale)) 0 calc(6px * var(--bh-space-scale));
+}
 .bh-results-subhead:first-child { margin-top: 0; }
-.bh-results-list { list-style: none; margin: 0; padding: 0; }
-.bh-results-list li { display: flex; align-items: center; gap: calc(14px * var(--bh-space-scale)); padding: calc(12px * var(--bh-space-scale)) 0; margin-bottom: calc(4px * var(--bh-space-scale)); border-bottom: 1px solid var(--bh-border); flex-wrap: wrap; }
-.bh-results-list li:last-child { border-bottom: none; margin-bottom: 0; }
-.bh-results-rank { font-family: var(--bh-font-display); font-weight: 700; color: var(--bh-accent); width: 32px; flex: 0 0 auto; font-size: calc(16px * var(--bh-font-scale)); text-align: center; }
-.bh-results-top { background: linear-gradient(90deg, rgba(245,166,35,0.10), transparent); border-radius: var(--bh-radius-sm); padding-left: 8px; margin-left: -8px; }
+.bh-results-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.bh-results-list li {
+    display: flex;
+    align-items: center;
+    gap: calc(14px * var(--bh-space-scale));
+    padding: calc(12px * var(--bh-space-scale)) 0;
+    margin-bottom: calc(4px * var(--bh-space-scale));
+    border-bottom: 1px solid var(--bh-border);
+    flex-wrap: wrap;
+}
+.bh-results-list li:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+.bh-results-rank {
+    font-family: var(--bh-font-display);
+    font-weight: 700;
+    color: var(--bh-accent);
+    width: 32px;
+    flex: 0 0 auto;
+    font-size: calc(16px * var(--bh-font-scale));
+    text-align: center;
+}
+.bh-results-top {
+    background: linear-gradient(90deg, rgba(245,166,35,0.10), transparent);
+    border-radius: var(--bh-radius-sm);
+    padding-left: 8px;
+    margin-left: -8px;
+}
 .bh-results-top .bh-results-rank { font-size: calc(20px * var(--bh-font-scale)); }
 .bh-results-cat {
     font-size: calc(11px * var(--bh-font-scale));
@@ -561,29 +919,63 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     flex: 0 0 auto;
     white-space: nowrap;
 }
-.bh-results-meta { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
-.bh-results-song { font-family: var(--bh-font-display); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bh-results-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); }
-.bh-results-votes { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); white-space: nowrap; flex: 0 0 auto; }
+.bh-results-meta {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.bh-results-song {
+    font-family: var(--bh-font-display);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bh-results-artist {
+    color: var(--bh-text-dim);
+    font-size: calc(12px * var(--bh-font-scale));
+}
+.bh-results-votes {
+    color: var(--bh-text-dim);
+    font-size: calc(12px * var(--bh-font-scale));
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
 .bh-results-empty { color: var(--bh-text-dim); }
 
 /* ---------------- Toast ---------------- */
 .bh-toast {
-    position: fixed; left: 50%; bottom: calc(var(--bh-bar-height) + 20px);
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--bh-bar-height) + 20px);
     transform: translateX(-50%) translateY(10px);
-    background: var(--bh-surface-2); color: var(--bh-text); padding: calc(12px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale)); border-radius: var(--bh-radius-sm);
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    padding: calc(12px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale));
+    border-radius: var(--bh-radius-sm);
     border: 1px solid var(--bh-border);
-    font-size: calc(13px * var(--bh-font-scale)); max-width: 90vw; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 10001;
+    font-size: calc(13px * var(--bh-font-scale));
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 10001;
 }
-.bh-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.bh-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
 .bh-toast.error { border-color: var(--bh-accent); }
 
 /* ---------------- Accessibility ---------------- */
 .bh-btn:focus-visible, .bh-vote-btn:focus-visible, .bh-play-pause:focus-visible,
 .bh-scrubber:focus-visible, .bh-modal-content input:focus-visible, .bh-modal-content textarea:focus-visible,
 .bh-copy-link-btn:focus-visible, .bh-pass-toggle:focus-visible {
-    outline: 2px solid var(--bh-accent-soft); outline-offset: 2px;
+    outline: 2px solid var(--bh-accent-soft);
+    outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -595,26 +987,65 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 /* ---------------- Mobile ---------------- */
 @media (max-width: 640px) {
     :root { --bh-bar-height: 74px; }
-    .bh-container { padding: 16px; padding-bottom: calc(var(--bh-bar-height) + 16px); }
+    .bh-container {
+        padding: 16px;
+        padding-bottom: calc(var(--bh-bar-height) + 16px);
+    }
     .bh-header { gap: 10px; }
     .bh-header-actions { gap: 10px; }
-    .bh-btn { padding: 8px 14px; font-size: 12px; }
-    .bh-track-row { padding: 10px 4px; gap: 12px; }
-    .bh-disc { width: 34px; height: 34px; }
+    .bh-btn {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+    .bh-track-row {
+        padding: 10px 4px;
+        gap: 12px;
+    }
+    .bh-disc {
+        width: 34px;
+        height: 34px;
+    }
     .bh-track-title { font-size: 14px; }
     .bh-track-artist { font-size: 12px; }
-    .bh-vote-btn { padding: 6px 12px; font-size: 11px; }
-    .bh-now-playing-bar { padding: 0 14px; gap: 12px; }
-    .bh-np-track { width: 30%; gap: 8px; }
-    .bh-now-playing-bar .bh-disc { width: 30px; height: 30px; }
+    .bh-vote-btn {
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+    .bh-now-playing-bar {
+        padding: 0 14px;
+        gap: 12px;
+    }
+    .bh-np-track {
+        width: 30%;
+        gap: 8px;
+    }
+    .bh-now-playing-bar .bh-disc {
+        width: 30px;
+        height: 30px;
+    }
     .bh-np-info { font-size: 11px; }
     .bh-time { display: none; }
-    .bh-scrubber::-webkit-slider-thumb { width: 16px; height: 16px; }
-    .bh-scrubber::-moz-range-thumb { width: 16px; height: 16px; }
-    .bh-play-pause { width: 40px; height: 40px; }
-    .bh-modal-content { padding: 24px; max-width: 100%; }
+    .bh-scrubber::-webkit-slider-thumb {
+        width: 16px;
+        height: 16px;
+    }
+    .bh-scrubber::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+    }
+    .bh-play-pause {
+        width: 40px;
+        height: 40px;
+    }
+    .bh-modal-content {
+        padding: 24px;
+        max-width: 100%;
+    }
     .bh-reveal-intro h1 { font-size: calc(32px * var(--bh-font-scale)); }
-    .bh-reveal-entry { padding: 12px 14px; gap: 12px; }
+    .bh-reveal-entry {
+        padding: 12px 14px;
+        gap: 12px;
+    }
     .bh-reveal-medal { font-size: calc(22px * var(--bh-font-scale)); }
 }
 
@@ -623,58 +1054,181 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 
 /* ---------------- Archive / Library ---------------- */
-.bh-archive-controls { display: flex; gap: calc(10px * var(--bh-space-scale)); margin-bottom: calc(16px * var(--bh-space-scale)); flex-wrap: wrap; }
-.bh-archive-controls input, .bh-archive-controls select {
-    padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale)); background: var(--bh-surface-2); color: var(--bh-text);
-    border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm); font-family: var(--bh-font-body); font-size: 14px;
+.bh-archive-controls {
+    display: flex;
+    gap: calc(10px * var(--bh-space-scale));
+    margin-bottom: calc(16px * var(--bh-space-scale));
+    flex-wrap: wrap;
 }
-.bh-archive-controls input { flex: 1; min-width: 200px; }
-.bh-archive-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: calc(16px * var(--bh-space-scale)); }
-.bh-archive-card { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius); padding: calc(16px * var(--bh-space-scale)); }
-.bh-archive-title { font-family: var(--bh-font-display); font-weight: 600; font-size: calc(15px * var(--bh-font-scale)); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.bh-archive-artist { color: var(--bh-text-dim); font-size: calc(12px * var(--bh-font-scale)); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bh-archive-contest { color: var(--bh-text-dim); font-size: calc(11px * var(--bh-font-scale)); margin-top: 2px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bh-archive-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: calc(6px * var(--bh-space-scale)); }
-.bh-archive-badge { font-size: calc(11px * var(--bh-font-scale)); background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-.bh-archive-audio { width: 100%; margin-top: calc(10px * var(--bh-space-scale)); }
+.bh-archive-controls input, .bh-archive-controls select {
+    padding: calc(10px * var(--bh-space-scale)) calc(12px * var(--bh-space-scale));
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    font-family: var(--bh-font-body);
+    font-size: 14px;
+}
+.bh-archive-controls input {
+    flex: 1;
+    min-width: 200px;
+}
+.bh-archive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: calc(16px * var(--bh-space-scale));
+}
+.bh-archive-card {
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius);
+    padding: calc(16px * var(--bh-space-scale));
+}
+.bh-archive-title {
+    font-family: var(--bh-font-display);
+    font-weight: 600;
+    font-size: calc(15px * var(--bh-font-scale));
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.bh-archive-artist {
+    color: var(--bh-text-dim);
+    font-size: calc(12px * var(--bh-font-scale));
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bh-archive-contest {
+    color: var(--bh-text-dim);
+    font-size: calc(11px * var(--bh-font-scale));
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bh-archive-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: calc(6px * var(--bh-space-scale));
+}
+.bh-archive-badge {
+    font-size: calc(11px * var(--bh-font-scale));
+    background: var(--bh-surface-2);
+    border: 1px solid var(--bh-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+.bh-archive-audio {
+    width: 100%;
+    margin-top: calc(10px * var(--bh-space-scale));
+}
 
 /* ---------------- Results Reveal ---------------- */
 .bh-reveal-stage {
-    min-height: 70vh; display: flex; align-items: center; justify-content: center;
+    min-height: 70vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
 }
-.bh-reveal-loading { color: var(--bh-text-dim); font-size: calc(16px * var(--bh-font-scale)); }
+.bh-reveal-loading {
+    color: var(--bh-text-dim);
+    font-size: calc(16px * var(--bh-font-scale));
+}
 .bh-reveal-kicker {
-    font-family: var(--bh-font-body); text-transform: uppercase; letter-spacing: .08em;
-    font-size: calc(13px * var(--bh-font-scale)); color: var(--bh-accent); font-weight: 700;
+    font-family: var(--bh-font-body);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    font-size: calc(13px * var(--bh-font-scale));
+    color: var(--bh-accent);
+    font-weight: 700;
     margin-bottom: calc(8px * var(--bh-space-scale));
 }
 .bh-reveal-intro h1 {
-    font-family: var(--bh-font-display); font-size: calc(48px * var(--bh-font-scale));
-    color: var(--bh-text); margin: 0; animation: bh-reveal-pop 0.5s ease;
+    font-family: var(--bh-font-display);
+    font-size: calc(48px * var(--bh-font-scale));
+    color: var(--bh-text);
+    margin: 0;
+    animation: bh-reveal-pop 0.5s ease;
 }
-.bh-reveal-subtext { color: var(--bh-text-dim); font-size: calc(15px * var(--bh-font-scale)); margin-top: calc(8px * var(--bh-space-scale)); }
-.bh-reveal-board { width: 100%; max-width: 640px; }
-.bh-reveal-entries { display: flex; flex-direction: column; gap: calc(10px * var(--bh-space-scale)); margin-top: calc(10px * var(--bh-space-scale)); }
+.bh-reveal-subtext {
+    color: var(--bh-text-dim);
+    font-size: calc(15px * var(--bh-font-scale));
+    margin-top: calc(8px * var(--bh-space-scale));
+}
+.bh-reveal-board {
+    width: 100%;
+    max-width: 640px;
+}
+.bh-reveal-entries {
+    display: flex;
+    flex-direction: column;
+    gap: calc(10px * var(--bh-space-scale));
+    margin-top: calc(10px * var(--bh-space-scale));
+}
 /* Same resting-depth baseline as .bh-judge-entry / every other surface
    this session — a non-interactive results row still shouldn't read
    flatter than everything else on the same page. */
 .bh-reveal-entry {
-    display: flex; align-items: center; gap: calc(16px * var(--bh-space-scale));
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: var(--bh-radius);
+    display: flex;
+    align-items: center;
+    gap: calc(16px * var(--bh-space-scale));
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius);
     padding: calc(16px * var(--bh-space-scale)) calc(20px * var(--bh-space-scale));
     text-align: left;
     box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
-.bh-reveal-medal { font-size: calc(28px * var(--bh-font-scale)); flex: 0 0 auto; }
-.bh-reveal-entry-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.bh-reveal-entry-title { font-family: var(--bh-font-display); font-weight: 700; font-size: calc(18px * var(--bh-font-scale)); color: var(--bh-text); }
-.bh-reveal-entry-artist { color: var(--bh-text-dim); font-size: calc(13px * var(--bh-font-scale)); }
-.bh-reveal-entry-votes { font-weight: 700; color: var(--bh-text-dim); font-size: calc(14px * var(--bh-font-scale)); flex: 0 0 auto; }
-.bh-reveal-entry-new { animation: bh-reveal-pop 0.6s ease; border-color: var(--bh-accent); }
-.bh-reveal-entry-winner { border-color: var(--bh-accent); box-shadow: 0 0 0 1px var(--bh-accent), 0 0 30px color-mix(in srgb, var(--bh-accent) 40%, transparent); }
+.bh-reveal-medal {
+    font-size: calc(28px * var(--bh-font-scale));
+    flex: 0 0 auto;
+}
+.bh-reveal-entry-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.bh-reveal-entry-title {
+    font-family: var(--bh-font-display);
+    font-weight: 700;
+    font-size: calc(18px * var(--bh-font-scale));
+    color: var(--bh-text);
+}
+.bh-reveal-entry-artist {
+    color: var(--bh-text-dim);
+    font-size: calc(13px * var(--bh-font-scale));
+}
+.bh-reveal-entry-votes {
+    font-weight: 700;
+    color: var(--bh-text-dim);
+    font-size: calc(14px * var(--bh-font-scale));
+    flex: 0 0 auto;
+}
+.bh-reveal-entry-new {
+    animation: bh-reveal-pop 0.6s ease;
+    border-color: var(--bh-accent);
+}
+.bh-reveal-entry-winner {
+    border-color: var(--bh-accent);
+    box-shadow: 0 0 0 1px var(--bh-accent), 0 0 30px color-mix(in srgb, var(--bh-accent) 40%, transparent);
+}
 .bh-reveal-entry-winner .bh-reveal-entry-votes { color: var(--bh-accent); }
 @keyframes bh-reveal-pop {
-    0% { opacity: 0; transform: scale(0.9) translateY(10px); }
-    100% { opacity: 1; transform: scale(1) translateY(0); }
+    0% {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }

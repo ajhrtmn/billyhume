@@ -11,22 +11,44 @@
    this declaration somehow isn't in scope. */
 .bhc-catalog, .bhc-catalog *,
 .bhc-course-view, .bhc-course-view *,
-.bhc-lesson, .bhc-lesson * { box-sizing: border-box; --bhc-danger: #b32d2e; }
+.bhc-lesson, .bhc-lesson * {
+    box-sizing: border-box;
+    --bhc-danger: #b32d2e;
+}
 .bhc-catalog :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
 .bhc-course-view :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li),
-.bhc-lesson :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) { margin: 0; padding: 0; list-style: none; }
-.bhc-catalog :where(a), .bhc-course-view :where(a), .bhc-lesson :where(a) { text-decoration: none; color: inherit; }
+.bhc-lesson :where(h1, h2, h3, h4, h5, h6, p, ul, ol, li) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.bhc-catalog :where(a), .bhc-course-view :where(a), .bhc-lesson :where(a) {
+    text-decoration: none;
+    color: inherit;
+}
 .bhc-catalog :where(button, input, select, textarea),
 .bhc-course-view :where(button, input, select, textarea),
 .bhc-lesson :where(button, input, select, textarea) {
-    font-family: inherit; font-size: inherit; color: inherit; line-height: normal;
-    -webkit-appearance: none; appearance: none; border-radius: 0; background: none;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    line-height: normal;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0;
+    background: none;
 }
 
 .bhc-catalog, .bhc-course-view, .bhc-lesson {
-    font-family: var(--bh-font-body); color: var(--bh-text); line-height: 1.4;
+    font-family: var(--bh-font-body);
+    color: var(--bh-text);
+    line-height: 1.4;
 }
-.bhc-empty { padding: 40px; text-align: center; color: var(--bh-text-dim); }
+.bhc-empty {
+    padding: 40px;
+    text-align: center;
+    color: var(--bh-text-dim);
+}
 
 /* ---- archive page header ----
    Real gap, caught live: .bhc-archive-header/.bhc-archive-title sit
@@ -43,17 +65,37 @@
    uppercase kicker, a confident but NOT oversized display headline,
    and a thin horizontal accent rule standing in for the era's speed-
    line motif — restrained, not a full deco pastiche. */
-.bhc-archive-header { max-width: 1200px; margin: 0 auto; padding: 40px 20px 0; box-sizing: border-box; }
+.bhc-archive-header {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px 0;
+    box-sizing: border-box;
+}
 .bhc-archive-kicker {
-    display: block; font-family: var(--bh-font-heading); font-size: 11px; font-weight: 700;
-    letter-spacing: .16em; text-transform: uppercase; color: var(--bh-accent); margin-bottom: 6px;
+    display: block;
+    font-family: var(--bh-font-heading);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--bh-accent);
+    margin-bottom: 6px;
 }
 .bhc-archive-title {
-    margin: 0; padding: 0; font-family: var(--bh-font-heading); font-size: 32px; font-weight: 700;
-    letter-spacing: -.01em; line-height: 1.15; color: var(--bh-text);
+    margin: 0;
+    padding: 0;
+    font-family: var(--bh-font-heading);
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.15;
+    color: var(--bh-text);
 }
 .bhc-archive-rule {
-    width: 64px; height: 3px; margin-top: 18px; border-radius: 2px;
+    width: 64px;
+    height: 3px;
+    margin-top: 18px;
+    border-radius: 2px;
     background: linear-gradient(90deg, var(--bh-accent) 0%, color-mix(in srgb, var(--bh-accent) 25%, transparent) 100%);
 }
 @media (max-width: 600px) {
@@ -72,7 +114,12 @@
    with a cover image + description + button stretches its shorter
    siblings into mostly-empty boxes) instead of each card sizing to its
    own content. align-items:start opts every card out of that stretch. */
-.bhc-catalog { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; align-items: start; }
+.bhc-catalog {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
 /* Depth + hover lift — derived entirely from --bh-accent/--bh-border
    (no new colors invented) rather than a flat, static card. Rest state
    gets a faint shadow so the grid reads as a stack of physical cards,
@@ -81,8 +128,13 @@
    touching layout (translateY, not a scale, so nothing shifts its
    neighbors or triggers reflow). */
 .bhc-course-card {
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
-    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
@@ -122,11 +174,19 @@
    the title, which was the actual cause of the row looking jagged even
    once cards stopped being stretched to match their tallest sibling. */
 .bhc-card-thumb {
-    position: relative; margin: -16px -16px 0; border-radius: 10px 10px 0 0; aspect-ratio: 16 / 9;
+    position: relative;
+    margin: -16px -16px 0;
+    border-radius: 10px 10px 0 0;
+    aspect-ratio: 16 / 9;
     overflow: hidden;
 }
 .bhc-card-thumb img {
-    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
     transition: transform .3s ease;
 }
 .bhc-course-card:hover .bhc-card-thumb img { transform: scale(1.05); }
@@ -150,7 +210,9 @@
    the title to guarantee contrast against any photo, fully transparent
    by the top of the image so it never looks like a flat dark bar. */
 .bhc-card-thumb-scrim {
-    position: absolute; inset: 0; z-index: 1;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
     background: linear-gradient(to top, rgba(0, 0, 0, .78) 0%, rgba(0, 0, 0, .35) 45%, transparent 85%);
 }
 /* Real bug, caught live: this used to be a flex child of .bhc-card-thumb
@@ -167,10 +229,22 @@
    overflow:hidden is what actually bounds it — no ambiguity left for
    the browser to get wrong. */
 .bhc-card-thumb-title {
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; margin: 0; padding: 14px 14px 12px; box-sizing: border-box;
-    line-height: 1.25; max-height: calc(1.25em * 2 + 26px); overflow: hidden;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    margin: 0;
+    padding: 14px 14px 12px;
+    box-sizing: border-box;
+    line-height: 1.25;
+    max-height: calc(1.25em * 2 + 26px);
+    overflow: hidden;
 }
-.bhc-card-thumb-title a { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.bhc-card-thumb-title a {
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+}
 .bhc-card-thumb-title a:hover { text-decoration: underline; }
 .bhc-card-thumb-title .bhc-lock { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
 /* font-family/size only — this h3 now always lives inside the thumb
@@ -178,7 +252,10 @@
    entirely by .bhc-card-thumb-title above (always white for contrast
    against the dark scrim); an accent-color hover here would silently
    fail legibility over a photo. */
-.bhc-course-card h3 { font-family: var(--bh-font-heading); font-size: 17px; }
+.bhc-course-card h3 {
+    font-family: var(--bh-font-heading);
+    font-size: 17px;
+}
 .bhc-course-card.bhc-locked { opacity: 0.7; }
 .bhc-lock { font-size: 13px; }
 /* min-height reserves the same vertical space a 2-line excerpt would
@@ -186,7 +263,15 @@
    doesn't visually collapse against its siblings that have one — part
    of the same "every card reads as the same considered shape" fix as
    .bhc-card-thumb/.bhc-footer-spacer above/below. */
-.bhc-excerpt { font-size: 13px; color: var(--bh-text-dim); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.8em; }
+.bhc-excerpt {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.8em;
+}
 /* margin-top:auto alone does nothing here — .bhc-course-card is an
    auto-height flex column (align-items:start on the parent grid means
    it's never stretched taller than its own content), so there's no
@@ -195,47 +280,95 @@
    view, or a locked course) from just stopping short of its siblings
    that do have one — roughly the real footer block's own height
    (6px bar + label + button) reserved either way. */
-.bhc-footer-spacer { margin-top: auto; min-height: 54px; }
+.bhc-footer-spacer {
+    margin-top: auto;
+    min-height: 54px;
+}
 
-.bhc-progress-bar { height: 6px; border-radius: 3px; background: var(--bh-border); overflow: hidden; }
+.bhc-progress-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bh-border);
+    overflow: hidden;
+}
 /* Width changes (a step/lesson completing) used to jump instantly —
    the bar is the one piece of UI visible on every single page of the
    course-taking flow, so a smooth fill reads as real, felt progress
    instead of a static number that occasionally changes. */
-.bhc-progress-fill { height: 100%; background: var(--bh-accent); transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
-.bhc-progress-label { font-size: 12px; color: var(--bh-text-dim); }
-.bhc-mastery-label { font-size: 12px; color: var(--bh-accent); font-weight: 600; margin-top: -4px; }
+.bhc-progress-fill {
+    height: 100%;
+    background: var(--bh-accent);
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.bhc-progress-label {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+}
+.bhc-mastery-label {
+    font-size: 12px;
+    color: var(--bh-accent);
+    font-weight: 600;
+    margin-top: -4px;
+}
 @media (prefers-reduced-motion: reduce) {
     .bhc-progress-fill { transition: none; }
 }
 
 /* ---- course lesson list ---- */
 .bhc-lesson-list li {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 10px 14px; border-bottom: 1px solid var(--bh-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--bh-border);
 }
 .bhc-lesson-list li a:hover { color: var(--bh-accent); }
 .bhc-lesson-list li.bhc-lesson-done { color: var(--bh-text-dim); }
-.bhc-lesson-progress { font-size: 12px; color: var(--bh-text-dim); }
+.bhc-lesson-progress {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+}
 .bhc-check { color: var(--bh-accent); }
 .bhc-lesson-list li.bhc-lesson-locked { color: var(--bh-text-dim); }
 .bhc-drip-notice { font-size: 12px; }
-.bhc-drip-locked { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; }
+.bhc-drip-locked {
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 10px;
+    padding: 20px;
+}
 
 /* ---- module/section grouping — a group with a blank title renders as
    a bare <li> (untouched pre-module-feature markup); a titled group
    wraps its lessons in a native <details>, no JS needed for the
    collapse/expand itself. Nested .bhc-lesson-list reuses every li rule
    above so a grouped lesson looks identical to an ungrouped one. */
-.bhc-lesson-list li.bhc-module-group { display: block; padding: 0; border-bottom: none; }
+.bhc-lesson-list li.bhc-module-group {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+}
 .bhc-module-group details { border-bottom: 1px solid var(--bh-border); }
 .bhc-module-title {
-    display: flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
-    padding: 10px 14px; font-family: var(--bh-font-heading); font-size: 13px; font-weight: 600;
-    color: var(--bh-text-dim); user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+    padding: 10px 14px;
+    font-family: var(--bh-font-heading);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bh-text-dim);
+    user-select: none;
 }
 .bhc-module-title::-webkit-details-marker { display: none; }
-.bhc-module-title::before { content: '▸'; font-size: 10px; transition: transform .15s ease; }
+.bhc-module-title::before {
+    content: '▸';
+    font-size: 10px;
+    transition: transform .15s ease;
+}
 .bhc-module-group details[open] > .bhc-module-title::before { transform: rotate(90deg); }
 .bhc-module-title:hover { color: var(--bh-accent); }
 .bhc-module-lesson-list li:last-child { border-bottom: none; }
@@ -257,7 +390,14 @@
    and bh-monetization-woo's .bhm-storefront-wrap already use for the
    same "this template owns its own width, don't trust the theme"
    reason — not a new invented value. */
-.bhc-catalog-wrap { display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; padding: 32px 20px; }
+.bhc-catalog-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 20px;
+}
 @media (max-width: 600px) {
     .bhc-catalog-wrap { padding: 20px 16px; }
 }
@@ -265,18 +405,56 @@
    .bh-badge component (class-style.php) — markup carries both classes;
    this file only supplies what's genuinely different from the shared
    shape (the uppercase treatment, and the border .bh-badge doesn't have). */
-.bhc-badge { text-transform: uppercase; letter-spacing: 0.02em; }
-.bhc-badge-difficulty { background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border); color: var(--bh-text-dim); }
-.bhc-difficulty-beginner { color: var(--bh-accent); border-color: var(--bh-accent); }
+.bhc-badge {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+.bhc-badge-difficulty {
+    background: var(--bh-surface-2, var(--bh-surface));
+    border: 1px solid var(--bh-border);
+    color: var(--bh-text-dim);
+}
+.bhc-difficulty-beginner {
+    color: var(--bh-accent);
+    border-color: var(--bh-accent);
+}
 .bhc-difficulty-intermediate { color: var(--bh-text); }
-.bhc-difficulty-advanced { color: var(--bh-text); font-weight: 700; }
-.bhc-card-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--bh-text-dim); flex-wrap: wrap; }
+.bhc-difficulty-advanced {
+    color: var(--bh-text);
+    font-weight: 700;
+}
+.bhc-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--bh-text-dim);
+    flex-wrap: wrap;
+}
 .bhc-card-lesson-count { color: var(--bh-text-dim); }
-.bhc-card-instructor { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--bh-text-dim); min-width: 0; }
-.bhc-card-instructor span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bhc-card-instructor {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--bh-text-dim);
+    min-width: 0;
+}
+.bhc-card-instructor span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
 .bhc-card-instructor img { border-radius: 50%; }
-.bhc-card-rating { color: var(--bh-accent); font-weight: 600; }
-.bhc-card-rating-count { color: var(--bh-text-dim); font-weight: 400; }
+.bhc-card-rating {
+    color: var(--bh-accent);
+    font-weight: 600;
+}
+.bhc-card-rating-count {
+    color: var(--bh-text-dim);
+    font-weight: 400;
+}
 /* "Buy once" catalog hint — same pill shape as .bhc-badge-difficulty
    (border + surface-2 fill), but accent-colored to read as a real,
    actionable price rather than a passive metadata tag like difficulty/
@@ -285,7 +463,11 @@
     background: color-mix(in srgb, var(--bh-accent, #C1503A) 14%, var(--bh-surface-2, var(--bh-surface)));
     border: 1px solid color-mix(in srgb, var(--bh-accent, #C1503A) 40%, transparent);
     color: var(--bh-accent, #C1503A);
-    border-radius: 999px; padding: 2px 9px; font-weight: 700; text-transform: none; letter-spacing: normal;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
 }
 .bhc-continue-btn { margin-top: auto; }
 
@@ -299,38 +481,100 @@
    badges/buttons vocabulary used everywhere else instead of introducing
    a third corner-radius value into the page. */
 .bhc-catalog-filters {
-    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-    background: var(--bh-surface-2, #f6f6f7); border: 1px solid var(--bh-border);
-    border-radius: 14px; padding: 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    background: var(--bh-surface-2, #f6f6f7);
+    border: 1px solid var(--bh-border);
+    border-radius: 14px;
+    padding: 14px 16px;
 }
 .bhc-filter-search, .bhc-filter-select {
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 999px;
-    padding: 9px 16px; font-size: 13px; color: var(--bh-text); min-width: 140px;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 999px;
+    padding: 9px 16px;
+    font-size: 13px;
+    color: var(--bh-text);
+    min-width: 140px;
     transition: border-color .15s ease, box-shadow .15s ease;
 }
 .bhc-filter-search:focus, .bhc-filter-select:focus {
-    outline: none; border-color: var(--bh-accent);
+    outline: none;
+    border-color: var(--bh-accent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent) 18%, transparent);
 }
-.bhc-filter-search { flex: 1 1 200px; min-width: 180px; }
+.bhc-filter-search {
+    flex: 1 1 200px;
+    min-width: 180px;
+}
 /* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
    lesson-step pass) — this catalog-pass version was fully shadowed by
    that later, identical-specificity rule and was dead weight. */
 
 /* ---- catalog: pagination ---- */
-.bhc-pagination { display: flex; align-items: center; justify-content: center; gap: 16px; padding-top: 8px; }
-.bhc-pagination-status { font-size: 12px; color: var(--bh-text-dim); }
+.bhc-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding-top: 8px;
+}
+.bhc-pagination-status {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+}
 /* Audit fix (2026-07-25) — numbered pagination for deep catalogs, see class-render-catalog.php. */
-.bhc-pagination-numbers { display: flex; align-items: center; gap: 4px; }
-.bhc-pagination-number { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 6px; font-size: 12px; color: var(--bh-text-dim); }
-a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-text); }
-.bhc-pagination-current { background: var(--bh-accent); color: #fff; font-weight: 600; }
-.bhc-pagination-ellipsis { color: var(--bh-text-dim); padding: 0 2px; }
+.bhc-pagination-numbers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.bhc-pagination-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--bh-text-dim);
+}
+a.bhc-pagination-number:hover {
+    background: var(--bh-surface);
+    color: var(--bh-text);
+}
+.bhc-pagination-current {
+    background: var(--bh-accent);
+    color: #fff;
+    font-weight: 600;
+}
+.bhc-pagination-ellipsis {
+    color: var(--bh-text-dim);
+    padding: 0 2px;
+}
 
 /* ---- course detail header (Section 2.7) ---- */
-.bhc-course-header { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
-.bhc-course-hero { position: relative; border-radius: 12px; overflow: hidden; min-height: 320px; }
-.bhc-course-hero img { display: block; width: 100%; height: 320px; object-fit: cover; }
+.bhc-course-header {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.bhc-course-hero {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 320px;
+}
+.bhc-course-hero img {
+    display: block;
+    width: 100%;
+    height: 320px;
+    object-fit: cover;
+}
 /* Same waveform-over-gradient treatment as the catalog card placeholder
    (.bhc-card-thumb-placeholder) — a course with no cover uploaded yet
    gets the same considered hero every other course gets, not a
@@ -343,119 +587,346 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
     background-position: center, center;
     background-repeat: no-repeat, no-repeat;
 }
-.bhc-course-hero-scrim { position: absolute; inset: 0; display: flex; align-items: flex-end; background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.25) 55%, transparent 100%); }
-.bhc-course-hero-content { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 24px; }
-.bhc-course-hero-content .bhc-course-title { color: #fff; margin: 0; }
-.bhc-course-title { font-family: var(--bh-font-heading); font-size: 28px; }
-.bhc-course-instructor-row { display: flex; align-items: center; gap: 10px; }
+.bhc-course-hero-scrim {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.25) 55%, transparent 100%);
+}
+.bhc-course-hero-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 24px;
+}
+.bhc-course-hero-content .bhc-course-title {
+    color: #fff;
+    margin: 0;
+}
+.bhc-course-title {
+    font-family: var(--bh-font-heading);
+    font-size: 28px;
+}
+.bhc-course-instructor-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 .bhc-course-instructor-row img { border-radius: 50%; }
-.bhc-course-instructor-label { display: block; font-size: 11px; color: var(--bh-text-dim); }
-.bhc-course-instructor-name { display: block; font-size: 14px; font-weight: 600; color: var(--bh-text); }
-.bhc-course-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 13px; color: var(--bh-text-dim); }
-.bhc-course-terms { display: flex; flex-wrap: wrap; gap: 6px; }
-.bhc-term { font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--bh-border); color: var(--bh-text-dim); white-space: nowrap; }
-.bhc-term-category { border-color: var(--bh-accent); color: var(--bh-accent); }
-.bhc-course-description { font-size: 14px; color: var(--bh-text); line-height: 1.6; }
+.bhc-course-instructor-label {
+    display: block;
+    font-size: 11px;
+    color: var(--bh-text-dim);
+}
+.bhc-course-instructor-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--bh-text);
+}
+.bhc-course-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+    color: var(--bh-text-dim);
+}
+.bhc-course-terms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.bhc-term {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--bh-border);
+    color: var(--bh-text-dim);
+    white-space: nowrap;
+}
+.bhc-term-category {
+    border-color: var(--bh-accent);
+    color: var(--bh-accent);
+}
+.bhc-course-description {
+    font-size: 14px;
+    color: var(--bh-text);
+    line-height: 1.6;
+}
 .bhc-course-header-cta { margin-top: 4px; }
 .bhc-syllabus-preview { margin-top: 16px; }
-.bhc-syllabus-preview h4 { font-family: var(--bh-font-heading); font-size: 15px; margin-bottom: 8px; }
+.bhc-syllabus-preview h4 {
+    font-family: var(--bh-font-heading);
+    font-size: 15px;
+    margin-bottom: 8px;
+}
 .bhc-lesson-list-preview li { color: var(--bh-text-dim); }
-.bhc-attempts-note { font-size: 13px; color: var(--bh-text-dim); margin: 8px 0; }
+.bhc-attempts-note {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin: 8px 0;
+}
 
 /* ---- ratings/reviews ---- */
 .bhc-course-rating, .bhc-stars { color: var(--bh-accent); }
-.bhc-rating-number { font-weight: 700; color: var(--bh-text); }
+.bhc-rating-number {
+    font-weight: 700;
+    color: var(--bh-text);
+}
 .bhc-rating-count { color: var(--bh-text-dim); }
-.bhc-reviews-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--bh-border); }
-.bhc-reviews-section h2 { font-family: var(--bh-font-heading); font-size: 18px; margin-bottom: 14px; }
+.bhc-reviews-section {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--bh-border);
+}
+.bhc-reviews-section h2 {
+    font-family: var(--bh-font-heading);
+    font-size: 18px;
+    margin-bottom: 14px;
+}
 
 /* Depth-of-magic Phase 4 — opt-in top-quiz-scorers leaderboard, same
    rank/name/score row shape as bh-contest's own reveal display, emoji
    medals for the top 3 rather than a new color token. */
-.bhc-leaderboard { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--bh-border); }
-.bhc-leaderboard-title { font-family: var(--bh-font-heading); font-size: 18px; margin-bottom: 14px; }
-.bhc-leaderboard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.bhc-leaderboard-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--bh-radius-sm, 8px); }
+.bhc-leaderboard {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--bh-border);
+}
+.bhc-leaderboard-title {
+    font-family: var(--bh-font-heading);
+    font-size: 18px;
+    margin-bottom: 14px;
+}
+.bhc-leaderboard-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.bhc-leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: var(--bh-radius-sm, 8px);
+}
 .bhc-leaderboard-row.bhc-leaderboard-medal { background: var(--bh-surface-2); }
-.bhc-leaderboard-rank { flex: 0 0 32px; font-weight: 700; color: var(--bh-text-dim); text-align: center; }
+.bhc-leaderboard-rank {
+    flex: 0 0 32px;
+    font-weight: 700;
+    color: var(--bh-text-dim);
+    text-align: center;
+}
 .bhc-leaderboard-medal .bhc-leaderboard-rank { font-size: 18px; }
-.bhc-leaderboard-name { flex: 1; font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bhc-leaderboard-score { font-weight: 600; color: var(--bh-accent); }
-.bhc-review-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px; }
-.bhc-review { padding: 14px 16px; border: 1px solid var(--bh-border); border-radius: var(--bh-radius-sm, 8px); background: var(--bh-surface); }
-.bhc-review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.bhc-leaderboard-name {
+    flex: 1;
+    font-size: 14px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.bhc-leaderboard-score {
+    font-weight: 600;
+    color: var(--bh-accent);
+}
+.bhc-review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.bhc-review {
+    padding: 14px 16px;
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm, 8px);
+    background: var(--bh-surface);
+}
+.bhc-review-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
 /* Shape now comes from the shared .bh-badge component — see .bhc-badge's
    comment above. This class carries no shape overrides of its own. */
-.bhc-review-badge-completed { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); }
-.bhc-review-badge-enrolled { background: var(--bh-surface-2); color: var(--bh-text-dim); }
-.bhc-review-body { font-size: 14px; color: var(--bh-text); line-height: 1.5; margin: 4px 0; }
-.bhc-review-date { font-size: 12px; color: var(--bh-text-dim); margin: 0; }
+.bhc-review-badge-completed {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    color: var(--bh-accent);
+}
+.bhc-review-badge-enrolled {
+    background: var(--bh-surface-2);
+    color: var(--bh-text-dim);
+}
+.bhc-review-body {
+    font-size: 14px;
+    color: var(--bh-text);
+    line-height: 1.5;
+    margin: 4px 0;
+}
+.bhc-review-date {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+    margin: 0;
+}
 .bhc-review-form-wrap { max-width: 480px; }
-.bhc-review-status-note { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
+.bhc-review-status-note {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin-bottom: 8px;
+}
 .bhc-review-status-rejected { color: var(--bhc-danger, #b32d2e); }
-.bhc-review-form fieldset { border: none; padding: 0; margin: 0; }
-.bhc-review-form legend { font-family: var(--bh-font-heading); font-size: 14px; font-weight: 600; margin-bottom: 8px; padding: 0; }
+.bhc-review-form fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+.bhc-review-form legend {
+    font-family: var(--bh-font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    padding: 0;
+}
 /* Star picker: real radios (native form semantics/keyboard support),
    visually reordered right-to-left with flex row-reverse so hovering/
    checking a star also visually fills every star before it — a
    right-to-left DOM order is the only way that works with a pure-CSS
    :checked ~ sibling selector, no JS needed for the fill effect. */
-.bhc-review-star-picker { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 2px; margin-bottom: 10px; }
-.bhc-review-star-choice { cursor: pointer; font-size: 22px; color: var(--bh-border); }
-.bhc-review-star-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.bhc-review-star-picker {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+.bhc-review-star-choice {
+    cursor: pointer;
+    font-size: 22px;
+    color: var(--bh-border);
+}
+.bhc-review-star-choice input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
 .bhc-review-star-choice:hover, .bhc-review-star-choice:hover ~ .bhc-review-star-choice,
 .bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked),
 .bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked) ~ .bhc-review-star-choice {
     color: var(--bh-accent);
 }
-.bhc-review-star-choice input:focus-visible + span { outline: 2px solid var(--bh-accent); outline-offset: 2px; }
+.bhc-review-star-choice input:focus-visible + span {
+    outline: 2px solid var(--bh-accent);
+    outline-offset: 2px;
+}
 .bhc-review-textarea {
-    width: 100%; box-sizing: border-box; resize: vertical; font-size: 14px; font-family: inherit;
-    padding: 10px 12px; border-radius: 6px; border: 1px solid var(--bh-border); background: var(--bh-bg, var(--bh-surface)); color: var(--bh-text);
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    font-size: 14px;
+    font-family: inherit;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--bh-border);
+    background: var(--bh-bg, var(--bh-surface));
+    color: var(--bh-text);
     margin-bottom: 10px;
 }
-.bhc-review-form-result { font-size: 13px; color: var(--bh-text-dim); margin-top: 8px; }
+.bhc-review-form-result {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin-top: 8px;
+}
 
 /* ---- persistent course breadcrumb (always visible, not gated on
    lesson completion — see .bhc-lesson-next below for the completion-
    gated "what's next" nav) ---- */
 .bhc-lesson-breadcrumb {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    font-size: 13px; color: var(--bh-text-dim); margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin-bottom: 14px;
 }
-.bhc-lesson-breadcrumb a { font-weight: 600; color: var(--bh-text); }
+.bhc-lesson-breadcrumb a {
+    font-weight: 600;
+    color: var(--bh-text);
+}
 .bhc-lesson-breadcrumb a:hover { color: var(--bh-accent); }
 .bhc-lesson-position { white-space: nowrap; }
 
 /* ---- course-page overall progress bar (unlocked, enrolled view) ---- */
-.bhc-progress-bar-large { height: 8px; margin-bottom: 4px; }
+.bhc-progress-bar-large {
+    height: 8px;
+    margin-bottom: 4px;
+}
 
 /* ---- persistent lesson-nav sidebar, shown on the lesson page next to
    the step content so a student can jump to any other lesson or see
    overall course progress without leaving the lesson ---- */
-.bhc-lesson-layout { display: flex; gap: 28px; align-items: flex-start; }
-.bhc-lesson-main { flex: 1 1 auto; min-width: 0; }
+.bhc-lesson-layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+}
+.bhc-lesson-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
 .bhc-course-sidebar {
     box-sizing: border-box; /* required — the mobile breakpoint below sets width:100% on this element, and without border-box its own padding+border would push it past the container's edge instead of being absorbed into that 100% */
-    flex: 0 0 240px; position: sticky; top: 20px;
-    background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px;
-    padding: 16px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+    flex: 0 0 240px;
+    position: sticky;
+    top: 20px;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
-.bhc-sidebar-lesson-list li a { display: block; border-radius: 4px; transition: background-color .15s ease; }
+.bhc-sidebar-lesson-list li a {
+    display: block;
+    border-radius: 4px;
+    transition: background-color .15s ease;
+}
 .bhc-sidebar-lesson-list li:not(.bhc-lesson-current) a:hover { background: var(--bh-surface-2, rgba(0, 0, 0, .03)); }
 .bhc-sidebar-course-link {
-    display: block; font-family: var(--bh-font-heading); font-weight: 600; font-size: 14px;
-    color: var(--bh-text); margin-bottom: 10px;
+    display: block;
+    font-family: var(--bh-font-heading);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--bh-text);
+    margin-bottom: 10px;
 }
 .bhc-sidebar-course-link:hover { color: var(--bh-accent); }
-.bhc-sidebar-lesson-list { margin-top: 10px; max-height: 60vh; overflow-y: auto; }
-.bhc-sidebar-lesson-list li { padding: 8px 6px; font-size: 13px; }
+.bhc-sidebar-lesson-list {
+    margin-top: 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.bhc-sidebar-lesson-list li {
+    padding: 8px 6px;
+    font-size: 13px;
+}
 /* --bh-accent-soft is a LIGHT hover-state tint in this dark theme, not
    a text-safe background — pairing it with --bh-text (near-white) gave
    ~1.4:1 contrast, nearly illegible. --bh-accent-muted-bg is the
    derived-from-accent-and-surface token built for exactly this case. */
 .bhc-sidebar-lesson-list li.bhc-lesson-current {
-    background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left: 3px solid var(--bh-accent); border-radius: 4px; font-weight: 600;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border-left: 3px solid var(--bh-accent);
+    border-radius: 4px;
+    font-weight: 600;
     padding-left: 3px;
     animation: bhc-step-in 0.35s ease both;
 }
@@ -465,7 +936,10 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    had none of that motion, reading flat/static next to it. Reusing the
    same two keyframes here instead of inventing new ones keeps the
    whole lesson-taking surface feeling like one system. */
-.bhc-lesson-list .bhc-check { display: inline-block; animation: bhc-marker-pop 0.3s ease both; }
+.bhc-lesson-list .bhc-check {
+    display: inline-block;
+    animation: bhc-marker-pop 0.3s ease both;
+}
 .bhc-module-lesson-list { animation: bhc-step-in 0.25s ease both; }
 
 @media (max-width: 780px) {
@@ -481,8 +955,15 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
        this breakpoint covers (tablet and the narrower end of desktop).
        stretch here restores full-width content without touching the
        desktop-only side-by-side behavior above this breakpoint. */
-    .bhc-lesson-layout { flex-direction: column; align-items: stretch; }
-    .bhc-course-sidebar { flex: 1 1 auto; position: static; width: 100%; }
+    .bhc-lesson-layout {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .bhc-course-sidebar {
+        flex: 1 1 auto;
+        position: static;
+        width: 100%;
+    }
     .bhc-sidebar-lesson-list { max-height: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -492,7 +973,11 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 }
 
 /* ---- lesson step walker ---- */
-.bhc-step-progress { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 8px; }
+.bhc-step-progress {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin-bottom: 8px;
+}
 
 /* Visual stepper: one dot per step, type-tagged (a small letter glyph,
    not a stock icon set this codebase doesn't otherwise pull in) so a
@@ -501,7 +986,13 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    are real buttons; everything past the current step is [disabled] —
    courses.js enforces the same "can't skip ahead" rule the per-step
    Back buttons already relied on. */
-.bhc-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.bhc-stepper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
 /* Direct request: "replace the letters with icons in the courses as
    well. Update sizes as necessary and add subtle hue hints for the
    user depending upon lesson type." Was single letters (T/I/V/Q/R/!/
@@ -515,28 +1006,65 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    background-color still drives the color — that's what makes the
    per-type hue hint below possible at all. */
 .bhc-stepper-dot {
-    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--bh-border);
-    background: var(--bh-surface); color: var(--bh-text-dim);
-    cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--bh-border);
+    background: var(--bh-surface);
+    color: var(--bh-text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
     padding: 0;
 }
 .bhc-stepper-dot::before {
     content: '';
-    width: 16px; height: 16px;
+    width: 16px;
+    height: 16px;
     background-color: var(--bhc-step-hue, var(--bh-text-dim));
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: contain; mask-size: contain;
-    -webkit-mask-image: url(../icons/step-text.svg); mask-image: url(../icons/step-text.svg);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-image: url(../icons/step-text.svg);
+    mask-image: url(../icons/step-text.svg);
 }
-.bhc-stepper-image::before { -webkit-mask-image: url(../icons/step-image.svg); mask-image: url(../icons/step-image.svg); }
-.bhc-stepper-video::before { -webkit-mask-image: url(../icons/step-video.svg); mask-image: url(../icons/step-video.svg); }
-.bhc-stepper-quiz::before { -webkit-mask-image: url(../icons/step-quiz.svg); mask-image: url(../icons/step-quiz.svg); }
-.bhc-stepper-resource::before { -webkit-mask-image: url(../icons/step-resource.svg); mask-image: url(../icons/step-resource.svg); }
-.bhc-stepper-callout::before { -webkit-mask-image: url(../icons/step-callout.svg); mask-image: url(../icons/step-callout.svg); }
-.bhc-stepper-checklist::before { -webkit-mask-image: url(../icons/step-checklist.svg); mask-image: url(../icons/step-checklist.svg); }
-.bhc-stepper-chord-chart::before { -webkit-mask-image: url(../icons/step-chord-chart.svg); mask-image: url(../icons/step-chord-chart.svg); }
-.bhc-stepper-audio-compare::before { -webkit-mask-image: url(../icons/step-audio-compare.svg); mask-image: url(../icons/step-audio-compare.svg); }
+.bhc-stepper-image::before {
+    -webkit-mask-image: url(../icons/step-image.svg);
+    mask-image: url(../icons/step-image.svg);
+}
+.bhc-stepper-video::before {
+    -webkit-mask-image: url(../icons/step-video.svg);
+    mask-image: url(../icons/step-video.svg);
+}
+.bhc-stepper-quiz::before {
+    -webkit-mask-image: url(../icons/step-quiz.svg);
+    mask-image: url(../icons/step-quiz.svg);
+}
+.bhc-stepper-resource::before {
+    -webkit-mask-image: url(../icons/step-resource.svg);
+    mask-image: url(../icons/step-resource.svg);
+}
+.bhc-stepper-callout::before {
+    -webkit-mask-image: url(../icons/step-callout.svg);
+    mask-image: url(../icons/step-callout.svg);
+}
+.bhc-stepper-checklist::before {
+    -webkit-mask-image: url(../icons/step-checklist.svg);
+    mask-image: url(../icons/step-checklist.svg);
+}
+.bhc-stepper-chord-chart::before {
+    -webkit-mask-image: url(../icons/step-chord-chart.svg);
+    mask-image: url(../icons/step-chord-chart.svg);
+}
+.bhc-stepper-audio-compare::before {
+    -webkit-mask-image: url(../icons/step-audio-compare.svg);
+    mask-image: url(../icons/step-audio-compare.svg);
+}
 
 /* The "subtle hue hints depending upon lesson type" half — one custom
    property per type, deliberately drawn from the site's own themeable
@@ -558,16 +1086,31 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-stepper-chord-chart { --bhc-step-hue: var(--bh-cat-8, var(--bh-accent)); }
 .bhc-stepper-audio-compare { --bhc-step-hue: var(--bh-cat-1, var(--bh-accent)); }
 
-.bhc-stepper-dot[disabled] { cursor: default; opacity: 0.45; }
-.bhc-stepper-dot.bhc-stepper-done { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); }
-.bhc-stepper-dot.bhc-stepper-current { border-color: var(--bh-accent); box-shadow: 0 0 0 3px var(--bh-accent-soft); }
+.bhc-stepper-dot[disabled] {
+    cursor: default;
+    opacity: 0.45;
+}
+.bhc-stepper-dot.bhc-stepper-done {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border-color: var(--bh-accent);
+}
+.bhc-stepper-dot.bhc-stepper-current {
+    border-color: var(--bh-accent);
+    box-shadow: 0 0 0 3px var(--bh-accent-soft);
+}
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
 
 /* ---- step transitions: a small, consistent "this just arrived" moment
    instead of an instant jump-cut between step/next-lesson blocks ---- */
 .bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering { animation: bhc-step-in 0.35s ease; }
-@keyframes bhc-step-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes bhc-step-in { from {
+    opacity: 0;
+    transform: translateY(8px);
+} to {
+    opacity: 1;
+    transform: none;
+} }
 @keyframes bhc-pulse { 0% { box-shadow: 0 0 0 0 var(--bh-accent-soft); } 70% { box-shadow: 0 0 0 8px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) {
     .bhc-step.bhc-step-entering, .bhc-lesson-next.bhc-step-entering, .bhc-stepper-dot.bhc-stepper-pulse { animation: none; }
@@ -590,7 +1133,15 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
    — a faint shadow so the lesson-taking surface reads as a considered,
    physical stack of content, not flat boxes with only a border to
    separate them from the page background. */
-.bhc-step { background: var(--bh-surface); border: 1px solid var(--bh-border); border-left: 4px solid var(--bh-border); border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0, 0, 0, .05); }
+.bhc-step {
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-left: 4px solid var(--bh-border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+}
 /* Scoped to the outer .bhc-step wrapper specifically — a text step's
    INNER content div is coincidentally also named .bhc-step-text (see
    render_step()'s own markup), so an unscoped rule here would double-
@@ -606,7 +1157,11 @@ a.bhc-pagination-number:hover { background: var(--bh-surface); color: var(--bh-t
 .bhc-step.bhc-step-audio-compare { border-left-color: var(--bh-accent); }
 .bhc-step-text { font-size: 15px; }
 .bhc-step-text p { margin-bottom: 12px; }
-.bhc-step-image { max-width: 100%; border-radius: 6px; margin-bottom: 8px; }
+.bhc-step-image {
+    max-width: 100%;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
 /* max-width/max-height + width/height:auto (not width:100%) is
    deliberate — it lets the video scale down to fit either constraint
    while preserving its OWN intrinsic aspect ratio, same pattern a
@@ -635,35 +1190,91 @@ video.bhc-step-video {
        height, so the browser can't do anything else) or leaves the
        native controls bar spanning a width that doesn't match the
        visible picture underneath it. */
-    display: block; max-width: 100%; max-height: 480px; width: auto; height: auto; margin: 0 auto 8px; border-radius: 6px;
+    display: block;
+    max-width: 100%;
+    max-height: 480px;
+    width: auto;
+    height: auto;
+    margin: 0 auto 8px;
+    border-radius: 6px;
     /* --bh-surface-2 (a dark shade already derived from the same accent
        family everywhere else in this design system) replaces a flat
        #000 — pure black reads as an unstyled fallback, not an
        intentional frame. */
-    background: var(--bh-surface-2); border: 1px solid var(--bh-border);
+    background: var(--bh-surface-2);
+    border: 1px solid var(--bh-border);
 }
-.bhc-step-video-embed { width: 100%; aspect-ratio: 16 / 9; border: none; border-radius: 6px; margin-bottom: 8px; }
-.bhc-step-caption { font-size: 13px; color: var(--bh-text-dim); margin-bottom: 12px; }
+.bhc-step-video-embed {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: none;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+.bhc-step-caption {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin-bottom: 12px;
+}
 
 /* ROADMAP-lms-v3.md Section 1 — interactive video overlays. The wrap
    only exists to give the overlay a positioned parent matching the
    video's own centered box, not the full step-card width. */
-.bhc-video-wrap { position: relative; display: flex; justify-content: center; }
-.bhc-video-overlay {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, 0.72); border-radius: 6px; padding: 16px;
+.bhc-video-wrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
 }
-.bhc-video-overlay-card { background: var(--bh-surface); border-radius: var(--bh-radius-sm, 8px); padding: 20px; max-width: 420px; width: 100%; text-align: center; }
-.bhc-video-overlay-question, .bhc-video-overlay-text { font-size: 15px; margin-bottom: 14px; }
-.bhc-video-overlay-choices { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+.bhc-video-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    border-radius: 6px;
+    padding: 16px;
+}
+.bhc-video-overlay-card {
+    background: var(--bh-surface);
+    border-radius: var(--bh-radius-sm, 8px);
+    padding: 20px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+}
+.bhc-video-overlay-question, .bhc-video-overlay-text {
+    font-size: 15px;
+    margin-bottom: 14px;
+}
+.bhc-video-overlay-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 4px;
+}
 .bhc-video-overlay-choice {
-    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 6px;
-    padding: 10px 14px; font-size: 14px; text-align: left; cursor: pointer; color: var(--bh-text);
+    background: var(--bh-surface-2);
+    border: 1px solid var(--bh-border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--bh-text);
 }
 .bhc-video-overlay-choice:hover:not(:disabled) { border-color: var(--bh-accent); }
 .bhc-video-overlay-choice:disabled { cursor: default; }
-.bhc-video-overlay-choice.bhc-video-overlay-correct { border-color: var(--bh-accent); background: var(--bh-accent-muted-bg, var(--bh-surface-2)); color: var(--bh-accent); font-weight: 600; }
-.bhc-video-overlay-choice.bhc-video-overlay-incorrect { border-color: var(--bhc-danger, #b32d2e); color: var(--bhc-danger, #b32d2e); }
+.bhc-video-overlay-choice.bhc-video-overlay-correct {
+    border-color: var(--bh-accent);
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    color: var(--bh-accent);
+    font-weight: 600;
+}
+.bhc-video-overlay-choice.bhc-video-overlay-incorrect {
+    border-color: var(--bhc-danger, #b32d2e);
+    color: var(--bhc-danger, #b32d2e);
+}
 .bhc-video-overlay-continue { margin-top: 12px; }
 
 /* TRL-style lower-third — non-blocking, slides in from the bottom over
@@ -671,14 +1282,32 @@ video.bhc-step-video {
    from the pausing overlay above (see courses.js's own comment on why
    it's tracked separately, not a variant of .bhc-video-overlay). */
 .bhc-video-banner {
-    position: absolute; left: 12px; right: 12px; bottom: 12px;
-    background: rgba(0, 0, 0, 0.82); color: #fff; border-radius: 6px; padding: 10px 16px;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    background: rgba(0, 0, 0, 0.82);
+    color: #fff;
+    border-radius: 6px;
+    padding: 10px 16px;
     animation: bhc-banner-in 0.3s ease;
 }
-.bhc-video-banner-text { margin: 0; font-size: 14px; }
+.bhc-video-banner-text {
+    margin: 0;
+    font-size: 14px;
+}
 .bhc-video-banner-out { animation: bhc-banner-out 0.4s ease forwards; }
-@keyframes bhc-banner-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes bhc-banner-out { to { opacity: 0; transform: translateY(12px); } }
+@keyframes bhc-banner-in { from {
+    opacity: 0;
+    transform: translateY(12px);
+} to {
+    opacity: 1;
+    transform: none;
+} }
+@keyframes bhc-banner-out { to {
+    opacity: 0;
+    transform: translateY(12px);
+} }
 @media (prefers-reduced-motion: reduce) {
     .bhc-video-banner, .bhc-video-banner-out { animation: none; }
 }
@@ -692,43 +1321,107 @@ video.bhc-step-video {
    exception: the same red (#b32d2e) this plugin's own rejected-review
    state already uses, since a safety-relevant warning genuinely needs
    to read as visually distinct from a friendly tip, not share its hue. */
-.bhc-step-callout { border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; border-left: 3px solid; }
+.bhc-step-callout {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+}
 .bhc-step-callout p:last-child { margin-bottom: 0; }
-.bhc-callout-tip { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-left-color: var(--bh-accent); }
-.bhc-callout-note { background: var(--bh-surface-2); border-left-color: var(--bh-text-dim); color: var(--bh-text-dim); }
-.bhc-callout-warning { background: rgba(179, 45, 46, 0.1); border-left-color: var(--bhc-danger, #b32d2e); }
+.bhc-callout-tip {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border-left-color: var(--bh-accent);
+}
+.bhc-callout-note {
+    background: var(--bh-surface-2);
+    border-left-color: var(--bh-text-dim);
+    color: var(--bh-text-dim);
+}
+.bhc-callout-warning {
+    background: rgba(179, 45, 46, 0.1);
+    border-left-color: var(--bhc-danger, #b32d2e);
+}
 
 /* Depth-of-magic Phase 2c — checklist/chord-chart/audio-compare, scoped
    directly from AJ's own answer on what's actually missing for THIS
    content (music production/songwriting courses). */
-.bhc-checklist-title { font-weight: 600; margin-bottom: 8px; }
-.bhc-checklist-items { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.bhc-checklist-items li label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
-.bhc-checklist-check { width: 16px; height: 16px; accent-color: var(--bh-accent); }
+.bhc-checklist-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.bhc-checklist-items {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bhc-checklist-items li label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.bhc-checklist-check {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--bh-accent);
+}
 /* A checked item reading as visually "done" (not just a ticked box) is
    the whole point of a self-check list — courses.js toggles this class
    on change (client-side only, nothing persisted, see the render
    comment on why). */
-.bhc-checklist-items li.bhc-checklist-item-checked label { color: var(--bh-text-dim); text-decoration: line-through; }
+.bhc-checklist-items li.bhc-checklist-item-checked label {
+    color: var(--bh-text-dim);
+    text-decoration: line-through;
+}
 
-.bhc-chord-chart-title { font-weight: 600; margin-bottom: 8px; }
+.bhc-chord-chart-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
 .bhc-chord-chart-content {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px; line-height: 1.6; white-space: pre; overflow-x: auto;
-    background: var(--bh-surface-2); border: 1px solid var(--bh-border); border-radius: 6px;
-    padding: 12px 16px; margin-bottom: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre;
+    overflow-x: auto;
+    background: var(--bh-surface-2);
+    border: 1px solid var(--bh-border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
 }
 
 /* Audit fix (2026-07-25) — explicit "compare these" cue, see class-render-lesson.php. */
-.bhc-audio-compare-prompt { font-size: 13px; font-weight: 600; color: var(--bh-text-dim); margin: 0 0 10px; }
+.bhc-audio-compare-prompt {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bh-text-dim);
+    margin: 0 0 10px;
+}
 .bhc-audio-compare-clip { margin-bottom: 12px; }
 .bhc-audio-compare-clip:last-of-type { margin-bottom: 8px; }
-.bhc-audio-compare-label { font-size: 13px; font-weight: 600; color: var(--bh-text-dim); margin-bottom: 4px; }
+.bhc-audio-compare-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bh-text-dim);
+    margin-bottom: 4px;
+}
 .bhc-audio-compare-clip audio { width: 100%; }
 
 .bhc-btn {
-    background: var(--bh-accent); color: var(--bh-accent-contrast, #fff); border: none;
-    border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
+    background: var(--bh-accent);
+    color: var(--bh-accent-contrast, #fff);
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
     display: inline-block;
 }
 /* --bh-accent-hover DARKENS (not --bh-accent-soft, which lightens) —
@@ -737,8 +1430,16 @@ video.bhc-step-video {
    session's ecosystem contrast audit): it made an already-marginal
    white-on-accent contrast even worse instead of better. */
 .bhc-btn:hover { background: var(--bh-accent-hover, var(--bh-accent-soft)); }
-.bhc-btn[disabled] { background: var(--bh-border); color: var(--bh-text-dim); cursor: default; }
-.bhc-btn-secondary { background: transparent; border: 1px solid var(--bh-border); color: var(--bh-text); }
+.bhc-btn[disabled] {
+    background: var(--bh-border);
+    color: var(--bh-text-dim);
+    cursor: default;
+}
+.bhc-btn-secondary {
+    background: transparent;
+    border: 1px solid var(--bh-border);
+    color: var(--bh-text);
+}
 /* Real gap closed: BHC_Gate::render_paywall_notice() previously either
    delegated entirely to bh-monetization-woo's .bhm-paywall (tier-gated
    courses) or fell back to a bare, genuinely UNSTYLED sentence
@@ -749,19 +1450,34 @@ video.bhc-step-video {
    exactly (background/border/radius/padding) for visual consistency
    between the two notice types when both render stacked together. */
 .bhc-paywall {
-    background: var(--bh-surface-2, var(--bh-surface)); border: 1px solid var(--bh-border);
-    border-radius: 8px; padding: 20px; color: var(--bh-text);
+    background: var(--bh-surface-2, var(--bh-surface));
+    border: 1px solid var(--bh-border);
+    border-radius: 8px;
+    padding: 20px;
+    color: var(--bh-text);
 }
 .bhc-paywall + .bhc-paywall { margin-top: 12px; }
 .bhc-paywall-title { margin-top: 0; }
 .bhc-btn-buy-once { margin-top: 12px; }
 .bhc-btn-secondary:hover { background: var(--bh-border); }
 
-.bhc-quiz-question { border: none; margin-bottom: 16px; }
-.bhc-quiz-question legend { font-weight: 600; margin-bottom: 8px; }
+.bhc-quiz-question {
+    border: none;
+    margin-bottom: 16px;
+}
+.bhc-quiz-question legend {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
 .bhc-quiz-choice {
-    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer;
-    border: 1px solid transparent; transition: background-color 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .bhc-quiz-choice:hover { background: var(--bh-border); }
 /* The native radio's own default rendering is browser-chrome gray at a
@@ -770,7 +1486,12 @@ video.bhc-step-video {
    background tint alone as the only "did my click register" signal.
    accent-color ties the actual radio dot to the site's own accent so
    picking a choice reads as a deliberate action, not a guess. */
-.bhc-quiz-choice input[type="radio"] { accent-color: var(--bh-accent); width: 16px; height: 16px; flex-shrink: 0; }
+.bhc-quiz-choice input[type="radio"] {
+    accent-color: var(--bh-accent);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
 /* :has(input:checked) is the only signal a plain radio+label gives us —
    there's no JS-added "selected" class, so the checked state itself has
    to drive the persistent highlight. --bh-accent-muted-bg (not
@@ -779,14 +1500,27 @@ video.bhc-step-video {
    chosen accent color. A real border (not just the background tint)
    makes the selected choice readable at a glance instead of requiring
    a close look to spot the faint fill difference. */
-.bhc-quiz-choice:has(input:checked) { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
+.bhc-quiz-choice:has(input:checked) {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border-color: var(--bh-accent);
+    font-weight: 600;
+}
 /* JS-added fallback for browsers without :has() support (older Firefox
    in particular) — courses.js toggles this on change so a selection
    still visibly highlights even without the CSS relational selector.
    Kept identical to the rule above; :has() just paints it instantly
    without waiting on the change event to fire. */
-.bhc-quiz-choice.bhc-selected { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); border-color: var(--bh-accent); font-weight: 600; }
-.bhc-quiz-result { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+.bhc-quiz-choice.bhc-selected {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border-color: var(--bh-accent);
+    font-weight: 600;
+}
+.bhc-quiz-result {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+}
 .bhc-quiz-result.bhc-fail { background: var(--bh-border); }
 .bhc-quiz-continue { display: inline-block; }
 /* Kept for the one remaining plain usage: the quiz FORM's own inline
@@ -794,7 +1528,10 @@ video.bhc-step-video {
    render_step()'s quiz branch) — a degraded-case note, not the review
    banner below, so it stays a plain accent-colored line rather than
    getting the full card treatment. */
-.bhc-quiz-passed-note { color: var(--bh-accent); font-weight: 600; }
+.bhc-quiz-passed-note {
+    color: var(--bh-accent);
+    font-weight: 600;
+}
 
 /* Passing a quiz is the one step type with real stakes (attempts,
    scoring) already built in, so it gets its own visual register — a
@@ -807,44 +1544,101 @@ video.bhc-step-video {
    so a student sees the identical moment whether they just passed or
    are looking at an old pass. */
 .bhc-quiz-result.bhc-pass {
-    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
-    padding: 20px 16px; background: var(--bh-accent-muted-bg, var(--bh-surface-2));
-    border: 1px solid var(--bh-accent); border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    padding: 20px 16px;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    border: 1px solid var(--bh-accent);
+    border-radius: 10px;
 }
-.bhc-quiz-pass-icon { font-size: 26px; line-height: 1; color: var(--bh-accent); margin-bottom: 2px; }
-.bhc-quiz-pass-score { font-size: 16px; font-weight: 600; margin: 0; }
-.bhc-quiz-pass-sub { font-size: 13px; color: var(--bh-text-dim); margin: 0; }
+.bhc-quiz-pass-icon {
+    font-size: 26px;
+    line-height: 1;
+    color: var(--bh-accent);
+    margin-bottom: 2px;
+}
+.bhc-quiz-pass-score {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+.bhc-quiz-pass-sub {
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    margin: 0;
+}
 
 /* ---- quiz per-question review/breakdown ---- */
 .bhc-quiz-review { margin-top: 8px; }
 .bhc-quiz-question-review {
-    border: 1px solid var(--bh-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+    border: 1px solid var(--bh-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
 }
 .bhc-quiz-question-review.bhc-q-correct { border-color: var(--bh-accent); }
 .bhc-quiz-question-review.bhc-q-incorrect { border-color: var(--bh-text-dim); }
 .bhc-quiz-choice-review {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 6px 10px; border-radius: 6px; margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-top: 4px;
 }
-.bhc-quiz-choice-review.bhc-correct { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); font-weight: 600; }
-.bhc-quiz-choice-review.bhc-choice-incorrect { background: var(--bh-border); text-decoration: line-through; opacity: 0.85; }
-.bhc-choice-marker { font-size: 12px; color: var(--bh-text-dim); white-space: nowrap; }
+.bhc-quiz-choice-review.bhc-correct {
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    font-weight: 600;
+}
+.bhc-quiz-choice-review.bhc-choice-incorrect {
+    background: var(--bh-border);
+    text-decoration: line-through;
+    opacity: 0.85;
+}
+.bhc-choice-marker {
+    font-size: 12px;
+    color: var(--bh-text-dim);
+    white-space: nowrap;
+}
 .bhc-quiz-choice-review.bhc-correct .bhc-choice-marker { color: var(--bh-accent); }
 /* The right/wrong verdict is the one piece of feedback a student
    actually came here for after submitting — it used to just appear
    with the rest of the breakdown at once. A small pop-in gives that
    specific piece of information its own beat instead of blending into
    the whole block rendering simultaneously. */
-.bhc-quiz-choice-review .bhc-choice-marker { display: inline-block; animation: bhc-marker-pop 0.3s ease 0.1s both; }
-@keyframes bhc-marker-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+.bhc-quiz-choice-review .bhc-choice-marker {
+    display: inline-block;
+    animation: bhc-marker-pop 0.3s ease 0.1s both;
+}
+@keyframes bhc-marker-pop { from {
+    opacity: 0;
+    transform: scale(0.6);
+} to {
+    opacity: 1;
+    transform: scale(1);
+} }
 @media (prefers-reduced-motion: reduce) {
     .bhc-quiz-choice-review .bhc-choice-marker { animation: none; }
 }
 
 /* ---- continue / next-lesson navigation ---- */
 .bhc-course-cta { margin-bottom: 16px; }
-.bhc-lesson-next { background: var(--bh-surface); border: 1px solid var(--bh-border); border-radius: 10px; padding: 20px; text-align: center; }
-.bhc-course-complete { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.bhc-lesson-next {
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+}
+.bhc-course-complete {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
 .bhc-step-back { margin-right: 8px; }
 
 /* Finishing a lesson (not the whole course — that's .bhc-completion
@@ -856,9 +1650,15 @@ video.bhc-step-video {
    competing with .bhc-completion's gradient treatment, since this
    happens far more often and shouldn't be exhausting to see repeatedly. */
 .bhc-lesson-complete-banner {
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    background: var(--bh-accent); color: var(--bh-accent-contrast, #fff);
-    border-radius: 10px; padding: 24px 20px; margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: var(--bh-accent);
+    color: var(--bh-accent-contrast, #fff);
+    border-radius: 10px;
+    padding: 24px 20px;
+    margin-bottom: 16px;
     /* position:relative so courses.js's confetti pieces (absolutely
        positioned at 50%/50% of their nearest positioned ancestor) anchor
        to THIS banner's own center — without it they'd anchor to whatever
@@ -866,7 +1666,8 @@ video.bhc-step-video {
        viewport, if none), landing nowhere near the actual moment.
        overflow:visible so a piece thrown past the banner's own edge
        isn't clipped by its border-radius. */
-    position: relative; overflow: visible;
+    position: relative;
+    overflow: visible;
 }
 /* A distinct entrance for this specific banner, on top of the generic
    fade-up every .bhc-step-entering block already gets (that animates
@@ -878,14 +1679,27 @@ video.bhc-step-video {
    not a mechanical scale-up. */
 .bhc-lesson-complete-banner.bhc-banner-pop { animation: bhc-banner-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @keyframes bhc-banner-pop {
-    0% { opacity: 0; transform: scale(0.85); }
-    60% { opacity: 1; transform: scale(1.06); }
-    100% { opacity: 1; transform: scale(1); }
+    0% {
+        opacity: 0;
+        transform: scale(0.85);
+    }
+    60% {
+        opacity: 1;
+        transform: scale(1.06);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .bhc-lesson-complete-banner.bhc-banner-pop { animation: none; }
 }
-.bhc-lesson-complete-icon { font-size: 30px; line-height: 1; margin-bottom: 2px; }
+.bhc-lesson-complete-icon {
+    font-size: 30px;
+    line-height: 1;
+    margin-bottom: 2px;
+}
 /* Consistency fix: every other "moment" title in this file
    (.bhc-completion-title, .bhc-orientation-title, .bhc-course-title)
    uses the heading typeface, not the body font — this one was left
@@ -894,14 +1708,28 @@ video.bhc-step-video {
    than staying smaller than it: orientation is a calm, one-time setup
    beat by its own design intent, so the recurring PAYOFF here shouldn't
    read as quieter than it. */
-.bhc-lesson-complete-title { font-family: var(--bh-font-heading); font-size: 20px; font-weight: 600; margin: 0; }
-.bhc-lesson-complete-stats { font-size: 13px; opacity: 0.85; margin: 0; }
+.bhc-lesson-complete-title {
+    font-family: var(--bh-font-heading);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+}
+.bhc-lesson-complete-stats {
+    font-size: 13px;
+    opacity: 0.85;
+    margin: 0;
+}
 /* Back/Next grouped in one row under the banner (same shape as
    .bhc-completion-actions below) rather than each button carrying its
    own stacked margin-top — .bhc-btn's default margin-top is meant for a
    lone button sitting under prose, not a pair that should read as one
    action group. */
-.bhc-lesson-next-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.bhc-lesson-next-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
 .bhc-lesson-next-actions .bhc-btn { margin-top: 0; }
 /* .bhc-step-back's own margin-right:8px (below, in the lesson step
    walker section) is meant for a LONE back button with nothing after
@@ -923,11 +1751,19 @@ video.bhc-step-video {
    here, no margin-top there) — the two read as one fused shape instead
    of a card followed by a separate progress element. */
 .bhc-completion {
-    text-align: center; padding: 4px; position: relative; overflow: visible;
+    text-align: center;
+    padding: 4px;
+    position: relative;
+    overflow: visible;
     background: linear-gradient(135deg, var(--bh-accent), var(--bh-accent-soft));
-    border-radius: 14px; margin-bottom: 24px;
+    border-radius: 14px;
+    margin-bottom: 24px;
 }
-.bhc-completion > * { background: var(--bh-surface); position: relative; z-index: 1; }
+.bhc-completion > * {
+    background: var(--bh-surface);
+    position: relative;
+    z-index: 1;
+}
 
 /* One-shot confetti burst (courses.js fires this on page load only when
    .bhc-completion is actually present — a student passing THIS specific
@@ -937,45 +1773,141 @@ video.bhc-step-video {
    positioned relative to .bhc-completion itself so it reads as coming
    from the card, not floating randomly on the page. */
 .bhc-confetti-piece {
-    position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; z-index: 0;
-    background: var(--bh-accent); border-radius: 2px; pointer-events: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    z-index: 0;
+    background: var(--bh-accent);
+    border-radius: 2px;
+    pointer-events: none;
     animation: bhc-confetti-fly 1.1s cubic-bezier(0.12, 0.68, 0.32, 1) forwards;
     opacity: 0;
 }
 @keyframes bhc-confetti-fly {
-    0% { opacity: 1; transform: translate(-50%, -50%) rotate(0deg); }
-    100% { opacity: 0; transform: translate(calc(-50% + var(--bhc-confetti-x, 0px)), calc(-50% + var(--bhc-confetti-y, 60px))) rotate(var(--bhc-confetti-r, 180deg)); }
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--bhc-confetti-x, 0px)), calc(-50% + var(--bhc-confetti-y, 60px))) rotate(var(--bhc-confetti-r, 180deg));
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .bhc-confetti-piece { display: none; }
 }
-.bhc-completion-eyebrow { font-size: 13px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; padding: 20px 20px 0; border-radius: 12px 12px 0 0; margin: 0; }
-.bhc-completion-title { font-family: var(--bh-font-heading); font-size: 22px; padding: 4px 20px 16px; margin: 0; }
-.bhc-completion-card { display: block; width: 100%; height: auto; }
-.bhc-completion-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px 20px; border-radius: 0 0 12px 12px; }
+.bhc-completion-eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bh-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 20px 20px 0;
+    border-radius: 12px 12px 0 0;
+    margin: 0;
+}
+.bhc-completion-title {
+    font-family: var(--bh-font-heading);
+    font-size: 22px;
+    padding: 4px 20px 16px;
+    margin: 0;
+}
+.bhc-completion-card {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.bhc-completion-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 20px;
+    border-radius: 0 0 12px 12px;
+}
 
 /* render_completion_screen()'s own additions (course page + lesson-page
    final-step reveal both use this): stats row, badge, share-card preview,
    next-steps line. Same '.bhc-completion > *' background/z-index rule
    above already applies to every one of these as direct children. */
-.bhc-completion-badge { font-size: 40px; line-height: 1; padding: 24px 20px 0; border-radius: 12px 12px 0 0; }
-.bhc-completion-sub { font-size: 14px; color: var(--bh-text-dim); padding: 0 20px 4px; margin: 0; }
-.bhc-completion-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; padding: 8px 20px 4px; }
-.bhc-completion-stat { display: flex; flex-direction: column; align-items: center; }
-.bhc-completion-stat-num { font-family: var(--bh-font-heading); font-size: 24px; font-weight: 700; color: var(--bh-accent); }
-.bhc-completion-stat-label { font-size: 11px; color: var(--bh-text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
-.bhc-completion-share-preview { display: block; width: 100%; height: auto; }
-.bhc-completion-next-steps { font-size: 13px; padding: 0 20px 18px; }
+.bhc-completion-badge {
+    font-size: 40px;
+    line-height: 1;
+    padding: 24px 20px 0;
+    border-radius: 12px 12px 0 0;
+}
+.bhc-completion-sub {
+    font-size: 14px;
+    color: var(--bh-text-dim);
+    padding: 0 20px 4px;
+    margin: 0;
+}
+.bhc-completion-stats {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    padding: 8px 20px 4px;
+}
+.bhc-completion-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.bhc-completion-stat-num {
+    font-family: var(--bh-font-heading);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--bh-accent);
+}
+.bhc-completion-stat-label {
+    font-size: 11px;
+    color: var(--bh-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.bhc-completion-share-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.bhc-completion-next-steps {
+    font-size: 13px;
+    padding: 0 20px 18px;
+}
 
 /* ---- enrollment orientation: the queue's real starting line, shown
    once. A quieter surface than the completion moment's gradient ring —
    this is a setup beat, not a payoff, so it stays visually calmer
    (plain surface, accent left-border) rather than competing with the
    completion screen's own visual weight. ---- */
-.bhc-orientation { background: var(--bh-surface); border-left: 3px solid var(--bh-accent); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
-.bhc-orientation-eyebrow { font-size: 12px; font-weight: 600; color: var(--bh-accent); text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
-.bhc-orientation-title { font-family: var(--bh-font-heading); font-size: 20px; margin: 2px 0 10px; }
-.bhc-orientation-description { font-size: 14px; color: var(--bh-text-dim); margin-bottom: 12px; }
+.bhc-orientation {
+    background: var(--bh-surface);
+    border-left: 3px solid var(--bh-accent);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+}
+.bhc-orientation-eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bh-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+}
+.bhc-orientation-title {
+    font-family: var(--bh-font-heading);
+    font-size: 20px;
+    margin: 2px 0 10px;
+}
+.bhc-orientation-description {
+    font-size: 14px;
+    color: var(--bh-text-dim);
+    margin-bottom: 12px;
+}
 .bhc-orientation-syllabus { margin-bottom: 14px; }
 .bhc-orientation-start { display: inline-block; }
 
@@ -993,8 +1925,15 @@ video.bhc-step-video {
 @media (max-width: 480px) {
     .bhc-step { padding: 14px; }
     .bhc-step-video { max-height: 220px; }
-    .bhc-stepper-dot { width: 32px; height: 32px; font-size: 12px; } /* larger tap target, not just a smaller desktop dot shrunk further */
-    .bhc-btn { width: 100%; text-align: center; }
+    .bhc-stepper-dot {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+    } /* larger tap target, not just a smaller desktop dot shrunk further */
+    .bhc-btn {
+        width: 100%;
+        text-align: center;
+    }
     .bhc-lesson-next { padding: 14px; }
     /* Direct-child selector, not .bhc-lesson-next .bhc-btn — a lone
        "Back to lesson" button (the course-completion branch, a direct
@@ -1003,6 +1942,14 @@ video.bhc-step-video {
        level deeper, and already get consistent spacing from that row's
        own gap:10px. An unscoped rule here doubled up with that gap. */
     .bhc-lesson-next > .bhc-btn { margin-top: 8px; }
-    .bhc-quiz-choice-review { flex-direction: column; align-items: flex-start; gap: 2px; }
-    .bhc-lesson-breadcrumb { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .bhc-quiz-choice-review {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+    .bhc-lesson-breadcrumb {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
 }

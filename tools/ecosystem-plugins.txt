@@ -1,0 +1,24 @@
+# The ecosystem's OWN plugin folders — the only ones any tool here may modify.
+#
+# WHY this file exists: twice in one session a shell glob like
+# wp-content/plugins/*/assets/css/*.css reached third-party code —
+# WooCommerce's stylesheets and Advanced Media Offloader's plugin header.
+# Both are gitignored, so git could not revert either. One canonical list,
+# read by every tool, is the fix; a per-script allowlist is the bug.
+#
+# Deliberately matches deploy-ftp.yml's PLUGIN_FOLDERS plus the admin skin.
+# Keep the two in step.
+own-ur-shit
+bh-contest
+bh-courses
+bh-crm
+bh-feedback
+bh-live
+bh-mailpoet
+bh-monetization-woo
+bh-registry
+bh-social
+bh-streaming
+bh-tickets
+bh-video
+self-hosted-self-admin-skin
