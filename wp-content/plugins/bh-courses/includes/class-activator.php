@@ -121,7 +121,7 @@ class BHC_Activator {
         // steps array at the time it was completed — see class-steps.php.
         // score/passed are only ever set for quiz steps; NULL for a
         // plain text/image step (there's nothing to score).
-        $progress = $wpdb->prefix . 'bhc_progress';
+        $progress = BHC_Tables::progress();
         $sql = "CREATE TABLE $progress (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -171,7 +171,7 @@ class BHC_Activator {
         // already tracks. A course a student never actually opens never
         // gets a row — same "record it when it actually happens, not
         // speculatively" approach bhm_play_log uses for plays.
-        $enroll = $wpdb->prefix . 'bhc_enrollments';
+        $enroll = BHC_Tables::enrollments();
         $sql2 = "CREATE TABLE $enroll (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -190,7 +190,7 @@ class BHC_Activator {
         // own UNIQUE KEY is what actually enforces "only once," not an
         // application-level check — same atomic-write-decides approach
         // BHM_Wallet::debit() uses instead of a read-then-write race.
-        $completions = $wpdb->prefix . 'bhc_completions';
+        $completions = BHC_Tables::completions();
         $sql3 = "CREATE TABLE $completions (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -224,7 +224,7 @@ class BHC_Activator {
         // "I'd completed it when I said this," and doesn't retroactively
         // gain or lose that badge if their completion record is ever
         // reset/edited after the fact.
-        $reviews = $wpdb->prefix . 'bhc_reviews';
+        $reviews = BHC_Tables::reviews();
         $sql4 = "CREATE TABLE $reviews (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -250,7 +250,7 @@ class BHC_Activator {
         // since MySQL treats every NULL in a unique index as distinct
         // from every other NULL, letting the same global achievement be
         // inserted for the same user more than once.
-        $achievements = $wpdb->prefix . 'bhc_achievements';
+        $achievements = BHC_Tables::achievements();
         $sql5 = "CREATE TABLE $achievements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,

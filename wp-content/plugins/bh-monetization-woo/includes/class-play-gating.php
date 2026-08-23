@@ -88,7 +88,7 @@ class BHM_PlayGating {
         global $wpdb;
         $cutoff = gmdate('Y-m-d H:i:s', time() - self::VELOCITY_WINDOW_SECONDS);
         $recent_paid_plays = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_play_log WHERE user_id = %d AND paid = 1 AND created_at > %s",
+            "SELECT COUNT(*) FROM " . BHM_Tables::play_log() . " WHERE user_id = %d AND paid = 1 AND created_at > %s",
             $user_id, $cutoff
         ));
         if ($recent_paid_plays < self::VELOCITY_THRESHOLD) return;
@@ -116,7 +116,7 @@ class BHM_PlayGating {
 
     private static function log_play(int $user_id, int $track_id, bool $paid, int $cents): void {
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhm_play_log', [
+        $wpdb->insert(BHM_Tables::play_log(), [
             'user_id' => $user_id ?: 0, 'track_id' => $track_id, 'paid' => $paid ? 1 : 0, 'cents' => $cents,
         ]);
     }

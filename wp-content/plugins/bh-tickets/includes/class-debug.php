@@ -42,11 +42,11 @@ class BHT_Debug {
         $test_ids = $wpdb->get_col("SELECT user_id FROM {$wpdb->usermeta} WHERE meta_key = 'bhcore_is_test'");
         if (!$test_ids) return 'Nothing to reset.';
         $placeholders = implode(',', array_fill(0, count($test_ids), '%d'));
-        $ticket_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}bhtickets_tickets WHERE user_id IN ($placeholders)", ...$test_ids));
+        $ticket_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM " . BHT_Tables::tickets() . " WHERE user_id IN ($placeholders)", ...$test_ids));
         if ($ticket_ids) {
             $ph = implode(',', array_fill(0, count($ticket_ids), '%d'));
-            $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhtickets_replies WHERE ticket_id IN ($ph)", ...$ticket_ids));
-            $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhtickets_tickets WHERE id IN ($ph)", ...$ticket_ids));
+            $wpdb->query($wpdb->prepare("DELETE FROM " . BHT_Tables::replies() . " WHERE ticket_id IN ($ph)", ...$ticket_ids));
+            $wpdb->query($wpdb->prepare("DELETE FROM " . BHT_Tables::tickets() . " WHERE id IN ($ph)", ...$ticket_ids));
         }
         return 'Removed ' . count($ticket_ids) . ' test ticket(s).';
     }

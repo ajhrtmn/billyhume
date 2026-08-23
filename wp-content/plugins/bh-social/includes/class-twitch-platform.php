@@ -327,7 +327,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
         if (empty($s['broadcaster_id'])) return new WP_Error('not_connected', 'Twitch isn\'t connected yet.');
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $now = current_time('mysql', true);
 
         $followers = $this->helix_request('GET', '/channels/followers?broadcaster_id=' . urlencode($s['broadcaster_id']));
@@ -350,7 +350,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
     /** @return array<string, array<string, mixed>> */
     public static function latest_stats(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT t1.metric_key, t1.metric_value, t1.recorded_at FROM $table t1
              INNER JOIN (SELECT metric_key, MAX(recorded_at) AS max_recorded FROM $table WHERE platform = %s GROUP BY metric_key) t2

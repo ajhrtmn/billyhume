@@ -19,7 +19,7 @@ class BHS_Likes {
 
     public static function get_liked(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhs_likes';
+        $t = BHS_Tables::likes();
         $uid = get_current_user_id();
         $ids = $wpdb->get_col($wpdb->prepare("SELECT track_id FROM $t WHERE user_id = %d ORDER BY created_at DESC", $uid));
         return new WP_REST_Response(['success' => true, 'track_ids' => array_map('intval', $ids)], 200);
@@ -32,7 +32,7 @@ class BHS_Likes {
     /** @return \WP_REST_Response|\WP_Error */
     public static function toggle_like(\WP_REST_Request $req) {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhs_likes';
+        $t = BHS_Tables::likes();
         $uid = get_current_user_id();
         $track_id = (int) $req->get_param('track_id');
         if (get_post_type($track_id) !== 'bhs_track') return new WP_Error('not_found', 'Track not found.', ['status' => 404]);
@@ -51,7 +51,7 @@ class BHS_Likes {
 
     public static function count_for_track(int $track_id): int {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhs_likes';
+        $t = BHS_Tables::likes();
         return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE track_id = %d", $track_id));
     }
 }

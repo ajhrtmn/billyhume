@@ -56,8 +56,7 @@ class OUS_Notifications {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_notifications';
+        return OUS_Tables::notifications();
     }
 
     // Bounded-growth cap — this table has no other trim/expiry path

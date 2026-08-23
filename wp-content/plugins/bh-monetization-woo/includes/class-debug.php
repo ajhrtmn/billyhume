@@ -110,7 +110,7 @@ class BHM_Debug {
 
         if (class_exists('BHM_Gifts')) {
             global $wpdb;
-            $t = $wpdb->prefix . BHM_Gifts::TABLE;
+            $t = BHM_Tables::gift_redemptions();
             $recent = $wpdb->get_results("SELECT * FROM $t ORDER BY id DESC LIMIT 5", ARRAY_A);
             if ($recent) {
                 echo '<h4>Recent gift redemptions</h4>';
@@ -197,7 +197,7 @@ class BHM_Debug {
                 // shared path the CRM's manual revoke button and the
                 // refund-simulation button below use.
                 $rows = $wpdb->get_results($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d AND type IN ('streaming_tier','subscription')", $uid
+                    "SELECT id FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d AND type IN ('streaming_tier','subscription')", $uid
                 ));
                 foreach ($rows as $row) BHM_Products::revoke_entitlement_by_id($row->id, 'debug_revoke_all');
                 return count($rows) . ' tier/subscription entitlement(s) removed for your account (via the real revoke path — event fired + notification sent for each).';
@@ -223,10 +223,10 @@ class BHM_Debug {
                 // reverse exactly that one, the same way a real
                 // refund/cancellation webhook would.
                 $last_ent = $wpdb->get_row($wpdb->prepare(
-                    "SELECT * FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d ORDER BY created_at DESC LIMIT 1", $uid
+                    "SELECT * FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d ORDER BY created_at DESC LIMIT 1", $uid
                 ));
                 $last_credit = $wpdb->get_row($wpdb->prepare(
-                    "SELECT * FROM {$wpdb->prefix}bhm_wallet_ledger WHERE user_id = %d AND delta_cents > 0 ORDER BY created_at DESC LIMIT 1", $uid
+                    "SELECT * FROM " . BHM_Tables::wallet_ledger() . " WHERE user_id = %d AND delta_cents > 0 ORDER BY created_at DESC LIMIT 1", $uid
                 ));
                 if ($last_ent && (!$last_credit || strtotime($last_ent->created_at) >= strtotime($last_credit->created_at))) {
                     // Now genuinely the same code path a real refund
@@ -328,7 +328,7 @@ class BHM_Debug {
     private static function user_mock_subscription_id(int $user_id): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT wc_subscription_id FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d AND wc_subscription_id >= 900001 ORDER BY id DESC LIMIT 1",
+            "SELECT wc_subscription_id FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d AND wc_subscription_id >= 900001 ORDER BY id DESC LIMIT 1",
             $user_id
         ));
     }
@@ -347,7 +347,7 @@ class BHM_Debug {
             wp_delete_post($id, true);
         }
 
-        $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhm_wallet_ledger WHERE reason LIKE %s", $like));
+        $wpdb->query($wpdb->prepare("DELETE FROM " . BHM_Tables::wallet_ledger() . " WHERE reason LIKE %s", $like));
 
         $removed_products = 0;
         if (post_type_exists('product')) {

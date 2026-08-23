@@ -88,7 +88,7 @@ class BHCRM_TestSuite {
         $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_upload($card_id, 0, 1), 'add_upload() rejects a zero/missing attachment id');
 
         // Cleanup
-        $wpdb->delete($wpdb->prefix . 'bhcrm_project_attachments', ['card_placement_id' => $card_id]);
+        $wpdb->delete(BHCRM_Tables::project_attachments(), ['card_placement_id' => $card_id]);
 
         return $rows;
     }
@@ -142,8 +142,8 @@ class BHCRM_TestSuite {
         $rows[] = OUS_TestRunner::assert_false((bool) BHCRM_CardLog::add_feedback($card_id, 'Someone', ''), 'add_feedback() rejects an empty note rather than logging a blank row');
 
         // Cleanup
-        $wpdb->delete($wpdb->prefix . 'bhcrm_project_fixes', ['card_placement_id' => $card_id]);
-        $wpdb->delete($wpdb->prefix . 'bhcrm_project_feedback', ['card_placement_id' => $card_id]);
+        $wpdb->delete(BHCRM_Tables::project_fixes(), ['card_placement_id' => $card_id]);
+        $wpdb->delete(BHCRM_Tables::project_feedback(), ['card_placement_id' => $card_id]);
 
         return $rows;
     }
@@ -168,7 +168,7 @@ class BHCRM_TestSuite {
         ]);
         $rows[] = OUS_TestRunner::assert_true($card_id > 0, 'A real bh/sticky-card placement is created via save_placement()');
 
-        $moves_table = $wpdb->prefix . 'bhcrm_project_card_moves';
+        $moves_table = BHCRM_Tables::project_card_moves();
         $initial_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $moves_table WHERE card_placement_id = %d", $card_id));
         $rows[] = OUS_TestRunner::assert_same(1, $initial_count, 'Creating a card logs exactly one initial move row (its starting column)');
 

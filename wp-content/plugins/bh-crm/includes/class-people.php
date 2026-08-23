@@ -503,7 +503,6 @@ add_filter('bhcore_metrics_widgets', function ($widgets) {
     if (!class_exists('OUS_Metrics')) return $widgets;
 
     $widgets[] = ['source' => 'BH CRM', 'render' => function () {
-        global $wpdb;
         $people = count(apply_filters('bh_crm_active_user_ids', []));
         OUS_Metrics::render_card('People tracked', $people, 'Total, all-time');
     }];

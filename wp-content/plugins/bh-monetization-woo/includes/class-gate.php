@@ -65,7 +65,7 @@ class BHM_Gate {
     public static function user_owns_object(int $user_id, int $object_id): bool {
         if (!$user_id || !$object_id) return false;
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         return (bool) (int) $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type = 'purchase' AND object_id = %d", $user_id, $object_id
         ));
@@ -82,7 +82,7 @@ class BHM_Gate {
         if (!$user_id) return apply_filters('bhm_extra_entitlement_check', false, 0, $required_tier, $object_id);
 
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $now = current_time('mysql');
 
         // Any tier/subscription entitlement at or above the tiers price
@@ -137,7 +137,7 @@ class BHM_Gate {
         $tier_ids = BHM_Tiers::ids_granting_benefit($benefit_key);
         if ($tier_ids) {
             global $wpdb;
-            $t = $wpdb->prefix . 'bhm_entitlements';
+            $t = BHM_Tables::entitlements();
             $now = current_time('mysql');
             $placeholders = implode(',', array_fill(0, count($tier_ids), '%d'));
             $sql = "SELECT COUNT(*) FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier')

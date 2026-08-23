@@ -576,7 +576,7 @@ class BHCRM_Subtasks {
         return $card;
     }
 
-    /** @param array<int, string> $path */
+    /** @param array<int, string> $path     */
     private static function redirect_back(int $project_id, int $uid, int $card_id, array $path): void {
         wp_safe_redirect(self::base_url($project_id, $uid, $card_id) . '&subtask_path=' . urlencode(self::path_to_string($path)));
         exit;

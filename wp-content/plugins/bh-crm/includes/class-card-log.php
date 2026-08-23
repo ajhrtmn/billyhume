@@ -61,18 +61,15 @@ class BHCRM_CardLog {
     }
 
     private static function fixes_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_project_fixes';
+        return BHCRM_Tables::project_fixes();
     }
 
     private static function feedback_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_project_feedback';
+        return BHCRM_Tables::project_feedback();
     }
 
     private static function attachments_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_project_attachments';
+        return BHCRM_Tables::project_attachments();
     }
 
     public static function activate(): void {
@@ -433,7 +430,7 @@ class BHCRM_CardLog {
      * admin-post handlers — same bhcore_manage_crm gate every other
      * project-tracker mutation in this plugin already uses (adding a
      * fix/feedback note isn't destructive).
-     * ================================================================= */
+     * =================================================================     */
 
     private static function redirect_to_card(int $project_id, int $uid, int $card_id): void {
         wp_safe_redirect(add_query_arg([

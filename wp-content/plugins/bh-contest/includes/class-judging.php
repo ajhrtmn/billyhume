@@ -32,8 +32,7 @@ class BH_Judging {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bh_judge_scores';
+        return BHCON_Tables::judge_scores();
     }
 
     /* ---------------- judges + rubric config ---------------- */

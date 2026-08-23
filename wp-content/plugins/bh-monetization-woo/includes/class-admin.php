@@ -133,7 +133,7 @@ class BHM_Admin {
     private static function render_gift_status(): void {
         if (!class_exists('BHM_Gifts')) return;
         global $wpdb;
-        $t = $wpdb->prefix . BHM_Gifts::TABLE;
+        $t = BHM_Tables::gift_redemptions();
         $recent = $wpdb->get_results("SELECT recipient_email, status, created_at, redeemed_at FROM $t ORDER BY id DESC LIMIT 20", ARRAY_A);
 
         echo '<h2>Recent gift redemptions</h2>';

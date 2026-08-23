@@ -112,7 +112,7 @@ class BHM_TestSuite {
          */
         if (class_exists('OUS_Debug') && method_exists('OUS_Debug', 'get_or_create_test_user')) {
             global $wpdb;
-            $entitlements_table = $wpdb->prefix . 'bhm_entitlements';
+            $entitlements_table = BHM_Tables::entitlements();
 
             $tier_id = wp_insert_post([
                 'post_type' => 'bhm_tier', 'post_status' => 'publish',
@@ -232,7 +232,7 @@ class BHM_TestSuite {
     private static function run_tier_exclusivity_tests(): array {
         $rows = [];
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $uid = OUS_Debug::get_or_create_test_user('bhm_tier_exclusivity_suite', false);
         $wpdb->delete($t, ['user_id' => $uid]);
 
@@ -281,8 +281,8 @@ class BHM_TestSuite {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_suite', false); // false = always a fresh user, never reuse a pool member mid-assertions
-        $wallet_table = $wpdb->prefix . 'bhm_wallet';
-        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
+        $wallet_table = BHM_Tables::wallet();
+        $ledger_table = BHM_Tables::wallet_ledger();
 
         // Start from a clean, known state regardless of whatever this
         // fake user's wallet happened to hold from a previous run.
@@ -341,8 +341,8 @@ class BHM_TestSuite {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhm_wallet_hold_suite', false);
-        $wallet_table = $wpdb->prefix . 'bhm_wallet';
-        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
+        $wallet_table = BHM_Tables::wallet();
+        $ledger_table = BHM_Tables::wallet_ledger();
         $wpdb->delete($wallet_table, ['user_id' => $uid]);
         $wpdb->delete($ledger_table, ['user_id' => $uid]);
 
@@ -387,9 +387,9 @@ class BHM_TestSuite {
         global $wpdb;
         $bidder_a = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_a', false);
         $bidder_b = OUS_Debug::get_or_create_test_user('bhm_auction_bidder_b', false);
-        $wallet_table = $wpdb->prefix . 'bhm_wallet';
-        $ledger_table = $wpdb->prefix . 'bhm_wallet_ledger';
-        $bids_table = $wpdb->prefix . 'bhm_auction_bids';
+        $wallet_table = BHM_Tables::wallet();
+        $ledger_table = BHM_Tables::wallet_ledger();
+        $bids_table = BHM_Tables::auction_bids();
         foreach ([$bidder_a, $bidder_b] as $uid) {
             $wpdb->delete($wallet_table, ['user_id' => $uid]);
             $wpdb->delete($ledger_table, ['user_id' => $uid]);
@@ -470,9 +470,9 @@ class BHM_TestSuite {
 
         $referrer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_referrer', false);
         $customer_id = OUS_Debug::get_or_create_test_user('bhm_referral_suite_customer', false);
-        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
-        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
-        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::referral_codes(), ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::wallet(), ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::wallet_ledger(), ['user_id' => $referrer_id]);
 
         /* ---------- calculate_commission_cents() — pure ---------- */
         $rows[] = OUS_TestRunner::assert_same(1000, BHM_Referrals::calculate_commission_cents(100), 'A $100.00 order at the default 10% commission credits exactly $10.00 (1000 cents)');
@@ -504,7 +504,7 @@ class BHM_TestSuite {
         $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance, 'A completed order using the referral code credits the referrer exactly ' . BHM_Referrals::COMMISSION_PERCENT . '% of the (post-discount) order total');
 
         $redemption_count = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $order->get_id()
+            "SELECT COUNT(*) FROM " . BHM_Tables::referrals() . " WHERE wc_order_id = %d", $order->get_id()
         ));
         $rows[] = OUS_TestRunner::assert_same(1, $redemption_count, 'Exactly one bhm_referrals redemption row is written for the order');
 
@@ -524,16 +524,16 @@ class BHM_TestSuite {
         $balance_after_self = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($referrer_id) : 0;
         $rows[] = OUS_TestRunner::assert_same($expected_cents, $balance_after_self, 'A referrer using their own code on their own order earns NO additional commission (self-referral guard)');
         $self_redemption_count = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}bhm_referrals WHERE wc_order_id = %d", $self_order->get_id()
+            "SELECT COUNT(*) FROM " . BHM_Tables::referrals() . " WHERE wc_order_id = %d", $self_order->get_id()
         ));
         $rows[] = OUS_TestRunner::assert_same(0, $self_redemption_count, 'A self-referral order writes no redemption row at all');
 
         // Cleanup
-        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $order->get_id()]);
-        $wpdb->delete($wpdb->prefix . 'bhm_referrals', ['wc_order_id' => $self_order->get_id()]);
-        $wpdb->delete($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $referrer_id]);
-        $wpdb->delete($wpdb->prefix . 'bhm_wallet', ['user_id' => $referrer_id]);
-        $wpdb->delete($wpdb->prefix . 'bhm_wallet_ledger', ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::referrals(), ['wc_order_id' => $order->get_id()]);
+        $wpdb->delete(BHM_Tables::referrals(), ['wc_order_id' => $self_order->get_id()]);
+        $wpdb->delete(BHM_Tables::referral_codes(), ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::wallet(), ['user_id' => $referrer_id]);
+        $wpdb->delete(BHM_Tables::wallet_ledger(), ['user_id' => $referrer_id]);
         if ($coupon_id) wp_delete_post($coupon_id, true);
         $order->delete(true);
         $self_order->delete(true);
@@ -562,7 +562,7 @@ class BHM_TestSuite {
 
         $rows = [];
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_purchase_ledger';
+        $t = BHM_Tables::purchase_ledger();
 
         $track_id = wp_insert_post([
             'post_type' => 'bhs_track', 'post_status' => 'publish', 'post_title' => 'BHM Purchase Ledger Suite Fixture Track',

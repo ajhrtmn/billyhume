@@ -113,7 +113,7 @@ class BHR_WellKnown {
         if ($own) $tokens[] = $own;
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhr_links';
+        $table = BHR_Tables::links();
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) return $tokens;
 
         $our_host = strtolower((string) wp_parse_url(home_url(), PHP_URL_HOST));

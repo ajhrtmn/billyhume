@@ -52,8 +52,8 @@ class BHR_Debug {
 
     private static function seed(int $count): void {
         global $wpdb;
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
 
         $names = ['Nova Bloom', 'Echo Parade', 'Static Hollow', 'Marigold Ash', 'Fen & Ember'];
         for ($i = 0; $i < $count; $i++) {
@@ -80,8 +80,8 @@ class BHR_Debug {
 
     public static function reset(): string {
         global $wpdb;
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
         $like = '%' . $wpdb->esc_like(self::SEED_TAG) . '%';
 
         $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $artists_t WHERE display_name LIKE %s", $like));

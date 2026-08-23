@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) exit;
  * Thin data-access wrapper around the bhr_links table — added in the
  * DRY/SOLID refactor pass for encapsulation: before this, every class in
  * the plugin (class-api.php, class-admin.php, class-verification.php,
- * class-debug.php) reached directly into `$wpdb->prefix . 'bhr_links'`
+ * class-debug.php) reached directly into `BHR_Tables::links()`
  * and hand-wrote its own SQL, including three byte-identical
  * "fetch one link by id" queries. The table name and primary-key lookup
  * are now defined in exactly one place; every other read/write in this
@@ -18,8 +18,7 @@ if (!defined('ABSPATH')) exit;
  */
 class BHR_Links {
     public static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhr_links';
+        return BHR_Tables::links();
     }
 
     public static function find(int $link_id): ?\stdClass {

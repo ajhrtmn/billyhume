@@ -80,8 +80,7 @@ class BHL_Automation {
     }
 
     private static function log_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhl_automation_log';
+        return BHL_Tables::automation_log();
     }
 
     /** @param mixed $round unused — signature matches the do_action('bh_contest_round_advanced', $cid, $round) call site */

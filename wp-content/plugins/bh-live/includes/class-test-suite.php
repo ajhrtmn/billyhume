@@ -365,7 +365,7 @@ class BHL_TestSuite {
 
         wp_set_current_user($previous_user);
         global $wpdb;
-        $wpdb->delete($wpdb->prefix . 'bhl_chat_messages', ['stream_id' => $stream_id]);
+        $wpdb->delete(BHL_Tables::chat_messages(), ['stream_id' => $stream_id]);
         wp_delete_post($stream_id, true);
         return $rows;
     }

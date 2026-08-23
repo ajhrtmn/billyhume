@@ -30,7 +30,7 @@ class BHS_Stats {
         }
     }
 
-    private static function table(): string { global $wpdb; return $wpdb->prefix . 'bhs_daily_stats'; }
+    private static function table(): string { return BHS_Tables::daily_stats(); }
 
     // Called once per allowed play (see class-api.php's record_play())
     // and once per executed Jam vote-skip (see class-jam.php). One

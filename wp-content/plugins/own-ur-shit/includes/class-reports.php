@@ -336,7 +336,7 @@ class BHI_Reports {
         $reason = sanitize_textarea_field((string) $req->get_param('reason'));
 
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhi_reports', [
+        $wpdb->insert(OUS_Tables::reports(), [
             'reporter_user_id' => $uid, 'target_type' => $target_type, 'target_id' => $target_id,
             'category' => $category, 'reason' => $reason,
         ]);
@@ -399,7 +399,7 @@ class BHI_Reports {
         $reason = isset($_POST['reason']) ? sanitize_textarea_field(wp_unslash($_POST['reason'])) : '';
 
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhi_reports', [
+        $wpdb->insert(OUS_Tables::reports(), [
             'reporter_user_id' => $uid, 'target_type' => $target_type, 'target_id' => $target_id,
             'category' => $category, 'reason' => $reason,
         ]);
@@ -436,9 +436,9 @@ class BHI_Reports {
         // "urgency" left to signal there.
         $reports = $wpdb->get_results($wpdb->prepare(
             "SELECT r.*,
-                    (SELECT COUNT(DISTINCT r2.reporter_user_id) FROM {$wpdb->prefix}bhi_reports r2
+                    (SELECT COUNT(DISTINCT r2.reporter_user_id) FROM " . OUS_Tables::reports() . " r2
                      WHERE r2.target_type = r.target_type AND r2.target_id = r.target_id AND r2.status = 'open') AS distinct_reporters
-             FROM {$wpdb->prefix}bhi_reports r
+             FROM " . OUS_Tables::reports() . " r
              WHERE r.status = %s
              ORDER BY " . ($status_filter === 'open' ? 'distinct_reporters DESC, created_at DESC' : 'created_at DESC') . "
              LIMIT 200",
@@ -481,7 +481,7 @@ class BHI_Reports {
     private static function resolve(int $id, string $status): void {
         if (!in_array($status, ['resolved', 'dismissed'], true)) return;
         global $wpdb;
-        $wpdb->update($wpdb->prefix . 'bhi_reports', [
+        $wpdb->update(OUS_Tables::reports(), [
             'status' => $status, 'resolved_at' => current_time('mysql'),
         ], ['id' => $id]);
     }

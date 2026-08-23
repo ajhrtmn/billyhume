@@ -115,9 +115,9 @@ class BHS_Privacy {
             return ['items_removed' => false, 'items_retained' => false, 'messages' => [], 'done' => true];
         }
 
-        $removed_likes = $wpdb->delete($wpdb->prefix . 'bhs_likes', ['user_id' => $user->ID]);
-        $removed_participation = $wpdb->delete($wpdb->prefix . 'bhs_jam_participants', ['user_id' => $user->ID]);
-        $removed_sessions = $wpdb->delete($wpdb->prefix . 'bhs_jam_sessions', ['host_user_id' => $user->ID]);
+        $removed_likes = $wpdb->delete(BHS_Tables::likes(), ['user_id' => $user->ID]);
+        $removed_participation = $wpdb->delete(BHS_Tables::jam_participants(), ['user_id' => $user->ID]);
+        $removed_sessions = $wpdb->delete(BHS_Tables::jam_sessions(), ['host_user_id' => $user->ID]);
 
         return [
             'items_removed' => (bool) ($removed_likes || $removed_participation || $removed_sessions),

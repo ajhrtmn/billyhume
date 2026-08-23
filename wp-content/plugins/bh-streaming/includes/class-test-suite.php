@@ -113,7 +113,7 @@ class BHS_TestSuite {
         if (!class_exists('BHS_FanLibrary')) return [];
         $rows = [];
         global $wpdb;
-        $table = $wpdb->prefix . 'bhs_fan_library';
+        $table = BHS_Tables::fan_library();
 
         $previous_user_id = get_current_user_id();
         $admins = get_users(['role' => 'administrator', 'number' => 1, 'fields' => 'ID']);
@@ -302,7 +302,6 @@ class BHS_TestSuite {
         // Collision avoidance: seed a real postmeta row using the exact
         // pattern issue() would generate for "this year", then confirm
         // issue() doesn't hand back that same value again.
-        global $wpdb;
         $fixture_post_id = wp_insert_post(['post_type' => 'bhs_track', 'post_status' => 'draft', 'post_title' => 'BHS Test Suite Fixture Track'], true);
         if (!is_wp_error($fixture_post_id)) {
             $seeded = 'ZZOUS' . gmdate('y') . '00001';
@@ -329,8 +328,8 @@ class BHS_TestSuite {
         if (!class_exists('BHS_Jam')) return [];
         $rows = [];
         global $wpdb;
-        $sessions_t = $wpdb->prefix . 'bhs_jam_sessions';
-        $participants_t = $wpdb->prefix . 'bhs_jam_participants';
+        $sessions_t = BHS_Tables::jam_sessions();
+        $participants_t = BHS_Tables::jam_participants();
 
         $needed = new ReflectionMethod('BHS_Jam', 'skip_votes_needed');
 

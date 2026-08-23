@@ -86,7 +86,7 @@ class BHF_TestSuite {
         $rows[] = OUS_TestRunner::assert_false($recomplete, 'A request already completed cannot be completed a second time');
 
         // Cleanup
-        $wpdb->delete($wpdb->prefix . 'bh_feedback_reviews', ['request_id' => $request_id]);
+        $wpdb->delete(BHF_Tables::reviews(), ['request_id' => $request_id]);
         wp_delete_post($request_id, true);
 
         return $rows;

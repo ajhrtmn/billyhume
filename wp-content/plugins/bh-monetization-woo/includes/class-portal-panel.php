@@ -45,7 +45,7 @@ class BHM_PortalPanel {
     /** @return array<int, array<string, mixed>> */
     private static function active_entitlements(int $user_id): array {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $now = current_time('mysql');
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > %s) ORDER BY object_id ASC",

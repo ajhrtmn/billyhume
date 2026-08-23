@@ -73,8 +73,7 @@ class OUS_Revisions {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_revisions';
+        return OUS_Tables::revisions();
     }
 
     /* =================================================================

@@ -119,7 +119,7 @@ class BH_Activator {
     // step rather than assuming success.
     private static function create_or_update_schema(): bool {
         global $wpdb;
-        $table   = $wpdb->prefix . 'bh_votes';
+        $table   = BHCON_Tables::votes();
         $charset = $wpdb->get_charset_collate();
 
         // `category` defaults to '' — every vote cast before this column
@@ -236,7 +236,7 @@ class BH_Activator {
     // BH_Judging::judge_results()'s aggregate.
     private static function create_or_update_judge_scores_table(string $charset): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'bh_judge_scores';
+        $table = BHCON_Tables::judge_scores();
 
         $sql = "CREATE TABLE $table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -301,7 +301,7 @@ class BH_Activator {
     // empty, permanently-unused table would just be dead weight.
     private static function create_or_update_profiles_table(string $charset): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'bh_participant_profiles';
+        $table = BHCON_Tables::participant_profiles();
 
         $already_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
         if (!$already_exists) return true; // fresh install — nothing to migrate, nothing to create

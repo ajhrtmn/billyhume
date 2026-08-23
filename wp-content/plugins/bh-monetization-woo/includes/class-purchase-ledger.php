@@ -89,7 +89,7 @@ class BHM_PurchaseLedger {
 
     public static function on_order_reversed(int $order_id): void {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_purchase_ledger';
+        $t = BHM_Tables::purchase_ledger();
         // Every still-un-reversed purchase row for this order gets a
         // linked reversal row — "still un-reversed" so a second
         // refunded->cancelled (or vice versa) status transition on the
@@ -113,7 +113,7 @@ class BHM_PurchaseLedger {
             'ts' => current_time('mysql', true),
         ]));
 
-        $wpdb->insert($wpdb->prefix . 'bhm_purchase_ledger', [
+        $wpdb->insert(BHM_Tables::purchase_ledger(), [
             'event_type' => $event_type,
             'wc_order_id' => (int) $order_id,
             'user_id' => (int) $user_id,
@@ -143,7 +143,7 @@ class BHM_PurchaseLedger {
     public static function for_user(int $user_id, int $limit = 50): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE user_id = %d AND event_type = 'purchase' ORDER BY created_at DESC LIMIT %d",
+            "SELECT * FROM " . BHM_Tables::purchase_ledger() . " WHERE user_id = %d AND event_type = 'purchase' ORDER BY created_at DESC LIMIT %d",
             $user_id, $limit
         ));
     }
@@ -151,13 +151,43 @@ class BHM_PurchaseLedger {
     public static function reversal_for(int $purchase_row_id): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE linked_record_id = %d AND event_type = 'reversal'", $purchase_row_id
+            "SELECT * FROM " . BHM_Tables::purchase_ledger() . " WHERE linked_record_id = %d AND event_type = 'reversal'", $purchase_row_id
         ));
+    }
+
+    /**
+     * Is the ledger usable? False when this plugin's tables were never
+     * created — peers must check before reading, since bh-monetization-woo
+     * is optional to all of them.
+     */
+    public static function is_available(): bool {
+        global $wpdb;
+        $table = BHM_Tables::purchase_ledger();
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table;
+    }
+
+    /**
+     * Confirmed purchases: every 'purchase' row without a matching
+     * 'reversal'. This netting rule is the ledger's own business logic and
+     * belongs here — bh-streaming's royalty export previously reimplemented
+     * it as its own cross-plugin SQL, which is exactly how two copies of one
+     * rule drift apart.
+     *
+     * @return array<int, object>
+     */
+    public static function confirmed_purchases(): array {
+        global $wpdb;
+        $table = BHM_Tables::purchase_ledger();
+        return $wpdb->get_results(
+            "SELECT p.* FROM $table p WHERE p.event_type = 'purchase'
+             AND NOT EXISTS (SELECT 1 FROM $table r WHERE r.linked_record_id = p.id AND r.event_type = 'reversal')
+             ORDER BY p.created_at ASC"
+        );
     }
 
     public static function get(int $id): ?object {
         global $wpdb;
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE id = %d", (int) $id));
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM " . BHM_Tables::purchase_ledger() . " WHERE id = %d", (int) $id));
     }
 
     /* ---------------- buyer-facing verify page ---------------- */

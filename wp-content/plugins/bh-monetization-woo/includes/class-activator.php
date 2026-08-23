@@ -68,9 +68,9 @@ class BHM_Activator {
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $entitlements = $wpdb->prefix . 'bhm_entitlements';
-        $wallet       = $wpdb->prefix . 'bhm_wallet';
-        $ledger       = $wpdb->prefix . 'bhm_wallet_ledger';
+        $entitlements = BHM_Tables::entitlements();
+        $wallet       = BHM_Tables::wallet();
+        $ledger       = BHM_Tables::wallet_ledger();
 
         // type: 'purchase' | 'subscription' | 'streaming_tier'. scope:
         // 'track' | 'release' | 'account' (an account-wide streaming-tier
@@ -139,7 +139,7 @@ class BHM_Activator {
         // engine is a flagged, NOT-YET-BUILT next step, consistent with
         // VISION.md's layered scope (this is Patreon-lite groundwork,
         // not a full royalty accounting system).
-        $play_log = $wpdb->prefix . 'bhm_play_log';
+        $play_log = BHM_Tables::play_log();
         dbDelta("CREATE TABLE $play_log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -161,7 +161,7 @@ class BHM_Activator {
         // — the same person evading a flag by signing up again. Hashed,
         // not raw, so this table itself isn't a new place raw IPs sit
         // around indefinitely.
-        $fingerprints = $wpdb->prefix . 'bhm_refund_fingerprints';
+        $fingerprints = BHM_Tables::refund_fingerprints();
         dbDelta("CREATE TABLE $fingerprints (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             fingerprint varchar(64) NOT NULL,
@@ -180,7 +180,7 @@ class BHM_Activator {
         // status distinguishes "waiting", "claimed", so a fan (or the
         // artist, via a future admin view) can see what's still
         // outstanding, not just silently lose track of an unredeemed gift.
-        $gifts = $wpdb->prefix . 'bhm_gift_redemptions';
+        $gifts = BHM_Tables::gift_redemptions();
         dbDelta("CREATE TABLE $gifts (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             code varchar(32) NOT NULL,
@@ -210,7 +210,7 @@ class BHM_Activator {
         // woocommerce_order_status_completed somehow fires more than
         // once for it (the INSERT itself is the atomic claim — see
         // BHM_Referrals::on_order_completed()).
-        $referral_codes = $wpdb->prefix . 'bhm_referral_codes';
+        $referral_codes = BHM_Tables::referral_codes();
         $referral_codes_sql = "CREATE TABLE $referral_codes (
             user_id bigint(20) unsigned NOT NULL,
             code varchar(32) NOT NULL,
@@ -220,7 +220,7 @@ class BHM_Activator {
         ) $charset;";
         dbDelta($referral_codes_sql);
 
-        $referrals = $wpdb->prefix . 'bhm_referrals';
+        $referrals = BHM_Tables::referrals();
         $referrals_sql = "CREATE TABLE $referrals (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             code varchar(32) NOT NULL,
@@ -251,7 +251,7 @@ class BHM_Activator {
         // this table is a history, not a current-state cache, precisely
         // so a buyer's "proof of purchase" can never be quietly made to
         // look like it never happened.
-        $purchase_ledger = $wpdb->prefix . 'bhm_purchase_ledger';
+        $purchase_ledger = BHM_Tables::purchase_ledger();
         $purchase_ledger_sql = "CREATE TABLE $purchase_ledger (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             event_type varchar(20) NOT NULL,
@@ -281,7 +281,7 @@ class BHM_Activator {
         // high bid) | 'outbid' (a later bid beat it) | 'won' | 'refunded'
         // (reserve wasn't met, or the auction never finalized in this
         // bidder's favor — held funds were released either way).
-        $auction_bids = $wpdb->prefix . 'bhm_auction_bids';
+        $auction_bids = BHM_Tables::auction_bids();
         $auction_bids_sql = "CREATE TABLE $auction_bids (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             product_id bigint(20) unsigned NOT NULL,

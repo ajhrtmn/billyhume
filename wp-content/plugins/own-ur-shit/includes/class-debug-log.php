@@ -79,8 +79,7 @@ class OUS_DebugLog {
     private static $previous_exception_handler = null;
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_debug_log';
+        return OUS_Tables::debug_log();
     }
 
     // A real, repeatedly-hit limitation this closes: every row landed in
@@ -838,10 +837,24 @@ class OUS_DebugLog {
            danger/info colors but the admin skin's own --bhy-warning
            bridges to a bright neon yellow (#f5d90a) -- white-on-yellow
            measured ~1.4:1, functionally invisible. Each level now sets
-           its own real text color alongside its own background. */
-        .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); --ous-log-level-text: #fff; }
-        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: #1e1e1e; }
-        .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); --ous-log-level-text: #fff; }
+           its own real text color alongside its own background.
+           ...and a second round of the SAME bug, which is why the ink
+           is now a token rather than another literal: hardcoding one
+           colour per level silently encodes an assumption about how
+           light each bridged FILL is, and that assumption expired the
+           moment the skin's accent moved to periwinkle (#8FA6E8) --
+           white-on-periwinkle measured 2.39:1 across every INFO pill
+           on the page, the same failure as the yellow one above just
+           on a different level. --bhy-accent-text is the skin's own
+           per-theme "ink that sits on a filled chip" (near-black in
+           dark where every neon is light, near-white in light where
+           they are all deepened), so the pill now follows the palette
+           instead of guessing at it. The literals stay as fallbacks:
+           on a bare WordPress install with no skin, each is still the
+           correct ink for its own unbridged fallback fill. */
+        .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); --ous-log-level-text: var(--bhy-accent-text, #fff); }
+        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: var(--bhy-accent-text, #1e1e1e); }
+        .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); --ous-log-level-text: var(--bhy-accent-text, #fff); }
         .ous-log-meta { font-size: 11px; color: var(--bhy-ink-dim, #646970); }
         /* Real specificity bug caught by checking computed style, not
            assuming: this is an <a>, and the admin skin's global

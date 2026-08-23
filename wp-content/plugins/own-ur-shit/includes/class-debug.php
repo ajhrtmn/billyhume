@@ -467,14 +467,14 @@ class OUS_Debug {
             .ous-debug-section > .ous-debug-section-body, #ous-section-reset-all > .ous-debug-section-body { margin-top: 12px; }
             .ous-debug-group-heading {
                 font-size: 1.05em; text-transform: uppercase; letter-spacing: 0.04em;
-                color: #646970; margin: 28px 0 8px; padding-bottom: 6px;
-                border-bottom: 1px solid #dcdcde;
+                color: var(--bhy-ink-dim, #646970); margin: 28px 0 8px; padding-bottom: 6px;
+                border-bottom: 1px solid var(--bhy-border, #dcdcde);
             }
             .ous-debug-group-heading:first-of-type { margin-top: 4px; }
             .ous-debug-group { margin: 0; }
             .ous-debug-group > .ous-debug-group-body { margin-top: 4px; }
             .ous-debug-quicknav-group { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
-            .ous-debug-quicknav-group > strong { color: #646970; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 2px; }
+            .ous-debug-quicknav-group > strong { color: var(--bhy-ink-dim, #646970); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 2px; }
         </style>';
 
         // Same sticky quicknav as before, just grouped now to match the
@@ -482,7 +482,7 @@ class OUS_Debug {
         // "Jump to" reads as a map of the page's actual structure, not
         // just a flat alphabet-soup of every section title in
         // registration order.
-        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:#fff;border:1px solid #dcdcde;border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:6px;font-size:12px;">';
+        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:var(--bhy-surface,#fff);border:1px solid var(--bhy-border,#dcdcde);border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:6px;font-size:12px;">';
         foreach ($grouped as $group_label => $group_tools) {
             echo '<span class="ous-debug-quicknav-group"><strong>' . esc_html($group_label) . ':</strong>';
             foreach ($group_tools as $key => $tool) {

@@ -171,7 +171,7 @@ class BHM_Auctions {
         update_post_meta($product_id, self::META_CURRENT_BIDDER_ID, $user_id);
 
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhm_auction_bids', [
+        $wpdb->insert(BHM_Tables::auction_bids(), [
             'product_id' => $product_id, 'user_id' => $user_id, 'amount_cents' => $amount_cents, 'status' => 'active',
         ]);
 
@@ -188,7 +188,7 @@ class BHM_Auctions {
     private static function mark_bid_status(int $product_id, int $user_id, int $amount_cents, string $status): void {
         global $wpdb;
         $wpdb->update(
-            $wpdb->prefix . 'bhm_auction_bids',
+            BHM_Tables::auction_bids(),
             ['status' => $status],
             ['product_id' => $product_id, 'user_id' => $user_id, 'amount_cents' => $amount_cents, 'status' => 'active']
         );

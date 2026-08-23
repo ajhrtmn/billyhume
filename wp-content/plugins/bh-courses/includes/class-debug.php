@@ -325,7 +325,7 @@ class BHC_Debug {
         $lesson_ids = array_map(fn($l) => $l->ID, $lessons);
         if ($lesson_ids) {
             $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
-            $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhc_progress WHERE lesson_id IN ($placeholders)", $lesson_ids));
+            $wpdb->query($wpdb->prepare("DELETE FROM " . BHC_Tables::progress() . " WHERE lesson_id IN ($placeholders)", $lesson_ids));
         }
 
         foreach ($lessons as $l) wp_delete_post($l->ID, true);

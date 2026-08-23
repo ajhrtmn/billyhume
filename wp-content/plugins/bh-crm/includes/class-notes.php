@@ -47,8 +47,7 @@ class BHCRM_Notes {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_notes';
+        return BHCRM_Tables::notes();
     }
 
     public static function activate(): void {

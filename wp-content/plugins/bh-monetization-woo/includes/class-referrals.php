@@ -29,7 +29,7 @@ class BHM_Referrals {
     public static function code_for_user(int $user_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT code FROM {$wpdb->prefix}bhm_referral_codes WHERE user_id = %d", $user_id
+            "SELECT code FROM " . BHM_Tables::referral_codes() . " WHERE user_id = %d", $user_id
         ));
     }
 
@@ -53,7 +53,7 @@ class BHM_Referrals {
         $coupon->set_individual_use(false);
         $coupon->save();
 
-        $inserted = $wpdb->insert($wpdb->prefix . 'bhm_referral_codes', ['user_id' => $user_id, 'code' => $code]);
+        $inserted = $wpdb->insert(BHM_Tables::referral_codes(), ['user_id' => $user_id, 'code' => $code]);
         if ($inserted === false) return '';
         return $code;
     }
@@ -69,7 +69,7 @@ class BHM_Referrals {
     private static function code_taken(string $code): bool {
         global $wpdb;
         $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT 1 FROM {$wpdb->prefix}bhm_referral_codes WHERE code = %s", $code
+            "SELECT 1 FROM " . BHM_Tables::referral_codes() . " WHERE code = %s", $code
         ));
         return (bool) $exists || (function_exists('wc_get_coupon_id_by_code') && wc_get_coupon_id_by_code($code));
     }
@@ -92,7 +92,7 @@ class BHM_Referrals {
         foreach ($used_codes as $used_code) {
             $candidate = strtoupper($used_code);
             $owner = $wpdb->get_var($wpdb->prepare(
-                "SELECT user_id FROM {$wpdb->prefix}bhm_referral_codes WHERE code = %s", $candidate
+                "SELECT user_id FROM " . BHM_Tables::referral_codes() . " WHERE code = %s", $candidate
             ));
             if ($owner) { $referrer_user_id = (int) $owner; $matched_code = $candidate; break; }
         }
@@ -120,7 +120,7 @@ class BHM_Referrals {
         // test suite deliberately re-triggering it to prove the guard
         // works.
         $suppress_state = $wpdb->suppress_errors(true);
-        $inserted = $wpdb->insert($wpdb->prefix . 'bhm_referrals', [
+        $inserted = $wpdb->insert(BHM_Tables::referrals(), [
             'code' => $matched_code,
             'referrer_user_id' => $referrer_user_id,
             'customer_user_id' => $customer_user_id,
@@ -146,7 +146,7 @@ class BHM_Referrals {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT COUNT(*) AS redemptions, COALESCE(SUM(commission_cents), 0) AS total_cents
-             FROM {$wpdb->prefix}bhm_referrals WHERE referrer_user_id = %d",
+             FROM " . BHM_Tables::referrals() . " WHERE referrer_user_id = %d",
             $user_id
         ), ARRAY_A);
         return [

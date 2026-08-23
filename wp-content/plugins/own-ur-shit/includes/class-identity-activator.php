@@ -29,7 +29,7 @@ class BHI_Activator {
     private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
-        $table   = $wpdb->prefix . 'bhi_profiles';
+        $table   = OUS_Tables::profiles();
 
         $sql = "CREATE TABLE $table (
             user_id bigint(20) unsigned NOT NULL,
@@ -68,7 +68,7 @@ class BHI_Activator {
         // "the thing being reported" is) — this table doesn't need to
         // understand what it's storing reports about, only who reported
         // what and what an admin decided to do about it.
-        $reports = $wpdb->prefix . 'bhi_reports';
+        $reports = OUS_Tables::reports();
         $sql2 = "CREATE TABLE $reports (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             reporter_user_id bigint(20) unsigned NOT NULL,
@@ -92,7 +92,7 @@ class BHI_Activator {
         // call OUS_Notifications::notify() the moment it depends on this
         // plugin at all, with zero registration step and zero awareness
         // of any other plugin that might also be sending notifications.
-        $notifications = $wpdb->prefix . 'bhcore_notifications';
+        $notifications = OUS_Tables::notifications();
         $sql3 = "CREATE TABLE $notifications (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,
@@ -119,7 +119,7 @@ class BHI_Activator {
         // server infra beyond plain WordPress/MySQL to assume), but the
         // same "any plugin can enqueue, zero registration with a
         // central authority, zero awareness of who else uses it" shape.
-        $jobs = $wpdb->prefix . 'bhcore_jobs';
+        $jobs = OUS_Tables::jobs();
         $sql4 = "CREATE TABLE $jobs (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             hook varchar(100) NOT NULL,
@@ -145,7 +145,7 @@ class BHI_Activator {
         // column — see class-debug-log.php v2. dbDelta() handles adding
         // these to an existing table on upgrade the same way it handles
         // fresh installs; no separate ALTER TABLE needed.
-        $debug_log = $wpdb->prefix . 'bhcore_debug_log';
+        $debug_log = OUS_Tables::debug_log();
         $sql5 = "CREATE TABLE $debug_log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             level varchar(20) NOT NULL DEFAULT 'info',
@@ -175,7 +175,7 @@ class BHI_Activator {
         // post_content (Gutenberg's existing block format); anything
         // else (a lesson step tree, a tier's benefit list) lives here as
         // plain JSON, one row per (context_type, context_id) pair.
-        $content = $wpdb->prefix . 'bhcore_content';
+        $content = OUS_Tables::content();
         $sql6 = "CREATE TABLE $content (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             context_type varchar(60) NOT NULL,
@@ -194,7 +194,7 @@ class BHI_Activator {
         // always writes either a real deterministic string or NULL,
         // never '', so non-deduplicated events (plays, votes) don't
         // collide with each other under this index.
-        $events = $wpdb->prefix . 'bhcore_events';
+        $events = OUS_Tables::events();
         $sql7 = "CREATE TABLE $events (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             type varchar(100) NOT NULL,
@@ -234,7 +234,7 @@ class BHI_Activator {
         // row's parent within the same surface/context/slot," validated
         // and cycle-guarded in save_placement(). revision_of remains an
         // unused seam for future work (§2.3's version-history service).
-        $element_placements = $wpdb->prefix . 'bhcore_element_placements';
+        $element_placements = OUS_Tables::element_placements();
         $sql8 = "CREATE TABLE $element_placements (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             surface varchar(60) NOT NULL,
@@ -289,7 +289,7 @@ class BHI_Activator {
         // "editing a prefab" and "editing a live instance" fight over the
         // same rows, which is exactly the retroactive-mutation bug the
         // deep-copy instantiate contract is designed to avoid.
-        $prefabs = $wpdb->prefix . 'bhcore_element_prefabs';
+        $prefabs = OUS_Tables::element_prefabs();
         $sql9 = "CREATE TABLE $prefabs (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             slug varchar(80) NOT NULL,
@@ -316,7 +316,7 @@ class BHI_Activator {
         // design doc's own §4.2 call. 'data' holds one state's full
         // fixture bundle (attrs/bindings/context — see BH_Element_Data::
         // resolve()'s new fixture-mode branch) as JSON.
-        $states = $wpdb->prefix . 'bhcore_element_states';
+        $states = OUS_Tables::element_states();
         $sql10 = "CREATE TABLE $states (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             owner_kind varchar(20) NOT NULL DEFAULT '',
@@ -338,7 +338,7 @@ class BHI_Activator {
         // list is a LIVE query at send time (OUS_Campaigns::send_now()),
         // never stored here — this table holds what was sent and to how
         // many, not who.
-        $campaigns = $wpdb->prefix . 'bhcore_campaigns';
+        $campaigns = OUS_Tables::campaigns();
         $sql11 = "CREATE TABLE $campaigns (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             subject varchar(190) NOT NULL DEFAULT '',
@@ -365,7 +365,7 @@ class BHI_Activator {
         // this is intake/tracking, not the notice-language/legal-review
         // workflow itself, which stays out of scope until that gets real
         // legal review.
-        $dmca_notices = $wpdb->prefix . 'bhcore_dmca_notices';
+        $dmca_notices = OUS_Tables::dmca_notices();
         $sql12 = "CREATE TABLE $dmca_notices (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             claimant_name varchar(190) NOT NULL DEFAULT '',

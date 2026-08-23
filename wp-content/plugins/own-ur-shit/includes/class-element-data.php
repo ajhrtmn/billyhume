@@ -164,7 +164,7 @@ class BH_Element_Data {
                 }
                 $since = (new \DateTime('now', new \DateTimeZone('UTC')))->sub($interval)->format('Y-m-d H:i:s');
 
-                $table = $wpdb->prefix . 'bhcore_events';
+                $table = OUS_Tables::events();
                 $type = trim((string) ($args['type'] ?? ''));
 
                 if ($type !== '') {

@@ -182,8 +182,8 @@ class BHR_TestSuite {
     private static function run_verify_link_tests(): array {
         $rows = [];
         global $wpdb;
-        $artists_table = $wpdb->prefix . 'bhr_artists';
-        $links_table   = $wpdb->prefix . 'bhr_links';
+        $artists_table = BHR_Tables::artists();
+        $links_table   = BHR_Tables::links();
 
         $artist_id = null;
         $wpdb->insert($artists_table, [

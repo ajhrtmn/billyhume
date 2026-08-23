@@ -16,8 +16,7 @@ class BHT_Tickets {
     const PRIORITIES = ['low' => 'Low', 'normal' => 'Normal', 'high' => 'High'];
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhtickets_tickets';
+        return BHT_Tables::tickets();
     }
 
     /** @return int|\WP_Error */

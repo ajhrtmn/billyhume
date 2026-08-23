@@ -20,7 +20,7 @@ class BHS_CRMIntegration {
      */
     public static function active_user_ids(array $ids): array {
         global $wpdb;
-        $likers = $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhs_likes");
+        $likers = $wpdb->get_col("SELECT DISTINCT user_id FROM " . BHS_Tables::likes());
         $playlist_ids = get_posts(['post_type' => 'bhs_playlist', 'post_status' => 'publish', 'posts_per_page' => -1, 'fields' => 'ids']);
         $playlist_owners = array_map(fn($pid) => (int) get_post_field('post_author', $pid), $playlist_ids);
         return array_merge($ids, $likers, $playlist_owners);
@@ -32,7 +32,7 @@ class BHS_CRMIntegration {
      */
     public static function activity_summary(array $sections, int $user_id): array {
         global $wpdb;
-        $like_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}bhs_likes WHERE user_id = %d", $user_id));
+        $like_count = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM " . BHS_Tables::likes() . " WHERE user_id = %d", $user_id));
         $playlists = get_posts(['post_type' => 'bhs_playlist', 'author' => $user_id, 'post_status' => 'publish', 'posts_per_page' => -1]);
         if (!$like_count && !$playlists) return $sections;
 

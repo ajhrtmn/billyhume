@@ -57,7 +57,7 @@ class OUS_Metrics {
     public static function count_events(string $type, int $days = 30): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}bhcore_events WHERE type = %s AND occurred_at >= %s",
+            "SELECT COUNT(*) FROM " . OUS_Tables::events() . " WHERE type = %s AND occurred_at >= %s",
             $type, gmdate('Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS)
         ));
     }
@@ -72,7 +72,7 @@ class OUS_Metrics {
     public static function event_trend(string $type, int $days = 30): array {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE(occurred_at) as d, COUNT(*) as c FROM {$wpdb->prefix}bhcore_events
+            "SELECT DATE(occurred_at) as d, COUNT(*) as c FROM " . OUS_Tables::events() . "
              WHERE type = %s AND occurred_at >= %s GROUP BY DATE(occurred_at)",
             $type, gmdate('Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS)
         ), ARRAY_A);
@@ -100,7 +100,7 @@ class OUS_Metrics {
         global $wpdb;
         $since = gmdate('Y-m-01 00:00:00', strtotime("-$months months"));
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE_FORMAT(occurred_at, '%%Y-%%m') as m, COUNT(*) as c FROM {$wpdb->prefix}bhcore_events
+            "SELECT DATE_FORMAT(occurred_at, '%%Y-%%m') as m, COUNT(*) as c FROM " . OUS_Tables::events() . "
              WHERE type = %s AND occurred_at >= %s GROUP BY m",
             $type, $since
         ), ARRAY_A);

@@ -137,7 +137,7 @@ class BHCRM_Debug {
         global $wpdb;
         if (!class_exists('BHCRM_Projects')) return '0 seeded BH CRM project(s) removed.';
 
-        $table = $wpdb->prefix . 'bhcrm_projects';
+        $table = BHCRM_Tables::projects();
         $like = '%' . $wpdb->esc_like(self::SEED_TAG) . '%';
         $ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM $table WHERE name LIKE %s", $like));
 

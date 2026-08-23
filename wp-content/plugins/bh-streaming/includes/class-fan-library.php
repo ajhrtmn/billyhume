@@ -23,8 +23,7 @@ class BHS_FanLibrary {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhs_fan_library';
+        return BHS_Tables::fan_library();
     }
 
     public static function get_library(\WP_REST_Request $req): \WP_REST_Response {

@@ -804,10 +804,34 @@ class BHY_UI {
                 padding: var(--bhy-space-3) var(--bhy-space-4); margin-bottom: var(--bhy-space-4); font-size: var(--bhy-text-base);
             }
             .bhy-alert strong { display: inline-block; margin-right: var(--bhy-space-2); }
-            .bhy-alert-warning { background: var(--bhy-warning-bg); border-left-color: var(--bhy-warning); color: var(--bhy-warning); }
-            .bhy-alert-success { background: var(--bhy-success-bg); border-left-color: var(--bhy-success); color: var(--bhy-success); }
-            .bhy-alert-danger  { background: var(--bhy-danger-bg);  border-left-color: var(--bhy-danger);  color: var(--bhy-danger); }
+            /* Body text is ALWAYS the readable ink; the hue carries meaning
+               through the left border and the background tint, which is where
+               it can be saturated without costing legibility. Setting `color`
+               to the hue itself put a saturated colour on a 16% tint of that
+               same colour — measured 3.36:1 (success), 4.00:1 (warning) and
+               4.15:1 (danger) in light mode, 4.38:1 (danger) in dark. All
+               below AA. .bhy-alert-info was already correct and is the
+               pattern the other three now follow.
+
+               The TITLE gets ink too. Tinting it was tried and measured at
+               3.36/4.00/4.15:1 — it fails for the same reason the body did.
+               The WCAG 3:1 large-text allowance needs >=18.66px bold and this
+               is ~13px, so there is no exception to lean on. The hue still
+               carries the signal through the 4px left border and the
+               background tint, which is where saturation costs nothing;
+               `strong` keeps the emphasis through weight. Per the brief:
+               usefulness beats the decorative reading.
+
+               NOTE: no apostrophes in this comment, deliberately. It sits
+               inside a single-quoted PHP string, and an unescaped one here
+               silently terminates that string and fatals the whole site —
+               the documented incident in CLAUDE.md, reproduced live while
+               writing this very comment and caught by `php -l`. */
+            .bhy-alert-warning { background: var(--bhy-warning-bg); border-left-color: var(--bhy-warning); color: var(--bhy-ink); }
+            .bhy-alert-success { background: var(--bhy-success-bg); border-left-color: var(--bhy-success); color: var(--bhy-ink); }
+            .bhy-alert-danger  { background: var(--bhy-danger-bg);  border-left-color: var(--bhy-danger);  color: var(--bhy-ink); }
             .bhy-alert-info    { background: var(--bhy-subtle);     border-left-color: var(--bhy-accent);  color: var(--bhy-ink); }
+
             .bhy-alert :is(ul, p:last-child) { margin-bottom: 0; }
 
             /* Badge/pill — status chips (Approved/Pending, live/off-air,
@@ -1038,4 +1062,137 @@ class BHY_UI {
             if ($pinned) $items = array_merge($normal, $pinned);
         }
     }
+    /* ---------------- component renderers ----------------
+       Each renders through Twig when the template engine is available and
+       falls back to the original PHP string build when it is not. The
+       fallback is not dead code: the live host runs no composer install, so
+       a plugin folder uploaded without its vendor/ must still render rather
+       than fatal. Call sites are unaffected either way — that is the point
+       of the seam.
+       Single source for the shared component markup. Before these existed
+       `.bhy-badge` was hand-written in 14 separate files, so nothing could
+       enforce its structure and every copy was free to drift — the same
+       failure shape as the eight hand-rolled pills that predated the class,
+       and as the .bhm-paywall copy that diverged in bh-streaming.
+
+       These also escape by construction, which removes a whole class of
+       WordPress.Security.EscapeOutput findings at the source rather than
+       asking every call site to remember. */
+
+    /**
+     * Is the Twig layer usable right now?
+     *
+     * class_exists() as well as is_available(): these renderers are called
+     * from tools that run OUTSIDE WordPress (the Storybook fixture generator
+     * loads this file directly), where BHY_View is not loaded at all and
+     * Timber cannot boot anyway — Timber\Timber::compile() calls
+     * get_template_directory(), which only exists inside WordPress. Without
+     * this guard those tools fatal instead of taking the PHP fallback.
+     */
+    private static function view_engine_ready(): bool {
+        return class_exists('BHY_View') && BHY_View::is_available();
+    }
+
+    public const BADGE_VARIANTS = ['neutral', 'success', 'warning', 'danger', 'info'];
+    public const ALERT_VARIANTS = ['info', 'success', 'warning', 'danger'];
+
+    /**
+     * A status pill. Use for state ("Active", "Pending", "Failed") — never
+     * as decoration on something that carries no state.
+     *
+     * @param array{variant?:string, dot?:bool, truncate?:bool, title?:string} $args
+     */
+    public static function badge(string $label, array $args = []): string {
+        $variant = (string) ($args['variant'] ?? 'neutral');
+        if (!in_array($variant, self::BADGE_VARIANTS, true)) $variant = 'neutral';
+
+        $classes = ['bhy-badge', 'bhy-badge-' . $variant];
+        if (!empty($args['dot']))      $classes[] = 'bhy-badge-dot';
+        // WHY: only for unbounded labels (a user tag, an artist name). A
+        // fixed-vocabulary label should never truncate — see STYLE-SYSTEM.md.
+        if (!empty($args['truncate'])) $classes[] = 'bhy-badge-truncate';
+
+        if (self::view_engine_ready()) {
+            return trim(BHY_View::render('@ous/badge.twig', [
+                'label'    => $label,
+                'variant'  => $variant,
+                'dot'      => !empty($args['dot']),
+                'truncate' => !empty($args['truncate']),
+                'title'    => $args['title'] ?? null,
+            ]));
+        }
+        $title = isset($args['title']) ? ' title="' . esc_attr((string) $args['title']) . '"' : '';
+        return '<span class="' . esc_attr(implode(' ', $classes)) . '"' . $title . '>' . esc_html($label) . '</span>';
+    }
+
+    /**
+     * A bordered/tinted callout.
+     *
+     * @param array{variant?:string, title?:string, html?:string} $args
+     *   'html' is pre-escaped markup for the body — callers passing it own
+     *   their own escaping. Plain text should go in $message instead.
+     */
+    public static function alert(string $message, array $args = []): string {
+        $variant = (string) ($args['variant'] ?? 'info');
+        if (!in_array($variant, self::ALERT_VARIANTS, true)) $variant = 'info';
+
+        if (self::view_engine_ready()) {
+            return trim(BHY_View::render('@ous/alert.twig', [
+                'variant'   => $variant,
+                'title'     => $args['title'] ?? null,
+                'message'   => $message,
+                'body_html' => $args['html'] ?? null,
+            ]));
+        }
+        $out = '<div class="bhy-alert bhy-alert-' . esc_attr($variant) . '">';
+        if (!empty($args['title'])) {
+            $out .= '<strong class="bhy-alert-title">' . esc_html((string) $args['title']) . '</strong> ';
+        }
+        $out .= $message !== '' ? esc_html($message) : '';
+        if (!empty($args['html'])) $out .= $args['html'];
+        return $out . '</div>';
+    }
+
+    /**
+     * A surface panel. $body is pre-escaped markup — this owns the shell,
+     * not the contents.
+     *
+     * @param array{title?:string, footer?:string, class?:string} $args
+     */
+    public static function card(string $body, array $args = []): string {
+        if (self::view_engine_ready()) {
+            return trim(BHY_View::render('@ous/card.twig', [
+                'body_html'   => $body,
+                'title'       => $args['title'] ?? null,
+                'footer_html' => $args['footer'] ?? null,
+                'extra_class' => $args['class'] ?? null,
+            ]));
+        }
+        $extra = isset($args['class']) ? ' ' . (string) $args['class'] : '';
+        $out = '<div class="bhy-card' . esc_attr($extra) . '">';
+        if (!empty($args['title'])) {
+            $out .= '<h3 class="bhy-card-title">' . esc_html((string) $args['title']) . '</h3>';
+        }
+        $out .= $body;
+        if (!empty($args['footer'])) $out .= '<div class="bhy-card-footer">' . $args['footer'] . '</div>';
+        return $out . '</div>';
+    }
+
+    /**
+     * Wraps a wide/dense table so it scrolls instead of breaking the layout.
+     * $table_html is pre-escaped markup.
+     *
+     * @param array{tall?:bool} $args
+     */
+    public static function table_wrap(string $table_html, array $args = []): string {
+        if (self::view_engine_ready()) {
+            return trim(BHY_View::render('@ous/table-wrap.twig', [
+                'table_html' => $table_html,
+                'tall'       => !empty($args['tall']),
+            ]));
+        }
+        $class = 'bhy-table-wrap' . (!empty($args['tall']) ? ' bhy-table-wrap--tall' : '');
+        return '<div class="' . esc_attr($class) . '">' . $table_html . '</div>';
+    }
+
 }

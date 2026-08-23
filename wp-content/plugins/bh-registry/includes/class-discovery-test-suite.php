@@ -237,9 +237,9 @@ class BHR_DiscoveryTestSuite {
         global $wpdb;
         $rows = [];
 
-        $peers_t = $wpdb->prefix . 'bhr_peers';
-        $links_t = $wpdb->prefix . 'bhr_links';
-        $seen_t  = $wpdb->prefix . 'bhr_gossip_seen';
+        $peers_t = BHR_Tables::peers();
+        $links_t = BHR_Tables::links();
+        $seen_t  = BHR_Tables::gossip_seen();
 
         // Schema sanity first — a missing column here would otherwise
         // surface as a mysterious "insert failed" with no explanation,
@@ -293,7 +293,7 @@ class BHR_DiscoveryTestSuite {
             $rows[] = OUS_TestRunner::assert_same('crawl', $link->discovered_via, 'Ingestion: provenance recorded as discovered_via=crawl');
             $rows[] = OUS_TestRunner::assert_same((string) $peer_id, (string) $link->discovered_from_peer_id, 'Ingestion: records which peer the candidate came from');
 
-            $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_artists WHERE id = %d", $link->artist_id));
+            $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . BHR_Tables::artists() . " WHERE id = %d", $link->artist_id));
             $rows[] = OUS_TestRunner::assert_same(
                 'pending', $artist ? $artist->status : '',
                 'Ingestion: the created artist is pending, so it never shows in public browse until verified'
@@ -423,14 +423,14 @@ class BHR_DiscoveryTestSuite {
         global $wpdb;
         $like = '%' . $wpdb->esc_like(self::TEST_TAG) . '%';
 
-        $link_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}bhr_links WHERE url LIKE %s", $like));
+        $link_ids = $wpdb->get_col($wpdb->prepare("SELECT id FROM " . BHR_Tables::links() . " WHERE url LIKE %s", $like));
         foreach ($link_ids as $lid) {
-            $artist_id = $wpdb->get_var($wpdb->prepare("SELECT artist_id FROM {$wpdb->prefix}bhr_links WHERE id = %d", $lid));
-            $wpdb->delete($wpdb->prefix . 'bhr_links', ['id' => $lid]);
-            if ($artist_id) $wpdb->delete($wpdb->prefix . 'bhr_artists', ['id' => $artist_id]);
+            $artist_id = $wpdb->get_var($wpdb->prepare("SELECT artist_id FROM " . BHR_Tables::links() . " WHERE id = %d", $lid));
+            $wpdb->delete(BHR_Tables::links(), ['id' => $lid]);
+            if ($artist_id) $wpdb->delete(BHR_Tables::artists(), ['id' => $artist_id]);
         }
-        $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhr_artists WHERE display_name LIKE %s", $like));
-        $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhr_peers WHERE base_url LIKE %s OR label LIKE %s", $like, $like));
-        $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}bhr_gossip_seen WHERE candidate_url LIKE %s OR origin_base_url LIKE %s", $like, $like));
+        $wpdb->query($wpdb->prepare("DELETE FROM " . BHR_Tables::artists() . " WHERE display_name LIKE %s", $like));
+        $wpdb->query($wpdb->prepare("DELETE FROM " . BHR_Tables::peers() . " WHERE base_url LIKE %s OR label LIKE %s", $like, $like));
+        $wpdb->query($wpdb->prepare("DELETE FROM " . BHR_Tables::gossip_seen() . " WHERE candidate_url LIKE %s OR origin_base_url LIKE %s", $like, $like));
     }
 }

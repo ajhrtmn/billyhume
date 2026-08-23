@@ -258,9 +258,9 @@ class BHC_TestSuite {
 
         // Cleanup.
         global $wpdb;
-        $wpdb->delete($wpdb->prefix . 'bhc_progress', ['user_id' => $uid, 'lesson_id' => $lesson_a]);
-        $wpdb->delete($wpdb->prefix . 'bhc_progress', ['user_id' => $uid, 'lesson_id' => $lesson_b]);
-        $wpdb->delete($wpdb->prefix . 'bhc_completions', ['user_id' => $uid, 'course_id' => $course_id]);
+        $wpdb->delete(BHC_Tables::progress(), ['user_id' => $uid, 'lesson_id' => $lesson_a]);
+        $wpdb->delete(BHC_Tables::progress(), ['user_id' => $uid, 'lesson_id' => $lesson_b]);
+        $wpdb->delete(BHC_Tables::completions(), ['user_id' => $uid, 'course_id' => $course_id]);
         wp_delete_post($lesson_a, true);
         wp_delete_post($lesson_b, true);
         wp_delete_post($course_id, true);
@@ -282,9 +282,9 @@ class BHC_TestSuite {
         }
 
         $uid = OUS_Debug::get_or_create_test_user('bhc_reviews_suite', false);
-        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $enroll_table = BHC_Tables::enrollments();
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
-        $reviews_table = $wpdb->prefix . 'bhc_reviews';
+        $reviews_table = BHC_Tables::reviews();
         $wpdb->delete($reviews_table, ['user_id' => $uid, 'course_id' => $course_id]);
 
         // Not enrolled yet — eligibility is enrollment, not completion,
@@ -392,7 +392,7 @@ class BHC_TestSuite {
         // OPEN (not locked), per lesson_is_open()'s own documented
         // reasoning: nothing to count the delay from yet, so it must
         // not permanently lock someone the system never enrolled.
-        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $enroll_table = BHC_Tables::enrollments();
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
 
         $rows[] = OUS_TestRunner::assert_true(BHC_Gate::lesson_is_open($uid, $undripped_lesson), 'A lesson with no drip rule at all is always open');
@@ -441,7 +441,7 @@ class BHC_TestSuite {
         // Cleanup — real posts/rows, not just meta tags, since these
         // are published posts that would otherwise appear in the real
         // catalog/course list.
-        $progress_table = $wpdb->prefix . 'bhc_progress';
+        $progress_table = BHC_Tables::progress();
         $wpdb->delete($progress_table, ['user_id' => $uid, 'lesson_id' => $undripped_lesson]);
         $wpdb->delete($enroll_table, ['user_id' => $uid, 'course_id' => $course_id]);
         wp_delete_post($undripped_lesson, true);
@@ -525,7 +525,7 @@ class BHC_TestSuite {
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_progress_suite', false);
         $lesson_id = 999999001; // a fake lesson ID — bhc_progress has no FK constraint to bh_lesson, so this is safe and avoids needing a real post fixture
-        $table = $wpdb->prefix . 'bhc_progress';
+        $table = BHC_Tables::progress();
 
         // Clean slate for this fake user/lesson pair before asserting anything.
         $wpdb->delete($table, ['user_id' => $uid, 'lesson_id' => $lesson_id]);
@@ -587,7 +587,7 @@ class BHC_TestSuite {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_quiz_average_suite', false);
-        $table = $wpdb->prefix . 'bhc_progress';
+        $table = BHC_Tables::progress();
         $lesson_a = 999999101;
         $lesson_b = 999999102;
 
@@ -643,7 +643,7 @@ class BHC_TestSuite {
         $rows = [];
         global $wpdb;
         $uid = OUS_Debug::get_or_create_test_user('bhc_achievements_suite', false);
-        $table = $wpdb->prefix . 'bhc_achievements';
+        $table = BHC_Tables::achievements();
         $wpdb->delete($table, ['user_id' => $uid]);
 
         $rows[] = OUS_TestRunner::assert_true(
@@ -680,7 +680,7 @@ class BHC_TestSuite {
         // the rollup) — since course_quiz_average() (which this method
         // calls) reads real bhc_progress rows scoped by the course's own
         // lesson order.
-        $progress_table = $wpdb->prefix . 'bhc_progress';
+        $progress_table = BHC_Tables::progress();
         $course_ids = [];
         $lesson_ids = [999999201, 999999202, 999999203, 999999204];
         for ($i = 0; $i < 4; $i++) {
@@ -748,8 +748,8 @@ class BHC_TestSuite {
     private static function run_leaderboard_tests(): array {
         $rows = [];
         global $wpdb;
-        $progress_table = $wpdb->prefix . 'bhc_progress';
-        $enroll_table = $wpdb->prefix . 'bhc_enrollments';
+        $progress_table = BHC_Tables::progress();
+        $enroll_table = BHC_Tables::enrollments();
         $lesson_id = 999999301;
 
         $course_id = wp_insert_post(['post_type' => 'bh_course', 'post_status' => 'publish', 'post_title' => 'BHC Leaderboard Suite Fixture Course'], true);

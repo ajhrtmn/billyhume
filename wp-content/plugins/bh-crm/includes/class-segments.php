@@ -90,8 +90,7 @@ class BHCRM_Segments {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_segments';
+        return BHCRM_Tables::segments();
     }
 
     public static function activate(): void {

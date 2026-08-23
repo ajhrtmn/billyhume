@@ -69,8 +69,8 @@ class BHR_Activator {
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $artists = $wpdb->prefix . 'bhr_artists';
-        $links   = $wpdb->prefix . 'bhr_links';
+        $artists = BHR_Tables::artists();
+        $links   = BHR_Tables::links();
 
         // status: 'pending' (submitted, no verified link yet — not shown
         // in public browse/search), 'active' (>=1 verified link),
@@ -155,7 +155,7 @@ class BHR_Activator {
         // existing peer), N+1 for a peer discovered inside another
         // peer's own manifest at hop N — bounds propagation the same
         // conceptual way a TTL bounds network broadcast.
-        $peers = $wpdb->prefix . 'bhr_peers';
+        $peers = BHR_Tables::peers();
         dbDelta("CREATE TABLE $peers (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             base_url varchar(255) NOT NULL,
@@ -213,7 +213,7 @@ class BHR_Activator {
         // different peers' manifests list the exact same candidate.
         // seen_hash is sha256(protocol . '|' . normalized_url) — see
         // BHR_Crawl::candidate_hash().
-        $seen = $wpdb->prefix . 'bhr_gossip_seen';
+        $seen = BHR_Tables::gossip_seen();
         dbDelta("CREATE TABLE $seen (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             seen_hash varchar(64) NOT NULL,

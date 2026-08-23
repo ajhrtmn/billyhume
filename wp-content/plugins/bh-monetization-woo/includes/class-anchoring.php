@@ -153,13 +153,13 @@ class BHM_Anchoring {
 
     private static function get_row(int $id): ?object {
         global $wpdb;
-        return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhm_purchase_ledger WHERE id = %d", $id));
+        return $wpdb->get_row($wpdb->prepare("SELECT * FROM " . BHM_Tables::purchase_ledger() . " WHERE id = %d", $id));
     }
 
     /** @param array<string, mixed> $fields */
     private static function update_row(int $id, array $fields): void {
         global $wpdb;
-        $wpdb->update($wpdb->prefix . 'bhm_purchase_ledger', $fields, ['id' => $id]);
+        $wpdb->update(BHM_Tables::purchase_ledger(), $fields, ['id' => $id]);
     }
 
     private static function log(string $level, string $message, int $row_id): void {

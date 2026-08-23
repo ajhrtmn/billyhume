@@ -50,12 +50,12 @@ class BHM_Fraud {
         // non-tracking cookie id, recorded once per refund.
         $fingerprint = self::fingerprint_for();
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'bhm_refund_fingerprints', [
+        $wpdb->insert(BHM_Tables::refund_fingerprints(), [
             'fingerprint' => $fingerprint, 'user_id' => $user_id, 'wc_order_id' => $order_id,
         ]);
         $cutoff_sql = gmdate('Y-m-d H:i:s', $cutoff);
         $distinct_users = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT user_id) FROM {$wpdb->prefix}bhm_refund_fingerprints
+            "SELECT COUNT(DISTINCT user_id) FROM " . BHM_Tables::refund_fingerprints() . "
              WHERE fingerprint = %s AND created_at > %s", $fingerprint, $cutoff_sql
         ));
         $cross_account_flagged = $distinct_users >= 2;

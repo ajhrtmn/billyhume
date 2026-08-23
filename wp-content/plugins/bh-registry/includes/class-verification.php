@@ -47,7 +47,7 @@ class BHR_Verification {
      */
     public static function verify_link(\stdClass $link): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhr_links';
+        $table = BHR_Tables::links();
 
         $owns_domain = self::check_domain_ownership($link->url, $link->verification_token);
         $is_open     = $link->protocol === 'feed'
@@ -96,8 +96,8 @@ class BHR_Verification {
     // as a required gate — see class-admin.php).
     private static function maybe_activate_artist(int $artist_id): void {
         global $wpdb;
-        $artists = $wpdb->prefix . 'bhr_artists';
-        $links   = $wpdb->prefix . 'bhr_links';
+        $artists = BHR_Tables::artists();
+        $links   = BHR_Tables::links();
 
         $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM $artists WHERE id = %d", $artist_id));
         if (!$artist || $artist->status === 'rejected') return; // an explicit admin rejection is sticky
@@ -225,7 +225,7 @@ class BHR_Verification {
     public static function recheck_artist(int $artist_id): void {
         global $wpdb;
         $links = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhr_links WHERE artist_id = %d", $artist_id
+            "SELECT * FROM " . BHR_Tables::links() . " WHERE artist_id = %d", $artist_id
         ));
         foreach ($links as $link) {
             self::verify_link($link);
@@ -252,7 +252,7 @@ class BHR_Verification {
     // integration in this ecosystem does.
     public static function recheck_all(): void {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhr_links';
+        $table = BHR_Tables::links();
         $links = $wpdb->get_results(
             "SELECT * FROM $table WHERE verification_status = 'verified'
              ORDER BY last_checked_at ASC LIMIT 50"

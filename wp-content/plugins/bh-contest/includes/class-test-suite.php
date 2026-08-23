@@ -116,7 +116,7 @@ class BH_TestSuite {
     private static function run_judging_tests(): array {
         $rows = [];
         global $wpdb;
-        $table = $wpdb->prefix . 'bh_judge_scores';
+        $table = BHCON_Tables::judge_scores();
 
         $cid = wp_insert_post([
             'post_type' => 'bh_contest', 'post_status' => 'publish', 'post_title' => 'Judging Test Fixture Contest',
@@ -266,7 +266,7 @@ class BH_TestSuite {
         $rows[] = OUS_TestRunner::assert_true(BH_Rounds::is_eligible($subs['A'], $cid), 'A survivor remains eligible in the new active round');
 
         // Cleanup.
-        $wpdb->delete($wpdb->prefix . 'bh_judge_scores', ['contest_id' => $cid]);
+        $wpdb->delete(BHCON_Tables::judge_scores(), ['contest_id' => $cid]);
         foreach ($subs as $sid) wp_delete_post($sid, true);
         wp_delete_post($cid, true);
 

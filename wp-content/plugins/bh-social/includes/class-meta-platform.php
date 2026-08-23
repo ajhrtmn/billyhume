@@ -379,7 +379,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         if (is_wp_error($profile)) return $profile;
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $now = current_time('mysql', true);
         foreach (['followers_count' => 'followers', 'media_count' => 'media_count'] as $api_key => $metric_key) {
             if (!isset($profile[$api_key])) continue;
@@ -391,7 +391,7 @@ class BHSO_Meta implements BH_SocialPlatform {
     /** @return array<string, array<string, mixed>> */
     public static function latest_stats(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT t1.metric_key, t1.metric_value, t1.recorded_at FROM $table t1
              INNER JOIN (SELECT metric_key, MAX(recorded_at) AS max_recorded FROM $table WHERE platform = %s GROUP BY metric_key) t2

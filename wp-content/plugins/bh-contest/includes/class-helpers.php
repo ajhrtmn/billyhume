@@ -3,8 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 class BH_Helpers {
     public static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bh_votes';
+        return BHCON_Tables::votes();
     }
 
     // Legacy single-contest fallback: newest published contest. Used when a

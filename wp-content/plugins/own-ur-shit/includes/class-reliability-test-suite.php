@@ -133,7 +133,6 @@ class OUS_ReliabilityTestSuite {
     }
 
     private static function log_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_debug_log';
+        return OUS_Tables::debug_log();
     }
 }

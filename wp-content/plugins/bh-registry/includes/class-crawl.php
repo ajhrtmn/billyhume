@@ -123,7 +123,7 @@ class BHR_Crawl {
         // Already peered by some other route (a manual add, a relay
         // hit) — the cold-start problem seeds exist to solve is gone.
         global $wpdb;
-        $existing = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}bhr_peers");
+        $existing = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . BHR_Tables::peers());
         if ($existing > 0) {
             update_option(self::SEEDED_OPTION, current_time('mysql'), false);
             return;
@@ -162,15 +162,15 @@ class BHR_Crawl {
 
         $links = $wpdb->get_results($wpdb->prepare(
             "SELECT l.protocol, l.url, l.verified_at, a.display_name
-             FROM {$wpdb->prefix}bhr_links l
-             JOIN {$wpdb->prefix}bhr_artists a ON a.id = l.artist_id
+             FROM " . BHR_Tables::links() . " l
+             JOIN " . BHR_Tables::artists() . " a ON a.id = l.artist_id
              WHERE l.verification_status = 'verified' AND a.status = 'active'
              ORDER BY l.verified_at DESC LIMIT %d",
             self::MAX_LINKS_PER_MANIFEST
         ));
 
         $peer_urls = $wpdb->get_col($wpdb->prepare(
-            "SELECT base_url FROM {$wpdb->prefix}bhr_peers WHERE status = 'active' ORDER BY last_seen_at DESC LIMIT %d",
+            "SELECT base_url FROM " . BHR_Tables::peers() . " WHERE status = 'active' ORDER BY last_seen_at DESC LIMIT %d",
             self::MAX_KNOWN_PEERS_PER_MANIFEST
         ));
 
@@ -212,7 +212,7 @@ class BHR_Crawl {
         // never begin. Seeding here (once) is what closes that gap.
         self::maybe_seed_bootstrap();
 
-        $peers = $wpdb->get_results("SELECT id FROM {$wpdb->prefix}bhr_peers WHERE status = 'active'");
+        $peers = $wpdb->get_results("SELECT id FROM " . BHR_Tables::peers() . " WHERE status = 'active'");
 
         if ($immediate || !class_exists('OUS_Jobs')) {
             foreach ($peers as $peer) self::crawl_one_peer(['peer_id' => (int) $peer->id]);
@@ -236,7 +236,7 @@ class BHR_Crawl {
         if (!$peer_id) return;
 
         global $wpdb;
-        $peers_table = $wpdb->prefix . 'bhr_peers';
+        $peers_table = BHR_Tables::peers();
         $peer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $peers_table WHERE id = %d", $peer_id));
         if (!$peer || $peer->status !== 'active') return;
 
@@ -287,7 +287,7 @@ class BHR_Crawl {
         if ($fails >= self::LIVENESS_FAIL_THRESHOLD && $peer->status === 'active') {
             $update['status'] = 'paused';
         }
-        $wpdb->update($wpdb->prefix . 'bhr_peers', $update, ['id' => $peer->id]);
+        $wpdb->update(BHR_Tables::peers(), $update, ['id' => $peer->id]);
 
         if (class_exists('OUS_DebugLog')) {
             OUS_DebugLog::log('info', 'Peer crawl failed.', [
@@ -316,7 +316,7 @@ class BHR_Crawl {
         $hash = self::candidate_hash($protocol, $url);
 
         global $wpdb;
-        $seen_table = $wpdb->prefix . 'bhr_gossip_seen';
+        $seen_table = BHR_Tables::gossip_seen();
         $existing = $wpdb->get_row($wpdb->prepare("SELECT * FROM $seen_table WHERE seen_hash = %s", $hash));
 
         if ($existing) {
@@ -335,8 +335,8 @@ class BHR_Crawl {
             'min_hop_seen'    => (int) $peer->discovered_hop,
         ]);
 
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
 
         // Gossip never carries contact_email, so unlike create_submission()
         // there's no email-based artist dedup — every newly-seen
@@ -382,7 +382,7 @@ class BHR_Crawl {
         if (!self::is_safe_external_url($base_url)) return false;
 
         global $wpdb;
-        $peers_table = $wpdb->prefix . 'bhr_peers';
+        $peers_table = BHR_Tables::peers();
 
         $existing = $wpdb->get_var($wpdb->prepare("SELECT id FROM $peers_table WHERE base_url = %s", $base_url));
         if ($existing) return false;

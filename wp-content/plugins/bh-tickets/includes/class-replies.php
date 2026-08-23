@@ -4,8 +4,7 @@ if (!defined('ABSPATH')) exit;
 /** BHT_Replies — a flat, append-only thread per ticket. The opening message (BHT_Tickets::create()) is reply #1. */
 class BHT_Replies {
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhtickets_replies';
+        return BHT_Tables::replies();
     }
 
     /** @return int|\WP_Error */

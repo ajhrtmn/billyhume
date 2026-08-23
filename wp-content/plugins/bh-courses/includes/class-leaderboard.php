@@ -33,7 +33,7 @@ class BHC_Leaderboard {
         if (!class_exists('BHC_Progress')) return [];
         global $wpdb;
         $user_ids = $wpdb->get_col($wpdb->prepare(
-            "SELECT user_id FROM {$wpdb->prefix}bhc_enrollments WHERE course_id = %d",
+            "SELECT user_id FROM " . BHC_Tables::enrollments() . " WHERE course_id = %d",
             $course_id
         ));
 

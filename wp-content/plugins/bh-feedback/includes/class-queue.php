@@ -105,7 +105,7 @@ class BHF_Queue {
         // rare, visible anomaly an admin can investigate directly in the
         // bh_feedback_reviews table, preferable to leaving the request
         // stuck in "claimed" forever with no record anything happened.
-        $wpdb->insert($wpdb->prefix . 'bh_feedback_reviews', [
+        $wpdb->insert(BHF_Tables::reviews(), [
             'request_id' => $request_id, 'reviewer_user_id' => $reviewer_id, 'tier' => $tier, 'body' => wp_kses_post($body),
         ]);
 
@@ -124,7 +124,7 @@ class BHF_Queue {
     public static function review_for(int $request_id): ?array {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bh_feedback_reviews WHERE request_id = %d", $request_id
+            "SELECT * FROM " . BHF_Tables::reviews() . " WHERE request_id = %d", $request_id
         ), ARRAY_A);
     }
 

@@ -45,7 +45,7 @@ class BH_PortalPanel {
 
     private static function vote_count_for(int $submission_id): int {
         global $wpdb;
-        $t = class_exists('BH_Helpers') ? BH_Helpers::table() : $wpdb->prefix . 'bh_votes';
+        $t = class_exists('BH_Helpers') ? BH_Helpers::table() : BHCON_Tables::votes();
         return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $t WHERE submission_id = %d", $submission_id));
     }
 

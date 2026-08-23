@@ -54,8 +54,8 @@ class BHM_CRMIntegration {
      */
     public static function active_user_ids($ids): array {
         global $wpdb;
-        $entitled = $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhm_entitlements");
-        $wallets = $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhm_wallet WHERE balance_cents > 0");
+        $entitled = $wpdb->get_col("SELECT DISTINCT user_id FROM " . BHM_Tables::entitlements());
+        $wallets = $wpdb->get_col("SELECT DISTINCT user_id FROM " . BHM_Tables::wallet() . " WHERE balance_cents > 0");
         return array_merge($ids, $entitled, $wallets);
     }
 
@@ -81,7 +81,7 @@ class BHM_CRMIntegration {
             // tier" (the most recently granted non-expired one), so a
             // same-second tie (bulk migration/promo grant) isn't just a
             // display-order nit here, it could pick the wrong tier.
-            "SELECT * FROM {$wpdb->prefix}bhm_entitlements WHERE user_id = %d ORDER BY created_at DESC, id DESC", $user_id
+            "SELECT * FROM " . BHM_Tables::entitlements() . " WHERE user_id = %d ORDER BY created_at DESC, id DESC", $user_id
         ));
         $balance = class_exists('BHM_Wallet') ? BHM_Wallet::balance_cents($user_id) : 0;
 
@@ -203,7 +203,7 @@ add_filter('bhcore_metrics_widgets', function ($widgets) {
     $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
         global $wpdb;
         $active_tiers = (int) $wpdb->get_var(
-            "SELECT COUNT(DISTINCT user_id) FROM {$wpdb->prefix}bhm_entitlements
+            "SELECT COUNT(DISTINCT user_id) FROM " . BHM_Tables::entitlements() . "
              WHERE type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > NOW())"
         );
         OUS_Metrics::render_card('Active supporters', $active_tiers, 'Current subscription/tier entitlements');
@@ -211,7 +211,7 @@ add_filter('bhcore_metrics_widgets', function ($widgets) {
     $widgets[] = ['source' => 'BH Monetization', 'render' => function () {
         global $wpdb;
         $rows = $wpdb->get_results(
-            "SELECT DATE(created_at) as d, COUNT(*) as c FROM {$wpdb->prefix}bhm_entitlements
+            "SELECT DATE(created_at) as d, COUNT(*) as c FROM " . BHM_Tables::entitlements() . "
              WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY d", ARRAY_A
         );
         $by_day = [];

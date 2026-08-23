@@ -37,8 +37,7 @@ class BHCRM_Event_Activity {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_events';
+        return OUS_Tables::events();
     }
 
     // Total event count for this user, all types, all time — cheap

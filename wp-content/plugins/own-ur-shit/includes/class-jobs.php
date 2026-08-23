@@ -344,8 +344,7 @@ class OUS_Jobs {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_jobs';
+        return OUS_Tables::jobs();
     }
 
     // Bounded-growth cap for the fallback (no-Action-Scheduler) queue

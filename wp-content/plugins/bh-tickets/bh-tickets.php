@@ -3,7 +3,7 @@
  * Plugin Name: BH Tickets
  * Description: In-house support/issue ticketing, built on bh-crm's own identity model — a fan opens a ticket from their account portal, staff triage from wp-admin. No third-party helpdesk dependency.
  * Version:     1.0.2
- * Requires PHP: 7.4
+ * Requires PHP: 8.2
  * Requires Plugins: own-ur-shit
  */
 if (!defined('ABSPATH')) exit;
@@ -75,7 +75,7 @@ define('BHT_VER',  '1.0.2');
 define('BHT_PATH', plugin_dir_path(__FILE__));
 define('BHT_URL',  plugin_dir_url(__FILE__));
 
-foreach (['activator', 'tickets', 'replies', 'admin', 'portal', 'debug', 'test-suite'] as $f) {
+foreach (['tables', 'activator', 'tickets', 'replies', 'admin', 'portal', 'debug', 'test-suite'] as $f) {
     require_once BHT_PATH . "includes/class-$f.php";
 }
 

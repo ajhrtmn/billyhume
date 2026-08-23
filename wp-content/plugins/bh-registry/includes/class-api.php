@@ -120,8 +120,8 @@ class BHR_API {
 
     public static function list_artists(\WP_REST_Request $req): \WP_REST_Response {
         global $wpdb;
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
 
         $search   = sanitize_text_field((string) $req->get_param('search'));
         $protocol = sanitize_text_field((string) $req->get_param('protocol'));
@@ -168,11 +168,11 @@ class BHR_API {
     public static function get_artist(\WP_REST_Request $req) {
         global $wpdb;
         $artist_id = (int) $req->get_param('id');
-        $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}bhr_artists WHERE id = %d AND status = 'active'", $artist_id));
+        $artist = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . BHR_Tables::artists() . " WHERE id = %d AND status = 'active'", $artist_id));
         if (!$artist) return new WP_Error('not_found', 'Artist not found.', ['status' => 404]);
 
         $links = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhr_links WHERE artist_id = %d AND verification_status = 'verified'", $artist_id
+            "SELECT * FROM " . BHR_Tables::links() . " WHERE artist_id = %d AND verification_status = 'verified'", $artist_id
         ));
         return new WP_REST_Response(['success' => true, 'artist' => self::artist_payload($artist, $links)], 200);
     }
@@ -182,7 +182,7 @@ class BHR_API {
         global $wpdb;
         $artist_id = (int) $req->get_param('id');
         $link = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhr_links
+            "SELECT * FROM " . BHR_Tables::links() . "
              WHERE artist_id = %d AND protocol = 'feed' AND verification_status = 'verified'
              ORDER BY verified_at DESC LIMIT 1", $artist_id
         ));
@@ -204,7 +204,7 @@ class BHR_API {
         global $wpdb;
         $artist_id = (int) $req->get_param('id');
         $link = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhr_links
+            "SELECT * FROM " . BHR_Tables::links() . "
              WHERE artist_id = %d AND protocol = 'feed' AND verification_status = 'verified'
              ORDER BY verified_at DESC LIMIT 1", $artist_id
         ));
@@ -216,7 +216,7 @@ class BHR_API {
             return new WP_Error('feed_unreachable', 'Could not reach this artist\'s feed right now — try again shortly.', ['status' => 502]);
         }
 
-        $artist = $wpdb->get_row($wpdb->prepare("SELECT display_name FROM {$wpdb->prefix}bhr_artists WHERE id = %d", $artist_id));
+        $artist = $wpdb->get_row($wpdb->prepare("SELECT display_name FROM " . BHR_Tables::artists() . " WHERE id = %d", $artist_id));
         $artist_name = $artist ? $artist->display_name : '';
 
         $items = $feed->get_items(0, 30); // same reasonable per-request cap as bh-streaming's own importer
@@ -270,8 +270,8 @@ class BHR_API {
         set_transient($rl_key, 1, 5 * MINUTE_IN_SECONDS);
 
         global $wpdb;
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
 
         // Match on contact_email if given, so the same artist adding a
         // second link doesn't create a duplicate profile — otherwise

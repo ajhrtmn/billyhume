@@ -55,7 +55,7 @@ class BHC_Privacy {
         $data = [];
 
         $progress_rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT lesson_id, step_index, completed_at, score, passed, attempts, watched_percent FROM " . $wpdb->prefix . "bhc_progress WHERE user_id = %d",
+            "SELECT lesson_id, step_index, completed_at, score, passed, attempts, watched_percent FROM " . BHC_Tables::progress() . " WHERE user_id = %d",
             $user->ID
         ), ARRAY_A);
         foreach ($progress_rows as $row) {
@@ -97,8 +97,8 @@ class BHC_Privacy {
             return ['items_removed' => false, 'items_retained' => false, 'messages' => [], 'done' => true];
         }
 
-        $removed_progress = $wpdb->delete($wpdb->prefix . 'bhc_progress', ['user_id' => $user->ID]);
-        $removed_achievements = $wpdb->delete($wpdb->prefix . 'bhc_achievements', ['user_id' => $user->ID]);
+        $removed_progress = $wpdb->delete(BHC_Tables::progress(), ['user_id' => $user->ID]);
+        $removed_achievements = $wpdb->delete(BHC_Tables::achievements(), ['user_id' => $user->ID]);
 
         return [
             'items_removed' => (bool) ($removed_progress || $removed_achievements),

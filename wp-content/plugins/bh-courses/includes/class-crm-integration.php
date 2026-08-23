@@ -32,7 +32,7 @@ class BHC_CrmIntegration {
      */
     public static function active_user_ids($ids): array {
         global $wpdb;
-        return array_merge($ids, $wpdb->get_col("SELECT DISTINCT user_id FROM {$wpdb->prefix}bhc_progress"));
+        return array_merge($ids, $wpdb->get_col("SELECT DISTINCT user_id FROM " . BHC_Tables::progress()));
     }
 
     /**
@@ -48,12 +48,12 @@ class BHC_CrmIntegration {
             // list is read top-to-bottom in the CRM activity summary,
             // same class of bug already caught and fixed in bh-crm's
             // own notes feature and bh-contest's vote export.
-            "SELECT course_id, completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d ORDER BY completed_at DESC, id DESC",
+            "SELECT course_id, completed_at FROM " . BHC_Tables::completions() . " WHERE user_id = %d ORDER BY completed_at DESC, id DESC",
             $user_id
         ), ARRAY_A);
 
         $in_progress_count = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(DISTINCT lesson_id) FROM {$wpdb->prefix}bhc_progress WHERE user_id = %d", $user_id
+            "SELECT COUNT(DISTINCT lesson_id) FROM " . BHC_Tables::progress() . " WHERE user_id = %d", $user_id
         ));
 
         if (!$completed && !$in_progress_count) return $sections;
@@ -163,7 +163,7 @@ add_filter('bhcore_metrics_widgets', function ($widgets) {
         // NULL-vs-placeholder handling), which would silently drag a
         // naive AVG() toward 0 if included.
         $avg = $wpdb->get_var(
-            "SELECT AVG(score) FROM {$wpdb->prefix}bhc_progress WHERE score IS NOT NULL AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
+            "SELECT AVG(score) FROM " . BHC_Tables::progress() . " WHERE score IS NOT NULL AND completed_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
         );
         OUS_Metrics::render_card('Avg. quiz score', $avg !== null ? round($avg) . '%' : '—', 'Last 30 days, all courses');
     }];

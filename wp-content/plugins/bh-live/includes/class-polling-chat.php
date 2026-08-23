@@ -60,8 +60,7 @@ class BHL_PollingChat implements BHL_Chat {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhl_chat_messages';
+        return BHL_Tables::chat_messages();
     }
 
     private static function rate_limited(string $action, int $limit = 20, int $window = 60): bool {

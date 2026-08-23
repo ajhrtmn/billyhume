@@ -359,7 +359,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
         if (!$stats) return new WP_Error('no_channel', 'No YouTube channel found for the connected account.');
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $now = current_time('mysql', true);
         foreach (['subscriberCount' => 'subscribers', 'viewCount' => 'views', 'videoCount' => 'videos'] as $api_key => $metric_key) {
             if (!isset($stats[$api_key])) continue;
@@ -376,7 +376,7 @@ class BHSO_YouTube implements BH_SocialPlatform {
     /** @return array<string, array<string, mixed>> */
     public static function latest_stats(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_platform_stats';
+        $table = BHSO_Tables::platform_stats();
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT t1.metric_key, t1.metric_value, t1.recorded_at FROM $table t1
              INNER JOIN (SELECT metric_key, MAX(recorded_at) AS max_recorded FROM $table WHERE platform = %s GROUP BY metric_key) t2

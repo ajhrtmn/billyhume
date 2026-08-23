@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  * diff question the activity timeline was never shaped to answer (it
  * stores one event payload, not a structured old/new diff).
  *
- * Storage: {$wpdb->prefix}bhcore_audit_log (actor_user_id, action,
+ * Storage: " . OUS_Tables::audit_log() . " (actor_user_id, action,
  * object_type, object_id, diff JSON, meta JSON, created_at). Synchronous
  * writes (unlike BH_Event, which defers through OUS_Jobs) — an audit
  * record needs to exist even if the very next line of code is what
@@ -98,8 +98,7 @@ class OUS_Audit {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_audit_log';
+        return OUS_Tables::audit_log();
     }
 
     /* =================================================================

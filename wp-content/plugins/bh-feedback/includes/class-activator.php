@@ -39,7 +39,7 @@ class BHF_Activator {
         // the review row (not just read from the request post) so a
         // reviewer's own history/stats stay queryable even if a request
         // post is later deleted.
-        $reviews = $wpdb->prefix . 'bh_feedback_reviews';
+        $reviews = BHF_Tables::reviews();
         $sql = "CREATE TABLE $reviews (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             request_id bigint(20) unsigned NOT NULL,

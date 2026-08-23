@@ -151,7 +151,7 @@ class BH_Content {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhcore_content';
+        $table = OUS_Tables::content();
         $raw = $wpdb->get_var($wpdb->prepare(
             "SELECT blocks FROM $table WHERE context_type = %s AND context_id = %d",
             $context_type, (int) $context_id
@@ -192,7 +192,7 @@ class BH_Content {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhcore_content';
+        $table = OUS_Tables::content();
         $exists = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $table WHERE context_type = %s AND context_id = %d",
             $context_type, (int) $context_id

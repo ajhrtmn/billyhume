@@ -84,25 +84,22 @@ class BHS_PROWizard {
     // whole page already works with no bh-monetization-woo installed,
     // this export just doesn't appear until there's ledger data to
     // export.
+    /**
+     * bh-monetization-woo is optional to this plugin, so every read of its
+     * ledger is guarded at call time, never at file-parse time.
+     */
+    private static function ledger_available(): bool {
+        return class_exists('BHM_PurchaseLedger') && BHM_PurchaseLedger::is_available();
+    }
+
     public static function handle_export_royalty_report(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_GET['_wpnonce'] ?? '', 'bhs_export_royalty_report')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
         }
-        global $wpdb;
-        $ledger_table = $wpdb->prefix . 'bhm_purchase_ledger';
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $ledger_table)) !== $ledger_table) {
+        if (!self::ledger_available()) {
             wp_die('No purchase ledger found — BH Monetization isn\'t active or no purchases have been anchored yet.', '', ['back_link' => true]);
         }
-
-        // Confirmed purchases minus any that were later reversed —
-        // exactly the same "purchase minus its linked reversal" logic
-        // BHM_LedgerCRMIntegration already uses for its own summary, so
-        // this export and that admin-facing count never disagree.
-        $rows = $wpdb->get_results(
-            "SELECT p.* FROM $ledger_table p WHERE p.event_type = 'purchase'
-             AND NOT EXISTS (SELECT 1 FROM $ledger_table r WHERE r.linked_record_id = p.id AND r.event_type = 'reversal')
-             ORDER BY p.created_at ASC"
-        );
+        $rows = BHM_PurchaseLedger::confirmed_purchases();
 
         $affiliation = get_option('bhs_pro_affiliation', ['pro' => '', 'name' => '', 'ipi' => '']);
 
@@ -263,9 +260,7 @@ class BHS_PROWizard {
         echo '<p><a class="button" href="' . esc_url(add_query_arg(['step' => 3, 'pro' => $current['pro']], $base)) . '">Edit affiliation</a> ';
         echo '<a class="button" href="' . esc_url(add_query_arg(['step' => 1], $base)) . '">Change PRO</a></p>';
 
-        global $wpdb;
-        $ledger_table = $wpdb->prefix . 'bhm_purchase_ledger';
-        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $ledger_table)) === $ledger_table) {
+        if (self::ledger_available()) {
             echo '<h2>Royalty report export</h2>';
             echo '<p class="description">A CSV of your anchored track/release sales — attach this to a manual royalty claim with your PRO or the MLC. Not a submission API (none of them offer one); this just saves compiling the report by hand.</p>';
             $url = wp_nonce_url(admin_url('admin-post.php?action=bhs_export_royalty_report'), 'bhs_export_royalty_report');

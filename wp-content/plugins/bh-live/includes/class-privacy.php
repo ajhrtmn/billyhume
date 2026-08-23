@@ -75,7 +75,7 @@ class BHL_Privacy {
             return ['items_removed' => false, 'items_retained' => false, 'messages' => [], 'done' => true];
         }
 
-        $removed = $wpdb->delete($wpdb->prefix . 'bhl_chat_messages', ['user_id' => $user->ID]);
+        $removed = $wpdb->delete(BHL_Tables::chat_messages(), ['user_id' => $user->ID]);
 
         return [
             'items_removed' => (bool) $removed,

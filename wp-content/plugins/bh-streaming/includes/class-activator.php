@@ -74,7 +74,7 @@ class BHS_Activator {
     private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
-        $table   = $wpdb->prefix . 'bhs_likes';
+        $table   = BHS_Tables::likes();
 
         $sql = "CREATE TABLE $table (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -96,7 +96,7 @@ class BHS_Activator {
         // playing/paused, control mode, skip votes) as one JSON blob
         // rather than a column per field — polled and rewritten often
         // enough (see class-jam.php) that one UPDATE beats several.
-        $jam = $wpdb->prefix . 'bhs_jam_sessions';
+        $jam = BHS_Tables::jam_sessions();
         $sql2 = "CREATE TABLE $jam (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             invite_code varchar(12) NOT NULL,
@@ -111,7 +111,7 @@ class BHS_Activator {
         ) $charset;";
         dbDelta($sql2);
 
-        $participants = $wpdb->prefix . 'bhs_jam_participants';
+        $participants = BHS_Tables::jam_participants();
         $sql3 = "CREATE TABLE $participants (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             session_id bigint(20) unsigned NOT NULL,
@@ -130,7 +130,7 @@ class BHS_Activator {
         // pattern as bh-monetization-woo's wallet, never a read-then-
         // write). Never a per-listener row — see class-stats.php's own
         // docblock for why that distinction matters here.
-        $stats = $wpdb->prefix . 'bhs_daily_stats';
+        $stats = BHS_Tables::daily_stats();
         $sql4 = "CREATE TABLE $stats (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             stat_date date NOT NULL,
@@ -156,7 +156,7 @@ class BHS_Activator {
         // together identify a specific external track without needing
         // a local post; VARCHAR(191) on both (not TEXT) so the unique
         // key stays within InnoDB's index-length limit under utf8mb4.
-        $fan_library = $wpdb->prefix . 'bhs_fan_library';
+        $fan_library = BHS_Tables::fan_library();
         $sql5 = "CREATE TABLE $fan_library (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL,

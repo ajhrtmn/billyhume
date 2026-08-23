@@ -404,13 +404,7 @@ class BHI_Portal {
         // drilling into any one panel's own full list. ----
         $stats = [];
         if (class_exists('BHC_Progress')) {
-            global $wpdb;
-            $in_progress = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$wpdb->prefix}bhc_enrollments e
-                 LEFT JOIN {$wpdb->prefix}bhc_completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
-                 WHERE e.user_id = %d AND c.course_id IS NULL",
-                $user_id
-            ));
+            $in_progress = BHC_Progress::in_progress_count($user_id);
             if ($in_progress > 0) $stats[] = [(string) $in_progress, $in_progress === 1 ? 'course in progress' : 'courses in progress'];
         }
         if (post_type_exists('bh_submission')) {
@@ -430,14 +424,9 @@ class BHI_Portal {
         }
 
         // ---- membership snapshot ----
-        if (class_exists('BHM_Tiers')) {
-            global $wpdb;
-            $t = $wpdb->prefix . 'bhm_entitlements';
-            $now = current_time('mysql');
-            $active = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND (expires_at IS NULL OR expires_at > %s) ORDER BY object_id ASC LIMIT 1",
-                $user_id, $now
-            ), ARRAY_A);
+        if (class_exists('BHM_Tiers') && class_exists('BHM_Entitlements')) {
+            $membership = BHM_Entitlements::active_membership($user_id);
+            $active = $membership ? [$membership] : [];
             if ($active) {
                 $shown_anything = true;
                 $tier = BHM_Tiers::get($active[0]['object_id']);
@@ -469,14 +458,7 @@ class BHI_Portal {
         // you left off" rather than an arbitrary enrolled-course list
         // (that full list already lives on the Courses tab itself). ----
         if (class_exists('BHC_Progress')) {
-            global $wpdb;
-            $course_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT e.course_id FROM {$wpdb->prefix}bhc_enrollments e
-                 LEFT JOIN {$wpdb->prefix}bhc_completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
-                 WHERE e.user_id = %d AND c.course_id IS NULL
-                 ORDER BY e.enrolled_at DESC LIMIT 1",
-                $user_id
-            ));
+            $course_id = BHC_Progress::most_recent_in_progress_course($user_id);
             if ($course_id && get_post_status($course_id) === 'publish') {
                 $shown_anything = true;
                 $percent = BHC_Progress::course_percent($user_id, $course_id);

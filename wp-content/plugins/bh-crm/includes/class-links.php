@@ -73,8 +73,7 @@ class BHCRM_Links {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_links';
+        return BHCRM_Tables::links();
     }
 
     /**
@@ -86,7 +85,7 @@ class BHCRM_Links {
      */
     public static function migrate_legacy_project_owners(): void {
         global $wpdb;
-        $projects_table = $wpdb->prefix . 'bhcrm_projects';
+        $projects_table = BHCRM_Tables::projects();
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $projects_table)) !== $projects_table) return;
 
         $rows = $wpdb->get_results("SELECT id, crm_person_id FROM $projects_table WHERE crm_person_id > 0", ARRAY_A);

@@ -68,8 +68,7 @@ class BHC_Achievements {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhc_achievements';
+        return BHC_Tables::achievements();
     }
 
     // INSERT IGNORE against the table's own UNIQUE KEY is what actually

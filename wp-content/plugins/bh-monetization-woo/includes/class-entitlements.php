@@ -165,7 +165,7 @@ class BHM_Entitlements {
         $order = BH_Commerce::get_order($order_id);
         if (!$order) return;
 
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         // Fetch what's about to be deleted BEFORE deleting it, so the
         // bhm_entitlement_revoked action (see grant_entitlement()'s
         // granted counterpart below) can tell a listener which specific
@@ -271,7 +271,7 @@ class BHM_Entitlements {
     private static function revoke_subscription_entitlements($subscription, string $reason): void {
         global $wpdb;
         $sub_id = $subscription->get_id(); // trivial accessor, not worth a full normalize_subscription() round trip just for this
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $revoked = $wpdb->get_results($wpdb->prepare("SELECT * FROM $t WHERE wc_subscription_id = %d", $sub_id), ARRAY_A);
         $wpdb->delete($t, ['wc_subscription_id' => $sub_id]);
         foreach ($revoked as $row) {
@@ -313,9 +313,27 @@ class BHM_Entitlements {
     // grant_entitlement()'s order/subscription-keyed idempotency check —
     // BHM_Gifts' own `status = 'redeemed'` guard is what prevents a
     // double-claim, not this.
+    /**
+     * The user's current membership entitlement, or null. Owns the
+     * "unexpired subscription/streaming_tier" rule so cross-plugin
+     * callers don't query this plugin's schema directly.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function active_membership(int $user_id): ?array {
+        global $wpdb;
+        $table = BHM_Tables::entitlements();
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE user_id = %d AND type IN ('subscription','streaming_tier')
+             AND (expires_at IS NULL OR expires_at > %s) ORDER BY object_id ASC LIMIT 1",
+            $user_id, current_time('mysql')
+        ), ARRAY_A);
+        return $row ?: null;
+    }
+
     public static function grant_gift_entitlement(int $user_id, int $tier_id, int $order_id): void {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         // Same tier-exclusivity enforcement grant_entitlement() applies —
         // this bypasses that method entirely (see docblock above), so it
         // needs its own call or a gift redemption could stack a second
@@ -338,7 +356,7 @@ class BHM_Entitlements {
     /** @return array<string, mixed>|null */
     public static function revoke_entitlement_by_id(int $entitlement_id, string $reason = 'manual_revoke'): ?array {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", (int) $entitlement_id), ARRAY_A);
         if (!$row) return null;
 
@@ -388,7 +406,7 @@ class BHM_Entitlements {
     // math, no "you switched" messaging, since it isn't a tier change.
     private static function replace_active_tier_entitlements(int $user_id, int $new_tier_id): bool {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         $now = current_time('mysql', true);
         $existing_rows = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM $t WHERE user_id = %d AND type IN ('subscription','streaming_tier') AND scope = 'account' AND (expires_at IS NULL OR expires_at > %s)",
@@ -440,7 +458,7 @@ class BHM_Entitlements {
 
     private static function grant_entitlement(int $user_id, string $type, string $scope, int $object_id, ?int $order_id, ?int $subscription_id, ?string $expires_at): void {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
 
         // Idempotent per (user, type, scope, object, and whichever of
         // order/subscription actually applies) — a webhook retry or a

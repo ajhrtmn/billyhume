@@ -36,8 +36,7 @@ class BHC_Sessions {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhc_sessions';
+        return BHC_Tables::sessions();
     }
 
     const DB_VERSION = '1.0';

@@ -35,7 +35,7 @@ class BHSO_SpotifyAds implements BH_AdsPlatform {
      */
     public function save_campaign_draft(array $args) {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_ad_campaigns';
+        $table = BHSO_Tables::ad_campaigns();
 
         $data = [
             'platform'        => 'spotify',
@@ -61,7 +61,7 @@ class BHSO_SpotifyAds implements BH_AdsPlatform {
     /** @return array<int, array<string, mixed>> */
     public function list_campaign_drafts(): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_ad_campaigns';
+        $table = BHSO_Tables::ad_campaigns();
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM $table WHERE platform = %s ORDER BY created_at DESC", 'spotify'
         ), ARRAY_A);
@@ -69,7 +69,7 @@ class BHSO_SpotifyAds implements BH_AdsPlatform {
 
     public function delete_campaign_draft(int $id): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhso_ad_campaigns';
+        $table = BHSO_Tables::ad_campaigns();
         return (bool) $wpdb->delete($table, ['id' => (int) $id, 'platform' => 'spotify']);
     }
 

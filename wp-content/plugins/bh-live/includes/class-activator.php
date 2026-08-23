@@ -36,7 +36,7 @@ class BHL_Activator {
         // this column existed (dbDelta's own default backfills those rows),
         // 'twitch'/'youtube' for messages BHL_PollingChat::relay_message()
         // inserts on the automation bridge's behalf.
-        $messages = $wpdb->prefix . 'bhl_chat_messages';
+        $messages = BHL_Tables::chat_messages();
         $sql = "CREATE TABLE $messages (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             stream_id bigint(20) unsigned NOT NULL,
@@ -58,7 +58,7 @@ class BHL_Activator {
         // wait on that queue). BH_Event-sourced triggers (bhs/play,
         // bh/vote, etc.) are read directly from wp_bhcore_events instead
         // of being duplicated in here.
-        $log = $wpdb->prefix . 'bhl_automation_log';
+        $log = BHL_Tables::automation_log();
         $sql2 = "CREATE TABLE $log (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             type varchar(64) NOT NULL,

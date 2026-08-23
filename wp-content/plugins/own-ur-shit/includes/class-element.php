@@ -545,8 +545,7 @@ class BH_Element {
      * ================================================================= */
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_element_placements';
+        return OUS_Tables::element_placements();
     }
 
     /**

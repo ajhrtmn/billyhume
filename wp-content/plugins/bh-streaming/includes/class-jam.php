@@ -72,8 +72,8 @@ class BHS_Jam {
 
     /* ---------------- helpers ---------------- */
 
-    private static function table(): string { global $wpdb; return $wpdb->prefix . 'bhs_jam_sessions'; }
-    private static function ptable(): string { global $wpdb; return $wpdb->prefix . 'bhs_jam_participants'; }
+    private static function table(): string { return BHS_Tables::jam_sessions(); }
+    private static function ptable(): string { return BHS_Tables::jam_participants(); }
 
     // A 6-char code from a 32-char set is ~1 billion combinations —
     // fine against a casual guess, not fine against an unthrottled

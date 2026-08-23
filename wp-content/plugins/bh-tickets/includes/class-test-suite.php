@@ -64,8 +64,8 @@ class BHT_TestSuite {
         }
 
         // Cleanup.
-        $wpdb->delete($wpdb->prefix . 'bhtickets_replies', ['ticket_id' => $ticket_id]);
-        $wpdb->delete($wpdb->prefix . 'bhtickets_tickets', ['id' => $ticket_id]);
+        $wpdb->delete(BHT_Tables::replies(), ['ticket_id' => $ticket_id]);
+        $wpdb->delete(BHT_Tables::tickets(), ['id' => $ticket_id]);
 
         return $rows;
     }

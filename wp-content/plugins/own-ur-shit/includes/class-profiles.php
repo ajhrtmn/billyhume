@@ -28,8 +28,7 @@ class BHI_Profiles {
     const PLATFORMS = ['youtube', 'twitch'];
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhi_profiles';
+        return OUS_Tables::profiles();
     }
 
     // Shared lookup so bh-crm's class-people.php and class-export.php

@@ -56,7 +56,7 @@ if (!defined('ABSPATH')) exit;
  * ============================================================
  *
  * A "project" is a lightweight row in this plugin's OWN table,
- * {$wpdb->prefix}bhcrm_projects (id, name, crm_person_id, columns_config
+ * " . BHCRM_Tables::projects() . " (id, name, crm_person_id, columns_config
  * JSON array of column-label strings, created_at, updated_at). This is
  * genuinely bh-crm's own concern (a project belongs to a CRM person),
  * matching class-people.php's own precedent of owning CRM-specific
@@ -289,7 +289,7 @@ class BHCRM_Projects {
         // card's current column + when it landed there; the gap
         // between consecutive rows for the same card is real
         // time-in-column, feeding average_time_in_column() below.
-        $moves = $wpdb->prefix . 'bhcrm_project_card_moves';
+        $moves = BHCRM_Tables::project_card_moves();
         dbDelta("CREATE TABLE $moves (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             card_placement_id bigint(20) unsigned NOT NULL,
@@ -305,13 +305,11 @@ class BHCRM_Projects {
     }
 
     private static function moves_table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_project_card_moves';
+        return BHCRM_Tables::project_card_moves();
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcrm_projects';
+        return BHCRM_Tables::projects();
     }
 
     /* =================================================================

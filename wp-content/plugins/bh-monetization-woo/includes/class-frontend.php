@@ -141,7 +141,22 @@ class BHM_Frontend {
         if (!$is_thankyou) {
             if (!is_singular()) return;
             global $post;
-            if (!$post || (!has_shortcode($post->post_content, 'bhm_tiers') && !has_shortcode($post->post_content, 'bhm_wallet') && !has_shortcode($post->post_content, 'bhm_tip_jar') && !has_shortcode($post->post_content, 'bhm_buy'))) return;
+            if (!$post) return;
+            $has_shortcode = has_shortcode($post->post_content, 'bhm_tiers')
+                || has_shortcode($post->post_content, 'bhm_wallet')
+                || has_shortcode($post->post_content, 'bhm_tip_jar')
+                || has_shortcode($post->post_content, 'bhm_buy');
+            // A tier-gated post carries no bhm_* shortcode of its own, but
+            // BHM_Gate::paywall_html() still renders .bhm-paywall into it —
+            // so without this the paywall was the one component of this
+            // plugin that could render completely unstyled. It only looked
+            // fine because bh-streaming kept its own private copy of the
+            // .bhm-paywall/.bhm-btn rules for markup it never renders; that
+            // copy had already drifted (no var() fallbacks, no color, no
+            // .bhm-btn-secondary). Owning the styles wherever the component
+            // renders is the fix; the duplicate is then free to go.
+            $is_gated = class_exists('BHM_Gate') && BHM_Gate::get_required_tier($post->ID) > 0;
+            if (!$has_shortcode && !$is_gated) return;
         }
         wp_enqueue_style('bhm-frontend', BHM_URL . 'assets/css/frontend.css', [], BHM_VER);
         if (class_exists('BHY_Style')) wp_add_inline_style('bhm-frontend', BHY_Style::inline_css());
@@ -326,7 +341,7 @@ class BHM_Frontend {
     /** The most recent real (has a wc_subscription_id) tier entitlement row for this user+tier — a fallback one-time-purchase entitlement (wc_subscription_id NULL) never matches, by design (see this section's own docblock). */
     private static function active_subscription_id(int $user_id, int $tier_id): int {
         global $wpdb;
-        $t = $wpdb->prefix . 'bhm_entitlements';
+        $t = BHM_Tables::entitlements();
         return (int) $wpdb->get_var($wpdb->prepare(
             "SELECT wc_subscription_id FROM $t WHERE user_id = %d AND type = 'subscription' AND object_id = %d AND wc_subscription_id IS NOT NULL ORDER BY id DESC LIMIT 1",
             $user_id, $tier_id

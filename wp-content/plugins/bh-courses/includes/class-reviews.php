@@ -28,8 +28,7 @@ class BHC_Reviews {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhc_reviews';
+        return BHC_Tables::reviews();
     }
 
     public static function init(): void {

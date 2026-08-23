@@ -29,8 +29,7 @@ class BHC_Progress {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhc_progress';
+        return BHC_Tables::progress();
     }
 
     /** @return array<string, mixed>|null */
@@ -272,7 +271,7 @@ class BHC_Progress {
         if (!$lesson_ids) return [];
         $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
         return array_map('intval', $wpdb->get_col($wpdb->prepare(
-            "SELECT DISTINCT user_id FROM {$wpdb->prefix}bhc_progress WHERE lesson_id IN ($placeholders) ORDER BY user_id",
+            "SELECT DISTINCT user_id FROM " . BHC_Tables::progress() . " WHERE lesson_id IN ($placeholders) ORDER BY user_id",
             $lesson_ids
         )));
     }
@@ -283,7 +282,7 @@ class BHC_Progress {
         global $wpdb;
         $placeholders = implode(',', array_fill(0, count($lesson_ids), '%d'));
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT MAX(completed_at) FROM {$wpdb->prefix}bhc_progress WHERE user_id = %d AND lesson_id IN ($placeholders)",
+            "SELECT MAX(completed_at) FROM " . BHC_Tables::progress() . " WHERE user_id = %d AND lesson_id IN ($placeholders)",
             array_merge([$user_id], $lesson_ids)
         ));
     }
@@ -350,7 +349,7 @@ class BHC_Progress {
         global $wpdb;
         $placeholders = implode(',', array_fill(0, count($user_ids), '%d'));
         $rows = $wpdb->get_col($wpdb->prepare(
-            "SELECT user_id FROM {$wpdb->prefix}bhc_completions WHERE course_id = %d AND user_id IN ($placeholders)",
+            "SELECT user_id FROM " . BHC_Tables::completions() . " WHERE course_id = %d AND user_id IN ($placeholders)",
             array_merge([$course_id], $user_ids)
         ));
         return array_flip(array_map('intval', $rows));
@@ -392,7 +391,7 @@ class BHC_Progress {
         if (!$user_id || !$course_id) return false;
         global $wpdb;
         $wpdb->query($wpdb->prepare(
-            "INSERT IGNORE INTO {$wpdb->prefix}bhc_enrollments (user_id, course_id) VALUES (%d, %d)",
+            "INSERT IGNORE INTO " . BHC_Tables::enrollments() . " (user_id, course_id) VALUES (%d, %d)",
             $user_id, $course_id
         ));
         // Deduplicated by design — dedup_key means a repeat visit's
@@ -418,10 +417,43 @@ class BHC_Progress {
         return false;
     }
 
+    /**
+     * Enrolled-but-not-yet-completed courses. The "in progress" rule is
+     * this plugin's own, and lives here so cross-plugin callers (the
+     * core's Portal overview) don't reimplement the enrollment/completion
+     * join against a schema they don't own.
+     */
+    public static function in_progress_count(int $user_id): int {
+        global $wpdb;
+        $enrollments = BHC_Tables::enrollments();
+        $completions = BHC_Tables::completions();
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $enrollments e
+             LEFT JOIN $completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
+             WHERE e.user_id = %d AND c.course_id IS NULL",
+            $user_id
+        ));
+    }
+
+    /** Most recently enrolled course the user hasn't finished, for "continue learning". */
+    public static function most_recent_in_progress_course(int $user_id): ?int {
+        global $wpdb;
+        $enrollments = BHC_Tables::enrollments();
+        $completions = BHC_Tables::completions();
+        $course_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT e.course_id FROM $enrollments e
+             LEFT JOIN $completions c ON c.user_id = e.user_id AND c.course_id = e.course_id
+             WHERE e.user_id = %d AND c.course_id IS NULL
+             ORDER BY e.enrolled_at DESC LIMIT 1",
+            $user_id
+        ));
+        return $course_id ? (int) $course_id : null;
+    }
+
     public static function enrolled_at(int $user_id, int $course_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT enrolled_at FROM {$wpdb->prefix}bhc_enrollments WHERE user_id = %d AND course_id = %d",
+            "SELECT enrolled_at FROM " . BHC_Tables::enrollments() . " WHERE user_id = %d AND course_id = %d",
             $user_id, $course_id
         ));
     }
@@ -435,7 +467,7 @@ class BHC_Progress {
     public static function enrolled_user_ids(int $course_id): array {
         global $wpdb;
         return array_map('intval', $wpdb->get_col($wpdb->prepare(
-            "SELECT user_id FROM {$wpdb->prefix}bhc_enrollments WHERE course_id = %d",
+            "SELECT user_id FROM " . BHC_Tables::enrollments() . " WHERE course_id = %d",
             $course_id
         )));
     }
@@ -451,7 +483,7 @@ class BHC_Progress {
     public static function enrollment_counts(): array {
         global $wpdb;
         $rows = $wpdb->get_results(
-            "SELECT course_id, COUNT(*) AS c FROM {$wpdb->prefix}bhc_enrollments GROUP BY course_id",
+            "SELECT course_id, COUNT(*) AS c FROM " . BHC_Tables::enrollments() . " GROUP BY course_id",
             ARRAY_A
         );
         $counts = [];
@@ -474,7 +506,7 @@ class BHC_Progress {
 
         global $wpdb;
         $wpdb->query($wpdb->prepare(
-            "INSERT IGNORE INTO {$wpdb->prefix}bhc_completions (user_id, course_id) VALUES (%d, %d)",
+            "INSERT IGNORE INTO " . BHC_Tables::completions() . " (user_id, course_id) VALUES (%d, %d)",
             $user_id, $course_id
         ));
         if ((int) $wpdb->rows_affected === 1) {
@@ -519,7 +551,7 @@ class BHC_Progress {
     public static function is_course_completed(int $user_id, int $course_id): bool {
         global $wpdb;
         $has_completion_row = (bool) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
+            "SELECT COUNT(*) FROM " . BHC_Tables::completions() . " WHERE user_id = %d AND course_id = %d",
             $user_id, $course_id
         ));
         if (!$has_completion_row) return false;
@@ -530,7 +562,7 @@ class BHC_Progress {
     public static function course_completed_at(int $user_id, int $course_id): ?string {
         global $wpdb;
         return $wpdb->get_var($wpdb->prepare(
-            "SELECT completed_at FROM {$wpdb->prefix}bhc_completions WHERE user_id = %d AND course_id = %d",
+            "SELECT completed_at FROM " . BHC_Tables::completions() . " WHERE user_id = %d AND course_id = %d",
             $user_id, $course_id
         ));
     }

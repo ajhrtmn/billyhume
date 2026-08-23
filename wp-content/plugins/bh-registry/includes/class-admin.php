@@ -31,7 +31,7 @@ class BHR_Admin {
     public static function report_target_label(string $label, string $type, int $id): string {
         if ($type !== 'registry_artist') return $label;
         global $wpdb;
-        $name = $wpdb->get_var($wpdb->prepare("SELECT display_name FROM {$wpdb->prefix}bhr_artists WHERE id = %d", $id));
+        $name = $wpdb->get_var($wpdb->prepare("SELECT display_name FROM " . BHR_Tables::artists() . " WHERE id = %d", $id));
         return $name ? 'Registry artist: ' . $name . ' (#' . $id . ')' : 'Registry artist #' . $id . ' (not found — may already be removed)';
     }
 
@@ -68,8 +68,8 @@ class BHR_Admin {
 
     public static function render(): void {
         global $wpdb;
-        $artists_t = $wpdb->prefix . 'bhr_artists';
-        $links_t   = $wpdb->prefix . 'bhr_links';
+        $artists_t = BHR_Tables::artists();
+        $links_t   = BHR_Tables::links();
 
         $artists = $wpdb->get_results("SELECT * FROM $artists_t ORDER BY created_at DESC LIMIT 200");
         echo '<div class="wrap"><h1>Registry Submissions</h1>';
@@ -163,18 +163,18 @@ class BHR_Admin {
 
         switch ($do) {
             case 'reject':
-                $wpdb->update($wpdb->prefix . 'bhr_artists', ['status' => 'rejected', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
+                $wpdb->update(BHR_Tables::artists(), ['status' => 'rejected', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
                 break;
             case 'unreject':
                 // Back to 'pending' rather than straight to 'active' —
                 // let the normal verified-link check decide, same as any
                 // other artist; restoring shouldn't bypass that.
-                $wpdb->update($wpdb->prefix . 'bhr_artists', ['status' => 'pending', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
+                $wpdb->update(BHR_Tables::artists(), ['status' => 'pending', 'updated_at' => current_time('mysql')], ['id' => $artist_id]);
                 BHR_Verification::recheck_artist($artist_id);
                 break;
             case 'delete':
-                $wpdb->delete($wpdb->prefix . 'bhr_links', ['artist_id' => $artist_id]);
-                $wpdb->delete($wpdb->prefix . 'bhr_artists', ['id' => $artist_id]);
+                $wpdb->delete(BHR_Tables::links(), ['artist_id' => $artist_id]);
+                $wpdb->delete(BHR_Tables::artists(), ['id' => $artist_id]);
                 break;
             case 'reverify_link':
                 if ($link_id) {

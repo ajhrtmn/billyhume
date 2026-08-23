@@ -19,7 +19,6 @@ if (!defined('ABSPATH')) exit;
  * granting the buyer immediate access.
  */
 class BHM_Gifts {
-    const TABLE = 'bhm_gift_redemptions';
 
     public static function init(): void {
         add_filter('woocommerce_add_cart_item_data', [self::class, 'capture_gift_email'], 10, 2);
@@ -83,7 +82,7 @@ class BHM_Gifts {
     public static function create_redemption(int $tier_id, int $buyer_user_id, int $order_id, string $recipient_email): string {
         global $wpdb;
         $code = wp_generate_password(20, false, false);
-        $wpdb->insert($wpdb->prefix . self::TABLE, [
+        $wpdb->insert(BHM_Tables::gift_redemptions(), [
             'code' => $code,
             'tier_id' => (int) $tier_id,
             'buyer_user_id' => (int) $buyer_user_id,
@@ -132,7 +131,7 @@ class BHM_Gifts {
         if (!$code) return '<p>No gift code provided.</p>';
 
         global $wpdb;
-        $t = $wpdb->prefix . self::TABLE;
+        $t = BHM_Tables::gift_redemptions();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE code = %s", $code), ARRAY_A);
         if (!$row) return '<p>That gift code isn\'t valid.</p>';
         if ($row['status'] === 'redeemed') return '<p>This gift has already been claimed.</p>';
@@ -170,7 +169,7 @@ class BHM_Gifts {
         }
 
         global $wpdb;
-        $t = $wpdb->prefix . self::TABLE;
+        $t = BHM_Tables::gift_redemptions();
         $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE code = %s", $code), ARRAY_A);
         if (!$row || $row['status'] === 'redeemed') {
             wp_die('That gift is no longer available to claim.', 400);

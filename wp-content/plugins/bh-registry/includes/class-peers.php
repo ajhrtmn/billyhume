@@ -38,7 +38,7 @@ class BHR_Peers {
 
     public static function render(): void {
         global $wpdb;
-        $table = $wpdb->prefix . 'bhr_peers';
+        $table = BHR_Tables::peers();
         $peers = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC");
 
         echo '<div class="wrap"><h1>Registry Peers</h1>';
@@ -227,7 +227,7 @@ class BHR_Peers {
         }
 
         global $wpdb;
-        $inserted = $wpdb->insert($wpdb->prefix . 'bhr_peers', [
+        $inserted = $wpdb->insert(BHR_Tables::peers(), [
             'base_url'       => $base_url,
             'label'          => $label,
             'status'         => 'active',
@@ -249,7 +249,7 @@ class BHR_Peers {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'bhr_peers';
+        $table = BHR_Tables::peers();
         $peer_id = (int) ($_GET['peer_id'] ?? 0);
         $do = sanitize_text_field($_GET['do'] ?? '');
 

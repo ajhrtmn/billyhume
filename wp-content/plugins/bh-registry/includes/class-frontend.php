@@ -76,7 +76,7 @@ class BHR_Frontend {
         $page_id = (int) get_option('bhr_registry_page_id', 0);
         if (!$page_id || get_post_status($page_id) !== 'publish') return []; // nowhere real to link to yet
 
-        $artists_t = $wpdb->prefix . 'bhr_artists';
+        $artists_t = BHR_Tables::artists();
         $like = '%' . $wpdb->esc_like($query) . '%';
         // Same 'active'-only gate as the real public REST search — an
         // artist still pending/rejected is never surfaced here either.

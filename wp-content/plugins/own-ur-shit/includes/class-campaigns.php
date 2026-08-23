@@ -64,8 +64,7 @@ class OUS_Campaigns {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_campaigns';
+        return OUS_Tables::campaigns();
     }
 
     public static function add_menu(): void {

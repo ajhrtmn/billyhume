@@ -18,20 +18,20 @@ class BHM_Wallet {
 
     public static function balance_cents(int $user_id): int {
         global $wpdb;
-        $bal = $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id));
+        $bal = $wpdb->get_var($wpdb->prepare("SELECT balance_cents FROM " . BHM_Tables::wallet() . " WHERE user_id = %d", $user_id));
         return $bal === null ? 0 : (int) $bal;
     }
 
     public static function held_cents(int $user_id): int {
         global $wpdb;
-        $held = $wpdb->get_var($wpdb->prepare("SELECT held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id));
+        $held = $wpdb->get_var($wpdb->prepare("SELECT held_cents FROM " . BHM_Tables::wallet() . " WHERE user_id = %d", $user_id));
         return $held === null ? 0 : (int) $held;
     }
 
     /** What's actually still spendable/biddable right now — balance minus whatever's already committed to an open auction bid. */
     public static function available_cents(int $user_id): int {
         global $wpdb;
-        $row = $wpdb->get_row($wpdb->prepare("SELECT balance_cents, held_cents FROM {$wpdb->prefix}bhm_wallet WHERE user_id = %d", $user_id), ARRAY_A);
+        $row = $wpdb->get_row($wpdb->prepare("SELECT balance_cents, held_cents FROM " . BHM_Tables::wallet() . " WHERE user_id = %d", $user_id), ARRAY_A);
         return $row ? ((int) $row['balance_cents'] - (int) $row['held_cents']) : 0;
     }
 
@@ -47,7 +47,7 @@ class BHM_Wallet {
     public static function hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
-        $w = $wpdb->prefix . 'bhm_wallet';
+        $w = BHM_Tables::wallet();
 
         $wpdb->query($wpdb->prepare(
             "UPDATE $w SET held_cents = held_cents + %d, updated_at = %s WHERE user_id = %d AND (balance_cents - held_cents) >= %d",
@@ -62,7 +62,7 @@ class BHM_Wallet {
             return false;
         }
 
-        $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+        $wpdb->insert(BHM_Tables::wallet_ledger(), [
             'user_id' => $user_id, 'delta_cents' => 0, 'reason' => $reason, 'track_id' => $ref_id,
         ]);
         // delta_cents is deliberately 0 here — a hold moves money between
@@ -77,14 +77,14 @@ class BHM_Wallet {
     public static function release_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
-        $w = $wpdb->prefix . 'bhm_wallet';
+        $w = BHM_Tables::wallet();
 
         $ok = $wpdb->query($wpdb->prepare(
             "UPDATE $w SET held_cents = GREATEST(held_cents - %d, 0), updated_at = %s WHERE user_id = %d",
             $cents, current_time('mysql'), $user_id
         ));
         if ($ok !== false) {
-            $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+            $wpdb->insert(BHM_Tables::wallet_ledger(), [
                 'user_id' => $user_id, 'delta_cents' => 0, 'reason' => $reason, 'track_id' => $ref_id,
             ]);
         } elseif (class_exists('OUS_DebugLog')) {
@@ -104,7 +104,7 @@ class BHM_Wallet {
     public static function capture_hold(int $user_id, int $cents, string $reason, ?int $ref_id = null): bool {
         global $wpdb;
         $cents = abs((int) $cents);
-        $w = $wpdb->prefix . 'bhm_wallet';
+        $w = BHM_Tables::wallet();
 
         $wpdb->query($wpdb->prepare(
             "UPDATE $w SET balance_cents = balance_cents - %d, held_cents = held_cents - %d, updated_at = %s WHERE user_id = %d AND held_cents >= %d",
@@ -119,7 +119,7 @@ class BHM_Wallet {
             return false;
         }
 
-        $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+        $ledger_ok = $wpdb->insert(BHM_Tables::wallet_ledger(), [
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $ref_id,
         ]);
         if ($ledger_ok !== false && class_exists('BH_Event')) {
@@ -160,7 +160,7 @@ class BHM_Wallet {
     public static function debit(int $user_id, int $cents, ?int $track_id = null, string $reason = 'play'): bool {
         global $wpdb;
         $cents = abs((int) $cents);
-        $w = $wpdb->prefix . 'bhm_wallet';
+        $w = BHM_Tables::wallet();
 
         $wpdb->query($wpdb->prepare(
             "UPDATE $w SET balance_cents = balance_cents - %d, updated_at = %s WHERE user_id = %d AND balance_cents >= %d",
@@ -185,7 +185,7 @@ class BHM_Wallet {
             return false;
         }
 
-        $ledger_ok = $wpdb->insert($wpdb->prefix . 'bhm_wallet_ledger', [
+        $ledger_ok = $wpdb->insert(BHM_Tables::wallet_ledger(), [
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $track_id,
         ]);
         // Feeds the CRM's unified per-person activity timeline
@@ -223,8 +223,8 @@ class BHM_Wallet {
 
     private static function apply_delta(int $user_id, int $delta_cents, string $reason, ?int $track_id, ?int $order_id): void {
         global $wpdb;
-        $w = $wpdb->prefix . 'bhm_wallet';
-        $l = $wpdb->prefix . 'bhm_wallet_ledger';
+        $w = BHM_Tables::wallet();
+        $l = BHM_Tables::wallet_ledger();
 
         // INSERT ... ON DUPLICATE KEY UPDATE — a single atomic statement
         // rather than a read-then-write, so two plays debiting the same
@@ -266,7 +266,7 @@ class BHM_Wallet {
     public static function ledger_for(int $user_id, int $limit = 20): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}bhm_wallet_ledger WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+            "SELECT * FROM " . BHM_Tables::wallet_ledger() . " WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
             $user_id, $limit
         ));
     }

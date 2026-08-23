@@ -92,7 +92,7 @@ class BHC_PortalPanel {
     private static function enrolled_course_ids(int $user_id): array {
         global $wpdb;
         return $wpdb->get_col($wpdb->prepare(
-            "SELECT course_id FROM {$wpdb->prefix}bhc_enrollments WHERE user_id = %d ORDER BY enrolled_at DESC",
+            "SELECT course_id FROM " . BHC_Tables::enrollments() . " WHERE user_id = %d ORDER BY enrolled_at DESC",
             $user_id
         ));
     }

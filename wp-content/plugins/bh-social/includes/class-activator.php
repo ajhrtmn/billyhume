@@ -32,7 +32,7 @@ class BHSO_Activator {
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $stats = $wpdb->prefix . 'bhso_platform_stats';
+        $stats = BHSO_Tables::platform_stats();
         $sql = "CREATE TABLE $stats (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             platform varchar(20) NOT NULL,
@@ -47,7 +47,7 @@ class BHSO_Activator {
         if ($wpdb->last_error) return false;
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $stats)) !== $stats) return false;
 
-        $campaigns = $wpdb->prefix . 'bhso_ad_campaigns';
+        $campaigns = BHSO_Tables::ad_campaigns();
         $sql2 = "CREATE TABLE $campaigns (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             platform varchar(20) NOT NULL,

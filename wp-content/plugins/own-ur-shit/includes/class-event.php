@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
  * designed but never built, despite VISION.md incorrectly claiming it
  * had shipped).
  *
- * Storage: {$wpdb->prefix}bhcore_events, created by
+ * Storage: " . OUS_Tables::events() . ", created by
  * BHI_Activator::create_or_update_schema() (see class-identity-
  * activator.php, DB_VERSION 1.8).
  *
@@ -150,8 +150,7 @@ class BH_Event {
     // lookup can reuse this instead of hardcoding the table name itself —
     // this class is the one owner of this table's schema.
     public static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_events';
+        return OUS_Tables::events();
     }
 
     // OUS_Jobs handler — runs on the cron/queue worker, not the

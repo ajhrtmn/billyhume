@@ -30,8 +30,8 @@ class BHT_Activator {
         $charset = $wpdb->get_charset_collate();
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $tickets = $wpdb->prefix . 'bhtickets_tickets';
-        $replies = $wpdb->prefix . 'bhtickets_replies';
+        $tickets = BHT_Tables::tickets();
+        $replies = BHT_Tables::replies();
 
         dbDelta("CREATE TABLE $tickets (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

@@ -38,8 +38,7 @@ class OUS_DMCA_Notices {
     }
 
     private static function table(): string {
-        global $wpdb;
-        return $wpdb->prefix . 'bhcore_dmca_notices';
+        return OUS_Tables::dmca_notices();
     }
 
     public static function render_admin_page(): void {
