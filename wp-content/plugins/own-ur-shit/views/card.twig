@@ -1,0 +1,9 @@
+{#
+  Card — surface panel. `body_html` and `footer_html` are pre-built markup
+  from the caller, so they are |raw; `title` is auto-escaped.
+#}
+<div class="bhy-card{{ extra_class ? ' ' ~ extra_class : '' }}">
+    {%- if title %}<h3 class="bhy-card-title">{{ title }}</h3>{% endif -%}
+    {{- body_html|raw -}}
+    {%- if footer_html %}<div class="bhy-card-footer">{{ footer_html|raw }}</div>{% endif -%}
+</div>

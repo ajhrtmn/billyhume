@@ -1,0 +1,11 @@
+{#
+  Alert — bordered/tinted callout.
+
+  `message` is auto-escaped. `body_html` is deliberately |raw for callers that
+  pass pre-built markup; it is the ONE escape hatch here and is greppable.
+#}
+<div class="bhy-alert bhy-alert-{{ variant|default('info') }}">
+    {%- if title %}<strong class="bhy-alert-title">{{ title }}</strong> {% endif -%}
+    {{- message -}}
+    {%- if body_html %}{{ body_html|raw }}{% endif -%}
+</div>

@@ -1,0 +1,6 @@
+{# Badge — the same component BHY_UI::badge() renders in PHP.
+   Kept as a Twig proof: identical markup, auto-escaped by Twig rather than
+   by hand-written esc_html() calls. #}
+<span class="bhy-badge bhy-badge-{{ variant|default('neutral') }}
+             {{- dot ? ' bhy-badge-dot' : '' }}{{ truncate ? ' bhy-badge-truncate' : '' }}"
+      {%- if title %} title="{{ title }}"{% endif %}>{{ label }}</span>
