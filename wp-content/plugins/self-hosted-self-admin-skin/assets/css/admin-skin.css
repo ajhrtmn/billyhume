@@ -41,7 +41,7 @@
    requirement driving WHY this lives here, in the actual stylesheet,
    rather than injected ad hoc — the spec needs the opt-in present on
    BOTH the outgoing and incoming document at parse time. An ad hoc
-   injected <style> on only the source page produced a pageswap event
+   injected \3c style> on only the source page produced a pageswap event
    with no viewTransition attached (confirmed: e.viewTransition was
    null) — exactly the outcome the spec describes when only one side
    opts in. Landing it in this stylesheet, loaded on every admin
@@ -244,7 +244,21 @@
     --shsas-neon-orange: #b8500f;
     --shsas-neon-yellow: #8a6d00;
     --shsas-neon-lime: #3f8f22;
-    --shsas-neon-cyan: #0f8f8a;
+    /* Deepened from #0f8f8a after a measured light-mode sweep. That
+       value read 3.95:1 on white and 3.27:1 on --shsas-surface-2, both
+       under AA — and because --shsas-focus resolves to this token, the
+       failure was not a couple of stray controls but EVERY link
+       hover/focus state in light mode. Same hue, ~18% deeper: 5.53:1
+       on white, 4.58:1 on surface-2, which also puts it alongside the
+       light accent's own 5.57:1 so the two read as peers rather than
+       one looking washed out next to the other. The brief's own
+       tie-breaker settles this one — usefulness over the retro look
+       wherever they conflict. One token, trivially revertible.
+       NOTE: this value is defined TWICE — here for the explicit
+       [data-shsas-theme="light"] toggle and again in the
+       prefers-color-scheme:light block below for the pre-JS OS
+       default. Both must move together or the two paths disagree. */
+    --shsas-neon-cyan: #0c7571;
     --shsas-neon-violet: #7433c9;
 
     --shsas-accent: var(--shsas-neon-blue);
@@ -282,7 +296,7 @@
         --shsas-neon-orange: #b8500f;
         --shsas-neon-yellow: #8a6d00;
         --shsas-neon-lime: #3f8f22;
-        --shsas-neon-cyan: #0f8f8a;
+        --shsas-neon-cyan: #0c7571; /* keep in step with the light block above */
         --shsas-neon-violet: #7433c9;
 
         --shsas-accent: var(--shsas-neon-blue);
@@ -316,8 +330,14 @@ body.wp-admin, body.wp-admin #wpcontent, body.wp-admin #wpbody-content {
    which should feel permanent/structural, not like they "arrived"). */
 #wpbody-content { animation: shsas-content-in 320ms ease-out; }
 @keyframes shsas-content-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     #wpbody-content { animation: none; }
@@ -479,8 +499,11 @@ body.wp-admin *:focus-visible {
 }
 .wrap h1::after {
     content: "";
-    position: absolute; left: 0; bottom: -1px;
-    width: 48px; height: 2px;
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 48px;
+    height: 2px;
     /* Family resemblance with the front-end (bh-courses' own
        .bhc-archive-rule): a gradient fade-to-transparent instead of a
        flat bar, plus a draw-in animation on load — the same
@@ -496,7 +519,10 @@ body.wp-admin *:focus-visible {
 @media (prefers-reduced-motion: reduce) {
     .wrap h1::after { animation: none; }
 }
-.wrap h2, .wrap h3 { color: var(--shsas-text); font-weight: 500; }
+.wrap h2, .wrap h3 {
+    color: var(--shsas-text);
+    font-weight: 500;
+}
 .wrap h2 {
     padding-bottom: 10px;
     border-bottom: 1px solid var(--shsas-border);
@@ -532,7 +558,7 @@ body.wp-admin *:focus-visible {
 }
 /* Bigger admin bar icons — same "resize the glyph itself" approach as
    the sidebar, WP core's admin-bar dashicons default to 20px. */
-#wpadminbar .ab-icon:before, #wpadminbar .ab-item:before {
+#wpadminbar .ab-icon::before, #wpadminbar .ab-item::before {
     font-size: 22px !important;
 }
 
@@ -548,56 +574,90 @@ body.wp-admin *:focus-visible {
    plus this skin's own two, which were using raw unicode glyphs (⚲
    and ☼/☽) — genuinely the weakest icons in the whole UI, since a
    text glyph can't be stroke-matched to anything. */
-#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before,
-#wpadminbar #wp-admin-bar-site-name > .ab-item:before,
-#wpadminbar #wp-admin-bar-updates .ab-icon:before,
-#wpadminbar #wp-admin-bar-command-palette .ab-icon:before,
-#wpadminbar #wp-admin-bar-comments .ab-icon:before,
-#wpadminbar #wp-admin-bar-new-content .ab-icon:before,
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon::before,
+#wpadminbar #wp-admin-bar-site-name > .ab-item::before,
+#wpadminbar #wp-admin-bar-updates .ab-icon::before,
+#wpadminbar #wp-admin-bar-command-palette .ab-icon::before,
+#wpadminbar #wp-admin-bar-comments .ab-icon::before,
+#wpadminbar #wp-admin-bar-new-content .ab-icon::before,
 #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon,
 #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
     content: '' !important;
     display: inline-block !important;
-    width: 18px; height: 18px;
+    width: 18px;
+    height: 18px;
     vertical-align: middle;
     background-color: currentColor;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
     /* The glyph's own font metrics no longer apply once it's a mask —
        zero them so the icon box isn't pushed around by a leftover
        22px line-box. */
     font-size: 0 !important;
     line-height: 18px !important;
 }
-#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before { -webkit-mask-image: url(../icons/ab-wplogo.svg); mask-image: url(../icons/ab-wplogo.svg); }
-#wpadminbar #wp-admin-bar-site-name > .ab-item:before { -webkit-mask-image: url(../icons/ab-home.svg); mask-image: url(../icons/ab-home.svg); }
-#wpadminbar #wp-admin-bar-updates .ab-icon:before { -webkit-mask-image: url(../icons/ab-updates.svg); mask-image: url(../icons/ab-updates.svg); }
-#wpadminbar #wp-admin-bar-command-palette .ab-icon:before { -webkit-mask-image: url(../icons/ab-cmdk.svg); mask-image: url(../icons/ab-cmdk.svg); }
-#wpadminbar #wp-admin-bar-comments .ab-icon:before { -webkit-mask-image: url(../icons/ab-comments.svg); mask-image: url(../icons/ab-comments.svg); }
-#wpadminbar #wp-admin-bar-new-content .ab-icon:before { -webkit-mask-image: url(../icons/ab-new.svg); mask-image: url(../icons/ab-new.svg); }
-#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon { -webkit-mask-image: url(../icons/ab-search.svg); mask-image: url(../icons/ab-search.svg); }
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon::before {
+    -webkit-mask-image: url(../icons/ab-wplogo.svg);
+    mask-image: url(../icons/ab-wplogo.svg);
+}
+#wpadminbar #wp-admin-bar-site-name > .ab-item::before {
+    -webkit-mask-image: url(../icons/ab-home.svg);
+    mask-image: url(../icons/ab-home.svg);
+}
+#wpadminbar #wp-admin-bar-updates .ab-icon::before {
+    -webkit-mask-image: url(../icons/ab-updates.svg);
+    mask-image: url(../icons/ab-updates.svg);
+}
+#wpadminbar #wp-admin-bar-command-palette .ab-icon::before {
+    -webkit-mask-image: url(../icons/ab-cmdk.svg);
+    mask-image: url(../icons/ab-cmdk.svg);
+}
+#wpadminbar #wp-admin-bar-comments .ab-icon::before {
+    -webkit-mask-image: url(../icons/ab-comments.svg);
+    mask-image: url(../icons/ab-comments.svg);
+}
+#wpadminbar #wp-admin-bar-new-content .ab-icon::before {
+    -webkit-mask-image: url(../icons/ab-new.svg);
+    mask-image: url(../icons/ab-new.svg);
+}
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon {
+    -webkit-mask-image: url(../icons/ab-search.svg);
+    mask-image: url(../icons/ab-search.svg);
+}
 /* Sun at rest (currently-dark, click for light); admin-skin.js swaps
    the glyph character on toggle — a real moon icon for the inverse
    state, keyed off the same data-shsas-theme attribute the rest of the
    palette already reads, so the two stay in sync without JS changes. */
-#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-sun.svg); mask-image: url(../icons/ab-sun.svg); }
-:root[data-shsas-theme="light"] #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-moon.svg); mask-image: url(../icons/ab-moon.svg); }
+#wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
+    -webkit-mask-image: url(../icons/ab-sun.svg);
+    mask-image: url(../icons/ab-sun.svg);
+}
+:root[data-shsas-theme="light"] #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
+    -webkit-mask-image: url(../icons/ab-moon.svg);
+    mask-image: url(../icons/ab-moon.svg);
+}
 @media (prefers-color-scheme: light) {
-    :root:not([data-shsas-theme]) #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon { -webkit-mask-image: url(../icons/ab-moon.svg); mask-image: url(../icons/ab-moon.svg); }
+    :root:not([data-shsas-theme]) #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
+        -webkit-mask-image: url(../icons/ab-moon.svg);
+        mask-image: url(../icons/ab-moon.svg);
+    }
 }
 /* WP core gives the "W" logo (far top-left) its own hardcoded blue
    (#0073aa-ish), independent of the rest of the toolbar's icon color —
    real gap, since that fixed blue doesn't move with either theme here
    and reads inconsistently against everything else that's now on this
    skin's own palette. Matched to the same accent as everything else. */
-#wpadminbar #wp-admin-bar-wp-logo .ab-icon:before,
-#wpadminbar #wp-admin-bar-wp-logo > .ab-item:before {
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon::before,
+#wpadminbar #wp-admin-bar-wp-logo > .ab-item::before {
     font-size: 22px !important;
     color: var(--shsas-accent) !important;
 }
-#wpadminbar #wp-admin-bar-wp-logo:hover .ab-icon:before,
-#wpadminbar #wp-admin-bar-wp-logo:hover > .ab-item:before {
+#wpadminbar #wp-admin-bar-wp-logo:hover .ab-icon::before,
+#wpadminbar #wp-admin-bar-wp-logo:hover > .ab-item::before {
     color: var(--shsas-focus) !important;
 }
 
@@ -621,7 +681,7 @@ body.wp-admin *:focus-visible {
    stays a real improvement, not a blanket resize that breaks things
    elsewhere on the same screen. */
 .wp-admin .button .dashicons,
-.wp-admin .button .dashicons-before:before,
+.wp-admin .button .dashicons-before::before,
 .wp-admin .media-toolbar .dashicons,
 .wp-admin .wp-list-table .row-actions .dashicons {
     font-size: 20px;
@@ -668,8 +728,16 @@ body.wp-admin *:focus-visible {
     animation: shsas-menu-in 260ms ease-out both;
 }
 @keyframes shsas-menu-in {
-    from { opacity: 0; filter: blur(3px); transform: translateX(-3px); }
-    to { opacity: 1; filter: blur(0); transform: translateX(0); }
+    from {
+        opacity: 0;
+        filter: blur(3px);
+        transform: translateX(-3px);
+    }
+    to {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateX(0);
+    }
 }
 /* Stagger: 8 steps at 22ms, cycling — enough to read as a cascade
    without the last item in a long menu arriving noticeably late. */
@@ -725,8 +793,11 @@ body.wp-admin *:focus-visible {
    icon). */
 #adminmenu div.wp-menu-image {
     flex: 0 0 auto;
-    width: 24px; height: 24px;
-    display: flex; align-items: center; justify-content: center;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: transform var(--shsas-speed) ease;
 }
 /* A small, functional nudge (not decoration for its own sake) — the
@@ -758,7 +829,8 @@ body.wp-admin *:focus-visible {
    distinct-per-item color instead of one flat white-ified icon. */
 #adminmenu div.wp-menu-image img {
     opacity: 1;
-    width: 22px; height: 22px;
+    width: 22px;
+    height: 22px;
     filter: brightness(0) invert(1);
 }
 :root[data-shsas-theme="light"] #adminmenu div.wp-menu-image img { filter: brightness(0); }
@@ -866,7 +938,7 @@ body.wp-admin *:focus-visible {
    line-height kept equal to the container height so the glyph stays
    vertically centered. Still meaningfully larger than WP core's own
    20px default, which was the original point. */
-#adminmenu div.wp-menu-image:before {
+#adminmenu div.wp-menu-image::before {
     font-size: 22px !important;
     line-height: 24px !important;
     width: 24px !important;
@@ -1107,18 +1179,18 @@ body.wp-admin *:focus-visible {
    the label stays on --shsas-text-dim at full clarity always, since
    blurring/desaturating actual READABLE text for atmosphere would be
    a real accessibility regression, not a stylistic one. */
-#adminmenu li.menu-top div.wp-menu-image:before {
+#adminmenu li.menu-top div.wp-menu-image::before {
     color: var(--shsas-item-hue);
     filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
     transition: filter var(--shsas-speed) ease;
 }
-#adminmenu li.menu-top:hover div.wp-menu-image:before,
-#adminmenu li.menu-top.current div.wp-menu-image:before,
-#adminmenu li.wp-has-current-submenu div.wp-menu-image:before {
+#adminmenu li.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-top.current div.wp-menu-image::before,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image::before {
     filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
 }
 @media (prefers-reduced-motion: reduce) {
-    #adminmenu li.menu-top div.wp-menu-image:before { transition: none; }
+    #adminmenu li.menu-top div.wp-menu-image::before { transition: none; }
 }
 
 /* Direct, repeated request finally delivered: real icons instead of
@@ -1142,35 +1214,69 @@ body.wp-admin *:focus-visible {
    background-color, unlike a background-image which can't be
    recolored by CSS at all. content:'' clears WP core's own dashicon
    glyph character so nothing doubles up underneath the mask. */
-#adminmenu li.menu-icon-dashboard div.wp-menu-image:before,
-#adminmenu li.menu-icon-post div.wp-menu-image:before,
-#adminmenu li.menu-icon-media div.wp-menu-image:before,
-#adminmenu li.menu-icon-page div.wp-menu-image:before,
-#adminmenu li.menu-icon-comments div.wp-menu-image:before,
-#adminmenu li.menu-icon-appearance div.wp-menu-image:before,
-#adminmenu li.menu-icon-plugins div.wp-menu-image:before,
-#adminmenu li.menu-icon-users div.wp-menu-image:before,
-#adminmenu li.menu-icon-tools div.wp-menu-image:before,
-#adminmenu li.menu-icon-settings div.wp-menu-image:before {
+#adminmenu li.menu-icon-dashboard div.wp-menu-image::before,
+#adminmenu li.menu-icon-post div.wp-menu-image::before,
+#adminmenu li.menu-icon-media div.wp-menu-image::before,
+#adminmenu li.menu-icon-page div.wp-menu-image::before,
+#adminmenu li.menu-icon-comments div.wp-menu-image::before,
+#adminmenu li.menu-icon-appearance div.wp-menu-image::before,
+#adminmenu li.menu-icon-plugins div.wp-menu-image::before,
+#adminmenu li.menu-icon-users div.wp-menu-image::before,
+#adminmenu li.menu-icon-tools div.wp-menu-image::before,
+#adminmenu li.menu-icon-settings div.wp-menu-image::before {
     content: '' !important;
     display: block;
-    width: 20px !important; height: 20px;
+    width: 20px !important;
+    height: 20px;
     margin: 0 auto;
     background-color: var(--shsas-item-hue) !important;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: contain; mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
 }
-#adminmenu li.menu-icon-dashboard div.wp-menu-image:before { -webkit-mask-image: url(../icons/dashboard.svg); mask-image: url(../icons/dashboard.svg); }
-#adminmenu li.menu-icon-post div.wp-menu-image:before { -webkit-mask-image: url(../icons/post.svg); mask-image: url(../icons/post.svg); }
-#adminmenu li.menu-icon-media div.wp-menu-image:before { -webkit-mask-image: url(../icons/media.svg); mask-image: url(../icons/media.svg); }
-#adminmenu li.menu-icon-page div.wp-menu-image:before { -webkit-mask-image: url(../icons/page.svg); mask-image: url(../icons/page.svg); }
-#adminmenu li.menu-icon-comments div.wp-menu-image:before { -webkit-mask-image: url(../icons/comments.svg); mask-image: url(../icons/comments.svg); }
-#adminmenu li.menu-icon-appearance div.wp-menu-image:before { -webkit-mask-image: url(../icons/appearance.svg); mask-image: url(../icons/appearance.svg); }
-#adminmenu li.menu-icon-plugins div.wp-menu-image:before { -webkit-mask-image: url(../icons/plugins.svg); mask-image: url(../icons/plugins.svg); }
-#adminmenu li.menu-icon-users div.wp-menu-image:before { -webkit-mask-image: url(../icons/users.svg); mask-image: url(../icons/users.svg); }
-#adminmenu li.menu-icon-tools div.wp-menu-image:before { -webkit-mask-image: url(../icons/tools.svg); mask-image: url(../icons/tools.svg); }
-#adminmenu li.menu-icon-settings div.wp-menu-image:before { -webkit-mask-image: url(../icons/settings.svg); mask-image: url(../icons/settings.svg); }
+#adminmenu li.menu-icon-dashboard div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/dashboard.svg);
+    mask-image: url(../icons/dashboard.svg);
+}
+#adminmenu li.menu-icon-post div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/post.svg);
+    mask-image: url(../icons/post.svg);
+}
+#adminmenu li.menu-icon-media div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/media.svg);
+    mask-image: url(../icons/media.svg);
+}
+#adminmenu li.menu-icon-page div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/page.svg);
+    mask-image: url(../icons/page.svg);
+}
+#adminmenu li.menu-icon-comments div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/comments.svg);
+    mask-image: url(../icons/comments.svg);
+}
+#adminmenu li.menu-icon-appearance div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/appearance.svg);
+    mask-image: url(../icons/appearance.svg);
+}
+#adminmenu li.menu-icon-plugins div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/plugins.svg);
+    mask-image: url(../icons/plugins.svg);
+}
+#adminmenu li.menu-icon-users div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/users.svg);
+    mask-image: url(../icons/users.svg);
+}
+#adminmenu li.menu-icon-tools div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/tools.svg);
+    mask-image: url(../icons/tools.svg);
+}
+#adminmenu li.menu-icon-settings div.wp-menu-image::before {
+    -webkit-mask-image: url(../icons/settings.svg);
+    mask-image: url(../icons/settings.svg);
+}
 
 /* Direct request: "replace all stock icons everywhere and all
    ecosystem icons and branded admin bar icons and such." Same
@@ -1206,21 +1312,24 @@ body.wp-admin *:focus-visible {
 #adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image {
     background-image: none !important;
     background-color: var(--shsas-item-hue) !important;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: 20px 20px; mask-size: 20px 20px;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: 20px 20px;
+    mask-size: 20px 20px;
     filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
     transition: filter var(--shsas-speed) ease;
 }
 /* Their dashicon-font :before (where one exists — Debug/Social/Tickets/
    Products/Analytics/Marketing use a dashicon rather than a data URI)
    must be blanked so a glyph doesn't render on top of the mask. */
-#adminmenu li.toplevel_page_ous-debug div.wp-menu-image:before,
-#adminmenu li.toplevel_page_bh-social div.wp-menu-image:before,
-#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image:before,
-#adminmenu li.menu-icon-product div.wp-menu-image:before,
-#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image:before,
-#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image:before {
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image::before,
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image::before,
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image::before,
+#adminmenu li.menu-icon-product div.wp-menu-image::before,
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image::before,
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image::before {
     content: '' !important;
     display: none !important;
 }
@@ -1241,18 +1350,54 @@ body.wp-admin *:focus-visible {
 #adminmenu li.wp-has-current-submenu div.wp-menu-image {
     filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
 }
-#adminmenu li.toplevel_page_own-ur-shit div.wp-menu-image { -webkit-mask-image: url(../icons/ous-hub.svg); mask-image: url(../icons/ous-hub.svg); }
-#adminmenu li.toplevel_page_bh-design div.wp-menu-image { -webkit-mask-image: url(../icons/ous-design.svg); mask-image: url(../icons/ous-design.svg); }
-#adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image { -webkit-mask-image: url(../icons/ous-people.svg); mask-image: url(../icons/ous-people.svg); }
-#adminmenu li.menu-icon-bh_contest div.wp-menu-image { -webkit-mask-image: url(../icons/ous-contests.svg); mask-image: url(../icons/ous-contests.svg); }
-#adminmenu li.menu-icon-bh_course div.wp-menu-image { -webkit-mask-image: url(../icons/ous-courses.svg); mask-image: url(../icons/ous-courses.svg); }
-#adminmenu li.menu-icon-bhs_track div.wp-menu-image { -webkit-mask-image: url(../icons/ous-streaming.svg); mask-image: url(../icons/ous-streaming.svg); }
-#adminmenu li.toplevel_page_ous-debug div.wp-menu-image { -webkit-mask-image: url(../icons/ous-debug.svg); mask-image: url(../icons/ous-debug.svg); }
-#adminmenu li.toplevel_page_bh-social div.wp-menu-image { -webkit-mask-image: url(../icons/ous-social.svg); mask-image: url(../icons/ous-social.svg); }
-#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image { -webkit-mask-image: url(../icons/ous-tickets.svg); mask-image: url(../icons/ous-tickets.svg); }
-#adminmenu li.toplevel_page_woocommerce div.wp-menu-image { -webkit-mask-image: url(../icons/wc-store.svg); mask-image: url(../icons/wc-store.svg); }
-#adminmenu li.menu-icon-product div.wp-menu-image { -webkit-mask-image: url(../icons/wc-products.svg); mask-image: url(../icons/wc-products.svg); }
-#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image { -webkit-mask-image: url(../icons/wc-analytics.svg); mask-image: url(../icons/wc-analytics.svg); }
+#adminmenu li.toplevel_page_own-ur-shit div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-hub.svg);
+    mask-image: url(../icons/ous-hub.svg);
+}
+#adminmenu li.toplevel_page_bh-design div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-design.svg);
+    mask-image: url(../icons/ous-design.svg);
+}
+#adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-people.svg);
+    mask-image: url(../icons/ous-people.svg);
+}
+#adminmenu li.menu-icon-bh_contest div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-contests.svg);
+    mask-image: url(../icons/ous-contests.svg);
+}
+#adminmenu li.menu-icon-bh_course div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-courses.svg);
+    mask-image: url(../icons/ous-courses.svg);
+}
+#adminmenu li.menu-icon-bhs_track div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-streaming.svg);
+    mask-image: url(../icons/ous-streaming.svg);
+}
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-debug.svg);
+    mask-image: url(../icons/ous-debug.svg);
+}
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-social.svg);
+    mask-image: url(../icons/ous-social.svg);
+}
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image {
+    -webkit-mask-image: url(../icons/ous-tickets.svg);
+    mask-image: url(../icons/ous-tickets.svg);
+}
+#adminmenu li.toplevel_page_woocommerce div.wp-menu-image {
+    -webkit-mask-image: url(../icons/wc-store.svg);
+    mask-image: url(../icons/wc-store.svg);
+}
+#adminmenu li.menu-icon-product div.wp-menu-image {
+    -webkit-mask-image: url(../icons/wc-products.svg);
+    mask-image: url(../icons/wc-products.svg);
+}
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image {
+    -webkit-mask-image: url(../icons/wc-analytics.svg);
+    mask-image: url(../icons/wc-analytics.svg);
+}
 /* WooCommerce's Payments item is the one menu whose generated class is
    a raw query string — `toplevel_page_admin?page=wc-settings&tab=
    checkout&from=PAYMENTS_MENU_ITEM` — so `?`, `=` and `&` make it
@@ -1265,21 +1410,28 @@ body.wp-admin *:focus-visible {
 #adminmenu li[class*="PAYMENTS_MENU_ITEM"] div.wp-menu-image {
     background-image: none !important;
     background-color: var(--shsas-item-hue) !important;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-position: center; mask-position: center;
-    -webkit-mask-size: 20px 20px; mask-size: 20px 20px;
-    -webkit-mask-image: url(../icons/wc-payments.svg); mask-image: url(../icons/wc-payments.svg);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: 20px 20px;
+    mask-size: 20px 20px;
+    -webkit-mask-image: url(../icons/wc-payments.svg);
+    mask-image: url(../icons/wc-payments.svg);
     filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
     transition: filter var(--shsas-speed) ease;
 }
 #adminmenu li[class*="PAYMENTS_MENU_ITEM"]:hover div.wp-menu-image {
     filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
 }
-#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image { -webkit-mask-image: url(../icons/wc-marketing.svg); mask-image: url(../icons/wc-marketing.svg); }
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image {
+    -webkit-mask-image: url(../icons/wc-marketing.svg);
+    mask-image: url(../icons/wc-marketing.svg);
+}
 
 #collapse-button { color: var(--shsas-text-dim); }
 #collapse-button:hover { color: var(--shsas-text); }
-.folded #collapse-menu .collapse-button-icon:before { color: var(--shsas-text-dim); }
+.folded #collapse-menu .collapse-button-icon::before { color: var(--shsas-text-dim); }
 
 /* Folded (icon-only) mode: the flyout submenu is a real popover here,
    not inline — give it the same calm card treatment as everything
@@ -1699,7 +1851,7 @@ body.wp-admin *:focus-visible {
     color: var(--shsas-text-dim) !important;
 }
 .welcome-panel-column-container h3 { color: var(--shsas-text) !important; }
-.welcome-panel-column-container .welcome-icon:before { color: var(--shsas-accent) !important; }
+.welcome-panel-column-container .welcome-icon::before { color: var(--shsas-accent) !important; }
 /* Real bug, direct request to confirm light mode ecosystem-wide —
    found immediately on the very first screen checked, and only in
    light mode: `.welcome-panel-header-wrap` (WP core's own fixed dark
@@ -1736,7 +1888,10 @@ body.wp-admin *:focus-visible {
     transform: translateY(-1px);
     box-shadow: var(--shsas-shadow);
 }
-.wp-admin .button:active { transform: translateY(0); box-shadow: none; }
+.wp-admin .button:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
 @media (prefers-reduced-motion: reduce) {
     .wp-admin .button:hover { transform: none; }
 }
@@ -1844,7 +1999,10 @@ code, kbd {
     padding: 1px 4px;
     font-size: 0.9em;
 }
-pre code { background: transparent !important; padding: 0; }
+pre code {
+    background: transparent !important;
+    padding: 0;
+}
 .wp-list-table thead th, .wp-list-table thead td, .wp-list-table tfoot th,
 .wp-list-table thead th a, .wp-list-table thead td a {
     background: var(--shsas-surface-2) !important;
@@ -1889,7 +2047,10 @@ table.widefat tfoot th, table.widefat tfoot td {
     color: var(--shsas-text-dim) !important;
     border-bottom-color: var(--shsas-border) !important;
 }
-table.widefat tbody td, table.widefat tbody th { color: var(--shsas-text) !important; border-color: var(--shsas-border) !important; }
+table.widefat tbody td, table.widefat tbody th {
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
 table.widefat.striped tbody tr:nth-child(odd) { background: var(--shsas-surface-2) !important; }
 /* Real bug, direct feedback ("the text in the tables sucks"): this
    rule set color on the <td>/<th> itself but WITHOUT !important, and a
@@ -2278,7 +2439,10 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
 #contextual-help-columns { color: var(--shsas-text); }
 #contextual-help-columns h2, #contextual-help-columns h3 { color: var(--shsas-text); }
 .contextual-help-tabs a { color: var(--shsas-text-dim); }
-.contextual-help-tabs .active a { color: var(--shsas-text); background: var(--shsas-surface-2); }
+.contextual-help-tabs .active a {
+    color: var(--shsas-text);
+    background: var(--shsas-surface-2);
+}
 
 /* ---------------- admin bar: notifications, updates, comments, "New" ---------------- */
 /* These are separate DOM trees from the plain top-menu items already
@@ -2286,12 +2450,12 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
    count + its own dropdown panel with real content (avatars, post
    titles), not just a link list. */
 
-#wpadminbar #wp-admin-bar-comments .ab-icon:before,
-#wpadminbar #wp-admin-bar-updates .ab-icon:before,
-#wpadminbar #wp-admin-bar-new-content .ab-icon:before {
+#wpadminbar #wp-admin-bar-comments .ab-icon::before,
+#wpadminbar #wp-admin-bar-updates .ab-icon::before,
+#wpadminbar #wp-admin-bar-new-content .ab-icon::before {
     color: var(--shsas-text-dim);
 }
-#wpadminbar .ab-icon, #wpadminbar .ab-item:before {
+#wpadminbar .ab-icon, #wpadminbar .ab-item::before {
     color: var(--shsas-text-dim);
 }
 /* Unread/count bubbles (comment moderation count, update count) — one
@@ -2363,7 +2527,11 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
 .bhy-badge[data-tone="danger"], .bhy-badge-danger { --shsas-glow: var(--shsas-danger); }
 .bhy-badge[data-tone="info"], .bhy-badge-info { --shsas-glow: var(--shsas-info); }
 @media (forced-colors: active) {
-    .bhy-badge, .order-status, .ous-badge { box-shadow: none !important; backdrop-filter: none !important; forced-color-adjust: none; }
+    .bhy-badge, .order-status, .ous-badge {
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        forced-color-adjust: none;
+    }
 }
 /* WooCommerce's own order-status pill (Orders list + single-order
    screen) and own-ur-shit's .ous-badge now share .bhy-badge's exact
@@ -2460,10 +2628,22 @@ div.error p, div.error strong {
     box-shadow: var(--shsas-shadow);
 }
 .components-notice__content { color: var(--shsas-text) !important; }
-.components-notice.is-success { border-left-color: var(--shsas-success) !important; background: color-mix(in srgb, var(--shsas-success) 7%, var(--shsas-surface)) !important; }
-.components-notice.is-error { border-left-color: var(--shsas-danger) !important; background: color-mix(in srgb, var(--shsas-danger) 7%, var(--shsas-surface)) !important; }
-.components-notice.is-warning { border-left-color: var(--shsas-warning) !important; background: color-mix(in srgb, var(--shsas-warning) 7%, var(--shsas-surface)) !important; }
-.components-notice.is-info { border-left-color: var(--shsas-info) !important; background: color-mix(in srgb, var(--shsas-info) 7%, var(--shsas-surface)) !important; }
+.components-notice.is-success {
+    border-left-color: var(--shsas-success) !important;
+    background: color-mix(in srgb, var(--shsas-success) 7%, var(--shsas-surface)) !important;
+}
+.components-notice.is-error {
+    border-left-color: var(--shsas-danger) !important;
+    background: color-mix(in srgb, var(--shsas-danger) 7%, var(--shsas-surface)) !important;
+}
+.components-notice.is-warning {
+    border-left-color: var(--shsas-warning) !important;
+    background: color-mix(in srgb, var(--shsas-warning) 7%, var(--shsas-surface)) !important;
+}
+.components-notice.is-info {
+    border-left-color: var(--shsas-info) !important;
+    background: color-mix(in srgb, var(--shsas-info) 7%, var(--shsas-surface)) !important;
+}
 /* Three more real, found-not-guessed white blocks, all confirmed live
    via a computed-style scan of every element on the page (not another
    screenshot guess) after the same "random white splotch" feedback:
@@ -2617,11 +2797,14 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 /* ---------------- theme toggle ---------------- */
 
 #wp-admin-bar-shsas-theme-toggle .ab-item {
-    display: flex; align-items: center; gap: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     cursor: pointer;
 }
 #wp-admin-bar-shsas-theme-toggle .shsas-toggle-icon {
-    font-size: 15px; line-height: 1;
+    font-size: 15px;
+    line-height: 1;
     display: inline-block;
     transition: transform 320ms ease;
 }
@@ -2686,12 +2869,51 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 :root[data-shsas-nav-depth="jump"]::view-transition-old(root) { animation: shsas-nav-jump-out 380ms ease-in both; }
 :root[data-shsas-nav-depth="jump"]::view-transition-new(root) { animation: shsas-nav-jump-in 380ms ease-out both; }
 
-@keyframes shsas-nav-lateral-out-fwd { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-3%); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
-@keyframes shsas-nav-lateral-in-fwd { from { transform: translateX(3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes shsas-nav-lateral-out-back { from { transform: translateX(0); opacity: 1; } to { transform: translateX(3%); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
-@keyframes shsas-nav-lateral-in-back { from { transform: translateX(-3%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-@keyframes shsas-nav-jump-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.015); opacity: 0; filter: brightness(var(--shsas-haze-brightness)); } }
-@keyframes shsas-nav-jump-in { from { transform: scale(.985); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shsas-nav-lateral-out-fwd { from {
+    transform: translateX(0);
+    opacity: 1;
+} to {
+    transform: translateX(-3%);
+    opacity: 0;
+    filter: brightness(var(--shsas-haze-brightness));
+} }
+@keyframes shsas-nav-lateral-in-fwd { from {
+    transform: translateX(3%);
+    opacity: 0;
+} to {
+    transform: translateX(0);
+    opacity: 1;
+} }
+@keyframes shsas-nav-lateral-out-back { from {
+    transform: translateX(0);
+    opacity: 1;
+} to {
+    transform: translateX(3%);
+    opacity: 0;
+    filter: brightness(var(--shsas-haze-brightness));
+} }
+@keyframes shsas-nav-lateral-in-back { from {
+    transform: translateX(-3%);
+    opacity: 0;
+} to {
+    transform: translateX(0);
+    opacity: 1;
+} }
+@keyframes shsas-nav-jump-out { from {
+    transform: scale(1);
+    opacity: 1;
+} to {
+    transform: scale(1.015);
+    opacity: 0;
+    filter: brightness(var(--shsas-haze-brightness));
+} }
+@keyframes shsas-nav-jump-in { from {
+    transform: scale(.985);
+    opacity: 0;
+} to {
+    transform: scale(1);
+    opacity: 1;
+} }
 
 /* Reduced-motion: the browser's own cross-document default already
    reduces to a plain opacity crossfade under this setting per spec —
@@ -2720,10 +2942,15 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    real, visible, labeled trigger — not just a hidden Cmd/Ctrl+K —
    sitting right in the admin bar where the theme toggle already lives. */
 #wp-admin-bar-shsas-palette-trigger .ab-item {
-    display: flex; align-items: center; gap: 7px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
     cursor: pointer;
 }
-#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon { font-size: 14px; line-height: 1; }
+#wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-icon {
+    font-size: 14px;
+    line-height: 1;
+}
 #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label { font-size: 13px; }
 #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd {
     font: 10px/1 var(--shsas-font);
@@ -2772,9 +2999,13 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    turning the spectrum-blender knob affects the sidebar, card groups,
    AND this backdrop together, not each independently by accident. */
 .shsas-palette-backdrop {
-    position: fixed; inset: 0; z-index: 100000;
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
     background: color-mix(in srgb, var(--shsas-bg, #0a0604) 55%, transparent);
-    display: flex; align-items: flex-start; justify-content: center;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
     padding-top: 12vh;
     backdrop-filter: blur(var(--shsas-haze-backdrop-blur)) saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
     -webkit-backdrop-filter: blur(var(--shsas-haze-backdrop-blur)) saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness));
@@ -2789,38 +3020,56 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     font-family: var(--shsas-font);
 }
 .shsas-palette-input {
-    width: 100%; box-sizing: border-box;
+    width: 100%;
+    box-sizing: border-box;
     background: var(--shsas-surface);
     color: var(--shsas-text);
-    border: none; border-bottom: 1px solid var(--shsas-border);
+    border: none;
+    border-bottom: 1px solid var(--shsas-border);
     padding: 16px 18px;
     font-size: 16px;
 }
 .shsas-palette-input:focus { outline: none; }
 .shsas-palette-list {
-    list-style: none; margin: 0; padding: 8px;
-    max-height: 50vh; overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 8px;
+    max-height: 50vh;
+    overflow-y: auto;
 }
 .shsas-palette-item {
     padding: 10px 12px;
     border-radius: var(--shsas-radius-sm);
     color: var(--shsas-text-dim);
     cursor: pointer;
-    display: flex; justify-content: space-between; gap: 12px;
-    min-height: 40px; align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 40px;
+    align-items: center;
 }
-.shsas-palette-item .shsas-palette-parent { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.shsas-palette-item .shsas-palette-parent {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    opacity: .7;
+}
 .shsas-palette-item[aria-selected="true"] {
     background: color-mix(in srgb, var(--shsas-accent) 18%, var(--shsas-surface));
     color: var(--shsas-text);
 }
-.shsas-palette-empty { padding: 20px; color: var(--shsas-text-dim); text-align: center; }
+.shsas-palette-empty {
+    padding: 20px;
+    color: var(--shsas-text-dim);
+    text-align: center;
+}
 .shsas-palette-hint {
     padding: 8px 14px;
     font-size: 11px;
     color: var(--shsas-text-dim);
     border-top: 1px solid var(--shsas-border);
-    display: flex; gap: 14px;
+    display: flex;
+    gap: 14px;
 }
 .shsas-palette-hint kbd {
     background: var(--shsas-surface-2);
@@ -3088,7 +3337,7 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 }
 .attachment { color: var(--shsas-text); }
 .attachment .thumbnail { background: var(--shsas-surface-2); }
-.attachment.selected .thumbnail:after {
+.attachment.selected .thumbnail::after {
     border-color: var(--shsas-accent) !important;
     box-shadow: 0 0 0 1px var(--shsas-accent) !important;
 }
@@ -3174,7 +3423,7 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 
 /* own-ur-shit's Metrics dashboard (admin.php?page=ous-metrics) used to
    need a full block of colour overrides here — it was a separate
-   hardcoded-CSS mechanism (its own inline <style> echoed from
+   hardcoded-CSS mechanism (its own inline \3c style> echoed from
    class-metrics.php, plus a sparkline SVG with a literal
    stroke="#2271b1"), with no custom properties for the token bridge to
    reach. own-ur-shit 3.10.32 migrated both to --bhy-* tokens, so all
@@ -3226,8 +3475,15 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
        where "easy to read, easy to tap without a mis-tap" matters
        most, the opposite of the old default (WP core actually SHRINKS
        table-header text at this width, which this skin corrects). */
-    #adminmenu a.menu-top { font-size: 16px; min-height: 48px; }
-    .wp-admin .button, .wp-admin .button-primary { min-height: 48px; padding: 0 18px; font-size: 15px; }
+    #adminmenu a.menu-top {
+        font-size: 16px;
+        min-height: 48px;
+    }
+    .wp-admin .button, .wp-admin .button-primary {
+        min-height: 48px;
+        padding: 0 18px;
+        font-size: 15px;
+    }
     /* 16px, not smaller, on any real text input on mobile — below 16px
        iOS Safari auto-zooms the whole page on focus, a genuinely
        disorienting behavior for exactly the audience this is for. */
@@ -3387,4 +3643,91 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 .about__container .about__header .about__header-badge,
 .about__container .about__header-navigation .nav-tab {
     color: inherit !important;
+}
+
+/* ---------- dashboard contrast sweep, 0.38.0 ----------
+   Four real bugs from the first systematic multi-width/both-theme
+   measured pass over the Dashboard (1440/1280/1024/961/782/375, dark
+   AND light, computed styles rather than screenshots). Recording how
+   they were found matters as much as the fix: an earlier version of
+   the same sweep toggled data-shsas-theme synchronously and re-read
+   getComputedStyle in the same task, which reported 39 light-mode
+   contrast failures that DO NOT EXIST — var() references had not
+   re-resolved against the newly-scoped custom properties even though
+   reading the properties themselves showed the new values. Every
+   finding below was re-confirmed after a real page reload per theme.
+   If a future pass wants a theme matrix, reload; don't toggle. */
+
+/* WP core zebra-stripes the "Recently Published" list the same way it
+   stripes Recent Comments (#f6f7f7 on odd rows) — a near-white card
+   under this skin's light ink, 2.13:1 for the date and 2.23:1 for the
+   post title in dark mode. This is the THIRD instance of the same
+   #f6f7f7 failure mode in this file (.bh-stat, .bhc-course-stats, and
+   #latest-comments li.comment above); the comments list got its own
+   fix but #published-posts was missed because its COLOR override
+   (further up) made it look handled. Colour and background have to
+   travel together for any core element that paints its own ground. */
+#future-posts li:nth-child(2n+1),
+#published-posts li:nth-child(2n+1) {
+    background-color: var(--shsas-surface-2) !important;
+}
+
+/* The Welcome panel's dismiss control is a text label plus a dashicon
+   ::before, and core paints BOTH white so they read against its own
+   dark header. This skin repaints .welcome-panel to --shsas-surface,
+   which in light mode is #ffffff — leaving white ink on white ground,
+   a measured 1.0:1. Not "hard to read": genuinely invisible, and it is
+   the only way to dismiss the panel. The ::before needs naming
+   explicitly; it does not inherit the anchor's colour once core has
+   set its own. */
+.welcome-panel .welcome-panel-close,
+.welcome-panel .welcome-panel-close::before {
+    color: var(--shsas-text-dim) !important;
+}
+.welcome-panel .welcome-panel-close:hover,
+.welcome-panel .welcome-panel-close:hover::before {
+    color: var(--shsas-text) !important;
+}
+
+/* Submenu items under the CURRENTLY-OPEN menu are coloured #bcbcbc by
+   core's colors.min.css via a three-selector rule
+   (.wp-has-current-submenu .wp-submenu a, and friends) that outweighs
+   this file's plain `#adminmenu .wp-submenu a`. Invisible in dark mode
+   as a bug because #bcbcbc happens to read fine on a dark sidebar —
+   in light mode the sidebar is white and it measures 1.9:1. The
+   *current* item was already correct (`li.current a` is more specific
+   still), so only the siblings were wrong, which is exactly why this
+   survived earlier eyeball passes: the item you look at first is the
+   one that was already right. Matching core's specificity rather than
+   raising ours arbitrarily. */
+#adminmenu .wp-has-current-submenu .wp-submenu a,
+#adminmenu .wp-has-current-submenu.opensub .wp-submenu a,
+#adminmenu .wp-menu-open .wp-submenu a {
+    color: var(--shsas-text-dim) !important;
+}
+
+/* Recent Comments row actions: core's own destructive red (#b32d2e)
+   and "Unapprove" amber were never re-themed for this skin's dark
+   surface — 2.48:1 and 3.22:1 against --shsas-surface-2. The row's
+   CONTAINER colour was already themed above (#latest-comments
+   .row-actions), but these anchors carry their own core colour rules,
+   so an inherited value never reached them. --shsas-danger measures
+   4.82:1 on --shsas-surface-2, so the "destructive actions stay red"
+   signal survives the fix rather than being flattened to body text. */
+#latest-comments .row-actions a.vim-s,
+#latest-comments .row-actions a.delete,
+#latest-comments .row-actions a.vim-destructive {
+    color: var(--shsas-danger) !important;
+}
+#latest-comments .row-actions a.vim-u {
+    color: var(--shsas-warning) !important;
+}
+
+/* The Events & News footer keeps core's recurring #646970 literal (the
+   same one already corrected for .subsubsub and #published-posts) on
+   its pipe separators — 3.1:1. Low stakes on its own; fixed because
+   leaving one instance of a literal this file has already swept twice
+   is how it comes back a fourth time. */
+.community-events-footer {
+    color: var(--shsas-text-dim) !important;
 }
