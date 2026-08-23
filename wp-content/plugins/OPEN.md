@@ -1,0 +1,98 @@
+# OPEN — everything genuinely unfinished
+
+**Consolidated 2026-08-23** from `PRODUCTION-READINESS-PLAN.md`, `STATUS.md`, `ROADMAP-ux-polish-and-feature-parity-2026-07.md`, `ecosystem-depth-pass-2026-07.md`, and the live session plan. Those files were deleted after their open items were carried here; everything below survived that merge because it is real and unbuilt. Anything they claimed that turned out to be already shipped is recorded in `STATE.md` instead.
+
+Ordered by leverage, not by age. Design/craft items have their reasoning in `DESIGN-CRAFT.md`; this file is the tracker.
+
+---
+
+## Tier 1 — small, bounded, high leverage
+
+These are cheap and disproportionately improve how the whole thing feels.
+
+1. **Elevation scale.** One flat `--shsas-shadow` does every job — resting cards, hovered cards, modals. Nothing can read as "lifted toward you" because everything is lifted identically. Split into `--shsas-shadow-resting` / `-hover` / `-modal`. Single highest impact-per-line change available.
+2. **Front-end `.bh-alert` component.** Zero occurrences ecosystem-wide — confirmed by grep, not assumed. `STYLE-SYSTEM.md` has named this Layer-3 gap for months; admin has `.bhy-alert`, the front end has nothing, so every front-end notice is hand-rolled. Add it to `class-style.php`.
+3. **Debug Tools sticky quicknav offset.** Its inline style hardcodes `top:32px`, but the admin bar is 46px at ≤782px — so the sticky header detaches and leaves a visible gap on mobile. Independently re-confirmed this pass. Needs an offset that doesn't assume a 32px bar (or any bar).
+4. **Front-end admin bar ignores the theme toggle.** `admin-bar.css` is deliberately self-sufficient (every value `var(--shsas-*, <fallback>)`), and on the front end no token block is printed — so it always renders the *dark* fallbacks regardless of the user's light/dark choice. Either print a minimal token block on the front end or give the fallbacks a `prefers-color-scheme` path.
+5. **`focus-visible` coverage on the front end.** Only 6 files across 14 plugins define it; wp-admin is well covered, the public site is not. Keyboard users get browser defaults on most front-end surfaces.
+6. **Resolve the `#1DB954` question.** It is `--bh-success` on the front end, but the same literal is hardcoded in admin files across `bh-contest`, `bh-streaming`, `bh-registry`, and `own-ur-shit`. `--bh-success` is printed via `wp_head` and never reaches wp-admin, so those admin uses resolve to nothing shared. Decide: promote an admin twin, or converge on `--bhy-success`.
+
+6b. **Admin-GUI override seam.** `admin-skin.css` is 50% `!important` (1,457 declarations), so customising any admin screen means a specificity war. Needs a deliberate, verified cascade pass — note `!important` *reverses* `@layer` precedence, so layering alone won't solve it. See `DESIGN-CRAFT.md` "CSS architecture".
+6c. **Hardcoded hex outside the token system** — 200+ literals across seven plugin stylesheets (`kanban-board.css` 42, `bhm/frontend.css` 34, `feedback.css` 31, `registry.css` 30, …). They don't follow the theme and can't be re-skinned.
+
+## Tier 2 — the front-end craft gap
+
+The largest single distance between the current state and the stated vision. `DESIGN-CRAFT.md` argues this in full; the work items:
+
+7. **Systematic front-end audit, plugin by plugin.** Never done. Courses catalog/lesson, contest voting/reveal, streaming player/library, CRM public profiles, storefront checkout, theme archive/search/404. Use the measured method in the audit-method memory — contrast, overlap, clipping, overflow, at 1440/1280/1024/961/782/375, both themes.
+8. **Unaudited admin screens.** Style Gallery, API Docs, Test Runner, quiz editor, `bh-registry` admin, `bh-streaming` Pro Wizard, `bh-monetization-woo` tier UI.
+9. **Motion/feedback parity.** wp-admin has view transitions, haze, a command palette. The front end has none of that vocabulary, and neither side has skeleton/loading states in our own code (only vendored ones). State changes are page reloads.
+10. **Design the moments that carry weight.** Course completion, entitlement granted, contest reveal, first supporter — all real state changes with emotional stakes, all currently rendered as table rows or redirects. The hooks now have listeners; what's missing is a shared celebration/acknowledgement treatment rather than per-plugin one-offs.
+11. **First-run experience.** `VISION.md` makes "it just works" a design principle and the media/CDN wizard proves the pattern, but a brand-new install's first five minutes are undesigned.
+12. **Periwinkle accent review across all screens.** The accent moved to `#8FA6E8` (dark) / `#4C63B6` (light); it propagates everywhere `--shsas-accent` is used. Two real contrast failures already traced to it this pass. Needs a sweep, not spot fixes.
+
+## Tier 3 — feature scope, genuinely unbuilt
+
+13. **Design Suite Page Manager, Tier 4** — the last open tier from the depth pass.
+14. **Haze → scroll-proximity driven.** Direct feature request: currently hover-triggered; wants continuous viewport-proximity blur (blurrier at the edges, sharpening toward center), likely `IntersectionObserver`.
+15. **Ecosystem dashboard plugin cards** — (a) per-card inline GitHub status check, not only centrally on Debug Tools; (b) a convention that every new plugin gets a dashboard card as a first build step.
+16. **`bh-feedback` timestamped audio annotations** — the third tier deferred in the plugin's own docblock.
+17. **Auction listings** — the only item left from the platform-evolution roadmap; everything else there shipped.
+18. **`BH_Media` interface + social integrations** — YouTube, Twitch, Meta, TikTok. Genuinely unbuilt, never re-checked.
+19. **Branching lesson paths** and **mind-map authoring** — both explicitly flagged as needing a dedicated design pass before any code. Branching would require reworking `BHC_Progress`'s linear-position model. The mind-map idea generalises past the LMS (nodes could be a `BH_Element` placement or a `BH_Content` block, not just a lesson) — which makes it a visual-scripting layer, and a bigger commitment than it first looks. Joint design pass before any code, for both.
+20. **In-admin version history for user-built content.** Not scoped, not started, no data-model decision — captured so the idea isn't lost. Could ride the existing `bhcore_events`/job-queue infrastructure, or use a dedicated revisions table keyed by object-type + object-id + version. Open question, not a decision.
+21. **LMS authoring depth** — more block types (the interactive-video block becomes one), plus a curated LMS-specific inserter palette rather than the generic Studio list. Incremental, well understood.
+22. **Design question: annotation completion granularity.** Does pausing mid-video for a question count as one step (the whole video is `step_index N`), or do individual annotations need their own completion tracking (a sub-index)? Real question, not a blocker — but it shapes `BHC_Progress`, so answer it before building more on top.
+
+## Tier 4 — design-pass-only, nothing built
+
+Each still has its own doc because the thinking is worth keeping:
+
+- `ROADMAP-federated-metrics.md` — privacy-preserving cross-instance metrics.
+- `ROADMAP-obs-integration.md` — StreamElements-shaped tooling for `bh-live`.
+- `ROADMAP-streaming-media-scope-and-blockchain.md` Part 1 — streaming media scope.
+- `ROADMAP-lms-instructor-student-depth.md` — scheduling, grading, homework.
+- `ROADMAP-hyperpress-migration.md` — the live Datastar conversion backlog.
+- `VISION.md`'s three big-vision pillar sections — unscoped strategic bets, deliberately.
+
+## Deploy gap — needs a decision
+
+**`self-hosted-self-admin-skin` is git-tracked but absent from `deploy-ftp.yml`'s `PLUGIN_FOLDERS` whitelist**, so it has never reached the live site. Every design-system change — the token system, the contrast fixes, the admin-bar mobile layout, the periwinkle/cyan accents — exists only locally.
+
+That file's own comment documents this exact drift happening before ("this list had drifted to only the original 7 plugins while bh-feedback, bh-live, bh-mailpoet, bh-social, bh-tickets, and bh-video shipped real, working code without ever being added here"). This looks like the same oversight, one plugin later. It may be deliberate — the skin is standalone and portable, so Billy may install it by hand — but it should be an explicit decision, not an omission. One-line fix if it should ship.
+
+## Tooling — adopted 2026-08-23
+
+Playwright, Stylelint, Vitest, PHPCS (security, changed-files) and a CSS formatter are all installed, configured, wired into CI, and passing. See `TOOLING-EVALUATION.md` for the tuning decisions. Still open from that evaluation:
+
+- **`wp-env` + `wp-phpunit`** — the one Tier-2 item not yet adopted. The money paths (`BHM_Wallet::debit`, `BHC_Progress` completion, the purchase ledger) remain untested because they need a real MySQL, not a `$wpdb` stub.
+- **Enable the `ux-audit` CI job** — defined in `checks.yml` but gated `if: false` until CI provisions a WordPress instance to audit against.
+- **Make PHPCS blocking** — currently `continue-on-error: true`. Flip once the touched-file debt (~1,200 pre-existing low-severity findings: un-unslashed nonces, `esc_url_raw` without `wp_unslash`) is paid down.
+- **PHPStan level 7** — 483 findings, mostly unhandled `|false`/`|WP_Error` unions. Worth doing as its own project; an attempt to shortcut it via `@phpstan-return never` annotations broke the clean level-6 gate and was reverted.
+
+## Found by the new tooling, not yet fixed
+
+- **Theme search button fails AA** — `button.wp-block-search__button` measures **4.2:1** (needs 4.5) at every width, both the block and `.oust-btn-primary` variants.
+- **Touch targets under 44px at ≤782** — `.oust-nav-toggle` 40×40, `.oust-card-readmore` 61×18, `.oust-site-brand` 202×30.
+
+## Vendor cleanup
+
+An early CSS-formatter run reformatted **WooCommerce's** stylesheets (gitignored, so not revertible via git). Semantically identical and the site is healthy, and the next WooCommerce update overwrites them — but if pristine vendor files are wanted sooner, reinstall WooCommerce 10.9.4 from wp-admin. The formatter now hard-refuses non-ecosystem paths.
+
+## Blocked on AJ, not on code
+
+- **Wasmer deploy-gap verification** — needs a direct check of `dev-ous.wasmer.app`'s GitHub Updates → "Update now" behavior.
+- **`bh-courses` Sessions calendar blank on deployed site** — no code bug found; local renders correctly. Needs live devtools Network/Console on the deployed page to confirm whether the 777KB vendored FullCalendar 404s or gets `async`/`defer`/`module` rewritten by an optimization layer. The JS guards on `typeof FullCalendar === 'undefined'` and fails silently, matching the symptom exactly.
+- **ActivityPub relay** — cannot run on `billyhume.wasmer.app` (that PHP/WASM build has no openssl; all crypto is `function_exists()`-guarded and degrades cleanly). Works on ordinary hosting. No relay URL chosen yet.
+- **Bootstrap seeds** — only one entry; should be 3–4 so no single host is a cold-start single point of failure.
+
+## Standing verification discipline
+
+Non-negotiable, learned from real escaped bugs:
+
+- `php -l` every touched file; PHPStan must stay at zero; run the Test Runner suite.
+- **Measure, don't eyeball.** Contrast, overlap, clipping (`scrollHeight` vs `clientHeight`), horizontal overflow.
+- **Reload per theme — never toggle `data-shsas-theme` and re-read in the same task.** `var()` references do not re-resolve; this fabricated 39 contrast failures that did not exist.
+- To decide "skin bug or WP core bug," disable the skin's stylesheets and re-measure.
+- Version bump + changelog in the same commit, matching the established voice.
+- Say plainly when something was reasoned through rather than run.
