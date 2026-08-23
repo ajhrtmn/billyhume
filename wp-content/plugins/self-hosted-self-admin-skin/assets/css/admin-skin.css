@@ -1545,7 +1545,36 @@ body.wp-admin *:focus-visible {
 .postbox:has(> .postbox-header):has(> .inside) > .inside {
     display: block !important;
     overflow: hidden;
+}
+/* min-height:0 ONLY while closed. Real bug this fixes, reported with a
+   screenshot of the light-mode dashboard: every postbox was clipping
+   its own content ("Step 2 of 6", "Your site's health is looking
+   good", "4 Published posts" all cut off mid-line). Measured: .inside
+   had clientHeight 12px while its scrollHeight was 127-549px.
+
+   Cause: `1fr` is shorthand for minmax(auto, 1fr), and that `auto`
+   minimum is exactly what makes an open row grow to fit its content.
+   Setting min-height:0 on the grid ITEM removes that floor, so the
+   row was free to collapse to nothing even when open — the content
+   was still there, just squashed to 12px and clipped by the
+   overflow:hidden above. Scoping the override to .closed keeps the
+   collapse animation (which genuinely needs a zero floor to reach
+   0fr) while letting an open box size to its content again. */
+.postbox:has(> .postbox-header):has(> .inside).closed > .inside {
     min-height: 0;
+    /* Padding has to collapse too, or the box never actually reaches
+       zero. This is the visible half of the reported bug: boxes with
+       .inside padding sat at 12px instead of 0 while closed, showing a
+       sliver of the first line of content sheared off mid-glyph —
+       which reads exactly like broken clipping rather than a closed
+       card. Measured inconsistency that gave it away: some closed
+       boxes reported clientHeight 0 and others 12, the difference
+       being whether that box's .inside carried padding. Transitioned
+       alongside the row so the close still animates rather than
+       snapping the padding away on frame one. */
+    padding-top: 0;
+    padding-bottom: 0;
+    transition: padding 260ms cubic-bezier(.2, .7, .3, 1);
 }
 /* A closed card reads as a shallower plane — it's holding less, so it
    sits closer to the page. Same "shadow is the signal" logic the
