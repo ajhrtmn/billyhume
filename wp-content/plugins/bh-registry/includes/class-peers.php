@@ -90,36 +90,29 @@ class BHR_Peers {
     private static function render_discovery_settings(): void {
         $relay_enabled = (bool) get_option('bhr_relay_enabled', true);
         $relay_url     = (string) get_option('bhr_relay_url', '');
-        $search_enabled = (bool) get_option('bhr_search_enabled', true);
-        $search_endpoint = (string) get_option('bhr_search_endpoint_url', '');
-        $search_creds = get_option('bhr_search_credentials', ['api_key' => '']);
 
         echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;"><h2 style="margin-top:0;">Automatic Discovery</h2>';
-        echo '<p class="description"><strong>Both on by default</strong>, so discovery works without setup. Each still needs an endpoint below before it can actually reach anything — until then it simply stays idle rather than calling anywhere. Either can find a peer this site has never heard of before; once found, that peer is crawled the same way any manually-added one is, and anything it offers is still verified independently here before it counts.</p>';
+        echo '<p class="description">Discovery works out of the box — this site starts from a built-in seed registry, crawls it, and then follows peers-of-peers outward on its own. Nothing below is required; it is an optional extra route in. Anything discovered by any route is still verified independently here before it counts.</p>';
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         wp_nonce_field('bhr_save_discovery_settings');
         echo '<input type="hidden" name="action" value="bhr_save_discovery_settings">';
 
-        echo '<h3>ActivityPub relay</h3>';
-        echo '<p class="description">Connects to a real, self-hostable Fediverse relay — the same mechanism independent Mastodon-class instances already use to discover each other with no prior relationship. Once subscribed, any other registry on the same relay is discovered automatically, with no coordination between the two sites at all.</p>';
+        echo '<h3>ActivityPub relay <span class="description">(optional)</span></h3>';
+        echo '<p class="description">Connects to a real, self-hostable Fediverse relay — the same mechanism independent Mastodon-class instances already use to discover each other with no prior relationship. Once subscribed, any other registry on the same relay is found automatically, with no coordination between the two sites.</p>';
+        if (class_exists('BHR_ActivityPub') && !BHR_ActivityPub::crypto_available()) {
+            echo '<div class="bhy-alert bhy-alert-warning"><p><strong>Unavailable on this server.</strong> Relay federation signs every request with RSA (HTTP Signatures), and this PHP build has no <code>openssl</code> extension. The crawl-based discovery above is unaffected and still works normally.</p></div>';
+        }
         echo '<p><label><input type="checkbox" name="relay_enabled" value="1" ' . checked($relay_enabled, true, false) . '> Enabled</label></p>';
         echo '<p><input type="url" name="relay_url" value="' . esc_attr($relay_url) . '" placeholder="https://relay.example" style="width:100%;max-width:420px;"></p>';
         self::render_relay_status();
 
-        echo '<h3>Search-index lookup</h3>';
-        echo '<p class="description">Queries a configured search endpoint for other public bh-registry installs. A self-hosted <a href="https://docs.searxng.org/" target="_blank" rel="noopener">SearXNG</a> instance is recommended over a paid vendor API — point at your own, no lock-in. A commercial API (Bing/Google/Brave) works too if you provide its endpoint and key.</p>';
-        echo '<p><label><input type="checkbox" name="search_enabled" value="1" ' . checked($search_enabled, true, false) . '> Enabled</label></p>';
-        echo '<p><input type="url" name="search_endpoint_url" value="' . esc_attr($search_endpoint) . '" placeholder="https://your-searxng.example/search" style="width:100%;max-width:420px;"></p>';
-        echo '<p><input type="password" name="search_api_key" value="" placeholder="' . ($search_creds['api_key'] ? 'Already set — leave blank to keep it' : 'API key (optional, SearXNG usually needs none)') . '" style="width:100%;max-width:420px;"></p>';
-
         echo '<p><button type="submit" class="button button-primary">Save Discovery Settings</button></p>';
         echo '</form>';
 
-        // Cron runs daily/weekly; an admin setting this up right now
-        // shouldn't have to wait a day to find out whether it works.
-        echo '<hr><p class="description"><strong>Run now</strong> — these normally run on their own schedule (peer crawl daily, search sweep weekly, relay sync daily).</p><p>';
+        // Cron runs daily; an admin setting this up right now shouldn't
+        // have to wait a day to find out whether it works.
+        echo '<hr><p class="description"><strong>Run now</strong> — these normally run on their own daily schedule.</p><p>';
         echo self::run_now_link('crawl', 'Crawl peers now') . ' ';
-        echo self::run_now_link('search', 'Run search discovery now') . ' ';
         echo self::run_now_link('relay', 'Sync relay now');
         echo '</p></div>';
     }
@@ -275,10 +268,6 @@ class BHR_Peers {
                 if (class_exists('BHR_Crawl')) BHR_Crawl::crawl_all_peers(true);
                 wp_safe_redirect(admin_url('admin.php?page=bh-registry-peers&bhr_ran=crawl'));
                 exit;
-            case 'run_search':
-                if (class_exists('BHR_SearchDiscovery')) BHR_SearchDiscovery::run();
-                wp_safe_redirect(admin_url('admin.php?page=bh-registry-peers&bhr_ran=search'));
-                exit;
             case 'run_relay':
                 if (class_exists('BHR_ActivityPub')) BHR_ActivityPub::sync_relay();
                 wp_safe_redirect(admin_url('admin.php?page=bh-registry-peers&bhr_ran=relay'));
@@ -298,15 +287,6 @@ class BHR_Peers {
         $relay_url     = esc_url_raw((string) ($_POST['relay_url'] ?? ''));
         update_option('bhr_relay_enabled', $relay_enabled);
         update_option('bhr_relay_url', $relay_url);
-
-        $search_enabled  = !empty($_POST['search_enabled']);
-        $search_endpoint = esc_url_raw((string) ($_POST['search_endpoint_url'] ?? ''));
-        $existing_creds  = get_option('bhr_search_credentials', ['api_key' => '']);
-        $api_key         = wp_unslash((string) ($_POST['search_api_key'] ?? ''));
-        $api_key         = $api_key !== '' ? $api_key : ($existing_creds['api_key'] ?? '');
-        update_option('bhr_search_enabled', $search_enabled);
-        update_option('bhr_search_endpoint_url', $search_endpoint);
-        update_option('bhr_search_credentials', ['api_key' => $api_key]);
 
         wp_safe_redirect(admin_url('admin.php?page=bh-registry-peers&bhr_settings_saved=1'));
         exit;

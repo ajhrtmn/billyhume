@@ -35,6 +35,34 @@ class BHR_Crawl {
     const MAX_HOPS_DEFAULT = 3;
     const LIVENESS_FAIL_THRESHOLD = 5;
     const SEEDED_OPTION = 'bhr_bootstrap_seeded';
+    const SEED_ATTEMPTS_OPTION = 'bhr_bootstrap_seed_attempts';
+    const MAX_SEED_ATTEMPTS = 30;
+
+    /**
+     * Default bootstrap seeds. MULTIPLE on purpose — a single seed is
+     * a single point of failure for the entire cold-start path: if it
+     * is down (or gone) at the moment a new install first crawls, that
+     * install never joins the network. Bitcoin ships several DNS
+     * seeds and DNS itself has 13 root servers for precisely this
+     * reason; the cost of extra entries is nil and the failure mode
+     * they prevent is total.
+     *
+     * Seeds are tried in order and ANY single success is enough — they
+     * are alternates, not a set to be exhausted. Being listed here
+     * grants no authority and no trust whatsoever: a seed is crawled
+     * exactly like any other peer, and everything it offers is still
+     * independently verified by this site before it counts.
+     *
+     * Currently one real entry. The additional slots are deliberately
+     * left for genuine, reachable registries rather than filled with
+     * plausible-looking URLs that do not exist — a seed that 404s is
+     * worse than no seed, since it burns a retry and teaches nobody
+     * anything. Add more via the `bhr_bootstrap_seeds` filter, or here
+     * as the network grows real independent nodes.
+     */
+    const DEFAULT_SEEDS = [
+        'https://billyhume.wasmer.app',
+    ];
 
     /**
      * Bootstrap seeds — the honest answer to "two sites that have never
@@ -62,28 +90,63 @@ class BHR_Crawl {
      * @return array<int, string>
      */
     public static function bootstrap_seeds(): array {
-        return array_values(array_filter(array_map(
+        return array_values(array_unique(array_filter(array_map(
             [self::class, 'normalize_base_url'],
-            (array) apply_filters('bhr_bootstrap_seeds', ['https://billyhume.wasmer.app'])
-        )));
+            (array) apply_filters('bhr_bootstrap_seeds', self::DEFAULT_SEEDS)
+        ))));
     }
 
     /**
-     * Adds the bootstrap seeds exactly once per install. Runs on the
-     * normal daily crawl rather than on activation, so a site that
-     * installs while offline still gets seeded on its first real
-     * crawl instead of silently never being seeded at all.
+     * Adds the bootstrap seeds, retrying until at least one actually
+     * lands. Runs on the normal daily crawl rather than on activation,
+     * so a site installed while offline still gets seeded on its first
+     * real crawl instead of silently never being seeded at all.
+     *
+     * The retry matters more than it looks: seeding is a ONE-SHOT
+     * moment that decides whether an install ever joins the network at
+     * all. An earlier version stamped "done" before trying, so an
+     * install whose first crawl happened during a seed outage — or
+     * before DNS/networking was ready on a fresh host — would be
+     * permanently orphaned, with no error anywhere and no way back
+     * except an admin manually adding a peer. Now it only marks itself
+     * done once a seed genuinely resolved and was added, and gives up
+     * permanently after MAX_SEED_ATTEMPTS so a site with no reachable
+     * seeds doesn't retry forever.
      */
     public static function maybe_seed_bootstrap(): void {
         if (get_option(self::SEEDED_OPTION)) return;
-        // Stamp BEFORE attempting, so a seed host that is down can
-        // never cause this to retry forever on every crawl.
-        update_option(self::SEEDED_OPTION, current_time('mysql'), false);
+
+        $attempts = (int) get_option(self::SEED_ATTEMPTS_OPTION, 0);
+        if ($attempts >= self::MAX_SEED_ATTEMPTS) return;
+        update_option(self::SEED_ATTEMPTS_OPTION, $attempts + 1, false);
+
+        // Already peered by some other route (a manual add, a relay
+        // hit) — the cold-start problem seeds exist to solve is gone.
+        global $wpdb;
+        $existing = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}bhr_peers");
+        if ($existing > 0) {
+            update_option(self::SEEDED_OPTION, current_time('mysql'), false);
+            return;
+        }
 
         $self = self::normalize_base_url(home_url());
+        $added = 0;
         foreach (self::bootstrap_seeds() as $seed) {
             if ($seed === $self) continue; // never seed a site with itself
-            self::maybe_add_discovered_peer($seed, 0);
+            if (self::maybe_add_discovered_peer($seed, 0)) $added++;
+        }
+
+        if ($added > 0) {
+            update_option(self::SEEDED_OPTION, current_time('mysql'), false);
+            return;
+        }
+
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', 'Bootstrap seeding found no reachable seed; will retry on the next crawl.', [
+                'attempt' => $attempts + 1,
+                'max_attempts' => self::MAX_SEED_ATTEMPTS,
+                'seeds' => self::bootstrap_seeds(),
+            ], 'BH Registry Crawl');
         }
     }
 

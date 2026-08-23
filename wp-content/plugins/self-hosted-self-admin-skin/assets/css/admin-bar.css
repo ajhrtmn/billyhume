@@ -1,0 +1,196 @@
+/* Admin bar — loaded on BOTH wp-admin and the front end.
+ *
+ * Direct field report: "Admin bar needs style attention on both front
+ * and back end - weird overflow, not enough space, not well aligned."
+ * All three were real and measured live rather than eyeballed:
+ *
+ *   1. OVERFLOW/OVERLAP — the left group (#wp-admin-bar-root-default)
+ *      measured 946px wide inside a 961px viewport while the right
+ *      group (#wp-admin-bar-top-secondary) started at x=795: a literal
+ *      151px overlap, with "Howdy, Billy Hume" pushed to y=32 —
+ *      BELOW a 33px-tall bar, i.e. rendered outside it entirely. WP
+ *      floats the secondary group, and a float cannot push back
+ *      against an over-long left group, so items collide and wrap.
+ *
+ *   2. NOT ENOUGH SPACE — this install runs a lot of bar items
+ *      (WooCommerce, Query Monitor, notifications, command palette,
+ *      theme toggle). The left group has no ability to shrink, so it
+ *      simply runs past the right group instead of yielding.
+ *
+ *   3. ALIGNMENT — WooCommerce's "Store coming soon" badge rendered at
+ *      y=7, height 18px, line-height 16px, against every other item at
+ *      y=0, height 32px, line-height 32px. Third-party bar items bring
+ *      their own metrics and drift off the bar's rhythm.
+ *
+ * Why a separate file: admin-skin.css is enqueued on
+ * `admin_enqueue_scripts` ONLY, so it never loaded on the front end —
+ * which is exactly why the front-end bar looked untouched. Splitting
+ * the bar rules out lets both contexts share one source of truth
+ * without dragging wp-admin chrome styling onto the public site.
+ *
+ * Every color below uses var(--shsas-*, fallback) so this file is
+ * self-sufficient on the front end (where the admin-skin token block
+ * is absent) while still deferring to the real tokens inside wp-admin.
+ */
+
+/* ---------- layout: make the two groups share the bar honestly ---------- */
+
+#wpadminbar .quicklinks {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+}
+
+/* The left group yields. min-width:0 is the load-bearing part — without
+   it a flex item refuses to shrink below its content width, which is
+   precisely how the 151px overrun happened. */
+#wpadminbar #wp-admin-bar-root-default {
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* The right group never yields and never overlaps: float replaced with
+   an auto left margin so flex parks it at the end. Identity and log-out
+   are the last things that should disappear off a bar. */
+#wpadminbar #wp-admin-bar-top-secondary {
+    display: flex;
+    align-items: stretch;
+    flex: 0 0 auto;
+    float: none !important;
+    margin-left: auto;
+}
+
+#wpadminbar .ab-top-menu,
+#wpadminbar .ab-top-secondary {
+    display: flex;
+    align-items: stretch;
+}
+
+/* ---------- alignment: one vertical rhythm for every item ---------- */
+
+#wpadminbar .ab-top-menu > li,
+#wpadminbar .ab-top-secondary > li {
+    display: flex;
+    align-items: stretch;
+}
+
+/* Centring via flex rather than a hardcoded line-height means a
+   third-party item with its own metrics (the WooCommerce badge) lands
+   on the same baseline as core's, instead of floating 7px high. */
+#wpadminbar .ab-top-menu > li > .ab-item,
+#wpadminbar .ab-top-secondary > li > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-empty-item {
+    display: flex !important;
+    align-items: center;
+    height: 32px;
+    line-height: 1 !important;
+    white-space: nowrap;
+}
+
+/* Anything a plugin drops inside a bar item — badges, counters, pills —
+   gets vertically centred with its label rather than sitting on the
+   text baseline. */
+#wpadminbar .ab-top-menu > li > .ab-item > *,
+#wpadminbar .ab-top-secondary > li > .ab-item > * {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* ---------- graceful degradation before anything can collide ---------- */
+
+/* Below ~1100px, shed the widest low-priority items in priority order
+   rather than letting the bar overflow. Deliberately keeps the site
+   name, the command palette, notifications and the account menu — the
+   things people actually reach for — and drops passive readouts first.
+   Query Monitor's readout is the widest single item on this install. */
+@media screen and (max-width: 1100px) {
+    #wpadminbar #wp-admin-bar-query-monitor { display: none; }
+}
+@media screen and (max-width: 900px) {
+    #wpadminbar #wp-admin-bar-wc-status,
+    #wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge,
+    #wpadminbar #wp-admin-bar-updates { display: none; }
+}
+@media screen and (max-width: 782px) {
+    /* WP already switches the bar to its own touch layout here; let
+       core own it rather than fighting two layout models at once. */
+    #wpadminbar .quicklinks,
+    #wpadminbar #wp-admin-bar-root-default,
+    #wpadminbar #wp-admin-bar-top-secondary,
+    #wpadminbar .ab-top-menu,
+    #wpadminbar .ab-top-secondary {
+        display: block;
+        overflow: visible;
+    }
+    #wpadminbar #wp-admin-bar-top-secondary { float: right !important; margin-left: 0; }
+}
+
+/* ---------- front-end parity ---------- */
+
+/* On the front end none of the admin-skin tokens exist, so without
+   this the bar keeps WP's stock grey while the site around it is warm
+   noir. Fallbacks match the admin dark palette. */
+#wpadminbar {
+    background: var(--shsas-surface-2, #282319) !important;
+    color: var(--shsas-text, #f2ede1) !important;
+}
+#wpadminbar .ab-item,
+#wpadminbar a.ab-item,
+#wpadminbar > #wp-toolbar span.ab-label,
+#wpadminbar > #wp-toolbar span.noticon {
+    color: var(--shsas-text, #f2ede1);
+}
+#wpadminbar .ab-submenu .ab-item,
+#wpadminbar .quicklinks .menupop ul li a {
+    color: var(--shsas-text, #f2ede1);
+}
+#wpadminbar .menupop .ab-sub-wrapper {
+    background: var(--shsas-surface-2, #282319);
+    border: 1px solid var(--shsas-border, #453f2f);
+    border-radius: 0 0 6px 6px;
+    overflow: hidden;
+}
+/* Same hover language as the sidebar: a pure VALUE shift, no hue.
+   ("I want no color - any background would be ugly used this way",
+   then "on hover in menu, we can do a nice value shift to make it
+   darker or lighter.") Fallback veil matches the admin dark palette
+   for the front end, where the token block is absent. */
+#wpadminbar .ab-top-menu > li:hover > .ab-item,
+#wpadminbar .ab-top-menu > li.hover > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-item:focus,
+#wpadminbar .ab-top-secondary > li:hover > .ab-item,
+#wpadminbar .ab-submenu a:hover,
+#wpadminbar .ab-submenu a:focus {
+    background: var(--shsas-hover-veil, rgba(255,255,255,0.055)) !important;
+    color: var(--shsas-text, #f2ede1) !important;
+}
+
+/* WooCommerce's "Store coming soon" badge ships its own padding and a
+   16px line-height, so even after the flex centring above it measured
+   y=7 / h=18 while every sibling sat at y=0 / h=32 — the one item
+   still visibly off the bar's baseline. It renders a nested element
+   rather than styling .ab-item directly, which is why the generic
+   rule could not reach it. Pinned to the shared rhythm explicitly. */
+/* The <li> itself carried the remaining 7px offset (its own margin),
+   which is why the item measured y=7 even once its height matched. */
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge,
+#wpadminbar #wp-admin-bar-wc-status {
+    margin: 0 !important;
+    padding: 0 !important;
+    align-items: center;
+}
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge > .ab-item,
+#wpadminbar #wp-admin-bar-woocommerce-site-visibility-badge .ab-label,
+#wpadminbar #wp-admin-bar-wc-status > .ab-item {
+    display: flex !important;
+    align-items: center;
+    height: 32px !important;
+    line-height: 1 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}

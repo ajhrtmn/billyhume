@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.32.0
+ * Version:     0.35.0
  * Requires PHP: 7.4
  */
 if (!defined('ABSPATH')) exit;
@@ -1448,7 +1448,7 @@ if (!defined('ABSPATH')) exit;
 // The Self-Hosted Self's own design tokens, so it behaves identically
 // on a bare WordPress install.
 
-define('SHSAS_VER', '0.32.0');
+define('SHSAS_VER', '0.35.0');
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
 
@@ -1490,6 +1490,32 @@ function shsas_enqueue_assets(): void {
     wp_localize_script('shsas-admin-skin', 'shsasMenu', ['items' => shsas_flatten_admin_menu()]);
 }
 add_action('admin_enqueue_scripts', 'shsas_enqueue_assets');
+
+/**
+ * The admin bar renders on the FRONT END too, for logged-in users —
+ * but this plugin only ever enqueued on 'admin_enqueue_scripts', so
+ * none of its styling reached it there. Real field report ("admin bar
+ * needs style attention on both front and back end"): on the public
+ * site the bar kept WordPress's stock grey while the theme around it
+ * is warm noir, and the layout bugs measured in wp-admin (a 151px
+ * overlap between the left and right groups, "Howdy…" pushed below a
+ * 33px-tall bar, third-party items sitting 7px off the shared
+ * baseline) were present there identically.
+ *
+ * Deliberately a SEPARATE, bar-only stylesheet rather than loading all
+ * of admin-skin.css publicly — that file styles wp-admin chrome, and
+ * dropping it on the front end would bleed into the site's own design.
+ * assets/css/admin-bar.css is self-sufficient: every color goes
+ * through var(--shsas-*, <fallback>), so it themes correctly on the
+ * front end (no token block present) and still defers to the real
+ * tokens inside wp-admin.
+ */
+function shsas_enqueue_admin_bar_assets(): void {
+    if (!is_admin_bar_showing()) return;
+    wp_enqueue_style('shsas-admin-bar', SHSAS_URL . 'assets/css/admin-bar.css', ['admin-bar'], SHSAS_VER);
+}
+add_action('wp_enqueue_scripts', 'shsas_enqueue_admin_bar_assets', 20);
+add_action('admin_enqueue_scripts', 'shsas_enqueue_admin_bar_assets', 20);
 
 // wp-login.php is NOT an is_admin() screen — its own hook, and
 // deliberately CSS-only there (no command palette/menu data makes

@@ -87,7 +87,7 @@
        the set (it's a genuinely useful hue) but demoted from the
        default/primary role below, in favor of real diversity across
        the seven. */
-    --shsas-neon-blue: #2f7dff;
+    --shsas-neon-blue: #8FA6E8; /* periwinkle, deliberately NOT WP blue — see accent note */
     --shsas-neon-pink: #ff3ea5;
     --shsas-neon-orange: #ff8a3d;
     --shsas-neon-yellow: #f5d90a;
@@ -109,7 +109,17 @@
        owns the default "this is interactive" role. */
     --shsas-accent: var(--shsas-neon-blue);
     --shsas-accent-secondary: var(--shsas-neon-cyan);
-    --shsas-accent-text: #f5f9ff;
+    --shsas-accent-text: #1a1710;
+    /* Hover/press feedback as a pure VALUE shift — no hue at all.
+       Direct steer after the blue-slab fix: "on hover in menu, we can
+       do a nice value shift to make it darker or lighter, that would
+       help." Exactly right, and it's the one treatment that works on
+       every ground in the UI: a white veil lifts a dark surface, a
+       black veil deepens a light one, and neither introduces a color
+       that could clash or read as a status signal. Kept low so it
+       registers as the surface responding rather than a painted box. */
+    --shsas-hover-veil: rgba(255, 255, 255, 0.055);
+    --shsas-press-veil: rgba(255, 255, 255, 0.09);
     --shsas-focus: var(--shsas-neon-cyan);
     --shsas-danger: var(--shsas-neon-pink);
     --shsas-success: var(--shsas-neon-lime);
@@ -229,7 +239,7 @@
        as-is even though orange is no longer the accent; it's still a
        real, useful hue in the set and the darker value reads fine
        wherever orange shows up (a badge tone, a sidebar icon). */
-    --shsas-neon-blue: #1a5fd6;
+    --shsas-neon-blue: #4C63B6;
     --shsas-neon-pink: #c81e79;
     --shsas-neon-orange: #b8500f;
     --shsas-neon-yellow: #8a6d00;
@@ -240,6 +250,9 @@
     --shsas-accent: var(--shsas-neon-blue);
     --shsas-accent-secondary: var(--shsas-neon-cyan);
     --shsas-accent-text: #f5f9ff;
+    /* Light ground: deepen instead of lift. Same value-only idea. */
+    --shsas-hover-veil: rgba(0, 0, 0, 0.05);
+    --shsas-press-veil: rgba(0, 0, 0, 0.085);
     --shsas-focus: var(--shsas-neon-cyan);
     --shsas-danger: var(--shsas-neon-pink);
     --shsas-success: var(--shsas-neon-lime);
@@ -264,7 +277,7 @@
         --shsas-text-dim: #5f5642;
         --shsas-text-faint: #6d6449; /* WCAG-AA-verified 5.3:1+ against --shsas-bg, real math not a guess */
 
-        --shsas-neon-blue: #1a5fd6;
+        --shsas-neon-blue: #4C63B6;
         --shsas-neon-pink: #c81e79;
         --shsas-neon-orange: #b8500f;
         --shsas-neon-yellow: #8a6d00;
@@ -275,6 +288,9 @@
         --shsas-accent: var(--shsas-neon-blue);
         --shsas-accent-secondary: var(--shsas-neon-cyan);
         --shsas-accent-text: #f5f9ff;
+    /* Light ground: deepen instead of lift. Same value-only idea. */
+    --shsas-hover-veil: rgba(0, 0, 0, 0.05);
+    --shsas-press-veil: rgba(0, 0, 0, 0.085);
         --shsas-focus: var(--shsas-neon-cyan);
         --shsas-danger: var(--shsas-neon-pink);
         --shsas-success: var(--shsas-neon-lime);
@@ -887,10 +903,77 @@ body.wp-admin *:focus-visible {
     overflow-wrap: normal !important;
     hyphens: none !important;
 }
+/* WordPress ships its own admin COLOR SCHEME stylesheet (colors.min.css
+   — "Modern" by default) which paints #adminmenu hover/open states with
+   a hardcoded #3858e9 blue. Direct field report, with a screenshot:
+   "why does shit in menus still have a ugly blue background when I
+   hover? It is awful." Entirely correct — a stock blue slab over this
+   warm-noir sidebar reads as broken chrome, not a hover state.
+   Confirmed as the source by walking the live CSSOM for :hover rules
+   setting a blue background: `#adminmenu a:hover, #adminmenu
+   li.menu-top:hover, #adminmenu li.opensub > a.menu-top, ...` from
+   colors.min.css, rgb(56,88,233).
+
+   The block below already themed `li.menu-top:hover` — but WP's rule
+   is broader in two ways this missed:
+     - `#adminmenu a:hover` matches EVERY anchor in the sidebar,
+       including submenu links, which is why hovering a submenu item
+       ("Home" in the report's screenshot) still flashed blue.
+     - `.opensub` is a class WP adds to a top-level item while its
+       flyout is open — a different state from `:hover`, and untouched
+       here, so the parent row stayed blue.
+   Follow-up correction, and the one that decides the treatment: "I
+   want no color - any background would be ugly used this way." Right —
+   a filled slab behind a menu row is a heavy, blunt way to say
+   "you're pointing at this," and swapping WP's blue for a tasteful
+   blue solves nothing. So hover paints NO background at all in either
+   theme. The feedback is the row LIGHTING UP instead: text goes to
+   full-strength ink, the icon picks up the item's wayfinding hue
+   (rules further down), and the top-level row gets a thin hue bar on
+   its leading edge. Same "compose with light, not color blocks"
+   principle the rest of this skin runs on, and it keeps the sidebar
+   reading as one continuous surface rather than a stack of tiles. */
+#adminmenu a:hover,
+#adminmenu a:focus,
+#adminmenu li.opensub > a.menu-top,
+#adminmenu li.menu-top:hover > a.menu-top,
+#adminmenu li > a.menu-top:focus,
+#adminmenu .wp-submenu a:hover,
+#adminmenu .wp-submenu a:focus {
+    background: var(--shsas-hover-veil) !important;
+    color: var(--shsas-text) !important;
+}
+/* The LI, not just the anchor. Found by measuring every element in
+   the sidebar for a non-transparent computed background after the
+   anchor rules were already in place: exactly one was still painting
+   rgb(56,88,233) — the <li> sitting BEHIND its own transparent link.
+   WP's color scheme paints the list item as well as the anchor, so
+   clearing only the anchor leaves the slab fully visible and looks
+   like the fix simply did not work. */
+#adminmenu li.menu-top:hover,
+#adminmenu li.menu-top.current,
+#adminmenu li.wp-has-current-submenu,
+#adminmenu li.opensub,
+#adminmenu li.wp-menu-open,
+#adminmenu .wp-submenu li.current,
+#adminmenu .wp-submenu li:hover {
+    background: transparent !important;
+}
+/* Admin bar, same stock-blue problem, same background-free answer. */
+#wpadminbar .ab-top-menu > li:hover > .ab-item,
+#wpadminbar .ab-top-menu > li.hover > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-item:focus,
+#wpadminbar .ab-submenu a:hover,
+#wpadminbar .ab-submenu a:focus {
+    background: transparent !important;
+    color: var(--shsas-text) !important;
+}
+
 #adminmenu li.menu-top:hover > a.menu-top,
 #adminmenu li > a.menu-top:focus {
-    background: var(--shsas-surface-2) !important;
-    color: var(--shsas-text) !important;
+    /* Background deliberately NOT set here — see the background-free
+       hover block above. This rule now contributes only the leading
+       hue bar. */
     /* Real bug, direct feedback ("weird dark boxy background"): WP core
        ships its OWN hardcoded hover indicator here — an inset 4px solid
        near-black (#191b1f) left bar — completely untouched by any of
@@ -910,11 +993,26 @@ body.wp-admin *:focus-visible {
    on top of it. Direct feedback: no more small geometric "gem"
    shapes anywhere in this skin (this one echoed the h1 mark that was
    already removed for the same reason). */
+/* SUPERSEDED by the same "no color blocks in menus" correction that
+   removed the hover fill. The soft hue fill described above was the
+   remaining colored slab in the sidebar, and on the first menu item
+   its wayfinding hue IS the accent (#2f7dff) — so the "you are here"
+   state rendered as a blue-tinted block, which is precisely what the
+   report was pointing at ("this shit is still happening", screenshot
+   of a blue Dashboard row). Measured live to confirm rather than
+   guessed: computed background was color(srgb 0.128 0.167 0.229) with
+   --shsas-item-hue resolving to #2f7dff.
+
+   Current state is now carried entirely by weight and the leading hue
+   bar — no fill. That keeps the sidebar one continuous surface, and
+   still reads unambiguously because it is the only bold row with a
+   bar. */
 #adminmenu li.menu-top.current > a.menu-top,
 #adminmenu li.wp-has-current-submenu > a.menu-top {
-    background: color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) 16%, var(--shsas-surface)) !important;
+    background: transparent !important;
     color: var(--shsas-text) !important;
     font-weight: 600;
+    box-shadow: inset 3px 0 0 0 var(--shsas-item-hue, var(--shsas-accent));
 }
 /* Real bug caught live: WP core renders TWO genuinely different things
    under the same .wp-submenu class — the CURRENT top-level item's
@@ -947,18 +1045,23 @@ body.wp-admin *:focus-visible {
 #adminmenu li:not(.wp-has-current-submenu) .wp-submenu a { padding-left: 12px; }
 #adminmenu .wp-submenu a:hover, #adminmenu .wp-submenu a:focus {
     color: var(--shsas-text) !important;
-    /* Real bug, direct feedback ("hover is still bad"): the previous
-       rule here lost a cascade fight against WP core's own submenu-
-       item hover/focus background (the same class of bug already
-       found and fixed for .wp-menu-name padding and the flyover
-       background) — core's default rendered a stark white box, jarring
-       against the dark sidebar around it. !important, matching every
-       other place in this file that beats a core default. */
-    background: var(--shsas-surface-2) !important;
+    /* Was --shsas-surface-2 here to beat WP core's stark white hover
+       box. That fixed the white, but a filled box is a filled box —
+       and this rule sits LATER in the file than the consolidated
+       background-free hover block above, so it was quietly winning
+       the cascade and still painting a slab. (Worth remembering: two
+       rules for the same selector in one stylesheet means the last
+       one wins, no matter how carefully the earlier one was written.)
+       transparent still beats core's white, and now agrees with the
+       rest of the menu. */
+    background: var(--shsas-hover-veil) !important;
 }
+/* Submenu "you are here": was pure accent (#2f7dff), i.e. blue TEXT
+   on the dark sidebar — the other half of the same report. Weight
+   alone marks it now; no color anywhere in the menu. */
 #adminmenu .wp-submenu li.current a {
-    color: var(--shsas-accent) !important;
-    font-weight: 600;
+    color: var(--shsas-text) !important;
+    font-weight: 700;
 }
 /* Direct request: every sidebar icon its own distinct, vivid color —
    a real wayfinding pattern (quick visual scanning by color, same
@@ -3110,4 +3213,50 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     .shsas-palette { width: 94vw; }
     .shsas-palette-backdrop { padding-top: 8vh; }
     .shsas-palette-input { font-size: 17px; }
+}
+
+/* ---------- sidebar count badges ----------
+   Direct field report: "the badge color and general styling feel lazy
+   and untreated." Accurate — the admin BAR badges had a real treatment
+   (see the .ab-item count rules above) but the SIDEBAR ones had no
+   rules in this file whatsoever, so they rendered as WP core's stock
+   flat circle: a saturated dot with 9px text, no relationship to
+   anything else in the skin.
+
+   Treated as what they actually are: a quiet count, not an alarm. A
+   pill rather than a circle (holds 2-3 digits without deforming),
+   tabular figures so counts don't jitter as they change, and a
+   translucent veil + hairline ring instead of a solid fill — the same
+   "value shift, not a color block" language the hover states now use.
+   Deliberately NOT the accent: a pending-update count is information,
+   and reserving hue for real signals is what keeps this palette from
+   turning into noise. */
+#adminmenu .update-plugins,
+#adminmenu .awaiting-mod,
+#adminmenu .update-count {
+    background: var(--shsas-hover-veil) !important;
+    color: var(--shsas-text-dim, var(--shsas-text)) !important;
+    box-shadow: inset 0 0 0 1px var(--shsas-border, rgba(255,255,255,.14));
+    border-radius: 999px !important;
+    min-width: 20px;
+    height: 18px;
+    line-height: 18px !important;
+    padding: 0 7px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    text-align: center;
+    margin-left: 6px;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+/* On the row you're pointing at, the count comes forward with the
+   label rather than staying recessed. */
+#adminmenu li.menu-top:hover .update-plugins,
+#adminmenu li.menu-top:hover .awaiting-mod,
+#adminmenu li.menu-top:hover .update-count,
+#adminmenu li.current .update-plugins,
+#adminmenu li.current .awaiting-mod {
+    background: var(--shsas-press-veil) !important;
+    color: var(--shsas-text) !important;
 }

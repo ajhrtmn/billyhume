@@ -315,7 +315,7 @@ define('BHR_URL',  plugin_dir_url(__FILE__));
  * entirely-optional integration, modeled on bh-streaming's own
  * class-crm-integration.php.
  */
-foreach (['links', 'activator', 'verification', 'wellknown', 'crawl', 'http-signature', 'activitypub', 'search-discovery', 'peers', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite', 'discovery-test-suite'] as $f) {
+foreach (['links', 'activator', 'verification', 'wellknown', 'crawl', 'http-signature', 'activitypub', 'peers', 'api', 'admin', 'style-surface', 'debug', 'frontend', 'streaming-bridge', 'test-suite', 'discovery-test-suite'] as $f) {
     require_once BHR_PATH . "includes/class-$f.php";
 }
 
@@ -398,25 +398,23 @@ add_action('plugins_loaded', function () {
         wp_schedule_event(time(), 'daily', 'bhr_peer_crawl');
     }
 
-    // Weekly search-index discovery sweep — off unless the admin has
-    // explicitly enabled it (BHR_SearchDiscovery::enabled(), checked
-    // inside run() itself too, so this schedule existing costs nothing
-    // on a site that's never turned it on). WP core ships no 'weekly'
-    // schedule by default (only hourly/twicedaily/daily) — registered
-    // below.
-    add_filter('cron_schedules', function ($schedules) {
-        if (!isset($schedules['weekly'])) {
-            $schedules['weekly'] = ['interval' => WEEK_IN_SECONDS, 'display' => 'Once Weekly'];
-        }
-        return $schedules;
-    });
+    // The search-index discovery layer that briefly lived here was
+    // REMOVED rather than left as a dead toggle. Real finding from
+    // testing it: public SearXNG instances effectively do not expose a
+    // usable API — of six tried, one returned HTML even when asked for
+    // JSON, two rate-limited (429), one 403'd, one refused to connect.
+    // The JSON output is off by default in SearXNG precisely because
+    // it is what scrapers abuse. That left the layer needing either a
+    // self-hosted SearXNG or a paid API key to do anything at all,
+    // AND needing the target sites to already be indexed (a new domain
+    // is not, for months). Shipping a switch that cannot work without
+    // infrastructure the admin has to stand up themselves is worse
+    // than not shipping it: the bootstrap seed in BHR_Crawl solves the
+    // same cold-start problem with no third party involved.
+    // class-search-discovery.php is deleted; its options are left
+    // untouched in the DB (harmless, and avoids destroying anything an
+    // admin may have configured while it existed).
 
-    if (class_exists('BHR_SearchDiscovery')) {
-        add_action('init', ['BHR_SearchDiscovery', 'init']);
-        if (!wp_next_scheduled('bhr_search_discovery_run')) {
-            wp_schedule_event(time(), 'weekly', 'bhr_search_discovery_run');
-        }
-    }
 
     // ActivityPub relay layer — the third discovery mechanism. Its
     // endpoints (WebFinger/actor) register unconditionally so the
