@@ -75,23 +75,35 @@
        surface with a seam. Depth was carried almost entirely by a single
        shadow token and a sub-threshold border.
 
-       These are a uniform 1.21:1 ladder, which is the largest step the
-       existing text tokens tolerate: --shsas-text-dim lands at 6.66 / 5.50 /
-       4.55:1 across the three surfaces, so the top surface still clears AA
-       with 0.05 to spare. Anything larger fails it, which is why the ladder
-       stops here rather than at a rounder number.
+       CORRECTED 2026-08-24, same day. The first version used 1.21:1,
+       validated against --shsas-text and --shsas-text-dim ONLY. That was an
+       incomplete check and it regressed three pairs below AA: text-faint on
+       surface (4.76 -> 4.23), accent on surface-3 (5.80 -> 4.36), and danger
+       on surface-2 (4.82 -> 3.87). Lighter surfaces cost mid-tone hues
+       contrast, and only the two brightest tokens had been checked.
+
+       1.122:1 is the deepest uniform step that regresses NOTHING -- every
+       token/surface pair that cleared AA before still clears it. Still an
+       improvement on the original 1.07 / 1.10 / 1.13 drift, and uniform
+       rather than drifting, but honest about what the current palette
+       supports.
+
+       Going deeper needs --shsas-danger and --shsas-text-faint deepened
+       first (they floor at 4.02 and 3.60 here, and were already under AA
+       before any of this). That is a palette decision, not a mechanical
+       one, so it is AJ's call rather than something to slip in.
 
        Saturation rises slightly as surfaces come forward (0.199 -> 0.227) so
        chroma does some of the depth work rather than value alone. Hue is
        held near 40 throughout -- the warmth is the identity, not the cue. */
     --shsas-bg: #16140f;
-    --shsas-surface: #29251c;
-    --shsas-surface-2: #393325;
-    --shsas-surface-3: #473f2d;
+    --shsas-surface: #211f1c;
+    --shsas-surface-2: #2a2924;
+    --shsas-surface-3: #33312b;
     /* 2.2:1 against --shsas-surface. Lower than the 3:1 WCAG asks of a
        non-text boundary because the surfaces above now carry the separation
        themselves; this is a seam, not the sole cue. */
-    --shsas-border: #625944;
+    --shsas-border: #4a473d;
     --shsas-border-strong: #5c5540;
     --shsas-text: #f2ede1;
     --shsas-text-dim: #b3ab97;
@@ -4115,4 +4127,103 @@ body.shsas-unowned #wpbody-content .woocommerce-inbox-message,
 body.shsas-unowned #wpbody-content .woocommerce-task-card,
 body.shsas-unowned #wpbody-content .woocommerce-stats-overview {
     background-color: #fff !important;
+}
+
+/* ==========================================================================
+   CORE PANELS THIS SKIN HAD NOT DARKENED
+   ==========================================================================
+
+   The inverse of the third-party containment problem, and it bites on
+   screens we DO own. WordPress paints a set of panel surfaces white or
+   near-white (#fff, #f6f7f7); this skin sets text to --shsas-text, which is
+   cream. Where a panel was never darkened, that lands cream on white.
+
+   Measured on nav-menus.php, an shsas-owned screen: 11 failures at
+   1.09-1.17:1 -- "Menu Name", "Menu Settings", "Select All", "Bulk Select"
+   and the drag-and-drop instructions were all effectively invisible.
+
+   These are core's own panel classes, shared by nav-menus, the customizer
+   accordions, and the media/plugin browse tabs, so fixing them here fixes
+   every screen that uses them rather than nav-menus alone. Scoped to
+   .shsas-owned: an unowned third-party screen is deliberately left on
+   core's own light surfaces by the containment block. */
+body.shsas-owned #wpbody-content .manage-menus,
+body.shsas-owned #wpbody-content .accordion-section-content,
+body.shsas-owned #wpbody-content .tabs-panel,
+body.shsas-owned #wpbody-content .menu-settings,
+body.shsas-owned #wpbody-content .nav-menus-php .metabox-holder .postbox,
+body.shsas-owned #wpbody-content .customlinkdiv,
+body.shsas-owned #wpbody-content .posttypediv,
+body.shsas-owned #wpbody-content .taxonomydiv {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
+/* Traced by walking each failing element's ancestors rather than guessing at
+   class names: the remaining light grounds were #nav-menu-header (#f6f7f7),
+   #post-body (#fff) and .bulk-select-button (#f6f7f7). Naming the actual
+   containers is what took this screen from 11 failures to 0. */
+body.shsas-owned #wpbody-content #nav-menu-header,
+body.shsas-owned #wpbody-content #nav-menu-footer,
+body.shsas-owned #wpbody-content #post-body,
+body.shsas-owned #wpbody-content .bulk-select-button,
+body.shsas-owned #wpbody-content .menu-item-handle,
+body.shsas-owned #wpbody-content .menu-item-bar {
+    background: var(--shsas-surface-2) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border) !important;
+}
+
+/* Core gives these rows their own light stripes; without this the row
+   backgrounds stay pale under the darkened panel above. */
+body.shsas-owned #wpbody-content .tabs-panel li,
+body.shsas-owned #wpbody-content .accordion-section-content li,
+body.shsas-owned #wpbody-content .menu-item-settings {
+    background: transparent !important;
+    color: var(--shsas-text) !important;
+}
+/* The tab strip above a .tabs-panel: the inactive tabs read as light chips. */
+body.shsas-owned #wpbody-content .tabs-panel + ul.category-tabs li,
+body.shsas-owned #wpbody-content ul.category-tabs li,
+body.shsas-owned #wpbody-content ul.add-menu-item-tabs li {
+    background: transparent !important;
+}
+body.shsas-owned #wpbody-content ul.category-tabs li a,
+body.shsas-owned #wpbody-content ul.add-menu-item-tabs li a {
+    color: var(--shsas-accent) !important;
+}
+body.shsas-owned #wpbody-content ul.category-tabs li.tabs a,
+body.shsas-owned #wpbody-content ul.add-menu-item-tabs li.tabs a {
+    color: var(--shsas-text) !important;
+}
+
+/* Darkening those handles above exposed the other half of the same problem:
+   core's MUTED text classes inside them (.is-submenu, .item-type, the row
+   controls) are dim greys chosen for a light ground, so the screen went from
+   11 light-on-light failures to 17 dim-on-dark ones. Both halves have to
+   move together -- a surface and the text on it are one decision. */
+body.shsas-owned #wpbody-content .menu-item-handle .is-submenu,
+body.shsas-owned #wpbody-content .menu-item-handle .item-type,
+body.shsas-owned #wpbody-content .menu-item-bar .item-type,
+body.shsas-owned #wpbody-content .menu-item-settings .description,
+body.shsas-owned #wpbody-content .menu-item-handle .item-controls a,
+body.shsas-owned #wpbody-content #nav-menu-header .description,
+body.shsas-owned #wpbody-content #post-body .description {
+    color: var(--shsas-text-dim) !important;
+}
+/* The delete link keeps a danger reading, but --shsas-danger raw measures
+   3.87:1 on this surface. Lifting it toward the text colour is the same
+   technique the alert icons use, and for the same reason: a small piece of
+   text needs more separation than a block of colour does. */
+body.shsas-owned #wpbody-content .submitdelete,
+body.shsas-owned #wpbody-content a.submitdelete {
+    color: color-mix(in srgb, var(--shsas-danger) 55%, var(--shsas-text)) !important;
+}
+
+/* .menu-settings-group-name is a <span> core styles as a dim grey heading
+   for a light panel; on the darkened .menu-settings it read 2.63:1. It is a
+   heading, so it takes the full text colour rather than the dim one. */
+body.shsas-owned #wpbody-content .menu-settings-group-name,
+body.shsas-owned #wpbody-content .menu-settings .howto {
+    color: var(--shsas-text) !important;
 }

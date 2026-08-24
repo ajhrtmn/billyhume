@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.43.0
+ * Version:     0.45.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('SHSAS_VER', '0.43.0');
+define('SHSAS_VER', '0.45.0');
 
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
@@ -268,35 +268,48 @@ add_action('admin_head', 'shsas_print_nav_depth_script', 1);
  * click handler).
  */
 /**
- * A one-tap route back to wp-admin from the front end.
+ * Makes the site-name item in the admin bar navigate on a tap, both ways.
  *
- * WHY a new node rather than relying on what is already there: the site-name
- * item does link to /wp-admin/, but it is a .menupop, so a tap opens its
- * submenu instead of navigating and the Dashboard entry inside is a second
- * tap on a dropdown. Reported from a real phone as simply not being able to
- * get back to admin from the user side.
+ * Reported from a phone, in both directions: no way back to admin from the
+ * user side, and the counterpart inside wp-admin equally useless. It is the
+ * same control either way -- on the front end it links to /wp-admin/, inside
+ * wp-admin it links to the site -- and the same defect either way: it is a
+ * .menupop, and core's admin-bar script treats the first tap on a menupop as
+ * "open the submenu" and only a second tap as "follow the link". On a touch
+ * screen there is no hover to open it with, so the affordance reads as doing
+ * nothing. Fixing it once fixes the round trip.
  *
- * Measured here at 375px, that dropdown is structurally fine -- panel 0-375
- * at y46, the Dashboard row in the viewport, elementFromPoint returning the
- * anchor itself rather than anything covering it. So the failure is in
- * opening a touch dropdown, which is exactly the kind of thing that cannot
- * be reproduced without the device. A plain link with no submenu does not
- * depend on any of that working.
+ * An earlier attempt added a separate Dashboard node instead. That was the
+ * wrong call, correctly pushed back on: it put a seventh icon into an
+ * already-crowded bar to route around a control that should simply work.
+ * Removed in favour of fixing the control.
  *
- * Front end only: inside wp-admin the admin menu already does this job.
+ * Below 782px only -- at desktop widths hover opens the submenu normally,
+ * and that submenu is genuinely useful.
  */
-function shsas_admin_bar_dashboard_link(WP_Admin_Bar $wp_admin_bar): void {
-    if (is_admin() || !current_user_can('read')) return;
-    $wp_admin_bar->add_node([
-        'id'     => 'shsas-dashboard',
-        'title'  => '<span class="shsas-dashboard-icon" aria-hidden="true"></span>'
-                  . '<span class="shsas-dashboard-label">' . esc_html__('Dashboard', 'shsas') . '</span>',
-        'href'   => admin_url(),
-        'parent' => 'top-secondary',
-        'meta'   => ['class' => 'shsas-dashboard-link', 'title' => __('Back to the dashboard', 'shsas')],
-    ]);
+function shsas_admin_bar_tap_to_dashboard(): void {
+    if (!is_admin_bar_showing()) return;
+    // 'admin-bar' is the same registered handle in both contexts.
+    wp_add_inline_script('admin-bar', <<<'JS'
+(function () {
+    if (!window.matchMedia || !window.matchMedia('(max-width: 782px)').matches) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        var item = document.querySelector('#wp-admin-bar-site-name > .ab-item');
+        if (!item || !item.getAttribute('href')) return;
+        // Capture phase: core's own handler calls preventDefault on this tap
+        // to open the submenu, so a bubble-phase listener would arrive after
+        // the navigation had already been cancelled.
+        item.addEventListener('click', function (e) {
+            e.stopPropagation();
+            window.location.href = item.getAttribute('href');
+        }, true);
+    });
+}());
+JS
+    );
 }
-add_action('admin_bar_menu', 'shsas_admin_bar_dashboard_link', 8);
+add_action('wp_enqueue_scripts', 'shsas_admin_bar_tap_to_dashboard', 20);
+add_action('admin_enqueue_scripts', 'shsas_admin_bar_tap_to_dashboard', 20);
 
 function shsas_admin_bar_toggle(WP_Admin_Bar $wp_admin_bar): void {
     if (!is_admin()) return;
