@@ -624,6 +624,22 @@ class BHY_Style {
         $decls .= '--bh-radius-sm:' . self::safe_number($s['radius_sm'], 0, 24, 8) . 'px;';
         $decls .= '--bh-bar-height:' . self::safe_number($s['bar_height'], 56, 140, 84) . 'px;';
 
+        // Front-end elevation scale. The admin skin gained one; the front end
+        // had none at all, which is why bh-courses hardcoded
+        // rgba(0,0,0,.04) on its cards and bh-contest's cards simply had no
+        // depth. Two surfaces cannot read as being at different heights
+        // without it, so any catalog built on top would be flat by default.
+        //
+        // Elevation is the PAIR: a surface step and a shadow step move
+        // together. These are the shadow half; --bh-surface/-2 are the other.
+        //
+        // Alpha sits between the admin light and dark values because the
+        // front-end palette is user-configurable and a single set has to read
+        // on whichever ground the artist picks.
+        $decls .= '--bh-shadow-sm:0 1px 2px rgba(0,0,0,.18), 0 2px 6px -2px rgba(0,0,0,.22);';
+        $decls .= '--bh-shadow:0 12px 28px -14px rgba(0,0,0,.45);';
+        $decls .= '--bh-shadow-lg:0 24px 56px -20px rgba(0,0,0,.55);';
+
         // Plugin-registered custom sliders (custom_sliders() below) — same
         // treatment as every built-in token: read from the same option,
         // sanitized with the same safe_number(), emitted as a real

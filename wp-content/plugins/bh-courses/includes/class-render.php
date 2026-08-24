@@ -173,6 +173,11 @@ class BHC_Render {
 
     private static function enqueue_assets(): void {
         wp_enqueue_style('bhc-front', BHC_URL . 'assets/css/courses.css', [], BHC_VER);
+        // Shared catalog structure/elevation, registered by the core plugin.
+        // By handle, so this plugin never needs to know where core keeps it;
+        // wp_enqueue_style() on an unregistered handle is a no-op, so the
+        // core-absent case degrades to this plugin's own styles.
+        wp_enqueue_style('ous-catalog');
         if (class_exists('BHY_Style')) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
         wp_enqueue_script('bhc-front', BHC_URL . 'assets/js/courses.js', [], BHC_VER, true);
         wp_localize_script('bhc-front', 'BHCData', [

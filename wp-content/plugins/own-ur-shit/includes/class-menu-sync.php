@@ -58,6 +58,12 @@ class OUS_MenuSync {
     public static function enqueue_cta_style(): void {
         if (is_admin()) return;
         wp_enqueue_style('ous-front-nav', OUS_URL . 'assets/css/front-nav.css', [], OUS_VER);
+
+        // Registered, not enqueued: the shared catalog styles only load on a
+        // page that actually renders a catalog. Peer plugins ask for it by
+        // handle (wp_enqueue_style('ous-catalog')) so they never need to know
+        // where core keeps the file.
+        wp_register_style('ous-catalog', OUS_URL . 'assets/css/catalog.css', [], OUS_VER);
     }
 
     /**

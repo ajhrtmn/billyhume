@@ -1,19 +1,25 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
     "rootDir": "assets/ts/components",
-    "outDir": "assets/js/components",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "removeComments": false,
-    "newLine": "lf"
+    "noEmit": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
   },
-  "include": ["assets/ts/components/**/*.ts"]
+  "include": [
+    "assets/ts/components/**/*.ts"
+  ]
 }

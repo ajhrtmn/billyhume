@@ -37,7 +37,7 @@
         grid.innerHTML = tracks.map((t) => {
             const badges = (t.placements || []).map((p) => '<span class="bh-archive-badge">' + bhEsc(p) + '</span>').join('');
             const audio = t.url ? '<audio controls preload="none" src="' + bhEsc(t.url) + '" class="bh-archive-audio"></audio>' : '';
-            return '<div class="bh-archive-card">'
+            return '<div class="bh-archive-card ous-catalog-card">'
                 + '<div class="bh-archive-title">' + bhEsc(t.title) + '</div>'
                 + '<div class="bh-archive-artist">' + bhEsc(t.artist) + '</div>'
                 + '<div class="bh-archive-contest">' + bhEsc(t.contest_title) + '</div>'

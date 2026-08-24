@@ -1,0 +1,130 @@
+/* The shared catalog: one grid, one card, one control bar.
+ *
+ * WHY this exists, measured rather than asserted. bh-courses and bh-contest
+ * had each grown their own catalog, and they had drifted on every axis:
+ *
+ *              courses                    contests
+ *   grid min   220px                      260px
+ *   gap        20px hardcoded             calc(16px * --bh-space-scale)
+ *   radius     10px hardcoded             var(--bh-radius)
+ *   depth      hardcoded rgba(0,0,0,.04)  none at all
+ *   hover      lift + accent glow         none at all
+ *
+ * Two catalogs on one site should not disagree about what a card is. They
+ * are also the two screens a visitor spends the most time browsing, so the
+ * drift was visible exactly where it mattered most.
+ *
+ * The split: this file owns STRUCTURE and ELEVATION -- grid, spacing,
+ * radius, rest and hover depth, focus. Each plugin keeps its own classes for
+ * CONTENT -- what a course card says is not what a contest card says, and
+ * forcing those together would be unification for its own sake.
+ *
+ * Everything resolves through var(--bh-*, <fallback>) so a site not using
+ * BHY_Style still gets a deliberate result. */
+
+.ous-catalog-grid {
+    display: grid;
+    /* One breakpoint instead of two. 240px sits between the 220 and 260 the
+       two catalogs had picked independently, and holds a two-up layout on a
+       390px phone without either one going single-column early. */
+    grid-template-columns: repeat(auto-fill, minmax(var(--ous-catalog-min, 240px), 1fr));
+    gap: calc(20px * var(--bh-space-scale, 1));
+    align-items: start;
+}
+
+.ous-catalog-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: calc(8px * var(--bh-space-scale, 1));
+    padding: calc(16px * var(--bh-space-scale, 1));
+    background: var(--bh-surface, #1e1b15);
+    border: 1px solid var(--bh-border, #3d3527);
+    border-radius: var(--bh-radius, 12px);
+    /* Rest state gets real depth so the grid reads as a stack of physical
+       cards rather than a table with lines. Elevation is the pair -- the
+       surface token above and this shadow -- which is why neither is
+       hardcoded here any more. */
+    box-shadow: var(--bh-shadow-sm, 0 1px 2px rgba(0, 0, 0, .18));
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+/* Hover raises the card one full step of the scale rather than inventing a
+   one-off shadow. translateY, never scale: a scale reflows nothing but does
+   visibly nudge neighbours optically, and a 4px lift was enough to make the
+   courses grid feel alive already. */
+.ous-catalog-card:hover,
+.ous-catalog-card:focus-within {
+    transform: translateY(-4px);
+    border-color: var(--bh-accent, #c0563a);
+    box-shadow: var(--bh-shadow, 0 12px 28px -14px rgba(0, 0, 0, .45));
+}
+
+/* The whole card is the target, not just the title. A stretched link keeps
+   one real anchor for screen readers and keyboards while giving a pointer
+   the entire rectangle. */
+.ous-catalog-card .ous-catalog-card-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+.ous-catalog-card:focus-within {
+    outline: 2px solid var(--bh-accent, #c0563a);
+    outline-offset: 2px;
+}
+/* The ring above already marks focus, so the inner anchor must not draw a
+   second one on top of it. */
+.ous-catalog-card .ous-catalog-card-link:focus-visible {
+    outline: none;
+}
+
+/* Control bar: search, filters, sort. Wraps rather than scrolls, for the
+   same reason the portal nav does -- a control that scrolls out of reach is
+   a control nobody uses. */
+.ous-catalog-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(10px * var(--bh-space-scale, 1));
+    margin-bottom: calc(20px * var(--bh-space-scale, 1));
+}
+.ous-catalog-controls > * {
+    /* 44px targets: these are the primary interaction on a phone. */
+    min-height: 44px;
+}
+.ous-catalog-controls input[type="search"],
+.ous-catalog-controls input[type="text"],
+.ous-catalog-controls select {
+    padding: 10px 14px;
+    background: var(--bh-surface-2, var(--bh-surface, #1e1b15));
+    color: var(--bh-text, inherit);
+    border: 1px solid var(--bh-border, #3d3527);
+    border-radius: var(--bh-radius-sm, 8px);
+    font: inherit;
+}
+.ous-catalog-controls input:focus-visible,
+.ous-catalog-controls select:focus-visible {
+    outline: 2px solid var(--bh-accent, #c0563a);
+    outline-offset: 1px;
+}
+
+/* Empty state: a catalog with nothing in it should say so deliberately
+   rather than render an empty grid and look broken. */
+.ous-catalog-empty {
+    padding: calc(32px * var(--bh-space-scale, 1));
+    text-align: center;
+    color: var(--bh-text-dim, #9b9186);
+    border: 1px dashed var(--bh-border, #3d3527);
+    border-radius: var(--bh-radius, 12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ous-catalog-card {
+        transition: none;
+    }
+    .ous-catalog-card:hover,
+    .ous-catalog-card:focus-within {
+        transform: none;
+    }
+}

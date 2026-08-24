@@ -459,10 +459,18 @@
    (border + surface-2 fill), but accent-colored to read as a real,
    actionable price rather than a passive metadata tag like difficulty/
    lesson-count sitting right next to it. */
+/* Measured 3.23:1 at 12px -- accent-coloured text on a 14% tint of that same
+   accent, which never separates far enough to clear AA. This is the third
+   instance of that one pattern found this session (.bhy-alert-* and the
+   unread notification card were the others), and the most consequential:
+   it is the price. --bh-text is the foreground the surrounding card already
+   uses, so it is guaranteed legible on this tint; the accent stays as the
+   border and background, which is what makes the badge read as a price
+   rather than as body copy. */
 .bhc-buy-once-badge {
     background: color-mix(in srgb, var(--bh-accent, #C1503A) 14%, var(--bh-surface-2, var(--bh-surface)));
     border: 1px solid color-mix(in srgb, var(--bh-accent, #C1503A) 40%, transparent);
-    color: var(--bh-accent, #C1503A);
+    color: var(--bh-text, #f2ede1);
     border-radius: 999px;
     padding: 2px 9px;
     font-weight: 700;
@@ -1952,4 +1960,14 @@ video.bhc-step-video {
         align-items: flex-start;
         gap: 4px;
     }
+}
+
+/* WooCommerce renders the amount as its own nested spans (.amount,
+   .woocommerce-Price-currencySymbol) which carry their own colour. The badge
+   colour above only reaches them if they inherit. */
+.bhc-buy-once-badge .amount,
+.bhc-buy-once-badge .woocommerce-Price-amount,
+.bhc-buy-once-badge .woocommerce-Price-currencySymbol,
+.bhc-buy-once-badge bdi {
+    color: inherit;
 }

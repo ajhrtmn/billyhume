@@ -133,7 +133,7 @@ class BHC_Render_Catalog {
                 'clear_url' => remove_query_arg(['bhc_s', 'bhc_category', 'bhc_topic', 'bhc_paged']),
             ] : $zero_args) : '<p class="bhc-empty">No courses found' . ($is_filtered ? ' matching your filters.' : ' yet.') . '</p>';
         } else {
-            echo '<div class="bhc-catalog">';
+            echo '<div class="bhc-catalog ous-catalog-grid">';
             foreach ($query->posts as $course) {
                 echo self::render_course_card($course, $uid);
             }
@@ -153,7 +153,7 @@ class BHC_Render_Catalog {
         $lesson_count = BHC_PostTypes::lesson_count($course->ID);
 
         ob_start();
-        echo '<div class="bhc-course-card' . ($locked ? ' bhc-locked' : '') . '">';
+        echo '<div class="bhc-course-card ous-catalog-card' . ($locked ? ' bhc-locked' : '') . '">';
         // Real live-caught issue: only some courses have a featured
         // image, so cards with one and cards without one had a visibly
         // different internal skeleton — even with align-items:start

@@ -87,6 +87,11 @@ class BH_Archive {
     }
 
     public static function render_display_shortcode(): string {
+        // Shared catalog structure/elevation, registered by the core plugin.
+        // By handle, so this plugin never needs to know where core keeps the
+        // file; enqueueing an unregistered handle is a no-op, so a
+        // core-absent install degrades to this plugin's own styles.
+        wp_enqueue_style('ous-catalog');
         ob_start();
         ?>
         <style><?php echo BHY_Style::inline_css(); ?></style>
@@ -94,11 +99,11 @@ class BH_Archive {
             <div class="bh-header">
                 <div class="bh-brand">Archive</div>
             </div>
-            <div class="bh-archive-controls">
+            <div class="bh-archive-controls ous-catalog-controls">
                 <input type="text" id="bh-archive-search" placeholder="Search title or artist…">
                 <select id="bh-archive-filter"><option value="">All contests</option></select>
             </div>
-            <div id="bh-archive-grid" class="bh-archive-grid">
+            <div id="bh-archive-grid" class="bh-archive-grid ous-catalog-grid">
                 <p class="bh-empty">Loading…</p>
             </div>
         </div>

@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2019",
-    "lib": ["ES2019", "DOM"],
+    "lib": [
+      "ES2019",
+      "DOM"
+    ],
     "module": "none",
     "rootDir": "assets/ts",
     "outDir": "assets/js",
@@ -14,5 +17,10 @@
     "removeComments": false,
     "newLine": "lf"
   },
-  "include": ["assets/ts/**/*.ts"]
+  "include": [
+    "assets/ts/**/*.ts"
+  ],
+  "exclude": [
+    "assets/ts/components/**/*"
+  ]
 }

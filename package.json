@@ -25,7 +25,8 @@
     "storybook:fixtures": "php tools/gen-storybook-fixtures.php",
     "storybook": "npm run storybook:fixtures && storybook dev -p 6006 --no-open",
     "storybook:build": "npm run storybook:fixtures && storybook build -o storybook-static",
-    "build:components": "esbuild wp-content/plugins/own-ur-shit/assets/ts/components/index.ts --bundle --format=esm --target=es2022 --minify --outfile=wp-content/plugins/own-ur-shit/assets/js/components/bhy-components.js"
+    "build:components": "npm run typecheck:components && esbuild wp-content/plugins/own-ur-shit/assets/ts/components/index.ts --bundle --format=esm --target=es2022 --minify --outfile=wp-content/plugins/own-ur-shit/assets/js/components/bhy-components.js",
+    "typecheck:components": "tsc -p wp-content/plugins/own-ur-shit/tsconfig.components.json"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
