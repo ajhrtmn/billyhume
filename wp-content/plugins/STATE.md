@@ -8,13 +8,23 @@ The rule that earned this file: **every prior status doc drifted in the same dir
 
 | Gate | Result |
 |---|---|
-| Test Runner (Debug Tools → Run all tests) | **635 tests, 19 suites, 634 pass** |
-| Known failure | `bh-tickets` — `for_user() includes the requester's own ticket`. Pre-existing, unrelated to recent work. |
+| Test Runner (Debug Tools → Run all tests) | **635 tests, 19 suites, 635 pass** (2026-08-24) |
+| Known failures | **None.** The long-standing `bh-tickets` failure is fixed — see below. |
 | `php -l`, all plugin files | clean (7,806 files) |
 | PHPStan level 6 | **zero errors** |
 | Horizontal overflow, admin, 1440→375, both themes | none |
 
 A real PHP 8.5 runtime, MySQL, and a live WordPress install are all available now. Prior sessions had none of that, which is why so much of the older documentation is reasoned-through rather than verified. **Prefer running things over reading them.**
+
+### The one red test, resolved (2026-08-24)
+
+`bh-tickets` — `for_user() includes the requester's own ticket` had been failing long enough to be documented as expected. It was a real defect, not a flaky test.
+
+`$wpdb` returns every column as a string, bigint primary keys included. The test compares strictly — `in_array($id, array_column($rows, 'id'), true)` — so `"12" !== 12` and the match never happened. The test was right; the model was loose, promising `array<int, ...>` shapes in its docblock that it did not deliver.
+
+`BHT_Tickets` now normalises `id`, `user_id`, `assigned_to` and `ticket_id` to int in `get()`, `for_user()` and `all()`, which makes the documented shapes true rather than adjusting the assertion to accept strings.
+
+**Worth generalising:** any other model reading through `$wpdb` and comparing ids strictly has the same latent bug. Grep for `array_column(` with `, true)` before assuming this was the only one.
 
 ## Features — effectively complete
 

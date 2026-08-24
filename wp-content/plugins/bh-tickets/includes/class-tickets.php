@@ -93,10 +93,28 @@ class BHT_Tickets {
         }
     }
 
+    /**
+     * $wpdb returns every column as a string, including bigint keys. Callers
+     * that compare an id strictly -- in_array($id, array_column($rows,'id'), true)
+     * is the one the test suite does -- then never match, because "12" !== 12.
+     * Normalising here rather than at each call site is what makes the
+     * array<int,...> shapes these methods document actually true.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function normalise(array $row): array {
+        foreach (['id', 'user_id', 'assigned_to', 'ticket_id'] as $col) {
+            if (isset($row[$col])) $row[$col] = (int) $row[$col];
+        }
+        return $row;
+    }
+
     /** @return array<string, mixed>|null */
     public static function get(int $ticket_id): ?array {
         global $wpdb;
-        return $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', $ticket_id), ARRAY_A);
+        $row = $wpdb->get_row($wpdb->prepare('SELECT * FROM ' . self::table() . ' WHERE id = %d', $ticket_id), ARRAY_A);
+        return is_array($row) ? self::normalise($row) : null;
     }
 
     /**
@@ -105,9 +123,10 @@ class BHT_Tickets {
      */
     public static function for_user(int $user_id): array {
         global $wpdb;
-        return $wpdb->get_results($wpdb->prepare(
+        $rows = $wpdb->get_results($wpdb->prepare(
             'SELECT * FROM ' . self::table() . ' WHERE user_id = %d ORDER BY updated_at DESC', $user_id
         ), ARRAY_A);
+        return array_map([self::class, 'normalise'], is_array($rows) ? $rows : []);
     }
 
     /**
@@ -117,11 +136,13 @@ class BHT_Tickets {
     public static function all(string $status = ''): array {
         global $wpdb;
         if ($status && isset(self::STATUSES[$status])) {
-            return $wpdb->get_results($wpdb->prepare(
+            $rows = $wpdb->get_results($wpdb->prepare(
                 'SELECT * FROM ' . self::table() . ' WHERE status = %s ORDER BY updated_at DESC', $status
             ), ARRAY_A);
+            return array_map([self::class, 'normalise'], is_array($rows) ? $rows : []);
         }
-        return $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY updated_at DESC', ARRAY_A);
+        $rows = $wpdb->get_results('SELECT * FROM ' . self::table() . ' ORDER BY updated_at DESC', ARRAY_A);
+        return array_map([self::class, 'normalise'], is_array($rows) ? $rows : []);
     }
 
     public static function set_status(int $ticket_id, string $status): bool {
