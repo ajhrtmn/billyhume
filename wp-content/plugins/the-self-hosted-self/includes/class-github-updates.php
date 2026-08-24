@@ -199,11 +199,27 @@ class OUS_GithubUpdates {
         // (register() is a plain overwrite, not additive). Not a
         // general "plugins know about themes" precedent — scoped to
         // this one specific, named companion theme.
-        if (wp_get_theme('the-self-hosted-self-theme')->exists()) {
+        // The 2026-08-24 directory rename reintroduced that same deadlock in
+        // a new shape, confirmed live: this guard used to require the NEW
+        // directory to exist, but an install still running the theme from
+        // its OLD directory cannot have it -- and the only thing that would
+        // create it is the update this guard is refusing to register.
+        // Meanwhile the old theme's own functions.php keeps registering the
+        // old path, which the rename turned into a 404 on GitHub, so the row
+        // reads "not checked yet" forever with no way out.
+        //
+        // So: register whenever EITHER directory is present, always pointing
+        // the remote at the canonical new path, while reading the LOCAL
+        // version from whichever copy is actually installed. That lets a
+        // legacy install see 1.3.x -> current and take the update that moves
+        // it across.
+        $theme_current = wp_get_theme('the-self-hosted-self-theme');
+        $theme_legacy  = wp_get_theme('own-ur-shit-theme');
+        if ($theme_current->exists() || $theme_legacy->exists()) {
             self::register('the-self-hosted-self-theme', [
                 'type' => 'theme',
                 'label' => 'The Self-Hosted Self (theme)',
-                'stylesheet' => 'the-self-hosted-self-theme',
+                'stylesheet' => $theme_current->exists() ? 'the-self-hosted-self-theme' : 'own-ur-shit-theme',
                 'repo' => $default_repo,
                 'branch' => $default_branch,
                 'path' => 'wp-content/themes/the-self-hosted-self-theme',

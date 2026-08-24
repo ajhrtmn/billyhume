@@ -812,12 +812,54 @@ body.admin-bar .oust-site-header { top: 32px; }
    match this file's own established pattern — every --bh-* token here
    is a var() with an inline fallback printed by PHP, not something a
    NEW single-use local token would meaningfully improve on. */
-.woocommerce ul.products:has(li.product:hover) li.product:not(:hover) {
-    filter: saturate(.5) brightness(.85) blur(1.5px);
-    transition: filter .2s ease;
+/* WAS hover-triggered sibling-recede, the same pattern removed from the
+   admin card grids. Direct feedback from a real device: it reads as a
+   tap glitch rather than atmosphere, and on a touch screen there is no
+   hover for it to key off at all. Replaced with the continuous
+   viewport-proximity depth of field the catalogs use, so every grid in the
+   ecosystem behaves the same way.
+
+   Gentler than the hover values it replaces (was saturate .5,
+   brightness .85, blur 1.5px): a continuous effect has to be lighter than a
+   momentary one to stay useful. */
+@keyframes oust-product-depth {
+    0% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+    34% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    66% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    100% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+}
+@supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .woocommerce ul.products li.product {
+            animation-name: oust-product-depth;
+            /* auto, never the 0s an omitted duration implies. */
+            animation-duration: auto;
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+            animation-timeline: view();
+            animation-range: entry 0% exit 100%;
+        }
+        .woocommerce ul.products li.product:hover,
+        .woocommerce ul.products li.product:focus-within {
+            filter: none !important;
+            opacity: 1 !important;
+        }
+    }
 }
 @media (prefers-reduced-motion: reduce) {
-    .woocommerce ul.products li.product { transition: none; }
+    .woocommerce ul.products li.product { transition: none; animation: none !important; }
     .woocommerce ul.products li.product:hover { transform: none; }
     /* Real specificity bug caught before shipping, not after: a plain
        `.woocommerce ul.products li.product { transition: none; }` here

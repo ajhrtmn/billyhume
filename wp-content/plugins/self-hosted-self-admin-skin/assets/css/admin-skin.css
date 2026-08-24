@@ -1845,10 +1845,66 @@ its own
    group's hover state becomes queryable from a single selector. Scoped
    to :not(:hover) so the actual hovered card is completely unaffected
    by its own group's rule — only siblings recede. */
-.ous-cards:has(> .ous-card:hover) > .ous-card:not(:hover),
-.bhy-card-grid:has(> .bhy-card:hover) > .bhy-card:not(:hover) {
-    filter: saturate(var(--shsas-haze-saturate)) brightness(var(--shsas-haze-brightness)) blur(var(--shsas-focus-sibling-blur));
-    transition: filter var(--shsas-speed) ease;
+/* WAS hover-triggered sibling-recede. Direct feedback after seeing it on a
+   real device: "it's currently like tap/hover or something and it is not
+   great, magical UX" -- things should come in and out of focus as they
+   approach the in-view threshold. On a touch screen there is no hover at
+   all, so the whole effect fired on tap, which reads as a glitch rather
+   than atmosphere.
+
+   Now the same continuous viewport-proximity depth of field the front-end
+   catalogs use (catalog.css), so both sides of the ecosystem finally share
+   one motion vocabulary -- OPEN.md items 9 and 14.
+
+   The values are the catalog's, NOT the --shsas-haze-* tokens above. Those
+   are tuned for a transient hover moment and are far stronger
+   (saturate .45, brightness .8, blur 1.5px); applied continuously they
+   would leave most of the screen murky. A continuous effect has to be
+   gentler than a momentary one to stay useful, which is the brief's own
+   usefulness-over-decoration rule. */
+@keyframes shsas-card-depth {
+    0% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+    34% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    66% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    100% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+}
+@supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .ous-cards > .ous-card,
+        .bhy-card-grid > .bhy-card {
+            animation-name: shsas-card-depth;
+            /* auto, never the 0s an omitted duration in the shorthand
+               implies -- that silently disables a scroll-driven animation
+               with no error anywhere. */
+            animation-duration: auto;
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+            animation-timeline: view();
+            animation-range: entry 0% exit 100%;
+        }
+        /* A card being pointed at or keyboard-focused is by definition what
+           matters right now. An animation outranks a normal declaration, so
+           this genuinely needs !important. */
+        .ous-cards > .ous-card:hover,
+        .ous-cards > .ous-card:focus-within,
+        .bhy-card-grid > .bhy-card:hover,
+        .bhy-card-grid > .bhy-card:focus-within {
+            filter: none !important;
+            opacity: 1 !important;
+        }
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .ous-cards > .ous-card, .bhy-card-grid > .bhy-card { transition: none; }
@@ -1860,8 +1916,8 @@ its own
        transition. Matched at equal specificity so this override
        actually wins — same bug, same fix, applied identically in the
        front-end theme's mirror of this rule. */
-    .ous-cards:has(> .ous-card:hover) > .ous-card:not(:hover),
-    .bhy-card-grid:has(> .bhy-card:hover) > .bhy-card:not(:hover) { transition: none; }
+    .ous-cards > .ous-card,
+    .bhy-card-grid > .bhy-card { animation: none !important; }
 }
 /* Family resemblance with the front-end's course-card hover (bh-
    courses' .bhc-course-card:hover — translateY lift + accent-tinted
