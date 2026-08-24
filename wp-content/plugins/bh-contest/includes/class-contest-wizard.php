@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * "It just works" guided contest creation — VISION.md's own design
- * principle (see own-ur-shit's OUS_MediaWizard for the reference
+ * principle (see the-self-hosted-self's OUS_MediaWizard for the reference
  * implementation this follows) applied to the single most confusing
  * screen in this whole ecosystem: the real "Add New Contest" edit
  * screen spans 7 metaboxes and 30+ interdependent fields (submission

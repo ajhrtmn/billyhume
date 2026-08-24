@@ -32,7 +32,7 @@ speculative.
 
 1.1.3 — Added the missing 'bundled_zip' key to this plugin's own
 'ous_registered_plugins' self-registration (found while auditing
-bundled-zip coverage ecosystem-wide — own-ur-shit 3.10.18's own
+bundled-zip coverage ecosystem-wide — the-self-hosted-self 3.10.18's own
 changelog has the full story). Also newly hardcoded into
 OUS_Registry::DEFAULTS itself, closing the same chicken-and-egg gap
 bh-courses/bh-registry/bh-feedback already had fixed: this plugin's
@@ -76,12 +76,12 @@ mid-effort.
 NOT runtime-verified against a live MailPoet install (same
 disclosure as this plugin's original build — nothing here changes
 behavior, only adds compile-time type declarations).
-1.1.0 — Registers this plugin as the enhancer for own-ur-shit 3.10.0's
+1.1.0 — Registers this plugin as the enhancer for the-self-hosted-self 3.10.0's
 new 'email_broadcast' OUS_Integration contract (OUS_Integration::
 register('email_broadcast', ['enhancer_class' => 'BHMP_Sync'])) —
 Phase 1 of the OSS-integration master plan. Makes explicit, in one
 visible place (Debug Tools -> Integration Contracts), what was already
-true implicitly: OUS_Campaigns (own-ur-shit core) is the always-works
+true implicitly: OUS_Campaigns (the-self-hosted-self core) is the always-works
 built-in broadcaster, this plugin is what upgrades that to real
 MailPoet-backed list sync/automation when installed. No behavior
 change to BHMP_Sync/BHMP_ScheduledSync/BHMP_InstantSync themselves.
@@ -97,7 +97,7 @@ OUS_Jobs, catches everything eventually) and BHMP_InstantSync (a
 handful of real-time hooks — user_register/profile_update natively,
 woocommerce_order_status_completed and bhm_entitlement_granted as
 real WP actions, plus every BH_Event type via the new
-'bh_event_emitted' action own-ur-shit 3.9.9 added specifically to
+'bh_event_emitted' action the-self-hosted-self 3.9.9 added specifically to
 make this plugin possible without polling bhcore_events).
 Deliberately NOT wired to MailPoet's Automation-builder API or its
 transactional-send API — this plugin only manages list membership;

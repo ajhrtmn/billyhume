@@ -12,10 +12,10 @@ Before writing this doc, the assumption was "grep every `wp.element.createElemen
 - `bh-monetization-woo/assets/js/bhm-blocks.js`
 - `bh-monetization-woo/assets/js/storefront-studio-blocks.js`
 - `bh-streaming/assets/js/bhs-blocks.js`
-- `own-ur-shit/assets/js/block-style-panel.js`
-- `own-ur-shit/assets/js/element-prefab-block.js`
-- `own-ur-shit/assets/js/page-content-block.js`
-- `own-ur-shit/assets/js/studio.js`
+- `the-self-hosted-self/assets/js/block-style-panel.js`
+- `the-self-hosted-self/assets/js/element-prefab-block.js`
+- `the-self-hosted-self/assets/js/page-content-block.js`
+- `the-self-hosted-self/assets/js/studio.js`
 
 **None of these are migration candidates.** `wp.element` is the objectively correct tool inside the Gutenberg block editor's own canvas — a block must integrate with the editor's own React-based attribute/state system, and Datastar has no role there. Converting any of these to Datastar would be a regression, not an improvement. This section exists specifically so a future pass doesn't rediscover this list and assume it's the backlog — it isn't.
 
@@ -28,8 +28,8 @@ Datastar's actual value is on **plain wp-admin (or front-end) screens that alrea
 - `bh-crm/assets/js/segment-builder.js` — the live "N people match" preview (`BHCRM_Segments::ajax_preview()`), currently a manual `fetch()`/`wp_ajax` round trip; a natural first real Datastar consumer since it's already doing exactly the "type something, see a live server-computed answer" pattern Datastar is built for.
 - `bh-crm/assets/js/subtasks.js` — inline-edit/reorder on the nested sub-task tracker.
 - `bh-monetization-woo/assets/js/storefront-filter.js` — the storefront's live product filter re-query (`ous/v1/storefront/products`).
-- `own-ur-shit/assets/js/search.js` — `[ous_search]` live results.
-- `own-ur-shit/assets/js/element-live.js` — worth a direct read before assuming; name suggests it may already be doing something close to what Datastar formalizes.
+- `the-self-hosted-self/assets/js/search.js` — `[ous_search]` live results.
+- `the-self-hosted-self/assets/js/element-live.js` — worth a direct read before assuming; name suggests it may already be doing something close to what Datastar formalizes.
 - `bh-contest/assets/js/portal-submissions.js`, `bh-contest/assets/js/bh-judging.js` — portal/judging forms with save-and-refresh patterns.
 - `bh-courses/assets/js/courses.js` — progress/quiz interactions.
 - `bh-registry/assets/js/registry.js` — submission/review list actions.
@@ -41,7 +41,7 @@ Datastar's actual value is on **plain wp-admin (or front-end) screens that alrea
 
 AJ flagged streaming, contests, and the portal specifically as good Datastar exploration targets — worth separating from the playback-engine exclusion above, since "the streaming plugin" and "the audio player inside it" aren't the same surface:
 
-- **The portal (`BHI_Portal`, `own-ur-shit/includes/class-portal.php`/`class-portal-layout.php`)** — genuinely has NO JS today at all (grep-confirmed: no `portal`-named file under `own-ur-shit/assets/js/`); it's plain server-rendered PHP panels reached via full-page navigation. This is arguably the single best Datastar opportunity in the whole codebase precisely because there's nothing to migrate AWAY from — panel switching, a live notification-bell count, wallet-balance refresh after a purchase, could all become real Datastar-driven fragments without displacing any existing pattern. Recommend this as a strong second (or even first) real consumer alongside `segment-builder.js`.
+- **The portal (`BHI_Portal`, `the-self-hosted-self/includes/class-portal.php`/`class-portal-layout.php`)** — genuinely has NO JS today at all (grep-confirmed: no `portal`-named file under `the-self-hosted-self/assets/js/`); it's plain server-rendered PHP panels reached via full-page navigation. This is arguably the single best Datastar opportunity in the whole codebase precisely because there's nothing to migrate AWAY from — panel switching, a live notification-bell count, wallet-balance refresh after a purchase, could all become real Datastar-driven fragments without displacing any existing pattern. Recommend this as a strong second (or even first) real consumer alongside `segment-builder.js`.
 - **Contests, the browse/list/reveal surfaces specifically (not the audio player)** — `bh-contest/assets/js/archive.js` (the archive grid) and `bh-contest/assets/js/reveal.js` (the live reveal-party sequencing) are closer to "list/browse/sequence UI" than "continuous playback," so they're moved here rather than the exclusion list above — genuinely worth a real look, though `reveal.js`'s live-tally-during-a-reveal-event behavior should be read closely first to confirm it isn't relying on tight client-side timing Datastar's request/response model can't match.
 - **Streaming, the library/queue/browse UI (not `player.js`'s own playback engine)** — bh-streaming's front-end has more surface than just the player (library browsing, playlist management); worth a direct read of what else exists under `bh-streaming/assets/js/` beyond `player.js` before scoping a real conversion, not assumed here.
 
@@ -55,7 +55,7 @@ None of this section is started — it's AJ's direction captured for the next pa
 
 ## 3. Status
 
-**Portal (§1a) — DONE, own-ur-shit 3.10.5.** The notification badge and wallet-balance chip in the account portal nav (class-portal.php) are now live Datastar signals, polled every 30s via a new `wp_ajax_ous_portal_live_status` handler rather than only updating on a full reload. NOT runtime-verified against a live install — `php -l` clean, and the Datastar attribute syntax used was checked against its own reference docs, but no browser has actually exercised this yet.
+**Portal (§1a) — DONE, the-self-hosted-self 3.10.5.** The notification badge and wallet-balance chip in the account portal nav (class-portal.php) are now live Datastar signals, polled every 30s via a new `wp_ajax_ous_portal_live_status` handler rather than only updating on a full reload. NOT runtime-verified against a live install — `php -l` clean, and the Datastar attribute syntax used was checked against its own reference docs, but no browser has actually exercised this yet.
 
 **`segment-builder.js`'s live preview (§2) — DONE, bh-crm 2.4.15.** Converted after the portal (order flipped from this doc's original recommendation, per direction given this session). Condition-row add/remove JS untouched; only the preview trigger/response now rides Datastar (`{contentType:'form'}`, no signals-array restructuring needed). Same NOT-runtime-verified caveat as the portal.
 

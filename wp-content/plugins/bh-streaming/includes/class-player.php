@@ -26,7 +26,7 @@ class BHS_Player {
      * has already fired. Same bug, same fix pattern as bh-courses and
      * bh-contest: look up the shortcode's own attributes on the current
      * page BEFORE the_content() runs, via BH_SEO's shared helper
-     * (own-ur-shit), and call the exact same method early.
+     * (the-self-hosted-self), and call the exact same method early.
      */
     public static function maybe_set_seo_data_early(): void {
         if (!class_exists('BH_SEO')) return;
@@ -85,7 +85,7 @@ class BHS_Player {
         if (!$post || (!has_shortcode($post->post_content, 'bh_streaming') && !has_block('bhs/player', $post))) return;
 
         wp_enqueue_style('bhs-player', BHS_URL . 'assets/css/player.css', [], BHS_VER);
-        // BHY_Style is optional (own-ur-shit's shared style tokens) — guard
+        // BHY_Style is optional (the-self-hosted-self's shared style tokens) — guard
         // like every other cross-plugin touch in this ecosystem, never
         // assume it's loaded (QA fix: this was the one unguarded call site
         // and would fatal maybe_enqueue() on every [bh_streaming] page if

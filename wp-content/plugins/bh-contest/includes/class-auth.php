@@ -23,7 +23,7 @@ class BH_Auth {
      * bh-courses first (a real course page had zero meta/OG tags
      * despite the code "setting" them every render) and fixed it with
      * this same template_redirect-early-lookup pattern there. Uses
-     * BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) instead of
+     * BH_SEO::shortcode_atts_on_current_page() (the-self-hosted-self) instead of
      * re-parsing the shortcode regex here, since bh-streaming/
      * bh-registry need the identical lookup.
      */

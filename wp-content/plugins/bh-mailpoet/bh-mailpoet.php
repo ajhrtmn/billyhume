@@ -4,7 +4,7 @@
  * Description: Bridges bh-crm's contact list into MailPoet subscriber lists, so MailPoet (not a hand-rolled sender) is the ecosystem's email/marketing delivery engine. Entirely inert if MailPoet isn't installed.
  * Version:     1.1.4
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -32,12 +32,12 @@ foreach (['sync', 'scheduled-sync', 'instant-sync', 'debug'] as $f) {
  * reasoning as every other peer plugin in this ecosystem (see
  * bh-contest.php): WordPress loads active plugins' files in alphabetical
  * folder order, so a direct class_exists() check at file-parse time
- * could run before own-ur-shit's own file has loaded yet.
+ * could run before the-self-hosted-self's own file has loaded yet.
  */
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH MailPoet</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH MailPoet</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }
@@ -47,11 +47,11 @@ add_action('plugins_loaded', function () {
     BHMP_InstantSync::init();
     BHMP_Debug::init();
 
-    // Third OUS_Integration registration (own-ur-shit 3.10.0) — merges
-    // onto the 'email_broadcast' contract own-ur-shit.php already
+    // Third OUS_Integration registration (the-self-hosted-self 3.10.0) — merges
+    // onto the 'email_broadcast' contract the-self-hosted-self.php already
     // registers (builtin_class => OUS_Campaigns), adding only the
-    // enhancer side. Priority 20 on 'init', same as own-ur-shit's own
-    // registration of this key — own-ur-shit's file-parse-time
+    // enhancer side. Priority 20 on 'init', same as the-self-hosted-self's own
+    // registration of this key — the-self-hosted-self's file-parse-time
     // add_action() call is always added to the hook first (before this
     // plugin's plugins_loaded callback even runs), so its builtin_class
     // registration is guaranteed to land before this merge, per
@@ -74,7 +74,7 @@ add_action('plugins_loaded', function () {
     });
 }, 20); // after BHCORE_LOADED-defining bootstrap, same ordering convention as bh-contest.php
 
-// Self-registration on the ecosystem dashboard (own-ur-shit's
+// Self-registration on the ecosystem dashboard (the-self-hosted-self's
 // class-registry.php) — harmless even before this plugin is active
 // anywhere else, per that file's own docblock.
 add_filter('ous_registered_plugins', function ($plugins) {
@@ -90,7 +90,7 @@ add_filter('ous_registered_plugins', function ($plugins) {
     // MailPoet itself — a third-party WordPress.org plugin, not ours to
     // author or bundle, same 'wporg_slug' pattern class-registry.php's
     // own docblock documents for WooCommerce. isset() guard so this
-    // never fights own-ur-shit's own copy if it's ever added there too.
+    // never fights the-self-hosted-self's own copy if it's ever added there too.
     if (!isset($plugins['mailpoet'])) {
         $plugins['mailpoet'] = [
             'label'       => 'MailPoet',

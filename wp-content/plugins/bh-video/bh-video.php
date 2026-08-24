@@ -4,7 +4,7 @@
  * Description: A standalone video catalog and player — its own CPT, taxonomy, and browse/playback SPA, independent of bh-streaming's audio catalog. Depends only on The Self-Hosted Self's shared identity and style tokens.
  * Version:     0.4.3
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -66,7 +66,7 @@ define('BHV_VER',  '0.4.3');
 
 /**
  * A genuine PEER to bh-streaming/bh-courses/bh-feedback — depends only
- * on own-ur-shit (shared identity, roles/capabilities, style tokens).
+ * on the-self-hosted-self (shared identity, roles/capabilities, style tokens).
  * Storage/CDN needs zero new code: a bhv_video's file is a standard WP
  * attachment, so wp_get_attachment_url() already gets CDN offload for
  * free once the Advanced Media Offloader is configured via
@@ -84,7 +84,7 @@ add_action('admin_init', ['BHV_Activator', 'maybe_create_default_pages']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Video</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Video</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

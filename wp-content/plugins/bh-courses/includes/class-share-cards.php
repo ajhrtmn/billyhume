@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * A course-completion share card, generated on demand via the shared
- * BH_ShareCard engine (own-ur-shit/includes/class-share-card.php),
+ * BH_ShareCard engine (the-self-hosted-self/includes/class-share-card.php),
  * same on-demand-not-stored posture class-certificates.php already
  * uses for the exact same "avoid regeneration/storage-cleanup
  * complexity" reason (a course title edited later would otherwise

@@ -6,7 +6,7 @@
  * capture) from whatever machine the admin is clicking "Next" on.
  *
  * TypeScript pilot conversion (bh-contest's first), same posture as
- * own-ur-shit/assets/ts/*.ts: plain `tsc`, no bundler, compiled output
+ * the-self-hosted-self/assets/ts/*.ts: plain `tsc`, no bundler, compiled output
  * (assets/js/reveal.js) is committed since the live FTP-deployed site
  * runs no build step. Run `npm run build:bh-contest` after editing.
  * bhEsc (assets/js/bh-common.js) and anime (vendored assets/js/vendor/

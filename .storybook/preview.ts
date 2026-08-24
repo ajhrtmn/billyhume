@@ -7,7 +7,7 @@ import type { Preview } from '@storybook/html-vite';
  */
 const CSS = [
   '/plugins/self-hosted-self-admin-skin/assets/css/admin-skin.css',
-  '/plugins/own-ur-shit/assets/css/admin.css',
+  '/plugins/the-self-hosted-self/assets/css/admin.css',
 ];
 for (const href of CSS) {
   const link = document.createElement('link');

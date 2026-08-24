@@ -189,7 +189,7 @@ class BHM_CRMIntegration {
 }
 
 // First real bh-monetization-woo contributor to the shared Metrics
-// dashboard (own-ur-shit's OUS_Metrics) — same "tandem infrastructure"
+// dashboard (the-self-hosted-self's OUS_Metrics) — same "tandem infrastructure"
 // pass as bh-courses/bh-contest/bh-crm's own versions of this
 // registration, filling the one real gap left: revenue/entitlement
 // data wasn't represented anywhere on that dashboard. No BH_Event

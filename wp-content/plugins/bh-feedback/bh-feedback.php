@@ -4,7 +4,7 @@
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on The Self-Hosted Self's shared identity/wallet.
  * Version:     0.1.5
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -38,7 +38,7 @@ if (!defined('ABSPATH')) exit;
 // requests and claim one. That capability GATES THE WHOLE REVIEWER
 // ROLE (claiming, reviewing, and seeing the queue are one bundle), not
 // just queue visibility — matches the existing Roles-as-jobs UI
-// (own-ur-shit's OUS_RoleAssignment): granting the "Reviewer" job is
+// (the-self-hosted-self's OUS_RoleAssignment): granting the "Reviewer" job is
 // granting everything reviewing needs, nothing more to wire up
 // separately.
 define('BHF_PATH', plugin_dir_path(__FILE__));
@@ -47,7 +47,7 @@ define('BHF_VER',  '0.1.5');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo
- * — depends only on own-ur-shit (shared identity, roles/capabilities,
+ * — depends only on the-self-hosted-self (shared identity, roles/capabilities,
  * style tokens). bh-monetization-woo is a SOFT dependency (checked via
  * class_exists() at init time, never at file-parse time, same posture
  * every other plugin in this ecosystem takes): if it's active, a
@@ -68,7 +68,7 @@ add_action('plugins_loaded', ['BHF_Activator', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Feedback</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Feedback</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

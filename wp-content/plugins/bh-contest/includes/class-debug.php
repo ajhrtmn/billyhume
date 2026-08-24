@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 // BH_VER 3.1.6 — register() now sets 'group' => OUS_Debug::GROUP_SEED_RESET
-// (own-ur-shit's Debug Tools reorganization pass — see that plugin's
+// (the-self-hosted-self's Debug Tools reorganization pass — see that plugin's
 // class-debug.php docblock), filing this section under "Seed & Reset
 // Tools" instead of the default bucket. No other change.
 

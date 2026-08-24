@@ -9,8 +9,8 @@ if (!defined('ABSPATH')) exit;
  * the natural place to show "everything this person has done across
  * the ecosystem" in one place.
  *
- * Reads directly from {$wpdb->prefix}bhcore_events (own-ur-shit's
- * BH_Event, see own-ur-shit/includes/class-event.php) filtered by
+ * Reads directly from {$wpdb->prefix}bhcore_events (the-self-hosted-self's
+ * BH_Event, see the-self-hosted-self/includes/class-event.php) filtered by
  * `WHERE user_id = %d`. Deliberately does NOT go through
  * BH_Identity::client_ids_for_user() to widen the query to matching
  * client_ids — there's no separate identity/stitching table (see that

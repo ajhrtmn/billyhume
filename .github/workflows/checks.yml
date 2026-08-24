@@ -68,11 +68,11 @@ jobs:
         run: npm ci
 
       # One tsc invocation per plugin that currently has a TypeScript
-      # pilot (own-ur-shit/tsconfig.json etc.) — matches this repo's own
+      # pilot (the-self-hosted-self/tsconfig.json etc.) — matches this repo's own
       # per-plugin build:<plugin>/watch:<plugin> npm scripts exactly, no
       # separate CI-only script to fall out of sync with package.json.
-      - name: Build own-ur-shit
-        run: npm run build:own-ur-shit
+      - name: Build the-self-hosted-self
+        run: npm run build:the-self-hosted-self
       - name: Build bh-contest
         run: npm run build:bh-contest
       - name: Build bh-crm

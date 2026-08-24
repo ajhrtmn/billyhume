@@ -16,7 +16,7 @@ Every design decision in this codebase gets measured against that: **self-hosted
 
 | Plugin | What it does |
 |---|---|
-| **`own-ur-shit`** *(core, required)* | Shared accounts/profiles, design tokens, moderation queue, install/activate dashboard, and the cross-cutting shared services every other plugin builds on — see below. |
+| **`the-self-hosted-self`** *(core, required)* | Shared accounts/profiles, design tokens, moderation queue, install/activate dashboard, and the cross-cutting shared services every other plugin builds on — see below. |
 | **`bh-streaming`** | A personal streaming library — releases, playlists, shuffle/queue, shared-listening Jam sessions, an RSS aggregator, and an aggregate (privacy-flat) plays/metrics dashboard. |
 | **`bh-contest`** | Music contest voting, reveal, and results, with a real per-category vote-limit and fraud-resistant tallying. |
 | **`bh-crm`** | A person list and activity view built on the ecosystem's shared identity — any other plugin can contribute an activity line to a contact's timeline. |
@@ -36,7 +36,7 @@ The core provides real shared infrastructure once, centrally, so no feature plug
 ## Getting started (self-hosted)
 
 1. A WordPress install on ordinary shared hosting (PHP 7.4+, MySQL, WP-Cron enabled — no Redis, no external queue, no special infrastructure required by design).
-2. Install and activate `own-ur-shit` first — every other plugin here requires it.
+2. Install and activate `the-self-hosted-self` first — every other plugin here requires it.
 3. From the Self-Hosted Self dashboard (`wp-admin` → The Self-Hosted Self), install and activate whichever peer plugins you actually want. Nothing here forces an all-or-nothing install.
 
 ## Documentation map

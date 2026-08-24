@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see own-ur-shit's class-test-runner.php) version of
+ * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
  * tests/QuizScoringTest.php and tests/StepsSanitizationTest.php — same
  * cases and reasoning, runnable straight from Debug Tools on this
  * site's own PHP with no CLI/PHPUnit needed. class_exists()-guarded
@@ -497,7 +497,7 @@ class BHC_TestSuite {
         // environment: render_catalog()'s empty branch was upgraded to
         // the shared BHY_Style::empty_state_html() component a while
         // back (real title/description/CTA, not a bare message) —
-        // BHY_Style is always loaded in a real environment (own-ur-shit
+        // BHY_Style is always loaded in a real environment (the-self-hosted-self
         // is a hard dependency), so the fallback '<p class="bhc-empty">'
         // markup this assertion was still checking for never actually
         // renders anymore. Checks the real component's class now,

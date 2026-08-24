@@ -43,7 +43,7 @@ class BH_ElementSurface {
 
     // Building this all via BH_Element rather than hardcoded files, for
     // server-side data specifically: real, registered BH_Element_Data
-    // sources (own-ur-shit/includes/class-
+    // sources (the-self-hosted-self/includes/class-
     // element-data.php's own registration API, same one bhcore_events.count
     // already uses), NOT raw PHP typed into a text field. A placement in
     // the before_player/after_player slots can now bind to "this
@@ -116,7 +116,7 @@ class BH_ElementSurface {
      * @return array<string, mixed>
      */
     public static function register_element_surface($surfaces): array {
-        if (!class_exists('BH_Element')) return $surfaces; // same guard BHCRM_People::register_element_surface() uses — harmless to keep even if own-ur-shit's element classes are ever absent
+        if (!class_exists('BH_Element')) return $surfaces; // same guard BHCRM_People::register_element_surface() uses — harmless to keep even if the-self-hosted-self's element classes are ever absent
         $surfaces[self::SURFACE] = [
             'label' => 'Contest Player — custom content',
             'group' => 'Contest',

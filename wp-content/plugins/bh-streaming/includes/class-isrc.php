@@ -28,7 +28,7 @@ class BHS_ISRC {
     }
 
     public static function add_menu(): void {
-        // Was parented under 'own-ur-shit' — a music-metadata/rights-
+        // Was parented under 'the-self-hosted-self' — a music-metadata/rights-
         // registration tool specific to this plugin's own tracks has no
         // business sitting in the cross-cutting ecosystem hub next to
         // Reports/Security/Metrics; it belongs with the rest of

@@ -4,7 +4,7 @@
  * Description: In-house support/issue ticketing, built on bh-crm's own identity model — a fan opens a ticket from their account portal, staff triage from wp-admin. No third-party helpdesk dependency.
  * Version:     1.0.3
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -59,14 +59,14 @@ if (!defined('ABSPATH')) exit;
 // existing bh_crm_activity_summary filter — entirely optional, this
 // plugin works standalone with zero other feature plugins installed.
 // Staff triage: a plain top-level wp-admin page (BHT_Admin, capability
-// 'bhcore_manage_tickets', new in own-ur-shit 3.10.3) — a real
+// 'bhcore_manage_tickets', new in the-self-hosted-self 3.10.3) — a real
 // top-level add_menu_page() call, not a risky cross-plugin submenu, per
 // CLAUDE.md's documented page-hook-resolution incident. Fan-facing: a
 // "My Tickets" panel on the account portal (BHT_Portal, bhi_portal_panels
 // filter) — open/view/reply to your own tickets, ownership re-checked
 // server-side on every POST.
 // First real NEW (not retrofitted) OUS_Integration registration
-// (own-ur-shit 3.10.0) — 'bh-tickets' contract, builtin_class =>
+// (the-self-hosted-self 3.10.0) — 'bh-tickets' contract, builtin_class =>
 // 'BHT_Tickets', no enhancer registered yet (by design — this contract
 // starts with only a built-in implementation).
 // NOT runtime-verified against a live WordPress+MySQL install this
@@ -90,7 +90,7 @@ register_activation_hook(__FILE__, ['BHT_Activator', 'activate']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Tickets</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Tickets</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

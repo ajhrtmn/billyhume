@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Registry contribution only — bh-live's actual settings UI lives
- * inside OUS_MediaWizard (own-ur-shit/includes/class-media-wizard.php),
+ * inside OUS_MediaWizard (the-self-hosted-self/includes/class-media-wizard.php),
  * not a separate admin screen, per the "one place for setup" call in
  * wondrous-mixing-forest.md: live-engine setup is one more step in the
  * same wizard that already handles storage/CDN, not a second onboarding

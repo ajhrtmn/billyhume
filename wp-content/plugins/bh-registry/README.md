@@ -10,7 +10,7 @@ hosted wherever the artist actually controls it (their own Funkwhale
 instance, another ActivityPub server, their own site's RSS export,
 etc.).
 
-Depends only on `own-ur-shit` (the core). Deliberately has **no**
+Depends only on `the-self-hosted-self` (the core). Deliberately has **no**
 dependency on `bh-streaming` — a site can install just this plugin to
 run a bare directory, or a fan can use the public browse page with no
 other The Self-Hosted Self plugin installed at all. If `bh-streaming` happens to

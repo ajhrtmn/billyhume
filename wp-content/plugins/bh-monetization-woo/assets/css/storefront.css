@@ -5,7 +5,7 @@
  * Real bug fixed here: every rule below previously referenced a
  * fictional, never-defined --bhy-color-* scheme (--bhy-color-border,
  * --bhy-color-surface, --bhy-color-accent, --bhy-color-text-muted) that
- * doesn't exist anywhere in this codebase — own-ur-shit 3.4.88 already
+ * doesn't exist anywhere in this codebase — the-self-hosted-self 3.4.88 already
  * found and fixed the IDENTICAL bug in class-portal.php's own inline
  * styles ("every declaration silently fell through to hardcoded
  * generic-WP-blue fallbacks, so the portal NEVER showed the real site

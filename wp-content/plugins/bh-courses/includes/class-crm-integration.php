@@ -96,7 +96,7 @@ class BHC_CrmIntegration {
 // that persistence.
 //
 // This IS, though, the first real consumer of the notification system
-// (own-ur-shit's OUS_Notifications — see that class's docblock): a
+// (the-self-hosted-self's OUS_Notifications — see that class's docblock): a
 // student finishing a course now actually gets told about it, in-app
 // and by email, with one call and zero new infrastructure of this
 // plugin's own. class_exists()-guarded since notifications shipped in
@@ -137,7 +137,7 @@ add_action('bhc_enrolled', function ($user_id, $course_id) {
 }, 10, 2);
 
 // First real bh-courses contributor to the shared Metrics dashboard
-// (own-ur-shit's OUS_Metrics, class-metrics.php). Two cards from
+// (the-self-hosted-self's OUS_Metrics, class-metrics.php). Two cards from
 // BH_Event data (already flowing — bhc/enroll and bhc/course_completed
 // are real, live events, not new instrumentation added just for this),
 // one from a direct bhc_progress query for the metric BH_Event

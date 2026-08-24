@@ -6,15 +6,15 @@ if (!defined('ABSPATH')) exit;
  * "CRM" admin menu (slug bh-crm-hub). This class registers ONLY the
  * top-level page itself. The real submenus — People (slug bh-crm) and
  * Project Tracker (slug bh-crm-projects) — are attached separately by
- * own-ur-shit's OUS_MenuMerge::merge() at admin_menu priority 999, via
+ * the-self-hosted-self's OUS_MenuMerge::merge() at admin_menu priority 999, via
  * the 'parent' => 'bh-crm-hub' / 'capability' => 'bhcore_manage_crm' keys
- * on bh-crm's OUS_Registry admin_menus entry (own-ur-shit/includes/
+ * on bh-crm's OUS_Registry admin_menus entry (the-self-hosted-self/includes/
  * class-registry.php) — this class deliberately does NOT add_submenu_page()
  * for either of those itself, to avoid a double-registration race against
  * that later merge pass.
  *
  * Mirrors OUS_Dashboard::add_menu()'s own top-level + same-slug-relabeled-
- * submenu trick (own-ur-shit/includes/class-dashboard.php) exactly, per
+ * submenu trick (the-self-hosted-self/includes/class-dashboard.php) exactly, per
  * the design doc's §1.1: the top-level's own callback is the REAL
  * BHCRM_People::render() (never an empty stub), registered a second time
  * under the 'bh-crm-hub' slug — the same "register the real callback
@@ -28,7 +28,7 @@ if (!defined('ABSPATH')) exit;
  * priority (registered directly from bh-crm.php's plugins_loaded
  * bootstrap, not deferred to an odd priority), a real callback, a
  * capability the current user actually holds at registration time
- * (bhcore_manage_crm, granted to administrator + editor by own-ur-shit's
+ * (bhcore_manage_crm, granted to administrator + editor by the-self-hosted-self's
  * OUS_Roles on the 'init' hook, which always fires before 'admin_menu'),
  * a TOP-LEVEL menu (not a submenu of a submenu), and registration-result
  * logging.
@@ -36,7 +36,7 @@ if (!defined('ABSPATH')) exit;
  * NOT runtime-verified — no live WordPress/browser/PHP execution is
  * available in this environment. This install has a documented,
  * multi-session history with exactly this class of standalone-page bug
- * (see own-ur-shit's class-api-docs.php docblock) — smoke-test this menu
+ * (see the-self-hosted-self's class-api-docs.php docblock) — smoke-test this menu
  * especially carefully, ideally logged in as a non-admin 'editor'-role
  * account holding only 'bhcore_manage_crm' (not as an admin, whose
  * manage_options masks capability-scoping bugs), and ideally after an

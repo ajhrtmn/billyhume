@@ -26,7 +26,7 @@ class BHF_Requests {
     }
 
     // Enqueued unconditionally on the front end (small stylesheet, no
-    // JS) — same low-cost-of-always-loading posture own-ur-shit's
+    // JS) — same low-cost-of-always-loading posture the-self-hosted-self's
     // public-profile CSS takes, rather than trying to detect every
     // possible page this shortcode/the portal panel might render on.
     public static function maybe_enqueue(): void {
@@ -157,7 +157,7 @@ class BHF_Requests {
         exit;
     }
 
-    // Same trust-boundary pattern own-ur-shit's class-public-profile.php
+    // Same trust-boundary pattern the-self-hosted-self's class-public-profile.php
     // uses for avatar/banner uploads: media_handle_upload() performs no
     // capability check of its own, and a plain subscriber account
     // (which submitting a feedback request should work for) doesn't

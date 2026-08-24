@@ -1,6 +1,6 @@
 <?php
 /**
- * Deliberately NOT a WordPress install — see own-ur-shit/tests/bootstrap.php
+ * Deliberately NOT a WordPress install — see the-self-hosted-self/tests/bootstrap.php
  * for the full reasoning. The short version: `if (!defined('ABSPATH')) exit;`
  * sits at the top of every class file in this ecosystem, so ABSPATH must
  * be defined before any `require` of a class file, or the require

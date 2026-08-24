@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) exit;
  *    validate_is_open_feed() check (real enclosure required) —
  *    duplicated here rather than shared as a hard dependency, since this
  *    plugin must not require bh-streaming to exist. If this logic drifts
- *    between the two plugins, lifting it into the core (own-ur-shit) as
+ *    between the two plugins, lifting it into the core (the-self-hosted-self) as
  *    a shared BHY_OpenFeed helper is the right long-term fix — flagged
  *    here, not done, since that's a core-plugin change outside this
  *    plugin's own boundary. For 'activitypub', it's WebFinger + actor
@@ -240,13 +240,13 @@ class BHR_Verification {
     // per run so a large registry doesn't try to re-check everything in
     // one page-load-triggered WP-Cron tick.
     //
-    // If the core's job queue is active (own-ur-shit 3.2.0+ — see
+    // If the core's job queue is active (the-self-hosted-self 3.2.0+ — see
     // OUS_Jobs), each link gets its own queued job instead of all 50
     // running inline in this one cron tick: one slow/hanging feed check
     // can no longer block the rest of the batch, and a failed check
     // gets the queue's own retry/backoff for free. Falls back to the
     // original all-inline behavior if the job queue isn't there —
-    // bh-registry depends only on own-ur-shit's CORE presence, never on
+    // bh-registry depends only on the-self-hosted-self's CORE presence, never on
     // any particular optional feature inside it, so this degrades
     // gracefully on an older core the same way every other optional
     // integration in this ecosystem does.

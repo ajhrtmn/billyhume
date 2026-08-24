@@ -2,7 +2,7 @@
 
 Supporter tiers, outright purchase, tips, and pay-per-play for
 `bh-streaming` — all backed by WooCommerce, never a parallel payments
-stack. Depends only on `own-ur-shit`. Never requires `bh-streaming` to
+stack. Depends only on `the-self-hosted-self`. Never requires `bh-streaming` to
 exist, and `bh-streaming` never requires this plugin — see "Independence"
 below.
 

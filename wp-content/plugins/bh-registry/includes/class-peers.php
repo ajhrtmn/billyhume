@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) exit;
  * both real, existing, internet-scale mechanisms capable of true
  * zero-prior-knowledge discovery, both off by default, both following
  * the same "toggle + credential, blank-preserves-existing" shape
- * own-ur-shit's own Media & CDN Setup wizard already establishes
+ * the-self-hosted-self's own Media & CDN Setup wizard already establishes
  * (class-media-wizard.php's Tier B section) rather than inventing a
  * new settings convention. Whatever base_url either layer finds feeds
  * into the exact same bhr_peers table and the exact same crawl loop a
@@ -82,7 +82,7 @@ class BHR_Peers {
         echo '</tbody></table></div></div>';
     }
 
-    // Tier B pattern (own-ur-shit's Media & CDN Setup wizard,
+    // Tier B pattern (the-self-hosted-self's Media & CDN Setup wizard,
     // class-media-wizard.php): one toggle + one credential field per
     // optional layer, password/key field always rendered blank
     // (placeholder signals "already set," a blank submit preserves the

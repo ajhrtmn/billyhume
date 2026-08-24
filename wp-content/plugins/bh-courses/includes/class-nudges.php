@@ -6,7 +6,7 @@ if (!defined('ABSPATH')) exit;
  * only lifecycle notification anywhere in this plugin was on course
  * completion (see class-crm-integration.php) — a student who enrolled,
  * did one lesson, and quietly vanished got nothing, ever, pulling them
- * back. This is a daily job (own-ur-shit's shared OUS_Jobs queue —
+ * back. This is a daily job (the-self-hosted-self's shared OUS_Jobs queue —
  * see that class's docblock for why: no new cron/queue infrastructure
  * of this plugin's own) that finds students stalled 14+ days on an
  * unfinished course and sends exactly one nudge, throttled so the same

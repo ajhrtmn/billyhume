@@ -71,7 +71,7 @@ this track's structured data (`class-player.php` strips them before
 calling `BH_SEO`).
 
 **PRO registration wizard — shipped** (`BHS_PROWizard`,
-`includes/class-pro-wizard.php`, own-ur-shit → PRO Registration): a
+`includes/class-pro-wizard.php`, the-self-hosted-self → PRO Registration): a
 guided walkthrough that links an artist directly to their PRO
 (ASCAP/BMI open self-serve signup; SESAC/GMR correctly labeled
 invitation-only, no fake "sign up" button) with a short explainer of

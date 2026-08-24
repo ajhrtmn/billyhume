@@ -78,7 +78,7 @@ class BHM_PurchaseLedger {
 
             // Order-level total, not a per-line price — BH_Commerce::
             // get_order()'s normalized item shape doesn't expose a
-            // per-line price today (see own-ur-shit/includes/
+            // per-line price today (see the-self-hosted-self/includes/
             // class-commerce.php's get_order()), and the common case
             // here is one purchase line item per order anyway. Accurate
             // enough for a proof-of-purchase/metrics record; not a

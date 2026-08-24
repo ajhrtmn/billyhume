@@ -5,21 +5,21 @@
  * value) inside the "+ Build a new list" <details> panel
  * (class-people.php's render_segments_panel()). No build step at
  * runtime — TypeScript pilot (bh-crm's first), same posture as
- * own-ur-shit/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
+ * the-self-hosted-self/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
  * segment-builder.js, which is what's actually enqueued via
  * wp_enqueue_script(). Run `npm run build:bh-crm` after editing.
  * bhcrmSegmentFields (wp_localize_script) is BHCRM_Segments::FIELDS —
  * the same closed condition-type list the PHP side validates against,
  * so the picker can never offer something the server would reject.
  *
- * The live "N of M people match" preview (own-ur-shit 3.10+) is now
+ * The live "N of M people match" preview (the-self-hosted-self 3.10+) is now
  * handled declaratively by Datastar attributes on #bhcrm-segment-
  * conditions (data-on:input/data-on:change, class-people.php's
  * render_segments_panel()) — this file only builds/removes condition
  * rows. Datastar's own event listeners pick up newly-inserted rows via
  * ordinary event bubbling, so addRow() needs no Datastar-specific code
  * at all. render_segments_panel() falls back to the OLD plain-fetch
- * preview markup (#bhcrm-segment-preview) on an own-ur-shit core older
+ * preview markup (#bhcrm-segment-preview) on an the-self-hosted-self core older
  * than 3.10 (no OUS_Hypermedia) — that fallback is handled below by
  * simply checking whether that element exists.
  */

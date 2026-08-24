@@ -30,7 +30,7 @@ A real PHP 8.5 runtime, MySQL, and a live WordPress install are all available no
 
 The feature layer is far more finished than the docs suggested. Confirmed present and wired:
 
-- **Core (`own-ur-shit`)** — Jobs, Notifications, Roles, Events (`BH_Event`), Identity (`BHI_*`), Style/tokens (`BHY_*`), Debug Tools, Test Runner, API Docs, Audit log, `OUS_DebugLog` v2 (structured traces + self-trimming), Hypermedia/Datastar, Campaigns (`OUS_Campaigns` on `BH_Mail`), Metrics, Role-assignment UI, Media/CDN wizard, SEO (`BH_SEO`, schema.org, `llms.txt`), share cards.
+- **Core (`the-self-hosted-self`)** — Jobs, Notifications, Roles, Events (`BH_Event`), Identity (`BHI_*`), Style/tokens (`BHY_*`), Debug Tools, Test Runner, API Docs, Audit log, `OUS_DebugLog` v2 (structured traces + self-trimming), Hypermedia/Datastar, Campaigns (`OUS_Campaigns` on `BH_Mail`), Metrics, Role-assignment UI, Media/CDN wizard, SEO (`BH_SEO`, schema.org, `llms.txt`), share cards.
 - **Commerce (`bh-monetization-woo`)** — tiers, entitlements, wallet, gifting w/ redemption codes, free trials, coupons, pay-what-you-want, referrals/affiliates, full storefront + faceted browse, recommendations, and a tamper-evident purchase ledger with real OpenTimestamps anchoring.
 - **LMS (`bh-courses`)** — courses/lessons/steps, quizzes, drip, tier-gating, reviews, certificates, progress admin, instructor notes, sessions calendar, interactive-video overlays, catalog with search/filter/sort/pagination.
 - **CRM (`bh-crm`)** — people, activity on shared identity, nested kanban w/ SortableJS, card log, stall analytics, scenes/boards.
@@ -71,5 +71,5 @@ Recorded so the same drift is easier to spot next time. Each of these was writte
 - `TESTS.md` — how to run the suite and what it covers.
 - Design-pass-only roadmaps still carrying real unbuilt scope: `ROADMAP-federated-metrics.md`, `ROADMAP-obs-integration.md`, `ROADMAP-streaming-media-scope-and-blockchain.md` (Part 1), `ROADMAP-lms-instructor-student-depth.md`, `ROADMAP-hyperpress-migration.md`, `ROADMAP-guided-setup-wizards.md` (kept for its reusable wizard pattern, not its status).
 - `ETCH-COMPATIBILITY-NOTES.md` — why full-content-replacement was dropped. Real constraint, still binding.
-- `own-ur-shit/PAGE-BUILDER-DELETE-KEEP-AUDIT.md` — why the custom page builder was deleted. Read before anyone proposes rebuilding one.
+- `the-self-hosted-self/PAGE-BUILDER-DELETE-KEEP-AUDIT.md` — why the custom page builder was deleted. Read before anyone proposes rebuilding one.
 - `CODEBASE-WALKTHROUGH.md` / `WALKTHROUGH-GUIDE.md` — onboarding curriculum and the screen-by-screen GUI inventory (the latter doubles as the audit checklist).

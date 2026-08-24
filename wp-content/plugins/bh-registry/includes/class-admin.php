@@ -25,7 +25,7 @@ class BHR_Admin {
         add_filter('bhi_report_target_label', [self::class, 'report_target_label'], 10, 3);
     }
 
-    // Turns a bare "registry_artist #12" in own-ur-shit's shared Reports
+    // Turns a bare "registry_artist #12" in the-self-hosted-self's shared Reports
     // queue into something an admin can actually act on without leaving
     // that page to go look the artist up first.
     public static function report_target_label(string $label, string $type, int $id): string {
@@ -51,7 +51,7 @@ class BHR_Admin {
             // it, which get_plugins() can only ever find AFTER a human
             // has already manually placed the plugin's files in
             // wp-content/plugins. With bundled_zip set (and the actual
-            // zip present at own-ur-shit/bundled/bh-registry.zip), this
+            // zip present at the-self-hosted-self/bundled/bh-registry.zip), this
             // gets the same one-click "Install" button bh-crm/bh-contest/
             // bh-streaming/bh-courses already have.
             'bundled_zip'  => 'bh-registry.zip',
@@ -131,7 +131,7 @@ class BHR_Admin {
     }
 
     // Audit fix (2026-07-25): was hand-rolled inline hex-color styling —
-    // own-ur-shit's BHY_UI already prints a shared .bhy-badge-* system
+    // the-self-hosted-self's BHY_UI already prints a shared .bhy-badge-* system
     // globally on every admin screen (BHY_UI::init_shared_admin_assets()),
     // this just uses it instead of a one-off style attribute.
     private static function status_badge(string $status): string {

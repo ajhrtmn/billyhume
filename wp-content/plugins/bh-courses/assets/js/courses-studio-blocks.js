@@ -317,7 +317,7 @@
                 label: __('Source'),
                 value: attrs.source,
                 // Cloudflare Stream only appears as an option when
-                // Tier B is actually enabled (own-ur-shit's Media &
+                // Tier B is actually enabled (the-self-hosted-self's Media &
                 // CDN Setup, OUS_MediaWizard::tier_b_enabled(),
                 // localized as window.bhcMediaTierB) — an install
                 // that never opted in never sees it.

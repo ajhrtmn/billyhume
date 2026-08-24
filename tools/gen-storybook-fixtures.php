@@ -31,7 +31,7 @@ if (!function_exists('esc_url')) {
 if (!function_exists('__'))      { function __($t, $d = null) { return $t; } }
 if (!function_exists('esc_html__')) { function esc_html__($t, $d = null) { return esc_html($t); } }
 
-require_once __DIR__ . '/../wp-content/plugins/own-ur-shit/includes/class-ui.php';
+require_once __DIR__ . '/../wp-content/plugins/the-self-hosted-self/includes/class-ui.php';
 
 /** Long/awkward content, so every component is seen under real stress. */
 $LONG  = 'A deliberately long label that should reveal how this component behaves when the text does not fit';

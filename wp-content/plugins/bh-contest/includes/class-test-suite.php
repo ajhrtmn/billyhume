@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see own-ur-shit's class-test-runner.php) version of
+ * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
  * this plugin's own test coverage — same convention bh-courses'
  * class-test-suite.php and bh-monetization-woo's class-test-suite.php
  * already established. Closes a real, flagged gap: this plugin had

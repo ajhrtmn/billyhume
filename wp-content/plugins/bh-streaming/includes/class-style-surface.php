@@ -24,7 +24,7 @@ class BHS_StyleSurface {
         // (BHS_PROWizard, built this session) is a real wp-admin
         // screen, not player.css's own custom classes — WP core's
         // common.min.css is the correct css_url here, same reasoning
-        // as own-ur-shit's new OUS_StyleSurface for the media wizard.
+        // as the-self-hosted-self's new OUS_StyleSurface for the media wizard.
         $surfaces['bh-streaming-pro-wizard'] = [
             'group' => 'Streaming', 'label' => 'PRO Registration wizard',
             'render' => [self::class, 'pro_wizard_preview'],

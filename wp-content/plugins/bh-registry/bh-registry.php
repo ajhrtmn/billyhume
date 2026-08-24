@@ -4,7 +4,7 @@
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
  * Version:     0.1.19
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
  */
 if (!defined('ABSPATH')) exit;
@@ -48,7 +48,7 @@ register_activation_hook(__FILE__, ['BHR_Activator', 'activate']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Registry</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Registry</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

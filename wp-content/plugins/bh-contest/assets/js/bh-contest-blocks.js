@@ -4,7 +4,7 @@
  * player', 'bh/results-reveal', and 'bh/archive' (class-blocks.php).
  * Plain ES5-safe JS against WP core's own globals, no build step, same
  * convention as bh-monetization-woo's bhm-blocks.js (which this file
- * mirrors closely) and own-ur-shit's element-prefab-block.js.
+ * mirrors closely) and the-self-hosted-self's element-prefab-block.js.
  *
  * All three use wp.serverSideRender — the real render_callback output
  * (the exact same static container div the front end gets) shown live
@@ -21,7 +21,7 @@
  * converted files. Local, loosely-typed ambient interfaces for the
  * wp.* modules this file actually uses (createElement/useState/
  * useEffect, InspectorControls, PanelBody/SelectControl, i18n, apiFetch,
- * serverSideRender) rather than sharing own-ur-shit's own wp-globals.d.ts
+ * serverSideRender) rather than sharing the-self-hosted-self's own wp-globals.d.ts
  * (a separate tsc project — see reveal.ts's own docblock for why each
  * plugin declares its own local types instead).
  */

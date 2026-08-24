@@ -64,7 +64,7 @@ paid vendor API — genuinely avoids a silent third-party dependency;
 a commercial API works too if that's what's configured) for other
 public installs, feeding any confirmed-real hit into the exact same
 BHR_Crawl::maybe_add_discovered_peer() pipeline a directly-crawled
-peer-of-a-peer uses. Settings follow own-ur-shit's own established
+peer-of-a-peer uses. Settings follow the-self-hosted-self's own established
 Tier B pattern (class-media-wizard.php's Cloudflare Stream section —
 confirmed via direct exploration, not guessed): toggle + credential,
 password field always blank, a blank submit preserves the existing
@@ -253,10 +253,10 @@ render), always after wp_head — where BH_SEO actually echoes its
 tags — has already fired. Extracted into its own set_seo_data()
 method and added a template_redirect hook that detects the
 shortcode on the current page early, via
-BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) — confirmed
+BH_SEO::shortcode_atts_on_current_page() (the-self-hosted-self) — confirmed
 live, the Artist Registry page now renders real meta/OG tags.
 
-0.1.12 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+0.1.12 — Real bug fix surfaced by the-self-hosted-self's own final PHPStan
 level 6 brick (typing OUS_Debug::button() with a real `: void`
 return): class-debug.php here was calling it as `echo
 OUS_Debug::button(...)`, double-printing that debug-tools button on

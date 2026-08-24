@@ -331,11 +331,11 @@
     flex-wrap: wrap;
 }
 /* Same cross-plugin stacking bug found and fixed live in bh-contest's
-   .bh-now-playing-bar — own-ur-shit's own bottom user bar
+   .bh-now-playing-bar — the-self-hosted-self's own bottom user bar
    (.bhi-user-bar, always visible for a logged-in fan) is ALSO
    position:fixed;bottom:0 with a higher z-index, so it silently covers
    this bar's lower ~49px on any page where both render. Uses
-   --bhi-user-bar-height (own-ur-shit's exact bar height, not its body
+   --bhi-user-bar-height (the-self-hosted-self's exact bar height, not its body
    padding-bottom value, which has extra breathing room and left a
    stray 7px gap in an earlier version of this fix). */
 body.bhi-has-user-bar .bhs-nowplaying { bottom: var(--bhi-user-bar-height, 56px); }

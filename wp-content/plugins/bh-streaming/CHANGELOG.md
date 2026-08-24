@@ -12,7 +12,7 @@ liner notes, a lyrics sheet (reusing the existing lyrics field, not
 a second data entry), an artwork package (front/back/insert), and
 credits, each independently optional, on both bhs_track (a song's
 own notes) and bhs_release (an album's own package). Rendered as a
-real PDF via FPDF (own-ur-shit/vendor/fpdf/fpdf.php — already
+real PDF via FPDF (the-self-hosted-self/vendor/fpdf/fpdf.php — already
 vendored, already proven in production by bh-courses' own
 class-certificates.php), generated once and cached as a real WP
 attachment (a content-hash check avoids regenerating FPDF on every
@@ -106,7 +106,7 @@ ran during the_content() (the [bh_streaming] shortcode's own
 render), always after wp_head — where BH_SEO actually echoes its
 tags — has already fired. Added a template_redirect hook that looks
 up the shortcode's own track/release attributes on the current page
-early, via BH_SEO::shortcode_atts_on_current_page() (own-ur-shit),
+early, via BH_SEO::shortcode_atts_on_current_page() (the-self-hosted-self),
 and calls the same existing method — no change to its own logic.
 
 0.5.28 — Real, visible bug: the Metrics dashboard's D3 charts
@@ -115,7 +115,7 @@ default — for every line/area/bar. Two problems, not one: hardcoded
 at all, AND the wrong token FAMILY for where this screen lives.
 class-stats.php's Metrics page is wp-admin, where --bh-* isn't even
 defined (confirmed live: reads empty) — the real admin accent is
---bhy-accent (own-ur-shit's own token system). Verified live on this
+--bhy-accent (the-self-hosted-self's own token system). Verified live on this
 install: --bhy-accent computes to #2f7dff (blue), so every chart was
 rendering in orange against an otherwise all-blue admin skin. Fixed
 with a bhsChartAccent() helper reading the real token at render
@@ -208,7 +208,7 @@ fields.
 
 0.5.22 — stats-charts.js converted to TypeScript (assets/ts/
 stats-charts.ts), this plugin's first TS-pilot file, following
-own-ur-shit's established pattern (plain `tsc`, module: none,
+the-self-hosted-self's established pattern (plain `tsc`, module: none,
 compiled output committed since the live site runs no build step —
 new bh-streaming/tsconfig.json, `npm run build:bh-streaming`). `d3` is
 declared as a loose `any` global rather than pulling in a real
@@ -249,7 +249,7 @@ which runs on a schedule and would otherwise flood the log).
 0.5.10 — Design Suite gallery gap closed: registered the PRO Registration
 wizard (BHS_PROWizard) as its own surface (class-style-surface.php),
 previously entirely invisible to the token editor. Same light-on-light
-contrast bug found and fixed as own-ur-shit's 3.6.5 Media wizard surface —
+contrast bug found and fixed as the-self-hosted-self's 3.6.5 Media wizard surface —
 this preview's own wp-admin-style light background was inheriting the dark
 brand theme's light :host text color; fixed with an explicit text color.
 
@@ -257,7 +257,7 @@ brand theme's light :host text color; fixed with an explicit text color.
 generation is now real and server-side (BHS_ISRC::issue()), not a client-only
 Math.random() fill. Two real improvements: (1) the mock path now collision-
 checks against existing _bhs_isrc rows instead of trusting client-side
-randomness alone; (2) a new "ISRC Registrant" settings page (own-ur-shit →
+randomness alone; (2) a new "ISRC Registrant" settings page (the-self-hosted-self →
 ISRC Registrant) lets an artist record a REAL registrant code once they've
 completed the actual, offline national-agency application — once that's on
 file, the same "Generate ISRC" button starts issuing real, sequential,

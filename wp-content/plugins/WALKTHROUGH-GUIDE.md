@@ -4,11 +4,11 @@ This is a screen-by-screen guide to every admin GUI in this ecosystem, ordered d
 
 ---
 
-# Part 1 — Core (own-ur-shit)
+# Part 1 — Core (the-self-hosted-self)
 
 ## The BH_Element registry and render_slot architecture
 
-This isn't a screen, it's the foundation every screen in Part 2 onward sits on, so it comes first. `BH_Element` (own-ur-shit/includes/class-element.php) is a placement/capability/data-binding system: any plugin registers element "types" (a heading, a stat card, a kanban board, a profile field) with a schema and a renderer, and a separate `bhcore_element_placements` table records which instances of which types are placed where, with what config. `render_slot()` walks a slot's placements and renders each one through `wrap_placement_html()`, which wraps every element's output in a consistent `data-bhel-*` marked wrapper so the same node the visual builder edited is the same node that renders live, both in wp-admin and on the front end.
+This isn't a screen, it's the foundation every screen in Part 2 onward sits on, so it comes first. `BH_Element` (the-self-hosted-self/includes/class-element.php) is a placement/capability/data-binding system: any plugin registers element "types" (a heading, a stat card, a kanban board, a profile field) with a schema and a renderer, and a separate `bhcore_element_placements` table records which instances of which types are placed where, with what config. `render_slot()` walks a slot's placements and renders each one through `wrap_placement_html()`, which wraps every element's output in a consistent `data-bhel-*` marked wrapper so the same node the visual builder edited is the same node that renders live, both in wp-admin and on the front end.
 
 How it should look/behave: a plugin author calls `BH_Element::register_type()` once, and from then on that element type is placeable, stylable, and inspectable from the Design Suite canvas with zero special-cased template code anywhere else — this is the "no special-cased pages" discipline referenced throughout STATUS.md.
 
@@ -18,7 +18,7 @@ Shore-it-up suggestion: grep the whole ecosystem for other `trim($str, $chars)` 
 
 ## Accounts, identity, and the shared services (Dashboard, Reports, Security)
 
-**Dashboard — `admin.php?page=own-ur-shit`.** The install/activate console for the whole ecosystem: a card per plugin showing install/activate status, pulled from `OUS_Registry::visible_cards()`. Use it to install and activate peer plugins in order. Pitfall: one-click install for bh-registry and bh-monetization-woo depends on bundled zips actually existing on disk at `own-ur-shit/bundled/*.zip` — confirm those are present before trusting the button. Shore-up: add a visible warning on the card itself if the expected zip is missing, instead of only failing at click time.
+**Dashboard — `admin.php?page=the-self-hosted-self`.** The install/activate console for the whole ecosystem: a card per plugin showing install/activate status, pulled from `OUS_Registry::visible_cards()`. Use it to install and activate peer plugins in order. Pitfall: one-click install for bh-registry and bh-monetization-woo depends on bundled zips actually existing on disk at `the-self-hosted-self/bundled/*.zip` — confirm those are present before trusting the button. Shore-up: add a visible warning on the card itself if the expected zip is missing, instead of only failing at click time.
 
 **Reports — `admin.php?page=ous-reports`.** A shared abuse/moderation queue any plugin routes a "Report" button into; currently only bh-registry uses it. Tabs for Open/Resolved/Dismissed, rows flagged red at 3+ independent reporters. This one is complete and needs no shoring up — it's a good reference for what "done" looks like elsewhere in this codebase.
 
@@ -72,7 +72,7 @@ bh-contest's catalog preview registers itself via `bhy_style_surfaces` (`bh-cont
 
 How it should look once converted: a real `BH_Element`-backed surface, the same way bh-crm's profile page and bh-courses' lesson pages already are — registered element types, real placements stored in `bhcore_element_placements`, rendered through `render_slot()`/`wrap_placement_html()` with actual contest/submission data bound in, editable live from the Design Suite's Widgets & Elements tab exactly like a CRM profile field is today.
 
-Reference pattern to follow: `bh-crm/includes/class-style-surface.php` (CRM profile page conversion) and `bh-courses/includes/class-lesson-surface.php` (LMS lesson conversion) are the two prior, completed examples of exactly this migration. Read both alongside `own-ur-shit/includes/class-element.php`'s `register_type()`/`render_slot()` before starting — the shape of the conversion (register element types for each meaningful piece of a contest card/results view, replace the hardcoded HTML in `class-style-surfaces.php` with real placements, wire real contest data into the render callbacks) should closely mirror what those two files already did.
+Reference pattern to follow: `bh-crm/includes/class-style-surface.php` (CRM profile page conversion) and `bh-courses/includes/class-lesson-surface.php` (LMS lesson conversion) are the two prior, completed examples of exactly this migration. Read both alongside `the-self-hosted-self/includes/class-element.php`'s `register_type()`/`render_slot()` before starting — the shape of the conversion (register element types for each meaningful piece of a contest card/results view, replace the hardcoded HTML in `class-style-surfaces.php` with real placements, wire real contest data into the render callbacks) should closely mirror what those two files already did.
 
 Shore-up suggestion: don't touch bh-streaming's or bh-courses' catalog mockups yet — do bh-contest first, end to end, verified in the (now-fixed) Design Suite, and treat it as the template for converting the other two afterward. Trying to convert all three mockup surfaces at once risks discovering a builder gap partway through and having to redo work in three places instead of one.
 

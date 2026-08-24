@@ -525,7 +525,7 @@ interface BHCVideoAnnotation {
             });
 
             // Retry-with-backoff, matching the reference pattern this
-            // ecosystem's own reports flow set (own-ur-shit's
+            // ecosystem's own reports flow set (the-self-hosted-self's
             // class-reports.php) — retry-audit pass, AJ's own standing
             // ask. Marking a step complete is idempotent (the server
             // side is an upsert on lesson_id+step_index, not an insert-
@@ -573,13 +573,13 @@ interface BHCVideoAnnotation {
                             btn.disabled = false;
                             btn.textContent = originalLabel;
                             var errMsg = (res.data && res.data.message) ? res.data.message : 'Something went wrong.';
-                            // BHCoreToast (own-ur-shit core, loaded globally —
+                            // BHCoreToast (the-self-hosted-self core, loaded globally —
                             // see class-toast.php) is called directly here,
                             // not via the PHP-side OUS_Toast::queue() hand-off,
                             // because this is an AJAX flow with no redirect to
                             // hand a message across. typeof-guarded so this
                             // still degrades to the pre-existing alert() if
-                            // own-ur-shit's toast script hasn't loaded for any
+                            // the-self-hosted-self's toast script hasn't loaded for any
                             // reason (older core version, script blocked, etc.)
                             // — same "harmless no-op" posture as every other
                             // optional integration point in this ecosystem.

@@ -14,7 +14,7 @@ render), always after wp_head — where BH_SEO actually echoes its
 tags — has already fired. Extracted the SEO-setting logic into its
 own set_seo_data($atts) method and added a template_redirect hook
 that looks up the shortcode's own attributes on the current page
-early, via BH_SEO::shortcode_atts_on_current_page() (own-ur-shit) —
+early, via BH_SEO::shortcode_atts_on_current_page() (the-self-hosted-self) —
 confirmed live, a real contest-embedding page now renders a real
 Event schema.org JSON-LD and meta description instead of nothing.
 
@@ -33,7 +33,7 @@ resolved and updated to record what was actually checked.
 
 3.7.28 — Real UX gap found live: clicking "Contests" itself (the
 synced menu group's own label, not a child contest) went nowhere —
-OUS_MenuSync::sync_group() (own-ur-shit 3.10.23) now takes an
+OUS_MenuSync::sync_group() (the-self-hosted-self 3.10.23) now takes an
 optional real URL for the group parent. Unlike bh-courses, this CPT
 has no native archive URL — BH_Archive's own docblock deliberately
 treats [bh_archive] as a single unified library spanning every
@@ -50,7 +50,7 @@ against a live install by this commit alone.
 
 3.7.27 — New "Access" metabox (class-admin-metaboxes.php, side column
 next to Site Menu): a real, explicit per-contest opt-IN for
-restricting a contest to logged-in members only, via own-ur-shit's
+restricting a contest to logged-in members only, via the-self-hosted-self's
 new OUS_Visibility (3.10.22, class-visibility.php)
 can_view_open_by_default()/members_only_checkbox_field()/
 save_members_only_from_request(). Off by default — a contest stays
@@ -76,7 +76,7 @@ alone — verify by toggling "Members only" on a test contest and
 confirming a logged-out visitor sees a login prompt instead of the
 player, with the same result hitting bh/v1/tracks directly.
 
-3.7.26 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
+3.7.26 — Added a help tooltip (BHY_UI::tip(), the-self-hosted-self 3.10.15) to
 a round's "Cut to" field on the Rounds (elimination format) metabox,
 clarifying that entries which don't advance are never deleted — they
 stay in Submissions, just excluded from later rounds' voting. A real
@@ -85,7 +85,7 @@ time. Part of this session's first pass at in-context tooltips, not
 a full sweep.
 
 3.7.25 — Real bug fix found while investigating a Phase 4 dead-code-
-triage flag (own-ur-shit BH_Rounds::is_new_submission_allowed() had
+triage flag (the-self-hosted-self BH_Rounds::is_new_submission_allowed() had
 no caller anywhere). class-rounds.php's own docblock names this
 method "the real gate" for whether a NEW track can be submitted, but
 class-api.php's submit() REST handler was calling the round-unaware
@@ -209,14 +209,14 @@ live — this plugin's own admin-metaboxes/console pages weren't
 separately exercised this session.
 
 3.7.19 — reveal.js converted to TypeScript (assets/ts/reveal.ts), this
-plugin's first TS-pilot file, following own-ur-shit's established
+plugin's first TS-pilot file, following the-self-hosted-self's established
 pattern (plain `tsc`, module: none, compiled output committed since
 the live site runs no build step — new bh-contest/tsconfig.json,
 `npm run build:bh-contest`). bhEsc (bh-common.js) and anime (vendored)
 are declared as loose untyped globals rather than pulling in real type
 packages for either. Compiled assets/js/reveal.js verified with
 `node --check` and grepped for CommonJS `exports`/`require(` artifacts
-(the class of bug 3.10.5's own-ur-shit pilot caught) — clean. Purely a
+(the class of bug 3.10.5's the-self-hosted-self pilot caught) — clean. Purely a
 type-safety/authoring-layer change; no runtime behavior was touched.
 NOT runtime-verified against a live browser this session.
 
@@ -343,7 +343,7 @@ nonexistent bh-btn-secondary class.
 
 3.7.3 — Registered the "New Contest" wizard (BH_ContestWizard) as its own
 Design Suite style surface (class-style-surfaces.php), previously invisible
-to the token editor. Fixed the same contrast bug as own-ur-shit 3.6.5: this
+to the token editor. Fixed the same contrast bug as the-self-hosted-self 3.6.5: this
 preview's light wp-admin-style page inherited the dark brand theme's light
 :host text color, rendering unreadable light-on-light text.
 
@@ -371,7 +371,7 @@ guarded.
 `-webkit-backdrop-filter` fallback, so older Safari silently dropped the
 blur. Added the prefixed declaration alongside the standard one.
 
-3.6.8 — Registered two widgets (Submissions, Votes cast) with own-ur-shit's
+3.6.8 — Registered two widgets (Submissions, Votes cast) with the-self-hosted-self's
 shared Metrics dashboard (OUS_Metrics), reading the bh/submission_created
 and bh/vote events already emitted by class-api.php. class_exists()-guarded.
 
@@ -399,7 +399,7 @@ Also: wp_die() calls across admin-post handlers now pass back_link => true.
 3.6.5 — New class-share-cards.php: "Now Entered"/"Vote Now" public/no-login
 share cards (?bh_share_entered={id} / ?bh_share_vote={id}) rendering only
 title/artist/contest name (submission audio/notes/contact stay locked
-down), via the shared BH_ShareCard engine (own-ur-shit 3.5.2). Since
+down), via the shared BH_ShareCard engine (the-self-hosted-self 3.5.2). Since
 bh_submission has no public single template to deep-link to, the "vote"
 card instead pairs with the contest's own page URL (_bh_page_id). New
 per-contest card-style radio (_bh_share_card_style) picks a card template,

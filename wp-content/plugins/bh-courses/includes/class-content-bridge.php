@@ -139,7 +139,7 @@ class BHC_ContentBridge {
         // OSS-integration master plan Phase 6 follow-up — the video
         // step's Cloudflare Stream source option only appears in the
         // block editor's SelectControl when Tier B was actually turned
-        // on in Media & CDN Setup (own-ur-shit's OUS_MediaWizard), so an
+        // on in Media & CDN Setup (the-self-hosted-self's OUS_MediaWizard), so an
         // install that never opted into Tier B never even sees the
         // option, let alone can accidentally pick it.
         wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaTierB', [

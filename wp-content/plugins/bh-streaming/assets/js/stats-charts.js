@@ -11,7 +11,7 @@
  * into each chart container's data attribute instead.
  *
  * TypeScript pilot conversion (bh-streaming's first), same posture as
- * own-ur-shit/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
+ * the-self-hosted-self/assets/ts/*.ts: plain `tsc`, compiled to assets/js/
  * stats-charts.js, which is what's actually enqueued. Run
  * `npm run build:bh-streaming` after editing. `d3` is declared as a
  * loose `any` global below — a real @types/d3 package would be a much
@@ -25,7 +25,7 @@
 // hardcoded at all, AND it's the wrong token FAMILY for where this
 // screen lives. This is wp-admin (class-stats.php's own admin page),
 // where --bh-* isn't even defined (confirmed live: reads empty) —
-// the real admin accent is --bhy-accent (own-ur-shit's own design-
+// the real admin accent is --bhy-accent (the-self-hosted-self's own design-
 // token system, class-ui.php), which the admin skin bridges to its
 // own --shsas-accent. Verified live on this exact install: --bhy-
 // accent computes to #2f7dff (blue), so every chart was rendering in
@@ -34,7 +34,7 @@
 // Read once at call time (charts render after DOMContentLoaded, by
 // which point BHY_UI's own print_design_system_css() has already run
 // and set the custom property on :root) with the old literal kept as
-// the fallback for the case where own-ur-shit's token CSS hasn't
+// the fallback for the case where the-self-hosted-self's token CSS hasn't
 // loaded for some reason.
 function bhsChartAccent() {
     var v = getComputedStyle(document.documentElement).getPropertyValue('--bhy-accent').trim();

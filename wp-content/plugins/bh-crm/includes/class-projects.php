@@ -45,7 +45,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * BHCRM_Projects — the kanban-style nested-sticky-note project tracker,
- * built ON TOP OF own-ur-shit's existing "element builder" system
+ * built ON TOP OF the-self-hosted-self's existing "element builder" system
  * (BH_Element / BH_Element_Data / BH_Content / BH_Studio) rather than as
  * a bespoke parallel data model. Added 1.2.0 at direct request: "a
  * kanban-like nested-sticky-note project tracker... for tracking
@@ -61,9 +61,9 @@ if (!defined('ABSPATH')) exit;
  * genuinely bh-crm's own concern (a project belongs to a CRM person),
  * matching class-people.php's own precedent of owning CRM-specific
  * tables/registrations directly rather than pushing them into
- * own-ur-shit's core.
+ * the-self-hosted-self's core.
  *
- * A project's BOARD is an own-ur-shit element surface,
+ * A project's BOARD is an the-self-hosted-self element surface,
  * 'bhcrm_project_board' (registered below via the SAME
  * 'bh_element_surfaces' filter BHCRM_People::register_element_surface()
  * already uses for 'bh_crm_profile' — no new registration mechanism),
@@ -73,7 +73,7 @@ if (!defined('ABSPATH')) exit;
  * placement per kanban card, at the top level.
  *
  * KANBAN-COLUMN JUDGMENT CALL (documented in more depth in
- * own-ur-shit/ELEMENT-BUILDER-DESIGN-PLAN.md's "§7 Project Tracker"
+ * the-self-hosted-self/ELEMENT-BUILDER-DESIGN-PLAN.md's "§7 Project Tracker"
  * section): each card's column is a plain
  * schema attribute ('column', a literal string) on the bh/sticky-card
  * placement itself — NOT a separate slot per column. This was CONFIRMED,
@@ -182,7 +182,7 @@ class BHCRM_Projects {
         add_action('admin_post_bhcrm_project_unlink', [self::class, 'handle_unlink_person']);
         add_action('admin_enqueue_scripts', [self::class, 'maybe_enqueue']);
         add_action('rest_api_init', [self::class, 'register_rest_routes']);
-        // Phase C stall analytics — own-ur-shit's ONE placement-save
+        // Phase C stall analytics — the-self-hosted-self's ONE placement-save
         // write path (BH_Element::save_placement()) fires this generic
         // hook after every insert/update; this is a bh-crm-specific
         // consumer of it, not a change to how that hook itself works.
@@ -201,7 +201,7 @@ class BHCRM_Projects {
      * BH_Content tree) to actually get those numbers without a
      * separate per-card round trip. One small bh-crm-owned route,
      * fetched once per board load, keeps this bh-crm-specific concern
-     * out of own-ur-shit's generic placements endpoint entirely.
+     * out of the-self-hosted-self's generic placements endpoint entirely.
      */
     public static function register_rest_routes(): void {
         register_rest_route('bh-crm/v1', '/rollups', [
@@ -242,7 +242,7 @@ class BHCRM_Projects {
 
     /* =================================================================
      * Activation / schema — bh-crm's own DB_VERSION option, separate
-     * from own-ur-shit's identity-activator DB_VERSION, same pattern
+     * from the-self-hosted-self's identity-activator DB_VERSION, same pattern
      * bh-registry's BHR_Activator establishes (versioned dbDelta, cheap
      * early-return, runs on every 'plugins_loaded' not just real
      * activation since a file-replace deploy never fires WP's own
@@ -284,7 +284,7 @@ class BHCRM_Projects {
         // Phase C — stall analytics. One row per real column
         // transition (card_placement_id = a bh/sticky-card's
         // bhcore_element_placements.id — no FK, since that table lives
-        // in own-ur-shit and this one shouldn't hard-depend on its
+        // in the-self-hosted-self and this one shouldn't hard-depend on its
         // exact engine/charset). "Most recent row per card" is the
         // card's current column + when it landed there; the gap
         // between consecutive rows for the same card is real
@@ -539,7 +539,7 @@ class BHCRM_Projects {
      * Phase C — stall analytics (PROJECT-TRACKER-TRACKIT-PARITY-PLAN.md)
      * ================================================================= */
 
-    // Reacts to ANY placement save (own-ur-shit's generic
+    // Reacts to ANY placement save (the-self-hosted-self's generic
     // 'bhcore_element_placement_saved' hook), not just bh-crm's own —
     // scoped to bh/sticky-card placements on the 'bhcrm_project_board'
     // surface specifically, a no-op for every other surface/element
@@ -693,7 +693,7 @@ class BHCRM_Projects {
     }
 
     /* =================================================================
-     * own-ur-shit integration — element type + surface + content block
+     * the-self-hosted-self integration — element type + surface + content block
      * ================================================================= */
 
     /**

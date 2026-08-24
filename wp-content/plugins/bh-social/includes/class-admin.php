@@ -65,7 +65,7 @@ class BHSO_Admin {
         add_menu_page('BH Social', 'BH Social', 'manage_options', 'bh-social', [self::class, 'render'], 'dashicons-share', 58);
     }
 
-    // ous-admin.css owns .ous-badge/.ous-badge-alpha etc. (own-ur-shit's
+    // ous-admin.css owns .ous-badge/.ous-badge-alpha etc. (the-self-hosted-self's
     // class-dashboard.php only enqueues it on its OWN pages) — this
     // page needs the same stylesheet for OUS_Badge::render() below to
     // actually render styled, not just as plain unstyled text.

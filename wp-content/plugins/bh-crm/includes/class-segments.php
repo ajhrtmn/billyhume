@@ -59,7 +59,7 @@ class BHCRM_Segments {
      * that could quietly drift from what actually gets saved).
      *
      * Responds as a Datastar 'datastar-patch-signals' SSE event
-     * (OUS_Hypermedia::patch_signals()) when own-ur-shit 3.10+ is
+     * (OUS_Hypermedia::patch_signals()) when the-self-hosted-self 3.10+ is
      * active — class-people.php's render_segments_panel() only emits
      * the Datastar-driven markup in that case, so this is the matching
      * response shape. Falls back to the original wp_send_json_success()
@@ -249,7 +249,7 @@ class BHCRM_Segments {
      * UI, zero new data, just handing OUS_Campaigns the same
      * conditions/apply() pair the CRM's own list page and live-preview
      * already use, so a genuinely targeted broadcast never requires
-     * installing anything beyond own-ur-shit + bh-crm.
+     * installing anything beyond the-self-hosted-self + bh-crm.
      *
      * Harmless to register even if OUS_Campaigns is never active — an
      * add_filter() on a filter nobody applies just sits unused, same

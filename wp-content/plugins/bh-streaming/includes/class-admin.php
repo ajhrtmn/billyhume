@@ -18,7 +18,7 @@ class BHS_Admin {
         add_action('admin_enqueue_scripts', [self::class, 'enqueue_media']);
 
         // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
-        // helper (own-ur-shit/includes/class-list-table.php) — same
+        // helper (the-self-hosted-self/includes/class-list-table.php) — same
         // column set/position/render logic, just no longer hand-rolling
         // the columns/custom_column hook wiring itself.
         OUS_ListTable::register('bhs_track', [

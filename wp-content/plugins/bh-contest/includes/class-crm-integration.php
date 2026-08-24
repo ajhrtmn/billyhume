@@ -96,7 +96,7 @@ class BH_CRMIntegration {
 }
 
 // First real bh-contest contributor to the shared Metrics dashboard
-// (own-ur-shit's OUS_Metrics) — same "build in tandem, not as a later
+// (the-self-hosted-self's OUS_Metrics) — same "build in tandem, not as a later
 // bolt-on" instruction as bh-courses' own version of this same
 // registration (class-crm-integration.php). Both event types
 // (bh/vote, bh/submission_created) already flow — see class-api.php's

@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) exit;
  * content, once you add/style placements in it, shows up for real here
  * — no admin-only, no fabricated stand-in.
  *
- * DRY fix, own-ur-shit 3.4.48/3.4.50 QA pass: own-ur-shit's own
+ * DRY fix, the-self-hosted-self 3.4.48/3.4.50 QA pass: the-self-hosted-self's own
  * class-style-gallery.php later grew a GENERIC auto-story generator for
  * every registered BH_Element surface (BH_Element::render_surface_preview()),
  * keyed by each surface's REAL slug — but this file was still registering

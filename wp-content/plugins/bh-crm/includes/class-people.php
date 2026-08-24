@@ -46,14 +46,14 @@ class BHCRM_People {
     /**
      * Registers the 'bh_crm_profile' surface for BH_Element (design doc
      * ELEMENT-BUILDER-DESIGN-PLAN.md §3.3/§5.2), mirroring OUS_Dashboard::
-     * register_element_surface()'s (own-ur-shit/includes/class-dashboard.php)
+     * register_element_surface()'s (the-self-hosted-self/includes/class-dashboard.php)
      * exact shape. Unlike the dashboard's singleton surface, this one is
      * per-person — 'context' => ['type' => 'user', 'param' => 'user_id']
      * and every render_slot() call site in render_detail() below passes
      * $uid as the surface_context_id, matching the design doc's schema
      * note that surface_context_id is "the entity id (CRM = user_id...)".
      * The 'bh_element_surfaces' filter this hangs on is only ever applied
-     * by BH_Element, so this is harmless to keep even if own-ur-shit's
+     * by BH_Element, so this is harmless to keep even if the-self-hosted-self's
      * element-builder classes are ever absent — same "peer relationship,
      * not a dependency" posture as bh_crm_activity_summary above.
      *
@@ -254,7 +254,7 @@ class BHCRM_People {
     // language the tag-filter row above already uses), a delete link
     // per pill, and a collapsible builder below for creating a new one.
     // Uses this ecosystem's shared design tokens (--bhy-space-*, see
-    // own-ur-shit's BHY_UI::print_design_system_js()) rather than
+    // the-self-hosted-self's BHY_UI::print_design_system_js()) rather than
     // hand-picked pixel values, unlike a few of this same pass's earlier
     // panels — worth matching going forward.
     /** @param array<string, mixed>|null $active_segment */
@@ -283,7 +283,7 @@ class BHCRM_People {
         // Collapsible builder — a <details> element needs zero JS for
         // the open/close behavior itself; segment-builder.js only
         // handles the repeatable condition rows inside it.
-        // Datastar-driven live preview (own-ur-shit 3.10+, OUS_Hypermedia)
+        // Datastar-driven live preview (the-self-hosted-self 3.10+, OUS_Hypermedia)
         // — the condition rows below still live inside this SAVE form
         // (untouched), but the "N of M people match" count now updates
         // via a real Datastar round trip instead of hand-rolled fetch()/
@@ -318,7 +318,7 @@ class BHCRM_People {
         if ($has_datastar) {
             echo '<span class="description" style="margin-left:8px;" data-show="$previewCount !== null" data-text="$previewCount + \' of \' + $previewTotal + \' people match\'"></span>';
         } else {
-            // Older own-ur-shit core (pre-3.10, no OUS_Hypermedia) — the
+            // Older the-self-hosted-self core (pre-3.10, no OUS_Hypermedia) — the
             // plain fetch()/JSON path in segment-builder.js still works
             // unchanged against this same span by id.
             echo '<span id="bhcrm-segment-preview" class="description" style="margin-left:8px;"></span>';
@@ -378,7 +378,7 @@ class BHCRM_People {
     }
 
     // Same avatar/banner/bio header the public profile page renders
-    // (BHI_Profiles is the one shared source, own-ur-shit's
+    // (BHI_Profiles is the one shared source, the-self-hosted-self's
     // BHI_PublicProfile is the OTHER renderer of it) — admin-only
     // context here just adds the public/private state and a direct
     // link out to the live page when one exists, since staff often
@@ -434,7 +434,7 @@ class BHCRM_People {
         // ran together (confirmed live: name, email, "Profile", "Tags",
         // "Notes" all reading as one undifferentiated block). Wrapped
         // each section in .bhy-card, this design system's existing
-        // shared card treatment (own-ur-shit's class-ui.php) — every
+        // shared card treatment (the-self-hosted-self's class-ui.php) — every
         // other custom admin screen already uses it, this page just
         // hadn't been brought in line with it yet.
         self::render_identity_header($uid);
@@ -490,7 +490,7 @@ class BHCRM_People {
 }
 
 // First real bh-crm contributor to the shared Metrics dashboard
-// (own-ur-shit's OUS_Metrics) — same "build in tandem" instruction as
+// (the-self-hosted-self's OUS_Metrics) — same "build in tandem" instruction as
 // bh-courses/bh-contest's own versions of this registration, plus AJ's
 // own live follow-up on this exact feature: "Not short term trends,
 // long term patterns" — so this is also the first real consumer of

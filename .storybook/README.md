@@ -24,7 +24,7 @@ hand-rolled badge shapes and a `.bhm-paywall` copy that silently diverged in
 ## What gets loaded, and why it took two passes
 
 Storybook loads the actual stylesheets via `staticDirs` — `admin-skin.css` and
-`own-ur-shit/assets/css/admin.css`. But two things are **PHP-generated and
+`the-self-hosted-self/assets/css/admin.css`. But two things are **PHP-generated and
 printed inline**, so no `<link>` can reach them:
 
 1. `BHY_UI::design_system_css()` — where `.bhy-alert` lives *exclusively*

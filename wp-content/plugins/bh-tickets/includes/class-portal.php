@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * "My Tickets" portal panel — registered via the bhi_portal_panels
- * filter (own-ur-shit's BHI_Portal, /account/), same zero-central-
+ * filter (the-self-hosted-self's BHI_Portal, /account/), same zero-central-
  * registration shape every other panel uses. Entirely optional: if
  * BHI_Portal isn't active, this filter just never gets applied and this
  * plugin still works fine through wp-admin alone (BHT_Admin).

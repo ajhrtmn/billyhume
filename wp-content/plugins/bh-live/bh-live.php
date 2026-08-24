@@ -4,7 +4,7 @@
  * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on The Self-Hosted Self's shared identity and style tokens.
  * Version:     0.9.4
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -16,15 +16,15 @@ if (!defined('ABSPATH')) exit;
 // Cloudflare engines, Fly provisioner, polling/workers/Owncast chat)
 // matched to them. One deliberate exception: BHL_FlyProvisioner::
 // settings()'s return type is `array<string, string>`, not a precise
-// shape — own-ur-shit's class-media-wizard.php also reads this
+// shape — the-self-hosted-self's class-media-wizard.php also reads this
 // method's return value with its own `?? ''` fallbacks, and a precise
 // shape there made those fallbacks flag as "always exists," a
 // cross-plugin false positive a same-plugin fix can't clean up
-// without touching own-ur-shit (a separate, later brick). Purely
+// without touching the-self-hosted-self (a separate, later brick). Purely
 // additive typing otherwise, no behavior change.
 // NOT runtime-verified against a live install.
 // 0.9.3 — This plugin's first PHPStan pass (newly added to
-// phpstan.neon's scanned paths this round — own-ur-shit's own
+// phpstan.neon's scanned paths this round — the-self-hosted-self's own
 // class-media-wizard.php interaction with this plugin's BHL_* classes
 // is also now for real type-checked instead of unresolved noise, and
 // came back clean). Fixed esc_attr() needing a string, not the int $vid
@@ -71,7 +71,7 @@ add_action('plugins_loaded', ['BHL_Activator', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Live</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Live</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

@@ -21,7 +21,7 @@ on:
 # with the same 13-plugin whitelist .gitignore's own plugin allowlist uses.
 env:
   PLUGIN_FOLDERS: >-
-    own-ur-shit
+    the-self-hosted-self
     bh-contest
     bh-courses
     bh-crm

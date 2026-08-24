@@ -106,7 +106,7 @@
         var h = Object.assign({ 'X-WP-Nonce': nonce }, extra || {});
         return h;
     }
-    // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
+    // BHCoreToast (the-self-hosted-self core, loaded on every front-end page — see
     // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
     // unconditionally) replaces every alert() this player used to block
     // on for a plain "log in to do that" notice. Same typeof guard every

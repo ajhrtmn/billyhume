@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (own-ur-shit's
+ * This plugin's contribution to BHI_Portal (the-self-hosted-self's
  * `bhi_portal_panels` filter). One panel, two sections: "My requests"
  * (every logged-in user — the submitter side, always shown) and
  * "Reviewer queue" (only rendered at all for an account holding

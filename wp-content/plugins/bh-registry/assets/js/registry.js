@@ -72,11 +72,11 @@
 
   // Reporting an entry (impersonation, an ownership dispute over the
   // linked feed/actor, harassment via the bio field, etc.) posts to
-  // own-ur-shit's shared moderation queue (BHI_Reports) rather than
+  // the-self-hosted-self's shared moderation queue (BHI_Reports) rather than
   // this plugin building its own — a human reviews it from the
   // The Self-Hosted Self → Reports admin page, same as any other plugin's
   // report button.
-  // BHCoreToast (own-ur-shit core, loaded on every front-end page — see
+  // BHCoreToast (the-self-hosted-self core, loaded on every front-end page — see
   // class-toast.php's enqueue_assets(), hooked to wp_enqueue_scripts
   // unconditionally) — same typeof guard every other call site in this
   // ecosystem uses.

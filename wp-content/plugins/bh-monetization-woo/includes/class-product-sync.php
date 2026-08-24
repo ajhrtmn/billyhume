@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
  */
 class BHM_ProductSync {
     // As of the platform-evolution handoff, this goes through the core's
-    // BH_Commerce interface (own-ur-shit/includes/class-commerce.php)
+    // BH_Commerce interface (the-self-hosted-self/includes/class-commerce.php)
     // instead of instantiating WC_Product_* classes directly — the
     // concrete first migration the roadmap doc asked for. Falls back to
     // the original direct-WooCommerce path if BH_Commerce isn't loaded

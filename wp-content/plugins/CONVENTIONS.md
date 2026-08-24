@@ -6,13 +6,13 @@
 
 | File | Total | Code | Comment |
 |---|---|---|---|
-| `own-ur-shit.php` | 2,555 | **115** | 2,299 (90%) |
+| `the-self-hosted-self.php` | 2,555 | **115** | 2,299 (90%) |
 | `self-hosted-self-admin-skin.php` | 1,724 | **111** | 1,528 (89%) |
 | `bh-monetization-woo.php` | 466 | **41** | 397 (85%) |
 | `bh-courses.php` | 809 | **118** | 646 (80%) |
 | **All our PHP** | **78,268** | — | **29,137 (37%)** |
 
-`own-ur-shit.php` is a 115-line file wearing a 2,299-line coat.
+`the-self-hosted-self.php` is a 115-line file wearing a 2,299-line coat.
 
 ## Why the old convention has to change
 
@@ -123,12 +123,12 @@ hold, which is the opposite of the point.
 
 The recurring question is whether this ecosystem needs a NuGet-style shared-project mechanism, especially now that a build step exists. **It already has one, and the build step is the wrong lever.**
 
-**What exists.** All 12 peers declare `Requires Plugins: own-ur-shit`, which WordPress 6.5+ enforces at activation (this install runs 7.0). The core *is* the shared library, and the dependency is declared and enforced — that is the "shared project reference."
+**What exists.** All 12 peers declare `Requires Plugins: the-self-hosted-self`, which WordPress 6.5+ enforces at activation (this install runs 7.0). The core *is* the shared library, and the dependency is declared and enforced — that is the "shared project reference."
 
 **The hard constraint that shapes everything.** WordPress loads active plugins sorted by path, so:
 
 ```
-bh-contest → bh-courses → bh-crm → bh-monetization-woo → bh-streaming → own-ur-shit
+bh-contest → bh-courses → bh-crm → bh-monetization-woo → bh-streaming → the-self-hosted-self
 ```
 
 **The core loads LAST.** Every `bh-*` peer's main file parses before it. So a peer can never `extends`, `implements`, or `use` a *core* class at file-parse time — it would fatal on a cold load. This is why every core reference happens inside `plugins_loaded`/`init` as a guarded static call. That is not a workaround; it is the correct response to the constraint, and it should stay.

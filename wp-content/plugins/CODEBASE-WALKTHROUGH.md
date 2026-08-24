@@ -14,7 +14,7 @@ Before you start: read `VISION.md` at the plugins root (five minutes) for the on
 
 You don't need to become a WordPress developer. You need five ideas, explained once, so the rest of this tour doesn't stop to re-explain them every time they show up (and they show up constantly).
 
-**A "plugin" is just a folder of PHP files that WordPress loads.** Each of the seven plugins in this ecosystem (`own-ur-shit`, `bh-contest`, `bh-courses`, `bh-crm`, `bh-monetization-woo`, `bh-registry`, `bh-streaming`) is one folder, with one main file at its root (e.g. `bh-courses/bh-courses.php`) that WordPress reads first. That main file's job is almost always the same: load a bunch of other files, then tell WordPress "when X happens, run this code."
+**A "plugin" is just a folder of PHP files that WordPress loads.** Each of the seven plugins in this ecosystem (`the-self-hosted-self`, `bh-contest`, `bh-courses`, `bh-crm`, `bh-monetization-woo`, `bh-registry`, `bh-streaming`) is one folder, with one main file at its root (e.g. `bh-courses/bh-courses.php`) that WordPress reads first. That main file's job is almost always the same: load a bunch of other files, then tell WordPress "when X happens, run this code."
 
 **"Hooks" are how WordPress lets plugins run code at the right moment, without editing WordPress itself.** There are two flavors:
 
@@ -38,13 +38,13 @@ That's it. Five ideas plus four anchors. Everything else you'll learn by seeing 
 
 ---
 
-# Module 1 — own-ur-shit: the shared foundation
+# Module 1 — the-self-hosted-self: the shared foundation
 
-`own-ur-shit` is the plugin every other plugin depends on. It provides shared logins, a shared design system, and a set of reusable services (notifications, background jobs, error logging, etc.) that any other plugin can opt into with one line of code. This module is long because it's genuinely the most important one — once you understand these patterns, every other plugin becomes fast to read, because they're all built the same way.
+`the-self-hosted-self` is the plugin every other plugin depends on. It provides shared logins, a shared design system, and a set of reusable services (notifications, background jobs, error logging, etc.) that any other plugin can opt into with one line of code. This module is long because it's genuinely the most important one — once you understand these patterns, every other plugin becomes fast to read, because they're all built the same way.
 
 ## 1.1 — The bootstrap: how one plugin turns on
 
-**Open:** `own-ur-shit/own-ur-shit.php`
+**Open:** `the-self-hosted-self/the-self-hosted-self.php`
 
 **Look at the `foreach` loop, around lines 210–212:**
 ```php
@@ -56,7 +56,7 @@ This just loads every file in the list. Each name maps to a real file in the `in
 
 **Now look at the long block of `add_action('init', [...])` calls, roughly lines 224–247.** Each line says "when WordPress fires its 'init' event (which happens on every page load, very early), call this class's `init()` method." Pick one — around line 236, `add_action('init', ['OUS_DebugLog', 'init']);` means "on every page load, call `OUS_DebugLog::init()`."
 
-**Open `own-ur-shit/includes/class-debug-log.php` and find its own `init()` method** near the top. Notice it's just MORE `add_action`/`add_filter` calls — this class is registering its OWN hooks for things it cares about. This two-layer pattern — "the bootstrap turns on every class's `init()`, and each class's `init()` registers whatever specific hooks it needs" — is used identically by every plugin in this ecosystem. Once you've seen it here, you've seen it everywhere.
+**Open `the-self-hosted-self/includes/class-debug-log.php` and find its own `init()` method** near the top. Notice it's just MORE `add_action`/`add_filter` calls — this class is registering its OWN hooks for things it cares about. This two-layer pattern — "the bootstrap turns on every class's `init()`, and each class's `init()` registers whatever specific hooks it needs" — is used identically by every plugin in this ecosystem. Once you've seen it here, you've seen it everywhere.
 
 ## 1.2 — The peer-optionality pattern (the architecture's core idea)
 
@@ -65,7 +65,7 @@ This just loads every file in the list. Each name maps to a real file in the `in
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>The Self-Hosted Self</strong> plugin...</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires <strong>The Self-Hosted Self</strong> plugin...</p></div>';
         });
         return;
     }
@@ -85,39 +85,39 @@ This is THE defining idea of this ecosystem's architecture. Every plugin is usef
 
 ## 1.3 — Two shapes a shared service takes
 
-**Shape A — pure functions, no hooks.** **Open `own-ur-shit/includes/class-reliable-store.php` in full** (it's short, under 100 lines). `OUS_ReliableStore` has four plain functions: `set()`, `get()`, `delete()`, `increment()`. Read the big comment at the top — it explains a real bug found this session: WordPress's normal "temporary storage" feature (called a transient) turned out to be unreliable on this specific site, so this class was built as a hand-rolled, more dependable replacement that talks directly to the database instead of trusting WordPress's caching layer. Then open `own-ur-shit/includes/class-auth.php` and search for `OUS_ReliableStore` — you'll find it used for login-attempt lockouts and registration rate-limiting, a real caller using this small utility to solve a real problem.
+**Shape A — pure functions, no hooks.** **Open `the-self-hosted-self/includes/class-reliable-store.php` in full** (it's short, under 100 lines). `OUS_ReliableStore` has four plain functions: `set()`, `get()`, `delete()`, `increment()`. Read the big comment at the top — it explains a real bug found this session: WordPress's normal "temporary storage" feature (called a transient) turned out to be unreliable on this specific site, so this class was built as a hand-rolled, more dependable replacement that talks directly to the database instead of trusting WordPress's caching layer. Then open `the-self-hosted-self/includes/class-auth.php` and search for `OUS_ReliableStore` — you'll find it used for login-attempt lockouts and registration rate-limiting, a real caller using this small utility to solve a real problem.
 
-**Shape B — hook-driven.** **Open `own-ur-shit/includes/class-jobs.php`.** This is a "do this later, not right now" queue — useful when a plugin wants something to happen without making the visitor wait for it. Read the usage comment near the top (roughly lines 13–22) for the two-line pattern any plugin uses to register a handler and queue up work. Its `init()` (around line 36) hooks itself onto WordPress's Cron system — "run this on a schedule," a time-triggered cousin of the event-triggered hooks you already know. `enqueue()` writes a row to a jobs table; `run_due_jobs()` (fired by the cron hook) picks up pending rows and executes them, retrying failed ones up to `MAX_ATTEMPTS` (a constant near the top of the class) before giving up.
+**Shape B — hook-driven.** **Open `the-self-hosted-self/includes/class-jobs.php`.** This is a "do this later, not right now" queue — useful when a plugin wants something to happen without making the visitor wait for it. Read the usage comment near the top (roughly lines 13–22) for the two-line pattern any plugin uses to register a handler and queue up work. Its `init()` (around line 36) hooks itself onto WordPress's Cron system — "run this on a schedule," a time-triggered cousin of the event-triggered hooks you already know. `enqueue()` writes a row to a jobs table; `run_due_jobs()` (fired by the cron hook) picks up pending rows and executes them, retrying failed ones up to `MAX_ATTEMPTS` (a constant near the top of the class) before giving up.
 
-Nearly every other shared service in `own-ur-shit/includes/` is one of these two shapes — pure functions, or hook-driven.
+Nearly every other shared service in `the-self-hosted-self/includes/` is one of these two shapes — pure functions, or hook-driven.
 
 ## 1.4 — Notifications: a real consumer of the "zero registration" idea
 
-**Open `own-ur-shit/includes/class-notifications.php`.** Read the doc-comment (roughly lines 4–26): any plugin can fire a notification with one call — `OUS_Notifications::notify($user_id, $type, $title, $body, $url, $source, $email)` (the method itself is around line 69) — with no setup required anywhere else. It writes to a database table (`table()`, around line 56) so the notification always appears in-app, and optionally queues an email through `OUS_Jobs` from Section 1.3 (so `notify()` never has to wait around for an email server to respond). Three delivery surfaces read from that same table: an admin-bar bell icon (`admin_bar()`, ~line 143), a `[bh_notifications]` shortcode any page can embed (`register_shortcode()`, ~line 170), and a panel inside the user account portal (Section 1.6 below).
+**Open `the-self-hosted-self/includes/class-notifications.php`.** Read the doc-comment (roughly lines 4–26): any plugin can fire a notification with one call — `OUS_Notifications::notify($user_id, $type, $title, $body, $url, $source, $email)` (the method itself is around line 69) — with no setup required anywhere else. It writes to a database table (`table()`, around line 56) so the notification always appears in-app, and optionally queues an email through `OUS_Jobs` from Section 1.3 (so `notify()` never has to wait around for an email server to respond). Three delivery surfaces read from that same table: an admin-bar bell icon (`admin_bar()`, ~line 143), a `[bh_notifications]` shortcode any page can embed (`register_shortcode()`, ~line 170), and a panel inside the user account portal (Section 1.6 below).
 
 ## 1.5 — Debug Tools: the page built for you
 
 You've already used this page directly. Now read the code behind it.
 
-**Console & Logs** (`own-ur-shit/includes/class-debug-log.php`) — any plugin calls `OUS_DebugLog::log($level, $message, $context, $source)` to record "something happened," almost always "something went wrong that a visitor wouldn't otherwise see." Search the whole plugin tree for `OUS_DebugLog::log(` to see dozens of real examples. This is the single most useful file for you to understand day-to-day, because it's how you'll diagnose a real bug report going forward.
+**Console & Logs** (`the-self-hosted-self/includes/class-debug-log.php`) — any plugin calls `OUS_DebugLog::log($level, $message, $context, $source)` to record "something happened," almost always "something went wrong that a visitor wouldn't otherwise see." Search the whole plugin tree for `OUS_DebugLog::log(` to see dozens of real examples. This is the single most useful file for you to understand day-to-day, because it's how you'll diagnose a real bug report going forward.
 
-**Test Runner** (`own-ur-shit/includes/class-test-runner.php`) — any plugin registers a "suite" of checks via `add_filter('bhcore_test_suites', ...)`. Clicking "Run all tests" runs every registered suite live, on your actual site. `bh-courses/includes/class-test-suite.php` is a good one to skim — mostly plain, readable lines like `OUS_TestRunner::assert_same(100, $r['score'], 'All correct scores 100')`.
+**Test Runner** (`the-self-hosted-self/includes/class-test-runner.php`) — any plugin registers a "suite" of checks via `add_filter('bhcore_test_suites', ...)`. Clicking "Run all tests" runs every registered suite live, on your actual site. `bh-courses/includes/class-test-suite.php` is a good one to skim — mostly plain, readable lines like `OUS_TestRunner::assert_same(100, $r['score'], 'All correct scores 100')`.
 
-**API Docs** (`own-ur-shit/includes/class-api-docs.php`) — this one's a neat trick: it reads WordPress's own live list of registered API routes (`rest_get_server()->get_routes()`) and automatically turns them into readable documentation (`generate_spec()`, ~line 145) — nobody hand-writes or maintains this, it's always in sync with the actual code because it's generated FROM the actual code, filtered down to just this ecosystem's own routes (`is_relevant()`, ~line 132, checks for the `ous/`, `bhi/`, `bh` namespace prefixes).
+**API Docs** (`the-self-hosted-self/includes/class-api-docs.php`) — this one's a neat trick: it reads WordPress's own live list of registered API routes (`rest_get_server()->get_routes()`) and automatically turns them into readable documentation (`generate_spec()`, ~line 145) — nobody hand-writes or maintains this, it's always in sync with the actual code because it's generated FROM the actual code, filtered down to just this ecosystem's own routes (`is_relevant()`, ~line 132, checks for the `ous/`, `bhi/`, `bh` namespace prefixes).
 
 ## 1.6 — Roles, 2FA, and the account portal
 
-**OUS_Roles** (`own-ur-shit/includes/class-roles.php`) — defines a small set of granular *capabilities* (not new roles) — look at the `DEFAULT_CAPS` constant near the top. `bhcore_manage_students` is one example, used by bh-courses' Student Progress admin page. The idea: instead of inventing a whole new "Course Manager" role, this lets a site owner grant one specific ability to an existing account.
+**OUS_Roles** (`the-self-hosted-self/includes/class-roles.php`) — defines a small set of granular *capabilities* (not new roles) — look at the `DEFAULT_CAPS` constant near the top. `bhcore_manage_students` is one example, used by bh-courses' Student Progress admin page. The idea: instead of inventing a whole new "Course Manager" role, this lets a site owner grant one specific ability to an existing account.
 
-**BHI_TwoFactor** (`own-ur-shit/includes/class-two-factor.php`) — a real TOTP (Time-based One-Time Password, the same standard behind most "6-digit code from an authenticator app" flows) implementation. `totp_at()` (~line 97) is the actual code-generation math, worth a skim purely to see that "2FA" isn't magic — it's a documented, standard algorithm (RFC 6238) computing a 6-digit code from a shared secret and the current time. `verify_code()` (~line 113) checks the submitted code against the current time window (and one window on either side, to tolerate small clock drift). `gate_login()` (~line 138) is where this plugs into WordPress's own login process — it hooks onto the `authenticate` filter at a priority number specifically chosen to run AFTER WordPress's own password check, so this code never has to re-implement password verification itself.
+**BHI_TwoFactor** (`the-self-hosted-self/includes/class-two-factor.php`) — a real TOTP (Time-based One-Time Password, the same standard behind most "6-digit code from an authenticator app" flows) implementation. `totp_at()` (~line 97) is the actual code-generation math, worth a skim purely to see that "2FA" isn't magic — it's a documented, standard algorithm (RFC 6238) computing a 6-digit code from a shared secret and the current time. `verify_code()` (~line 113) checks the submitted code against the current time window (and one window on either side, to tolerate small clock drift). `gate_login()` (~line 138) is where this plugs into WordPress's own login process — it hooks onto the `authenticate` filter at a priority number specifically chosen to run AFTER WordPress's own password check, so this code never has to re-implement password verification itself.
 
-**BHI_Portal** (`own-ur-shit/includes/class-portal.php`) — the custom, branded `/account/` area (as opposed to the default WordPress admin dashboard). `add_rewrite()` (~line 157) teaches WordPress that URLs like `/account/` and `/account/something/` should be handled by this plugin — this is called a "rewrite rule," WordPress's mechanism for mapping a pretty URL to the actual code that should run for it. Any plugin contributes a panel to this portal via `apply_filters('bhi_portal_panels', [])` (read near ~line 342) — the same "contribute to a shared list" idea you'll see again in Section 1.7. **Worth knowing:** this class's rewrite rule has an active, not-yet-resolved bug on this specific site (it isn't reliably "sticking" in WordPress's own rewrite table) — a good real-world example that not everything in a codebase is finished or working, and that's normal, not a sign you're missing something.
+**BHI_Portal** (`the-self-hosted-self/includes/class-portal.php`) — the custom, branded `/account/` area (as opposed to the default WordPress admin dashboard). `add_rewrite()` (~line 157) teaches WordPress that URLs like `/account/` and `/account/something/` should be handled by this plugin — this is called a "rewrite rule," WordPress's mechanism for mapping a pretty URL to the actual code that should run for it. Any plugin contributes a panel to this portal via `apply_filters('bhi_portal_panels', [])` (read near ~line 342) — the same "contribute to a shared list" idea you'll see again in Section 1.7. **Worth knowing:** this class's rewrite rule has an active, not-yet-resolved bug on this specific site (it isn't reliably "sticking" in WordPress's own rewrite table) — a good real-world example that not everything in a codebase is finished or working, and that's normal, not a sign you're missing something.
 
 ## 1.7 — BH_Content / BH_Studio: the block-authoring system
 
 This is a genuinely more advanced piece — the system that lets content (course lessons, and potentially other things later) be built from reusable, nested "blocks" (a text block, an image block, a quiz block) instead of one fixed form.
 
-**Open `own-ur-shit/includes/class-content.php` and find `register_block_type()`** (~line 61):
+**Open `the-self-hosted-self/includes/class-content.php` and find `register_block_type()`** (~line 61):
 ```php
 public static function register_block_type($type, array $schema, callable $renderer) {
     self::$types[$type] = ['schema' => $schema, 'renderer' => $renderer];
@@ -125,11 +125,11 @@ public static function register_block_type($type, array $schema, callable $rende
 ```
 This is the whole idea in one function: any plugin can say "here's a new kind of block, here's what data it needs (`$schema`), here's how to turn it into HTML (`$renderer`)." `BH_Content` itself doesn't know or care what a "quiz block" actually is — it just keeps a list of block types other plugins hand it.
 
-**Now open `own-ur-shit/includes/class-studio.php` and find the calls to `BH_Content::register_block_type('bh/...`** (~lines 127–160) — this is where the actual default block types (container, heading, text, image, button) get registered, using the function you just read. This is the same "shared service, other plugins contribute to it" idea from the notifications/portal sections, just for content types instead of notifications or account panels.
+**Now open `the-self-hosted-self/includes/class-studio.php` and find the calls to `BH_Content::register_block_type('bh/...`** (~lines 127–160) — this is where the actual default block types (container, heading, text, image, button) get registered, using the function you just read. This is the same "shared service, other plugins contribute to it" idea from the notifications/portal sections, just for content types instead of notifications or account panels.
 
 ## 1.8 — BH_Commerce: a "swap the backend later" interface
 
-**Open `own-ur-shit/includes/class-commerce.php`** — the doc-comment at the top and the first two methods, `available()` and `has_subscriptions()` (~lines 40–46).
+**Open `the-self-hosted-self/includes/class-commerce.php`** — the doc-comment at the top and the first two methods, `available()` and `has_subscriptions()` (~lines 40–46).
 
 The big idea, in the comment's own words: other plugins ask `BH_Commerce` to create a product, check an order, etc., instead of calling WooCommerce (the actual payments plugin) directly. Today, `BH_Commerce`'s methods are thin wrappers that immediately turn around and call WooCommerce. But because every OTHER plugin only ever talks to `BH_Commerce`, replacing WooCommerce with something else later would mean rewriting this one file, not every plugin that sells something. You'll see this pattern used for real in Module 8 (bh-monetization-woo), where it was actually migrated onto — worth returning to this section after reading that module, to see the theory made concrete.
 

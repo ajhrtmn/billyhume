@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * on both bhs_track (a song's own liner notes/credits) and bhs_release
  * (an album's own package) — same shared metabox, same generator.
  *
- * Rendered as a real PDF via FPDF (own-ur-shit/vendor/fpdf/fpdf.php —
+ * Rendered as a real PDF via FPDF (the-self-hosted-self/vendor/fpdf/fpdf.php —
  * already vendored, already proven in production by bh-courses' own
  * class-certificates.php for exactly this "plain PHP, zero
  * dependencies" reason, reused here rather than adding a second PDF

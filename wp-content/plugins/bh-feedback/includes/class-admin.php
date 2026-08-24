@@ -20,7 +20,7 @@ class BHF_Admin {
     // on the front end (BHF_Requests::maybe_enqueue()) — this screen
     // needs the same stylesheet in wp-admin context.
     public static function enqueue(string $hook): void {
-        if ($hook !== 'own-ur-shit_page_bh-feedback-requests' && strpos($hook, 'bh-feedback') === false) return;
+        if ($hook !== 'the-self-hosted-self_page_bh-feedback-requests' && strpos($hook, 'bh-feedback') === false) return;
         wp_enqueue_style('bhf-feedback', BHF_URL . 'assets/css/feedback.css', [], BHF_VER);
     }
 

@@ -35,7 +35,7 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
     /**
      * @return array<string, string> keys: api_token, app_name, org_slug,
      *     region, active_machine_id — not a precise shape type since
-     *     own-ur-shit's class-media-wizard.php also reads this method's
+     *     the-self-hosted-self's class-media-wizard.php also reads this method's
      *     return value with its own defensive `?? ''` fallbacks.
      */
     public static function settings(): array {

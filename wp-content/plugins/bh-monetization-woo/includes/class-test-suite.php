@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * The Test Runner (see own-ur-shit's class-test-runner.php) version of
+ * The Test Runner (see the-self-hosted-self's class-test-runner.php) version of
  * the tier-depth logic — same convention bh-courses'
  * class-test-suite.php already established. Covers the PURE, no-database
  * parts (BHM_Gate::calculate_downgrade_credit_cents() and

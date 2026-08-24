@@ -30,7 +30,7 @@ if (!defined('ABSPATH')) exit;
  * nothing is ever stored) at the cost of a few hundred ms of PDF
  * generation on click, a fine trade for something downloaded rarely.
  *
- * Uses FPDF (own-ur-shit/vendor/fpdf/fpdf.php — vendored, not
+ * Uses FPDF (the-self-hosted-self/vendor/fpdf/fpdf.php — vendored, not
  * Composer, this ecosystem's own no-build-step convention applied to
  * PHP the same way SortableJS was vendored for JS this same session) —
  * pure PHP, zero dependencies, the right-sized tool for "draw a plain

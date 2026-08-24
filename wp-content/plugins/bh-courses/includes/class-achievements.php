@@ -28,11 +28,11 @@ class BHC_Achievements {
         add_action('bhc_course_completed', [self::class, 'on_course_completed'], 10, 2);
 
         // Depth-of-magic Phase 4 — the same `bhi_profile_badges` filter
-        // own-ur-shit's public-profile view already renders through
+        // the-self-hosted-self's public-profile view already renders through
         // (confirmed contract: `['label' => string, 'url' => string|null]`,
         // display-only, no persistence of its own — see
         // BHI_Profiles::badges_for()'s own docblock). Harmless no-op if
-        // own-ur-shit's profile view never calls apply_filters() on it,
+        // the-self-hosted-self's profile view never calls apply_filters() on it,
         // same "optional cross-plugin touch" posture every other filter
         // hook in this ecosystem takes.
         add_filter('bhi_profile_badges', [self::class, 'register_profile_badges'], 10, 2);

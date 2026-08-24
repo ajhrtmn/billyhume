@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (own-ur-shit's `bhi_portal_panels`
+ * This plugin's contribution to BHI_Portal (the-self-hosted-self's `bhi_portal_panels`
  * filter — see class-portal.php over there) — one of the four real panels
  * this handoff scoped (subscription/wallet, course progress, contest
  * submissions, notifications): a fan should be able to manage their

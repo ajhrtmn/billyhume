@@ -11,8 +11,8 @@ if (!defined('ABSPATH')) exit;
  *    bhm_entitlement_granted).
  *
  * 2. Every BH_Event type in this ecosystem, via the new
- *    'bh_event_emitted' action own-ur-shit 3.9.9 added specifically for
- *    this — see own-ur-shit's class-event.php changelog. Before that
+ *    'bh_event_emitted' action the-self-hosted-self 3.9.9 added specifically for
+ *    this — see the-self-hosted-self's class-event.php changelog. Before that
  *    change, BH_Event::emit() had no pub/sub at all (write-only into
  *    bhcore_events), so bh/vote, bhc/enroll, bhc/course_completed,
  *    bhm/wallet_credit, bhm/referral_credited, bh/submission_created,
@@ -78,7 +78,7 @@ class BHMP_InstantSync {
     }
 
     /**
-     * bh_event_emitted($type, $job_args, $args) — see own-ur-shit's class-event.php.
+     * bh_event_emitted($type, $job_args, $args) — see the-self-hosted-self's class-event.php.
      * @param mixed $type
      * @param array<string, mixed> $job_args
      * @param mixed $args

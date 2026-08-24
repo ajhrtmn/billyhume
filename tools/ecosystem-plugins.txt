@@ -8,7 +8,7 @@
 #
 # Deliberately matches deploy-ftp.yml's PLUGIN_FOLDERS plus the admin skin.
 # Keep the two in step.
-own-ur-shit
+the-self-hosted-self
 bh-contest
 bh-courses
 bh-crm

@@ -1,0 +1,15 @@
+{
+    "name": "the-self-hosted-self/core",
+    "description": "Runtime dependencies for The Self-Hosted Self core. Installed at BUILD time by .github/workflows/deploy-ftp.yml (composer install --no-dev) and shipped inside this plugin folder — the live host runs nothing but PHP + WordPress, so vendor/ must already be present. Same posture as the vendored Action Scheduler and Datastar.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.2",
+        "timber/timber": "^2.5"
+    },
+    "config": {
+        "platform": { "php": "8.2" },
+        "optimize-autoloader": true,
+        "allow-plugins": { "composer/installers": true }
+    }
+}

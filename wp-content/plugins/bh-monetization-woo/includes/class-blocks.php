@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
  *
  * The mechanism is WordPress core's own `wp.serverSideRender` — no new
  * dependency, no npm, no build step (same "plain core globals" posture
- * own-ur-shit's class-gutenberg-block.php already established as this
+ * the-self-hosted-self's class-gutenberg-block.php already established as this
  * ecosystem's first real block). A ServerSideRender-backed block calls
  * a REST endpoint that runs the SAME PHP render_callback a real visitor
  * sees, and drops the actual output into the editor canvas — not a
@@ -113,7 +113,7 @@ class BHM_Blocks {
             'callback' => [self::class, 'rest_purchasable_objects'],
             // Editor-only listing (which track/release has a purchase
             // price configured) — not public post content, gated the
-            // same way own-ur-shit's element-prefab picker gates its own
+            // same way the-self-hosted-self's element-prefab picker gates its own
             // REST listing endpoint.
             'permission_callback' => fn() => current_user_can('edit_posts'),
         ]);

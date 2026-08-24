@@ -7,7 +7,7 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 ---
 
 
-2.4.21 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+2.4.21 — Real bug fix surfaced by the-self-hosted-self's own final PHPStan
 level 6 brick (typing OUS_Debug::button() with a real `: void`
 return): class-debug.php here was calling it as `echo
 OUS_Debug::button(...)`, double-printing that debug-tools button on
@@ -70,7 +70,7 @@ NOT runtime-verified against a live install — confirmed via a real
 
 2.4.16 — segment-builder.js converted to TypeScript (assets/ts/
 segment-builder.ts), this plugin's first TS-pilot file, following
-own-ur-shit's established pattern (plain `tsc`, module: none,
+the-self-hosted-self's established pattern (plain `tsc`, module: none,
 compiled output committed since the live site runs no build step —
 new bh-crm/tsconfig.json, `npm run build:bh-crm`). Needed one real
 null-narrowing fix strict mode caught (the condition-container element
@@ -82,7 +82,7 @@ runtime-verified against a live browser this session.
 
 2.4.15 — Saved-segment builder's live "N of M people match" preview
 (class-people.php's render_segments_panel(), class-segments.php's
-ajax_preview()) is now Datastar-driven on own-ur-shit 3.10+ — the
+ajax_preview()) is now Datastar-driven on the-self-hosted-self 3.10+ — the
 recommended first real conversion from ROADMAP-hyperpress-migration.md
 §2. The condition-row add/remove JS (segment-builder.js) is completely
 unchanged; only the preview trigger/response mechanism moved. Uses
@@ -91,7 +91,7 @@ enclosing <form>'s real named fields — confirmed against Datastar's
 own reference docs before use) so the existing conditions[i][field]/
 conditions[i][value] form inputs needed no restructuring into a
 signals array. Falls back cleanly to the original fetch()/JSON path
-on an own-ur-shit core older than 3.10 (no OUS_Hypermedia) — both
+on an the-self-hosted-self core older than 3.10 (no OUS_Hypermedia) — both
 render_segments_panel() and segment-builder.js branch on that.
 NOT runtime-verified against a live WordPress+MySQL install this
 session — the Datastar attribute syntax (data-signals/data-on:input/
@@ -102,7 +102,7 @@ guessed, but no browser has actually exercised this. `php -l` clean.
 
 2.4.14 — BHCRM_Segments::register_campaign_segments() (class-segments.php)
 now bridges every saved CRM list, plus a built-in "everyone active in the
-CRM" segment, into own-ur-shit's OUS_Campaigns via the existing
+CRM" segment, into the-self-hosted-self's OUS_Campaigns via the existing
 'bhcore_campaign_segments' filter. Direct motivation: CLAUDE.md's new
 standing rule ("critical infrastructure always ships with a minimal,
 self-hosted, built-in default — a third-party integration is an
@@ -115,7 +115,7 @@ project conditions, already fully built) was invisible to it. No new UI,
 no new data: this reuses BHCRM_Segments::apply()/BHCRM_People::
 active_user_ids() exactly as the CRM's own list page and live-preview
 already call them, so a genuinely targeted broadcast never requires
-installing anything beyond own-ur-shit + bh-crm. Harmless if OUS_Campaigns
+installing anything beyond the-self-hosted-self + bh-crm. Harmless if OUS_Campaigns
 is never active — an add_filter() on a filter nobody applies just sits
 unused, same posture every other optional cross-plugin filter here takes.
 NOT runtime-verified against a live WordPress+MySQL install this session;
@@ -171,7 +171,7 @@ not use it. Segment/project delete intentionally stay manage_options.
 at project links, contest submissions, wallet activity, and outbound email
 write points, with labels in BHCRM_Event_Activity::type_label(). (Surfaced
 a pre-existing ecosystem-wide event-ingest data-loss bug, fixed separately
-in own-ur-shit 3.4.89.)
+in the-self-hosted-self 3.4.89.)
 
 1.8.1 — project creation no longer requires a person in context. Added a
 "Create project" form to the Project Tracker index; fixed board dispatch

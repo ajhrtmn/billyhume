@@ -104,7 +104,7 @@ it — a plain blog post or page couldn't be gated at all despite the
 underlying machinery already supporting it. Adds: a "Supporter access"
 metabox (same `_bhm_required_tier` meta key every other gated object
 type already uses, with a help tooltip on the price-rank rule — see
-own-ur-shit 3.10.15's tip component), and the actual enforcement — a
+the-self-hosted-self 3.10.15's tip component), and the actual enforcement — a
 the_content filter (priority 20, after wpautop/block/shortcode
 rendering) that swaps in BHM_Gate::render_paywall_notice() for an
 ungated visitor. Scoped to is_singular(['post','page']) +
@@ -119,7 +119,7 @@ verify by gating a real page behind a tier, viewing it logged out
 (or as a non-entitled user), and confirming the paywall notice shows
 instead of the real content.
 
-0.5.15 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+0.5.15 — Real bug fix surfaced by the-self-hosted-self's own final PHPStan
 level 6 brick (typing OUS_Debug::button() with a real `: void`
 return): class-debug.php here was calling it as `echo
 OUS_Debug::button(...)` at 16 call sites — the most of any plugin in
@@ -153,7 +153,7 @@ full 12-plugin level 5 ecosystem check both come back clean.
 NOT runtime-verified against a live WordPress+MySQL+WooCommerce install.
 0.5.13 — Real bugs surfaced by the repo-root PHPStan pass, now
 actually running with a real php-stubs/woocommerce-stubs package
-installed (own-ur-shit 3.10.10) instead of WC_* symbols just being
+installed (the-self-hosted-self 3.10.10) instead of WC_* symbols just being
 unresolved noise: 56 -> 28 errors from the stub alone, then 28 -> 0
 (plus the two deliberately-unstubbed COOKIEPATH/COOKIE_DOMAIN
 constants) from these fixes.
@@ -174,7 +174,7 @@ constants) from these fixes.
   silently ignores an extra arg — but not correct) removed.
 class-product-sync.php's WC_Product_Subscription findings and
 class-storefront.php's register_block_type() api_version int-vs-
-string findings are confirmed NOT bugs — see own-ur-shit 3.10.10's
+string findings are confirmed NOT bugs — see the-self-hosted-self 3.10.10's
 own changelog and phpstan.neon's inline comments for the reasoning
 (a real, separate paid WooCommerce extension not covered by the core
 stub package; a known inaccuracy in WordPress core's own docblock,
@@ -328,7 +328,7 @@ admin manually wired up an option with no settings UI.
      price/button rules only matched the classic WooCommerce template's
      markup, not Woo Blocks' DOM shape — rescoped to selectors stable
      across both template modes.
-0.5.1 — first consumer of own-ur-shit's OUS_Revisions shared service. A
+0.5.1 — first consumer of the-self-hosted-self's OUS_Revisions shared service. A
 tier's full field set is a clean fit (an overwrite-on-save single object,
 unlike bh-crm's append-only notes). BHM_Tiers::save() now snapshots the
 tier's complete state on every save; the tier edit screen gets a "Version
@@ -342,7 +342,7 @@ a link into WooCommerce core's own guided payments setup. This plugin has
 no gateway config screen of its own — real credentials live in
 WooCommerce core.
 
-0.4.18 — first contributor to own-ur-shit's shared Metrics dashboard:
+0.4.18 — first contributor to the-self-hosted-self's shared Metrics dashboard:
 two widgets in class-crm-integration.php (Active supporters, New
 entitlements). Reads bhm_entitlements directly rather than BH_Event,
 since no purchase/entitlement event exists yet.
@@ -374,7 +374,7 @@ add_action('init', [self::class, 'register_block']) from inside its own
 from an already-executing 'init' callback never fires in that request, so
 the block silently never registered. Fixed by calling register_block()
 directly instead of wrapping it in a second 'init' hook. The same bug
-pattern was found in 8 more places across own-ur-shit/bh-monetization-woo/
+pattern was found in 8 more places across the-self-hosted-self/bh-monetization-woo/
 bh-courses — not fixed in this pass, flagged as its own follow-up.
 
 0.4.9 addendum, same pass: BHM_Storefront::init() had the identical

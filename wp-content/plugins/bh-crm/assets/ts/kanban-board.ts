@@ -1,13 +1,13 @@
 /**
  * Kanban board — vanilla JS, no build step (this ecosystem's standing
- * convention; see own-ur-shit/assets/js/element-builder.js for the
+ * convention; see the-self-hosted-self/assets/js/element-builder.js for the
  * sibling REST-call/nonce pattern this file's api() helper is copied
  * from verbatim). Mounts into #bhcrm-kanban-board
  * (bh-crm/includes/class-projects.php's render_board()).
  *
  * THIS IS A THIN PRESENTATION LAYER, NOT A PARALLEL DATA MODEL: every
  * read/write below goes through the EXISTING BH_Element REST bridge
- * (own-ur-shit's class-element.php) —
+ * (the-self-hosted-self's class-element.php) —
  *   GET  ous/v1/elements/placements/{surface}/{context_id}
  *   POST ous/v1/elements/placements/{surface}/{context_id}   (full-slot upsert, same as element-builder.js's "Save slot")
  *   DELETE ous/v1/elements/placements/{id}                    (true delete, for the card's own "Delete" action)
@@ -44,7 +44,7 @@
  * TypeScript pilot conversion — same posture as subtasks.ts (this
  * plugin's sibling multi-column Sortable board). Sortable and
  * BHCoreToast are untyped external globals; the placement row shape
- * mirrors own-ur-shit's BH_Element placement REST response loosely
+ * mirrors the-self-hosted-self's BH_Element placement REST response loosely
  * (config.attrs values are either {literal: T} or {bind: string}).
  */
 
@@ -214,7 +214,7 @@ interface BHPlacementsResponse {
         });
     }
 
-    // BHCoreToast (own-ur-shit core, loaded on every admin screen — see
+    // BHCoreToast (the-self-hosted-self core, loaded on every admin screen — see
     // class-toast.php's enqueue_assets(), hooked to admin_enqueue_scripts
     // unconditionally) replaces every alert() that used to run this
     // board's error path silently-broken-into-a-blocking-dialog. Same

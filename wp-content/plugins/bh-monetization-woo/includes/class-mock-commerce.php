@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) exit;
 /**
  * A real, working test double for WooCommerce Subscriptions — plugs
  * into the filter seams BH_Commerce::has_subscriptions()/
- * get_subscription() expose (own-ur-shit/includes/class-commerce.php),
+ * get_subscription() expose (the-self-hosted-self/includes/class-commerce.php),
  * per this ecosystem's standing architecture rule: no plugin here
  * should be so hard-wired to an external dependency that it can't be
  * mocked or swapped. Before this, on_subscription_active()/on_subscription_ended()/

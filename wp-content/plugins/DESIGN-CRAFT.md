@@ -36,7 +36,7 @@ The backstage is beautiful and the front of house is plain. For a platform whose
 
 This ecosystem is full of moments that carry real emotional weight — a course completed, a first supporter, an entitlement granted, a contest reveal, a purchase permanently anchored to a tamper-evident ledger. Every one of them currently renders as a table row, a redirect, or a status badge.
 
-The wiring exists (`bhc_course_completed`, `bhm_entitlement_granted` and friends all now have listeners). What's missing is a **shared acknowledgement treatment** — one component, in the shared layer, that these moments reach for. Not confetti; the brief rules out decoration for its own sake. Something closer to how a well-made game confirms an achievement: instant, unmistakable, over quickly, never in the way. Built once in `own-ur-shit`, used by every plugin — the same discipline as `.bhy-table-wrap`.
+The wiring exists (`bhc_course_completed`, `bhm_entitlement_granted` and friends all now have listeners). What's missing is a **shared acknowledgement treatment** — one component, in the shared layer, that these moments reach for. Not confetti; the brief rules out decoration for its own sake. Something closer to how a well-made game confirms an achievement: instant, unmistakable, over quickly, never in the way. Built once in `the-self-hosted-self`, used by every plugin — the same discipline as `.bhy-table-wrap`.
 
 Per-plugin one-offs here would be the badge-shape mistake all over again (eight hand-rolled pills before a shared primitive existed). Build it shared or don't build it.
 
@@ -58,7 +58,7 @@ The fix is *not* to strip them (that breaks the skin). It is to give consumers a
 
 ### 2. Hardcoded hex outside the token system
 
-Literal hex counts where tokens should be: `kanban-board.css` 42, `bhm/frontend.css` 34, `feedback.css` 31, `registry.css` 30, `storefront.css` 23, `own-ur-shit/admin.css` 22, `bh-courses/admin.css` 21. (`admin-skin.css`'s 96 are mostly the token *definitions* — correct.) Every one of these bypasses `--bh-*`/`--bhy-*`, so they don't follow the theme and can't be re-skinned. This is the Layer-1/Layer-4 violation `STYLE-SYSTEM.md` already names.
+Literal hex counts where tokens should be: `kanban-board.css` 42, `bhm/frontend.css` 34, `feedback.css` 31, `registry.css` 30, `storefront.css` 23, `the-self-hosted-self/admin.css` 22, `bh-courses/admin.css` 21. (`admin-skin.css`'s 96 are mostly the token *definitions* — correct.) Every one of these bypasses `--bh-*`/`--bhy-*`, so they don't follow the theme and can't be re-skinned. This is the Layer-1/Layer-4 violation `STYLE-SYSTEM.md` already names.
 
 ### 3. Cross-plugin component duplication — one real bug found and fixed
 

@@ -20,7 +20,7 @@ if (!function_exists('untrailingslashit')) { function untrailingslashit($s){ ret
 if (!function_exists('apply_filters'))     { function apply_filters($t,$v){ return $v; } }
 if (!function_exists('add_filter'))        { function add_filter(...$a){ return true; } }
 
-define("OUS_PATH", dirname(__DIR__) . "/wp-content/plugins/own-ur-shit/");
+define("OUS_PATH", dirname(__DIR__) . "/wp-content/plugins/the-self-hosted-self/");
 require OUS_PATH . 'vendor/autoload.php';
 // Deliberately NOT requiring class-view.php: with BHY_View absent,
 // BHY_UI::view_engine_ready() is false and the renderers take their PHP

@@ -1,6 +1,6 @@
 # ROADMAP: Guided Setup Wizards ("it just works")
 
-**Status note (doc-cleanup pass, 2026-07-26): Tier A and Tier B (Section 2) are both addressed now, though Tier B shipped via a different mechanism than this doc describes.** Tier A is `OUS_MediaWizard` (own-ur-shit), exactly as scoped — wraps Advanced Media Offloader, adds CDN guidance. Tier B's underlying need (real adaptive-bitrate/managed video streaming) is now covered by **`bh-live`'s Cloudflare Stream Live engine** (`BHL_CloudflareStreamEngine`) — not by wiring an HLS manifest into `bh-streaming`'s existing video step as this doc originally proposed, but by a new peer plugin (`bh-video` for on-demand catalog video, `bh-live` for live streaming) offering Cloudflare Stream Live as one of two selectable engines, deployable from the same `OUS_MediaWizard` screen. **Genuinely still open, confirmed not built**: the generic, reusable `OUS_Wizard` framework (Section 3) — every wizard shipped so far (`OUS_MediaWizard`, bh-live's Fly.io/Cloudflare/Workers deploy flows) is hand-rolled individually, not built on a shared step-runner; and Section 5's GitHub-based update checks, still entirely unbuilt.
+**Status note (doc-cleanup pass, 2026-07-26): Tier A and Tier B (Section 2) are both addressed now, though Tier B shipped via a different mechanism than this doc describes.** Tier A is `OUS_MediaWizard` (the-self-hosted-self), exactly as scoped — wraps Advanced Media Offloader, adds CDN guidance. Tier B's underlying need (real adaptive-bitrate/managed video streaming) is now covered by **`bh-live`'s Cloudflare Stream Live engine** (`BHL_CloudflareStreamEngine`) — not by wiring an HLS manifest into `bh-streaming`'s existing video step as this doc originally proposed, but by a new peer plugin (`bh-video` for on-demand catalog video, `bh-live` for live streaming) offering Cloudflare Stream Live as one of two selectable engines, deployable from the same `OUS_MediaWizard` screen. **Genuinely still open, confirmed not built**: the generic, reusable `OUS_Wizard` framework (Section 3) — every wizard shipped so far (`OUS_MediaWizard`, bh-live's Fly.io/Cloudflare/Workers deploy flows) is hand-rolled individually, not built on a shared step-runner; and Section 5's GitHub-based update checks, still entirely unbuilt.
 
 ## 0. Why this exists, stated plainly
 
@@ -37,7 +37,7 @@ Matching VISION.md's "scale to the artist's current needs and fiscal limitations
 
 ## 3. The wizard framework itself (reusable beyond media)
 
-This is the part meant to become the shared pattern every future integration wizard copies — worth building as real, reusable own-ur-shit core infrastructure, not a one-off bolt-on inside whichever plugin needs the first one.
+This is the part meant to become the shared pattern every future integration wizard copies — worth building as real, reusable the-self-hosted-self core infrastructure, not a one-off bolt-on inside whichever plugin needs the first one.
 
 Proposed shape, modeled after `OUS_Jobs`/`OUS_Notifications`'s own "one shared mechanism, any plugin plugs in" precedent:
 

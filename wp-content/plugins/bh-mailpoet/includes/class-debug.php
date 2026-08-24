@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * Debug Tools section (own-ur-shit's OUS_Debug, ous_debug_tools filter)
+ * Debug Tools section (the-self-hosted-self's OUS_Debug, ous_debug_tools filter)
  * rather than a standalone admin page — per CLAUDE.md's documented
  * WordPress page-hook resolution incident. Shows sync status and a
  * manual "Sync now" button.

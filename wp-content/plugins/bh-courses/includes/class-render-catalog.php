@@ -165,7 +165,7 @@ class BHC_Render_Catalog {
         // gradient built from the site's own --bh-accent tokens (no new
         // color invented) so a course with no artwork yet still reads
         // as a deliberate, finished-looking card instead of a gap.
-        // bh-clamp-2 (own-ur-shit's shared front-end text-overflow
+        // bh-clamp-2 (the-self-hosted-self's shared front-end text-overflow
         // utility, class-style.php) handles the common case, but live
         // testing against a deliberately extreme title (100+ characters)
         // found -webkit-line-clamp's CSS-only truncation unreliable in

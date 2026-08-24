@@ -176,7 +176,7 @@ const CAT_COLORS: string[] = [
 
 // The one place the profile-field list/DOM-class mapping lives now —
 // contract-drift fix, caught by an audit run right after the quiz-
-// shuffle bug (own-ur-shit's BHI_Profiles::TEXT_COLS is the real PHP-
+// shuffle bug (the-self-hosted-self's BHI_Profiles::TEXT_COLS is the real PHP-
 // side source of truth, already correctly single-sourced there; this
 // was the JS-side counterpart, independently duplicated in THREE
 // places — appendProfileFields()'s own map, prefillSubmitProfile()'s
@@ -1316,7 +1316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // checked for `bh_verified` while class-auth.php's actual redirect
     // sends `bhi_verified` — a key-name mismatch that meant this never
     // fired, ever, for any real user. Replaced with a single sitewide
-    // handler in own-ur-shit's class-auth.php (BHCoreToast, works on
+    // handler in the-self-hosted-self's class-auth.php (BHCoreToast, works on
     // any page, not just ones with this contest player loaded) instead
     // of fixing the mismatch here and keeping two mechanisms for the
     // same moment.

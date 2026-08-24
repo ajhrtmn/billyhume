@@ -1,6 +1,6 @@
 /**
  * Registers bhm/product-grid and bhm/product-filter for BH_Studio's own
- * canvas (own-ur-shit/assets/js/studio.js) — same no-build-step,
+ * canvas (the-self-hosted-self/assets/js/studio.js) — same no-build-step,
  * wp.element.createElement-only convention that file itself establishes.
  * Loaded ONLY on the BH_Studio admin page (see
  * BHM_Storefront::maybe_enqueue_studio_blocks()), never on the front end

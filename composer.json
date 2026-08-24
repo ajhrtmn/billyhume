@@ -1,5 +1,5 @@
 {
-    "name": "own-ur-shit/dev-tooling",
+    "name": "the-self-hosted-self/dev-tooling",
     "description": "Dev-only tooling for running this repo's pure-logic PHPUnit suites (wp-content/plugins/*/tests/) and static analysis (phpstan.neon). Not a runtime dependency of any plugin \u2014 WordPress itself is loaded from wp-load.php, never Composer's autoloader.",
     "require-dev": {
         "phpunit/phpunit": "^9",
@@ -22,7 +22,7 @@
     "scripts": {
         "phpstan": "phpstan analyse --memory-limit=2G",
         "test": [
-            "phpunit -c wp-content/plugins/own-ur-shit/tests/phpunit.xml",
+            "phpunit -c wp-content/plugins/the-self-hosted-self/tests/phpunit.xml",
             "phpunit -c wp-content/plugins/bh-courses/tests/phpunit.xml",
             "php tools/check-render-parity.php"
         ],

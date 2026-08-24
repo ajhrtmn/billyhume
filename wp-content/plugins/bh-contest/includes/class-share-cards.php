@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Social sharing cards. Two card types, both generated on demand via the shared BH_ShareCard
- * engine (own-ur-shit/includes/class-share-card.php): "entered" (a
+ * engine (the-self-hosted-self/includes/class-share-card.php): "entered" (a
  * submitter shares straight after entering) and "vote" (a submitter
  * shares while voting is still open, to drum up votes). Same on-demand
  * posture bh-courses' completion card and certificate use — nothing

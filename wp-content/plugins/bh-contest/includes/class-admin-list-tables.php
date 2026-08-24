@@ -11,7 +11,7 @@ class BH_AdminListTables {
     public static function init(): void {
         // Contest list table: status pill, copyable shortcode, quick
         // stats. DRY/SOLID audit Phase 4: migrated to the shared
-        // OUS_ListTable helper (own-ur-shit/includes/class-list-table.php)
+        // OUS_ListTable helper (the-self-hosted-self/includes/class-list-table.php)
         // — same column set/position/render logic as before.
         OUS_ListTable::register('bh_contest', [
             'bh_status' => 'Status', 'bh_shortcode' => 'Shortcode', 'bh_page' => 'Page', 'bh_stats' => 'Submissions / Votes',

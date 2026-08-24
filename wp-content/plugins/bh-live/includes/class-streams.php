@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) exit;
  * health checks already use.
  *
  * Reuses the shared 'bhcore_every_minute' cron schedule OUS_Jobs
- * already registers (own-ur-shit/includes/class-jobs.php) rather than
+ * already registers (the-self-hosted-self/includes/class-jobs.php) rather than
  * adding a second, near-identical interval registration.
  */
 class BHL_Streams {

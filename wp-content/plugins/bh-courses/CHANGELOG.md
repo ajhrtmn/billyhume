@@ -172,7 +172,7 @@ the visual glyph, verified before changing anything.
 
 0.4.80 — Real UX gap found live: clicking "Courses" itself (the
 synced menu group's own label, not a child course) went nowhere —
-OUS_MenuSync::sync_group() (own-ur-shit 3.10.23) now takes an
+OUS_MenuSync::sync_group() (the-self-hosted-self 3.10.23) now takes an
 optional real URL for the group parent; resync_course_menu()
 (class-admin.php) passes home_url('/courses/'), this CPT's own
 native archive (has_archive => 'courses', class-post-types.php),
@@ -191,7 +191,7 @@ true when no tier is set at all. Login and tier are different
 questions this plugin was conflating.
 
 BHC_Render_Course::render_course() and BHC_Render_Lesson::
-render_lesson_steps() now check own-ur-shit's new OUS_Visibility
+render_lesson_steps() now check the-self-hosted-self's new OUS_Visibility
 (3.10.22) FIRST, separately from BHC_Gate's tier check — a course
 defaults to requiring a logged-in account to view at all, same as
 anything ordinarily meant for an audience rather than an anonymous
@@ -220,7 +220,7 @@ ungated course/lesson while logged out (should show a login prompt,
 not the real content), then toggling "Public" on and confirming it
 opens back up.
 
-0.4.78 — Added a help tooltip (BHY_UI::tip(), own-ur-shit 3.10.15) to
+0.4.78 — Added a help tooltip (BHY_UI::tip(), the-self-hosted-self 3.10.15) to
 the "Gate by tier price rank" select on a course's Supporter access
 metabox, clarifying the price-rank rule: selecting a tier here grants
 access to that tier AND every higher-priced tier, not just the exact
@@ -279,7 +279,7 @@ public API surface post-refactor (0.4.8), kept on purpose. NOT
 runtime-verified against a live install; this is a pure removal of
 unreferenced code, same risk shape as the rest of this sweep.
 
-0.4.73 — Real bug fix surfaced by own-ur-shit's own final PHPStan
+0.4.73 — Real bug fix surfaced by the-self-hosted-self's own final PHPStan
 level 6 brick (typing OUS_Debug::button() with a real `: void`
 return): class-debug.php here was calling it as `echo
 OUS_Debug::button(...)` at 5 call sites, double-printing every debug-
@@ -289,7 +289,7 @@ pure extraneous output. Fixed by dropping the `echo`. Also fixed:
 class-content-bridge.php's migrate_lesson() was declared `: bool`
 but returned BH_Content::save()'s real array result unchanged (a
 dangling type mismatch from the bh-courses PHPStan brick, 0.4.72,
-only surfaced once own-ur-shit's BH_Content::save() itself got a
+only surfaced once the-self-hosted-self's BH_Content::save() itself got a
 precise array-shape return type) — cast to `(bool)` at the return,
 matching its one caller's actual ignored-return-value usage. NOT
 runtime-verified against a live install; smoke-test the Debug Tools
@@ -358,7 +358,7 @@ deliberately NOT converted this pass — flagged for a dedicated future
 pass with real browser verification, not attempted blind.
 NOT runtime-verified against a live browser this session.
 0.4.69 — PHPStan round 2 (this plugin went from 38 errors to 0). 37 of
-the 38 were the same one cause: FPDF (own-ur-shit/vendor/fpdf/fpdf.php,
+the 38 were the same one cause: FPDF (the-self-hosted-self/vendor/fpdf/fpdf.php,
 used by class-certificates.php for certificate-of-completion PDFs) is
 a real, vendored library, just not composer-installed, so PHPStan
 couldn't resolve it at all — added to phpstan.neon's scanFiles so it's
@@ -458,14 +458,14 @@ session. `php -l` clean on every touched/new PHP file; the vendored
 FullCalendar bundle's JS syntax was checked with `node -c`.
 
 0.4.38 — ecosystem depth-pass Tier 1c: BHC_PortalPanel registers the
-first real bhi_user_bar_links contributor (own-ur-shit's new
+first real bhi_user_bar_links contributor (the-self-hosted-self's new
 class-user-bar.php) — "Continue: <course title>" with a live percent
 micro-state, only when there's an actual in-progress enrolled course
 to continue, never a placeholder.
 
 0.4.37 — LMS depth-of-magic Phase 4 (final phase): ecosystem-wide
 achievement surfacing. BHC_Achievements now feeds the real
-bhi_profile_badges filter (own-ur-shit's public-profile page), and a
+bhi_profile_badges filter (the-self-hosted-self's public-profile page), and a
 new opt-in BHC_Leaderboard shows a course's top quiz scorers —
 rank/name/score rows with emoji medals for the top 3, mirroring
 bh-contest's own reveal display without sharing code with it. Off by
@@ -569,7 +569,7 @@ this constant was not, so every JS/CSS change since 0.4.32 was
 silently served stale from any browser that had already cached the
 old file — confirmed live (a shipped courses.js feature simply
 didn't run, traced to the enqueued <script> tag still reading
-?ver=0.4.32). bh-contest's BH_VER/own-ur-shit's OUS_VER don't have
+?ver=0.4.32). bh-contest's BH_VER/the-self-hosted-self's OUS_VER don't have
 this problem only because they happened to stay in sync by
 discipline, not because either is derived from the header
 automatically — same manual-duplicate-constant convention, same
@@ -597,13 +597,13 @@ shit's BH_SEO isn't present. Verified live: a real published course rendered
 exactly one JSON-LD Course block and one canonical tag (no duplicate-canonical
 regression).
 
-0.4.26 — First real contributor to own-ur-shit's new shared Metrics dashboard
+0.4.26 — First real contributor to the-self-hosted-self's new shared Metrics dashboard
 (OUS_Metrics, class-metrics.php): three widgets in includes/class-crm-
 integration.php (Enrollments, Course completions, Avg. quiz score), built in
 tandem with that dashboard per AJ's own "foundational infrastructure, not a
 bolt-on" instruction. Reads bhc/enroll and bhc/course_completed events already
 flowing — no new instrumentation added. class_exists()-guarded; does nothing
-if own-ur-shit's metrics class isn't present.
+if the-self-hosted-self's metrics class isn't present.
 
 0.4.25 — Whole-course duplication ("Duplicate this course as a template") — a
 fresh audit against Teachable/Thinkific/Kajabi/ LearnDash/LifterLMS flagged

@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) exit;
  *   collaborator with no account on this site at all. bhcrm_project_feedback.
  *
  * Both are keyed by card_placement_id (a bh/sticky-card row in
- * own-ur-shit's bhcore_element_placements table) — no FK, same
+ * the-self-hosted-self's bhcore_element_placements table) — no FK, same
  * cross-plugin-table posture BHCRM_Projects' own card_moves table
  * (Phase C) already takes, for the same reason (that table lives in a
  * different plugin with its own engine/charset).
@@ -245,7 +245,7 @@ class BHCRM_CardLog {
     // capability check of its own, and bhcore_manage_crm could in
     // theory be granted to an account with no upload_files — grant it
     // for the duration of this one call only, never persisted, same
-    // pattern own-ur-shit's class-public-profile.php and bh-feedback's
+    // pattern the-self-hosted-self's class-public-profile.php and bh-feedback's
     // class-requests.php already use for their own upload forms.
     /** @return int|\WP_Error */
     private static function handle_file_upload(string $field) {

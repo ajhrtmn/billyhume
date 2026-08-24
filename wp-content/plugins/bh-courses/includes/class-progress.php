@@ -17,7 +17,7 @@ class BHC_Progress {
         // anyway for consistency with every other class in this
         // ecosystem.
 
-        // BH_Event registration (own-ur-shit's event-tracking layer) —
+        // BH_Event registration (the-self-hosted-self's event-tracking layer) —
         // see enroll_if_needed()/mark_step_complete()/
         // maybe_fire_course_completed() below for the actual emit()
         // calls. Per EVENT-TRACKING-ARCHITECTURE-PLAN.md Section 6.

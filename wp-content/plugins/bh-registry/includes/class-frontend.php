@@ -34,7 +34,7 @@ class BHR_Frontend {
      * always after wp_head — where BH_SEO actually echoes its tags —
      * has already fired. Same bug, same fix pattern as bh-courses/
      * bh-contest/bh-streaming: detect the shortcode on the current page
-     * BEFORE the_content() runs (via BH_SEO's shared helper, own-ur-shit)
+     * BEFORE the_content() runs (via BH_SEO's shared helper, the-self-hosted-self)
      * and set the same page-level data early. This shortcode takes no
      * attributes that change the data, so only presence matters here.
      */
@@ -126,7 +126,7 @@ class BHR_Frontend {
                 'description' => 'Be the first to add your feed to the registry.',
             ]) : '<p class="bhr-empty">No artists found.</p>',
         ]);
-        // Reporting is handled by own-ur-shit's shared queue (see
+        // Reporting is handled by the-self-hosted-self's shared queue (see
         // BHI_Reports), not something this plugin builds its own
         // version of — this is a no-op object (empty rest url) if the
         // core plugin's REST route somehow isn't there, which the JS

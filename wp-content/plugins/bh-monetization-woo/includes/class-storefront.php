@@ -273,7 +273,7 @@ class BHM_Storefront {
     // treat it as preventative, not confirmed-broken.
     // Audit fix (2026-07-25): this self-heal algorithm (persistence
     // check/throttle/flush/log) is now shared via BHY_RewriteHealer
-    // (own-ur-shit/includes/class-rewrite-healer.php) instead of a
+    // (the-self-hosted-self/includes/class-rewrite-healer.php) instead of a
     // hand-synced copy of BHI_Portal's own version — that extraction
     // also fixed a real latent bug this copy had fallen behind on: the
     // old force_flush_and_verify() below called wp_cache_flush()

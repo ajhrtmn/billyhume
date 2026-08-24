@@ -27,13 +27,13 @@ class BHM_Admin {
             'depends_on' => ['woocommerce'], 'check_class' => 'BHM_Gate',
             'description' => 'Supporter tiers, purchases, tips, and pay-per-play for bh-streaming — backed by WooCommerce, with refund/velocity fraud-pattern flagging.',
             // Same gap fixed as bh-registry's: this plugin's own zip
-            // needs to physically exist at own-ur-shit/bundled/
+            // needs to physically exist at the-self-hosted-self/bundled/
             // bh-monetization-woo.zip for the dashboard's one-click
             // Install button to have anything to extract.
             'bundled_zip' => 'bh-monetization-woo.zip',
             'dashboard_link' => 'admin.php?page=bhm-settings',
             // 'parent' => 'woocommerce' — this used to default to
-            // 'own-ur-shit' (every admin_menus entry's implicit
+            // 'the-self-hosted-self' (every admin_menus entry's implicit
             // default, see the core's class-menu-merge.php), splitting
             // this plugin's admin presence across two different
             // top-level menus: "Monetization Settings" under the
@@ -172,7 +172,7 @@ class BHM_Admin {
         // Audit fix (2026-07-25): was a bare 'bhy-alert' class carrying
         // its own hand-rolled inline styles — a real, shared alert
         // component with success/danger variants already exists
-        // (own-ur-shit's class-ui.php), this just uses it instead of
+        // (the-self-hosted-self's class-ui.php), this just uses it instead of
         // re-implementing the same visual language one-off.
         echo '<div class="bhy-alert ' . ($enabled ? 'bhy-alert-success' : 'bhy-alert-danger') . '" style="max-width:760px;">';
         if ($enabled) {

@@ -166,7 +166,7 @@ class BHS_Feeds {
     // a manual option alongside it means an admin isn't purely at the
     // mercy of site traffic patterns to refresh a feed right now.
     //
-    // If the core's job queue is active (own-ur-shit 3.2.0+ — see
+    // If the core's job queue is active (the-self-hosted-self 3.2.0+ — see
     // OUS_Jobs, and bh-registry's BHR_Verification::recheck_all() for
     // the first place this exact pattern got proven out), each feed
     // source gets queued as its own job instead of all of them fetching

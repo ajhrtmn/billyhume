@@ -2,7 +2,7 @@
  * bhm-blocks.js — editor-side registration for 'bhm/buy' and
  * 'bhm/tip-jar' (class-blocks.php). Plain ES5-safe JS against WP core's
  * own globals, no build step, same convention every other block in
- * this ecosystem follows (own-ur-shit's element-prefab-block.js,
+ * this ecosystem follows (the-self-hosted-self's element-prefab-block.js,
  * bh-courses' Studio blocks). Unlike element-prefab-block.js (which
  * deliberately deferred a live preview), this uses wp.serverSideRender.
  * ServerSideRender — the actual PHP render_callback output shown live
@@ -80,7 +80,7 @@
 
         // Server-rendered — the editor never saves markup of its own for
         // this block, only its attributes, matching WP core's own
-        // dynamic-block contract (same as own-ur-shit's element-prefab
+        // dynamic-block contract (same as the-self-hosted-self's element-prefab
         // block).
         save: function () { return null; },
     });

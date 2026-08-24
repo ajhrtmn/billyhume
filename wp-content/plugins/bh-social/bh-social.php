@@ -4,7 +4,7 @@
  * Description: Social/marketing platform integrations — organic cross-posting + stats (YouTube, Twitch, Meta/Instagram, TikTok) behind a BH_SocialPlatform interface, plus paid ad-campaign draft-capture (Roku, Spotify, Amazon DSP, Samsung, Vizio) behind a separate BH_AdsPlatform interface. Depends only on The Self-Hosted Self's shared identity and job queue.
  * Version:     0.3.4
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -58,7 +58,7 @@ if (!defined('ABSPATH')) exit;
 // reasoning in full) rather than a simulated live integration.
 //
 // 0.3.1 — every organic-platform section and the whole ads group now
-// carry an OUS_Badge (own-ur-shit's new shared alpha/beta/experimental
+// carry an OUS_Badge (the-self-hosted-self's new shared alpha/beta/experimental
 // helper, added this pass) flagging that none of this has been
 // exercised against a real connected account yet — the code is real
 // and correct against each platform's documented API, but "verified
@@ -83,7 +83,7 @@ add_action('plugins_loaded', ['BHSO_Activator', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Social</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Social</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }

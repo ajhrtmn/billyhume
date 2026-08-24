@@ -4,7 +4,7 @@
  * Description: A person list built on shared identity — profile data, freeform notes, tags, and CSV export. Any other plugin can contribute an "activity" section to a person's detail view via a filter, entirely optionally — this plugin works completely on its own with zero other feature plugins installed.
  * Version:     2.4.21
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -51,7 +51,7 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // kanban/inspector logic changed.
 
 // 1.2.0 — Project tracker: a kanban-like nested-sticky-note project board
-// built on own-ur-shit's element builder system. New class-projects.php
+// built on the-self-hosted-self's element builder system. New class-projects.php
 // (bhcrm_projects table, 'bh/sticky-card' BH_Element type, the
 // 'bhcrm_project_board' surface, 'bhcrm/sub-card' block type for recursive
 // sub-task nesting, render-time roll-up counting) and class-debug.php (Debug
@@ -67,7 +67,7 @@ define('BHCRM_URL',  plugin_dir_url(__FILE__));
 // 1.1.1 — class-notes.php's handle_save() now also queues a toast
 // (OUS_Toast::queue()) before its admin-post redirect, in addition to the
 // existing plain-text $_GET['bhcrm_msg'] notice. Degrades to a no-op on an
-// older own-ur-shit core.
+// older the-self-hosted-self core.
 
 // 1.1.0 — this plugin is now a BH_Event consumer and emitter: added
 // class-event-activity.php (contributes an "Event Tracking" section to
@@ -93,7 +93,7 @@ register_activation_hook(__FILE__, ['BHCRM_CardLog', 'activate']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH CRM</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH CRM</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }
@@ -128,7 +128,7 @@ add_action('plugins_loaded', function () {
     // Feeds every saved CRM list into OUS_Campaigns' own audience picker
     // — see class-segments.php's docblock. This is a contribution to the
     // 'email_broadcast' OUS_Integration contract (registered in
-    // own-ur-shit.php, which actually owns OUS_Campaigns), not a
+    // the-self-hosted-self.php, which actually owns OUS_Campaigns), not a
     // registration of that contract itself — bh-crm doesn't own the
     // built-in default, it just makes it more useful once active.
     add_filter('bhcore_campaign_segments', ['BHCRM_Segments', 'register_campaign_segments']);

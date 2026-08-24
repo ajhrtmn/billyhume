@@ -4,7 +4,7 @@
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
  * Version:     0.4.89
  * Requires PHP: 8.2
- * Requires Plugins: own-ur-shit
+ * Requires Plugins: the-self-hosted-self
  */
 if (!defined('ABSPATH')) exit;
 
@@ -17,7 +17,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
 
 /**
  * A genuine PEER to bh-contest, bh-streaming, and bh-crm — depends only
- * on own-ur-shit (shared identity, for enrollment/progress; shared
+ * on the-self-hosted-self (shared identity, for enrollment/progress; shared
  * style tokens, for rendering). Deliberately does NOT depend on
  * bh-streaming or bh-monetization-woo:
  *
@@ -47,7 +47,7 @@ add_action('plugins_loaded', ['BHC_Sessions', 'maybe_upgrade']);
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires <strong>The Self-Hosted Self</strong> plugin to be installed and active.</p></div>';
         });
         return;
     }
@@ -65,7 +65,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_StyleSurface', 'init']);
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
     // then 1" ordering (3 = data-binding v1, 2 = Gutenberg block, both
-    // already shipped in own-ur-shit 3.4.46/3.4.47). First real
+    // already shipped in the-self-hosted-self 3.4.46/3.4.47). First real
     // BH_Element surface this plugin has ever registered — see class-
     // lesson-surface.php's own docblock for the full reasoning. Same
     // "harmless no-op otherwise" guard every other optional integration
@@ -144,7 +144,7 @@ add_action('plugins_loaded', function () {
     add_action('save_post_bh_lesson', ['BHC_Admin', 'save_lesson']);
     add_action('admin_enqueue_scripts', ['BHC_Admin', 'enqueue_admin_assets']);
     // DRY/SOLID audit Phase 4: migrated to the shared OUS_ListTable
-    // helper (own-ur-shit/includes/class-list-table.php) — same column
+    // helper (the-self-hosted-self/includes/class-list-table.php) — same column
     // set/position/render logic as the previous hand-rolled columns()/
     // custom_column() pairs.
     OUS_ListTable::register('bh_course', ['bhc_lessons' => 'Lessons', 'bhc_gate' => 'Access'], ['BHC_Admin', 'course_column_content']);

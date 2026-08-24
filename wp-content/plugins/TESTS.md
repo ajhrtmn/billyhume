@@ -53,12 +53,12 @@ site boots.
 
 Separate from the Test Runner, self-contained, no WordPress or database needed:
 
-- `own-ur-shit/tests/TwoFactorTest.php` — the TOTP algorithm against RFC 6238 Appendix B's published vectors, the base32 codec, and ±1 time-step drift (both accept-real-drift and reject-too-much-drift).
+- `the-self-hosted-self/tests/TwoFactorTest.php` — the TOTP algorithm against RFC 6238 Appendix B's published vectors, the base32 codec, and ±1 time-step drift (both accept-real-drift and reject-too-much-drift).
 - `bh-courses/tests/QuizScoringTest.php` — pass/fail scoring: rounding, missing answers, exact-threshold boundary.
 - `bh-courses/tests/StepsSanitizationTest.php` — the sanitization boundary between a raw admin POST and what gets stored/rendered; dropped-vs-clamped edge cases.
 
 ```bash
-vendor/bin/phpunit wp-content/plugins/own-ur-shit/tests
+vendor/bin/phpunit wp-content/plugins/the-self-hosted-self/tests
 ```
 
 ## Why these areas specifically

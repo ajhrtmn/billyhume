@@ -189,7 +189,7 @@ class BHM_Wallet {
             'user_id' => $user_id, 'delta_cents' => -$cents, 'reason' => $reason, 'track_id' => $track_id,
         ]);
         // Feeds the CRM's unified per-person activity timeline
-        // (BHCRM's render_timeline(), own-ur-shit's BH_Event) — same
+        // (BHCRM's render_timeline(), the-self-hosted-self's BH_Event) — same
         // "harmless no-op if the core event system isn't loaded"
         // posture every other emit() call site in this ecosystem uses.
         if ($ledger_ok !== false && class_exists('BH_Event')) {

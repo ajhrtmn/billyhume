@@ -8,7 +8,7 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 
 0.31.0 — Direct field report ("Media & CDN Setup wizard provider
-cards appear dimmed/disabled"). This screen (own-ur-shit's
+cards appear dimmed/disabled"). This screen (the-self-hosted-self's
 class-media-wizard.php) is entirely gated behind
 class_exists('\Advanced_Media_Offloader\Factories\CloudProviderFactory')
 — that plugin was installed but never ACTIVE on this local install,
@@ -83,7 +83,7 @@ not a guessed viewport state. Fixed by restoring the icon to normal
 flex flow in that same responsive state; verified no desktop
 regression afterward.
 
-0.28.0 — Continuing the systematic sweep onto own-ur-shit's own
+0.28.0 — Continuing the systematic sweep onto the-self-hosted-self's own
 Debug Tools screen (API Docs, Event Tracking sections). Two real
 bugs, both on `table.widefat` (a genuinely different WP-core table
 style than `.wp-list-table`, not consistently wrapped in the shared
@@ -96,7 +96,7 @@ fix never reached it. Broadened from a .bhy-table-wrap-scoped rule
 to cover any table.widefat directly (background, borders, striping,
 thead/tbody text) rather than patching two more one-off selectors.
 
-A companion bug in own-ur-shit's own class-debug-log.php (separate
+A companion bug in the-self-hosted-self's own class-debug-log.php (separate
 plugin, own changelog entry below) was also found and fixed in the
 same pass: the log-level pill's warning state was rendering white
 text on a bright yellow background.
@@ -492,7 +492,7 @@ and no box is force-collapsed there, matching the metaphor's other
 half (fan out to use available room at large sizes, already covered
 by the existing auto-fit card grids).
 
-0.17.0 — Deleted code, no new features: own-ur-shit 3.10.32 migrated
+0.17.0 — Deleted code, no new features: the-self-hosted-self 3.10.32 migrated
 its .ous-card stylesheet and class-metrics.php's inline <style> onto
 the shared --bhy-* tokens, which this plugin's own token bridge
 (0.8.0) already remaps. That made an entire block of colour
@@ -704,7 +704,7 @@ proof of concept — modal-backdrop haze and card-group spotlight
 (the other two places this pattern belongs, per direct instruction)
 are real, separate follow-on work, not attempted here.
 
-0.10.5 — Matching own-ur-shit 3.10.30's font correction: "less
+0.10.5 — Matching the-self-hosted-self 3.10.30's font correction: "less
 kitschy fonts and still more diversity." Josefin Sans -> Jost — same
 real 1920s German geometric-sans lineage (Erbar/Kabel-influenced)
 but restrained, professional proportions instead of Josefin Sans's
@@ -809,14 +809,14 @@ small).
 
 0.9.2 — Direct request: "make all GUIs from WP, Woo, OUS, etc look
 designed by one person." A real, confirmed gap: earlier fixes this
-session gave .ous-card/.ous-metrics-card (own-ur-shit's own hardcoded
+session gave .ous-card/.ous-metrics-card (the-self-hosted-self's own hardcoded
 dashboards) the right COLORS but never the same SHAPE as a real
 .postbox — no elevation/shadow, no shared radius token, no hover-
 glow — so they read flatter/cheaper even once the palette matched.
 Folded both into the shared .postbox/.card raised-surface rule
 (background/border/radius/shadow/hover-glow all come from one place
 now). Same finding, smaller scale, in the three badge-pill systems
-(.bhy-badge, WooCommerce's .order-status, own-ur-shit's .ous-badge):
+(.bhy-badge, WooCommerce's .order-status, the-self-hosted-self's .ous-badge):
 slightly different blur (4px vs 6px) and shadow spread (8px vs 10px)
 between them — a small but real "different hand" tell — unified
 into one shared grouped rule. Net effect: fewer, more consistent
@@ -835,7 +835,7 @@ the short-description classic editor's own tab pills
 mechanism than the block editor's @wordpress/components already
 fixed, unstyled light-gray.
 
-0.9.0 — Matching own-ur-shit 3.10.29's font correction: Righteous
+0.9.0 — Matching the-self-hosted-self 3.10.29's font correction: Righteous
 (a 1970s-80s bubble-letter novelty face) replaced with Josefin
 Sans (modeled on Rudolf Koch's Kabel and Paul Renner's Futura, both
 1927 — real period geometric-sans construction) after direct
@@ -847,7 +847,7 @@ retuned specifically for Josefin Sans's real 600 weight (Righteous
 had only one weight and needed a synthesized fake bold) and its
 taller, more tracked-out period-appropriate proportions.
 
-0.8.2 — Continuing the same "keep digging" audit: own-ur-shit's
+0.8.2 — Continuing the same "keep digging" audit: the-self-hosted-self's
 Metrics dashboard (.ous-metrics-card) is a FOURTH separate hardcoded
 styling mechanism found this session — its own inline <style> block
 echoed directly from class-metrics.php, unrelated to the --bhy-*
@@ -868,7 +868,7 @@ rather than assuming): confirmed live it DID fix bh-crm's "Smart
 lists" card and a .bhy-alert-info notice, but the ecosystem
 dashboard's own plugin-activation cards (admin.php?page=ous,
 .ous-card) were still white — traced to a THIRD, separate styling
-mechanism: own-ur-shit/assets/css/admin.css, a small stylesheet that
+mechanism: the-self-hosted-self/assets/css/admin.css, a small stylesheet that
 predates the --bhy-* token system and hardcodes its own light colors
 directly with no custom property to bridge at all. Fixed with a
 direct override, same as every non-token-based fix this session,
@@ -879,10 +879,10 @@ importance signal that system exists for.
 
 0.8.0 — The single highest-leverage fix of this whole design audit,
 found while chasing one white card on bh-crm's People screen: it
-traced back to own-ur-shit's OWN shared admin design-token system
+traced back to the-self-hosted-self's OWN shared admin design-token system
 (BHY_UI::print_design_system_css(), class-ui.php) — a --bhy-*
 custom-property convention used pervasively across bh-crm, bh-
-contest, and own-ur-shit's own Design Suite/Setup Wizard/Reports/
+contest, and the-self-hosted-self's own Design Suite/Setup Wizard/Reports/
 Portal screens (including via inline `style="background:
 var(--bhy-surface,#fff)"` rendered straight from PHP), hardcoded to
 WP core's stock light-admin colors with zero dark-mode awareness.
@@ -897,7 +897,7 @@ tie) that redefines the --bhy-* names to point at this skin's own
 --shsas-* tokens. Not a hard dependency — pure CSS custom-property
 redefinition, no PHP/class coupling — so this plugin stays exactly
 as portable on a bare WordPress install as its own 0.1.0 changelog
-entry promises; where own-ur-shit-style --bhy-* markup DOES exist,
+entry promises; where the-self-hosted-self-style --bhy-* markup DOES exist,
 it now re-themes for free instead of needing individual overrides.
 Verified live: bh-crm's "Smart lists" card and the general .bhy-card/
 .bhy-alert component family should be re-audited under this fix
@@ -911,8 +911,8 @@ Contest Results screen has its own stat-bar widget (.bh-stat —
 "Total Votes"/"Unique Voters"/"Last Vote") with a hardcoded white
 card background; text color was already fine. Also fixed, same
 session, a real unrelated PHP fatal found while navigating here (not
-this plugin's bug — own-ur-shit's OUS_PageSurface::add_meta_boxes()
-crashed on WooCommerce's HPOS order screens; see own-ur-shit 3.10.28).
+this plugin's bug — the-self-hosted-self's OUS_PageSurface::add_meta_boxes()
+crashed on WooCommerce's HPOS order screens; see the-self-hosted-self 3.10.28).
 
 0.7.3 — Track A continued: WooCommerce's Orders screen. The
 dimension-field width regression from earlier this round (WooCommerce's
@@ -935,13 +935,13 @@ cancelled/failed=danger, refunded=info).
 desktop scale (direct feedback: "it all looks bad to me... don't
 move on till its magical"): this session's ecosystem-wide font
 rollout (Righteous + Atkinson Hyperlegible) only ever touched the
-FRONT END's design tokens (own-ur-shit's BHY_Style --bh-font-*) —
+FRONT END's design tokens (the-self-hosted-self's BHY_Style --bh-font-*) —
 this plugin's own --shsas-font/--shsas-font-display tokens were
 never wired to them at all, so wp-admin — the exact surface being
 looked at — hadn't visually changed one bit despite the whole font
 effort. Fixed: same two fonts, loaded independently here (this
 plugin stays standalone/portable per its own stated scope, no
-dependency on own-ur-shit being active), applied as
+dependency on the-self-hosted-self being active), applied as
 --shsas-font (body, all running text) / --shsas-font-display
 (Righteous, the ONE big page h1 per screen only — deliberately NOT
 every h2/h3/postbox-header, which stay on the more legible body
@@ -1211,7 +1211,7 @@ themes (see #adminmenu li.menu-top:hover > a.menu-top).
 
 0.4.7 — 0.4.6's custom-icon fix covered <img>-based icons but missed
 a real THIRD rendering mode, found by inspecting the actual live DOM
-(own-ur-shit's own menu item uses it): add_menu_page() passed a
+(the-self-hosted-self's own menu item uses it): add_menu_page() passed a
 base64 SVG data URI renders as neither a font glyph nor a real
 <img> — WP core puts it on div.wp-menu-image itself as a CSS
 background-image (class="wp-menu-image svg"). Confirmed by directly

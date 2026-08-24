@@ -2,7 +2,7 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * This plugin's contribution to BHI_Portal (own-ur-shit's `bhi_portal_panels`
+ * This plugin's contribution to BHI_Portal (the-self-hosted-self's `bhi_portal_panels`
  * filter — see class-portal.php over there) — access and edit contest
  * submissions from a fan's own account portal. Lists every bh_submission post
  * authored by the current user (across every contest, not just the
@@ -16,7 +16,7 @@ class BH_PortalPanel {
     }
 
     // Same "portal is a custom virtual page, not a real $post" gate
-    // pattern own-ur-shit's class-public-profile.php fixed this same
+    // pattern the-self-hosted-self's class-public-profile.php fixed this same
     // session (Bug #2 in that pass) — only load the replace-file JS on
     // the portal itself.
     public static function maybe_enqueue(): void {

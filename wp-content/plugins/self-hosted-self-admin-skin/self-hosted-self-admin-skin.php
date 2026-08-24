@@ -31,9 +31,9 @@ function shsas_enqueue_assets(): void {
     // Same two fonts as the ecosystem-wide front-end default (own-ur-
     // shit's BHY_Style::FONT_OPTIONS) — Righteous for display, Atkinson
     // Hyperlegible for body — loaded independently here rather than via
-    // a class_exists() call into own-ur-shit, matching this plugin's
+    // a class_exists() call into the-self-hosted-self, matching this plugin's
     // own stated "standalone and portable" scope (it must keep working
-    // even if own-ur-shit isn't the active core plugin on some other
+    // even if the-self-hosted-self isn't the active core plugin on some other
     // install). Real gap this closes: the CSS tokens below
     // (--shsas-font/--shsas-font-display) were pointing at these fonts
     // with nothing fetching the actual webfont files — the exact same
@@ -90,11 +90,11 @@ add_action('login_enqueue_scripts', 'shsas_enqueue_login_assets');
 
 /**
  * Real, high-leverage bug found auditing bh-crm's People screen (Track
- * A of the design audit): own-ur-shit's own shared admin design-token
+ * A of the design audit): the-self-hosted-self's own shared admin design-token
  * system (BHY_UI::print_design_system_css(), class-ui.php) defines a
  * whole SECOND set of CSS custom properties — --bhy-surface,
  * --bhy-ink, --bhy-border, --bhy-accent, etc. — that bh-crm, bh-contest,
- * and own-ur-shit's own admin screens (Design Suite, Setup Wizard,
+ * and the-self-hosted-self's own admin screens (Design Suite, Setup Wizard,
  * Reports, the Portal, "Layer 3" components like .bhy-card/.bhy-alert)
  * all reference directly, INCLUDING via inline `style="background:
  * var(--bhy-surface,#fff)"` attributes rendered straight from PHP.
@@ -104,10 +104,10 @@ add_action('login_enqueue_scripts', 'shsas_enqueue_login_assets');
  * because nothing here ever redefined the SAME variable names.
  *
  * This is a soft interop bridge, not a hard dependency: it only
- * redefines CSS custom properties by name (never calls any own-ur-shit
+ * redefines CSS custom properties by name (never calls any the-self-hosted-self
  * PHP/class), so this plugin stays exactly as portable as its own
  * doc comment above promises — on a bare WordPress install with no
- * own-ur-shit, these variables are simply unused. Where own-ur-shit
+ * the-self-hosted-self, these variables are simply unused. Where the-self-hosted-self
  * (or any plugin using this same, apparently ecosystem-wide --bhy-*
  * naming convention) IS active, every one of its own components
  * re-themes for free, instead of needing an individual CSS override
@@ -127,7 +127,7 @@ function shsas_bridge_bhy_tokens(): void {
         // The ink that sits ON a filled accent/neon chip, not next to
         // it. Its absence was a real, measured bug: the bridge mapped
         // every FILL colour but never the foreground meant to sit on
-        // one, so own-ur-shit's log-level pills kept the hardcoded
+        // one, so the-self-hosted-self's log-level pills kept the hardcoded
         // `#fff` that is correct against their bare-WordPress fallback
         // (#2271b1, dark) and wrong against the periwinkle this skin
         // bridges in (#8FA6E8, light) — white on light periwinkle
