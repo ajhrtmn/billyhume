@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.40.0
+ * Version:     0.41.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('SHSAS_VER', '0.40.0');
+define('SHSAS_VER', '0.41.0');
 
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
@@ -267,6 +267,37 @@ add_action('admin_head', 'shsas_print_nav_depth_script', 1);
  * to live and a11y-correct markup (a real <button>, not a div with a
  * click handler).
  */
+/**
+ * A one-tap route back to wp-admin from the front end.
+ *
+ * WHY a new node rather than relying on what is already there: the site-name
+ * item does link to /wp-admin/, but it is a .menupop, so a tap opens its
+ * submenu instead of navigating and the Dashboard entry inside is a second
+ * tap on a dropdown. Reported from a real phone as simply not being able to
+ * get back to admin from the user side.
+ *
+ * Measured here at 375px, that dropdown is structurally fine -- panel 0-375
+ * at y46, the Dashboard row in the viewport, elementFromPoint returning the
+ * anchor itself rather than anything covering it. So the failure is in
+ * opening a touch dropdown, which is exactly the kind of thing that cannot
+ * be reproduced without the device. A plain link with no submenu does not
+ * depend on any of that working.
+ *
+ * Front end only: inside wp-admin the admin menu already does this job.
+ */
+function shsas_admin_bar_dashboard_link(WP_Admin_Bar $wp_admin_bar): void {
+    if (is_admin() || !current_user_can('read')) return;
+    $wp_admin_bar->add_node([
+        'id'     => 'shsas-dashboard',
+        'title'  => '<span class="shsas-dashboard-icon" aria-hidden="true"></span>'
+                  . '<span class="shsas-dashboard-label">' . esc_html__('Dashboard', 'shsas') . '</span>',
+        'href'   => admin_url(),
+        'parent' => 'top-secondary',
+        'meta'   => ['class' => 'shsas-dashboard-link', 'title' => __('Back to the dashboard', 'shsas')],
+    ]);
+}
+add_action('admin_bar_menu', 'shsas_admin_bar_dashboard_link', 8);
+
 function shsas_admin_bar_toggle(WP_Admin_Bar $wp_admin_bar): void {
     if (!is_admin()) return;
     // Direct feedback: the Cmd/Ctrl+K command palette existed but

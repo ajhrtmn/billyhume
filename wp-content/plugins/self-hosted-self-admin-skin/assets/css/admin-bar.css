@@ -443,3 +443,36 @@
     font-variant-numeric: tabular-nums;
     text-align: center;
 }
+
+/* One-tap route back to wp-admin from the front end (see
+   shsas_admin_bar_dashboard_link). The site-name item technically links to
+   /wp-admin/, but it is a .menupop: on touch a tap opens its submenu rather
+   than navigating, which is why this exists as a plain link instead.
+
+   Label shows where there is room and collapses to the icon on a phone,
+   the same treatment every other item in this bar gets. */
+#wpadminbar #wp-admin-bar-shsas-dashboard .shsas-dashboard-icon {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: currentColor;
+    -webkit-mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
+    mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
+    flex: 0 0 auto;
+}
+#wpadminbar #wp-admin-bar-shsas-dashboard > .ab-item {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+}
+@media screen and (max-width: 782px) {
+    /* Icon only, and a full 46px square so it is a real touch target. */
+    #wpadminbar #wp-admin-bar-shsas-dashboard .shsas-dashboard-label {
+        display: none;
+    }
+    #wpadminbar #wp-admin-bar-shsas-dashboard > .ab-item {
+        justify-content: center;
+        min-width: 46px;
+        padding: 0 6px !important;
+    }
+}
