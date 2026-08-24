@@ -10,7 +10,15 @@ Ordered by leverage, not by age. Design/craft items have their reasoning in `DES
 
 These are cheap and disproportionately improve how the whole thing feels.
 
-1. **Elevation scale.** One flat `--shsas-shadow` does every job — resting cards, hovered cards, modals. Nothing can read as "lifted toward you" because everything is lifted identically. Split into `--shsas-shadow-resting` / `-hover` / `-modal`. Single highest impact-per-line change available.
+**Closed 2026-08-24, recorded because each was a class of bug rather than one screen:**
+
+- **Third-party admin screens.** WooCommerce text measured 1.1:1 against our dark canvas — their CSS assumes WordPress's white admin, which is true of essentially every plugin. `shsas-owned` / `shsas-unowned` now contains unowned screens back to core's own values, scoped to `#wpbody-content` so our chrome stays ours. Analytics 22 failures → 0; Customers and MailPoet 0. See `THIRD-PARTY-SKINNING.md`.
+- **Wide tables.** 21 `table.widefat` rendered without `.bhy-table-wrap` against 18 with it. Below 782px an unwrapped table now scrolls in its own box. Project Tracker overflow → 0px.
+- **Sessions calendar.** FullCalendar was vendored with no stylesheet at all; the bundle contains zero style rules. Now ships `skeleton.css` + classic theme, themed through its `--fc-classic-*` variables (its class names are hashed, so selector overrides were never possible).
+- **The suite's one red test.** `bh-tickets for_user()` — `$wpdb` returns bigints as strings, so a strict `in_array` never matched. **635/635 passing**, first fully green run on record.
+- **Audit blind spot.** `tests/ux/audit.ts` returned `null` for `color(srgb ...)`, silently exempting most of the badge system from every audit ever run. Fixed; both failure modes documented in `UX-AUDIT-PLAN.md`.
+
+1. ~~**Elevation scale.**~~ **DONE 2026-08-24.** Surfaces were a 1.07 / 1.10 / 1.13:1 ladder — all below the ~1.2:1 point at which two surfaces read as different — with one `--shsas-shadow` serving 14 rules plus 8 hardcoded shadows. Now a uniform **1.21:1** ladder (the ceiling the text tokens allow: `--shsas-text-dim` lands at 4.55:1 on the top surface, and 1.22 fails it), plus `--shsas-shadow-sm` / `-lg` in both themes. Light theme carries the scale entirely in shadow, since an elevated surface there is already `#fff`.
 2. **Front-end `.bh-alert` component.** Zero occurrences ecosystem-wide — confirmed by grep, not assumed. `STYLE-SYSTEM.md` has named this Layer-3 gap for months; admin has `.bhy-alert`, the front end has nothing, so every front-end notice is hand-rolled. Add it to `class-style.php`.
 3. **Debug Tools sticky quicknav offset.** Its inline style hardcodes `top:32px`, but the admin bar is 46px at ≤782px — so the sticky header detaches and leaves a visible gap on mobile. Independently re-confirmed this pass. Needs an offset that doesn't assume a 32px bar (or any bar).
 4. **Front-end admin bar ignores the theme toggle.** `admin-bar.css` is deliberately self-sufficient (every value `var(--shsas-*, <fallback>)`), and on the front end no token block is printed — so it always renders the *dark* fallbacks regardless of the user's light/dark choice. Either print a minimal token block on the front end or give the fallbacks a `prefers-color-scheme` path.
