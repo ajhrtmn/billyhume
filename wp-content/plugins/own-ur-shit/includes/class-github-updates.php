@@ -281,7 +281,26 @@ class OUS_GithubUpdates {
             'https://raw.githubusercontent.com/%s/%s/%s',
             $source['repo'], rawurlencode($source['branch']), $path
         );
-        $response = wp_remote_get($url, ['timeout' => 10]);
+        // raw.githubusercontent.com is served through a CDN that holds a
+        // copy for minutes. Measured here: right after a push, the local
+        // file and a direct curl both read 0.4.87 while this check still
+        // reported 0.4.86 for the same file -- so the table said "Up to
+        // date" about a version that had already moved. For a self-hosted
+        // updater that is the one failure that matters, because it is
+        // silent: nothing errors, the update simply never gets offered.
+        //
+        // A unique query string defeats the CDN copy, and the no-cache
+        // headers cover any proxy between here and GitHub.
+        $response = wp_remote_get(
+            add_query_arg('_ts', (string) time(), $url),
+            [
+                'timeout' => 10,
+                'headers' => [
+                    'Cache-Control' => 'no-cache, no-store, max-age=0',
+                    'Pragma'        => 'no-cache',
+                ],
+            ]
+        );
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Could not fetch remote version for a GitHub update source.', [

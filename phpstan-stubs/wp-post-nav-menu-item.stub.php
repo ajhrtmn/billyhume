@@ -19,8 +19,12 @@
  * WordPress core's own source rather than typing this codebase's real
  * usage.
  *
- * @property string $title Nav menu item link text.
- * @property string $url   Nav menu item link URL.
+ * @property string        $title   Nav menu item link text.
+ * @property string        $url     Nav menu item link URL.
+ * @property array<string> $classes CSS classes for the item's <li>. Core
+ *           sets this in wp_setup_nav_menu_item() and reads it back when
+ *           building the markup, which is what makes appending to it the
+ *           supported way to add a class to one menu item.
  */
 final class WP_Post
 {

@@ -1,0 +1,60 @@
+/* The menu's one call to action: Log In / Go to Portal.
+ *
+ * Lives in the plugin, not the theme, for two reasons. OUS_MenuSync is the
+ * single source of truth for this link (a theme-side copy was written once
+ * and removed as a duplicate-link bug), so its styling belongs beside it.
+ * And this install's host deploys wp-content/plugins but not
+ * wp-content/themes, so theme CSS is not a reliable delivery path.
+ *
+ * Everything resolves through var(--bh-*, <fallback>) so it themes correctly
+ * on a site using our tokens and still looks deliberate on one that is not. */
+.oust-nav-list .ous-menu-account-cta,
+.wp-block-navigation .ous-menu-account-cta,
+li.ous-menu-account-cta {
+    /* Pushes it to the bottom of a column-flex menu even when other items
+       are short. Harmless in a horizontal menu, where it just sits last. */
+    margin-top: auto;
+}
+.ous-menu-account-cta > a,
+.ous-menu-account-cta > a:link,
+.ous-menu-account-cta > a:visited {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    /* 44px min target: this is the primary action on a phone. */
+    min-height: 44px;
+    padding: 10px 20px;
+    border-radius: 999px;
+    background: var(--bh-accent, #c0563a);
+    /* Not --bh-text: that is the page foreground, which on a dark theme is
+       light and would vanish on a light accent. This needs the colour that
+       belongs ON the accent. */
+    color: var(--bh-accent-contrast, #fff);
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.ous-menu-account-cta > a:hover,
+.ous-menu-account-cta > a:focus-visible {
+    background: var(--bh-accent-strong, var(--bh-accent, #c0563a));
+    box-shadow: var(--bh-shadow, 0 8px 20px -10px rgba(0, 0, 0, .55));
+    transform: translateY(-1px);
+}
+.ous-menu-account-cta > a:focus-visible {
+    outline: 2px solid var(--bh-accent, #c0563a);
+    outline-offset: 2px;
+}
+.ous-menu-account-cta > a:active {
+    transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+    .ous-menu-account-cta > a {
+        transition: none;
+    }
+    .ous-menu-account-cta > a:hover,
+    .ous-menu-account-cta > a:focus-visible {
+        transform: none;
+    }
+}

@@ -46,6 +46,17 @@ class OUS_MenuSync {
     // posture as the rest of this class.
     public static function init(): void {
         add_filter('wp_nav_menu_objects', [self::class, 'localize_account_link'], 10, 1);
+        add_action('wp_enqueue_scripts', [self::class, 'enqueue_cta_style']);
+    }
+
+    /**
+     * Front-end only, and only where a nav menu can actually appear.
+     * Styling ships with the plugin because OUS_MenuSync owns this link and
+     * because this install's host deploys plugins but not themes.
+     */
+    public static function enqueue_cta_style(): void {
+        if (is_admin()) return;
+        wp_enqueue_style('ous-menu-cta', OUS_URL . 'assets/css/menu-cta.css', [], OUS_VER);
     }
 
     /**
@@ -56,8 +67,13 @@ class OUS_MenuSync {
         if (!class_exists('BHI_Portal')) return $items;
         $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/');
         $logged_in = is_user_logged_in();
+        $account = [];
+        $rest    = [];
         foreach ($items as $item) {
-            if (get_post_meta($item->ID, self::ACCOUNT_LINK_META_KEY, true) !== '1') continue;
+            if (get_post_meta($item->ID, self::ACCOUNT_LINK_META_KEY, true) !== '1') {
+                $rest[] = $item;
+                continue;
+            }
             // title/url — real properties wp_setup_nav_menu_item()
             // (core) adds to every item this filter receives, declared
             // for PHPStan via phpstan-stubs/wp-post-nav-menu-item.stub.php
@@ -65,8 +81,20 @@ class OUS_MenuSync {
             // ignore, is the correct fix here).
             $item->title = $logged_in ? __('Go to Portal', 'own-ur-shit') : __('Log In', 'own-ur-shit');
             $item->url = $portal_url;
+            // Marks it as the menu's one call to action, styled as a button
+            // by assets/css/menu-cta.css. The class rides on the item rather
+            // than on a theme selector so any theme gets the treatment --
+            // this link is deliberately theme-agnostic, and this install's
+            // host deploys plugins but not themes.
+            $item->classes = array_merge($item->classes, ['ous-menu-account-cta']);
+            $account[] = $item;
         }
-        return $items;
+        // Always last. A call to action at the bottom is where a reader
+        // arrives after scanning the menu, and it keeps its position stable
+        // no matter where someone drags the item in Appearance > Menus.
+        // Safe to append: this item is top-level with no children, and
+        // children always follow their parent in this array.
+        return array_merge($rest, $account);
     }
 
     /**
