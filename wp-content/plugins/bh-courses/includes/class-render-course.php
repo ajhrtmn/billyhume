@@ -37,7 +37,7 @@ class BHC_Render_Course {
         // author's choice. class_exists() at hook-call time, and the link is
         // simply omitted when core is absent or no catalog page exists --
         // never a link to nowhere.
-        if (class_exists('OUS_Pages')) {
+        if (method_exists('OUS_Pages', 'url')) {
             $catalog = OUS_Pages::url('bh_courses', 'bhc_catalog_page_id');
             if ($catalog) {
                 echo '<a class="ous-back-link bhc-back-to-catalog" href="' . esc_url($catalog) . '">'

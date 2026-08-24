@@ -78,6 +78,26 @@ Every real change still bumps the plugin header `Version:` and the matching cons
 - **Dependency direction** — peer plugins depend only on the core, never each other, always `class_exists()`-guarded at hook-call time. Unchanged and non-negotiable.
 - **Open/closed** — extend through the existing filters (`ous_debug_tools`, `bhcore_test_suites`, `bhy_style_surfaces`) rather than editing the core.
 
+## Cross-plugin guards: check the METHOD, not the class
+
+`class_exists('OUS_Pages')` is not a sufficient guard when you are calling a method that core only recently gained.
+
+A peer plugin can deploy ahead of core — that is the normal state on any host that syncs plugin folders independently, and it is what happened live on 2026-08-24. The class was present, the method was not, and the site died with **`Call to undefined method OUS_Pages::ensure()`** on every admin page. `class_exists()` returned `true` and the call fatalled anyway.
+
+```php
+// Wrong when the method is newer than the class:
+if (!class_exists('OUS_Pages')) return;
+OUS_Pages::ensure(...);
+
+// Right:
+if (!method_exists('OUS_Pages', 'ensure')) return;
+OUS_Pages::ensure(...);
+```
+
+`class_exists()` remains correct for guarding a whole *class* that may be absent. The moment you call a method added after that class shipped, the guard has to name the method — because "is this plugin installed" and "is this plugin new enough" are different questions, and only the second one is what the call actually depends on.
+
+Still at hook-call time, never at file-parse time. Both rules apply together.
+
 ## Wide tables
 
 `.bhy-table-wrap` (BHY_UI, `class-ui.php`) is still the convention: sticky header, horizontal scroll, denser padding. Use it.

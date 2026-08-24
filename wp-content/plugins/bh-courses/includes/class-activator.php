@@ -40,7 +40,12 @@ class BHC_Activator {
      * position this plugin was already in.
      */
     public static function ensure_catalog_page(): void {
-        if (!class_exists('OUS_Pages')) return;
+        // method_exists, not class_exists: a peer plugin can deploy ahead of
+        // core, and then the class is present while the method it needs is
+        // not. Live went down with 'Call to undefined method
+        // OUS_Pages::ensure()' for exactly that reason -- class_exists said
+        // yes and the call still fatalled.
+        if (!method_exists('OUS_Pages', 'ensure')) return;
         // bhc/catalog is the block form of the same catalog -- without it,
         // a block-authored page is invisible to the lookup and gets duplicated.
         OUS_Pages::ensure('bh_courses', 'bhc_catalog_page_id', __('Courses', 'bh-courses'), ['bhc/catalog']);

@@ -4368,3 +4368,42 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     padding-left: 9px;
     text-indent: -9px;
 }
+
+/* A hover bridge between a menu item and its flyout.
+ *
+ * Measured at a 160px sidebar: the item's right edge sits at 153px and the
+ * flyout panel starts at 167px -- 14px of dead space between a control and
+ * the thing it opens. Crossing dead space is how a flyout closes under your
+ * pointer, and it is the difference between a menu that feels solid and one
+ * that feels like it is fighting you.
+ *
+ * A transparent ::before spanning the gap keeps the pointer inside the
+ * submenu's own hover region for the whole traverse. Nothing moves and
+ * nothing is repainted -- the panel stays exactly where it is, which is why
+ * this is preferable to nudging its left position and disturbing a layout
+ * core also depends on.
+ *
+ * Only for the real flyout state. The expanded in-place submenu of the
+ * current section has no gap to bridge. */
+#adminmenu li.menu-top .wp-submenu {
+    position: relative;
+}
+#adminmenu li.opensub .wp-submenu::before,
+#adminmenu li.menu-top:hover .wp-submenu::before,
+#adminmenu li.menu-top:focus-within .wp-submenu::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    /* Spans back across the gap to the item's edge. Wider than the measured
+       14px so a diagonal pointer path stays inside it too. */
+    right: 100%;
+    width: 20px;
+    background: transparent;
+}
+/* The expanded (non-flyout) submenu of the current section is inline, so it
+   must not grow a bridge into the content area. */
+#adminmenu li.wp-has-current-submenu .wp-submenu::before,
+#adminmenu li.wp-menu-open .wp-submenu::before {
+    content: none;
+}

@@ -1009,7 +1009,7 @@ class BHC_Admin {
      * @return array<string, string>
      */
     public static function add_catalog_view_link(array $views): array {
-        if (!class_exists('OUS_Pages')) return $views;
+        if (!method_exists('OUS_Pages', 'url')) return $views;
         $url = OUS_Pages::url('bh_courses', 'bhc_catalog_page_id');
         if (!$url) return $views;
         $views['bh-live-catalog'] = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">'

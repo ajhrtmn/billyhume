@@ -156,7 +156,7 @@ class BH_Auth {
         // activator records when it creates the page. Omitted entirely when
         // core is absent or no archive page exists -- never a link to nowhere.
         $back_link = '';
-        if (class_exists('OUS_Pages')) {
+        if (method_exists('OUS_Pages', 'url')) {
             $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
             if ($archive_url) {
                 $back_link = '<p class="ous-back-link bh-back-to-archive" style="margin:0 0 10px;">'
