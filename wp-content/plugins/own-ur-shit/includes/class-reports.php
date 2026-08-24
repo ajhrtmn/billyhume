@@ -82,26 +82,35 @@ class BHI_Reports {
                its backdrop. 50 sits below all real modal z-indices while
                staying above ordinary page content. */
             .bhi-tech-report { position: fixed; right: 16px; bottom: 16px; z-index: 50; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+            /* This widget renders on wp_footer -- the FRONT END -- but was styled
+               entirely in the --bhy-* namespace, which is the admin token set.
+               That bridge (shsas_bridge_bhy_tokens) is hooked to admin_head
+               only, so on the front end not one --bhy-* token is defined and
+               every value here silently fell back to its light hardcoded
+               default: a white pill floating on the dark portal, reported from
+               a real phone. Front-end surfaces use --bh-*; --bhy-* is kept as a
+               second fallback so the widget still themes correctly if it is
+               ever rendered inside wp-admin. */
             .bhi-tech-report-toggle {
-                background: var(--bhy-surface, #fff); color: var(--bhy-ink-dim, #646970);
-                border: 1px solid var(--bhy-border, #dcdcde); border-radius: 999px;
+                background: var(--bh-surface, var(--bhy-surface, #fff)); color: var(--bh-text-dim, var(--bhy-ink-dim, #646970));
+                border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde)); border-radius: 999px;
                 padding: 8px 16px; font-size: 12px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12);
             }
-            .bhi-tech-report-toggle:hover { color: var(--bhy-accent, #2271b1); border-color: var(--bhy-accent, #2271b1); }
+            .bhi-tech-report-toggle:hover { color: var(--bh-accent, var(--bhy-accent, #2271b1)); border-color: var(--bh-accent, var(--bhy-accent, #2271b1)); }
             .bhi-tech-report-panel {
                 position: absolute; right: 0; bottom: calc(100% + 8px); width: 280px;
-                background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde);
+                background: var(--bh-surface, var(--bhy-surface, #fff)); border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde));
                 border-radius: 8px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.16);
             }
-            .bhi-tech-report-intro { margin: 0 0 8px; font-size: 12px; color: var(--bhy-ink-dim, #646970); }
+            .bhi-tech-report-intro { margin: 0 0 8px; font-size: 12px; color: var(--bh-text-dim, var(--bhy-ink-dim, #646970)); }
             .bhi-tech-report-text {
                 width: 100%; box-sizing: border-box; font-size: 13px; padding: 8px;
-                border: 1px solid var(--bhy-border, #dcdcde); border-radius: 6px; resize: vertical;
+                border: 1px solid var(--bh-border, var(--bhy-border, #dcdcde)); border-radius: 6px; resize: vertical;
             }
             .bhi-tech-report-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
-            .bhi-tech-report-cancel { background: none; border: none; color: var(--bhy-ink-dim, #646970); cursor: pointer; font-size: 13px; }
+            .bhi-tech-report-cancel { background: none; border: none; color: var(--bh-text-dim, var(--bhy-ink-dim, #646970)); cursor: pointer; font-size: 13px; }
             .bhi-tech-report-submit {
-                background: var(--bhy-accent, #2271b1); color: #fff; border: none; border-radius: 6px;
+                background: var(--bh-accent, var(--bhy-accent, #2271b1)); color: #fff; border: none; border-radius: 6px;
                 padding: 6px 14px; font-size: 13px; cursor: pointer;
             }
             .bhi-tech-report-submit:disabled { opacity: .6; cursor: default; }
