@@ -78,6 +78,16 @@ Every real change still bumps the plugin header `Version:` and the matching cons
 - **Dependency direction** — peer plugins depend only on the core, never each other, always `class_exists()`-guarded at hook-call time. Unchanged and non-negotiable.
 - **Open/closed** — extend through the existing filters (`ous_debug_tools`, `bhcore_test_suites`, `bhy_style_surfaces`) rather than editing the core.
 
+## Wide tables
+
+`.bhy-table-wrap` (BHY_UI, `class-ui.php`) is still the convention: sticky header, horizontal scroll, denser padding. Use it.
+
+**It is now backed by a safety net rather than trust.** An audit on 2026-08-24 found **21** `table.widefat` instances rendered without the wrapper against **18** with it — more than half ignored the rule, and the visible result was Project Tracker overflowing horizontally on a phone (a 586px table, `overflow: visible`, no scroll parent).
+
+Below 782px, `.wrap table.widefat` / `.wrap table.wp-list-table` now become scrolling blocks themselves, and the wrapped case is explicitly restored to `display: table` so a scroll container never nests inside another. That covers tables added later that forget the wrapper.
+
+The net makes a missing wrapper *survivable*, not correct — you still lose the sticky header and the denser padding. Wrap new tables.
+
 ## The rendering layers — which tool owns what
 
 Three rendering technologies now coexist: Timber/Twig, Datastar, and Lit.

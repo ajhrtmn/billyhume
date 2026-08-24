@@ -925,6 +925,33 @@ class BHY_UI {
                as a multi-card dashboard would waste most of the screen. */
             .bhy-table-wrap { container-type: inline-size; overflow-x: auto; overflow-y: auto; max-height: 420px; -webkit-overflow-scrolling: touch; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
             .bhy-table-wrap.bhy-table-wrap--tall { max-height: 760px; }
+            /* Safety net for wide tables that were never wrapped. An audit on
+               2026-08-24 found 21 table.widefat instances rendered without
+               .bhy-table-wrap against 18 with it, so more than half the wide
+               tables in the ecosystem ignored the convention. The visible
+               result was reported from a phone: Project Tracker overflowed
+               horizontally, its table measuring 586px with overflow visible
+               and no scroll parent.
+
+               Making the table itself a scrolling block is the fix that does
+               not require touching 21 call sites in 12 files, and it covers
+               any table added later that forgets the wrapper. The wrapped
+               case is restored to display:table immediately below, since a
+               scroll container inside a scroll container is not wanted.
+
+               Only below 782px: on a desktop the table has room and normal
+               table layout is preferable. */
+            @media (max-width: 782px) {
+                .wrap table.widefat, .wrap table.wp-list-table {
+                    display: block;
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                }
+                .bhy-table-wrap table.widefat, .bhy-table-wrap table.wp-list-table {
+                    display: table;
+                    overflow-x: visible;
+                }
+            }
             .bhy-table-wrap table.wp-list-table, .bhy-table-wrap table.widefat { border: none; margin: 0; }
             .bhy-table-wrap table.wp-list-table thead th, .bhy-table-wrap table.widefat thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; white-space: nowrap; }
             /* Hover highlight — makes a dense, striped table easier to
