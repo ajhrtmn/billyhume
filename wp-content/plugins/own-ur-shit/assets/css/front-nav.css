@@ -1,4 +1,6 @@
-/* The menu's one call to action: Log In / Go to Portal.
+/* Front-end navigation affordances owned by the core plugin.
+ *
+ * The menu's one call to action: Log In / Go to Portal.
  *
  * Lives in the plugin, not the theme, for two reasons. OUS_MenuSync is the
  * single source of truth for this link (a theme-side copy was written once
@@ -57,4 +59,39 @@ li.ous-menu-account-cta {
     .ous-menu-account-cta > a:focus-visible {
         transform: none;
     }
+}
+
+/* Back-to-catalog / back-to-archive links.
+ *
+ * Shared because bh-courses and bh-contest render the same affordance for
+ * the same reason -- a single item was a dead end -- and two copies of one
+ * pattern is how they drift. Each plugin keeps its own specific class for
+ * targeting; this supplies the treatment.
+ *
+ * Measured before this rule: 97x20 and 83x16. These are standalone
+ * navigation links, not links inline in a sentence, so the WCAG 2.5.8
+ * inline-text exemption does not apply to them and they need a real target. */
+.ous-back-link,
+.ous-back-link > a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 4px 2px;
+    color: var(--bh-text-dim, #6b7280);
+    font-size: 14px;
+    text-decoration: none;
+}
+.ous-back-link:hover,
+.ous-back-link:focus-visible,
+.ous-back-link > a:hover,
+.ous-back-link > a:focus-visible {
+    color: var(--bh-accent, #c0563a);
+    text-decoration: underline;
+}
+.ous-back-link:focus-visible,
+.ous-back-link > a:focus-visible {
+    outline: 2px solid var(--bh-accent, #c0563a);
+    outline-offset: 2px;
+    border-radius: 4px;
 }

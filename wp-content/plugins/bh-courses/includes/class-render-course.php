@@ -30,6 +30,21 @@ class BHC_Render_Course {
         $has_cover = has_post_thumbnail($course_id);
 
         ob_start();
+        // A single course was a dead end: nothing on the page led back to the
+        // catalog it came from, so the only way out was the browser Back
+        // button or the site menu. OUS_Pages resolves the catalog rather than
+        // hardcoding a slug, because which page hosts [bh_courses] is the
+        // author's choice. class_exists() at hook-call time, and the link is
+        // simply omitted when core is absent or no catalog page exists --
+        // never a link to nowhere.
+        if (class_exists('OUS_Pages')) {
+            $catalog = OUS_Pages::url('bh_courses', 'bhc_catalog_page_id');
+            if ($catalog) {
+                echo '<a class="ous-back-link bhc-back-to-catalog" href="' . esc_url($catalog) . '">'
+                    . '<span aria-hidden="true">&larr;</span> '
+                    . esc_html__('All courses', 'bh-courses') . '</a>';
+            }
+        }
         echo '<div class="bhc-course-header">';
         // Real live-caught inconsistency (2026-08): this used to skip the
         // hero entirely with no cover set ("obvious-or-gone"), falling

@@ -51,12 +51,13 @@ class OUS_MenuSync {
 
     /**
      * Front-end only, and only where a nav menu can actually appear.
-     * Styling ships with the plugin because OUS_MenuSync owns this link and
+     * Also carries the shared back-link treatment both bh-courses and
+     * bh-contest use. Ships with the plugin because OUS_MenuSync owns this link and
      * because this install's host deploys plugins but not themes.
      */
     public static function enqueue_cta_style(): void {
         if (is_admin()) return;
-        wp_enqueue_style('ous-menu-cta', OUS_URL . 'assets/css/menu-cta.css', [], OUS_VER);
+        wp_enqueue_style('ous-front-nav', OUS_URL . 'assets/css/front-nav.css', [], OUS_VER);
     }
 
     /**

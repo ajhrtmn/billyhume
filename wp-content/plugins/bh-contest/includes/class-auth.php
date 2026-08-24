@@ -149,6 +149,22 @@ class BH_Auth {
         // regardless of playback state. Only shown when the current
         // user actually has a submission for THIS contest — no reason
         // to show it to someone who hasn't entered.
+        // A single contest was a dead end -- nothing on the page led back to
+        // the archive it belongs to. OUS_Pages resolves which page hosts
+        // [bh_archive] rather than hardcoding a slug, since that is the
+        // author's choice; bh_archive_page_id is what this plugin's own
+        // activator records when it creates the page. Omitted entirely when
+        // core is absent or no archive page exists -- never a link to nowhere.
+        $back_link = '';
+        if (class_exists('OUS_Pages')) {
+            $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
+            if ($archive_url) {
+                $back_link = '<p class="ous-back-link bh-back-to-archive" style="margin:0 0 10px;">'
+                    . '<a href="' . esc_url($archive_url) . '">'
+                    . '<span aria-hidden="true">&larr;</span> All contests</a></p>';
+            }
+        }
+
         $submission_link = '';
         if ($cid && is_user_logged_in() && class_exists('BH_Helpers') && BH_Helpers::has_submitted(get_current_user_id(), $cid) && class_exists('BHI_Portal')) {
             $portal_url = home_url('/' . BHI_Portal::REWRITE_SLUG . '/submissions/');
@@ -159,7 +175,7 @@ class BH_Auth {
             // with render_slot()'s own output, silently discarding the
             // "Manage my submission" link assigned above every time.
             // Now appends instead.
-            $before = $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
+            $before = $back_link . $submission_link . BH_Element::render_slot('bh_contest_player', $cid, 'before_player', ['contest_id' => $cid]);
             $after  = BH_Element::render_slot('bh_contest_player', $cid, 'after_player', ['contest_id' => $cid]);
 
             // Task #80's real, safe slice: this one DOES need to end up
@@ -188,7 +204,7 @@ class BH_Auth {
             self::attach_extra_zone($attrs, $cid, 'results_modal_intro', 'results-modal-intro');
         } elseif ($submission_link) {
             // BH_Element not loaded — no slot content to merge with, but the submission link still stands on its own.
-            $before = $submission_link;
+            $before = $back_link . $submission_link;
         }
 
         return $before . '<div ' . $attrs . '></div>' . $after;

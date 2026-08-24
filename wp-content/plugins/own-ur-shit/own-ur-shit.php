@@ -2,14 +2,14 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.10.46
+ * Version:     3.10.47
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.10.46');
+define('OUS_VER', '3.10.47');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -49,7 +49,7 @@ if (is_readable(OUS_PATH . 'vendor/autoload.php')) {
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['tables', 'view', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['tables', 'view', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'identity-activator', 'style', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'design-suite', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'seo', 'metrics', 'style-surface', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -104,6 +104,7 @@ add_filter('cron_schedules', ['OUS_Jobs', 'register_cron_schedule']);
 // in proper priority order, during the one real 'init' pass. See
 // class-jobs.php's/class-notifications.php's own init() docblocks for
 // what each individually-nested registration is for.
+OUS_Pages::init();
 OUS_Jobs::init();
 OUS_Notifications::init();
 add_action('init',          ['OUS_Roles', 'init']);
