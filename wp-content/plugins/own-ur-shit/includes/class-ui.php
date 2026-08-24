@@ -755,6 +755,14 @@ class BHY_UI {
                 --bhy-space-5: 20px; --bhy-space-6: 24px; --bhy-space-8: 32px;
                 --bhy-text-xs: 11px; --bhy-text-sm: 12px; --bhy-text-base: 13px; --bhy-text-md: 14px;
                 --bhy-text-lg: 16px; --bhy-text-xl: 20px; --bhy-text-2xl: 24px;
+                /* How far a sticky element must sit below the WordPress admin
+                   bar. Below 782px core switches #wpadminbar to
+                   position:absolute so it scrolls away entirely, and anything
+                   still reserving space for it leaves a dead band that page
+                   content shows through. That exact bug shipped twice --
+                   the front-end site header and this quicknav -- so the offset
+                   is a token now rather than a literal repeated per surface. */
+                --bhy-admin-bar-offset: 32px;
                 --bhy-ink: #1d2327; --bhy-ink-dim: #646970; --bhy-border: #dcdcde; --bhy-surface: #fff;
                 --bhy-subtle: #f6f7f7; --bhy-accent: #2271b1;
                 --bhy-success: #1a7f37; --bhy-success-bg: #dafbe1;
@@ -799,6 +807,12 @@ class BHY_UI {
             /* Alert — left-border-accented, Primer-style; one shared
                shape for warning/success/danger/info instead of each
                admin screen picking its own ad hoc colors/padding. */
+            @media screen and (max-width: 782px) {
+                :root { --bhy-admin-bar-offset: 0px; }
+            }
+            /* Any admin surface that needs to stick below the bar should use
+               this rather than hardcoding a pixel value. */
+            .bhy-sticky-below-bar { position: sticky; top: var(--bhy-admin-bar-offset); }
             .bhy-alert {
                 border: 1px solid var(--bhy-border); border-left-width: 4px; border-radius: var(--bhy-radius-sm);
                 padding: var(--bhy-space-3) var(--bhy-space-4); margin-bottom: var(--bhy-space-4); font-size: var(--bhy-text-base);

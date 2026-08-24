@@ -482,7 +482,7 @@ class OUS_Debug {
         // "Jump to" reads as a map of the page's actual structure, not
         // just a flat alphabet-soup of every section title in
         // registration order.
-        echo '<div class="ous-debug-quicknav" style="position:sticky;top:32px;z-index:10;background:var(--bhy-surface,#fff);border:1px solid var(--bhy-border,#dcdcde);border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:6px;font-size:12px;">';
+        echo '<div class="ous-debug-quicknav" style="position:sticky;top:var(--bhy-admin-bar-offset,32px);z-index:10;background:var(--bhy-surface,#fff);border:1px solid var(--bhy-border,#dcdcde);border-radius:4px;padding:8px 12px;margin-bottom:16px;display:flex;flex-direction:column;gap:6px;font-size:12px;">';
         foreach ($grouped as $group_label => $group_tools) {
             echo '<span class="ous-debug-quicknav-group"><strong>' . esc_html($group_label) . ':</strong>';
             foreach ($group_tools as $key => $tool) {

@@ -971,7 +971,15 @@ class BHI_Portal {
      padding drops so it isn't fighting a phone's own margins. */
   @media (max-width: 782px) {
     .bhi-portal-shell { flex-direction:column; }
-    .bhi-portal-nav { width:100%; display:flex; overflow-x:auto; padding:8px 0; border-right:none; border-bottom:1px solid var(--bh-border, #e2e2e2); -webkit-overflow-scrolling:touch; }
+        /* Was `overflow-x:auto` -- a horizontal scroll strip. Reported from a
+       real phone: "I cannot tap into dashboard from the portal." The strip
+       keeps its scroll position, so with it scrolled right the FIRST items
+       (Dashboard among them) sat off-screen left with no affordance to get
+       back -- a nav item that cannot be reached is a functional dead end,
+       not a polish issue. Wrapping costs a row or two of height and makes
+       every destination reachable without scrolling, which is the correct
+       trade for a nav. */
+    .bhi-portal-nav { width:100%; display:flex; flex-wrap:wrap; row-gap:2px; padding:8px 0; border-right:none; border-bottom:1px solid var(--bh-border, #e2e2e2);  }
     .bhi-portal-brand { display:none; } /* the page <title>/site header already says whose account this is */
     .bhi-portal-nav a { flex-shrink:0; padding:10px 14px; border-left:none; border-bottom:3px solid transparent; }
     .bhi-portal-nav a.is-active { border-left-color:transparent; border-bottom-color:var(--bh-accent, #2271b1); }

@@ -1,0 +1,20 @@
+# Deny direct web access to the dependency tree.
+#
+# Scope of what this actually fixes: PHP files here are EXECUTED rather than
+# served as source (verified against production), so this is not closing a
+# code-disclosure hole. It closes an information-disclosure one — composer.json,
+# composer.lock and vendor/composer/installed.json are served verbatim and
+# publish the exact version of every dependency, which turns CVE matching into
+# a lookup rather than a guess.
+#
+# Apache only. The Wasmer production runtime does not appear to honour
+# .htaccess, so treat this as protection for ordinary shared hosting (Billy's
+# FTP target) and NOT as the whole answer. Closing it on Wasmer needs a rule in
+# that platform's own config, which lives outside this repo.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
