@@ -20,16 +20,18 @@
     "test:unit:watch": "vitest",
     "audit:ux": "playwright test",
     "audit:ux:ui": "playwright test --ui",
-    "build:all": "npm run build:own-ur-shit && npm run build:bh-contest && npm run build:bh-crm && npm run build:bh-streaming && npm run build:bh-courses",
+    "build:all": "npm run build:own-ur-shit && npm run build:bh-contest && npm run build:bh-crm && npm run build:bh-streaming && npm run build:bh-courses && npm run build:components",
     "check": "npm run build:all && npm run lint:css && npm run test:unit",
     "storybook:fixtures": "php tools/gen-storybook-fixtures.php",
     "storybook": "npm run storybook:fixtures && storybook dev -p 6006 --no-open",
-    "storybook:build": "npm run storybook:fixtures && storybook build -o storybook-static"
+    "storybook:build": "npm run storybook:fixtures && storybook build -o storybook-static",
+    "build:components": "esbuild wp-content/plugins/own-ur-shit/assets/ts/components/index.ts --bundle --format=esm --target=es2022 --minify --outfile=wp-content/plugins/own-ur-shit/assets/js/components/bhy-components.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/html-vite": "^10.5.10",
+    "lit": "^3.3.3",
     "storybook": "^10.5.10",
     "stylelint": "^17.14.1",
     "stylelint-config-standard": "^40.0.0",

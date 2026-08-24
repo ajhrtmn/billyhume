@@ -78,6 +78,37 @@ Every real change still bumps the plugin header `Version:` and the matching cons
 - **Dependency direction** — peer plugins depend only on the core, never each other, always `class_exists()`-guarded at hook-call time. Unchanged and non-negotiable.
 - **Open/closed** — extend through the existing filters (`ous_debug_tools`, `bhcore_test_suites`, `bhy_style_surfaces`) rather than editing the core.
 
+## The rendering layers — which tool owns what
+
+Three rendering technologies now coexist: Timber/Twig, Datastar, and Lit.
+That is only an improvement if the boundary is explicit. Without a rule,
+"use each where it makes sense" becomes four idioms and *more* context to
+hold, which is the opposite of the point.
+
+**The deciding question is: where does the state live?**
+
+| Where state lives | Tool | Owns |
+|---|---|---|
+| Server, rendered once per request | **Timber/Twig** | page structure, component markup, lists, tables, forms, admin screens |
+| Server, changes over time | **Datastar** | live status, anything that would otherwise be a REST-polling loop or a hand-rolled fetch-and-replace |
+| Browser, local to one widget | **Lit** | players, editors, drag-reorder, timelines, canvases — behaviour with no server round-trip |
+| — | **plain PHP** | the fallback when the template engine is unavailable (see `BHY_View::is_available()`) |
+
+**Worked examples.**
+
+- A supporter-tier table → Timber. Server renders it once; nothing changes until the page reloads.
+- A "sync in progress" badge that updates as a job runs → Datastar. State is authoritative on the server and changes over time.
+- The audio player's scrub bar → Lit. Position, buffering and waveform are browser-local; the server has no opinion mid-track.
+- A quiz editor reordering questions → Lit for the drag interaction, Timber for the initial render, and a normal form POST to persist. All three, each doing its own job.
+
+**Rules that keep this from sprawling.**
+
+1. **Default to Timber.** It is the boring choice and correct for most of this codebase — the measured markup surface is ~2,857 lines of server-rendered output. Reach for the others only when the table above says to.
+2. **Never use two for one job.** If Datastar can swap a fragment, do not also build a Lit component that fetches the same data. The overlap between Datastar and Lit is the real risk; Timber barely overlaps either.
+3. **Lit components must render into light DOM.** Shadow DOM encapsulates styles, which would cut them off from `--shsas-*`/`--bhy-*` tokens and `admin-skin.css` — the design system stops reaching inside. Override `createRenderRoot()` to return `this`.
+4. **Lit is progressive enhancement, not the render path.** The server sends real, styled, working markup; the custom element upgrades it. If the JS never loads, the page still works. A component that renders nothing until hydrated is doing it wrong here.
+5. **Everything degrades.** Timber falls back to PHP, Datastar falls back to a normal form POST, Lit falls back to the server-rendered markup underneath it. This ecosystem runs on ordinary shared hosting and a WASM runtime with no openssl; assume the enhancement layer can be absent.
+
 ## Sharing code between plugins
 
 The recurring question is whether this ecosystem needs a NuGet-style shared-project mechanism, especially now that a build step exists. **It already has one, and the build step is the wrong lever.**
