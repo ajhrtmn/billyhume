@@ -345,24 +345,33 @@ body.wp-admin, body.wp-admin #wpcontent, body.wp-admin #wpbody-content {
 /* Real bug found auditing WooCommerce's settings screen: WooCommerce's
    own admin CSS sets a hardcoded light #wpcontent/#wpbody-content/form
    background on its embedded-admin pages (body carries a big stack of
-   woocommerce-* classes, and Woo's own rule was winning the cascade
+   woocommerce-* classes,
+and Woo's own rule was winning the cascade
    without !important above) — the whole page read as light gray with
    near-black form inputs instead of this skin's dark surface. Same
    root cause as every other fight already won in this file. */
-.wrap.woocommerce, #mainform, .woocommerce-layout__header,
-.woocommerce-layout__header-wrapper, .woocommerce-layout__primary {
+.wrap.woocommerce,
+#mainform,
+.woocommerce-layout__header,
+.woocommerce-layout__header-wrapper,
+.woocommerce-layout__primary {
     background: transparent !important;
 }
-/* Real bug, same failure mode as .components-button (0.6.1) and
-   .form-table th (0.4.12), found on this exact screen: WooCommerce's
+/* Real bug,
+same failure mode as .components-button (0.6.1) and
+   .form-table th (0.4.12),
+found on this exact screen: WooCommerce's
    own @woocommerce/components package renders its page title through
    a <Text>/Truncate component (.woocommerce-layout__header-heading)
    which — like core Gutenberg's own components — ships a near-black
    default (#1e1e1e) with no color rule of this skin's ever reaching
-   it. A DIFFERENT package than @wordpress/components, so 0.6.1's
-   .components-button fix didn't cover it — same bug, third distinct
+   it. A DIFFERENT package than @wordpress/components,
+so 0.6.1's
+   .components-button fix didn't cover it — same bug,
+third distinct
    component library it's been found in now. */
-.woocommerce-layout__header-heading, .woocommerce-layout .components-text {
+.woocommerce-layout__header-heading,
+.woocommerce-layout .components-text {
     color: var(--shsas-text) !important;
 }
 body.wp-admin { font-family: var(--shsas-font); }
@@ -1508,18 +1517,26 @@ body.wp-admin *:focus-visible {
     margin-bottom: var(--shsas-space-5);
     transition: box-shadow var(--shsas-speed) ease, border-color var(--shsas-speed) ease;
 }
-/* Real bug, direct field report: WooCommerce's Home dashboard
+/* Real bug,
+direct field report: WooCommerce's Home dashboard
    (admin.php?page=wc-admin) is built entirely on @wordpress/components'
    generic Card surface (.components-surface.components-card) — the
-   task list, stats overview, activity panel, and every inbox message
+   task list,
+stats overview,
+activity panel,
+and every inbox message
    all rendered solid white with zero token coverage. Genuinely
    different rendering layer than the .postbox/.card family above
-   (React, not classic PHP markup), same "modern admin screen the
+   (React,
+not classic PHP markup),
+same "modern admin screen the
    classic sweep never reaches" category as the Gutenberg editor
-   chrome and the WooCommerce Payment Settings screen, both already
+   chrome and the WooCommerce Payment Settings screen,
+both already
    fixed this same pass. Themed as its own real card surface (matching
    this skin's existing card-shape unification) rather than folded
-   into the selector list above, since its internal header/body/footer
+   into the selector list above,
+since its internal header/body/footer
    sub-parts need their own text-color rules the simpler .postbox-style
    cards don't have. */
 .components-surface.components-card {
@@ -1548,20 +1565,25 @@ body.wp-admin *:focus-visible {
     background: var(--shsas-surface) !important;
     color: var(--shsas-text) !important;
 }
-/* Real bug, re-verified live: the task-list ROWS use
-   .woocommerce-experimental-list__item, a distinct, newer class from
+/* Real bug,
+re-verified live: the task-list ROWS use
+   .woocommerce-experimental-list__item,
+a distinct,
+newer class from
    the .woocommerce-list__item already fixed for the Payments screen's
-   provider cards above — same component family, different version,
-   never caught by that earlier fix. */
+   provider cards above — same component family,
+different version,
+never caught by that earlier fix. */
 .woocommerce-experimental-list__item {
     background: var(--shsas-surface) !important;
     color: var(--shsas-text) !important;
     border-color: var(--shsas-border) !important;
 }
 /* The "Start customizing your store" task-card heading is a bare,
-   classless <h1> inside .components-card — inherits nothing from any
+classless <h1> inside .components-card — inherits nothing from any
    rule above since its own near-black color is set explicitly by
-   WooCommerce's own styles, not left to inherit. */
+   WooCommerce's own styles,
+not left to inherit. */
 .woocommerce-task-card h1,
 .woocommerce-homescreen-card h1 {
     color: var(--shsas-text) !important;
@@ -1569,28 +1591,36 @@ body.wp-admin *:focus-visible {
 .woocommerce-inbox-message__title,
 .woocommerce-inbox-message__title * { color: var(--shsas-text) !important; }
 .woocommerce-inbox-message__date { color: var(--shsas-text-dim) !important; }
-/* Real bug, same sweep: WooCommerce's Home "Things to do next" step
+/* Real bug,
+same sweep: WooCommerce's Home "Things to do next" step
    counter badge (the numbered circle before each item) and the Stats
    Overview widget's own labels/values all set their own explicit
-   near-black color, not inherited from any rule above. */
+   near-black color,
+not inherited from any rule above. */
 .woocommerce-task-list__item .woocommerce-task-list__item-before,
 .woocommerce-stats-overview__label,
 .woocommerce-stats-overview__value,
 .woocommerce-stats-overview__delta {
     color: var(--shsas-text) !important;
 }
-/* Real bug, same sweep: the Stats Overview totals row
+/* Real bug,
+same sweep: the Stats Overview totals row
    (.woocommerce-summary__item) sets its OWN explicit white background,
-   independent of the .components-surface.components-card fix above —
-   it's a plain <a>, not a Card component. Its label/value text was
-   already themed light by the fix above, so the white bg alone made it
+independent of the .components-surface.components-card fix above —
+   it's a plain <a>,
+not a Card component. Its label/value text was
+   already themed light by the fix above,
+so the white bg alone made it
    unreadable. Same for the Jetpack traffic-stats promo card's bare,
-   classless <h2> (no component class to hook, needs a descendant
-   selector off its one real ancestor), the "Get Jetpack"/"No thanks"
+classless <h2> (no component class to hook,
+needs a descendant
+   selector off its one real ancestor),
+the "Get Jetpack"/"No thanks"
    buttons on that same promo (another @wordpress/components Button
-   with its own hardcoded #1e1e1e text — the recurring pattern), and
+   with its own hardcoded #1e1e1e text — the recurring pattern),
+and
    the "4"/"8" task/inbox-count badges (own hardcoded light-grey pill,
-   never themed). */
+never themed). */
 .woocommerce-summary__item {
     background: var(--shsas-surface) !important;
 }
@@ -1609,30 +1639,36 @@ body.wp-admin *:focus-visible {
     color: var(--shsas-bg) !important;
 }
 /* Site-wide admin bar item (WooCommerce's "Store coming soon" site-
-   visibility badge), not WC Home-specific — the <a> itself carries its
-   own light pill background (not inherited from the admin bar), so
+   visibility badge),
+not WC Home-specific — the <a> itself carries its
+   own light pill background (not inherited from the admin bar),
+so
    fixing text color alone wasn't enough; low contrast against the
    themed admin bar bg without it. */
 #wp-admin-bar-woocommerce-site-visibility-badge .ab-item {
     background: var(--shsas-surface-alt, var(--shsas-bg)) !important;
     color: var(--shsas-text-dim) !important;
 }
-/* Payments settings tab (newer @woocommerce/components layer, same
+/* Payments settings tab (newer @woocommerce/components layer,
+same
    Emotion CSS-in-JS pattern as the WC Home fixes above): the
    "Official" extension badge pill and the "+N payment methods" logo
    counter and the "More payment options" expand-section button all
-   set their own explicit near-black text, same recurring pattern. */
+   set their own explicit near-black text,
+same recurring pattern. */
 .woocommerce-official-extension-badge,
 .woocommerce-woopayments-payment-methods-logos-count,
 .other-payment-gateways__header__title {
     color: var(--shsas-text) !important;
 }
 /* Shipping settings tab: the zone-list blank-state help copy
-   (classic PHP markup, WooCommerce's own muted #515151 body-text
+   (classic PHP markup,
+WooCommerce's own muted #515151 body-text
    default) and the zone-methods "No shipping methods offered" list
    item both need the themed dim/text colors; the "Recommended
    shipping solutions" panel below is the same newer @woocommerce/
-   components layer as the rest of this file's WC fixes, its own
+   components layer as the rest of this file's WC fixes,
+its own
    explicit near-black text again. */
 .wc-shipping-zones-blank-state p,
 .wc-shipping-zones-blank-state li,
@@ -2159,9 +2195,10 @@ table.widefat.striped tbody tr:nth-child(odd) { background: var(--shsas-surface-
 }
 /* WooCommerce's own dismissible admin notice ("Your store doesn't
    include...") — the notice container itself was already reading this
-   skin's text token correctly, but its own close-X link
+   skin's text token correctly,
+but its own close-X link
    (a.woocommerce-message-close) sets an explicit near-black #1e1e1e,
-   invisible against the now-dark notice. */
+invisible against the now-dark notice. */
 a.woocommerce-message-close.notice-dismiss { color: var(--shsas-text-dim) !important; }
 a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !important; }
 /* The EXACT same failure mode as .subsubsub .current above, just on
@@ -2180,7 +2217,8 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
 .wp-filter .search-form label,
 .wp-filter .search-form .screen-reader-text + label { color: var(--shsas-text-dim); }
 /* `.nav-tab-wrapper` (tabbed settings screens — WooCommerce's General/
-   Products/Shipping tabs, any peer plugin using WP's own tab
+   Products/Shipping tabs,
+any peer plugin using WP's own tab
    convention) had zero coverage; same audit. */
 .nav-tab-wrapper { border-bottom-color: var(--shsas-border) !important; }
 .nav-tab {
@@ -2189,21 +2227,31 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     color: var(--shsas-text-dim) !important;
 }
 .nav-tab:hover { color: var(--shsas-text) !important; }
-/* Real bug, direct field report: `.nav-tab-wrapper` above never
-   actually got a BACKGROUND, only a border-color — invisible on the
-   classic Settings tabs (General/Shipping), where each tab's own
-   transparent bg + dark text was enough to read as themed, but
+/* Real bug,
+direct field report: `.nav-tab-wrapper` above never
+   actually got a BACKGROUND,
+only a border-color — invisible on the
+   classic Settings tabs (General/Shipping),
+where each tab's own
+   transparent bg + dark text was enough to read as themed,
+but
    WooCommerce's newer React-based Payment Settings screen
-   (@woocommerce/components, a different rendering layer than the
-   classic PHP tabs, same "modern admin screen the classic CSS sweep
+   (@woocommerce/components,
+a different rendering layer than the
+   classic PHP tabs,
+same "modern admin screen the classic CSS sweep
    never reaches" category as the Gutenberg editor chrome fixed
    earlier this session) uses the SAME .nav-tab-wrapper class
-   (.woo-nav-tab-wrapper) as its own top-level page background, with
+   (.woo-nav-tab-wrapper) as its own top-level page background,
+with
    real content sitting directly inside it — so the missing background
-   was a stark, large white panel here instead of a thin invisible
+   was a stark,
+large white panel here instead of a thin invisible
    sliver. Also covers the payment-provider list cards
-   (.woocommerce-list__item, WooCommerce's own List component) and the
-   business-location dropdown wrapper, neither of which inherited
+   (.woocommerce-list__item,
+WooCommerce's own List component) and the
+   business-location dropdown wrapper,
+neither of which inherited
    anything from the generic .nav-tab-wrapper fix. */
 .nav-tab-wrapper,
 .woo-nav-tab-wrapper {
@@ -2224,9 +2272,11 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
 }
 /* Same "@wordpress/components Button ships its own explicit #1e1e1e
    text color" bug already found and fixed inside the Gutenberg editor
-   chrome earlier this session — this is the identical component, just
+   chrome earlier this session — this is the identical component,
+just
    reachable outside that scoped fix (WooCommerce's own React settings
-   screen, not the block editor). */
+   screen,
+not the block editor). */
 .settings-payment-gateways__header-select-container .components-button {
     color: var(--shsas-text) !important;
 }
@@ -2235,20 +2285,27 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     color: var(--shsas-text) !important;
     border-bottom-color: var(--shsas-surface) !important;
 }
-
 /* ---------------- forms ---------------- */
 
-/* Real, serious bug found auditing General Settings AND WooCommerce
+/* Real,
+serious bug found auditing General Settings AND WooCommerce
    Settings: `.form-table th` (every field label on every classic
-   settings screen in wp-admin — General, Writing, Reading, Discussion,
-   WooCommerce's tabs, any peer plugin using WP's own Settings API) was
-   never given a color rule at all, so it sat on WP core's own default
+   settings screen in wp-admin — General,
+Writing,
+Reading,
+Discussion,
+WooCommerce's tabs,
+any peer plugin using WP's own Settings API) was
+   never given a color rule at all,
+so it sat on WP core's own default
    near-black (#1d2327) — invisible-by-degrees against this skin's dark
    surfaces. The table headers bug fixed earlier was the same root
    cause in a different WP core component; this is the settings-form
    equivalent and is arguably more serious since it's the actual field
-   labels, not just column headers. */
-.form-table th, .form-table th label {
+   labels,
+not just column headers. */
+.form-table th,
+.form-table th label {
     color: var(--shsas-text) !important;
     font-weight: 600;
 }
@@ -2292,24 +2349,33 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     border-color: var(--shsas-border) !important;
 }
 .wp-admin textarea { min-height: 80px; }
-/* Real layout bug, caught live on WooCommerce's Shipping tab: the
+/* Real layout bug,
+caught live on WooCommerce's Shipping tab: the
    Length/Width/Height dimension fields are a genuinely narrow,
-   WP/WooCommerce-core-fixed width (~59px) — this skin's own 14px body
+WP/WooCommerce-core-fixed width (~59px) — this skin's own 14px body
    font-size (bumped up from core's smaller default for readability,
-   same accessibility reasoning as everywhere else in this file) left
+same accessibility reasoning as everywhere else in this file) left
    too little room for the placeholder text to render without clipping
    ("Length" -> "Leng"). Tighter horizontal padding on just these
    specific narrow fields restores legible placeholders without
    touching the font-size win everywhere else. */
 .wc_input_dimensions { padding: 0 6px !important; }
-/* Select2 (WooCommerce's "enhanced select" — country/state, selling/
-   shipping locations, product categories, and any peer plugin using
+/* Select2 (WooCommerce's "enhanced select" — country/state,
+selling/
+   shipping locations,
+product categories,
+and any peer plugin using
    the same wc-enhanced-select convention) hides the real <select> and
-   renders its own widget, so the plain `select` rule above never
-   touches it — confirmed live on WooCommerce Settings, a fully white
+   renders its own widget,
+so the plain `select` rule above never
+   touches it — confirmed live on WooCommerce Settings,
+a fully white
    dropdown next to otherwise-themed dark inputs. Covers the closed
-   control, its open dropdown panel (appended to <body>, not a
-   descendant of the field), and the in-panel search box. */
+   control,
+its open dropdown panel (appended to <body>,
+not a
+   descendant of the field),
+and the in-panel search box. */
 .select2-container .select2-selection {
     background: var(--shsas-surface) !important;
     border-color: var(--shsas-border) !important;
@@ -2336,13 +2402,19 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
     color: var(--shsas-accent) !important;
 }
 /* Real gap from the reconciliation sweep: jQuery UI's datepicker
-   (appended to <body>, same "not a descendant of the field" shape as
+   (appended to <body>,
+same "not a descendant of the field" shape as
    Select2's own dropdown above) was completely untouched — still
-   default jQuery UI theme (white bg, grey text, grey header). Found
+   default jQuery UI theme (white bg,
+grey text,
+grey header). Found
    live via WooCommerce's "Schedule" sale-price-dates control (Product
-   edit screen), the one confirmed real usage of this component
+   edit screen),
+the one confirmed real usage of this component
    anywhere in the ecosystem — Design Suite's own color/date inputs
-   turned out to be native <input type=color">, not this component, so
+   turned out to be native <input type=color">,
+not this component,
+so
    this was the only place actually worth checking. */
 .ui-datepicker {
     background: var(--shsas-surface) !important;
@@ -2535,8 +2607,10 @@ a.woocommerce-message-close.notice-dismiss:hover { color: var(--shsas-text) !imp
 }
 /* WooCommerce's own order-status pill (Orders list + single-order
    screen) and own-ur-shit's .ous-badge now share .bhy-badge's exact
-   shape/glow rule above (grouped selector) — a real, unstyled
-   orphaned-light-box find from the audit, and a genuinely good fit
+   shape/glow rule above (grouped selector) — a real,
+unstyled
+   orphaned-light-box find from the audit,
+and a genuinely good fit
    for the glow-for-importance language: an order's status IS an
    importance signal. Only the semantic hue mapping is unique per
    system from here down. */
@@ -3361,15 +3435,18 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
     border-radius: 50%;
 }
 .media-modal .media-modal-close:hover { color: var(--shsas-text); }
-
 /* ---------------- peer-plugin bespoke widgets ---------------- */
 
 /* bh-contest's own stat-bar widget (Contest Results admin screen —
    "Total Votes"/"Unique Voters"/"Last Vote") ships a hardcoded white
-   card background, same orphaned-white-box pattern as everything else
-   in this audit, just in a peer plugin's own bespoke markup instead of
-   a WP-core/WooCommerce component this time — confirmed live, text
-   color was already fine (correctly inheriting), only the background
+   card background,
+same orphaned-white-box pattern as everything else
+   in this audit,
+just in a peer plugin's own bespoke markup instead of
+   a WP-core/WooCommerce component this time — confirmed live,
+text
+   color was already fine (correctly inheriting),
+only the background
    was wrong. */
 .bh-stat {
     background: var(--shsas-surface) !important;
@@ -3420,34 +3497,41 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
 .ous-badge-missing { --shsas-glow: var(--shsas-text-dim); }
 .ous-badge-beta { --shsas-glow: var(--shsas-accent); }
 .ous-badge-experimental { --shsas-glow: var(--shsas-info); }
-
 /* own-ur-shit's Metrics dashboard (admin.php?page=ous-metrics) used to
    need a full block of colour overrides here — it was a separate
    hardcoded-CSS mechanism (its own inline \3c style> echoed from
-   class-metrics.php, plus a sparkline SVG with a literal
-   stroke="#2271b1"), with no custom properties for the token bridge to
-   reach. own-ur-shit 3.10.32 migrated both to --bhy-* tokens, so all
+   class-metrics.php,
+plus a sparkline SVG with a literal
+   stroke="#2271b1"),
+with no custom properties for the token bridge to
+   reach. own-ur-shit 3.10.32 migrated both to --bhy-* tokens,
+so all
    of it now themes itself through the bridge and every one of those
    overrides has been deleted as genuinely dead. Shape (radius/shadow/
    hover-glow) still comes from the shared .postbox-family rule above,
-   since the plugin's own CSS has no opinion about elevation.
+since the plugin's own CSS has no opinion about elevation.
    Verified live after the migration: card background resolves to the
    warm surface token and the sparkline stroke computes to the accent,
-   with no rule from this file involved. */
+with no rule from this file involved. */
 
-/* WooCommerce's Product edit screen (Track 1, next surface per the
-   plan) — two real bugs, neither covered by any prior fix since this
+/* WooCommerce's Product edit screen (Track 1,
+next surface per the
+   plan) — two real bugs,
+neither covered by any prior fix since this
    screen had never actually been opened this session before now:
    `.panel-wrap.product_data` (the tabbed General/Inventory/Shipping/
-   etc. panel container itself, wrapping the tab content) ships a
+   etc. panel container itself,
+wrapping the tab content) ships a
    hardcoded white background — a visible white strip at the bottom
    edge of the postbox even though the tab CONTENT above it was
    already correctly dark (from the generic input/form rules). The
    short-description classic editor's own tab pills
    (.wp-switch-editor "Visual"/"Code") and quicktags toolbar
-   (.quicktags-toolbar) are a different, older WP editor mechanism
+   (.quicktags-toolbar) are a different,
+older WP editor mechanism
    than the block editor's @wordpress/components fixed earlier —
-   never covered by those rules, confirmed unstyled light-gray here. */
+   never covered by those rules,
+confirmed unstyled light-gray here. */
 .panel-wrap.product_data { background: transparent !important; }
 .wp-switch-editor {
     background: var(--shsas-surface-2) !important;
@@ -3730,4 +3814,163 @@ body.login #nav a:hover, body.login #backtoblog a:hover { color: var(--shsas-acc
    is how it comes back a fourth time. */
 .community-events-footer {
     color: var(--shsas-text-dim) !important;
+}
+
+/* ==========================================================================
+   THIRD-PARTY CONTAINMENT
+   ==========================================================================
+
+   Applies only where shsas_screen_is_owned() returned false -- a plugin page
+   that is not part of this ecosystem. See the long note on that function in
+   self-hosted-self-admin-skin.php, and THIRD-PARTY-SKINNING.md.
+
+   The measured problem: WooCommerce Analytics rendered rgb(30,30,30) text on
+   rgb(22,20,15) -- 1.1:1. WooCommerce paints no background there because it
+   inherits WordPress's white canvas; this skin repaints that canvas dark.
+   Every plugin written against WordPress's own light admin hits this, so the
+   fix belongs at the canvas, not in per-plugin color patches.
+
+   Scope is #wpbody-content only. The admin bar and admin menu stay fully
+   themed -- our chrome, their content. That boundary is the whole idea.
+
+   These are WordPress core's own admin values, not invented ones, so a
+   third-party stylesheet lands on exactly the surface it was authored for.
+
+   These carry !important because the rule they override -- the canvas paint
+   on `body.wp-admin, #wpcontent, #wpbody-content` -- is itself !important,
+   so equal specificity and later source order are not enough to win. */
+body.shsas-unowned #wpcontent,
+body.shsas-unowned #wpbody,
+body.shsas-unowned #wpbody-content {
+    background: #f0f0f1 !important;
+    color: #1d2327 !important;
+}
+body.shsas-unowned #wpbody-content .wrap,
+body.shsas-unowned #wpbody-content .wrap h1,
+body.shsas-unowned #wpbody-content .wrap h2,
+body.shsas-unowned #wpbody-content .wrap h3,
+body.shsas-unowned #wpbody-content .wrap p,
+body.shsas-unowned #wpbody-content .wrap li,
+body.shsas-unowned #wpbody-content .wrap label,
+body.shsas-unowned #wpbody-content .wrap th,
+body.shsas-unowned #wpbody-content .wrap td {
+    color: #1d2327 !important;
+}
+/* Surfaces this skin darkens elsewhere, returned to core's white. */
+body.shsas-unowned #wpbody-content .postbox,
+body.shsas-unowned #wpbody-content .card,
+body.shsas-unowned #wpbody-content .wp-list-table,
+body.shsas-unowned #wpbody-content .wp-list-table th,
+body.shsas-unowned #wpbody-content .wp-list-table td,
+body.shsas-unowned #wpbody-content .widefat,
+body.shsas-unowned #wpbody-content .widefat th,
+body.shsas-unowned #wpbody-content .widefat td {
+    background: #fff !important;
+    color: #1d2327 !important;
+    border-color: #c3c4c7 !important;
+}
+/* Form controls: core's own light chrome, so placeholder and value text keep
+   the contrast their authors checked against. */
+body.shsas-unowned #wpbody-content input[type="text"],
+body.shsas-unowned #wpbody-content input[type="search"],
+body.shsas-unowned #wpbody-content input[type="email"],
+body.shsas-unowned #wpbody-content input[type="url"],
+body.shsas-unowned #wpbody-content input[type="number"],
+body.shsas-unowned #wpbody-content input[type="password"],
+body.shsas-unowned #wpbody-content input[type="date"],
+body.shsas-unowned #wpbody-content select,
+body.shsas-unowned #wpbody-content textarea {
+    background: #fff !important;
+    color: #1d2327 !important;
+    border: 1px solid #8c8f94 !important;
+}
+
+/* This file also carries ~33 rules that dark-skin WooCommerce's React admin
+   directly (.woocommerce-*, .components-*). Those were a partial adoption:
+   enough to override WooCommerce's own colors, not enough to replace them,
+   which is the worst of the three possible states. Measured on Analytics
+   after the canvas fix above, they were the entire remaining failure set --
+   our cream --shsas-text stranded on the now-light canvas at 1.08:1.
+
+   Rather than rewrite those selectors, this neutralises them where they do
+   not belong. It works on specificity alone: every one of them is class-only,
+   so a single #wpbody-content-scoped rule outranks all of them at once, and
+   keeps working for any similar rule added later.
+
+   To genuinely adopt WooCommerce later, complete the dark treatment and gate
+   it on an explicit body class -- see THIRD-PARTY-SKINNING.md. Half-adoption
+   is what produced these failures. */
+body.shsas-unowned #wpbody-content [class*="woocommerce-"],
+body.shsas-unowned #wpbody-content [class*="components-"],
+body.shsas-unowned #wpbody-content [class*="mailpoet"] {
+    color: #1d2327 !important;
+}
+/* Links keep an affordance colour rather than inheriting body text. Core's
+   own link blue, which is AA on the light canvas restored above. */
+body.shsas-unowned #wpbody-content a[class*="woocommerce-"],
+body.shsas-unowned #wpbody-content a[class*="components-"],
+body.shsas-unowned #wpbody-content a[class*="mailpoet"] {
+    color: #2271b1 !important;
+}
+/* Card surfaces those same rules painted dark, returned to core's white so
+   the text colour restored above has the background it was measured for. */
+body.shsas-unowned #wpbody-content .woocommerce-inbox-message,
+body.shsas-unowned #wpbody-content .woocommerce-task-card,
+body.shsas-unowned #wpbody-content .woocommerce-stats-overview,
+body.shsas-unowned #wpbody-content .woocommerce-summary__item,
+body.shsas-unowned #wpbody-content .woocommerce-layout__activity-panel-wrapper {
+    background: #fff !important;
+}
+
+/* The remaining failures after the rules above were plain h3/span carrying
+   no third-party class at all -- reached by this file's own global heading
+   and text colours. Same containment principle, applied to bare elements.
+   Anchors are excluded so links keep the affordance colour set above. */
+body.shsas-unowned #wpbody-content h1,
+body.shsas-unowned #wpbody-content h2,
+body.shsas-unowned #wpbody-content h3,
+body.shsas-unowned #wpbody-content h4,
+body.shsas-unowned #wpbody-content h5,
+body.shsas-unowned #wpbody-content h6,
+body.shsas-unowned #wpbody-content p,
+body.shsas-unowned #wpbody-content li,
+body.shsas-unowned #wpbody-content dt,
+body.shsas-unowned #wpbody-content dd,
+body.shsas-unowned #wpbody-content span:not([class*="woocommerce-"]):not([class*="components-"]),
+body.shsas-unowned #wpbody-content strong,
+body.shsas-unowned #wpbody-content em,
+body.shsas-unowned #wpbody-content small,
+body.shsas-unowned #wpbody-content figcaption {
+    color: #1d2327 !important;
+}
+body.shsas-unowned #wpbody-content a,
+body.shsas-unowned #wpbody-content a span,
+body.shsas-unowned #wpbody-content a strong {
+    color: #2271b1 !important;
+}
+
+/* Colour alone was not enough: the same partial adoption also painted dark
+   backgrounds onto WooCommerce's @wordpress/components surfaces
+   (.components-card, .components-surface), so corrected dark text still
+   landed on a dark card. Clearing the background first, then restoring card
+   surfaces to white, gives every one of them a known light ground.
+
+   Trade-off, stated plainly: this also clears any genuinely meaningful fill
+   those components use (status badges, highlight rows). Legibility wins over
+   decoration on a screen we have explicitly decided not to own -- and the way
+   to get both back is to adopt the plugin properly rather than partially. */
+body.shsas-unowned #wpbody-content [class*="components-"],
+body.shsas-unowned #wpbody-content [class*="woocommerce-"] {
+    background-color: transparent !important;
+}
+body.shsas-unowned #wpbody-content [class*="components-card"],
+body.shsas-unowned #wpbody-content [class*="components-surface"],
+body.shsas-unowned #wpbody-content [class*="components-panel"],
+body.shsas-unowned #wpbody-content [class*="components-popover"],
+body.shsas-unowned #wpbody-content [class*="components-modal"],
+body.shsas-unowned #wpbody-content .woocommerce-summary__item,
+body.shsas-unowned #wpbody-content .woocommerce-inbox-message,
+body.shsas-unowned #wpbody-content .woocommerce-task-card,
+body.shsas-unowned #wpbody-content .woocommerce-stats-overview {
+    background-color: #fff !important;
 }

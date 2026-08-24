@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.38.5
+ * Version:     0.39.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('SHSAS_VER', '0.38.5');
+define('SHSAS_VER', '0.39.0');
 
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
@@ -149,6 +149,58 @@ function shsas_bridge_bhy_tokens(): void {
 add_action('admin_head', 'shsas_bridge_bhy_tokens', 999);
 
 /**
+ * Marks each admin screen as one this skin owns, or one it does not.
+ *
+ * WHY this exists, measured rather than assumed: on WooCommerce Analytics,
+ * WooCommerce text computed rgb(30,30,30) against a background of
+ * rgb(22,20,15) -- a contrast ratio of 1.1:1. Neither color is a mistake on
+ * its own. WooCommerce paints no background on that component because it
+ * expects to inherit WordPress's white canvas; this skin repaints the canvas
+ * dark on `body.wp-admin, #wpcontent, #wpbody-content`. Their hardcoded dark
+ * text then lands on our dark ground.
+ *
+ * That mechanism is not specific to WooCommerce -- it hits any plugin whose
+ * CSS was written against WordPress's own light admin, which is all of them
+ * unless they opted into a dark mode. So recoloring plugins one at a time is
+ * an unbounded job that regresses on every third-party update. Instead we
+ * stop repainting the canvas on screens we do not own, and let those plugins
+ * render against the surface their CSS was authored for.
+ *
+ * Adopting a third-party plugin properly (mapping its surfaces onto our
+ * tokens) is then an opt-in, per-plugin, verified-by-measurement job -- see
+ * the `shsas_owned_screen` filter and THIRD-PARTY-SKINNING.md.
+ */
+function shsas_screen_is_owned(): bool {
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen) return true;
+
+    $id = (string) $screen->id;
+
+    // Our own ecosystem prefixes. A screen id for a plugin page looks like
+    // "toplevel_page_<slug>" or "<parent>_page_<slug>".
+    $ours = ['ous', 'bh-', 'bh_', 'bhs-', 'bhl-', 'bhv-', 'bhf-', 'bhc-', 'bhm-', 'bhr-'];
+
+    if (strpos($id, '_page_') !== false) {
+        $slug = substr($id, strpos($id, '_page_') + 6);
+        foreach ($ours as $prefix) {
+            if (strpos($slug, $prefix) === 0) return true;
+        }
+        // A plugin page that is not ours.
+        return (bool) apply_filters('shsas_owned_screen', false, $id, $screen);
+    }
+
+    // Core screens (dashboard, post lists, media, users, settings...) are
+    // deliberately themed and stay owned. Third-party CPT screens ride on
+    // core's own list-table markup, which this skin themes correctly.
+    return (bool) apply_filters('shsas_owned_screen', true, $id, $screen);
+}
+
+function shsas_admin_body_class(string $classes): string {
+    return $classes . (shsas_screen_is_owned() ? ' shsas-owned' : ' shsas-unowned');
+}
+add_filter('admin_body_class', 'shsas_admin_body_class');
+
+/**
  * Real bug caught by verifying live, not by trusting the plan on
  * paper: the depth-aware cross-document navigation transition
  * (admin-skin.css's data-shsas-nav-depth/-direction-scoped keyframes)
@@ -215,7 +267,7 @@ add_action('admin_head', 'shsas_print_nav_depth_script', 1);
  * to live and a11y-correct markup (a real <button>, not a div with a
  * click handler).
  */
-function shsas_admin_bar_toggle($wp_admin_bar): void {
+function shsas_admin_bar_toggle(WP_Admin_Bar $wp_admin_bar): void {
     if (!is_admin()) return;
     // Direct feedback: the Cmd/Ctrl+K command palette existed but
     // nothing on screen told anyone it was there — a keyboard shortcut

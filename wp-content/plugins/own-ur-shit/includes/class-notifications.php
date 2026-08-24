@@ -373,7 +373,16 @@ class OUS_Notifications {
             .bhcore-notif-count { background: #d63638; color: #fff; border-radius: 9px; font-size: 11px; padding: 0 5px; margin-left: 2px; }
             .bhcore-notifications-list { max-width: 600px; }
             .bhcore-notification { border: 1px solid var(--bh-border, #dcdcde); border-radius: var(--bh-radius-sm, 6px); padding: 10px 14px; margin-bottom: 8px; background: var(--bh-surface, #fff); }
-            .bhcore-notification.bhcore-unread { background: var(--bh-accent-soft, #f0f6fc); border-color: var(--bh-accent, #72aee6); }
+            /* Unread used --bh-accent-soft as a flat fill. Despite the name that
+               token is a solid, fairly saturated color (#E0A184 on the live
+               warm-noir theme), not a tint -- so the card turned into a light
+               coral block while every text token on it (--bh-text,
+               --bh-text-dim) stayed the theme DARK-mode foreground. Measured
+               on a real phone: the whole unread card was light-on-light and
+               effectively unreadable. --bh-accent-muted-bg is the low-alpha
+               treatment class-portal.php already switched its active nav item
+               to for exactly this reason; same fix, same token. */
+            .bhcore-notification.bhcore-unread { background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #72aee6) 14%, transparent)); border-color: var(--bh-accent, #72aee6); }
             .bhcore-notif-source { font-size: 11px; text-transform: uppercase; color: var(--bh-text-dim, #646970); letter-spacing: .04em; }
             .bhcore-notif-title { font-weight: 600; color: var(--bh-text, inherit); }
             .bhcore-notif-body { font-size: 13px; color: var(--bh-text-dim, #50575e); }
