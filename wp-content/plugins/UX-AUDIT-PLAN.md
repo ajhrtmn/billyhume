@@ -32,6 +32,13 @@ Per screen, per theme, per width:
 5. **Touch targets** — <44×44px interactive elements at ≤782.
 6. **Focus visibility** — tab through; every focusable element needs a visible ring. Front-end coverage is thin (6 files / 14 plugins), so expect failures.
 
+**Parse `color(srgb ...)` correctly, or the numbers are fiction.** `color-mix()` — which this design system uses heavily for badges and muted fills — resolves to `color(srgb 0.78 0.83 0.70)`, with **0-1 channels, not 0-255**. Two ways to get this wrong, both seen for real:
+
+- Return `null` and skip it. No false positives, but most of the badge system is silently exempt from the audit. This is what `tests/ux/audit.ts` did until 2026-08-24.
+- Read the floats as 0-255. A light green becomes near-black and the tool invents failures — **17 of them on one screen**, all fictional.
+
+`tests/ux/audit.ts` now handles the branch explicitly. Any ad-hoc probe written in the console must do the same, or it is not measuring what it claims to.
+
 **Rule out before reporting.** `.screen-reader-text` and anything clipped to ~1×1px; Query Monitor's chrome; `text-indent: 100%` + `overflow:hidden` (WP core's own icon-only mechanism at ≤782); `text-overflow: ellipsis` + `nowrap` (deliberate truncation, not clipping); WooCommerce React widgets mid-hydration (they report wrong colors for a frame, then settle).
 
 **To decide "our bug or WP core's":** measure, set `link.disabled = true` on `admin-skin.css` + `admin-bar.css`, re-measure, re-enable. Identical geometry means it's core's behavior, not ours.

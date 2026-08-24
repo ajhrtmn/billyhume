@@ -69,11 +69,29 @@
        flat tint repeated at different lightness values. Contrast
        re-verified with the same real relative-luminance math used
        earlier this session, not re-guessed. */
+    /* Surface ladder. Measured before this change, the consecutive steps
+       were 1.07 / 1.10 / 1.13:1 -- all below roughly 1.2:1, the point at
+       which two surfaces read as genuinely different rather than as one
+       surface with a seam. Depth was carried almost entirely by a single
+       shadow token and a sub-threshold border.
+
+       These are a uniform 1.21:1 ladder, which is the largest step the
+       existing text tokens tolerate: --shsas-text-dim lands at 6.66 / 5.50 /
+       4.55:1 across the three surfaces, so the top surface still clears AA
+       with 0.05 to spare. Anything larger fails it, which is why the ladder
+       stops here rather than at a rounder number.
+
+       Saturation rises slightly as surfaces come forward (0.199 -> 0.227) so
+       chroma does some of the depth work rather than value alone. Hue is
+       held near 40 throughout -- the warmth is the identity, not the cue. */
     --shsas-bg: #16140f;
-    --shsas-surface: #1e1b15;
-    --shsas-surface-2: #282319;
-    --shsas-surface-3: #322c1f;
-    --shsas-border: #45402f;
+    --shsas-surface: #29251c;
+    --shsas-surface-2: #393325;
+    --shsas-surface-3: #473f2d;
+    /* 2.2:1 against --shsas-surface. Lower than the 3:1 WCAG asks of a
+       non-text boundary because the surfaces above now carry the separation
+       themselves; this is a seam, not the sole cue. */
+    --shsas-border: #625944;
     --shsas-border-strong: #5c5540;
     --shsas-text: #f2ede1;
     --shsas-text-dim: #b3ab97;
@@ -128,7 +146,13 @@
 
     --shsas-radius: 10px;
     --shsas-radius-sm: 6px;
+    /* Elevation scale. This was one token serving 14 rules plus 8 hardcoded
+       box-shadows, which is why everything in the admin sat at the same
+       depth. Elevation is the PAIR -- a surface step and a shadow step move
+       together; neither alone reads as height. */
+    --shsas-shadow-sm: 0 1px 2px rgba(0, 0, 0, .35), 0 2px 6px -2px rgba(0, 0, 0, .45);
     --shsas-shadow: 0 12px 28px -14px rgba(0, 0, 0, .6);
+    --shsas-shadow-lg: 0 24px 56px -20px rgba(0, 0, 0, .7);
 
     /* Fluid spacing scale — direct request: "use fluid sizing tricks to
        condense things and reclaim space and optimize UI flow per screen
@@ -273,7 +297,9 @@
     --shsas-warning: var(--shsas-neon-yellow);
     --shsas-info: var(--shsas-neon-violet);
 
+    --shsas-shadow-sm: 0 1px 2px rgba(36, 31, 22, .10), 0 2px 6px -2px rgba(36, 31, 22, .14);
     --shsas-shadow: 0 10px 22px -14px rgba(36, 31, 22, .25);
+    --shsas-shadow-lg: 0 22px 48px -20px rgba(36, 31, 22, .34);
 }
 
 /* Respect the OS default the instant the page paints, before any JS
@@ -311,7 +337,9 @@
         --shsas-warning: var(--shsas-neon-yellow);
         --shsas-info: var(--shsas-neon-violet);
 
+        --shsas-shadow-sm: 0 1px 2px rgba(36, 31, 22, .10), 0 2px 6px -2px rgba(36, 31, 22, .14);
         --shsas-shadow: 0 10px 22px -14px rgba(36, 31, 22, .25);
+        --shsas-shadow-lg: 0 22px 48px -20px rgba(36, 31, 22, .34);
     }
 }
 

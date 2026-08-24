@@ -35,6 +35,17 @@ export async function audit(page: Page): Promise<Finding[]> {
 
     const parse = (s: string) => {
       if (!s || s === 'transparent') return { r: 0, g: 0, b: 0, a: 0 };
+      // color-mix() resolves to `color(srgb r g b / a)` with 0-1 channels,
+      // NOT the 0-255 of rgb(). This branch used to be absent, so every
+      // color-mix() surface returned null and was skipped -- silently
+      // exempting most of the badge system from the audit. Reading those
+      // floats as 0-255 instead is worse still: it turns a light green into
+      // near-black and invents failures (17 of them, on one screen).
+      const cm = s.match(/color\(srgb\s+([^)]+)\)/);
+      if (cm) {
+        const p = cm[1].split(/[\s/]+/).filter(Boolean).map(parseFloat);
+        return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a: p.length > 3 ? p[3] : 1 };
+      }
       const m = s.match(/rgba?\(([^)]+)\)/);
       if (!m) return null;
       const p = m[1].split(/[,\s/]+/).filter(Boolean).map(parseFloat);
