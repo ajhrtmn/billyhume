@@ -4365,7 +4365,17 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     max-width: 100%;
     font-size: 12.5px;
     line-height: 1.3;
-    padding-left: 9px;
+    /* Both !important, and that is load-bearing rather than lazy. This file
+       elsewhere resets .wp-menu-name's padding to 0 (core bakes in a 36px
+       left pad for its own absolutely-positioned icon, a different layout
+       model than this skin's flex row). That reset outranked a plain
+       padding-left here, so padding computed 0 while the -9px indent still
+       applied -- the first line started at -9px inside overflow:hidden and
+       every label lost its first character. Reported from a real phone as
+       "ashboard", "esign Suite", "omments".
+       Together these two put the first line at exactly 0 and only the
+       wrapped lines at 9px, which is the hanging indent that was intended. */
+    padding-left: 9px !important;
     text-indent: -9px;
 }
 
