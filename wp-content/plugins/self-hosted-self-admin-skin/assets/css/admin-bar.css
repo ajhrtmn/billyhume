@@ -161,102 +161,84 @@
 @media screen and (max-width: 920px) {
     /* Palette keeps its icon, loses the "Jump to…" label and shortcut
        hint — the icon alone is still a target, and ⌘K still works. */
-    #wpadminbar #wp-admin-bar-shsas-palette-trigger .ab-label,
-    #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-kbd-hint { display: none; }
+    /* WHY these exact class names: the item's markup (self-hosted-self-admin-
+       skin.php, the shsas-palette-trigger node) emits .shsas-palette-trigger-
+       icon / -label / -kbd. This rule previously targeted .ab-label and
+       .shsas-kbd-hint, neither of which exists on it -- so it matched nothing
+       and the trigger kept its full 139px width right down to phone widths,
+       overflowing the bar. */
+    #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-label,
+    #wpadminbar #wp-admin-bar-shsas-palette-trigger .shsas-palette-trigger-kbd { display: none; }
     #wpadminbar #wp-admin-bar-new-content .ab-label { display: none; }
 }
 @media screen and (max-width: 860px) {
     #wpadminbar #wp-admin-bar-site-name .ab-label { display: none; }
 }
 @media screen and (max-width: 782px) {
-    /* WP already switches the bar to its own touch layout here; let
-       core own it rather than fighting two layout models at once.
-       The flat `height: 32px` set on every top-level .ab-item further
-       up this file was NOT scoped to the desktop bar, so it kept
-       overriding core's 46px touch row down here — which is the one
-       place the comment above says core should be left alone. Measured
-       consequence: the account item needs 37px (26px avatar, +2px
-       ring, sitting 9px down) inside a 32px box with overflow:hidden,
-       so the bottom 5px of the user's avatar was sheared off at every
-       width below 782. Found by diffing clientHeight against
-       scrollHeight with this file's own stylesheets disabled and then
-       re-enabled: core alone reports 46/46 (no clip), skin-on reports
-       32/37. Releasing the height here rather than special-casing the
-       avatar keeps one layout model per breakpoint, which is what the
-       original comment was after. */
+    /* One flex row, replacing two older mechanisms that fought each other.
+       Measured at 390px before this: #wp-admin-bar-root-default had
+       display:block with floated children, so it collapsed to height 0 and
+       its items escaped — the palette trigger and theme toggle wrapped onto a
+       SECOND row at y 46-92 and collided with #screen-meta-links (Screen
+       Options / Help), which is the overlap visible in the wild.
+
+       A previous fix here took #wp-admin-bar-top-secondary out of flow with
+       position:absolute to stop the account menu dropping below the bar. That
+       fixed the drop and introduced a worse bug: out of flow, it no longer
+       reserved width, so the notifications bell (297-375) ran underneath the
+       avatar (318-390).
+
+       Flex fixes both causes at once: both lists sit on one line, the
+       secondary is pushed right by margin-left:auto rather than by floating
+       or absolute positioning, and root-default can shrink (min-width:0)
+       instead of overflowing. */
+    #wpadminbar .quicklinks {
+        display: flex;
+        align-items: center;
+        overflow: visible;
+    }
+    #wpadminbar #wp-admin-bar-root-default {
+        display: flex;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: 0;      /* WHY: without this a flex item refuses to shrink below content width */
+        overflow: hidden;
+    }
+    #wpadminbar #wp-admin-bar-top-secondary {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        position: static !important;   /* undoes the absolute-positioning era */
+        float: none !important;
+        margin-left: auto;
+    }
     #wpadminbar .ab-top-menu > li > .ab-item,
     #wpadminbar .ab-top-secondary > li > .ab-item,
     #wpadminbar .ab-top-menu > li > .ab-empty-item {
         height: 46px;
     }
-    #wpadminbar .quicklinks,
-    #wpadminbar #wp-admin-bar-root-default,
-    #wpadminbar #wp-admin-bar-top-secondary,
-    #wpadminbar .ab-top-menu,
-    #wpadminbar .ab-top-secondary {
-        display: block;
-        overflow: visible;
-    }
-    /* ...but core's own touch layout puts .ab-top-secondary in normal
-       flow as a display:block sibling of #wp-admin-bar-root-default,
-       so `float: right` alone laid the account menu out as a SECOND
-       ROW hanging below the bar (measured: bar 0-47, account item
-       46-92). That predates the height fix above — at the old 32px it
-       sat at 32-64, equally outside the bar, just less obviously so
-       because a clipped 32px avatar drew less attention than a
-       correct 46px one. Taking it out of flow entirely is what
-       actually keeps it ON the bar; the position:relative in the
-       "last-resort guarantee" rule below is what this overrides, and
-       its z-index still applies.
-       !important is load-bearing here, not decoration: the "last-resort
-       guarantee" rule below sets position:relative at the identical
-       specificity (#wpadminbar #wp-admin-bar-top-secondary, two IDs)
-       and simply comes later in the file, and a media query adds no
-       specificity of its own — so without it this silently loses. */
-    #wpadminbar #wp-admin-bar-top-secondary {
-        float: right !important;
-        margin-left: 0;
-        position: absolute !important;
-        right: 0 !important;
-        top: 0 !important;
-    }
-    /* Core hides the account/site labels down here with
-       `text-indent: 100%` + `overflow: hidden` — a mechanism that only
-       works in inline flow. The `display: flex` this file sets on every
-       top-level .ab-item (for badge baseline alignment) makes
-       .display-name a FLEX ITEM, which ignores text-indent and simply
-       lays out at its natural position: measured left 758 / right 827
-       inside a box clipped at 767, i.e. exactly 9px of "Ho" peeking out
-       past the avatar. Core alone renders a 52px avatar-only item with
-       nothing peeking. Since this file replaced core's layout model, it
-       has to state core's intent in that model's own terms rather than
-       inherit a mechanism that no longer applies.
-       Hiding .display-name is necessary but NOT sufficient: the account
-       anchor also carries a BARE TEXT NODE ("Howdy, ") that flex
-       promotes to an anonymous flex item, which no selector can target.
-       Measured with a Range after the span was hidden: still 752-800
-       against a box clipped at 767, i.e. a 15px sliver reading as "Ho"
-       beside the avatar. font-size:0 on the item is what actually
-       collapses an untargetable text node, and it is safe for the
-       icons: core sets `font: normal 20px/1 dashicons` on .ab-icon /
-       .ab-item:before, an explicit size that does not inherit from the
-       item, and the avatar is a replaced element (measures an
-       unchanged 28x28 after).
-       Scoped to my-account ALONE, deliberately. #wp-admin-bar-site-name
-       looks like it needs the same treatment and does not: its label is
-       already hidden by the max-width:860px rule further up (which
-       covers this breakpoint too), and it carries no bare text node, so
-       it was measured identical with and without both rules — 0 bare
-       text nodes, scrollWidth 74 == clientWidth 74 either way. Adding
-       them there would have been a duplicate of an existing rule plus a
-       no-op, which is exactly the two-places-set-the-same-thing drift
-       this file has had to unpick before. */
+
+    /* Core hides the account/site labels down here with `text-indent: 100%`
+       plus overflow:hidden — a mechanism that only works in inline flow. The
+       `display: flex` this file sets on every top-level .ab-item makes
+       .display-name a FLEX ITEM, which ignores text-indent and lays out at its
+       natural position. Hiding the labelled spans is necessary but not
+       sufficient: the account anchor also carries a BARE TEXT NODE ("Howdy, ")
+       that flex promotes to an anonymous flex item, which no selector can
+       target. font-size:0 on the item is what actually collapses it; the
+       avatar is a replaced element and measures an unchanged 28x28 after. */
     #wpadminbar #wp-admin-bar-my-account > .ab-item .display-name {
         display: none !important;
     }
     #wpadminbar #wp-admin-bar-my-account > .ab-item {
         font-size: 0 !important;
     }
+
+    /* The palette trigger and theme toggle stay VISIBLE here on purpose --
+       admin-skin.css forces them past core's own hiding rule, because the
+       palette matters most on mobile where the whole sidebar is behind a
+       hamburger. They just have to be icon-only, which is what the dead
+       selectors above were meant to do. Do not hide them here. */
 }
 
 /* Last-resort guarantee: even if some plugin adds an item we have no
