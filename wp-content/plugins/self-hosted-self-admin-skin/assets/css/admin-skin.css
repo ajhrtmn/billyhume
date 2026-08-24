@@ -4278,3 +4278,93 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
 #adminmenu li.wp-has-current-submenu div.wp-menu-image.svg {
     background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
+
+/* ==========================================================================
+   THREE STATES, THREE LANGUAGES
+   ==========================================================================
+
+   Reported as the sidebar showing several different "active" treatments at
+   once. Measured, the cause is not that there are too many treatments -- it
+   is that two of them are the SAME one:
+
+     hover    box-shadow: inset 4px 0 0 0 var(--shsas-item-hue)
+     current  box-shadow: inset 3px 0 0 0 var(--shsas-item-hue)
+
+   The same indicator, in the same colour, differing by a single pixel. You
+   cannot tell "where I am" from "what my pointer is over" -- and on a touch
+   screen hover sticks after a tap, so the wrong item keeps claiming to be
+   the current one.
+
+   The brief calls depth-of-field and emphasis a real focus-hierarchy
+   mechanism, not decoration. A hierarchy needs its levels to be
+   distinguishable, so the two states get different languages:
+
+     rest     neutral icon, no bar, no veil
+     hover    the surface veil + the icon blooming to its hue (transient:
+              "your pointer is here")
+     current  the hue bar + bloom + weight 600 (persistent: "you are here")
+
+   Subtraction again -- the veil and the icon bloom were already there on
+   hover, so removing the bar leaves hover with a complete signal of its own
+   and hands the bar to current alone. */
+#adminmenu li.menu-top:hover > a.menu-top,
+#adminmenu li > a.menu-top:focus {
+    box-shadow: none !important;
+}
+/* Current keeps the bar, and takes the fuller 4px now that nothing else
+   uses one. */
+#adminmenu li.menu-top.current > a.menu-top,
+#adminmenu li.wp-has-current-submenu > a.menu-top {
+    box-shadow: inset 4px 0 0 0 var(--shsas-item-hue, var(--shsas-accent)) !important;
+}
+/* Keyboard focus stays its own third thing -- a real ring, not a bar, so it
+   is never confused with either. Only :focus-visible, so a mouse click does
+   not leave a ring behind. */
+#adminmenu li > a.menu-top:focus-visible {
+    outline: 2px solid var(--shsas-focus, var(--shsas-accent)) !important;
+    outline-offset: -2px;
+}
+
+
+/* Sidebar labels wrap instead of truncating.
+ *
+ * Measured at a 160px sidebar: the label box is 90px after the icon and
+ * padding, and four items overflow it -- "The Self-Hosted Self" needs 121px,
+ * "Feedback Requests" 114px. Core clips them, so they read as "The
+ * Self-Hosted ..." and "Feedback Reque...". A truncated nav label is a
+ * wayfinding failure, and the two longest names here are this ecosystem's
+ * OWN plugins -- the items most worth recognising are the ones getting cut.
+ *
+ * white-space carries !important deliberately. Setting it inline on the
+ * element was measured NOT to wrap, which means something already declares
+ * nowrap with !important; it is in a stylesheet the CSSOM refuses to
+ * enumerate, so this matches force rather than guessing at its selector.
+ *
+ * 12.5px buys roughly a character and a half, enough that most names fit on
+ * one line and only genuinely long ones wrap.
+ *
+ * The hanging indent is the stagger: the first line starts flush and any
+ * wrapped line sits 9px in, so a two-line label reads as one item rather
+ * than two. Alignment is deliberately NOT touched -- an earlier attempt
+ * switched the row to align-items:flex-start and drifted 26 icons by 5px.
+ * A centred icon beside a two-line label centres on the block, which is
+ * correct on its own. */
+#adminmenu a.menu-top .wp-menu-name {
+    /* All three carry !important for the same measured reason: setting them
+       without it left the computed values at nowrap/hidden/ellipsis, so
+       something declares them !important in a stylesheet the CSSOM will not
+       enumerate. white-space took effect; overflow and text-overflow did not
+       until matched. */
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    text-overflow: clip !important;
+    /* overflow stays hidden, core's own value. Forcing it visible was
+       measured to make the whole sidebar scroll horizontally, and it buys
+       nothing: once white-space wraps, there is no horizontal overflow left
+       to reveal. */
+    max-width: 100%;
+    font-size: 12.5px;
+    line-height: 1.3;
+    padding-left: 9px;
+    text-indent: -9px;
+}
