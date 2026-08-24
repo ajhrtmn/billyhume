@@ -70,7 +70,7 @@ add_action('plugins_loaded', function () {
     add_action('admin_notices', function () {
         if (class_exists('\MailPoet\API\API')) return;
         if (!current_user_can('activate_plugins')) return;
-        echo '<div class="notice notice-info is-dismissible"><p><strong>BH MailPoet</strong> is active but MailPoet itself isn\'t installed yet — contact sync is idle until it is. Install MailPoet from the The Self-Hosted Self dashboard or WordPress.org.</p></div>';
+        echo '<div class="notice notice-info is-dismissible"><p><strong>BH MailPoet</strong> is active but MailPoet itself isn\'t installed yet — contact sync is idle until it is. Install MailPoet from the Self-Hosted Self dashboard or WordPress.org.</p></div>';
     });
 }, 20); // after BHCORE_LOADED-defining bootstrap, same ordering convention as bh-contest.php
 

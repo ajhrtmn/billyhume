@@ -1,4 +1,4 @@
-# Own Ur Shit ecosystem — style system reference
+# The Self-Hosted Self ecosystem — style system reference
 
 One page, kept up to date, so the next contributor can check here before adding a new spacing value, color, badge, or table treatment instead of re-deriving it from source archaeology. Written after the 2026-08 inline-style + CSS-file audit found the same handful of shapes (status pills, notice boxes, wide tables, truncated card titles) independently reinvented 5-9 times each across the ecosystem.
 

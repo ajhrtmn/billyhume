@@ -13,7 +13,7 @@ etc.).
 Depends only on `own-ur-shit` (the core). Deliberately has **no**
 dependency on `bh-streaming` — a site can install just this plugin to
 run a bare directory, or a fan can use the public browse page with no
-other Own Ur Shit plugin installed at all. If `bh-streaming` happens to
+other The Self-Hosted Self plugin installed at all. If `bh-streaming` happens to
 also be active, `class-streaming-bridge.php` adds a small one-directional
 convenience (search-and-fill on the Feed Sources screen); nothing here
 requires it.
@@ -37,7 +37,7 @@ control can lapse.
 
 An artist becomes publicly visible (`status = active`) automatically
 the moment it has at least one verified link — no manual admin approval
-gate. The admin review queue (**Own Ur Shit → Registry Submissions**)
+gate. The admin review queue (**The Self-Hosted Self → Registry Submissions**)
 exists for abuse handling (reject/restore/delete), not as a required
 step.
 

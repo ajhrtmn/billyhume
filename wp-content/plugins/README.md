@@ -1,14 +1,14 @@
-# Own Ur Shit
+# The Self-Hosted Self
 
 **Self-hosted infrastructure for owning your audience, your data, and your relationship with the people who support you — without renting any of it from a big tech platform.**
 
-Own Ur Shit is a WordPress plugin ecosystem: one required core plus genuine peer feature plugins, each optional, each installable on its own. Together they cover the tools an independent creator actually needs to run a real business — streaming, contests, courses, a CRM, monetization, and a decentralized artist-link directory — all on infrastructure the creator controls outright, hosted for the cost of ordinary shared hosting.
+The Self-Hosted Self is a WordPress plugin ecosystem: one required core plus genuine peer feature plugins, each optional, each installable on its own. Together they cover the tools an independent creator actually needs to run a real business — streaming, contests, courses, a CRM, monetization, and a decentralized artist-link directory — all on infrastructure the creator controls outright, hosted for the cost of ordinary shared hosting.
 
 ## Why this exists
 
 Modern creative and business life requires tools for reaching an audience, running commerce, building community, and teaching. Right now, almost everyone rents those tools from a small number of platforms that own the relationship, the data, and the terms — one algorithm change or account suspension away from losing everything. That's not acceptable as a permanent default.
 
-Own Ur Shit exists so that's optional. Install it on hosting you control, and you own your audience and data outright, pay only for hosting, and never depend on a company's continued goodwill to keep what you built. This should be a right, freely available to anyone willing to self-host — not a subscription, not a walled garden.
+The Self-Hosted Self exists so that's optional. Install it on hosting you control, and you own your audience and data outright, pay only for hosting, and never depend on a company's continued goodwill to keep what you built. This should be a right, freely available to anyone willing to self-host — not a subscription, not a walled garden.
 
 Every design decision in this codebase gets measured against that: **self-hosted, no vendor lock-in, no quiet dependency on a paid third-party service where an owned equivalent will do.** See [`VISION.md`](VISION.md#mission--read-this-before-anything-else) for the full framing — it's the first thing worth reading in this repo.
 
@@ -37,7 +37,7 @@ The core provides real shared infrastructure once, centrally, so no feature plug
 
 1. A WordPress install on ordinary shared hosting (PHP 7.4+, MySQL, WP-Cron enabled — no Redis, no external queue, no special infrastructure required by design).
 2. Install and activate `own-ur-shit` first — every other plugin here requires it.
-3. From the Own Ur Shit dashboard (`wp-admin` → Own Ur Shit), install and activate whichever peer plugins you actually want. Nothing here forces an all-or-nothing install.
+3. From the Self-Hosted Self dashboard (`wp-admin` → The Self-Hosted Self), install and activate whichever peer plugins you actually want. Nothing here forces an all-or-nothing install.
 
 ## Documentation map
 

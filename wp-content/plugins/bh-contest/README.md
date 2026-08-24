@@ -44,7 +44,7 @@ built for streaming, and Discord integration for announcements.
 
 ## Requirements
 
-- **Own Ur Shit** (the ecosystem core — shared accounts/profiles/email
+- **The Self-Hosted Self** (the ecosystem core — shared accounts/profiles/email
   verification and the design tokens this plugin's own stylesheet is
   built on)
 
@@ -56,7 +56,7 @@ alphabetically).
 
 ## Installation
 
-1. Install and activate **Own Ur Shit** first.
+1. Install and activate **The Self-Hosted Self** first.
 2. Install and activate this plugin.
 3. Create a contest under **Contests** in wp-admin.
 4. The `[bh_contest_player]` shortcode page gets created automatically

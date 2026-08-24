@@ -163,7 +163,7 @@ add_action('plugins_loaded', function () {
     add_action('wp_ajax_bhc_submit_review', ['BHC_Reviews', 'ajax_submit_review']);
 });
 
-// Self-registration into the The Self-Hosted Self dashboard — zero changes
+// Self-registration into the Self-Hosted Self dashboard — zero changes
 // needed to the core, same filter contract documented in the core's
 // own class-registry.php.
 add_filter('ous_registered_plugins', function ($plugins) {

@@ -10,7 +10,7 @@ class BH_PostTypes {
     public static function register(): void {
         register_post_type('bh_contest', [
             // menu_name used to carry an "OUS ·" text prefix so this
-            // top-level menu read as part of the The Self-Hosted Self ecosystem
+            // top-level menu read as part of the Self-Hosted Self ecosystem
             // even though it has to stay its own top-level item (see
             // class-registry.php's docblock on why CPT list-tables
             // aren't relocated). That job now belongs to the shared

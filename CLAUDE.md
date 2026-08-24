@@ -1,10 +1,10 @@
-# Own Ur Shit ecosystem — CLAUDE.md
+# The Self-Hosted Self ecosystem — CLAUDE.md
 
 Read this before touching anything in `wp-content/plugins/`. It's the condensed version of `wp-content/plugins/VISION.md` (read that too, it's the real source of truth) plus the operating conventions this codebase has actually earned through real bugs, not theory.
 
 ## What this is
 
-Own Ur Shit is **digital civil-service infrastructure**, not a startup — a self-hosted WordPress plugin ecosystem so an independent musician can own their audience/data outright instead of renting it from big-tech platforms. Every architectural call gets weighed against that: self-hosted always (ordinary shared hosting, no Redis/Docker/external broker assumed), no vendor lock-in, no quiet dependency on a paid third-party service where an owned equivalent will do.
+The Self-Hosted Self is **digital civil-service infrastructure**, not a startup — a self-hosted WordPress plugin ecosystem so an independent musician can own their audience/data outright instead of renting it from big-tech platforms. Every architectural call gets weighed against that: self-hosted always (ordinary shared hosting, no Redis/Docker/external broker assumed), no vendor lock-in, no quiet dependency on a paid third-party service where an owned equivalent will do.
 
 **One required core (`own-ur-shit`) plus genuine peer plugins**, each depending ONLY on the core, never on each other directly:
 

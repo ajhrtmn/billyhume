@@ -1,4 +1,4 @@
-# Own Ur Shit
+# The Self-Hosted Self
 
 The ecosystem core, plus its hub: shared accounts/profiles/email
 verification, shared design tokens with a Storybook-patterned live
@@ -29,7 +29,7 @@ Monetization, BH Courses, BH Feedback, BH Video, BH Live) on top of it.
 - **Extensible by design, in two ways**: a future plugin can register a
   rich dashboard card via a filter (`ous_registered_plugins`) with zero
   changes to this plugin's code, or opt into a minimal auto-discovered
-  card with zero code at all — just a `Ecosystem: Own Ur Shit` line in
+  card with zero code at all — just a `Ecosystem: The Self-Hosted Self` line in
   its own plugin header.
 
 ## Important: this one is required

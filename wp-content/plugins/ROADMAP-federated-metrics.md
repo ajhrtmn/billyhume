@@ -1,4 +1,4 @@
-# ROADMAP — Federated metrics across distributed Own Ur Shit instances
+# ROADMAP — Federated metrics across distributed The Self-Hosted Self instances
 
 Design pass only. Nothing in this document is built — see VISION.md's own round-three pillar section for the hard constraint this design has to satisfy, stated by AJ live and verbatim: **"stripped of specific identities and a fair and transparent way of expressing the data."** This doc exists so that constraint has a real, concrete shape to be built against later, instead of being re-derived from scratch the next time this gets picked up.
 
@@ -30,7 +30,7 @@ A real toggle on `OUS_Metrics`'s own dashboard, **off by default**. Turning it o
 
 ## 4. "Fair and transparent" as a real technical property, not a slogan
 
-Three concrete requirements, each independently checkable by someone who isn't Own Ur Shit's own maintainer:
+Three concrete requirements, each independently checkable by someone who isn't The Self-Hosted Self's own maintainer:
 
 1. **The submission code is auditable** — it already is, by construction: whatever computes and sends the payload lives in this same open-source plugin, same as everything else here. Nothing new needed here beyond keeping it that way.
 2. **The aggregation math is simple enough to reproduce.** The aggregator does exactly one operation per event-type/month: sum the qualifying (threshold-cleared) submissions across every opted-in instance. Not a weighted average, not a "quality score," not anything a third party couldn't recompute by hand from the same public inputs. Anything fancier than SUM() is a place bias or manipulation could hide.

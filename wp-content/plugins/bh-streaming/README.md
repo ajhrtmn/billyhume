@@ -27,14 +27,14 @@ Media Session API support for lock-screen playback controls.
 
 ## Requirements
 
-- **Own Ur Shit** (the ecosystem core — shared accounts/profiles for
+- **The Self-Hosted Self** (the ecosystem core — shared accounts/profiles for
   likes/playlists, and the design tokens its own stylesheet is built on)
 
 Needs to be installed and active first.
 
 ## Installation
 
-1. Install and activate Own Ur Shit.
+1. Install and activate The Self-Hosted Self.
 2. Install and activate this plugin.
 3. Add tracks under **Tracks** in wp-admin — audio + optional artwork,
    both via the normal media uploader.
@@ -62,7 +62,7 @@ schema.org's actual `MusicRecording.isrcCode` property wherever
 maybe_set_seo_data()`). A "Generate placeholder" button fills the
 field with an obviously-fake code (`ZZOUS...` — `ZZ` is ISO 3166-1's
 own reserved "never a real country" code) so the field/storage/schema-
-suppression shape can be exercised now, ahead of Own Ur Shit actually
+suppression shape can be exercised now, ahead of The Self-Hosted Self actually
 registering as a real ISRC issuer (`BHS_ISRC::is_mock()` is the single
 place that pattern is defined — real-issuer work later is a matter of
 generating a real code instead of a placeholder, not a rewrite of

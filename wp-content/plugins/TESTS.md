@@ -4,7 +4,7 @@
 
 ## The four gates, in the order to run them
 
-**1. Test Runner (the primary one).** Own Ur Shit → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
+**1. Test Runner (the primary one).** The Self-Hosted Self → Debug Tools → **Run all tests**. Executes every registered suite on the site's own PHP — no CLI, no Composer, no PHPUnit binary — because the live WordPress install already *is* a working PHP environment. Suites register via the `bhcore_test_suites` filter.
 
 Last full run (2026-08-23): **635 tests across 19 suites — 634 passed, 1 failed.** The single failure is `bh-tickets` → `for_user() includes the requester's own ticket` (expected true, got false). Pre-existing and long-standing; unrelated to recent work, but real and worth fixing.
 

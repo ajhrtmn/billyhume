@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) exit;
  * with 'wporg_slug' => 'woocommerce' as a real, on-demand-installable
  * dependency, exactly the pattern the core's own class-registry.php
  * docblock documents for third-party plugins — the "Install from
- * WordPress.org" button on the The Self-Hosted Self dashboard handles the actual
+ * WordPress.org" button on the Self-Hosted Self dashboard handles the actual
  * install/activate, this plugin never bundles or redistributes
  * WooCommerce itself.
  */

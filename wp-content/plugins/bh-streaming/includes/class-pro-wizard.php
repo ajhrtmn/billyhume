@@ -165,7 +165,7 @@ class BHS_PROWizard {
         $picked_pro = isset($_GET['pro']) && isset(self::PROS[sanitize_key($_GET['pro'])]) ? sanitize_key($_GET['pro']) : '';
 
         echo '<div class="wrap"><h1>PRO Registration</h1>';
-        echo '<p class="description">Part of the The Self-Hosted Self ecosystem — see bh-streaming/README.md for the full plan this implements.</p>';
+        echo '<p class="description">Part of the Self-Hosted Self ecosystem — see bh-streaming/README.md for the full plan this implements.</p>';
 
         echo '<div class="bhy-alert bhy-alert-info" style="max-width:760px;">';
         echo '<p><strong>What a PRO actually does, briefly:</strong> a Performing Rights Organization (PRO) collects royalties when your SONGWRITING (the composition, not the recording) gets performed publicly — radio, streaming, live venues, TV. It\'s a separate thing from the ISRC on your track (which identifies the recording, not the composition) — a PRO assigns your composition its own ISWC once you\'re registered and the work is logged. You can only be affiliated with ONE PRO at a time as a songwriter.</p>';

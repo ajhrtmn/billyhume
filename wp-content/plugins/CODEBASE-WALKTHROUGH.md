@@ -65,7 +65,7 @@ This just loads every file in the list. Each name maps to a real file in the `in
 add_action('plugins_loaded', function () {
     if (!defined('BHCORE_LOADED')) {
         add_action('admin_notices', function () {
-            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>Own Ur Shit</strong> plugin...</p></div>';
+            echo '<div class="notice notice-error"><p><strong>BH Courses</strong> requires the <strong>The Self-Hosted Self</strong> plugin...</p></div>';
         });
         return;
     }

@@ -90,7 +90,7 @@ pretend to replace that. What it *does* take responsibility for:
 
 ## Testing without real money
 
-**Own Ur Shit → Debug Tools → BH Monetization** (locked outside
+**The Self-Hosted Self → Debug Tools → BH Monetization** (locked outside
 `wp_get_environment_type() !== 'production'`, same as every other
 plugin's debug section) mints test tiers, entitlements, and wallet
 credit directly, plus a "simulate a refund" button that exercises the
