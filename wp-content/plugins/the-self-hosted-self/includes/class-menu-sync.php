@@ -44,8 +44,12 @@ class OUS_MenuSync {
     // logged-in member. Fires on every classic wp_nav_menu() render,
     // regardless of theme — same "plugins and theme fully independent"
     // posture as the rest of this class.
+    /** The theme directory before the 2026-08-24 rename. */
+    private const LEGACY_STYLESHEET = 'own-ur-shit-theme';
+
     public static function init(): void {
         add_filter('wp_nav_menu_objects', [self::class, 'localize_account_link'], 10, 1);
+        add_action('admin_init', [self::class, 'migrate_legacy_theme_mods']);
         add_action('wp_enqueue_scripts', [self::class, 'enqueue_cta_style']);
     }
 
@@ -64,6 +68,54 @@ class OUS_MenuSync {
         // handle (wp_enqueue_style('ous-catalog')) so they never need to know
         // where core keeps the file.
         wp_register_style('ous-catalog', OUS_URL . 'assets/css/catalog.css', [], OUS_VER);
+    }
+
+    /**
+     * Carries theme mods across the theme directory rename.
+     *
+     * WordPress keys theme mods by stylesheet directory
+     * (theme_mods_<stylesheet>), so renaming the folder orphans every one of
+     * them -- and the one that hurts is nav_menu_locations. Verified live
+     * after the rename: the primary location read "(none)" while the Primary
+     * Menu itself still existed, so the theme fell back to its no-menu
+     * fallback and the Contests and Courses groups vanished from the site
+     * entirely. That is not a cosmetic loss; it is every link this ecosystem
+     * puts in the nav.
+     *
+     * Lives in core rather than the theme for the same reason core already
+     * registers the theme for its own updates: core is what reliably reaches
+     * an install, and a theme that has just been renamed is exactly the one
+     * that cannot fix itself.
+     *
+     * Adopts rather than overwrites -- if the current theme already has menu
+     * locations, someone has set them and this does nothing.
+     */
+    public static function migrate_legacy_theme_mods(): void {
+        if (get_option('ous_theme_mods_migrated')) return;
+
+        $current = get_stylesheet();
+        if ($current === self::LEGACY_STYLESHEET) return;
+
+        $legacy = get_option('theme_mods_' . self::LEGACY_STYLESHEET);
+        if (!is_array($legacy) || empty($legacy['nav_menu_locations'])) return;
+
+        $mods = get_option('theme_mods_' . $current);
+        if (!is_array($mods)) $mods = [];
+
+        // Only fill a gap. An assignment someone made on the new theme wins.
+        if (empty($mods['nav_menu_locations'])) {
+            $mods['nav_menu_locations'] = $legacy['nav_menu_locations'];
+            update_option('theme_mods_' . $current, $mods);
+
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('info', 'Carried nav menu locations across the theme rename.', [
+                    'from' => self::LEGACY_STYLESHEET,
+                    'to'   => $current,
+                ], 'OUS_MenuSync');
+            }
+        }
+
+        update_option('ous_theme_mods_migrated', 1);
     }
 
     /**

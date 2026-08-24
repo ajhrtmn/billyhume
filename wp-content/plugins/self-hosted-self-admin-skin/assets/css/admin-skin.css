@@ -4227,3 +4227,54 @@ body.shsas-owned #wpbody-content .menu-settings-group-name,
 body.shsas-owned #wpbody-content .menu-settings .howto {
     color: var(--shsas-text) !important;
 }
+
+/* ==========================================================================
+   NEON AS AN AFTERTHOUGHT — resting nav icons return to the neutral ramp
+   ==========================================================================
+
+   Straight from the standing brief, and it was being contradicted by the
+   most-looked-at surface in the product:
+
+     "The smokey grey noir ... with the juicy neon psychedelic rainbow splash
+      should be thought of as an afterthought over the core architecture."
+     "If a screen reads as more neon than smokey-grey-noir, the balance is
+      wrong."
+     Googie neon belongs "ONLY on elements that already carry real semantic
+      weight ... never added to something plain just for flourish."
+
+   Every top-level nav icon was rendering at saturate(1.8) with its own
+   hue-rotate AT REST, so the sidebar read as a rainbow before anything had
+   happened. A nav item sitting there is plain -- it carries no state, no
+   count, no "you are here". The hue was flourish.
+
+   Rest is now the neutral ramp. The per-item hue is untouched and still
+   fires where it means something: hover (feedback) and .current /
+   .wp-has-current-submenu (wayfinding, the real "you are here" signal the
+   brief names explicitly). Same tokens, same six-hue set, same wayfinding
+   value -- it simply stops shouting when nothing is happening.
+
+   This is subtraction, not a new system: the glow, the hues and the
+   per-item mapping all still exist, one state later. */
+#adminmenu li.menu-top div.wp-menu-image img {
+    filter: brightness(0) invert(1) brightness(var(--shsas-haze-brightness)) !important;
+}
+#adminmenu li.menu-top:hover div.wp-menu-image img,
+#adminmenu li.menu-top:focus-within div.wp-menu-image img,
+#adminmenu li.menu-top.current div.wp-menu-image img,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image img {
+    filter: brightness(0) invert(1) sepia(1) saturate(6)
+            hue-rotate(var(--shsas-item-hue-deg, 0deg))
+            drop-shadow(0 0 var(--shsas-focus-glow-blur) currentColor) !important;
+}
+/* The CSS-mask icons carry their hue as a background-color rather than a
+   filter, so they need the same treatment expressed the other way. */
+#adminmenu li.menu-top div.wp-menu-image.svg,
+#adminmenu li.menu-top div.wp-menu-image[style*="mask"] {
+    background-color: var(--shsas-text-dim) !important;
+}
+#adminmenu li.menu-top:hover div.wp-menu-image.svg,
+#adminmenu li.menu-top:focus-within div.wp-menu-image.svg,
+#adminmenu li.menu-top.current div.wp-menu-image.svg,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image.svg {
+    background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
+}
