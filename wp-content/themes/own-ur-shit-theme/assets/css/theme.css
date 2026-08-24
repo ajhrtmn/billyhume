@@ -177,6 +177,26 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
    the overlap on the rare frame where they still touch. */
 .oust-site-header {
     position: sticky; top: 0; z-index: 400;
+    /* Reported from a real phone (iOS Safari): after scrolling, a band of
+       STALE pixels -- the previous frame's page content -- was left above
+       the header. It cleared on reload or in a new tab, which is the
+       signature of a compositing artifact rather than a layout offset:
+       no measurement on this element is wrong, the browser simply never
+       repainted the region the header vacated.
+
+       Cause is the documented iOS interaction between `position: sticky`
+       and `backdrop-filter` below. The backdrop filter samples what is
+       behind the element, so Safari keeps it in the scroller's own layer
+       instead of promoting it, and the sampled region goes stale during
+       momentum scroll.
+
+       translateZ(0) forces the header onto its own compositing layer, so
+       the backdrop is resampled per frame. NOT verified on a real iOS
+       device from here -- this environment has no iOS Safari -- so it is
+       reasoned from the artifact's signature, not measured. Verify on the
+       phone before assuming it is closed. */
+    transform: translateZ(0);
+    will-change: transform;
     background: color-mix(in srgb, var(--bh-surface, #220C0A) 92%, transparent);
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--bh-border, #3D1B14);
