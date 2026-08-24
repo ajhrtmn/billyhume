@@ -180,7 +180,7 @@ class BHR_Frontend {
                         <input type="url" id="bhr-f-url" placeholder="https://your-instance.example/…">
                         <p class="bhr-modal-note">No instance yet? <a href="https://funkwhale.audio" target="_blank" rel="noopener">Get a free Funkwhale channel</a>, then come back and paste its RSS link above.</p>
                         <button type="button" class="bhr-btn" id="bhr-f-submit">Submit</button>
-                        <div id="bhr-f-error" class="bhr-form-error"></div>
+                        <div id="bhr-f-error" class="bhr-form-error bh-alert bh-alert-error" role="alert"></div>
                     </div>
                     <div id="bhr-submit-step-verify" style="display:none;"></div>
                 </div>

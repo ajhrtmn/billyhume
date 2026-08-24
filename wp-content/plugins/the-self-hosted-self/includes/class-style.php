@@ -67,6 +67,7 @@ class BHY_Style {
         echo '<style id="bhy-global-vars">' . self::inline_css() . '</style>';
         echo '<style id="bh-text-overflow-utils">' . self::text_overflow_utils_css() . '</style>';
         echo '<style id="bh-badge">' . self::badge_css() . '</style>';
+        echo '<style id="bh-alert">' . self::alert_css() . '</style>';
         // Real gap found live (2026-08-15): --bh-font-display/--bh-font-body
         // were already correctly set site-wide by inline_css() above, but
         // google_fonts_url() — the thing that actually loads the WEBFONT
@@ -174,6 +175,80 @@ class BHY_Style {
      * different visual contexts (a WP-admin screen vs. a themed public
      * page) that happened to reach different colors independently.
      */
+    /**
+     * LAYER 3 component: the front end's message block.
+     *
+     * WHY: `.bh-alert` had ZERO occurrences ecosystem-wide, which
+     * STYLE-SYSTEM.md has listed as a gap for months. The consequence was
+     * measured, not assumed -- every front-end error is hand-rolled, spread
+     * across 34 hardcoded red literals in three different values
+     * (#b32d2e x21, #d63638 x12, #cc1818 x1). A fan hitting two different
+     * errors on this site saw two different designs.
+     *
+     * Text is --bh-text, NOT the hue token. An alert is a block of prose,
+     * unlike a badge, which is one word at 11px where the hue carries the
+     * meaning. Painting body text in a saturated hue on a tint of that same
+     * hue is exactly the shape tools/check-accent-on-tint.js exists to
+     * catch: it produced five AA failures in one session. Here the hue lives
+     * in the left rule and the icon, where it identifies the alert without
+     * having to survive as readable prose.
+     */
+    private static function alert_css(): string {
+        return '.bh-alert{'
+            . 'display:flex;gap:10px;align-items:flex-start;'
+            . 'padding:12px 14px;margin:0 0 14px;'
+            . 'border-radius:var(--bh-radius-sm,8px);'
+            . 'border:1px solid var(--bh-border,#3d3527);'
+            . 'border-left:4px solid var(--bh-text-dim,#6b7280);'
+            . 'background:var(--bh-surface-2,var(--bh-surface,#1e1b15));'
+            . 'color:var(--bh-text,inherit);'
+            . 'font-size:14px;line-height:1.5;'
+            . '}'
+            . '.bh-alert-title{font-weight:600;margin:0 0 2px;}'
+            . '.bh-alert p{margin:0;}'
+            . '.bh-alert p + p{margin-top:6px;}'
+            . '.bh-alert-icon{flex:0 0 auto;font-size:15px;line-height:1.4;}'
+            // The hue identifies the alert through the rule and the icon. Body
+            // text stays --bh-text so it is legible on every surface.
+            //
+            // The icon lifts the hue toward the text colour rather than using
+            // it raw. Measured raw on the dark front end: 2.68:1 for danger
+            // and 2.95:1 for warning, because #b3261e and #8a5a00 are hues
+            // chosen for a LIGHT admin background. The 4px rule beside them
+            // is a block of colour and reads fine at any of these values; a
+            // small glyph does not. Mixing toward --bh-text keeps the hue
+            // recognisable and clears 3:1 on either ground.
+            . '.bh-alert-success{border-left-color:var(--bh-success,#1DB954);}'
+            . '.bh-alert-success .bh-alert-icon{color:color-mix(in srgb,var(--bh-success,#1DB954) 60%,var(--bh-text,#f2ede1));}'
+            . '.bh-alert-warning{border-left-color:var(--bh-warning,#8a5a00);}'
+            . '.bh-alert-warning .bh-alert-icon{color:color-mix(in srgb,var(--bh-warning,#8a5a00) 60%,var(--bh-text,#f2ede1));}'
+            . '.bh-alert-error{border-left-color:var(--bh-danger,#b3261e);}'
+            . '.bh-alert-error .bh-alert-icon{color:color-mix(in srgb,var(--bh-danger,#b3261e) 60%,var(--bh-text,#f2ede1));}'
+            . '.bh-alert-info{border-left-color:var(--bh-accent,#2271b1);}'
+            . '.bh-alert-info .bh-alert-icon{color:color-mix(in srgb,var(--bh-accent,#2271b1) 60%,var(--bh-text,#f2ede1));}';
+    }
+
+    /**
+     * Renders a front-end alert. Callers pass text, never markup, so an
+     * error string that happens to contain HTML cannot become markup.
+     *
+     * @param string $message plain text
+     * @param string $type    error|warning|success|info
+     * @param string $title   optional bold first line
+     */
+    public static function alert(string $message, string $type = 'error', string $title = ''): string {
+        $icons = ['error' => '&#9888;', 'warning' => '&#9888;', 'success' => '&#10003;', 'info' => '&#8505;'];
+        $type = isset($icons[$type]) ? $type : 'error';
+        $roles = ['error' => ' role="alert"', 'warning' => ' role="alert"'];
+        $html  = '<div class="bh-alert bh-alert-' . $type . '"' . ($roles[$type] ?? '') . '>';
+        $html .= '<span class="bh-alert-icon" aria-hidden="true">' . $icons[$type] . '</span>';
+        $html .= '<div>';
+        if ($title !== '') $html .= '<p class="bh-alert-title">' . esc_html($title) . '</p>';
+        $html .= '<p>' . esc_html($message) . '</p>';
+        $html .= '</div></div>';
+        return $html;
+    }
+
     private static function badge_css(): string {
         return ':root{'
             . '--bh-success:#1DB954;--bh-success-bg:rgba(29,185,84,0.15);'

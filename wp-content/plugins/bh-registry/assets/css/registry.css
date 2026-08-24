@@ -200,10 +200,17 @@
     background: var(--bh-surface-2, #2C120E);
     color: inherit;
 }
+/* Was a bare red-text rule with a hardcoded #b3261e -- one of 34 such
+   literals in three different values across the front end. The shared
+   .bh-alert component (BHY_Style::alert_css, LAYER 3) now carries the
+   treatment; this only keeps the spacing that is specific to sitting under
+   this form. Empty until JS fills it, so the component styling must not
+   apply to an empty box. */
 .bhr-form-error {
-    color: #b3261e;
-    font-size: 13px;
     margin-top: 8px;
+}
+.bhr-form-error:empty {
+    display: none;
 }
 .bhr-form-success {
     color: var(--bh-success, #1DB954);

@@ -212,7 +212,7 @@ class BHI_TwoFactor {
                 <p><code id="bhcore-2fa-secret-text"></code></p>
                 <p><label>Enter the 6-digit code your app shows to confirm setup: <input type="text" id="bhcore-2fa-confirm-code" maxlength="6" inputmode="numeric" style="width:100px;"></label>
                 <button type="button" class="button button-primary" id="bhcore-2fa-confirm">Confirm &amp; enable</button></p>
-                <p id="bhcore-2fa-error" style="color:#b32d2e;"></p>
+                <p id="bhcore-2fa-error" class="bh-alert bh-alert-error" role="alert" hidden></p>
             </div>';
         }
         echo '</div>';
@@ -262,7 +262,9 @@ class BHI_TwoFactor {
                         if (!res.success) {
                             confirmBtn.disabled = false;
                             confirmBtn.textContent = originalLabel;
-                            document.getElementById('bhcore-2fa-error').textContent = (res.data && res.data.message) || 'Invalid code.';
+                            var errEl = document.getElementById('bhcore-2fa-error');
+                            errEl.textContent = (res.data && res.data.message) || 'Invalid code.';
+                            errEl.hidden = false;
                             return;
                         }
                         window.location.reload();
@@ -270,7 +272,9 @@ class BHI_TwoFactor {
                     .catch(function () {
                         confirmBtn.disabled = false;
                         confirmBtn.textContent = originalLabel;
-                        document.getElementById('bhcore-2fa-error').textContent = 'Could not reach the server — check your connection and try again.';
+                        var errEl2 = document.getElementById('bhcore-2fa-error');
+                        errEl2.textContent = 'Could not reach the server — check your connection and try again.';
+                        errEl2.hidden = false;
                     });
             });
 

@@ -86,3 +86,16 @@ Also worth remembering: a custom `add_rewrite_rule()` does nothing until permali
 ## Where this doc came from
 
 Written after the 2026-08 audit pass: 579 inline `style=` sites and 17 `.css` files read in full across all 10 ecosystem plugins, which found ~600 inline styles ecosystem-wide, several live "uneven card height" / "badge text wraps" bugs (same root cause: a shared component existed but wasn't used), and — the reason this doc exists — the same badge/pill shape independently hand-rolled in at least 8 different plugin stylesheets with no shared front-end primitive to point at. See `AUDIT-inline-styles-MASTER.md` and `AUDIT-css-files-MASTER.md` (same directory) for the full findings this doc is downstream of.
+
+
+## `.bh-alert` — front-end message block (added 2026-08-24)
+
+Layer 3, emitted by `BHY_Style::alert_css()` alongside `.bh-badge`, so it is available anywhere the global styles print. Render with `BHY_Style::alert($message, $type, $title)`, which takes **text, never markup** — an error string containing HTML cannot become markup.
+
+This closed a gap `STYLE-SYSTEM.md` had listed for months. The cost of leaving it open was measurable: **34 hardcoded error-red literals in three different values** (`#b32d2e`×21, `#d63638`×12, `#cc1818`×1). A fan hitting two different errors saw two different designs.
+
+**Body text is `--bh-text`, not the hue.** An alert is a block of prose; a badge is one word at 11px where the hue carries the meaning. Painting prose in a saturated hue on a tint of that hue is the exact shape `tools/check-accent-on-tint.js` exists to catch. The hue lives in the 4px left rule instead.
+
+**The icon lifts its hue toward `--bh-text`** (`color-mix(… 60%, var(--bh-text))`). Raw, `--bh-danger` measured **2.68:1** and `--bh-warning` **2.95:1** on the dark front end, because both are hues chosen for a light admin background. A 4px rule is a block of colour and reads fine at those values; a small glyph does not.
+
+Measured across all four variants: body **13.35:1**, icons **5.01–8.59:1**.
