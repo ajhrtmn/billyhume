@@ -112,6 +112,10 @@ Nothing caught them. Stylelint cannot express "these two values are related", an
 
 The check is deliberately narrow: the rule must set both `color` and a background, and both must reference the **same** accent custom property. That is the shape all five took, and it keeps the output small enough to read.
 
+**Calibration matters as much as detection.** A first attempt to generalise it — treating a token and its own `-bg` sibling as the same hue — flagged six rules that are all fine. `--bh-success` on `--bh-success-bg` is a pair someone deliberately chose, and it measures **6.23:1 in dark, 10.66:1 in light**. Those were measured *before* being "fixed", which is the only reason they were not broken in service of a checker.
+
+The real shape is narrower: a background deriving a **`color-mix()` tint of the very token used for the text**. Nobody chose that contrast — it fell out of the mix percentage. The check is verified in both directions: it catches that shape and ignores the designed `-bg` pair.
+
 **Two lessons, both earned the hard way in one sitting:**
 
 1. **A green checker you have never seen fail proves nothing.** The first version resolved `ecosystem-plugins.txt` entries as paths when they are folder *names*, so it scanned zero files and passed. Verified by deliberately reintroducing the pattern and watching it not fire.

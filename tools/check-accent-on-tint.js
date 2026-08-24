@@ -51,7 +51,19 @@ const walk = dir => {
 };
 for (const r of ROOTS) walk(r);
 
-const ACCENT = /var\(\s*(--[a-z0-9-]*accent[a-z0-9-]*)/gi;
+// Any semantic hue token, not just accent.
+const HUE = /var\(\s*(--[a-z0-9-]*(?:accent|success|warning|danger|error|info)[a-z0-9-]*)/gi;
+
+// A purpose-built -bg sibling is NOT this bug. --bh-success on
+// --bh-success-bg is a pair someone chose and it measures 6.23:1 in dark and
+// 10.66:1 in light. Treating those as the same hue flagged six rules that
+// are all fine -- measured before "fixing" them, which is the only reason
+// they were not broken in the name of a checker.
+//
+// What actually failed, all five times, is narrower: a background deriving a
+// TINT of the very token used for the text, via color-mix(). Nobody chose
+// that contrast; it fell out of the mix percentage.
+const baseHue = t => t.toLowerCase();
 const findings = [];
 
 for (const file of files) {
@@ -67,12 +79,14 @@ for (const file of files) {
 
     const tokensIn = s => {
       const out = new Set();
-      let t; ACCENT.lastIndex = 0;
-      while ((t = ACCENT.exec(s)) !== null) out.add(t[1].toLowerCase());
+      let t; HUE.lastIndex = 0;
+      while ((t = HUE.exec(s)) !== null) out.add(baseHue(t[1].toLowerCase()));
       return out;
     };
     const fg = tokensIn(colorDecl[1]);
     const bg = tokensIn(bgDecl[1]);
+    // Only when the background MIXES the same token the text uses.
+    if (!/color-mix\s*\(/i.test(bgDecl[1])) continue;
     const shared = [...fg].filter(t => bg.has(t));
     if (!shared.length) continue;
 
@@ -91,10 +105,10 @@ if (!files.length) {
   process.exit(2);
 }
 if (!findings.length) {
-  console.log(`  ACCENT-ON-TINT OK (${files.length} stylesheets) — no rule paints accent text on a tint of the same accent`);
+  console.log(`  ACCENT-ON-TINT OK (${files.length} stylesheets) — no rule paints text on a color-mix() tint of its own token`);
   process.exit(0);
 }
-console.error(`\n  ${findings.length} rule(s) paint accent text on a tint of the SAME accent.`);
+console.error(`\n  ${findings.length} rule(s) paint text on a color-mix() tint of that SAME token.`);
 console.error('  Measured precedent: this shape read 3.23:1 on the course price badge.');
 console.error('  Fix by using the surface foreground (--bh-text / --bhy-ink) for the text,');
 console.error('  keeping the accent as background and border.\n');
