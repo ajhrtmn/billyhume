@@ -603,6 +603,20 @@ class OUS_GithubUpdates {
                 wp_nonce_field('ous_github_update_now');
                 echo '<button class="button button-primary" onclick="return confirm(\'Download and install the latest ' . esc_js($source['label']) . ' from GitHub now? This overwrites the installed copy.\');">Update now</button>';
                 echo '</form></td>';
+            } elseif ($row && empty($row['remote_version'])) {
+                // A check RAN but could not read a version from GitHub. This
+                // used to fall into the "Up to date" branch below, because
+                // that branch only asked whether a row existed -- so a failed
+                // fetch was indistinguishable from a match. Reported from
+                // live: the theme row read "On GitHub: not checked yet" and
+                // "Up to date" in the same row, which is a contradiction the
+                // table was stating out loud.
+                //
+                // This is the worst failure a self-hosted updater can have,
+                // because it is silent: nothing errors, and the update simply
+                // never gets offered. Saying so plainly is the fix.
+                echo '<td><span class="bhy-badge bhy-badge-warning">Could not reach GitHub</span></td>';
+                echo '<td><span class="description">See Console &amp; Logs for the reason.</span></td>';
             } elseif ($row) {
                 echo '<td><span class="bhy-badge bhy-badge-success">Up to date</span></td><td></td>';
             } else {

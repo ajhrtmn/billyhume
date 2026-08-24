@@ -3631,16 +3631,39 @@ confirmed unstyled light-gray here. */
    Deliberately NOT the accent: a pending-update count is information,
    and reserving hue for real signals is what keeps this palette from
    turning into noise. */
+/* Count pills. Measured before this change, on one dashboard:
+   41x18, 21x13 and 21x18, two of them sitting 6px ABOVE their row's centre.
+   Three separate causes, all visible as "wonky badges":
+
+   1. WordPress nests .update-count INSIDE .update-plugins. Styling both as
+      pills produced a pill inside a pill -- the 41px double-bordered blob.
+      The inner one is now a plain span; only the outer is a pill.
+   2. line-height did the vertical centring, which collapses to 13px when
+      the glyph box disagrees. inline-flex centres regardless of glyph.
+   3. Nothing aligned the pill to the text beside it, hence the 6px offset.
+      vertical-align: middle is what actually relates the two boxes. */
 #adminmenu .update-plugins,
-#adminmenu .awaiting-mod,
-#adminmenu .update-count {
+#adminmenu .awaiting-mod {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    /* Both, deliberately. This skin makes menu anchors flex containers, and
+       inside a flex parent vertical-align does nothing -- align-self is what
+       actually centres the pill, which is why three of them still measured
+       6px high after vertical-align alone. vertical-align stays for the
+       non-flex contexts the same badge appears in. */
+    vertical-align: middle;
+    align-self: center;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    box-sizing: border-box;
     background: var(--shsas-hover-veil) !important;
     color: var(--shsas-text-dim, var(--shsas-text)) !important;
     box-shadow: inset 0 0 0 1px var(--shsas-border, rgba(255,255,255,.14));
     border-radius: 999px !important;
     min-width: 20px;
     height: 18px;
-    line-height: 18px !important;
+    line-height: 1 !important;
     padding: 0 7px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
@@ -3649,6 +3672,38 @@ confirmed unstyled light-gray here. */
     text-align: center;
     margin-left: 6px;
     transition: background-color 120ms ease, color 120ms ease;
+}
+/* The badges were never the misalignment. Measured: every pill sits within
+   1px of its own label. What is off is the whole row's CONTENT -- label and
+   pill together sit 8px above centre in submenu rows, and only in the tall
+   ones (42-46px), never the 18px ones.
+
+   Cause is our own touch-target work: these anchors were padded up to a
+   44px-class target while staying display:block, so their content keeps
+   sitting on the first line box near the top instead of centring in the
+   taller box. Flex centring makes the content follow the row height
+   whatever it is, rather than needing a line-height kept in sync with it. */
+#adminmenu .wp-submenu a,
+#adminmenu .wp-submenu li > a {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+/* The nested count carries the number, not a second pill. */
+#adminmenu .update-plugins .update-count {
+    display: inline !important;
+    background: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    min-width: 0;
+    height: auto;
+    padding: 0 !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    color: inherit !important;
 }
 /* On the row you're pointing at, the count comes forward with the
    label rather than staying recessed. */
