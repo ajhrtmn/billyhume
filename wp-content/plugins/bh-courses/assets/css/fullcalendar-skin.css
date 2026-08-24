@@ -1,0 +1,62 @@
+/* FullCalendar, themed through its own variable contract.
+ *
+ * The bug this fixes: assets/js/vendor/fullcalendar.global.js was vendored
+ * without any stylesheet, and maybe_enqueue() registered two scripts and no
+ * style. FullCalendar 7 does not inject its own CSS -- the bundle contains
+ * zero style rules -- so the calendar rendered as raw unstyled DOM: the
+ * weekday names and every date stacked in a single vertical column, which is
+ * what a real phone screenshot showed.
+ *
+ * skeleton.css (structure) and themes/classic (look) are now vendored beside
+ * the script and enqueued with it.
+ *
+ * This file maps FullCalendar's own --fc-classic-* variables onto our tokens.
+ * That is deliberate and is the pattern THIRD-PARTY-SKINNING.md prescribes for
+ * adoption: theme a third-party component through the contract it publishes,
+ * never by overriding its internal selectors. When FullCalendar reorganises
+ * its DOM, a variable mapping survives; a selector override does not.
+ *
+ * Sessions is one of OUR admin pages, so it is shsas-owned and genuinely
+ * should look like the rest of the ecosystem -- unlike a contained
+ * third-party screen, which is left in its own visual language on purpose. */
+#bhc-sessions-calendar {
+    --fc-classic-background: var(--bhy-surface, #fff);
+    --fc-classic-foreground: var(--bhy-ink, #1d2327);
+    --fc-classic-faint-foreground: var(--bhy-ink-dim, #6b7280);
+    --fc-classic-muted-foreground: var(--bhy-ink-dim, #6b7280);
+    --fc-classic-border: var(--bhy-border, #ddd);
+    --fc-classic-strong-border: var(--bhy-border-strong, var(--bhy-border, #9ca3af));
+
+    /* Neutral washes. FullCalendar expects 8-digit hex alpha here; keeping
+       that form rather than color-mix() so the values stay legible next to
+       the vendor palette they replace. */
+    --fc-classic-faint: #ffffff0a;
+    --fc-classic-muted: #ffffff14;
+    --fc-classic-strong: #ffffff24;
+
+    /* An event is a booked slot -- the one thing on this screen worth
+       accenting, so it takes the accent rather than FullCalendar's blue. */
+    --fc-classic-primary: var(--bhy-accent, #3788d8);
+    --fc-classic-event: var(--bhy-accent, #3788d8);
+    --fc-classic-today: color-mix(in srgb, var(--bhy-accent, #3788d8) 12%, transparent);
+
+    --fc-classic-button: var(--bhy-surface-2, #334155);
+    --fc-classic-button-border: var(--bhy-border, #334155);
+    --fc-classic-button-strong: var(--bhy-accent, #1e293b);
+    --fc-classic-button-strong-border: var(--bhy-accent, #0f172a);
+    --fc-classic-button-foreground: var(--bhy-ink, #fff);
+}
+/* Light theme: the washes above are white-on-dark. Flip them to black-on-light
+   so the faint/muted/strong ramp keeps its direction instead of inverting. */
+:root[data-shsas-theme="light"] #bhc-sessions-calendar {
+    --fc-classic-faint: #0000000a;
+    --fc-classic-muted: #00000014;
+    --fc-classic-strong: #00000024;
+}
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) #bhc-sessions-calendar {
+        --fc-classic-faint: #0000000a;
+        --fc-classic-muted: #00000014;
+        --fc-classic-strong: #00000024;
+    }
+}

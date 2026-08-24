@@ -25,6 +25,14 @@ class BHC_SessionsAdmin {
 
     public static function maybe_enqueue(string $hook): void {
         if (strpos($hook, 'bhc-sessions') === false) return;
+        // WHY: FullCalendar 7 ships NO CSS inside its JS bundle -- the vendored
+        // script contains zero style rules. Without these the calendar renders
+        // as unstyled DOM, every weekday and date stacked in one column.
+        // skeleton = structure (required), classic = look, then our token map.
+        wp_enqueue_style('bhc-fullcalendar-skeleton', BHC_URL . 'assets/css/vendor/fullcalendar/skeleton.css', [], '7.0.2');
+        wp_enqueue_style('bhc-fullcalendar-palette', BHC_URL . 'assets/css/vendor/fullcalendar/palette.css', ['bhc-fullcalendar-skeleton'], '7.0.2');
+        wp_enqueue_style('bhc-fullcalendar-theme', BHC_URL . 'assets/css/vendor/fullcalendar/theme.css', ['bhc-fullcalendar-palette'], '7.0.2');
+        wp_enqueue_style('bhc-fullcalendar-skin', BHC_URL . 'assets/css/fullcalendar-skin.css', ['bhc-fullcalendar-theme'], BHC_VER);
         wp_enqueue_script('bhc-fullcalendar', BHC_URL . 'assets/js/vendor/fullcalendar.global.js', [], '7.0.2', true);
         wp_enqueue_script('bhc-sessions-admin', BHC_URL . 'assets/js/sessions-admin.js', ['bhc-fullcalendar'], BHC_VER, true);
     }
