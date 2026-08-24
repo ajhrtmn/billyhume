@@ -15,7 +15,35 @@ class BHC_Activator {
         if (self::create_or_update_schema()) {
             update_option('bhc_db_version', self::DB_VERSION);
         }
+        self::ensure_catalog_page();
         flush_rewrite_rules();
+    }
+
+    /**
+     * The course catalog needs a page to live on, and that should not depend
+     * on the site owner knowing to make one.
+     *
+     * bh-contest auto-creates its Archive and bh-streaming its Streaming
+     * page; bh-courses never did, so the catalog only existed if somebody
+     * built it by hand. OUS_Pages::ensure() is the shared version of what
+     * those two grew privately, and it also adopts an existing hand-made
+     * page rather than creating a duplicate.
+     *
+     * MUST NOT run on plugins_loaded. Creating a page that early fatals with
+     * "Call to a member function get_page_permastruct() on null" -- $wp_rewrite
+     * does not exist yet, and wp_insert_post's own hooks reach for permalinks.
+     * Verified by doing exactly that and taking every admin screen down.
+     * admin_init is late enough and is the only context that needs it.
+     *
+     * class_exists() at call time, not parse time -- core loads last.
+     * Without core there is simply no auto-created page, which is the same
+     * position this plugin was already in.
+     */
+    public static function ensure_catalog_page(): void {
+        if (!class_exists('OUS_Pages')) return;
+        // bhc/catalog is the block form of the same catalog -- without it,
+        // a block-authored page is invisible to the lookup and gets duplicated.
+        OUS_Pages::ensure('bh_courses', 'bhc_catalog_page_id', __('Courses', 'bh-courses'), ['bhc/catalog']);
     }
 
     public static function maybe_upgrade(): void {

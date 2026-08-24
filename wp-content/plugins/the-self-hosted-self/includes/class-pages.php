@@ -85,6 +85,58 @@ final class OUS_Pages {
         return is_string($link) ? $link : null;
     }
 
+    /**
+     * Guarantees a page exists hosting $shortcode, creating it if not.
+     *
+     * WHY here: bh-contest and bh-streaming each grew their own private
+     * maybe_create_singleton_page(), and bh-courses never got one at all --
+     * so contests auto-created an Archive and streaming a Streaming page,
+     * while the course catalog only existed if somebody happened to build it
+     * by hand. A catalog that a plugin renders should not depend on the site
+     * owner knowing to create a page for it.
+     *
+     * Two things this does that those copies do not:
+     *
+     * 1. It verifies the recorded page still EXISTS and is published. Those
+     *    return early on the option alone, so trashing the page leaves the
+     *    option pointing at nothing and the page is never recreated.
+     * 2. It looks for an existing page already hosting the shortcode before
+     *    creating one, so an install where somebody made the page by hand
+     *    gets adopted rather than ending up with two.
+     *
+     * $blocks matters more than it looks. A page built in Gutenberg stores
+     * block markup, not a shortcode, so a shortcode-only lookup does not
+     * find it -- which is exactly how the first version of this created a
+     * duplicate "Courses" page next to the perfectly good block-authored one
+     * that already existed. Adoption has to look for both.
+     *
+     * @param array<string> $blocks block names that render the same thing
+     * @return int page id, or 0 if creation failed
+     */
+    public static function ensure(string $shortcode, string $option_key, string $title, array $blocks = []): int {
+        $recorded = (int) get_option($option_key, 0);
+        if ($recorded > 0 && get_post_status($recorded) === 'publish') return $recorded;
+
+        // Adopt a hand-made page rather than duplicating it.
+        $existing = self::find($shortcode, '', $blocks);
+        if ($existing) {
+            update_option($option_key, $existing);
+            return $existing;
+        }
+
+        $new_id = wp_insert_post([
+            'post_title'   => $title,
+            'post_type'    => 'page',
+            'post_status'  => 'publish',
+            'post_content' => '[' . $shortcode . ']',
+        ], true);
+        if (is_wp_error($new_id)) return 0;
+
+        update_option($option_key, (int) $new_id);
+        self::flush();
+        return (int) $new_id;
+    }
+
     /** @return array<int, WP_Post> */
     private static function candidate_pages(): array {
         return get_posts([

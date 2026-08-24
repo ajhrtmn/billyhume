@@ -1016,4 +1016,75 @@ class BHC_Admin {
             . esc_html__('View live catalog', 'bh-courses') . ' <span aria-hidden="true">&#8599;</span></a>';
         return $views;
     }
+
+    /**
+     * Scopes the Lessons list to one course.
+     *
+     * Direct feedback: "I don't need a master list of all lessons; I only
+     * care about what lessons belong to the course I'm working on." The data
+     * model already parents a lesson to a course (_bhc_course_id); only the
+     * admin was ignoring that and showing everything at once.
+     *
+     * Filtered rather than removed. Lessons are still created from this
+     * screen, so hiding it would strand that -- and a filter serves the same
+     * need without taking a capability away.
+     */
+    public static function lesson_course_filter(string $post_type): void {
+        if ($post_type !== 'bh_lesson') return;
+        $courses = get_posts([
+            'post_type'   => 'bh_course',
+            'numberposts' => -1,
+            'post_status' => ['publish', 'draft'],
+            'orderby'     => 'title',
+            'order'       => 'ASC',
+        ]);
+        if (!$courses) return;
+        $selected = isset($_GET['bhc_course']) ? (int) $_GET['bhc_course'] : 0;
+        echo '<label class="screen-reader-text" for="bhc_course">' . esc_html__('Filter by course', 'bh-courses') . '</label>';
+        echo '<select name="bhc_course" id="bhc_course">';
+        echo '<option value="0">' . esc_html__('All courses', 'bh-courses') . '</option>';
+        foreach ($courses as $course) {
+            printf(
+                '<option value="%d"%s>%s</option>',
+                (int) $course->ID,
+                selected($selected, (int) $course->ID, false),
+                esc_html(get_the_title($course->ID))
+            );
+        }
+        echo '</select>';
+    }
+
+    /** @param \WP_Query $query */
+    public static function apply_lesson_course_filter($query): void {
+        if (!is_admin() || !$query->is_main_query()) return;
+        if (($query->get('post_type') ?: '') !== 'bh_lesson') return;
+        $course_id = isset($_GET['bhc_course']) ? (int) $_GET['bhc_course'] : 0;
+        if ($course_id <= 0) return;
+        $query->set('meta_query', [[
+            'key'   => '_bhc_course_id',
+            'value' => $course_id,
+        ]]);
+    }
+
+    /**
+     * A direct route from a course to just its lessons.
+     *
+     * @param array<string, string> $actions
+     * @return array<string, string>
+     */
+    public static function course_lessons_row_action(array $actions, \WP_Post $post): array {
+        if ($post->post_type !== 'bh_course') return $actions;
+        $count = count(BHC_PostTypes::lesson_order((int) $post->ID));
+        $url = add_query_arg(
+            ['post_type' => 'bh_lesson', 'bhc_course' => (int) $post->ID],
+            admin_url('edit.php')
+        );
+        $actions['bhc-lessons'] = '<a href="' . esc_url($url) . '">'
+            . sprintf(
+                /* translators: %d: number of lessons in this course */
+                esc_html__('Lessons (%d)', 'bh-courses'),
+                $count
+            ) . '</a>';
+        return $actions;
+    }
 }

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.4.89
+ * Version:     0.4.90
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.4.89');
+define('BHC_VER',  '0.4.90');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -134,6 +134,10 @@ add_action('plugins_loaded', function () {
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
     add_filter('views_edit-bh_course', ['BHC_Admin', 'add_catalog_view_link']);
+    add_action('admin_init', ['BHC_Activator', 'ensure_catalog_page']);
+    add_action('restrict_manage_posts', ['BHC_Admin', 'lesson_course_filter']);
+    add_action('pre_get_posts', ['BHC_Admin', 'apply_lesson_course_filter']);
+    add_filter('post_row_actions', ['BHC_Admin', 'course_lessons_row_action'], 10, 2);
     add_action('add_meta_boxes_page', ['BHC_Admin', 'add_page_backlink_meta_box']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_course']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_catalog_details']);
