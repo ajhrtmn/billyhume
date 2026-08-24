@@ -183,7 +183,20 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 }
 body.admin-bar .oust-site-header { top: 32px; }
 @media screen and (max-width: 782px) {
-    body.admin-bar .oust-site-header { top: 46px; }
+    /* Reported from a real phone: after scrolling, a 46px dead band opened
+       above the sticky header and page content showed through it.
+
+       Cause: below 782px WordPress core switches #wpadminbar from fixed to
+       `position: absolute`, so the bar scrolls AWAY with the document. This
+       rule was still reserving 46px for it. Measured at 390px after scrolling
+       to y=600: the admin bar sat at y -600 (off screen) while the header
+       stuck at top:46px, leaving exactly the reported gap.
+
+       The offset is only correct while the bar is actually fixed, which below
+       this breakpoint it never is. Sticky `top` applies once the element is
+       stuck -- i.e. after scrolling -- which is precisely when the bar is
+       already gone. */
+    body.admin-bar .oust-site-header { top: 0; }
 }
 .oust-site-header-inner {
     max-width: 1200px; margin: 0 auto; padding: 0 24px;
