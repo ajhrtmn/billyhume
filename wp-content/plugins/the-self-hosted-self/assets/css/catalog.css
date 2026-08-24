@@ -128,3 +128,75 @@
         transform: none;
     }
 }
+
+/* ==========================================================================
+   DEPTH OF FIELD — the catalog's focus hierarchy
+   ==========================================================================
+
+   The standing brief, in AJ's words: "a painter and photographer are just
+   composing with light", and the "half-blood prince"-ification -- hazy,
+   atmospheric depth of field with points of light glowing THROUGH the haze,
+   used as a real focus-hierarchy mechanism rather than decoration.
+
+   wp-admin already has this vocabulary (--shsas-haze-*, focus-sibling blur).
+   The front end had none of it (OPEN.md items 9 and 14), and item 14 asks
+   specifically for the haze to become continuous and viewport-proximity
+   driven rather than hover-triggered. A catalog grid is the exact case the
+   Wallet/"several of the same kind of thing" note describes, so it is where
+   this belongs first.
+
+   Implemented as a CSS scroll-driven animation, which means NO JavaScript
+   and no IntersectionObserver bookkeeping. Where the browser does not
+   support it the @supports block simply does not apply and every card stays
+   crisp -- the feature is pure enhancement, never a dependency.
+
+   Calibration follows the brief's own tie-breaker, usefulness over
+   decoration: 1px of blur and 0.72 opacity at the extremes, not the heavy
+   cinematic falloff the reference image suggests. A card you have scrolled
+   to sits in the crisp middle third; only cards genuinely at the edge of
+   attention recede. Anything stronger would trade legibility for mood,
+   which this brief explicitly refuses. */
+@keyframes ous-catalog-depth {
+    0% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+    34% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    66% {
+        filter: blur(0) saturate(1);
+        opacity: 1;
+    }
+    100% {
+        filter: blur(1px) saturate(0.82);
+        opacity: 0.72;
+    }
+}
+@supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+        .ous-catalog-card {
+            animation-name: ous-catalog-depth;
+            /* auto, NOT the 0s an omitted duration in the `animation`
+               shorthand implies -- that silently disables a scroll-driven
+               animation, which is why the first version computed
+               filter:none on every card. A scroll timeline supplies its own
+               progress; the duration must defer to it. */
+            animation-duration: auto;
+            animation-timing-function: linear;
+            animation-fill-mode: both;
+            animation-timeline: view();
+            animation-range: entry 0% exit 100%;
+        }
+        /* Keyboard focus must never land on a hazed card. An animation
+           outranks a normal declaration, so this genuinely needs the
+           !important -- accessibility beating atmosphere is the whole point
+           of the brief's "usefulness wins" rule. */
+        .ous-catalog-card:focus-within,
+        .ous-catalog-card:hover {
+            filter: none !important;
+            opacity: 1 !important;
+        }
+    }
+}

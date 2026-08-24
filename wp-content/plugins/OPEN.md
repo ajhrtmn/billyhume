@@ -45,7 +45,15 @@ The largest single distance between the current state and the stated vision. `DE
 ## Tier 3 — feature scope, genuinely unbuilt
 
 13. **Design Suite Page Manager, Tier 4** — the last open tier from the depth pass.
-14. **Haze → scroll-proximity driven.** Direct feature request: currently hover-triggered; wants continuous viewport-proximity blur (blurrier at the edges, sharpening toward center), likely `IntersectionObserver`.
+14. ~~**Haze → scroll-proximity driven.**~~ **DONE 2026-08-24, on the catalogs.** Continuous viewport-proximity depth of field, as a **CSS scroll-driven animation** (`animation-timeline: view()`) — no JavaScript and no `IntersectionObserver` bookkeeping. Where unsupported the `@supports` block simply does not apply and every card stays crisp, so it is pure enhancement.
+
+    Calibrated to the brief's own tie-breaker, usefulness over decoration: **1px blur, 0.72 opacity** at the extremes, not a heavy cinematic falloff. A card you have scrolled to sits in the crisp middle third; only cards genuinely at the edge of attention recede. `:focus-within` forces crisp with `!important`, since an animation outranks a normal declaration and keyboard focus must never land on a hazed card.
+
+    **Not visually verified.** This environment's browser reports `prefers-reduced-motion: reduce`, so the rule is correctly suppressed here. Verified instead that it parses and would apply (`animation-timeline: view()`, `animation-range: entry exit`, `animation-name` resolving). Worth a real look on a machine without reduced motion.
+
+    *One trap worth keeping:* the first version used the `animation` shorthand without a duration, which sets it to `0s` and silently disables a scroll-driven animation — every card computed `filter: none` with no error anywhere. Scroll timelines need `animation-duration: auto`.
+
+    Still open for item 9: the rest of the front end has none of this vocabulary yet.
 15. **Ecosystem dashboard plugin cards** — (a) per-card inline GitHub status check, not only centrally on Debug Tools; (b) a convention that every new plugin gets a dashboard card as a first build step.
 16. **`bh-feedback` timestamped audio annotations** — the third tier deferred in the plugin's own docblock.
 17. **Auction listings** — the only item left from the platform-evolution roadmap; everything else there shipped.
