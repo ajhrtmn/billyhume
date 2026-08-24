@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) exit;
 class BH_AdminMenus {
     public static function init(): void {
         add_action('admin_menu', [self::class, 'add_menus']);
+        add_filter('views_edit-bh_contest', [self::class, 'add_catalog_view_link']);
         // A contest leaving 'publish' (trash/delete) or coming back
         // (untrash) also has to drop or restore its own menu entry —
         // BH_AdminMetaboxes::save_contest_meta() alone only fires on an
@@ -369,5 +370,28 @@ class BH_AdminMenus {
 
         global $wpdb;
         $wpdb->delete(BH_Helpers::table(), ['contest_id' => $post_id], ['%d']);
+    }
+
+    /**
+     * A link from the admin list table to the live catalog a visitor sees.
+     *
+     * views_edit-<type> rather than a menu entry: this install has a
+     * documented history of standalone admin pages breaking WordPress's own
+     * page-hook resolution (see CLAUDE.md), and the status row is a native,
+     * risk-free place for a link that is not a filter view. OUS_Pages
+     * resolves which page hosts the shortcode, so nothing hardcodes a slug,
+     * and the link is omitted entirely when there is no catalog page rather
+     * than pointing nowhere.
+     *
+     * @param array<string, string> $views
+     * @return array<string, string>
+     */
+    public static function add_catalog_view_link(array $views): array {
+        if (!class_exists('OUS_Pages')) return $views;
+        $url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
+        if (!$url) return $views;
+        $views['bh-live-catalog'] = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">'
+            . esc_html__('View live archive', 'bh-contest') . ' <span aria-hidden="true">&#8599;</span></a>';
+        return $views;
     }
 }

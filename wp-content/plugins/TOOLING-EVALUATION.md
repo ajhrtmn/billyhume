@@ -102,6 +102,23 @@ All five adopted. Every one is dev-only; nothing changes what ships.
 - **PHPCS scoped to changed files.** Whole-tree adoption surfaces ~1,200 pre-existing low-severity findings (an un-unslashed nonce, `esc_url_raw` without `wp_unslash`) in code otherwise escaping correctly. A gate that fails on day one gets disabled.
 - **Playwright exclusions**, each earned by a real false positive on the first runs: collapsed elements (`clientHeight === 0`) aren't clipped; overflow caused only by absolutely-positioned decoration (the hero starburst, deliberately bleeding under `overflow: hidden`) isn't clipped; inline links inside text are exempt from the 44px target minimum per WCAG 2.5.8.
 
+### The gate that found what review kept missing (2026-08-24)
+
+`tools/check-accent-on-tint.js`, wired into `npm run check`.
+
+One CSS pattern — accent-coloured text on a `color-mix()` tint of that *same* accent — produced **five** separate AA failures: the `.bhy-alert-*` variants, the unread notification card, the course price badge at **3.23:1** (the price), a course order-status pill, and the datepicker's "today" cell.
+
+Nothing caught them. Stylelint cannot express "these two values are related", and a reviewer reads `color: var(--bh-accent)` beside `background: color-mix(..., var(--bh-accent) 14%, ...)` as obviously coherent — which is exactly why it kept recurring. The two never separate, because they are the same hue at similar lightness.
+
+The check is deliberately narrow: the rule must set both `color` and a background, and both must reference the **same** accent custom property. That is the shape all five took, and it keeps the output small enough to read.
+
+**Two lessons, both earned the hard way in one sitting:**
+
+1. **A green checker you have never seen fail proves nothing.** The first version resolved `ecosystem-plugins.txt` entries as paths when they are folder *names*, so it scanned zero files and passed. Verified by deliberately reintroducing the pattern and watching it not fire.
+2. It now **exits 2 rather than 0** when no roots or no stylesheets resolve. A tool that cannot find its inputs must not report success.
+
+On the fixed run it immediately found the two instances a manual sweep had missed.
+
 ### One incident worth recording
 
 An early run of the CSS formatter used a raw shell glob and reformatted **WooCommerce's** vendor stylesheets. WooCommerce is gitignored, so that was not revertible. The output is semantically identical and the site is healthy, and a WooCommerce update will overwrite those files anyway — but vendor code should never have been touched. `tools/expand-css.js` now hard-refuses any path outside the ecosystem's own 14 plugins, regardless of what it is handed.

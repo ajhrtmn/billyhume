@@ -2469,9 +2469,12 @@ so
     background: var(--shsas-surface-2) !important;
     color: var(--shsas-accent) !important;
 }
+/* Same accent-on-its-own-tint shape as the price badge and the alert
+   variants: the tint marks today, the surface foreground keeps the date
+   readable. Found by tools/check-accent-on-tint.js. */
 .ui-datepicker-calendar .ui-datepicker-today a {
     background: color-mix(in srgb, var(--shsas-accent) 16%, var(--shsas-surface-2)) !important;
-    color: var(--shsas-accent) !important;
+    color: var(--shsas-text) !important;
 }
 .ui-datepicker-buttonpane {
     background: var(--shsas-surface-2) !important;

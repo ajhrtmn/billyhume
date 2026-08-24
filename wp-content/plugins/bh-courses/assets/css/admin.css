@@ -122,9 +122,13 @@
     color: var(--bhy-ink-dim, #646970);
     white-space: nowrap;
 }
+/* Accent text on a 15% tint of the same accent never separates far enough
+   to clear AA -- the surface foreground does, and the accent still reads as
+   the status colour through the background. Found by
+   tools/check-accent-on-tint.js, not by eye. */
 .bhc-order-status-publish {
     background: color-mix(in srgb, var(--bhy-accent, #2271b1) 15%, transparent);
-    color: var(--bhy-accent, #2271b1);
+    color: var(--bhy-ink, #1d2327);
 }
 
 .bhc-order-unassign {

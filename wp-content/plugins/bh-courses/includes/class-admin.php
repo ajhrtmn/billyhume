@@ -994,4 +994,26 @@ class BHC_Admin {
         }
         echo '<a href="' . esc_url(get_edit_post_link($course_id)) . '">' . esc_html(get_the_title($course_id)) . '</a>';
     }
+
+    /**
+     * A link from the admin list table to the live catalog a visitor sees.
+     *
+     * views_edit-<type> rather than a menu entry: this install has a
+     * documented history of standalone admin pages breaking WordPress's own
+     * page-hook resolution (see CLAUDE.md), and the status row is a native,
+     * risk-free home for a link that is not a filter view. OUS_Pages resolves
+     * which page hosts the shortcode, so no slug is hardcoded, and the link
+     * is omitted when there is no catalog page rather than pointing nowhere.
+     *
+     * @param array<string, string> $views
+     * @return array<string, string>
+     */
+    public static function add_catalog_view_link(array $views): array {
+        if (!class_exists('OUS_Pages')) return $views;
+        $url = OUS_Pages::url('bh_courses', 'bhc_catalog_page_id');
+        if (!$url) return $views;
+        $views['bh-live-catalog'] = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener">'
+            . esc_html__('View live catalog', 'bh-courses') . ' <span aria-hidden="true">&#8599;</span></a>';
+        return $views;
+    }
 }

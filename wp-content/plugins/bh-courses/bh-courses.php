@@ -133,6 +133,7 @@ add_action('plugins_loaded', function () {
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
+    add_filter('views_edit-bh_course', ['BHC_Admin', 'add_catalog_view_link']);
     add_action('add_meta_boxes_page', ['BHC_Admin', 'add_page_backlink_meta_box']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_course']);
     add_action('save_post_bh_course', ['BHC_Admin', 'save_catalog_details']);

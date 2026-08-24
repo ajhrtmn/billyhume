@@ -21,12 +21,13 @@
     "audit:ux": "playwright test",
     "audit:ux:ui": "playwright test --ui",
     "build:all": "npm run build:the-self-hosted-self && npm run build:bh-contest && npm run build:bh-crm && npm run build:bh-streaming && npm run build:bh-courses && npm run build:components",
-    "check": "npm run build:all && npm run lint:css && npm run test:unit",
+    "check": "npm run build:all && npm run lint:css && npm run check:accent && npm run test:unit",
     "storybook:fixtures": "php tools/gen-storybook-fixtures.php",
     "storybook": "npm run storybook:fixtures && storybook dev -p 6006 --no-open",
     "storybook:build": "npm run storybook:fixtures && storybook build -o storybook-static",
     "build:components": "npm run typecheck:components && esbuild wp-content/plugins/the-self-hosted-self/assets/ts/components/index.ts --bundle --format=esm --target=es2022 --minify --outfile=wp-content/plugins/the-self-hosted-self/assets/js/components/bhy-components.js",
-    "typecheck:components": "tsc -p wp-content/plugins/the-self-hosted-self/tsconfig.components.json"
+    "typecheck:components": "tsc -p wp-content/plugins/the-self-hosted-self/tsconfig.components.json",
+    "check:accent": "node tools/check-accent-on-tint.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
