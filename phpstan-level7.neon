@@ -1,0 +1,16 @@
+includes:
+    - phpstan.neon
+
+# Tracks level 7 as a non-blocking signal, not a gate. OPEN.md already
+# records the reason: level 6 is clean, level 7 currently surfaces 483
+# findings (mostly |false/|WP_Error unions PHPStan is right to flag but
+# this codebase hasn't paid down yet) -- the same "a gate that fails on
+# day one gets disabled" reasoning phpcs-changed.sh's own comment already
+# applies to WPCS. This file exists so CI can report the count and let it
+# trend down over time, without blocking any PR on debt nobody's
+# committed to a plan for yet. Reuses phpstan.neon's own paths, stubs, and
+# ignoreErrors wholesale -- level 7 is a strict superset of level 6's
+# checks, not a different analysis, so every already-tuned exception
+# still applies; only `level` itself is overridden below.
+parameters:
+    level: 7

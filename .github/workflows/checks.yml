@@ -40,6 +40,17 @@ jobs:
       - name: PHPStan (all 12 plugins)
         run: composer phpstan
 
+      # Non-blocking signal, not a gate -- OPEN.md already names why:
+      # level 6 is clean, level 7 currently sits around 486 findings
+      # (mostly |false/|WP_Error unions), real debt nobody's committed to
+      # paying down yet. Same "a gate that fails on day one gets
+      # disabled" reasoning as the PHPCS step below. This just makes the
+      # count visible on every run instead of only when someone happens
+      # to run it by hand.
+      - name: PHPStan level 7 (tracked, non-blocking)
+        continue-on-error: true
+        run: ./vendor/bin/phpstan analyse -c phpstan-level7.neon --memory-limit=2G
+
       - name: PHPUnit (pure-logic suites)
         run: composer test
 
@@ -64,8 +75,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Plugin whitelist matches deploy-ftp.yml
         run: bash tools/check-plugin-whitelist.sh
+      # Advisory, not blocking -- see tools/check-version-bump.sh's own
+      # header for why. Surfaces CLAUDE.md's "version + CHANGELOG.md move
+      # together" convention on the PR itself instead of only being
+      # caught if a reviewer happens to remember to check for it.
+      - name: Version-bump convention (changed plugins touch their own CHANGELOG.md)
+        run: bash tools/check-version-bump.sh origin/${{ github.base_ref || 'master' }}
 
   typescript:
     runs-on: ubuntu-latest

@@ -266,7 +266,15 @@ class BH_Storybook_Panel {
         self::redirect('GitHub responded with HTTP ' . $code . ' — ' . wp_remote_retrieve_body($response));
     }
 
-    private static function redirect(string $msg): void {
+    // `never`, not `void` -- found by a full PHPStan level-6 run (this
+    // file had only ever been php -l'd and PHPUnit-exercised before,
+    // never actually run through the project's own static analysis
+    // suite): without it, PHPStan doesn't know this always exit()s, so
+    // every early-return guard above that calls it and expects execution
+    // to stop (the OUS_GITHUB_ACTIONS_TOKEN definedness check in
+    // handle_gha_trigger()) reads as falling through instead, and the
+    // constant use two lines later gets flagged as possibly undefined.
+    private static function redirect(string $msg): never {
         if (class_exists('OUS_Toast')) OUS_Toast::queue($msg, 'info');
         wp_safe_redirect(add_query_arg(['page' => 'bh-design', 'bh_storybook_msg' => rawurlencode($msg)], admin_url('admin.php')));
         exit;
