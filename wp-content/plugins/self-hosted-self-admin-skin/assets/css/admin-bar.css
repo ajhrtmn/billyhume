@@ -31,7 +31,29 @@
  * Every color below uses var(--shsas-*, fallback) so this file is
  * self-sufficient on the front end (where the admin-skin token block
  * is absent) while still deferring to the real tokens inside wp-admin.
+ *
+ * OPEN.md gap, closed here: those fallbacks were always the DARK
+ * values, so a front-end visitor in light mode (system or the theme's
+ * own light setting) got a dark-mode admin bar regardless. The
+ * toggle itself (data-shsas-theme, admin-skin.js) is wp-admin-only —
+ * is_admin() guarded in self-hosted-self-admin-skin.php — so the
+ * front end never gets that attribute at all, only ever the OS-level
+ * signal. Below reuses the exact light-mode values admin-skin.css
+ * already defines for its own :root:not([data-shsas-theme]) block,
+ * scoped the identical way; on wp-admin pages (where this file also
+ * loads) it's a harmless no-op duplicate of what admin-skin.css
+ * already sets to the same values.
  */
+@media (prefers-color-scheme: light) {
+    :root:not([data-shsas-theme]) {
+        --shsas-text: #241f16;
+        --shsas-text-dim: #5f5642;
+        --shsas-surface-2: #f0e9dc;
+        --shsas-border: #d8cbae;
+        --shsas-hover-veil: rgba(0, 0, 0, 0.05);
+        --shsas-danger: #c81e79;
+    }
+}
 
 /* ---------- layout: make the two groups share the bar honestly ---------- */
 
