@@ -1346,7 +1346,7 @@ body.wp-admin *:focus-visible {
    plugin's own PHP-side icon still renders if this skin is inactive —
    that's the correct fallback behavior (never a broken icon), not an
    oversight, and it keeps every peer plugin as portable as before. */
-#adminmenu li.toplevel_page_the-self-hosted-self div.wp-menu-image,
+#adminmenu li.toplevel_page_ous div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-design div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image,
 #adminmenu li.menu-icon-bh_contest div.wp-menu-image,
@@ -1382,7 +1382,7 @@ body.wp-admin *:focus-visible {
     content: '' !important;
     display: none !important;
 }
-#adminmenu li.toplevel_page_the-self-hosted-self:hover div.wp-menu-image,
+#adminmenu li.toplevel_page_ous:hover div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-design:hover div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-crm-hub:hover div.wp-menu-image,
 #adminmenu li.menu-icon-bh_contest:hover div.wp-menu-image,
@@ -1399,7 +1399,7 @@ body.wp-admin *:focus-visible {
 #adminmenu li.wp-has-current-submenu div.wp-menu-image {
     filter: saturate(var(--shsas-focus-saturate)) brightness(var(--shsas-focus-brightness)) drop-shadow(0 0 var(--shsas-focus-glow-blur) color-mix(in srgb, var(--shsas-item-hue, var(--shsas-accent)) var(--shsas-focus-glow-strength), transparent));
 }
-#adminmenu li.toplevel_page_the-self-hosted-self div.wp-menu-image {
+#adminmenu li.toplevel_page_ous div.wp-menu-image {
     -webkit-mask-image: url(../icons/ous-hub.svg);
     mask-image: url(../icons/ous-hub.svg);
 }
@@ -4289,15 +4289,34 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
 }
 
 /* The CSS-mask icons carry their hue as a background-color rather than a
-   filter, so they need the same treatment expressed the other way. */
-#adminmenu li.menu-top div.wp-menu-image.svg,
+   filter, so they need the same treatment expressed the other way.
+
+   Real bug, found live 2026-08-25 ("the icons are garbage"): this used to
+   also match bare div.wp-menu-image.svg. That ".svg" class is NOT ours --
+   WP core adds it automatically to ANY plugin icon whose icon_url is a
+   data:image/svg+xml URI, whether or not this skin ever gave it a real
+   mask-image. For an item with no mask (WP core's own "ous" hub icon
+   before the stale-selector fix above, and any third-party plugin like
+   MailPoet that ships a plain filled SVG), this painted an OPAQUE
+   background-color across the full 24px box behind the icon, and the
+   filter rule above (also .svg-scoped) then crushed the whole composited
+   box -- background-color AND the real icon artwork together -- through
+   brightness(0), erasing every bit of contrast between them before
+   hue-rotating. The result was a single flat colored square, no icon
+   visible at all. For a genuinely masked icon this is harmless (the mask
+   clips the fill to the icon's own silhouette, so there's no "behind the
+   icon" left to paint over) -- which is exactly why this went unnoticed
+   on every plugin that has a dedicated mask-image override and only
+   showed up on the ones that don't. [style*="mask"] alone is the correct,
+   unambiguous signal: it only matches an element THIS skin actually gave
+   a mask-image to. */
 #adminmenu li.menu-top div.wp-menu-image[style*="mask"] {
     background-color: var(--shsas-text-dim) !important;
 }
-#adminmenu li.menu-top:hover div.wp-menu-image.svg,
-#adminmenu li.menu-top:focus-within div.wp-menu-image.svg,
-#adminmenu li.menu-top.current div.wp-menu-image.svg,
-#adminmenu li.wp-has-current-submenu div.wp-menu-image.svg {
+#adminmenu li.menu-top:hover div.wp-menu-image[style*="mask"],
+#adminmenu li.menu-top:focus-within div.wp-menu-image[style*="mask"],
+#adminmenu li.menu-top.current div.wp-menu-image[style*="mask"],
+#adminmenu li.wp-has-current-submenu div.wp-menu-image[style*="mask"] {
     background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
 
@@ -4447,7 +4466,7 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
    were still fully saturated at rest (Tickets 0.96, Marketing 0.76, Products
    0.58) after the first two passes reported the rainbow "gone".
    Mirroring that exact selector list is what actually reaches them. */
-#adminmenu li.toplevel_page_the-self-hosted-self div.wp-menu-image,
+#adminmenu li.toplevel_page_ous div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-design div.wp-menu-image,
 #adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image,
 #adminmenu li.menu-icon-bh_contest div.wp-menu-image,
@@ -4474,7 +4493,7 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
    correctly scoped to the 14-item selector list; this counterpart was not.
    Matching that same list is the fix. */
 #adminmenu li.menu-top:is(:hover, :focus-within, .current, .wp-has-current-submenu):is(
-    .toplevel_page_the-self-hosted-self,
+    .toplevel_page_ous,
     .toplevel_page_bh-design,
     .toplevel_page_bh-crm-hub,
     .menu-icon-bh_contest,
