@@ -36,5 +36,26 @@ export default defineConfig({
       dependencies: ['setup'],
       use: { ...devices['Desktop Chrome'], storageState: 'tests/ux/.auth/admin.json' },
     },
+    // Screenshot diffing against the real Storybook build -- see
+    // storybook-visual.spec.ts's own docblock. A separate project, not
+    // folded into 'public', because it needs its own baseURL (the
+    // static build server below, not the WordPress site) and doesn't
+    // touch WP at all.
+    {
+      name: 'storybook',
+      testMatch: /storybook-visual\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL: process.env.STORYBOOK_URL || 'http://localhost:6006' },
+    },
   ],
+  // Only the storybook project needs a server started for it — public/
+  // admin assume a WordPress install is already running (WP_BASE_URL),
+  // same as before this project existed. reuseExistingServer means a
+  // developer who already ran `npm run storybook` locally on :6006
+  // doesn't get a second one fighting it for the port.
+  webServer: {
+    command: 'npm run storybook:fixtures && npx storybook build -o storybook-static && npx http-server storybook-static -p 6006 -s',
+    url: 'http://localhost:6006',
+    reuseExistingServer: !process.env.CI,
+    timeout: 180_000,
+  },
 });
