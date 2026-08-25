@@ -134,7 +134,7 @@ jobs:
       #   FTP_PASSWORD  the shared-hosting FTP password
       #   FTP_REMOTE_PLUGINS_PATH  e.g. /public_html/wp-content/plugins/
       - name: Deploy to FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
