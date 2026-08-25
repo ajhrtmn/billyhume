@@ -4463,10 +4463,31 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
 #adminmenu li[class*="PAYMENTS_MENU_ITEM"] div.wp-menu-image {
     background-color: var(--shsas-text-dim) !important;
 }
-/* ...and the hue returns on the two states that carry real meaning. */
-#adminmenu li.menu-top:hover div.wp-menu-image,
-#adminmenu li.menu-top:focus-within div.wp-menu-image,
-#adminmenu li.menu-top.current div.wp-menu-image,
-#adminmenu li.wp-has-current-submenu div.wp-menu-image {
+/* ...and the hue returns on the two states that carry real meaning.
+   Reported live: a solid colour block filling the whole icon area behind
+   Dashboard (current, blue) and Comments (stuck :hover after a mobile tap,
+   pink) -- items that use a plain dashicon glyph, not one of these masked
+   plugin icons. This selector was the bug: bare div.wp-menu-image, with no
+   restriction, so it painted a background behind EVERY icon on hover,
+   focus or current -- including a bare ::before glyph with no mask to
+   shape the fill into an icon silhouette. The resting rule above was
+   correctly scoped to the 14-item selector list; this counterpart was not.
+   Matching that same list is the fix. */
+#adminmenu li.menu-top:is(:hover, :focus-within, .current, .wp-has-current-submenu):is(
+    .toplevel_page_the-self-hosted-self,
+    .toplevel_page_bh-design,
+    .toplevel_page_bh-crm-hub,
+    .menu-icon-bh_contest,
+    .menu-icon-bh_course,
+    .menu-icon-bhs_track,
+    .toplevel_page_ous-debug,
+    .toplevel_page_bh-social,
+    .toplevel_page_bh-tickets,
+    .toplevel_page_woocommerce,
+    .menu-icon-product,
+    [class*="toplevel_page_wc-admin"],
+    .toplevel_page_woocommerce-marketing,
+    [class*="PAYMENTS_MENU_ITEM"]
+) div.wp-menu-image {
     background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
