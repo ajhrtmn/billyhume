@@ -95,6 +95,13 @@ jobs:
       # instead of only when a person remembers to grep for it by hand.
       - name: class_exists() timing (advisory)
         run: node tools/check-class-exists-timing.js
+      # Advisory, not blocking -- see the script's own header for why
+      # (real pre-existing drift on 4 of 14 plugins as of the commit that
+      # added this). Narrower than "docs drift" sounds: only checks that
+      # each plugin's Version: header agrees with its own CHANGELOG.md's
+      # newest entry, not whether any doc's prose still matches reality.
+      - name: "CHANGELOG.md matches plugin Version: header (advisory)"
+        run: bash tools/check-changelog-drift.sh
 
   # The single highest-value gap named by this ecosystem's own docs
   # (TOOLING-EVALUATION.md, OPEN.md): the money paths (BHM_Wallet's
