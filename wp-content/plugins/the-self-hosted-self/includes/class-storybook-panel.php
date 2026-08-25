@@ -33,8 +33,29 @@ if (!defined('ABSPATH')) exit;
 class BH_Storybook_Panel {
     const OPTION_LOG = 'bh_storybook_last_log';
 
+    // The repo the GitHub Actions trigger dispatches against — same
+    // default this ecosystem's own GitHub-Updates checker already uses
+    // (class-github-updates.php), filterable the same way for anyone
+    // running a fork.
+    const WORKFLOW_FILE = 'storybook-audit.yml';
+
     public static function init(): void {
         add_action('admin_post_bh_storybook_run', [self::class, 'handle_run']);
+        add_action('admin_post_bh_storybook_gha_trigger', [self::class, 'handle_gha_trigger']);
+    }
+
+    private static function repo(): string {
+        return apply_filters('ous_github_updates_default_repo', 'ajhrtmn/billyhume');
+    }
+
+    // Which ref (branch) the dispatched workflow run checks out. 'master'
+    // specifically: deploy-ftp.yml only ever ships from `stable`, but the
+    // workflow file and the code it audits both need to exist on whatever
+    // ref this targets, and master is where dev's work lands once pushed
+    // -- not a guess, matches this exact session's own "get it to master"
+    // instruction.
+    private static function default_ref(): string {
+        return apply_filters('bh_storybook_gha_ref', 'master');
     }
 
     private static function build_dir(): string {
@@ -126,7 +147,40 @@ class BH_Storybook_Panel {
             echo '<p class="description" style="margin-top:12px;">No build yet.</p>';
         }
 
+        self::render_gha_section();
+
         echo '</div>';
+    }
+
+    // The button above only ever works on a machine with Node installed
+    // -- never on live. This is the other half: the SAME build + audit,
+    // run by GitHub Actions instead of this server, triggered by a plain
+    // authenticated REST call. Shown regardless of is_locked(), since
+    // this is specifically the path meant to work FROM production, where
+    // the shell_exec buttons above are deliberately dead.
+    private static function render_gha_section(): void {
+        $token_set = defined('OUS_GITHUB_ACTIONS_TOKEN') && OUS_GITHUB_ACTIONS_TOKEN !== '';
+        $repo = self::repo();
+        $run_url = 'https://github.com/' . $repo . '/actions/workflows/' . self::WORKFLOW_FILE;
+
+        echo '<hr style="margin:20px 0;border:none;border-top:1px solid var(--shsas-border, var(--bhy-border, #dcdcde));">';
+        echo '<h3 style="margin-top:0;">Run via GitHub Actions</h3>';
+        echo '<p class="description">The same Storybook build and UX audit, run on GitHub\'s infrastructure instead of this server — works from anywhere, including production, since it never needs Node installed here. '
+           . 'Results land as downloadable artifacts on the workflow run itself: <a href="' . esc_url($run_url) . '" target="_blank" rel="noopener">' . esc_html($repo) . ' → Actions → Storybook Build &amp; UX Audit</a>.</p>';
+
+        if (!$token_set) {
+            echo '<div class="bhy-alert bhy-alert-info">';
+            echo '<strong>One-time setup needed.</strong> Add a fine-grained GitHub personal access token with this repo\'s <code>Actions: write</code> permission, then in <code>wp-config.php</code>: <code>define(\'OUS_GITHUB_ACTIONS_TOKEN\', \'&hellip;\');</code>. '
+               . 'Generate one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a> — this plugin never sees or stores the token anywhere but that constant, and only ever sends it to <code>api.github.com</code>.';
+            echo '</div>';
+            return;
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="bh_storybook_gha_trigger">';
+        wp_nonce_field('bh_storybook_gha_trigger');
+        echo '<button type="submit" class="button button-primary">Trigger via GitHub Actions</button>';
+        echo '</form>';
     }
 
     public static function handle_run(): void {
@@ -170,6 +224,46 @@ class BH_Storybook_Panel {
         }
 
         self::redirect('Unknown action.');
+    }
+
+    // POSTs to GitHub's workflow_dispatch endpoint
+    // (docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+    // Deliberately NOT gated on is_locked() -- this is the one action in
+    // this whole class meant to run from production, since it does no
+    // local work at all; the token itself (fine-grained, Actions-write-
+    // only) is the actual access control, same as every other write
+    // action in this ecosystem that goes through a real capability
+    // check rather than an environment guess.
+    public static function handle_gha_trigger(): void {
+        check_admin_referer('bh_storybook_gha_trigger');
+        if (!current_user_can('manage_options')) wp_die('Insufficient permissions.', 403);
+
+        if (!defined('OUS_GITHUB_ACTIONS_TOKEN') || OUS_GITHUB_ACTIONS_TOKEN === '') {
+            self::redirect('No GitHub Actions token configured — see the setup note below.');
+        }
+
+        $url = 'https://api.github.com/repos/' . self::repo() . '/actions/workflows/' . self::WORKFLOW_FILE . '/dispatches';
+        $response = wp_remote_post($url, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . OUS_GITHUB_ACTIONS_TOKEN,
+                'Accept'        => 'application/vnd.github+json',
+                'User-Agent'    => 'the-self-hosted-self/' . (defined('OUS_VER') ? OUS_VER : '0'),
+            ],
+            'body' => wp_json_encode(['ref' => self::default_ref()]),
+            'timeout' => 15,
+        ]);
+
+        if (is_wp_error($response)) {
+            self::redirect('GitHub Actions trigger failed: ' . $response->get_error_message());
+        }
+        $code = wp_remote_retrieve_response_code($response);
+        // 204 No Content is GitHub's documented success response for this
+        // endpoint — there is no run ID to show yet, only a 202-style
+        // acknowledgement that dispatch was accepted.
+        if ($code === 204) {
+            self::redirect('Triggered — check the Actions tab in a few seconds for the run.');
+        }
+        self::redirect('GitHub responded with HTTP ' . $code . ' — ' . wp_remote_retrieve_body($response));
     }
 
     private static function redirect(string $msg): void {

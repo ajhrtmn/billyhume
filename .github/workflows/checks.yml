@@ -91,24 +91,13 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm run test:unit
 
-  # Logged-out front-end UX audit — contrast, clipping, overflow, touch
-  # targets across 6 widths. Needs no credentials, so it runs on every PR.
-  # The authenticated admin audit (tests/ux/admin.spec.ts) is deliberately
-  # NOT run here: it needs WP_ADMIN_USER/WP_ADMIN_PASS secrets and a
-  # provisioned WordPress install, which this workflow doesn't stand up.
-  ux-audit:
-    runs-on: ubuntu-latest
-    if: false   # enable once CI provisions a WordPress instance to audit
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: npm ci
-        run: npm ci
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-      - name: UX audit (logged-out)
-        run: npx playwright test --project=public
+  # The logged-out UX audit used to sit here, disabled ("enable once CI
+  # provisions a WordPress instance to audit"). It never needed a
+  # provisioned instance -- one already exists in production, and
+  # tests/ux/public.spec.ts is read-only by construction (page.goto +
+  # measurement, never a form submit). Moved to its own workflow,
+  # storybook-audit.yml, which points it at the real live site instead of
+  # standing up a parallel install, and pairs it with the Storybook build
+  # job -- both are heavier/more occasional than this file's always-run
+  # gates, and both are also runnable on demand (workflow_dispatch, or
+  # the "Trigger via GitHub Actions" button in Design Suite).

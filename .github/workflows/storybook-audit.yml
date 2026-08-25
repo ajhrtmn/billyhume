@@ -1,0 +1,122 @@
+name: Storybook Build & UX Audit
+
+# Two independent jobs, deliberately kept in their own workflow rather than
+# folded into checks.yml: checks.yml gates every push/PR against dev and
+# master with fast, always-run checks; this one does two heavier, more
+# occasional things that don't belong in that same gate.
+#
+# storybook  - builds the real Storybook integration (.storybook/,
+#              fixtures generated from the actual BHY_UI:: renderers, see
+#              .storybook/README.md) and uploads it as a downloadable
+#              artifact. No WordPress instance needed -- confirmed directly:
+#              tools/gen-storybook-fixtures.php runs standalone, its own
+#              docblock says so, and it only calls esc_html/esc_attr, both
+#              stubbed inline for exactly this reason.
+#
+# ux-audit   - runs the logged-out, no-credentials Playwright audit
+#              (tests/ux/public.spec.ts) against the REAL LIVE SITE rather
+#              than spinning up a fresh WordPress instance in CI. This is
+#              the fix for the ux-audit job that sat disabled in
+#              checks.yml with "enable once CI provisions a WordPress
+#              instance to audit" -- the instance already exists in
+#              production, and the public spec is read-only by
+#              construction (page.goto + measurement only, confirmed by
+#              reading it, never a form submit), so pointing it at
+#              WP_BASE_URL instead of standing up a parallel install is
+#              strictly safer than adding new infrastructure to reproduce
+#              audit-target of one that's already live and running.
+#
+# Triggered by:
+#   - workflow_dispatch: manually from the Actions tab, from GitHub
+#     Mobile, or via the REST API (POST .../actions/workflows/storybook-
+#     audit.yml/dispatches with a token that has `actions: write` --
+#     this is what Design Suite's own "Trigger via GitHub Actions" button
+#     calls; see BH_Storybook_Panel::trigger_via_github_actions()).
+#   - push to dev/master, but only on paths that could actually change
+#     either job's result -- no need to rebuild Storybook or re-audit the
+#     live site because an unrelated plugin's PHP changed.
+#
+# Needs no new repository secrets: workflow_dispatch's own caller
+# authenticates the trigger; nothing inside either job below reads a
+# secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Site to audit (defaults to production)"
+        required: false
+        type: string
+        default: "https://billyhume.wasmer.app"
+  push:
+    branches: [dev, master]
+    paths:
+      - '.storybook/**'
+      - 'tools/gen-storybook-fixtures.php'
+      - 'wp-content/plugins/the-self-hosted-self/includes/class-ui.php'
+      - 'tests/ux/**'
+      - '.github/workflows/storybook-audit.yml'
+
+jobs:
+  storybook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Generate fixtures from the real renderers
+        run: npm run storybook:fixtures
+
+      - name: Build Storybook
+        run: npx storybook build -o storybook-static
+
+      - name: Upload Storybook build
+        uses: actions/upload-artifact@v4
+        with:
+          name: storybook-static
+          path: storybook-static
+          retention-days: 30
+
+  ux-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: UX audit (logged-out front end)
+        env:
+          WP_BASE_URL: ${{ inputs.base_url || 'https://billyhume.wasmer.app' }}
+        run: npx playwright test --project=public
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-audit-report
+          path: tests/ux/report
+          retention-days: 30
