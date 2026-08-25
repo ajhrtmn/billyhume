@@ -2787,6 +2787,36 @@ div.error p, div.error strong {
 @media (forced-colors: active) {
     .notice, div.updated, div.error { box-shadow: none !important; }
 }
+
+/* BHCoreToast (the-self-hosted-self's toast.css) hardcodes background:#fff,
+   color:#1d2327 -- a deliberate, working default for installs without this
+   skin (peer-plugin optionality: core's own fallback must look right on
+   its own), but never anything this skin restyles for its dark theme.
+   Reported live: the SAME "Ran up to 100 due jobs" event produces both a
+   correctly-dark .notice AND a plain white toast stacked on top of it --
+   two real mechanisms firing for one action, one themed and one not.
+   Same surface/text tokens as .notice above, same reasoning: the toast's
+   left-border colour classes already read var(--bhy-*, ...) but nothing
+   here ever supplied --bhy-success etc. outside of BHY_UI's own admin
+   screens, and the toast's SURFACE was never touched by anything at all. */
+.bhcore-toast {
+    background: var(--shsas-surface) !important;
+    color: var(--shsas-text) !important;
+    border-color: var(--shsas-border, #453f2f) !important;
+    box-shadow: var(--shsas-shadow) !important;
+}
+.bhcore-toast-close {
+    color: var(--shsas-text-dim, #b3ab97) !important;
+}
+.bhcore-toast-close:hover,
+.bhcore-toast-close:focus {
+    color: var(--shsas-text) !important;
+}
+.bhcore-toast-success { border-left-color: var(--shsas-success) !important; }
+.bhcore-toast-error   { border-left-color: var(--shsas-danger) !important; }
+.bhcore-toast-warning { border-left-color: var(--shsas-warning) !important; }
+.bhcore-toast-info    { border-left-color: var(--shsas-info, var(--shsas-accent)) !important; }
+
 /* Real gap, direct feedback ("random white splotch blocks") — the
    block editor's OWN notice component (@wordpress/components' Notice,
    e.g. a "This block contains unexpected or invalid content" or a
