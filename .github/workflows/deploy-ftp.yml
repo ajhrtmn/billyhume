@@ -17,11 +17,19 @@ on:
 # drifted to only the original 7 plugins while bh-feedback, bh-live,
 # bh-mailpoet, bh-social, bh-tickets, and bh-video shipped real, working
 # code without ever being added here, so none of those six would have
-# reached Billy's real site even after a `stable` promotion. Kept in sync
-# with the same 13-plugin whitelist .gitignore's own plugin allowlist uses.
+# reached Billy's real site even after a `stable` promotion.
+#
+# Updated again 2026-08-25: self-hosted-self-admin-skin was the SAME class
+# of gap, found by the drift check tools/check-plugin-whitelist.js now
+# runs in CI specifically to catch this — tracked in git (.gitignore's own
+# plugin allowlist), real shipped code, never in this list. 14 plugins now,
+# kept in sync with that same .gitignore allowlist; the check below fails
+# CI the next time the two lists disagree instead of silently drifting a
+# third time.
 env:
   PLUGIN_FOLDERS: >-
     the-self-hosted-self
+    self-hosted-self-admin-skin
     bh-contest
     bh-courses
     bh-crm

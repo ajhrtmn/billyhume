@@ -1,0 +1,65 @@
+version: 2
+
+# Four real dependency manifests in this repo, each covered explicitly --
+# Dependabot doesn't recurse to find them on its own. The other
+# composer.json files under wp-content/plugins/ (query-monitor,
+# advanced-media-offloader) are third-party plugins we don't maintain;
+# they update through WordPress's own plugin-update mechanism, not ours.
+updates:
+  # Dev-only tooling: PHPStan, PHPUnit, PHPCS/WPCS, WooCommerce stubs.
+  # Never a runtime dependency -- see composer.json's own description.
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      dev-tooling:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "dev-tooling"
+
+  # The one real RUNTIME dependency in this ecosystem (Timber/Twig),
+  # installed at build time by deploy-ftp.yml and shipped inside the
+  # plugin folder -- see this file's own docblock. Kept separate from the
+  # root composer group above since a bump here ships to production, a
+  # bump there never does.
+  - package-ecosystem: "composer"
+    directory: "/wp-content/plugins/the-self-hosted-self"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "runtime"
+
+  # Playwright, Storybook, TypeScript, Stylelint, Vitest -- all dev/CI
+  # tooling. No npm runtime dependency exists anywhere in this ecosystem
+  # (module: none, no bundler -- see TOOLING-EVALUATION.md), so every
+  # update here is build-time-only by construction.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      dev-tooling:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "dev-tooling"
+
+  # The workflow files themselves (actions/checkout, setup-node,
+  # setup-php, upload-artifact versions, etc.) -- easy to forget since
+  # they're not in either manifest above.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"

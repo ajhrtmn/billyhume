@@ -53,6 +53,20 @@ jobs:
         continue-on-error: true
         run: bash tools/phpcs-changed.sh origin/${{ github.base_ref || 'master' }}
 
+  # Cheap, fast, no PHP/Node setup needed — catches the class of drift
+  # this repo has hit at least twice: deploy-ftp.yml's PLUGIN_FOLDERS
+  # silently falling out of step with tools/ecosystem-plugins.txt (most
+  # recently self-hosted-self-admin-skin, shipped for a full session
+  # while absent from the deploy list, found only by reading both files
+  # side by side).
+  repo-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Plugin whitelist matches deploy-ftp.yml
+        run: bash tools/check-plugin-whitelist.sh
+
   typescript:
     runs-on: ubuntu-latest
     steps:

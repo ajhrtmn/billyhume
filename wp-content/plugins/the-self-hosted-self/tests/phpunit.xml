@@ -3,6 +3,7 @@
     <testsuites>
         <testsuite name="the-self-hosted-self pure-logic tests">
             <file>TwoFactorTest.php</file>
+            <file>ProductionLockTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>
