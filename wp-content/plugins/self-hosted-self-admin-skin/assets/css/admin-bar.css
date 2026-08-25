@@ -203,7 +203,37 @@
     #wpadminbar #wp-admin-bar-new-content .ab-label { display: none; }
 }
 @media screen and (max-width: 860px) {
-    #wpadminbar #wp-admin-bar-site-name .ab-label { display: none; }
+    /* Dead selector, found live: core's own site-name markup is bare text
+       with no wrapping spans at all -- no .ab-label, no .ab-icon --
+       `<a class="ab-item" href="...">Billy Hume Blank test</a>`. This rule
+       matched nothing. The text disappearing below 860px is core's OWN
+       doing (text-indent:100% + overflow:hidden, its standard icon-only
+       mobile technique, documented in UX-AUDIT-PLAN.md), which core
+       normally pairs with an icon glyph so the box isn't empty once the
+       label is shoved off-screen -- but core never gives site-name one of
+       its own. Reported live as an "iconless and invisible" blank box:
+       measured, the box is real (74x46) and clickable, just empty. Same
+       ::after mask-icon technique as the Customize fix above, using
+       ab-home.svg -- "visit the front end" is what this link IS. */
+    #wpadminbar #wp-admin-bar-site-name > .ab-item {
+        position: relative;
+    }
+    #wpadminbar #wp-admin-bar-site-name > .ab-item::after {
+        content: "";
+        flex: none;
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        background-color: var(--shsas-text-dim, #b3ab97);
+        -webkit-mask: url(../icons/ab-home.svg) no-repeat center / 20px 20px;
+        mask: url(../icons/ab-home.svg) no-repeat center / 20px 20px;
+    }
+    #wpadminbar #wp-admin-bar-site-name > .ab-item:hover::after,
+    #wpadminbar #wp-admin-bar-site-name > .ab-item:focus::after,
+    #wpadminbar #wp-admin-bar-site-name > .ab-item:active::after {
+        background-color: var(--bh-accent, #c0563a);
+        filter: drop-shadow(0 0 6px var(--bh-accent, #c0563a));
+    }
 }
 @media screen and (max-width: 782px) {
     /* One flex row, replacing two older mechanisms that fought each other.
