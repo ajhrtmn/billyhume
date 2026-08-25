@@ -633,6 +633,22 @@ class OUS_GithubUpdates {
                 // never gets offered. Saying so plainly is the fix.
                 echo '<td><span class="bhy-badge bhy-badge-warning">Could not reach GitHub</span></td>';
                 echo '<td><span class="description">See Console &amp; Logs for the reason.</span></td>';
+            } elseif ($row && empty($row['local_version'])) {
+                // The mirror of the case above, found live 2026-08-25: GitHub
+                // answered fine (remote_version present) but the LOCAL side
+                // came back empty -- local_version() returns null whenever
+                // wp_get_theme()->exists() is false or a plugin file is
+                // missing. update_available's `$local_version &&` guard
+                // makes that read as "no update needed" rather than
+                // "unknown", so this fell into the exact same "Up to date"
+                // branch below and printed Installed: -- / Status: Up to
+                // date in the same row -- a contradiction identical in
+                // shape to the remote-side one above, just the other input
+                // missing. Silent and wrong for the same reason: nothing
+                // errors, so nobody notices the update checker has no idea
+                // what is actually installed.
+                echo '<td><span class="bhy-badge bhy-badge-warning">Can\'t detect installed version</span></td>';
+                echo '<td><span class="description">Not found where this checker expects it -- confirm the plugin/theme is installed and active.</span></td>';
             } elseif ($row) {
                 echo '<td><span class="bhy-badge bhy-badge-success">Up to date</span></td><td></td>';
             } else {
