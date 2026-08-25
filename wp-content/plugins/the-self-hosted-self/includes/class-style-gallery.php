@@ -189,6 +189,8 @@ class BHY_Gallery {
         echo '<h1>Design Suite</h1>';
         if (isset($_GET['saved'])) echo '<div class="notice notice-success is-dismissible"><p>Saved.</p></div>';
 
+        if (class_exists('BH_Storybook_Panel')) BH_Storybook_Panel::render();
+
         echo '<div class="bhy-layout">';
         self::render_sidebar($grouped);
         self::render_canvas($surfaces, $s);
