@@ -9,6 +9,27 @@ has been reworded or dropped.
 
 ---
 
+3.12.0 (follow-up fix) — BH_Storybook_Panel::redirect()'s exit() call
+declared `never`, not `void`, found by finally running the whole
+project through PHPStan level 6 rather than only php -l: without it,
+PHPStan couldn't see that the OUS_GITHUB_ACTIONS_TOKEN definedness
+guard in handle_gha_trigger() actually halts execution, and flagged
+the constant's later use as possibly undefined. Confirmed clean by
+rerunning the whole suite, not just the one file.
+
+3.12.0 — Design Suite gets the real Storybook integration
+(BH_Storybook_Panel): a "Rebuild Storybook" / "Run UX audit" panel that
+shell_execs locally (hard-locked to non-production environments via
+OUS_Debug::is_locked(), the same rule every other "does real work"
+Debug Tools section follows), plus a "Trigger via GitHub Actions"
+button for running the same two actions from anywhere, including
+production, via a new storybook-audit.yml workflow. Verified end-to-end
+through the real admin form, not just reasoned through — see this
+session's own record for the three-pass debugging story getting
+shell_exec to actually find npm from PHP-FPM's own stripped-down PATH.
+
+---
+
 
 3.10.42 — Real contrast bug on Debug Tools, found by the first
 systematic multi-width/both-theme measured audit of this screen

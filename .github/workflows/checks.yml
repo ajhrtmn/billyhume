@@ -96,6 +96,45 @@ jobs:
       - name: class_exists() timing (advisory)
         run: node tools/check-class-exists-timing.js
 
+  # The single highest-value gap named by this ecosystem's own docs
+  # (TOOLING-EVALUATION.md, OPEN.md): the money paths (BHM_Wallet's
+  # atomic debit here first, more to follow) were deliberately untested
+  # because a hand-stubbed $wpdb can only confirm a query STRING looks
+  # right, never that a real database actually enforces it. Real
+  # WordPress + real MySQL via @wordpress/env, which ubuntu-latest's
+  # bundled Docker runs natively -- no new runtime dependency, dev/CI
+  # only, same posture as every other tool in this file.
+  #
+  # continue-on-error while this graduates: built and verified locally
+  # this same session (including deliberately breaking the atomic guard
+  # this suite exists to catch, and confirming it fails), but this is
+  # its first run in GitHub's own runner environment specifically, which
+  # is a real, if small, unknown until proven here at least once.
+  db-integration-tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Install tests-integration's own composer dependencies
+        working-directory: wp-content/plugins/bh-monetization-woo/tests-integration
+        run: composer install --no-interaction --prefer-dist
+      - name: Start @wordpress/env
+        run: npx @wordpress/env start
+      - name: Run bh-monetization-woo's real-database suite
+        run: |
+          npx @wordpress/env run tests-cli bash -c \
+            "cd /var/www/html/wp-content/plugins/bh-monetization-woo/tests-integration && WP_TESTS_DIR=/wordpress-phpunit vendor/bin/phpunit -c phpunit.xml"
+
   typescript:
     runs-on: ubuntu-latest
     steps:

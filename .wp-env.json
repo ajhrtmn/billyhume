@@ -1,0 +1,12 @@
+{
+  "core": null,
+  "phpVersion": "8.2",
+  "plugins": [
+    "./wp-content/plugins/the-self-hosted-self",
+    "./wp-content/plugins/bh-monetization-woo",
+    "./wp-content/plugins/bh-courses"
+  ],
+  "config": {
+    "WP_DEBUG": true
+  }
+}

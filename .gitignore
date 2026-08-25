@@ -35,6 +35,16 @@ wp-config.php
 # Wasmer's own `composer install` regenerates it during the build.
 /vendor/
 wp-content/plugins/*/tests/.phpunit.result.cache
+wp-content/plugins/*/tests-integration/.phpunit.result.cache
+
+# Same reasoning as /vendor/ above, for the ONE other place in this repo
+# with its own composer.json — bh-monetization-woo's real-database
+# integration suite (tests-integration/, dev/CI only, never shipped).
+# composer.lock stays committed here too, for the SAME Wasmer-build
+# reason /vendor/'s own comment documents (the-self-hosted-self's own
+# composer.lock is committed for the identical reason) — only vendor/
+# itself is safe to regenerate and skip.
+wp-content/plugins/bh-monetization-woo/tests-integration/vendor/
 
 # node_modules/ is dev-only tooling too (TypeScript compiler for the
 # assets/ts/ pilot — see package.json), same posture as /vendor/ above:

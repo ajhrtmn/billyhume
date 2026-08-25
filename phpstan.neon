@@ -20,6 +20,14 @@ parameters:
     excludePaths:
         - */vendor/*
         - */tests/*
+        # bh-monetization-woo's real-database integration suite (WP_UnitTestCase
+        # + the rest of wp-phpunit's own framework, unstubbed here on purpose
+        # — this is dev/CI-only test code that runs against a real WP+MySQL
+        # instance via @wordpress/env, not a code path this static analysis
+        # needs to type-check). Added after a real run surfaced 17 unknown-
+        # class/method errors the moment this directory started existing —
+        # confirmed, not assumed in advance.
+        - */tests-integration/*
         - */bundled/*
         # Query Monitor integration — see the docblock at the top of this
         # file for why (both real classes it extends aren't installed/

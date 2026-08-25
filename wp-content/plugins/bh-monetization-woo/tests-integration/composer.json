@@ -1,0 +1,11 @@
+{
+    "name": "bh-monetization-woo/tests-integration",
+    "description": "Dev-only. Real-database integration tests for this plugin's money paths, run against @wordpress/env's tests-cli container (real WordPress + real MySQL) rather than the plugin's own pure-logic tests/ suite. Never installed at runtime, never shipped -- deploy-ftp.yml's FTP sync doesn't touch this directory's vendor/ since it isn't part of the plugin's own composer.json (this plugin ships no runtime Composer dependencies at all).",
+    "require-dev": {
+        "yoast/phpunit-polyfills": "^4.0",
+        "phpunit/phpunit": "^9.6"
+    },
+    "config": {
+        "platform": { "php": "8.2" }
+    }
+}

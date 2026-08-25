@@ -6,6 +6,27 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.5.21 — First real-database integration test in this ecosystem
+(tests-integration/, separate from the pure-logic tests/ tier): real
+WordPress + real MySQL via @wordpress/env, verifying BHM_Wallet::debit()'s
+own atomicity claim -- the balance check and the balance write are ONE
+atomic UPDATE, safe against a concurrent-write race -- which a hand-
+stubbed $wpdb could only ever assert the SQL string looks right for,
+never that a real database actually enforces it. Verified this isn't
+just infrastructure theater: deliberately removed the WHERE clause's
+balance_cents >= %d guard, watched two of four tests fail exactly as
+expected (a debit exceeding balance succeeded; ten debits against a
+five-hundred-cent balance all went through instead of stopping at
+five), then restored the real code and confirmed clean. Dev/CI only --
+tests-integration/ is never part of anything deploy-ftp.yml ships.
+NOT yet run in real GitHub Actions CI (wired into checks.yml as
+continue-on-error until proven there at least once) -- verified
+directly against @wordpress/env's own Docker containers on this
+machine, which is a different environment from GitHub's runners even
+though both are Docker-based.
+
+---
+
 
 0.5.20 — class-downloads.php now bundles bh-streaming's new
 BHS_Booklet ("CD jacket" bonus content — liner notes/lyrics sheet/
