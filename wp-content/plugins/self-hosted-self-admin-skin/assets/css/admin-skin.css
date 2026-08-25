@@ -3729,16 +3729,28 @@ confirmed unstyled light-gray here. */
     color: var(--shsas-text-dim, var(--shsas-text)) !important;
     box-shadow: inset 0 0 0 1px var(--shsas-border, rgba(255,255,255,.14));
     border-radius: 999px !important;
-    min-width: 20px;
+    /* 17px, not 20 -- and the margin/padding below shrank alongside it.
+       Found live: "Comments" + this badge overflowed .wp-menu-name's
+       available width by only ~2-3px, which is enough for white-space:
+       normal (further down this file, deliberate for long labels) to
+       wrap the badge onto its own second line -- an orphaned pill with
+       nothing beside it, reading as "off-center" because the two-line
+       block centers as a whole and the pill ends up on the wrong line's
+       vertical position relative to the label above it. Single-digit
+       counts (every count this sidebar actually shows) don't need the
+       full 20px; this trims exactly the few px that were missing,
+       measured by shaving each value down until the label stopped
+       wrapping, not guessed. */
+    min-width: 17px;
     height: 18px;
     line-height: 1 !important;
-    padding: 0 7px !important;
+    padding: 0 5px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
     text-align: center;
-    margin-left: 6px;
+    margin-left: 3px;
     transition: background-color 120ms ease, color 120ms ease;
 }
 /* The badges were never the misalignment. Measured: every pill sits within
