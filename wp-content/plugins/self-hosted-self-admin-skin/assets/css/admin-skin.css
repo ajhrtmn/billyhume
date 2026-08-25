@@ -622,9 +622,20 @@ body.wp-admin *:focus-visible {
    name/home, updates, WP 6.3+'s own command palette, comments, "New")
    plus this skin's own two, which were using raw unicode glyphs (⚲
    and ☼/☽) — genuinely the weakest icons in the whole UI, since a
-   text glyph can't be stroke-matched to anything. */
+   text glyph can't be stroke-matched to anything.
+
+   site-name deliberately dropped from this list 2026-08-25: it never
+   worked. .ab-item is a flex container and this rule never gave its
+   ::before a flex-basis/flex:none, so -- same collapse class as the
+   Customize icon fixed earlier the same day -- it sat at width:0 the
+   entire time this shipped, invisible. Superseded by admin-bar.css's
+   own site-name fix (a real ::after, flex:none from the start, split
+   by body.wp-admin since this same link is context-aware: Dashboard on
+   the front end, "Visit Site" back out to the front end in wp-admin --
+   a distinction this file, being wp-admin-only, could never make on its
+   own). Left as one working mechanism per context instead of fixing
+   this one too and running two icon systems for the same element. */
 #wpadminbar #wp-admin-bar-wp-logo .ab-icon::before,
-#wpadminbar #wp-admin-bar-site-name > .ab-item::before,
 #wpadminbar #wp-admin-bar-updates .ab-icon::before,
 #wpadminbar #wp-admin-bar-command-palette .ab-icon::before,
 #wpadminbar #wp-admin-bar-comments .ab-icon::before,
@@ -652,10 +663,6 @@ body.wp-admin *:focus-visible {
 #wpadminbar #wp-admin-bar-wp-logo .ab-icon::before {
     -webkit-mask-image: url(../icons/ab-wplogo.svg);
     mask-image: url(../icons/ab-wplogo.svg);
-}
-#wpadminbar #wp-admin-bar-site-name > .ab-item::before {
-    -webkit-mask-image: url(../icons/ab-home.svg);
-    mask-image: url(../icons/ab-home.svg);
 }
 #wpadminbar #wp-admin-bar-updates .ab-icon::before {
     -webkit-mask-image: url(../icons/ab-updates.svg);
