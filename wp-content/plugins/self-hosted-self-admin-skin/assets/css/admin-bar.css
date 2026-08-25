@@ -213,8 +213,14 @@
        label is shoved off-screen -- but core never gives site-name one of
        its own. Reported live as an "iconless and invisible" blank box:
        measured, the box is real (74x46) and clickable, just empty. Same
-       ::after mask-icon technique as the Customize fix above, using
-       ab-home.svg -- "visit the front end" is what this link IS. */
+       ::after mask-icon technique as the Customize fix above.
+
+       Icon corrected post-ship: this link's href is /wp-admin/, i.e. it
+       goes to the Dashboard, not the front end -- confirmed directly by
+       AJ ("it's supposed to go to dash"). dashboard.svg is the exact
+       glyph the sidebar's own Dashboard menu item already uses
+       (admin-skin.css, .menu-icon-dashboard), so this now matches that
+       instead of a generic, semantically-wrong "home" glyph. */
     #wpadminbar #wp-admin-bar-site-name > .ab-item {
         position: relative;
     }
@@ -225,8 +231,8 @@
         width: 20px;
         height: 20px;
         background-color: var(--shsas-text-dim, #b3ab97);
-        -webkit-mask: url(../icons/ab-home.svg) no-repeat center / 20px 20px;
-        mask: url(../icons/ab-home.svg) no-repeat center / 20px 20px;
+        -webkit-mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
+        mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
     }
     #wpadminbar #wp-admin-bar-site-name > .ab-item:hover::after,
     #wpadminbar #wp-admin-bar-site-name > .ab-item:focus::after,
