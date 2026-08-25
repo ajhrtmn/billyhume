@@ -232,7 +232,15 @@ class OUS_ApiDocs {
             return;
         }
 
-        $method_colors = ['get' => '#2271b1', 'post' => '#00a32a', 'put' => '#dba617', 'delete' => '#d63638', 'patch' => '#dba617'];
+        // WP core's own stock colors for 'post' and 'put'/'patch' fail white-on-
+        // background contrast for the badge below (measured: #00a32a 3.35:1,
+        // #dba617 2.22:1, both need 4.5:1) -- found by a full styles-audit sweep
+        // of this admin screen, 45 identical POST-badge failures on one page
+        // alone since this ecosystem registers that many routes. 'get' (#2271b1,
+        // 5.17:1) and 'delete' (#d63638, 4.73:1) already passed and are
+        // untouched. Darkened post/put to the nearest AA-passing shade of the
+        // same hue rather than picking arbitrary new colors.
+        $method_colors = ['get' => '#2271b1', 'post' => '#007d14', 'put' => '#8e6c0f', 'delete' => '#d63638', 'patch' => '#8e6c0f'];
 
         $route_i = 0;
         foreach ($spec['paths'] as $path => $methods) {

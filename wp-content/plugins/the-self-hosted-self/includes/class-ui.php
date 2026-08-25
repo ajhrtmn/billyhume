@@ -62,15 +62,24 @@ class BHY_UI {
         $icon_key = (string) ($args['icon'] ?? ($reason === 'filtered' ? 'search' : 'info-outline'));
         $icon_svg = self::EMPTY_STATE_ICONS[$icon_key] ?? self::EMPTY_STATE_ICONS['info-outline'];
 
+        // WHY --bhy-* not --bh-*: this is an ADMIN component (BHY_UI, 19 uses
+        // across admin screens) but was reading the FRONT-END brand token
+        // family instead of the admin design-system one -- --bhy-* is what
+        // shsas_bridge_bhy_tokens() actually bridges to --shsas-* for this
+        // skin's dark theme. Found live in Storybook's own a11y-audited
+        // "Empty state" story: the title rendered at 1.16:1 (needs 4.5),
+        // essentially invisible, because --bh-text was undefined in that
+        // context and fell straight to its light-mode fallback #222 against
+        // a dark background.
         $out = '<style>
-            .bhy-empty-state { text-align: center; padding: 48px 20px; color: var(--bh-text-dim, #6b6b6b); }
-            .bhy-empty-state .bhy-empty-icon { display: inline-block; width: 40px; height: 40px; margin: 0 auto; color: var(--bh-border, #ccc); }
+            .bhy-empty-state { text-align: center; padding: 48px 20px; color: var(--bhy-ink-dim, #6b6b6b); }
+            .bhy-empty-state .bhy-empty-icon { display: inline-block; width: 40px; height: 40px; margin: 0 auto; color: var(--bhy-border, #ccc); }
             .bhy-empty-state .bhy-empty-icon svg { width: 100%; height: 100%; }
-            .bhy-empty-state h3 { margin: 12px 0 4px; font-size: 18px; color: var(--bh-text, #222); }
+            .bhy-empty-state h3 { margin: 12px 0 4px; font-size: 18px; color: var(--bhy-ink, #222); }
             .bhy-empty-state p { margin: 0 0 16px; font-size: 14px; }
             .bhy-empty-state .bhy-empty-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-            .bhy-empty-state .bhy-empty-cta { display: inline-block; padding: 8px 18px; border-radius: 6px; background: var(--bh-accent, #2271b1); color: #fff; text-decoration: none; font-size: 14px; }
-            .bhy-empty-state .bhy-empty-clear { display: inline-block; padding: 8px 18px; font-size: 14px; color: var(--bh-text-dim, #6b6b6b); text-decoration: underline; }
+            .bhy-empty-state .bhy-empty-cta { display: inline-block; padding: 8px 18px; border-radius: 6px; background: var(--bhy-accent, #2271b1); color: #fff; text-decoration: none; font-size: 14px; }
+            .bhy-empty-state .bhy-empty-clear { display: inline-block; padding: 8px 18px; font-size: 14px; color: var(--bhy-ink-dim, #6b6b6b); text-decoration: underline; }
             @media (max-width: 480px) {
                 .bhy-empty-state { padding: 32px 16px; }
                 .bhy-empty-state .bhy-empty-icon { width: 28px; height: 28px; }
