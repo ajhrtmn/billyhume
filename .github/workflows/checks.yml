@@ -135,6 +135,37 @@ jobs:
           npx @wordpress/env run tests-cli bash -c \
             "cd /var/www/html/wp-content/plugins/bh-monetization-woo/tests-integration && WP_TESTS_DIR=/wordpress-phpunit vendor/bin/phpunit -c phpunit.xml"
 
+  # Screenshot-diffs the real Storybook build against committed Linux
+  # baselines -- see tests/ux/storybook-visual.spec.ts's own docblock.
+  # continue-on-error while this graduates, same posture and same reason
+  # as db-integration-tests above: built and verified this same session
+  # (including deliberately regressing a fixture and confirming it fails,
+  # then reverting and confirming a clean pass), but this is its first
+  # run in GitHub's own runner environment specifically. Runs on
+  # ubuntu-latest deliberately -- the baselines are named *-linux.png and
+  # will not match any other platform's font rendering.
+  storybook-visual:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: npm install
+        run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Storybook visual regression
+        run: npx playwright test --project=storybook
+
   typescript:
     runs-on: ubuntu-latest
     steps:
