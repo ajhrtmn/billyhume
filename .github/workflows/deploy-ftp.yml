@@ -144,3 +144,61 @@ jobs:
           exclude: |
             **/.git*
             **/.git*/**
+
+  # Generates "what actually shipped" from CHANGELOG.md entries rather than
+  # asking anyone to hand-assemble it -- runs independently of the deploy
+  # job above so a missing/placeholder FTP secret never blocks this from
+  # producing notes. Reads whichever plugins' CHANGELOG.md changed between
+  # the previous tip of `stable` and this push (github.event.before is
+  # exactly that previous SHA) and writes a consolidated summary to the
+  # run's own job summary -- always available, no extra API permissions
+  # needed beyond the default GITHUB_TOKEN, no tag/Release management to
+  # get wrong on a workflow that's never been exercised yet.
+  release-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Summarize what changed in each plugin's CHANGELOG.md
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          # A brand-new branch (before = all-zeros) has no prior commit to
+          # diff against -- fall back to the first parent of this push.
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            BEFORE=$(git rev-parse "$AFTER^" 2>/dev/null || echo "$AFTER")
+          fi
+
+          {
+            echo "# Shipped to \`stable\` — $(date -u +%Y-%m-%d)"
+            echo
+            echo "Comparing \`${BEFORE:0:7}\`...\`${AFTER:0:7}\`."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          CHANGED_LOGS=$(git diff --name-only --diff-filter=ACMR "$BEFORE" "$AFTER" -- 'wp-content/plugins/*/CHANGELOG.md' || true)
+
+          if [ -z "$CHANGED_LOGS" ]; then
+            echo "_No plugin CHANGELOG.md changed in this promotion._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          for log in $CHANGED_LOGS; do
+            plugin=$(echo "$log" | sed -E 's#wp-content/plugins/([^/]+)/CHANGELOG.md#\1#')
+            {
+              echo "## $plugin"
+              echo
+              echo '```'
+              # Only the ADDED lines (real new entries), stripped of the
+              # diff +/- markers — a plugin's own CHANGELOG.md is newest-
+              # first, so new entries are exactly the added lines at the
+              # top of the diff.
+              git diff "$BEFORE" "$AFTER" -- "$log" | grep -E '^\+[^+]' | sed 's/^\+//'
+              echo '```'
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
