@@ -4146,7 +4146,13 @@ body.shsas-unowned #wpbody-content .woocommerce-stats-overview {
    accordions, and the media/plugin browse tabs, so fixing them here fixes
    every screen that uses them rather than nav-menus alone. Scoped to
    .shsas-owned: an unowned third-party screen is deliberately left on
-   core's own light surfaces by the containment block. */
+   core's own light surfaces by the containment block.
+
+   No !important here, checked rather than assumed: these selectors already
+   carry an id and outrank core's class-only rules. Fourteen were written
+   reflexively and stripped in the 2026-08-24 audit with no change in
+   outcome -- nav-menus still measures 0 contrast failures and #post-body
+   still resolves dark. */
 body.shsas-owned #wpbody-content .manage-menus,
 body.shsas-owned #wpbody-content .accordion-section-content,
 body.shsas-owned #wpbody-content .tabs-panel,
@@ -4155,9 +4161,9 @@ body.shsas-owned #wpbody-content .nav-menus-php .metabox-holder .postbox,
 body.shsas-owned #wpbody-content .customlinkdiv,
 body.shsas-owned #wpbody-content .posttypediv,
 body.shsas-owned #wpbody-content .taxonomydiv {
-    background: var(--shsas-surface-2) !important;
-    color: var(--shsas-text) !important;
-    border-color: var(--shsas-border) !important;
+    background: var(--shsas-surface-2);
+    color: var(--shsas-text);
+    border-color: var(--shsas-border);
 }
 /* Traced by walking each failing element's ancestors rather than guessing at
    class names: the remaining light grounds were #nav-menu-header (#f6f7f7),
@@ -4169,9 +4175,9 @@ body.shsas-owned #wpbody-content #post-body,
 body.shsas-owned #wpbody-content .bulk-select-button,
 body.shsas-owned #wpbody-content .menu-item-handle,
 body.shsas-owned #wpbody-content .menu-item-bar {
-    background: var(--shsas-surface-2) !important;
-    color: var(--shsas-text) !important;
-    border-color: var(--shsas-border) !important;
+    background: var(--shsas-surface-2);
+    color: var(--shsas-text);
+    border-color: var(--shsas-border);
 }
 
 /* Core gives these rows their own light stripes; without this the row
@@ -4179,22 +4185,22 @@ body.shsas-owned #wpbody-content .menu-item-bar {
 body.shsas-owned #wpbody-content .tabs-panel li,
 body.shsas-owned #wpbody-content .accordion-section-content li,
 body.shsas-owned #wpbody-content .menu-item-settings {
-    background: transparent !important;
-    color: var(--shsas-text) !important;
+    background: transparent;
+    color: var(--shsas-text);
 }
 /* The tab strip above a .tabs-panel: the inactive tabs read as light chips. */
 body.shsas-owned #wpbody-content .tabs-panel + ul.category-tabs li,
 body.shsas-owned #wpbody-content ul.category-tabs li,
 body.shsas-owned #wpbody-content ul.add-menu-item-tabs li {
-    background: transparent !important;
+    background: transparent;
 }
 body.shsas-owned #wpbody-content ul.category-tabs li a,
 body.shsas-owned #wpbody-content ul.add-menu-item-tabs li a {
-    color: var(--shsas-accent) !important;
+    color: var(--shsas-accent);
 }
 body.shsas-owned #wpbody-content ul.category-tabs li.tabs a,
 body.shsas-owned #wpbody-content ul.add-menu-item-tabs li.tabs a {
-    color: var(--shsas-text) !important;
+    color: var(--shsas-text);
 }
 
 /* Darkening those handles above exposed the other half of the same problem:
@@ -4209,7 +4215,7 @@ body.shsas-owned #wpbody-content .menu-item-settings .description,
 body.shsas-owned #wpbody-content .menu-item-handle .item-controls a,
 body.shsas-owned #wpbody-content #nav-menu-header .description,
 body.shsas-owned #wpbody-content #post-body .description {
-    color: var(--shsas-text-dim) !important;
+    color: var(--shsas-text-dim);
 }
 /* The delete link keeps a danger reading, but --shsas-danger raw measures
    3.87:1 on this surface. Lifting it toward the text colour is the same
@@ -4217,7 +4223,7 @@ body.shsas-owned #wpbody-content #post-body .description {
    text needs more separation than a block of colour does. */
 body.shsas-owned #wpbody-content .submitdelete,
 body.shsas-owned #wpbody-content a.submitdelete {
-    color: color-mix(in srgb, var(--shsas-danger) 55%, var(--shsas-text)) !important;
+    color: color-mix(in srgb, var(--shsas-danger) 55%, var(--shsas-text));
 }
 
 /* .menu-settings-group-name is a <span> core styles as a dim grey heading
@@ -4225,7 +4231,7 @@ body.shsas-owned #wpbody-content a.submitdelete {
    heading, so it takes the full text colour rather than the dim one. */
 body.shsas-owned #wpbody-content .menu-settings-group-name,
 body.shsas-owned #wpbody-content .menu-settings .howto {
-    color: var(--shsas-text) !important;
+    color: var(--shsas-text);
 }
 
 /* ==========================================================================
@@ -4266,6 +4272,22 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
             hue-rotate(var(--shsas-item-hue-deg, 0deg))
             drop-shadow(0 0 var(--shsas-focus-glow-blur) currentColor) !important;
 }
+/* Dashicon icons are a THIRD kind, and the first version of this block
+   missed them entirely. They colour a ::before glyph, not a filter and not a
+   background, so neither rule above reached them -- Tickets still rendered
+   at saturation 0.96 while the .svg icons sat correctly at 0.16. The
+   measurement that reported "one resting colour" had sampled only the kinds
+   that were covered, which is exactly the over-claim this audit is for. */
+#adminmenu li.menu-top div.wp-menu-image::before {
+    color: var(--shsas-text-dim) !important;
+}
+#adminmenu li.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-top:focus-within div.wp-menu-image::before,
+#adminmenu li.menu-top.current div.wp-menu-image::before,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image::before {
+    color: var(--shsas-item-hue, var(--shsas-accent)) !important;
+}
+
 /* The CSS-mask icons carry their hue as a background-color rather than a
    filter, so they need the same treatment expressed the other way. */
 #adminmenu li.menu-top div.wp-menu-image.svg,
@@ -4335,9 +4357,9 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
  * wayfinding failure, and the two longest names here are this ecosystem's
  * OWN plugins -- the items most worth recognising are the ones getting cut.
  *
- * white-space carries !important deliberately. Setting it inline on the
+ * white-space carries deliberately. Setting it inline on the
  * element was measured NOT to wrap, which means something already declares
- * nowrap with !important; it is in a stylesheet the CSSOM refuses to
+ * nowrap with; it is in a stylesheet the CSSOM refuses to
  * enumerate, so this matches force rather than guessing at its selector.
  *
  * 12.5px buys roughly a character and a half, enough that most names fit on
@@ -4350,14 +4372,14 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
  * A centred icon beside a two-line label centres on the block, which is
  * correct on its own. */
 #adminmenu a.menu-top .wp-menu-name {
-    /* All three carry !important for the same measured reason: setting them
+    /* All three carry for the same measured reason: setting them
        without it left the computed values at nowrap/hidden/ellipsis, so
-       something declares them !important in a stylesheet the CSSOM will not
+       something declares them in a stylesheet the CSSOM will not
        enumerate. white-space took effect; overflow and text-overflow did not
        until matched. */
     white-space: normal !important;
     overflow-wrap: break-word;
-    text-overflow: clip !important;
+    text-overflow: clip;
     /* overflow stays hidden, core's own value. Forcing it visible was
        measured to make the whole sidebar scroll horizontally, and it buys
        nothing: once white-space wraps, there is no horizontal overflow left
@@ -4365,7 +4387,7 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     max-width: 100%;
     font-size: 12.5px;
     line-height: 1.3;
-    /* Both !important, and that is load-bearing rather than lazy. This file
+    /* Both, and that is load-bearing rather than lazy. This file
        elsewhere resets .wp-menu-name's padding to 0 (core bakes in a 36px
        left pad for its own absolutely-positioned icon, a different layout
        model than this skin's flex row). That reset outranked a plain
@@ -4416,4 +4438,35 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
 #adminmenu li.wp-has-current-submenu .wp-submenu::before,
 #adminmenu li.wp-menu-open .wp-submenu::before {
     content: none;
+}
+
+/* The masked plugin icons are the last kind, and the third one this rebalance
+   had to learn about. They are masked by THIS file (not by WP), so they carry
+   no .svg class, and they take their colour from an explicit per-plugin
+   selector list further up -- which outranks the generic resting rule. Six
+   were still fully saturated at rest (Tickets 0.96, Marketing 0.76, Products
+   0.58) after the first two passes reported the rainbow "gone".
+   Mirroring that exact selector list is what actually reaches them. */
+#adminmenu li.toplevel_page_the-self-hosted-self div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-design div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-crm-hub div.wp-menu-image,
+#adminmenu li.menu-icon-bh_contest div.wp-menu-image,
+#adminmenu li.menu-icon-bh_course div.wp-menu-image,
+#adminmenu li.menu-icon-bhs_track div.wp-menu-image,
+#adminmenu li.toplevel_page_ous-debug div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-social div.wp-menu-image,
+#adminmenu li.toplevel_page_bh-tickets div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce div.wp-menu-image,
+#adminmenu li.menu-icon-product div.wp-menu-image,
+#adminmenu li[class*="toplevel_page_wc-admin"] div.wp-menu-image,
+#adminmenu li.toplevel_page_woocommerce-marketing div.wp-menu-image,
+#adminmenu li[class*="PAYMENTS_MENU_ITEM"] div.wp-menu-image {
+    background-color: var(--shsas-text-dim) !important;
+}
+/* ...and the hue returns on the two states that carry real meaning. */
+#adminmenu li.menu-top:hover div.wp-menu-image,
+#adminmenu li.menu-top:focus-within div.wp-menu-image,
+#adminmenu li.menu-top.current div.wp-menu-image,
+#adminmenu li.wp-has-current-submenu div.wp-menu-image {
+    background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
