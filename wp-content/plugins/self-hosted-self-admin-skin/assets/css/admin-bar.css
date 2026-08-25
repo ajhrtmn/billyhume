@@ -215,12 +215,16 @@
        measured, the box is real (74x46) and clickable, just empty. Same
        ::after mask-icon technique as the Customize fix above.
 
-       Icon corrected post-ship: this link's href is /wp-admin/, i.e. it
-       goes to the Dashboard, not the front end -- confirmed directly by
-       AJ ("it's supposed to go to dash"). dashboard.svg is the exact
-       glyph the sidebar's own Dashboard menu item already uses
-       (admin-skin.css, .menu-icon-dashboard), so this now matches that
-       instead of a generic, semantically-wrong "home" glyph. */
+       Icon corrected post-ship, then corrected again: core's site-name
+       node is CONTEXT-AWARE -- its href is /wp-admin/ (Dashboard) on the
+       FRONT END, but on the ADMIN side the exact same node/markup links
+       back OUT to the front end (a "Visit Site" link) -- confirmed
+       directly (`href="http://localhost:10008/"` on wp-admin, vs
+       `.../wp-admin/` on the front end, same element). One icon can't be
+       right for both: dashboard.svg (matching the sidebar's own
+       Dashboard glyph) for the front end, ab-home.svg for wp-admin,
+       split on body.wp-admin -- core's own marker for which side we're
+       on, always present without any JS. */
     #wpadminbar #wp-admin-bar-site-name > .ab-item {
         position: relative;
     }
@@ -228,11 +232,22 @@
         content: "";
         flex: none;
         display: inline-block;
-        width: 20px;
-        height: 20px;
+        /* 24px, not 20 -- matches every other icon in this bar (the
+           notifications bell, the "+", the mobile menu toggle all measure
+           24x24 per the standard set earlier in this file). Reported live
+           as "not aligned with other icons": at 20px this and the
+           Customize icon sat 2px lower than their 24px neighbors inside
+           the same 46px-tall row (top:13 vs top:11), on top of visibly
+           reading smaller. */
+        width: 24px;
+        height: 24px;
         background-color: var(--shsas-text-dim, #b3ab97);
-        -webkit-mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
-        mask: url(../icons/dashboard.svg) no-repeat center / 20px 20px;
+        -webkit-mask: url(../icons/dashboard.svg) no-repeat center / 24px 24px;
+        mask: url(../icons/dashboard.svg) no-repeat center / 24px 24px;
+    }
+    body.wp-admin #wpadminbar #wp-admin-bar-site-name > .ab-item::after {
+        -webkit-mask-image: url(../icons/ab-home.svg);
+        mask-image: url(../icons/ab-home.svg);
     }
     #wpadminbar #wp-admin-bar-site-name > .ab-item:hover::after,
     #wpadminbar #wp-admin-bar-site-name > .ab-item:focus::after,
@@ -418,11 +433,16 @@
        parent's arithmetic. */
     flex: none;
     display: inline-block;
-    width: 20px;
-    height: 20px;
+    /* 24px, not 20 -- matches every other icon in this bar. Reported
+       live as "not aligned with other icons": at 20px this sat 2px lower
+       than its 24px neighbors inside the same 46px row, on top of
+       reading visibly smaller. Same correction as site-name's icon
+       above. */
+    width: 24px;
+    height: 24px;
     background-color: var(--shsas-text-dim, #b3ab97);
-    -webkit-mask: url(../icons/appearance.svg) no-repeat center / 20px 20px;
-    mask: url(../icons/appearance.svg) no-repeat center / 20px 20px;
+    -webkit-mask: url(../icons/appearance.svg) no-repeat center / 24px 24px;
+    mask: url(../icons/appearance.svg) no-repeat center / 24px 24px;
 }
 #wpadminbar #wp-admin-bar-customize > .ab-item:hover::after,
 #wpadminbar #wp-admin-bar-customize > .ab-item:focus::after,
