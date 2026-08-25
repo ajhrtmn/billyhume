@@ -335,6 +335,44 @@
        selectors above were meant to do. Do not hide them here. */
 }
 
+/* "Customize" used WordPress core's own stock dashicons-admin-customizer
+ * glyph -- a chunky filled paintbrush that reads noticeably heavier/cruder
+ * than the thin-line glyphs beside it (the dashboard gauge, the plus).
+ * Reported live: "look at that brush". Swapped for the SAME thin-line
+ * appearance.svg mask this skin's own sidebar already uses for Appearance
+ * (Customize genuinely IS the Appearance > Customize screen), so the top
+ * bar's icon style matches the sidebar's rather than falling back to core's
+ * heavier default the moment a real line-icon mask wasn't set up for it. */
+#wpadminbar #wp-admin-bar-customize > .ab-item::before {
+    content: none !important;
+}
+#wpadminbar #wp-admin-bar-customize > .ab-item {
+    position: relative;
+}
+#wpadminbar #wp-admin-bar-customize > .ab-item::after {
+    content: "";
+    /* .ab-item is a flex container (core), which makes ::after a flex ITEM
+       with a default flex-shrink:1 and no flex-basis of its own -- it was
+       measured collapsing to 0x20px, an invisible sliver, because the first
+       version's margin-right:-20px hack shrank the box's own available
+       space and flex-shrink crushed the pseudo-element into it. flex:none
+       is what actually holds it at its set size regardless of the flex
+       parent's arithmetic. */
+    flex: none;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: var(--shsas-text-dim, #b3ab97);
+    -webkit-mask: url(../icons/appearance.svg) no-repeat center / 20px 20px;
+    mask: url(../icons/appearance.svg) no-repeat center / 20px 20px;
+}
+#wpadminbar #wp-admin-bar-customize > .ab-item:hover::after,
+#wpadminbar #wp-admin-bar-customize > .ab-item:focus::after,
+#wpadminbar #wp-admin-bar-customize > .ab-item:active::after {
+    background-color: var(--bh-accent, #c0563a);
+    filter: drop-shadow(0 0 6px var(--bh-accent, #c0563a));
+}
+
 /* :active is the one that actually matters on a phone, and was missing.
  * For an <a> that navigates on tap, :hover and :focus mostly never get
  * SEEN in practice -- the page unloads before the browser paints the
