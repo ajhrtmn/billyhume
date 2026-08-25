@@ -86,7 +86,13 @@ All five adopted. Every one is dev-only; nothing changes what ships.
 | CSS formatter | `npm run format:css` | `tools/expand-css.js` — one declaration per line. |
 | Everything | `npm run check` | build + CSS lint + unit tests. |
 
-**CI** (`checks.yml`) now runs PHPStan, PHPUnit, PHPCS (changed files, non-blocking), five `tsc` builds, Stylelint, and Vitest. A `ux-audit` job is defined but gated `if: false` until CI provisions a WordPress instance to audit against.
+## IMPLEMENTED 2026-08-25
+
+The one item this doc left open (`wp-env`/`wp-phpunit`, Tier 2 item 4 above) is adopted. `bh-monetization-woo/tests-integration/` runs `BHM_Wallet::debit()`'s atomicity claim against a real MySQL via `@wordpress/env`, wired into `checks.yml` as `db-integration-tests` (`continue-on-error: true` until proven on GitHub's own runner). Verified locally by deliberately removing the guard clause from the real UPDATE statement and watching the concurrent-write test correctly fail, then restoring it.
+
+Also added the same day, not from this doc's original list but the same "convert a remembered check into a machine-enforced one" motivation: a Storybook visual-regression suite (Playwright screenshot diff against committed baselines), a daily canary confirming the self-update mechanism's GitHub URLs still resolve, and a narrow docs-drift check (a plugin's `Version:` header vs its own `CHANGELOG.md`'s newest entry — found real drift on 4 of 14 plugins immediately). See each tool's own `tools/*.sh` header for reasoning, and `OPEN.md`'s "Tooling" section for current status.
+
+**CI** (`checks.yml`) now runs PHPStan (level 6 blocking, level 7 tracked non-blocking), PHPUnit, PHPCS (changed files, non-blocking), five `tsc` builds, Stylelint, Vitest, and (2026-08-25) a real-database integration suite via `wp-env`/`wp-phpunit` and a Storybook visual-regression job — both `continue-on-error: true` pending their first clean runs on GitHub's own infrastructure. The logged-out `ux-audit` job that used to sit here gated `if: false` was moved to its own workflow, `storybook-audit.yml`, once it became clear it needed no provisioned instance — it points at the real live site instead.
 
 ### What the tools found immediately
 

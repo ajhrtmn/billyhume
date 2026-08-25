@@ -74,25 +74,27 @@ Each still has its own doc because the thinking is worth keeping:
 - `ROADMAP-hyperpress-migration.md` — the live Datastar conversion backlog.
 - `VISION.md`'s three big-vision pillar sections — unscoped strategic bets, deliberately.
 
-## Deploy gap — needs a decision
+## Deploy gap — RESOLVED 2026-08-25
 
-**`self-hosted-self-admin-skin` is git-tracked but absent from `deploy-ftp.yml`'s `PLUGIN_FOLDERS` whitelist**, so it has never reached the live site. Every design-system change — the token system, the contrast fixes, the admin-bar mobile layout, the periwinkle/cyan accents — exists only locally.
-
-That file's own comment documents this exact drift happening before ("this list had drifted to only the original 7 plugins while bh-feedback, bh-live, bh-mailpoet, bh-social, bh-tickets, and bh-video shipped real, working code without ever being added here"). This looks like the same oversight, one plugin later. It may be deliberate — the skin is standalone and portable, so Billy may install it by hand — but it should be an explicit decision, not an omission. One-line fix if it should ship.
+**`self-hosted-self-admin-skin` was git-tracked but absent from `deploy-ftp.yml`'s `PLUGIN_FOLDERS` whitelist**, so it never reached the live site — every design-system change (token system, contrast fixes, admin-bar mobile layout, periwinkle/cyan accents) existed only locally. Added to `PLUGIN_FOLDERS` (now 14 entries), and `tools/check-plugin-whitelist.sh` (wired into `checks.yml`'s `repo-consistency` job) now enforces this list stays in sync with `tools/ecosystem-plugins.txt` going forward, so this specific class of drift can't silently recur. Confirmed live on `billyhume.wasmer.app` shortly after.
 
 ## Tooling — adopted 2026-08-23
 
 Playwright, Stylelint, Vitest, PHPCS (security, changed-files) and a CSS formatter are all installed, configured, wired into CI, and passing. See `TOOLING-EVALUATION.md` for the tuning decisions. Still open from that evaluation:
 
-- **`wp-env` + `wp-phpunit`** — the one Tier-2 item not yet adopted. The money paths (`BHM_Wallet::debit`, `BHC_Progress` completion, the purchase ledger) remain untested because they need a real MySQL, not a `$wpdb` stub.
-- **Enable the `ux-audit` CI job** — defined in `checks.yml` but gated `if: false` until CI provisions a WordPress instance to audit against.
 - **Make PHPCS blocking** — currently `continue-on-error: true`. Flip once the touched-file debt (~1,200 pre-existing low-severity findings: un-unslashed nonces, `esc_url_raw` without `wp_unslash`) is paid down.
-- **PHPStan level 7** — 483 findings, mostly unhandled `|false`/`|WP_Error` unions. Worth doing as its own project; an attempt to shortcut it via `@phpstan-return never` annotations broke the clean level-6 gate and was reverted.
+- **PHPStan level 7** — tracked non-blocking in CI since 2026-08-25 (`phpstan-level7.neon`), ~486 findings, mostly unhandled `|false`/`|WP_Error` unions. Still worth doing as its own project. (A native `: never` return-type declaration on a function that unconditionally `exit()`s is fine and used correctly elsewhere — the thing that broke the clean level-6 gate previously was a `@phpstan-return never` *docblock annotation*, a different mechanism; don't conflate the two.)
+
+**Adopted 2026-08-25** (were open here as of 2026-08-23):
+
+- **`wp-env` + `wp-phpunit`** — `bh-monetization-woo/tests-integration/` runs `BHM_Wallet::debit()`'s atomicity claim against real MySQL, wired into `checks.yml` as `db-integration-tests` (`continue-on-error: true` pending its first clean GitHub-runner pass). Verified by deliberately breaking the atomic guard and watching the concurrent-write test fail.
+- **The `ux-audit` CI job** — the old `if: false`-gated job in `checks.yml` is gone; the logged-out audit moved to its own `storybook-audit.yml`, which needed no provisioned WordPress instance after all (it points at the real live site). Paired there with a new Storybook build+screenshot-diff job.
 
 ## Found by the new tooling, not yet fixed
 
 - **Theme search button fails AA** — `button.wp-block-search__button` measures **4.2:1** (needs 4.5) at every width, both the block and `.oust-btn-primary` variants.
 - **Touch targets under 44px at ≤782** — `.oust-nav-toggle` 40×40, `.oust-card-readmore` 61×18, `.oust-site-brand` 202×30.
+- **CHANGELOG.md behind Version: header on 4 plugins** (found 2026-08-25 by `tools/check-changelog-drift.sh`, now advisory in CI) — `bh-contest` (header 3.7.33, changelog's newest entry 3.7.30), `bh-courses` (0.4.91 vs 0.4.86), `bh-tickets` (1.0.3 vs 1.0.2), and `self-hosted-self-admin-skin` (0.62.0 vs 0.31.0 — the widest gap, from the CHANGELOG extraction on 2026-08-23 never being kept current since). Not backfilled: reconstructing accurate entries for versions already shipped needs the real history behind each bump, which no session since has recorded.
 
 ## Vendor cleanup
 
@@ -100,7 +102,7 @@ An early CSS-formatter run reformatted **WooCommerce's** stylesheets (gitignored
 
 ## Blocked on AJ, not on code
 
-- **Wasmer deploy-gap verification** — needs a direct check of `dev-ous.wasmer.app`'s GitHub Updates → "Update now" behavior.
+- **Wasmer deploy-gap verification** — needs a direct check of `dev-ous.wasmer.app`'s GitHub Updates → "Update now" behavior. `self-update-canary.yml` (2026-08-25) now confirms the URLs that mechanism depends on resolve correctly every day, but that's a curl check against raw GitHub URLs, not a real click-through of the "Update now" button in wp-admin — the actual install flow is still unverified.
 - **`bh-courses` Sessions calendar blank on deployed site** — no code bug found; local renders correctly. Needs live devtools Network/Console on the deployed page to confirm whether the 777KB vendored FullCalendar 404s or gets `async`/`defer`/`module` rewritten by an optimization layer. The JS guards on `typeof FullCalendar === 'undefined'` and fails silently, matching the symptom exactly.
 - **ActivityPub relay** — cannot run on `billyhume.wasmer.app` (that PHP/WASM build has no openssl; all crypto is `function_exists()`-guarded and degrades cleanly). Works on ordinary hosting. No relay URL chosen yet.
 - **Bootstrap seeds** — only one entry; should be 3–4 so no single host is a cold-start single point of failure.
