@@ -1,0 +1,35 @@
+name: Self-Update Canary
+
+# Confirms the URLs OUS_GithubUpdates (class-github-updates.php) depends
+# on to check for/install updates still resolve to real plugin/theme
+# headers -- a repo rename, a branch rename, or a path that moved would
+# otherwise silently break this ecosystem's own self-hosted update
+# mechanism until a real site depended on it and got nothing. See
+# tools/check-self-update-canary.sh's own header for the full reasoning.
+#
+# Deliberately minimal: no PHP, no Node, no WordPress -- just curl
+# against real raw.githubusercontent.com URLs, since that's genuinely
+# all this needs to verify.
+
+on:
+  schedule:
+    # 07:00 UTC daily -- this mechanism is meant to be checked once a day
+    # in production too (class-github-updates.php's own daily cron), so
+    # this canary runs on roughly the same cadence as the thing it watches.
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+  push:
+    branches: [dev, master]
+    paths:
+      - 'tools/check-self-update-canary.sh'
+      - 'tools/ecosystem-plugins.txt'
+      - '.github/workflows/self-update-canary.yml'
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check every self-update source URL resolves
+        run: bash tools/check-self-update-canary.sh
