@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Admin Skin — The Self-Hosted Self
  * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.51.0
+ * Version:     0.53.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('SHSAS_VER', '0.51.0');
+define('SHSAS_VER', '0.53.0');
 
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
@@ -286,6 +286,22 @@ add_action('admin_head', 'shsas_print_nav_depth_script', 1);
  *
  * Below 782px only -- at desktop widths hover opens the submenu normally,
  * and that submenu is genuinely useful.
+ *
+ * BUG FOUND LIVE, 2026-08-25: this never actually worked, on the front end
+ * or in wp-admin. wp_add_inline_script('admin-bar', ...) attaches to a
+ * script WordPress prints late -- in the footer on the front end, and after
+ * the toolbar markup in wp-admin -- so by the time this code runs,
+ * `document.readyState` is already "complete" and `DOMContentLoaded` has
+ * already fired. Waiting for it inside a script that only runs after it
+ * happened means the listener is never attached. Confirmed directly:
+ * document.readyState read "complete" and the script tag's own position
+ * was mid-body, well after the admin bar markup it targets. The href was
+ * always correct; nothing was ever listening for the tap.
+ *
+ * Fix is to stop waiting for an event that has already happened. The admin
+ * bar markup this script targets is guaranteed to exist by the time an
+ * inline script attached to the 'admin-bar' handle runs, so the setup runs
+ * immediately.
  */
 function shsas_admin_bar_tap_to_dashboard(): void {
     if (!is_admin_bar_showing()) return;
@@ -293,17 +309,15 @@ function shsas_admin_bar_tap_to_dashboard(): void {
     wp_add_inline_script('admin-bar', <<<'JS'
 (function () {
     if (!window.matchMedia || !window.matchMedia('(max-width: 782px)').matches) return;
-    document.addEventListener('DOMContentLoaded', function () {
-        var item = document.querySelector('#wp-admin-bar-site-name > .ab-item');
-        if (!item || !item.getAttribute('href')) return;
-        // Capture phase: core's own handler calls preventDefault on this tap
-        // to open the submenu, so a bubble-phase listener would arrive after
-        // the navigation had already been cancelled.
-        item.addEventListener('click', function (e) {
-            e.stopPropagation();
-            window.location.href = item.getAttribute('href');
-        }, true);
-    });
+    var item = document.querySelector('#wp-admin-bar-site-name > .ab-item');
+    if (!item || !item.getAttribute('href')) return;
+    // Capture phase: core's own handler calls preventDefault on this tap
+    // to open the submenu, so a bubble-phase listener would arrive after
+    // the navigation had already been cancelled.
+    item.addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.location.href = item.getAttribute('href');
+    }, true);
 }());
 JS
     );

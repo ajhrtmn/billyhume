@@ -55,7 +55,16 @@
 #wpadminbar #wp-admin-bar-root-default {
     display: flex;
     align-items: stretch;
-    flex: 1 1 auto;
+    /* flex-grow is 0, not 1. Reported live as a "wompy" bar: on a page with
+       few items (the front end, 4-5 icons) this container grew to fill all
+       leftover space in its flex parent, and since it is itself a flex row
+       with left-packed children, that growth showed up as a dead 33px gap
+       AFTER the last icon and BEFORE the avatar -- content bunched left,
+       the tail of the bar empty. flex-shrink stays 1 with min-width:0 so
+       the below-782px overflow-scroll behaviour is untouched; only growth
+       is removed. #wp-admin-bar-top-secondary already owns "push to the
+       end" via its own margin-left:auto, so this never needed to grow. */
+    flex: 0 1 auto;
     min-width: 0;
 }
 
@@ -200,7 +209,9 @@
     #wpadminbar #wp-admin-bar-root-default {
         display: flex;
         align-items: center;
-        flex: 1 1 auto;
+        /* flex-grow 0 for the same reason as the desktop rule above -- see
+           its comment. Shrink/scroll behaviour below is unaffected. */
+        flex: 0 1 auto;
         min-width: 0;      /* WHY: without this a flex item refuses to shrink below content width */
         /* Was `overflow: hidden`, which sheared the last items mid-glyph and
            put the palette trigger and theme toggle permanently out of reach.
@@ -251,6 +262,29 @@
         width: 24px !important;
         height: 24px !important;
     }
+    /* Reported live as "all different sizes and gaps and weirdness", and
+       measured to be literally true: this bar mixed FOUR icon scales at
+       once -- site-name/Customize at core's own unstyled 32px, the "New"
+       plus icon correctly at this file's 24px standard (above), and the
+       notifications bell at 14x14, because it renders as a raw emoji
+       <img> (WordPress's own emoji-substitution markup, sized by
+       core's img.emoji rule at 1em of the bar's body text) rather than a
+       dashicon glyph.
+
+       The rule above never reached site-name/Customize because it
+       requires an actual `.ab-icon` element, and core puts their glyph
+       directly on `.ab-item::before` with no `.ab-icon` wrapper at all --
+       confirmed live (site-name/.ab-item::before computed 32px, no
+       `.ab-icon` descendant existed to match). Widening to `.ab-item`
+       itself, not just `.ab-item .ab-icon`, is what actually reaches them.
+       The emoji bell needed a different fix, since font-size does not
+       touch an <img>: forcing its box to 24x24 directly. */
+    #wpadminbar #wp-admin-bar-root-default > li > .ab-item::before {
+        font-size: 24px !important;
+        width: 24px !important;
+        height: 24px !important;
+    }
+
 
     /* Core hides the account/site labels down here with `text-indent: 100%`
        plus overflow:hidden — a mechanism that only works in inline flow. The
@@ -300,6 +334,49 @@
        hamburger. They just have to be icon-only, which is what the dead
        selectors above were meant to do. Do not hide them here. */
 }
+
+/* :active is the one that actually matters on a phone, and was missing.
+ * For an <a> that navigates on tap, :hover and :focus mostly never get
+ * SEEN in practice -- the page unloads before the browser paints the
+ * change. :active fires the instant a finger touches down, before
+ * navigation starts, so it is the only one of the three that gives real
+ * tactile feedback for a link. Kept alongside :hover/:focus rather than
+ * replacing them, since :focus still matters for the one item here that
+ * does NOT navigate away (the site-name menupop, opened rather than
+ * followed on first tap). */
+/* Universal (not confined to the mobile media query above): a real mouse
+ * hover exists at desktop widths, and this needs to reach it. It was
+ * originally written INSIDE the <=782px block by mistake -- exactly the
+ * viewport where a genuine :hover does not exist at all (touch only), so
+ * it would have only ever fired via a state real hover never reaches on
+ * a phone. :focus is what actually fires on a mobile tap (a link keeps
+ * focus after being tapped, unlike :hover, which iOS Safari can leave
+ * stuck on the wrong element -- the exact bug already found and fixed on
+ * the sidebar's own icons earlier today). Moved out here so desktop gets
+ * real hover feedback and mobile gets the same glow through focus. */
+/* Direct feedback after seeing the sized-but-flat result: "not very
+   magical". Fair -- this file had ZERO colour or glow treatment
+   anywhere; every icon just sat at whatever muted grey core gives it,
+   with no feedback on touch at all. The sidebar earned real praise
+   ("I liked the glow") for exactly the thing missing here: a neutral
+   resting state that blooms into the accent hue with a soft glow the
+   moment you touch it. Same language, same restraint -- neon only on
+   contact, never at rest, per the standing brief. */
+#wpadminbar #wp-admin-bar-root-default > li > .ab-item:hover::before,
+#wpadminbar #wp-admin-bar-root-default > li > .ab-item:focus::before,
+#wpadminbar #wp-admin-bar-root-default > li > .ab-item:active::before,
+#wpadminbar #wp-admin-bar-root-default > li.hover > .ab-item::before {
+    color: var(--bh-accent, #c0563a) !important;
+    filter: drop-shadow(0 0 6px var(--bh-accent, #c0563a));
+}
+#wpadminbar #wp-admin-bar-top-secondary img.avatar {
+    transition: box-shadow 150ms ease;
+}
+#wpadminbar #wp-admin-bar-top-secondary li:hover img.avatar,
+#wpadminbar #wp-admin-bar-top-secondary li:focus-within img.avatar {
+    box-shadow: 0 0 0 2px var(--bh-accent, #c0563a), 0 0 8px var(--bh-accent, #c0563a);
+}
+
 
 /* Last-resort guarantee: even if some plugin adds an item we have no
    breakpoint for, the account menu keeps its own opaque ground and
@@ -424,20 +501,47 @@
     border-radius: 0 !important;
     padding: 0 11px !important;
 }
+/* The bell is now a real dashicon glyph (PHP side: class-notifications.php,
+   bhcore-notifications node), not the raw emoji character that used to
+   render as a chunky coloured <img>. Content is supplied here, exactly
+   core's own per-item pattern for every other bare .ab-icon in this bar
+   (e.g. #wp-admin-bar-new-content's plus glyph). \f16d is dashicons-bell's
+   own codepoint (wp-includes/css/dashicons.css). */
+#wpadminbar #wp-admin-bar-bhcore-notifications > .ab-item > .ab-icon::before {
+    font-family: dashicons, sans-serif !important;
+    content: "\f16d" !important;
+}
+
 /* Notification count: was a hard red block. Danger hue is retained
    because an unread count IS a real signal — but as a restrained pill
-   rather than a slab, and only when non-zero. */
+   rather than a slab, and only when non-zero.
+
+   Reported live as "poorly centered, not neat and aligned" -- same shape
+   of bug already found and fixed twice today on the sidebar's own count
+   badges: line-height was doing the vertical centring on its own, with
+   nothing relating the pill's box to the bell icon sitting beside it in
+   the SAME flex row. inline-flex + align-items:center centres the digit
+   regardless of glyph metrics; vertical-align:middle and align-self:center
+   are what actually relate the two boxes to each other rather than to an
+   independent line box. */
 #wpadminbar #wp-admin-bar-bhcore-notifications .bhcore-notif-count,
 #wpadminbar #wp-admin-bar-bhcore-notifications .count,
 #wpadminbar #wp-admin-bar-bhcore-notifications .ab-label > span {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    vertical-align: middle;
+    box-sizing: border-box;
     background: color-mix(in srgb, var(--shsas-danger, #ff3ea5) 22%, transparent) !important;
     color: var(--shsas-text, #f2ede1) !important;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shsas-danger, #ff3ea5) 55%, transparent);
     border-radius: 999px !important;
     min-width: 20px;
     height: 18px;
-    line-height: 18px !important;
+    line-height: 1 !important;
     padding: 0 6px !important;
+    margin: 0 !important;
     font-size: 11px !important;
     font-weight: 700 !important;
     font-variant-numeric: tabular-nums;

@@ -251,7 +251,18 @@ class OUS_Notifications {
 
         $wp_admin_bar->add_node([
             'id' => 'bhcore-notifications',
-            'title' => '&#128276;' . ($count ? ' <span class="bhcore-notif-count">' . (int) $count . '</span>' : ''),
+            // A real dashicon glyph, not the raw bell emoji character this used
+            // to be. WordPress silently rewrites a raw unicode emoji in node
+            // TEXT into an <img class="emoji"> at render time -- a coloured,
+            // chunky raster image with none of the other toolbar icons' thin
+            // monochrome weight. Forcing its box to match their 24px size
+            // (an earlier fix) still looked wrong once matched, because box
+            // size was never the mismatch -- rendering TECHNIQUE was. A bare
+            // .ab-icon span is the same element every other core toolbar
+            // item uses; content is supplied by one matching CSS rule below
+            // (#wp-admin-bar-bhcore-notifications .ab-icon:before), exactly
+            // core's own per-item pattern.
+            'title' => '<span class="ab-icon" aria-hidden="true"></span>' . ($count ? ' <span class="bhcore-notif-count">' . (int) $count . '</span>' : ''),
             'href' => '#',
             'meta' => ['class' => 'bhcore-notif-bar-item'],
         ]);
