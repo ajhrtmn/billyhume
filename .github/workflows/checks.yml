@@ -85,6 +85,16 @@ jobs:
       # caught if a reviewer happens to remember to check for it.
       - name: Version-bump convention (changed plugins touch their own CHANGELOG.md)
         run: bash tools/check-version-bump.sh origin/${{ github.base_ref || 'master' }}
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Advisory, not blocking -- see the script's own docblock. Surfaces
+      # CLAUDE.md's most-repeated hard rule (class_exists() at hook-call
+      # time, never file-parse time) as something reviewed on every push
+      # instead of only when a person remembers to grep for it by hand.
+      - name: class_exists() timing (advisory)
+        run: node tools/check-class-exists-timing.js
 
   typescript:
     runs-on: ubuntu-latest
