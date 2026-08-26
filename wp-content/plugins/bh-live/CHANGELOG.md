@@ -6,6 +6,27 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.9.5 — Live-robustness pass on `BHL_FlyProvisioner` (Fly.io Machines
+host provisioning). Real gap found: `destroy()` requires a machine to
+actually still exist to succeed — if it was ever deleted directly via
+Fly's own dashboard/CLI (outside this plugin entirely), the stored
+`active_machine_id` had no way back to a clean state. The next
+"Destroy machine" click just failed again with the same error forever,
+and the media wizard's own status check silently rendered nothing at
+all when it failed, leaving an admin looking at a bare button with zero
+context. Fixed: `request()` now carries the real HTTP status on its
+`WP_Error` (`['status' => $code]`), and `destroy()` treats a 404 —
+"the goal state is already true, there's nothing left to delete" — as
+success rather than failure, clearing the stale reference. The wizard
+(`the-self-hosted-self`'s `class-media-wizard.php`) now shows the
+actual error message instead of going blank when a status check fails.
+
+Verified against the real local install with `pre_http_request`
+filters standing in for Fly's real API (never call a real cloud
+provisioning API from a verification pass): a simulated 404 correctly
+clears `active_machine_id`, while a simulated 500 is still correctly
+reported as a real failure, not silently swallowed alongside it.
+
 0.9.4 — Ecosystem quality Phase 2, brick 6/13: added native return/
 parameter types across all 20 includes files (211 findings, both
 mechanical level-6 categories) — the largest brick so far. Two real

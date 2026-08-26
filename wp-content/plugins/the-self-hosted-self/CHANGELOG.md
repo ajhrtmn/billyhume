@@ -9,6 +9,16 @@ has been reworded or dropped.
 
 ---
 
+3.15.1 — Small companion fix to bh-live 0.9.5's `BHL_FlyProvisioner`
+robustness pass: `class-media-wizard.php`'s provisioner section used to
+silently render nothing at all when `get_status()` failed on the
+currently-stored machine (most commonly because it had been deleted
+directly via Fly's own dashboard, outside this plugin) — an admin saw a
+bare "Destroy machine" button with zero context. Now shows the actual
+error message, and points out that "Destroy machine" will correctly
+clear the stale reference either way (bh-live's own fix makes a 404
+there a success, not another dead end).
+
 3.15.0 — Live-robustness pass: `OUS_GithubUpdates::update()` gained a
 manual pre-overwrite backup/restore, closing a real gap found by
 reading WP core's own upgrader source directly rather than assuming.

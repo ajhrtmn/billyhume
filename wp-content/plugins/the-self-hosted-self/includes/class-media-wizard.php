@@ -499,6 +499,17 @@ class OUS_MediaWizard {
             $status = $engine->get_status($settings['active_machine_id']);
             if (!is_wp_error($status)) {
                 echo '<p><strong>Current machine:</strong> <code>' . esc_html($settings['active_machine_id']) . '</code> — status: <strong>' . esc_html($status['state']) . '</strong> (' . esc_html($status['raw_state']) . ')</p>';
+            } else {
+                // Live-robustness audit fix: this used to be a silent
+                // no-op, leaving a "Destroy machine" button with zero
+                // context if the status check failed — most commonly
+                // because the machine was already deleted directly via
+                // Fly's own dashboard/CLI, outside this plugin. Now
+                // visible, and "Destroy machine" below correctly clears
+                // the stale reference on the next click either way
+                // (BHL_FlyProvisioner::destroy() treats a 404 as
+                // "already gone" success, not a failure).
+                echo '<p><strong>Current machine:</strong> <code>' . esc_html($settings['active_machine_id']) . '</code> — could not check status (' . esc_html($status->get_error_message()) . '). If this machine was deleted outside this plugin, click "Destroy machine" once to clear the reference.</p>';
             }
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline;">';
             wp_nonce_field('ous_media_wizard_destroy_host', 'ous_media_wizard_destroy_nonce');

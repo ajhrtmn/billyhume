@@ -90,7 +90,11 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if ($code < 200 || $code >= 300) {
             $message = is_array($data) && !empty($data['error']) ? $data['error'] : ('Fly API returned HTTP ' . $code);
-            return new WP_Error('fly_api_error', $message);
+            // Status carried as error data (live-robustness audit
+            // addition) — destroy() below needs to tell "the machine is
+            // genuinely gone (404)" apart from a real API failure, and
+            // a bare error string can't be branched on reliably.
+            return new WP_Error('fly_api_error', $message, ['status' => $code]);
         }
         return is_array($data) ? $data : [];
     }
@@ -190,7 +194,18 @@ class BHL_FlyProvisioner implements BHL_HostProvisioner {
         // doesn't block cleanup entirely.
         $this->request('POST', '/apps/' . $s['app_name'] . '/machines/' . $host_id . '/stop');
         $result = $this->request('DELETE', '/apps/' . $s['app_name'] . '/machines/' . $host_id . '?force=true');
-        if (is_wp_error($result)) return $result;
+        // A 404 here means the machine is ALREADY gone (deleted directly
+        // via the Fly dashboard/CLI, outside this plugin entirely) —
+        // live-robustness audit fix: treating that as a failure left
+        // active_machine_id permanently stuck pointing at a machine that
+        // no longer exists, with no way for an admin to clear it short
+        // of editing the option directly. "Already achieved the goal
+        // state" is success, not an error, for a destroy/delete action.
+        if (is_wp_error($result)) {
+            $error_data = $result->get_error_data();
+            $status = is_array($error_data) ? (int) ($error_data['status'] ?? 0) : 0;
+            if ($status !== 404) return $result;
+        }
 
         self::set_active_machine_id('');
         return true;
