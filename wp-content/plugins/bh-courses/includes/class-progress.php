@@ -700,6 +700,51 @@ class BHC_Progress {
         wp_send_json_success(['step_index' => $step_index, 'auto_completed' => $auto_completed, 'course_id' => $course_id, 'course_percent' => $course_percent]);
     }
 
+    // OPEN.md item 21 (interactive-video variants), built on item 22's
+    // sub_index — the "self-check only, never persisted" posture
+    // class-steps.php originally documented for 'question' annotations
+    // is now a real completion record, same infrastructure a quiz STEP
+    // already gets, just at annotation granularity (sub_index =
+    // annotation's own array position + 1 — sub_index 0 stays reserved
+    // for the video step's own row).
+    //
+    // Deliberately re-scores server-side from the annotation's own
+    // stored correct_index rather than trusting a client-submitted
+    // "correct" boolean — the client already computes and shows this
+    // instantly for a responsive UI, but persisting an unverified
+    // client claim would let a student's request simply assert they
+    // got every question right.
+    public static function ajax_mark_annotation(): void {
+        check_ajax_referer('bhc_progress', 'nonce');
+        $user_id = get_current_user_id();
+        if (!$user_id) wp_send_json_error(['message' => 'Log in required.'], 401);
+
+        $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
+        $step_index = (int) ($_POST['step_index'] ?? -1);
+        $annotation_index = (int) ($_POST['annotation_index'] ?? -1);
+        $chosen_index = isset($_POST['chosen_index']) ? (int) $_POST['chosen_index'] : null;
+
+        $step = BHC_Steps::get_step($lesson_id, $step_index);
+        if (!$step || $step['type'] !== 'video') {
+            wp_send_json_error(['message' => 'Invalid video step.'], 400);
+        }
+        if (!BHC_Gate::user_can_access_lesson($user_id, $lesson_id)) {
+            wp_send_json_error(['message' => 'Access required.'], 403);
+        }
+        $annotations = (array) ($step['annotations'] ?? []);
+        $annotation = $annotations[$annotation_index] ?? null;
+        if (!$annotation || ($annotation['type'] ?? '') !== 'question') {
+            wp_send_json_error(['message' => 'Invalid annotation.'], 400);
+        }
+
+        $correct_index = $annotation['payload']['correct_index'] ?? null;
+        $passed = $chosen_index !== null && $correct_index !== null && $chosen_index === (int) $correct_index;
+
+        self::mark_step_complete($user_id, $lesson_id, $step_index, null, $passed, null, $annotation_index + 1);
+
+        wp_send_json_success(['step_index' => $step_index, 'annotation_index' => $annotation_index, 'passed' => $passed]);
+    }
+
     public static function ajax_submit_quiz(): void {
         check_ajax_referer('bhc_progress', 'nonce');
         $user_id = get_current_user_id();

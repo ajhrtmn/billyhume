@@ -86,6 +86,7 @@ class BHC_ContentBridge {
         add_action('enqueue_block_editor_assets', [self::class, 'maybe_enqueue_lesson_blocks']);
         add_filter('block_categories_all', [self::class, 'register_block_category']);
         add_filter('block_editor_settings_all', [self::class, 'add_studio_block_editor_styles'], 10, 2);
+        add_filter('allowed_block_types_all', [self::class, 'curate_lesson_inserter'], 10, 2);
 
         // The ONLY writer of `_bhc_steps` now — fires on every real
         // save of a bh_lesson post (the real editor, REST, anywhere),
@@ -170,7 +171,38 @@ class BHC_ContentBridge {
      * @param array<string, mixed> $settings
      * @return array<string, mixed>
      */
-    public static function add_studio_block_editor_styles($settings, \WP_Block_Editor_Context $context): array {
+    // OPEN.md item 21: "a curated LMS-specific inserter palette rather
+    // than the generic Studio list." A lesson's editor was the full
+    // native block editor (show_in_rest => true above), so its
+    // inserter offered every core block WordPress ships — paragraph,
+    // gallery, columns, embed, buttons, social icons, dozens more — none
+    // of which a lesson step actually uses; every real step type is one
+    // of the bhc/* blocks courses-studio-blocks.ts registers. Scoped to
+    // ONLY bh_lesson (every other post type's editor, including this
+    // ecosystem's own bh_course/bh_contest/etc., is untouched) and
+    // returns the bhc/* list itself, not a broader allowlist — this
+    // plugin's own bhc/text and bhc/image already cover the "plain
+    // prose" and "plain picture" cases a generic core paragraph/image
+    // block would otherwise be reached for.
+    /**
+     * @param bool|array<int, string> $allowed_block_types
+     * @return bool|array<int, string>
+     */
+    public static function curate_lesson_inserter($allowed_block_types, \WP_Block_Editor_Context $context) {
+        $post_type = $context->post ? get_post_type($context->post) : null;
+        if ($post_type !== 'bh_lesson') return $allowed_block_types;
+
+        return [
+            'bhc/text', 'bhc/image', 'bhc/callout', 'bhc/video', 'bhc/resource',
+            'bhc/checklist', 'bhc/chord-chart', 'bhc/audio-compare', 'bhc/quiz', 'bhc/quiz-question',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    public static function add_studio_block_editor_styles(array $settings, \WP_Block_Editor_Context $context): array {
         $screen = $context->post ? get_post_type($context->post) : null;
         if ($screen !== 'bh_lesson') return $settings;
 

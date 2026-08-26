@@ -335,20 +335,28 @@
             });
         });
         // ROADMAP-lms-v3.md Section 1 — interactive video overlays.
-        // Zero schema/progress-model change (see class-steps.php's own
-        // comment on this decision): an annotation pauses/resumes the
-        // SAME video step, never redirects anywhere, so this is purely
-        // a playback-UI behavior layered on top of the existing video
-        // step — no new AJAX endpoint, no new bhc_progress column.
-        // 'question' annotations are a self-check only (immediate
-        // client-side right/wrong reveal), never scored/persisted —
-        // scoring belongs to a real bhc/quiz STEP, not a moment inside
-        // a video step.
+        // An annotation pauses/resumes the SAME video step, never
+        // redirects anywhere, so playback position and step navigation
+        // are unaffected by any of this — purely a playback-UI behavior
+        // layered on top of the existing video step.
+        //
+        // 2026-08-26 (OPEN.md item 21, built on item 22's sub_index):
+        // 'question' annotations now DO persist server-side — the
+        // instant client-side right/wrong reveal below is unchanged
+        // (a network round-trip has no business gating that feedback),
+        // but the answer is also sent to bhc_mark_annotation so it
+        // shows up in this student's real progress record instead of
+        // evaporating on refresh. Fire-and-forget, deliberately not the
+        // full retry-with-backoff bhc_mark_complete uses below: failing
+        // to persist a self-check doesn't block the student from
+        // continuing the video, unlike a step failing to mark complete.
         lesson.querySelectorAll('.bhc-step-video[data-annotations]').forEach(function (video) {
-            var _a;
+            var _a, _b;
+            var annotationStep = video.closest('.bhc-step');
+            var annotationStepIndex = annotationStep ? parseInt((_a = annotationStep.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10) : -1;
             var annotations;
             try {
-                annotations = JSON.parse((_a = video.dataset.annotations) !== null && _a !== void 0 ? _a : '[]');
+                annotations = JSON.parse((_b = video.dataset.annotations) !== null && _b !== void 0 ? _b : '[]');
             }
             catch (e) {
                 return;
@@ -418,6 +426,19 @@
                                 else if (b === btn)
                                     b.classList.add('bhc-video-overlay-incorrect');
                             });
+                            if (annotationStepIndex >= 0) {
+                                fetch(BHCData.ajaxUrl, {
+                                    method: 'POST',
+                                    body: new URLSearchParams({
+                                        action: 'bhc_mark_annotation',
+                                        nonce: BHCData.nonce,
+                                        lesson_id: lessonId,
+                                        step_index: String(annotationStepIndex),
+                                        annotation_index: String(index),
+                                        chosen_index: String(chosen),
+                                    }),
+                                }).catch(function () { });
+                            }
                             var continueBtn = document.createElement('button');
                             continueBtn.type = 'button';
                             continueBtn.className = 'bhc-btn bhc-video-overlay-continue';

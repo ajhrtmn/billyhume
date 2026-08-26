@@ -6,6 +6,38 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.0 — OPEN.md item 21, both halves.
+
+1. Interactive-video variants: 'question' annotations (class-steps.php's
+   ANNOTATION_TYPES) were "self-check only, never persisted" -- the
+   instant client-side right/wrong reveal is unchanged, but the answer
+   now also persists server-side via a new bhc_mark_annotation AJAX
+   action, using item 22's sub_index (annotation's own position + 1).
+   Deliberately re-scores server-side from the annotation's own stored
+   correct_index rather than trusting a client-submitted "correct"
+   boolean -- persisting an unverified client claim would let a
+   request simply assert it got every question right. Verified the
+   core scoring/persistence logic directly against a real lesson with
+   a real question annotation (wrong answer -> not complete, correct
+   answer -> complete, step's own row untouched either way).
+
+2. Curated LMS inserter palette: a lesson's block editor showed
+   WordPress's full native inserter -- paragraph, gallery, columns,
+   embed, dozens of core blocks with no place in a lesson step, since
+   every real step type is already one of the bhc/* blocks. Now scoped
+   via allowed_block_types_all to ONLY bh_lesson (every other post
+   type, including this ecosystem's own bh_course/bh_contest, is
+   untouched) and returns just the 10 bhc/* blocks -- no core-block
+   allowlist bleed-through, since bhc/text and bhc/image already cover
+   plain prose/pictures. Verified live: a lesson's
+   getSettings().allowedBlockTypes is exactly the 10 bhc/* names; a
+   regular Post's is still `true` (unrestricted).
+
+Also fixed in passing, found only because editing the file invalidated
+PHPStan's result cache and surfaced it fresh: add_studio_block_editor_
+styles() had untyped parameters/return, a pre-existing gap unrelated
+to either change above.
+
 0.5.0 — OPEN.md item 22, resolved: in-video annotations get their own
 completion tracking (sub_index), not just the step they live in --
 AJ's call. bhc_progress gained a sub_index column (DB_VERSION 1.6),
