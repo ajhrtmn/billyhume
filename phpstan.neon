@@ -260,3 +260,17 @@ parameters:
         -
             message: '#unknown class BH_Element_Prefab#'
             path: wp-content/plugins/the-self-hosted-self/includes/class-gutenberg-block.php
+        # copy_dir() (wp-admin/includes/file.php) — php-stubs/wordpress-
+        # stubs types this as returning plain bool, but reading the real
+        # core function directly shows it returns new WP_Error(...) on
+        # several real failure paths (dirlist_failed_copy_dir,
+        # mkdir_destination_failed_copy_dir, copy_failed_copy_dir,
+        # mkdir_failed_copy_dir) — an incomplete stub, not a bug in the
+        # code that checks for it. class-github-updates.php's manual
+        # pre-overwrite backup (added during a live-robustness pass,
+        # since Plugin_Upgrader::install()'s own hook_extra never
+        # engages WP core's real temp_backup/rollback safety net) relies
+        # on catching that WP_Error correctly.
+        -
+            message: '#(Right side of && is always true|is_wp_error\(bool\) will always evaluate to false|Call to function is_wp_error\(\) with bool will always evaluate to false)#'
+            path: wp-content/plugins/the-self-hosted-self/includes/class-github-updates.php

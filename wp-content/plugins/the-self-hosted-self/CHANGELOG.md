@@ -9,6 +9,41 @@ has been reworded or dropped.
 
 ---
 
+3.15.0 — Live-robustness pass: `OUS_GithubUpdates::update()` gained a
+manual pre-overwrite backup/restore, closing a real gap found by
+reading WP core's own upgrader source directly rather than assuming.
+This class's self-update mechanism calls `Plugin_Upgrader::install()`
+(needed for its `overwrite_package` support against an arbitrary local
+zip), NOT `Plugin_Upgrader::upgrade()` — and `install()`'s own
+`hook_extra` never includes the `temp_backup` key WP core's real
+automatic-rollback-on-failure safety net (added 6.3.0) checks for.
+Confirmed by reading `class-plugin-upgrader.php::install()` directly:
+its hook_extra is only `['type', 'action']`. Meaning a corrupted
+download, or a mid-extraction disk-full/permissions failure, would
+leave the live site with a half-deleted, broken plugin/theme and no
+way back except a manual FTP restore — for a mechanism whose entire
+purpose is being safe enough to click without SSH access.
+
+Fixed by manually copying the live plugin/theme directory to a temp
+location (via WP core's own `copy_dir()`) immediately before the
+overwrite, then restoring it if the install fails. Also fixed a related
+PHPStan-stub gap while verifying this: `copy_dir()` is typed as
+returning plain `bool` in `php-stubs/wordpress-stubs`, but reading the
+real core function shows it returns a real `WP_Error` on several
+failure paths (`dirlist_failed_copy_dir`, `mkdir_destination_failed_
+copy_dir`, `copy_failed_copy_dir`, `mkdir_failed_copy_dir`) — an
+incomplete stub, not a bug in the code checking for it; added a scoped
+`phpstan.neon` ignore with the full reasoning rather than removing the
+correct defensive check.
+
+Verified the exact backup/restore mechanism end-to-end against the
+real local WP+MySQL install (via `copy_dir()` against a throwaway test
+directory, not a real plugin — this class's actual `update()` wasn't
+exercised against a live GitHub repo in this pass, which would have
+genuinely overwritten a real plugin on this install): backed up a
+directory, simulated a failed install by wiping it, restored from the
+backup, confirmed the restored content matched the original exactly.
+
 3.14.0 — OPEN.md item 15: per-card GitHub status, and the convention
 that formalizes it. Ecosystem dashboard cards now show a live status
 line under the version (reading OUS_GithubUpdates' own cached

@@ -487,6 +487,30 @@ class OUS_GithubUpdates {
         $zip->close();
         self::cleanup_dir($extract_to);
 
+        // 4b. Manual backup before overwrite — live-robustness audit
+        // finding: install() (below) is called with 'clear_destination'
+        // effectively true (via 'overwrite_package'), which DELETES the
+        // live plugin/theme directory before extracting the new one.
+        // WP core's own real automatic-rollback-on-failure safety net
+        // (WP_Upgrader::run()'s 'temp_backup' hook_extra, added 6.3) is
+        // never engaged here — confirmed by reading Plugin_Upgrader::
+        // install() directly: its hook_extra is only ['type','action'],
+        // no 'temp_backup' key, unlike the real "Update" flow
+        // (Plugin_Upgrader::upgrade()) which does pass it. install() is
+        // used here (not upgrade()) because only install() accepts
+        // 'overwrite_package' for an arbitrary local zip — so this class
+        // gets none of core's rollback protection for free and has to
+        // build its own. Without this, a corrupted download or a
+        // mid-extraction disk-full/permissions failure would leave the
+        // live site with a half-deleted, broken plugin/theme and no way
+        // back except a manual FTP restore.
+        $install_dir = $source['type'] === 'theme'
+            ? rtrim(get_theme_root(), '/') . '/' . ($source['stylesheet'] ?? '')
+            : WP_PLUGIN_DIR . '/' . dirname($source['file'] ?? '.');
+        $backup_dir = get_temp_dir() . 'ous-github-update-backup-' . $slug . '-' . wp_generate_password(8, false) . '/';
+        $backed_up = is_dir($install_dir) && copy_dir($install_dir, $backup_dir);
+        if (is_wp_error($backed_up)) $backed_up = false; // copy_dir() can return WP_Error; treat exactly like a plain false
+
         // 5. Hand the LOCAL zip path to WP core's own upgrader.
         // download_package() (wp-admin/includes/class-wp-upgrader.php)
         // returns a local, already-existing file path unchanged rather
@@ -509,6 +533,23 @@ class OUS_GithubUpdates {
         // install() calls internally) already returns the real WP_Error
         // directly as $result on failure — that's the actual, correct
         // source of truth this needed, not a nonexistent skin method.
+        $failed = is_wp_error($result) || !$result;
+
+        if ($failed && $backed_up) {
+            // Best-effort restore: clear whatever the failed install left
+            // behind, put the backed-up copy back. If EITHER step fails,
+            // the original error is still what gets returned (below) —
+            // a failed rollback attempt must never silently become a
+            // reported success, and the backup dir is deliberately left
+            // on disk (not cleaned up) in that case so a manual recovery
+            // still has something to work from.
+            self::cleanup_dir($install_dir);
+            $restored = copy_dir($backup_dir, $install_dir);
+            if (!is_wp_error($restored)) self::cleanup_dir($backup_dir);
+        } elseif ($backed_up) {
+            self::cleanup_dir($backup_dir); // success — the backup was only ever needed for a failure that didn't happen
+        }
+
         if (is_wp_error($result)) return $result;
         if (!$result) return new WP_Error('install_failed', 'The upgrader reported failure with no specific error — check debug.log.');
 
