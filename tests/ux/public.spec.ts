@@ -27,6 +27,17 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: 'Cart (empty)',      path: '/cart/' },
   { name: 'Blog post',         path: '/medium-title-test/' },
   { name: 'Search (results)',  path: '/?s=test' },
+  // 2026-08-26: continuing OPEN.md item 7 -- contest, streaming single,
+  // storefront checkout/account were still unaudited after the first
+  // pass. CRM's public-facing surface (class-public-profile.php) turned
+  // out to be a logged-in portal PANEL, not a standalone public page --
+  // audited via /account/ instead, which is the actual public entry
+  // point (redirects to login logged-out, exercising that real page).
+  { name: 'Contest (single)',  path: '/bh_contest/fall-anthem-showdown/' },
+  { name: 'Streaming track',   path: '/bhs_track/midnight-static/' },
+  { name: 'Checkout',          path: '/checkout/' },
+  { name: 'My account',        path: '/my-account/' },
+  { name: 'Portal / account (logged out)', path: '/account/' },
 ];
 
 for (const p of PAGES) {

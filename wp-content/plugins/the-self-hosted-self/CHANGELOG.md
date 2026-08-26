@@ -9,6 +9,19 @@ has been reworded or dropped.
 
 ---
 
+3.13.1 — Front-end audit continued to the pages item 7 still missed
+(contest single, streaming track, checkout, my-account, and the
+portal's logged-out /account/ page — CRM's own public-facing surface
+turned out to be a logged-in portal panel, not a standalone public
+page, so /account/ is the real public entry point that exercises it).
+
+One real finding: .bhi-login-submit (class-portal.php) hardcoded
+`color:#fff` on the accent-fill button background — same class of bug
+as 3.13.0's --bh-accent-contrast fix, just a literal instead of a
+fallback this time (4.13:1, needs 4.5). Now uses
+var(--bh-accent-contrast, #fff), the token built specifically for this
+job. Clean across all 18 audited pages after.
+
 3.13.0 — First real ecosystem-wide front-end audit (OPEN.md item 7,
 "Never done"), and the defects it found. The audit itself only covered
 4 generic theme pages before this; expanded to 13 including the

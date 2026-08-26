@@ -590,7 +590,14 @@ class BHI_Portal {
   }
   .bhi-login-submit {
     width:100%; padding:10px 0; border:none; border-radius:var(--bh-radius-sm, 6px); background:var(--bh-accent, #2271b1);
-    color:#fff; font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;
+    /* 2026-08-26: was hardcoded #fff -- same class of bug as
+       --bh-accent-contrast (class-style.php), just a literal instead of
+       a fallback this time. Found by the front-end audit's continuation
+       pass: 4.13:1 white-on-#C85C48, needs 4.5. --bh-accent-contrast is
+       exactly the token derived for this job (measured against whichever
+       accent is actually chosen), the fallback keeps the pre-existing
+       white for installs on an older the-self-hosted-self without it. */
+    color:var(--bh-accent-contrast, #fff); font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;
   }
   .bhi-login-submit:disabled { opacity:0.6; cursor:default; }
   .bhi-login-error {
