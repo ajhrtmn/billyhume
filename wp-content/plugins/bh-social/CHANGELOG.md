@@ -6,6 +6,36 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.4.0 — Tier 3 item 18 (social integrations), cross-posting sub-feature:
+added `BHSO_AutoAnnounce`, an opt-in (default OFF), Twitch-only
+auto-announce for the first publish of `bh_course` / `bh_contest` /
+`bhs_release`. Scoping conclusion, after reading all four platforms'
+real `cross_post()` implementations: this is NOT one generic action
+across YouTube/Meta/TikTok/Twitch. YouTube/Meta/TikTok's cross_post()
+each upload or attach a real media file (attachment_id/video_url/
+image_url) — there's no coherent media file to hand them automatically
+for a course/contest/release. Twitch's cross_post() is the one
+platform whose payload is plain text (a chat announcement), so it's
+the only one a generic "something new just published" event can drive
+without inventing fake media. Reacts to core WordPress's own
+`transition_post_status` directly (same first-publish test bh-contest's
+own `BH_AdminModeration::maybe_notify_approval()` already uses) —
+no `class_exists()` dependency on bh-courses/bh-contest/bh-streaming
+needed, since a post_type string that doesn't exist on this install
+just never matches. Settings section added to the existing BH Social
+admin page, three checkboxes, all off by default.
+Confirmed via `grep -rln "cross_post\|BH_SocialPlatform"` across the
+whole plugins tree that these methods were, before this change, ONLY
+ever called from bh-social's own manual admin UI (a textarea + button
+on the settings page) — automatic cross-posting from another plugin's
+publish event did not exist anywhere.
+YouTube/Meta/TikTok embedding and import sub-features of item 18 not
+yet scoped — separate follow-up.
+NOT runtime-verified against a live connected Twitch account (same
+"alpha" caveat as the rest of this plugin) — the first-publish
+detection logic and settings persistence WERE verified against the
+real local WP+MySQL install.
+
 0.3.4 — Ecosystem quality Phase 2, brick 7/13: added native return/
 parameter types across all 16 includes files (233 findings, both
 mechanical level-6 categories) — the most repetitive brick so far.

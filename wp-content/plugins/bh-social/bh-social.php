@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Social
  * Description: Social/marketing platform integrations — organic cross-posting + stats (YouTube, Twitch, Meta/Instagram, TikTok) behind a BH_SocialPlatform interface, plus paid ad-campaign draft-capture (Roku, Spotify, Amazon DSP, Samsung, Vizio) behind a separate BH_AdsPlatform interface. Depends only on The Self-Hosted Self's shared identity and job queue.
- * Version:     0.3.4
+ * Version:     0.4.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,13 +11,13 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHSO_PATH', plugin_dir_path(__FILE__));
 define('BHSO_URL',  plugin_dir_url(__FILE__));
-define('BHSO_VER',  '0.3.4');
+define('BHSO_VER',  '0.4.0');
 
 foreach ([
     'tables', 'activator',
     'social-platform', 'youtube-platform', 'twitch-platform', 'meta-platform', 'tiktok-platform', 'platform-registry',
     'ads-platform', 'roku-ads', 'spotify-ads', 'amazon-dsp-ads', 'samsung-ads', 'vizio-ads', 'ads-platform-registry',
-    'admin', 'test-suite',
+    'admin', 'auto-announce', 'test-suite',
 ] as $f) {
     require_once BHSO_PATH . "includes/class-$f.php";
 }
@@ -38,6 +38,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHSO_Twitch', 'init']);
     add_action('init', ['BHSO_Meta', 'init']);
     add_action('init', ['BHSO_TikTok', 'init']);
+    add_action('init', ['BHSO_AutoAnnounce', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHSO_TestSuite', 'init']);
 
     add_action('admin_post_bhso_youtube_oauth_callback', ['BHSO_YouTube', 'handle_oauth_callback']);

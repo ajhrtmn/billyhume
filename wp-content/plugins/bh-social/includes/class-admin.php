@@ -292,6 +292,8 @@ class BHSO_Admin {
         self::render_meta_section();
         echo '<hr>';
         self::render_tiktok_section();
+        echo '<hr>';
+        if (class_exists('BHSO_AutoAnnounce')) BHSO_AutoAnnounce::render_settings_section();
 
         echo '<h2 style="margin-top:32px;border-top:2px solid #ccd0d4;padding-top:20px;">Paid ad campaigns (draft &amp; hand off) ' . (class_exists('OUS_Badge') ? OUS_Badge::render('experimental', null, 'Draft-capture is real and tested, but none of these five platforms have a confirmed public self-serve API — every campaign still launches manually on the platform\'s own site.') : '') . '</h2>';
         echo '<p class="description">None of these five have a confirmed public self-serve API — each platform\'s own site is where a campaign actually launches. This just keeps the plan (budget, dates, targeting notes, creative) organized in one place so nothing has to be re-typed from scratch when you get there.</p>';
