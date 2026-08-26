@@ -117,6 +117,21 @@ class BHR_Verification {
         if (!$host) return false;
 
         $challenge_url = 'https://' . $host . '/.well-known/bh-registry-verify.txt';
+
+        // SSRF guard (live-robustness audit fix, 2026-08-26): $link->url
+        // is a fully public, self-serve submission (POST /submissions,
+        // see BHR_Crawl's own docblock) — the exact same "server makes
+        // an outbound request to an arbitrary attacker-supplied URL"
+        // shape BHR_Crawl::is_safe_external_url() was built to guard
+        // against for peer manifests. This call site (and the two
+        // others below, check_activitypub_actor()/check_open_feed())
+        // had NO such guard until this fix — an unauthenticated
+        // submission could point this server at an internal service or
+        // a cloud metadata endpoint (169.254.169.254) and this class
+        // would happily fetch it. Reuses BHR_Crawl's existing,
+        // DNS-resolution-aware check rather than duplicating it.
+        if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($challenge_url)) return false;
+
         $res = wp_remote_get($challenge_url, ['timeout' => 8, 'redirection' => 2]);
         if (is_wp_error($res) || wp_remote_retrieve_response_code($res) !== 200) {
             // Previously discarded — an artist whose domain-ownership
@@ -151,6 +166,10 @@ class BHR_Verification {
     // than custom XML parsing.
     /** @return array{valid:bool, metadata:array<string, mixed>} */
     private static function check_open_feed(string $url): array {
+        // SSRF guard — see check_domain_ownership()'s own comment for
+        // the full reasoning; same fix, same reused BHR_Crawl check.
+        if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($url)) return ['valid' => false, 'metadata' => []];
+
         require_once ABSPATH . WPINC . '/feed.php';
         $feed = fetch_feed($url);
         if (is_wp_error($feed)) {
@@ -187,6 +206,10 @@ class BHR_Verification {
     // Funkwhale included but never assumed.
     /** @return array{valid:bool, metadata:array<string, mixed>} */
     private static function check_activitypub_actor(string $url): array {
+        // SSRF guard — see check_domain_ownership()'s own comment for
+        // the full reasoning; same fix, same reused BHR_Crawl check.
+        if (!class_exists('BHR_Crawl') || !BHR_Crawl::is_safe_external_url($url)) return ['valid' => false, 'metadata' => []];
+
         $res = wp_remote_get($url, [
             'timeout' => 8, 'redirection' => 2,
             'headers' => ['Accept' => 'application/activity+json, application/ld+json'],

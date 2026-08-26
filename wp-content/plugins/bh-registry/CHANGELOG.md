@@ -6,6 +6,27 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.1.20 — Security fix found during a live-robustness audit of this
+plugin's federation surface: `BHR_Verification`'s three outbound checks
+(`check_domain_ownership()`, `check_activitypub_actor()`,
+`check_open_feed()`) fetch a URL taken directly from `$link->url` — a
+fully public, self-serve submission (POST /submissions) — with NO
+guard at all, unlike `BHR_Crawl`'s own peer-manifest fetches, which
+already run every URL through `is_safe_external_url()` (a DNS-
+resolution-aware check rejecting private/loopback/link-local/reserved
+ranges and non-http(s) schemes, purpose-built for exactly this SSRF
+shape). An unauthenticated submission could have pointed this server's
+own outbound request at an internal service or a cloud metadata
+endpoint (169.254.169.254) and had the response reflected back into
+this site's own verification state. Fixed by reusing the existing
+`BHR_Crawl::is_safe_external_url()` check at all three call sites
+rather than duplicating the logic.
+
+Verified against the real local WP+MySQL install via reflection
+(all three are private methods): `localhost`, `169.254.169.254`, and
+RFC1918 addresses (`192.168.x.x`, `10.x.x.x`) are all rejected before
+any outbound request is attempted, while a real public URL
+(`https://github.com/`) still passes the same check unaffected.
 
 0.1.19 — Real redesign of 0.1.18's discovery mechanism, prompted by
 direct, in-session feedback after 0.1.18 both caused a real
