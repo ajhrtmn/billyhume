@@ -160,7 +160,26 @@ class BHM_Entitlements {
     // some of the disputed credit doesn't end up with a negative
     // balance; the artist absorbs whatever was already spent, same as
     // any real merchant would on a chargeback for a consumed good.
+    // Live-robustness audit fix (2026-08-26): no try/catch, unlike this
+    // same class's own on_order_completed() (see its docblock, and
+    // class-downloads.php's, for the real incident this class of bug
+    // already caused once — WooCommerce wraps its ENTIRE hook dispatch
+    // in ONE try/catch, not one per callback). Genuinely higher-stakes
+    // here than the completed path: a failure partway through used to
+    // risk BHM_Fraud::track_refund_pattern() below never running at
+    // all — silently losing this ecosystem's one real refund-abuse
+    // detection signal on exactly the request where it matters most.
     public static function on_order_reversed(int $order_id): void {
+        try {
+            self::do_on_order_reversed($order_id);
+        } catch (\Throwable $e) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Entitlement reversal failed for order #' . $order_id . ': ' . $e->getMessage(), ['order_id' => $order_id], 'BH Monetization');
+            }
+        }
+    }
+
+    private static function do_on_order_reversed(int $order_id): void {
         global $wpdb;
         $order = BH_Commerce::get_order($order_id);
         if (!$order) return;

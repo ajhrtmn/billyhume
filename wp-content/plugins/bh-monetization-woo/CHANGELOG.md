@@ -6,6 +6,37 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.1 — Live-robustness pass on this plugin's money paths, specifically
+what happens when one `woocommerce_order_status_completed`/`_refunded`/
+`_cancelled` listener throws. Real, ALREADY-PROVEN class of bug in this
+exact codebase: `class-downloads.php`'s own docblock documents a real
+incident where `WC_Order::status_transition()` wrapped its entire hook
+dispatch in ONE try/catch (not one per callback) — an uncaught
+exception in `BHM_Downloads::attach_download_files()` silently aborted
+every callback registered after it, including entitlement-granting,
+the purchase ledger, and referral crediting. That specific method was
+fixed at the time; `BHM_PurchaseLedger::on_order_completed()`,
+`BHM_Referrals::on_order_completed()`, and — the highest-stakes one —
+`BHM_Entitlements::on_order_reversed()` (runs `BHM_Fraud::
+track_refund_pattern()`, this ecosystem's one real refund-abuse
+detection signal) were never given the same protection. All three (plus
+`BHM_PurchaseLedger::on_order_reversed()`) now delegate their real logic
+to a renamed `do_*()` method, wrapped in the exact same try/catch-and-
+`OUS_DebugLog`-and-continue shape `BHM_Downloads`/`BHM_Entitlements::
+on_order_completed()` already established. Verified the wrapper
+mechanics with a standalone reproduction (a subclass-override attempt
+was tried first and silently tested nothing, since `self::` inside a
+static method never respects a subclass override — worth remembering).
+
+Also closed real test-suite drift found while re-running the full
+`BHM_TestSuite` after these changes: `run_auction_tests()` still
+asserted the OLD bid-time wallet-hold behavior (`held_cents` == the bid
+amount) that the earlier charge-on-win rework (this same version cycle,
+item 17) had already removed — 2 of 89 tests were failing on every run
+since, unnoticed. Rewrote those assertions to match charge-on-win
+(bids hold nothing; only a winning charge at close moves real money).
+All 89 tests now pass, including the 87 unrelated to this change.
+
 0.6.0 — Tier 3 item 17 (auction listings): finished BHM_Auctions
 (class-auctions.php), which turned out to already be a real, working
 backend engine (bidding, outbid handling, reserve, OUS_Jobs auto-close)

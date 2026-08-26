@@ -63,7 +63,32 @@ class BHM_PurchaseLedger {
         exit;
     }
 
+    // Live-robustness audit fix (2026-08-26): no try/catch at all,
+    // unlike BHM_Downloads/BHM_Entitlements on the exact same hook — see
+    // class-downloads.php's own docblock for the real incident this
+    // exact class of bug already caused once (WC_Order::
+    // status_transition() wraps its ENTIRE woocommerce_order_status_
+    // completed dispatch in ONE try/catch, not one per callback, so an
+    // uncaught exception here would silently abort every callback
+    // registered after this one too). Registered at default priority
+    // 10, same as BHM_Entitlements but added to the hook afterward
+    // (BHM_Products::init() -> BHM_Entitlements::init() runs earlier in
+    // this plugin's own bootstrap than BHM_PurchaseLedger::init() does)
+    // — so today a failure here can't block entitlement-granting, but
+    // it WOULD still take down BHM_Referrals::on_order_completed()
+    // (priority 20) and anything else hooked afterward, and that
+    // ordering is incidental, not enforced.
     public static function on_order_completed(int $order_id): void {
+        try {
+            self::do_on_order_completed($order_id);
+        } catch (\Throwable $e) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Purchase-ledger write failed for order #' . $order_id . ': ' . $e->getMessage(), ['order_id' => $order_id], 'BH Monetization');
+            }
+        }
+    }
+
+    private static function do_on_order_completed(int $order_id): void {
         $order = BH_Commerce::get_order($order_id);
         if (!$order || !$order['customer_id']) return;
 
@@ -87,7 +112,27 @@ class BHM_PurchaseLedger {
         }
     }
 
+    // Live-robustness audit fix (2026-08-26): no try/catch — see this
+    // class's own on_order_completed() and class-downloads.php's
+    // docblocks for the real incident this class of bug already caused
+    // once (WooCommerce wraps its whole hook dispatch in ONE try/catch,
+    // not one per callback). Registered on the same two hooks as
+    // BHM_Entitlements::on_order_reversed() at the same default
+    // priority; today's registration order happens to run entitlement
+    // reversal (and fraud-pattern tracking) first, but that ordering
+    // is incidental, not enforced — this must not be able to take it
+    // down regardless.
     public static function on_order_reversed(int $order_id): void {
+        try {
+            self::do_on_order_reversed($order_id);
+        } catch (\Throwable $e) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Purchase-ledger reversal write failed for order #' . $order_id . ': ' . $e->getMessage(), ['order_id' => $order_id], 'BH Monetization');
+            }
+        }
+    }
+
+    private static function do_on_order_reversed(int $order_id): void {
         global $wpdb;
         $t = BHM_Tables::purchase_ledger();
         // Every still-un-reversed purchase row for this order gets a

@@ -78,7 +78,29 @@ class BHM_Referrals {
         return (int) round(((float) $order_total_dollars) * 100 * (self::COMMISSION_PERCENT / 100));
     }
 
+    // Live-robustness audit fix (2026-08-26): this whole method used to
+    // run with no try/catch at all, unlike BHM_Downloads/BHM_Entitlements
+    // on the exact same hook — see class-downloads.php's own docblock
+    // for the real incident this class of bug already caused once
+    // (WC_Order::status_transition() wraps its ENTIRE
+    // woocommerce_order_status_completed dispatch in ONE try/catch, not
+    // one per callback, so an uncaught exception here would silently
+    // abort every callback registered after this one too — invisible to
+    // both the customer and any admin). This runs at priority 20,
+    // deliberately after BHM_Entitlements' own callback, so a failure
+    // here can't block entitlement-granting — but it could still take
+    // down whatever ELSE is hooked at priority >= 20 by another plugin.
     public static function on_order_completed(int $order_id): void {
+        try {
+            self::do_on_order_completed($order_id);
+        } catch (\Throwable $e) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('error', 'Referral commission crediting failed for order #' . $order_id . ': ' . $e->getMessage(), ['order_id' => $order_id], 'BH Monetization');
+            }
+        }
+    }
+
+    private static function do_on_order_completed(int $order_id): void {
         if (!function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order) return;
