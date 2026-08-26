@@ -92,7 +92,10 @@ class BHL_WorkersChat implements BHL_Chat {
         $data = json_decode(wp_remote_retrieve_body($response), true);
         if ($code < 200 || $code >= 300 || empty($data['success'])) {
             $message = is_array($data) && !empty($data['errors'][0]['message']) ? $data['errors'][0]['message'] : ('Cloudflare API returned HTTP ' . $code);
-            return new WP_Error('cloudflare_api_error', $message);
+            // Status carried as error data — undeploy() needs to tell a
+            // real failure apart from "already gone" (404), same as
+            // BHL_FlyProvisioner::request()'s own reasoning.
+            return new WP_Error('cloudflare_api_error', $message, ['status' => $code]);
         }
         return $data['result'] ?? [];
     }
@@ -173,6 +176,43 @@ class BHL_WorkersChat implements BHL_Chat {
 
         self::set_deployed(true);
         return ['url' => $this->base_url()];
+    }
+
+    /**
+     * Live-robustness audit addition (2026-08-26): there was previously
+     * NO way to tear this down at all — once deployed, the Worker (a
+     * real, publicly reachable, anonymous-and-unmoderated chat
+     * endpoint per this class's own docblock) stayed live on the
+     * user's Cloudflare account forever, with no admin-UI path back,
+     * even after switching the site's active chat engine to something
+     * else. Switching away only stopped this plugin from LINKING to it
+     * — the Worker itself kept running and kept accepting anonymous
+     * chat messages at its public workers.dev URL indefinitely, an
+     * orphaned attack surface nobody would think to go check Cloudflare's
+     * own dashboard for. A 404 (already deleted directly via Cloudflare's
+     * dashboard) is treated as success, same "already achieved the goal
+     * state" reasoning BHL_FlyProvisioner::destroy() uses for the exact
+     * same shape of problem.
+     *
+     * @return true|\WP_Error
+     */
+    public function undeploy() {
+        $cf = self::cloudflare_credentials();
+        $s = self::settings();
+        if (empty($cf['account_id']) || empty($cf['api_token']) || empty($s['script_name'])) {
+            self::set_deployed(false); // nothing coherent to delete against — just clear the local flag
+            return true;
+        }
+
+        $result = $this->request('DELETE', '/accounts/' . $cf['account_id'] . '/workers/scripts/' . $s['script_name']);
+        if (is_wp_error($result)) {
+            $error_data = $result->get_error_data();
+            $status = is_array($error_data) ? (int) ($error_data['status'] ?? 0) : 0;
+            if ($status !== 404) return $result;
+        }
+
+        self::set_deployed(false);
+        return true;
     }
 
     private function base_url(): string {

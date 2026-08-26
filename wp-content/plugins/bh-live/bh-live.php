@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Live
  * Description: Two-way interactive live streaming — a thin WordPress-side integration behind an engine abstraction, with a choice of a self-hosted Owncast server (free, own hosting) or Cloudflare Stream Live (managed, metered, video-only). Depends only on The Self-Hosted Self's shared identity and style tokens.
- * Version:     0.9.5
+ * Version:     0.9.6
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHL_PATH', plugin_dir_path(__FILE__));
 define('BHL_URL',  plugin_dir_url(__FILE__));
-define('BHL_VER',  '0.9.5');
+define('BHL_VER',  '0.9.6');
 
 foreach (['tables', 'activator', 'stream-engine', 'chat', 'polling-chat', 'cloudflare-engine', 'workers-chat', 'engine-registry', 'host-provisioner', 'fly-provisioner', 'post-types', 'streams', 'admin', 'api', 'overlay', 'automation', 'live-player', 'test-suite', 'privacy'] as $f) {
     require_once BHL_PATH . "includes/class-$f.php";

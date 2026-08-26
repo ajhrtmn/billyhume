@@ -9,6 +9,14 @@ has been reworded or dropped.
 
 ---
 
+3.15.2 — Companion wizard changes for bh-live 0.9.6's continued live-
+robustness pass: `class-media-wizard.php` now shows an "orphaned
+deployment" notice with a removal button whenever a Workers Chat
+deployment exists but isn't the site's current active chat engine
+(previously invisible the moment you switched away), and gained a
+standalone "Remove live input" action for Cloudflare Stream Live to
+match the "Create a new live input" one that already existed.
+
 3.15.1 — Small companion fix to bh-live 0.9.5's `BHL_FlyProvisioner`
 robustness pass: `class-media-wizard.php`'s provisioner section used to
 silently render nothing at all when `get_status()` failed on the

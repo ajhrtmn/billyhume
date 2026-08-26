@@ -6,6 +6,43 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.9.6 — Continued the live-robustness pass onto this plugin's other two
+Cloudflare integrations (`BHL_WorkersChat`, `BHL_CloudflareStreamEngine`),
+following the same thread as 0.9.5's Fly provisioner fix — done
+thoroughly rather than stopping at the first finding.
+
+`BHL_WorkersChat` had NO way to tear down a deployed chat Worker at
+all. Once deployed, this is a real, publicly reachable, anonymous-and-
+unmoderated WebSocket chat endpoint (per this class's own docblock) —
+switching the site's active chat engine away from Workers only stopped
+this plugin from linking to it, the Worker itself (and its Durable
+Object) kept running and kept accepting messages indefinitely, with the
+wizard section for it no longer even rendering to remind anyone it
+existed. Added `undeploy()` (real Cloudflare Workers `DELETE` endpoint,
+404-tolerant — an already-manually-deleted script is success, not a
+stuck error) and a wizard "Remove chat Worker" action that now appears
+whenever a deployment exists, even after switching to a different chat
+engine.
+
+`BHL_CloudflareStreamEngine::create_live_input()`'s own wizard button is
+labeled "replaces the one above" but never actually deleted the
+previous live input — only overwrote the locally stored UID, leaving
+the old one live on the Cloudflare account with the UI actively
+misrepresenting it as gone. Now genuinely replaces it (best-effort
+delete of the old UID after the new one is confirmed created, logged
+if that cleanup fails, never allowed to block getting a working stream
+key). Also added a standalone "Remove live input" action so one doesn't
+have to be created just to delete the current one.
+
+Both fixes reuse the same `['status' => $code]` WP_Error-data pattern
+0.9.5 introduced for Fly, verified against the real local install with
+`pre_http_request` filters standing in for Cloudflare's real API (never
+call a real cloud API from a verification pass): a mocked create+delete
+round trip confirmed the old live input is genuinely deleted and the
+new one is stored correctly; a mocked 404 correctly clears
+`BHL_WorkersChat`'s deployed flag while a mocked 500 is still correctly
+reported as a real failure.
+
 0.9.5 — Live-robustness pass on `BHL_FlyProvisioner` (Fly.io Machines
 host provisioning). Real gap found: `destroy()` requires a machine to
 actually still exist to succeed — if it was ever deleted directly via

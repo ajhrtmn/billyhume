@@ -156,6 +156,7 @@ class OUS_MediaWizard {
         if (class_exists('BHL_CloudflareStreamEngine')) {
             add_action('admin_post_ous_media_wizard_save_cloudflare', [self::class, 'handle_save_cloudflare']);
             add_action('admin_post_ous_media_wizard_create_cf_input', [self::class, 'handle_create_cloudflare_input']);
+            add_action('admin_post_ous_media_wizard_delete_cf_input', [self::class, 'handle_delete_cloudflare_input']);
         }
         if (class_exists('BHL_FlyProvisioner')) {
             add_action('admin_post_ous_media_wizard_save_provisioner', [self::class, 'handle_save_provisioner']);
@@ -165,6 +166,7 @@ class OUS_MediaWizard {
         if (class_exists('BHL_WorkersChat')) {
             add_action('admin_post_ous_media_wizard_save_workers', [self::class, 'handle_save_workers']);
             add_action('admin_post_ous_media_wizard_deploy_workers', [self::class, 'handle_deploy_workers']);
+            add_action('admin_post_ous_media_wizard_undeploy_workers', [self::class, 'handle_undeploy_workers']);
         }
     }
 
@@ -387,11 +389,18 @@ class OUS_MediaWizard {
                 echo '<p><strong>Live input:</strong> <code>' . esc_html($s['live_input_uid']) . '</code></p>';
                 echo '<p><strong>RTMP URL:</strong> <code>' . esc_html($s['rtmps_url']) . '</code><br><strong>Stream Key:</strong> <code>' . esc_html($s['stream_key']) . '</code> — paste both into OBS.</p>';
             }
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:8px;">';
             wp_nonce_field('ous_media_wizard_create_cf_input', 'ous_media_wizard_cf_input_nonce');
             echo '<input type="hidden" name="action" value="ous_media_wizard_create_cf_input">';
             echo '<button type="submit" class="button">' . (!empty($s['live_input_uid']) ? 'Create a new live input (replaces the one above)' : 'Create live input') . '</button>';
             echo '</form>';
+            if (!empty($s['live_input_uid'])) {
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;">';
+                wp_nonce_field('ous_media_wizard_delete_cf_input', 'ous_media_wizard_cf_delete_nonce');
+                echo '<input type="hidden" name="action" value="ous_media_wizard_delete_cf_input">';
+                echo '<button type="submit" class="button" onclick="return confirm(\'Remove this live input from Cloudflare entirely?\');">Remove live input</button>';
+                echo '</form>';
+            }
         }
     }
 
@@ -419,7 +428,42 @@ class OUS_MediaWizard {
 
         if ($active_chat === 'workers' && class_exists('BHL_WorkersChat')) {
             self::render_workers_chat_section();
+        } elseif (class_exists('BHL_WorkersChat')) {
+            // Live-robustness audit addition: a Workers Chat deployment
+            // that's no longer the active engine used to become
+            // completely invisible here — the section only ever
+            // rendered while 'workers' was selected, so there was no
+            // way to even SEE, let alone tear down, a Worker left
+            // running from a previous choice. Still a real, publicly
+            // reachable, unmoderated chat endpoint on the user's own
+            // Cloudflare account regardless of what this site currently
+            // points at.
+            $s = BHL_WorkersChat::settings();
+            if (!empty($s['deployed'])) {
+                self::render_orphaned_workers_notice();
+            }
         }
+    }
+
+    private static function render_orphaned_workers_notice(): void {
+        $s = BHL_WorkersChat::settings();
+        $result = get_transient('ous_media_wizard_workers_result');
+        delete_transient('ous_media_wizard_workers_result');
+
+        echo '<div class="bhy-alert bhy-alert-warning" style="max-width:760px;">';
+        echo '<p>A Cloudflare Workers chat deployment (<code>' . esc_html($s['script_name']) . '.' . esc_html($s['workers_subdomain']) . '.workers.dev</code>) is still live on your Cloudflare account even though it isn\'t this site\'s active chat right now — it\'s still a real, public, unmoderated endpoint. Remove it below, or switch back to Workers chat above to keep using it.</p>';
+        echo '</div>';
+
+        if ($result) {
+            $class = $result['success'] ? 'notice-success' : 'notice-error';
+            echo '<div class="notice ' . esc_attr($class) . '" style="padding:12px;max-width:760px;"><p>' . ($result['success'] ? '&#9989; ' : '&#10060; ') . esc_html($result['message']) . '</p></div>';
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        wp_nonce_field('ous_media_wizard_undeploy_workers', 'ous_media_wizard_undeploy_workers_nonce');
+        echo '<input type="hidden" name="action" value="ous_media_wizard_undeploy_workers">';
+        echo '<button type="submit" class="button" onclick="return confirm(\'Remove this chat Worker from Cloudflare entirely?\');">Remove chat Worker</button>';
+        echo '</form>';
     }
 
     /**
@@ -462,6 +506,11 @@ class OUS_MediaWizard {
 
         if (!empty($s['deployed'])) {
             echo '<p><strong>Chat URL:</strong> <code>https://' . esc_html($s['script_name']) . '.' . esc_html($s['workers_subdomain']) . '.workers.dev</code></p>';
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+            wp_nonce_field('ous_media_wizard_undeploy_workers', 'ous_media_wizard_undeploy_workers_nonce');
+            echo '<input type="hidden" name="action" value="ous_media_wizard_undeploy_workers">';
+            echo '<button type="submit" class="button" onclick="return confirm(\'Remove this chat Worker from Cloudflare entirely?\');">Remove chat Worker</button>';
+            echo '</form>';
         }
     }
 
@@ -850,6 +899,22 @@ class OUS_MediaWizard {
         exit;
     }
 
+    public static function handle_delete_cloudflare_input(): void {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_cf_delete_nonce'] ?? '', 'ous_media_wizard_delete_cf_input')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        $engine = new BHL_CloudflareStreamEngine();
+        $uid = BHL_CloudflareStreamEngine::settings()['live_input_uid'];
+        $result = $engine->delete_live_input($uid);
+        if (!is_wp_error($result)) BHL_CloudflareStreamEngine::clear_live_input();
+        set_transient('ous_media_wizard_cf_result', is_wp_error($result)
+            ? ['success' => false, 'message' => 'Could not remove the live input: ' . $result->get_error_message()]
+            : ['success' => true, 'message' => 'Live input removed.'], 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
     public static function handle_save_workers(): void {
         if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_workers_nonce'] ?? '', 'ous_media_wizard_save_workers')) {
             wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
@@ -871,6 +936,20 @@ class OUS_MediaWizard {
         set_transient('ous_media_wizard_workers_result', is_wp_error($result)
             ? ['success' => false, 'message' => 'Deploy failed: ' . $result->get_error_message()]
             : ['success' => true, 'message' => 'Chat Worker deployed at ' . $result['url']], 60);
+
+        wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
+        exit;
+    }
+
+    public static function handle_undeploy_workers(): void {
+        if (!OUS_AdminGuard::verify_nonce_and_cap('manage_options', $_POST['ous_media_wizard_undeploy_workers_nonce'] ?? '', 'ous_media_wizard_undeploy_workers')) {
+            wp_die('Security check failed.', '', ['response' => 403, 'back_link' => true]);
+        }
+        $chat = new BHL_WorkersChat();
+        $result = $chat->undeploy();
+        set_transient('ous_media_wizard_workers_result', is_wp_error($result)
+            ? ['success' => false, 'message' => 'Could not remove the chat Worker: ' . $result->get_error_message()]
+            : ['success' => true, 'message' => 'Chat Worker removed from Cloudflare.'], 60);
 
         wp_safe_redirect(admin_url('admin.php?page=ous-media-setup'));
         exit;
