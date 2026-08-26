@@ -6,6 +6,29 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.1 — Fixed the specific reason the Streaming page didn't
+auto-create on live even after 0.6.0 and a plugin reactivate.
+
+Real bug: BHS_Activator::maybe_create_default_pages() marked its own
+"done" flag (bhs_pages_version) UNCONDITIONALLY, even when
+wp_insert_post() failed. If page creation ever failed once (any
+environment-specific reason), the flag was stuck "done" forever —
+reactivating the plugin re-ran the function, but the outer version
+check short-circuited before ever reaching the retry, so nothing
+happened, silently, indefinitely.
+
+Two-part fix, verified by directly reproducing the exact stuck state
+(version flag already "done", page-id option unset) and confirming
+recovery: (1) only mark the version flag done on an actual success now,
+so a genuinely failed attempt gets retried next time instead of being
+remembered as complete; (2) bumped PAGES_VERSION 1 -> 2, which is what
+actually un-sticks a site ALREADY stuck under the old unconditional
+logic (bumping the version is what forces one more attempt — fixing
+only the success/failure gating does nothing for an install that's
+already past it). Hooked to admin_init, so this runs on the next
+wp-admin page load, no reactivation needed.
+
+
 0.6.0 — Streaming ships to production. AJ's explicit call, 2026-08-26.
 
 BHS_Env::hidden_in_production() previously defaulted to HIDDEN unless

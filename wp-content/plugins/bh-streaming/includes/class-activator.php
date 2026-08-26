@@ -191,22 +191,41 @@ class BHS_Activator {
     // isn't blocking anything and only matters to whoever's running the
     // site, so there's no reason to make every public page view pay for
     // a check that's only ever useful to an admin.
-    const PAGES_VERSION = '1';
+    // Bumped 1 -> 2 (2026-08-26): forces one guaranteed retry on every
+    // install, including one already (incorrectly) marked done. Real bug
+    // this fixes: the version flag was previously set unconditionally
+    // even when wp_insert_post() failed, so a site where creation ever
+    // failed once was stuck thinking it had already succeeded, forever —
+    // reactivating the plugin never helped, because the outer version
+    // check short-circuited before the (now-fixed) retry logic ever ran.
+    // Bumping the version is what actually un-sticks an already-stuck
+    // site; the success-gated update_option() fix in
+    // maybe_create_default_pages() is what stops it from happening again.
+    const PAGES_VERSION = '2';
 
     public static function maybe_create_default_pages(): void {
         if (get_option('bhs_pages_version') === self::PAGES_VERSION) return;
 
-        self::maybe_create_singleton_page('bhs_streaming_page_id', 'Streaming', '[bh_streaming]');
-
-        update_option('bhs_pages_version', self::PAGES_VERSION);
+        // 2026-08-26: real bug, found live — this used to mark
+        // bhs_pages_version done UNCONDITIONALLY, even when
+        // wp_insert_post() below failed. If creation ever failed once
+        // (any environment-specific reason), the flag was permanently
+        // stuck "done," and no amount of deactivating/reactivating the
+        // plugin would ever retry — the page silently never existed and
+        // nothing said so. Only mark done on an actual success now, so a
+        // failed attempt gets retried on the next activation instead of
+        // being remembered as complete.
+        if (self::maybe_create_singleton_page('bhs_streaming_page_id', 'Streaming', '[bh_streaming]')) {
+            update_option('bhs_pages_version', self::PAGES_VERSION);
+        }
     }
 
     // Trusts the stored option once set rather than re-verifying the
     // page's status on every load — if someone manually trashes the
     // "Streaming" page, this won't notice and silently recreate it, a
     // deliberate choice since that's plausibly what they wanted.
-    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): void {
-        if ((int) get_option($option_key, 0)) return;
+    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): bool {
+        if ((int) get_option($option_key, 0)) return true;
 
         $new_id = wp_insert_post([
             'post_title'   => $title,
@@ -214,8 +233,9 @@ class BHS_Activator {
             'post_status'  => 'publish',
             'post_content' => $shortcode,
         ], true);
-        if (is_wp_error($new_id)) return;
+        if (is_wp_error($new_id)) return false;
 
         update_option($option_key, $new_id);
+        return true;
     }
 }
