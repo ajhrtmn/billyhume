@@ -6,6 +6,36 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.7.0 — OPEN.md item 20, resolved: it turned out to be a stale tracker
+entry, not unstarted work. OUS_Revisions (the-self-hosted-self) already
+exists, fully built, with real consumers (bh-contest, bh-monetization-
+woo tiers) -- OPEN.md's "not scoped, not started, no data-model
+decision" was simply wrong, never updated after that shipped. bh-courses
+just wasn't a consumer yet.
+
+Wired bh_course (not bh_lesson -- a lesson's steps genuinely ARE
+post_content now via BHC_ContentBridge, so native WP revisions already
+cover it for free; a course's real configuration -- lesson order,
+tier-gating, pricing, drip/certificate settings -- lives entirely in
+postmeta, exactly the same "native revisions capture nothing
+meaningful" situation bh_contest already solved for itself). Same
+pattern: snapshot the full flat postmeta dump on every save_course(),
+a "Version History" side metabox rendering OUS_Revisions' own
+ready-made history panel, and a real restore handler.
+
+Real bug caught by testing the restore path against an actual
+array-valued field (_bhc_lesson_order) rather than trusting the
+pattern copied from bh_contest: get_post_meta($post_id) -- the bulk,
+no-$key form -- returns each value as its RAW SERIALIZED STRING, not
+auto-unserialized, unlike the single-key form. Invisible for a scalar
+meta value (which is probably why bh_contest's own copy of this never
+surfaced it), but for a real array it double-serializes on restore,
+corrupting the value. Verified live: the naive copy turned a restored
+[1,2,3] into the literal string "a:3:{i:0;i:1;i:1;i:2;i:2;i:3;}". Fixed
+by fetching each key individually with $single = true, factored into
+one shared course_meta_snapshot() helper used by both the save and
+restore-then-resnapshot call sites.
+
 0.6.0 — OPEN.md item 21, both halves.
 
 1. Interactive-video variants: 'question' annotations (class-steps.php's

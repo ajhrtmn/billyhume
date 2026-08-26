@@ -22,6 +22,10 @@ if (!defined('ABSPATH')) exit;
 class BHC_Admin {
     public static function add_meta_boxes(): void {
         add_meta_box('bhc_course_details', 'Course Details', [self::class, 'render_course_metabox'], 'bh_course', 'normal', 'high');
+        // OPEN.md item 20 — same OUS_Revisions consumer shape as
+        // bh_contest's own revisions box; see save_course()'s own
+        // comment for why a course (not a lesson) needs this.
+        add_meta_box('bhc_course_revisions', 'Version History', [self::class, 'render_course_revisions_metabox'], 'bh_course', 'side', 'low');
         // Separate box, not folded into Course Details above — this is
         // purely catalog/browse metadata (instructor, difficulty,
         // duration), a genuinely different concern from lesson ordering
@@ -457,6 +461,24 @@ class BHC_Admin {
         }
 
         self::maybe_create_course_page($post_id);
+
+        // OPEN.md item 20, real OUS_Revisions consumer — same reasoning
+        // bh_contest's own save already documented: a course's real
+        // configuration (lesson order, tier-gating, pricing, drip/
+        // certificate settings) lives entirely in postmeta, never
+        // post_content/title, so the 'revisions' support already
+        // declared on this post type (class-post-types.php) covers the
+        // description text but captures nothing about what actually
+        // MAKES this a course. get_post_meta()'s full flat dump is the
+        // honest "complete current state" here, same as bh_contest's,
+        // rather than hand-curating a field list that drifts out of
+        // sync with this save method's own field list above. A lesson
+        // does NOT get this treatment — its steps genuinely ARE
+        // post_content now (BHC_ContentBridge), so native WP revisions
+        // already cover it for free.
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bh_course', $post_id, self::course_meta_snapshot($post_id));
+        }
     }
 
     /**
@@ -513,6 +535,83 @@ class BHC_Admin {
     }
 
     /* ---------------- lesson metabox (course assignment) ---------------- */
+
+    // Shared by save_course()'s snapshot call and the restore handler's
+    // own re-snapshot-after-restore, so there is exactly one definition
+    // of "this course's complete current state" rather than two copies
+    // that can drift.
+    //
+    // Real bug, caught by testing the restore path against a real
+    // array-valued field (_bhc_lesson_order) rather than trusting the
+    // pattern this was copied from: get_post_meta($post_id) — the bulk,
+    // no-$key form — returns each value as its RAW SERIALIZED STRING,
+    // not auto-unserialized, unlike get_post_meta($post_id, $key, true).
+    // For a scalar meta value that difference is invisible (a plain
+    // string round-trips through maybe_serialize()/maybe_unserialize()
+    // unchanged), which is almost certainly why this went unnoticed
+    // elsewhere — but for _bhc_lesson_order (a real PHP array), passing
+    // the raw serialized STRING into OUS_Revisions::snapshot() (which
+    // wp_json_encode()s it) and back through update_post_meta() on
+    // restore double-serializes it, corrupting the value. Verified
+    // live: restoring a snapshot taken via the naive bulk-form pattern
+    // turned [1,2,3] into the literal string "a:3:{i:0;i:1;i:1;i:2;i:2;i:3;}"
+    // instead of the real array. Fixed by fetching each relevant key
+    // individually with $single = true.
+    /** @return array<string, mixed> */
+    private static function course_meta_snapshot(int $post_id): array {
+        $all_meta = get_post_meta($post_id);
+        $flat = [];
+        foreach (array_keys($all_meta) as $key) {
+            if (strpos($key, '_bhc_') === 0 || strpos($key, '_bhm_') === 0) {
+                $flat[$key] = get_post_meta($post_id, $key, true);
+            }
+        }
+        return $flat;
+    }
+
+    public static function render_course_revisions_metabox(\WP_Post $post): void {
+        if (!class_exists('OUS_Revisions')) {
+            echo '<p class="description">Version history is unavailable.</p>';
+            return;
+        }
+        OUS_Revisions::render_history_panel('bh_course', $post->ID, 'bhc_restore_course_revision', 'bhc_restore_course_' . $post->ID);
+    }
+
+    // Restores a course's own postmeta from a stored snapshot — deliberately
+    // writes postmeta directly (update_post_meta() per key) rather than
+    // re-simulating save_course()'s own $_POST-shaped form handling, same
+    // reasoning bh_contest's own restore handler already documented: the
+    // snapshot already IS the target shape, and re-simulating a fake
+    // $_POST would be more fragile than just writing it back directly.
+    public static function handle_restore_course_revision(): void {
+        if (!current_user_can('manage_options')) wp_die('Not allowed.');
+        $post_id = (int) ($_GET['object_id'] ?? 0);
+        $version = (int) ($_GET['version'] ?? 0);
+        if (!isset($_GET['ous_revisions_nonce']) || !wp_verify_nonce($_GET['ous_revisions_nonce'], 'bhc_restore_course_' . $post_id)) {
+            wp_die('Invalid request.');
+        }
+        if (!$post_id || get_post_type($post_id) !== 'bh_course') wp_die('Not a course.');
+
+        $snapshot = class_exists('OUS_Revisions') ? OUS_Revisions::get_version('bh_course', $post_id, $version) : null;
+        if (!$snapshot) wp_die('That version no longer exists.');
+
+        foreach ((array) $snapshot['data'] as $key => $value) {
+            update_post_meta($post_id, $key, $value);
+        }
+
+        // The restore itself is also a real save — same "undo an
+        // accidental restore the same way" reasoning as bh_contest's
+        // own restore handler.
+        if (class_exists('OUS_Revisions')) {
+            OUS_Revisions::snapshot('bh_course', $post_id, self::course_meta_snapshot($post_id), 'Restored from version #' . $version);
+        }
+        if (class_exists('OUS_Toast')) {
+            OUS_Toast::queue('Restored version #' . $version . '.', 'success');
+        }
+
+        wp_safe_redirect(get_edit_post_link($post_id, ''));
+        exit;
+    }
 
     public static function render_lesson_metabox(\WP_Post $post): void {
         wp_nonce_field('bhc_save_lesson', 'bhc_lesson_nonce');

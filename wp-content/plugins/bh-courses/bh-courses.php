@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.6.0
+ * Version:     0.7.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.6.0');
+define('BHC_VER',  '0.7.0');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -159,6 +159,7 @@ add_action('plugins_loaded', function () {
     add_action('admin_post_bhc_duplicate_lesson', ['BHC_Admin', 'handle_duplicate_lesson']);
     add_action('admin_post_bhc_unassign_lesson', ['BHC_Admin', 'handle_unassign_lesson']);
     add_action('admin_post_bhc_duplicate_course', ['BHC_Admin', 'handle_duplicate_course']);
+    add_action('admin_post_bhc_restore_course_revision', ['BHC_Admin', 'handle_restore_course_revision']);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_course']);
     add_action('before_delete_post', ['BHC_Admin', 'cleanup_deleted_lesson']);
 
