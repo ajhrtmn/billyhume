@@ -32,18 +32,28 @@ class BHC_Progress {
         return BHC_Tables::progress();
     }
 
+    /**
+     * $sub_index: OPEN.md item 22, resolved 2026-08-26 — an in-video
+     * annotation gets its OWN completion record, not just the step it
+     * lives in. Defaults to 0 (the step's own row) throughout this class,
+     * so every existing call site keeps working unchanged — this is
+     * purely additive. 0 is also what a plain, non-annotation step
+     * always writes, so completed_steps() below can keep reading step-
+     * level completion from sub_index = 0 without needing to know
+     * anything about annotations.
+     */
     /** @return array<string, mixed>|null */
-    public static function step_status(int $user_id, int $lesson_id, int $step_index): ?array {
+    public static function step_status(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): ?array {
         global $wpdb;
         if (!$user_id) return null;
         return $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d AND step_index = %d",
-            $user_id, $lesson_id, $step_index
+            "SELECT * FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d AND step_index = %d AND sub_index = %d",
+            $user_id, $lesson_id, $step_index, $sub_index
         ), ARRAY_A);
     }
 
-    public static function is_step_complete(int $user_id, int $lesson_id, int $step_index): bool {
-        $row = self::step_status($user_id, $lesson_id, $step_index);
+    public static function is_step_complete(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): bool {
+        $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
         // A quiz step only counts as "complete" (i.e. the walker can
         // advance past it) once passed — a failed attempt still writes
         // a row (so attempts/score are tracked), but shouldn't read as
@@ -59,12 +69,16 @@ class BHC_Progress {
     // lives in class-render.php, not here — this is just the data).
     // Only counts steps that are genuinely done per is_step_complete()'s
     // rule above (a failed, attempts-exhausted quiz never counts).
+    // sub_index = 0 only, deliberately — this reports the STEP's own
+    // completion, same shape every caller already expects; an
+    // annotation's own completion is a different question, answered by
+    // completed_annotations() below.
     /** @return array<int, int> */
     public static function completed_steps(int $user_id, int $lesson_id): array {
         global $wpdb;
         if (!$user_id) return [];
         $rows = $wpdb->get_results($wpdb->prepare(
-            "SELECT step_index, passed FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d ORDER BY step_index",
+            "SELECT step_index, passed FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d AND sub_index = 0 ORDER BY step_index",
             $user_id, $lesson_id
         ), ARRAY_A);
         $done = [];
@@ -74,8 +88,30 @@ class BHC_Progress {
         return $done;
     }
 
-    public static function attempts(int $user_id, int $lesson_id, int $step_index): int {
-        $row = self::step_status($user_id, $lesson_id, $step_index);
+    // Every annotation sub_index within one step a user has completed —
+    // the per-annotation counterpart to completed_steps() above. An
+    // interactive-video step can have several annotations (sub_index
+    // 1, 2, 3...); this is how a caller finds out which ones are done
+    // without knowing the total count up front. sub_index = 0 (the step
+    // row itself) is deliberately excluded — that is the step's own
+    // completion, not an annotation's.
+    /** @return array<int, int> */
+    public static function completed_annotations(int $user_id, int $lesson_id, int $step_index): array {
+        global $wpdb;
+        if (!$user_id) return [];
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT sub_index, passed FROM " . self::table() . " WHERE user_id = %d AND lesson_id = %d AND step_index = %d AND sub_index > 0 ORDER BY sub_index",
+            $user_id, $lesson_id, $step_index
+        ), ARRAY_A);
+        $done = [];
+        foreach ($rows as $row) {
+            if ($row['passed'] === null || (int) $row['passed'] === 1) $done[] = (int) $row['sub_index'];
+        }
+        return $done;
+    }
+
+    public static function attempts(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): int {
+        $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
         return $row ? (int) $row['attempts'] : 0;
     }
 
@@ -86,7 +122,7 @@ class BHC_Progress {
     // established (see the comment below): a plain text/image step, or a
     // quiz row written before this column existed, gets a real SQL NULL,
     // never a stringified 'null'/empty string.
-    public static function mark_step_complete(int $user_id, int $lesson_id, int $step_index, ?int $score = null, ?bool $passed = null, ?string $answers_json = null): void {
+    public static function mark_step_complete(int $user_id, int $lesson_id, int $step_index, ?int $score = null, ?bool $passed = null, ?string $answers_json = null, int $sub_index = 0): void {
         global $wpdb;
         // QA fix: $wpdb->prepare() has no NULL passthrough for scalar
         // placeholders — a PHP null bound through %s/%d is cast to ''/0
@@ -102,14 +138,14 @@ class BHC_Progress {
         $score_sql   = $score === null ? 'NULL' : '%d';
         $passed_sql  = $passed === null ? 'NULL' : '%d';
         $answers_sql = $answers_json === null ? 'NULL' : '%s';
-        $values = [$user_id, $lesson_id, $step_index];
+        $values = [$user_id, $lesson_id, $step_index, $sub_index];
         if ($score !== null) $values[] = (int) $score;
         if ($passed !== null) $values[] = (int) $passed;
         if ($answers_json !== null) $values[] = (string) $answers_json;
 
         $result = $wpdb->query($wpdb->prepare(
-            "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, score, passed, attempts, answers)
-             VALUES (%d, %d, %d, $score_sql, $passed_sql, 1, $answers_sql)
+            "INSERT INTO " . self::table() . " (user_id, lesson_id, step_index, sub_index, score, passed, attempts, answers)
+             VALUES (%d, %d, %d, %d, $score_sql, $passed_sql, 1, $answers_sql)
              ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP, score = VALUES(score), passed = VALUES(passed), answers = VALUES(answers), attempts = attempts + 1",
             $values
         ));
@@ -121,7 +157,7 @@ class BHC_Progress {
             // separately check this method's success), so progress could
             // silently not persist with zero trace anywhere.
             OUS_DebugLog::log('error', 'mark_step_complete() DB write failed — student will still be told the step completed.', [
-                'user_id' => $user_id, 'lesson_id' => $lesson_id, 'step_index' => $step_index, 'db_error' => $wpdb->last_error,
+                'user_id' => $user_id, 'lesson_id' => $lesson_id, 'step_index' => $step_index, 'sub_index' => $sub_index, 'db_error' => $wpdb->last_error,
             ], 'BH Courses Progress');
         }
 
@@ -130,11 +166,15 @@ class BHC_Progress {
         // per-event record. Append-only (no dedup_key): a step being
         // re-marked complete on a resubmit/refresh is tolerated the same
         // way this table's own ON DUPLICATE KEY UPDATE already is.
+        // sub_index carried into the payload so a listener can tell an
+        // annotation completion from the step's own — it was never a
+        // real field before this (always implicitly 0), so this is
+        // additive to BH_Event's own registered shape, not a break.
         if (($passed === null || $passed) && class_exists('BH_Event')) {
             BH_Event::emit('bhc/step_completed', [
                 'user_id' => $user_id,
                 'subject_type' => 'bhc_lesson', 'subject_id' => (int) $lesson_id,
-                'payload' => ['step_index' => (int) $step_index, 'score' => $score, 'passed' => $passed],
+                'payload' => ['step_index' => (int) $step_index, 'score' => $score, 'passed' => $passed, 'sub_index' => $sub_index],
             ]);
         }
 
@@ -142,13 +182,18 @@ class BHC_Progress {
             BHC_Achievements::maybe_award_quiz_aced($user_id, $score);
         }
 
-        if ($passed === null || $passed) {
+        // Course-completion detection is deliberately only ever checked
+        // for the STEP's own row (sub_index 0) — an annotation
+        // completing is not a step completing, and firing
+        // bhc_course_completed off an annotation write would let a
+        // course register as "done" before its own steps actually are.
+        if ($sub_index === 0 && ($passed === null || $passed)) {
             self::maybe_fire_course_completed($user_id, BHC_PostTypes::course_for_lesson($lesson_id));
         }
     }
 
-    public static function watched_percent(int $user_id, int $lesson_id, int $step_index): int {
-        $row = self::step_status($user_id, $lesson_id, $step_index);
+    public static function watched_percent(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): int {
+        $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
         return $row && $row['watched_percent'] !== null ? (int) $row['watched_percent'] : 0;
     }
 
@@ -209,8 +254,8 @@ class BHC_Progress {
     // (possibly since-edited) _bhc_steps content — see the answers
     // column's own comment in class-activator.php for why that matters.
     /** @return array<string, mixed>|null */
-    public static function stored_answers(int $user_id, int $lesson_id, int $step_index): ?array {
-        $row = self::step_status($user_id, $lesson_id, $step_index);
+    public static function stored_answers(int $user_id, int $lesson_id, int $step_index, int $sub_index = 0): ?array {
+        $row = self::step_status($user_id, $lesson_id, $step_index, $sub_index);
         if (!$row || empty($row['answers'])) return null;
         $decoded = json_decode($row['answers'], true);
         return is_array($decoded) ? $decoded : null;

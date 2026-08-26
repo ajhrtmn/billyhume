@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) exit;
  * marks itself done if the migration actually succeeded.
  */
 class BHC_Activator {
-    const DB_VERSION = '1.5'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all). 1.5 added bhc_achievements (LMS depth-of-magic Phase 3 — real, persistent cross-course mastery badges, the first genuinely new schema that phase needed).
+    const DB_VERSION = '1.6'; // 1.1 added attempts (quiz retry limits), bhc_enrollments (drip scheduling), bhc_completions (course-completed hook, deduped). 1.2 added bhc_progress.answers (QUIZ-AND-CATALOG-DESIGN-PLAN.md Part 1) — see that column's own comment below for why it's a self-contained snapshot, not a per-attempt history table. 1.3 added bhc_progress.watched_percent (ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b, real video progress tracking) — see that column's own comment below. 1.4 added bhc_reviews (course reviews/ratings — a real gap the plugin's own audit flagged as explicitly-deferred, no data model at all). 1.5 added bhc_achievements (LMS depth-of-magic Phase 3 — real, persistent cross-course mastery badges, the first genuinely new schema that phase needed). 1.6 added bhc_progress.sub_index (OPEN.md item 22, resolved 2026-08-26: an in-video annotation gets its own completion record, not just the step it lives in — see class-progress.php's own comment on step_status() for the resolution).
 
     public static function activate(): void {
         BHC_PostTypes::register();
@@ -137,9 +137,47 @@ class BHC_Activator {
         }, $content);
     }
 
+    // Runs the raw DROP+let-dbDelta-recreate step for the sub_index
+    // migration (DB_VERSION 1.6) — see create_or_update_schema()'s own
+    // comment for why this can't be left to dbDelta alone. Checked via
+    // information_schema, not a version flag, so this is safe to call
+    // on every activation regardless of DB_VERSION bookkeeping (an
+    // install that's somehow already past 1.6 with the old key shape,
+    // e.g. a restored backup, still gets fixed).
+    private static function maybe_widen_progress_unique_key(): void {
+        global $wpdb;
+        $table = BHC_Tables::progress();
+        $table_name = str_replace('`', '', $table);
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM information_schema.TABLES WHERE table_schema = %s AND table_name = %s",
+            DB_NAME, $table_name
+        ));
+        if (!$exists) return; // fresh install — dbDelta below creates the correct shape directly
+
+        $cols = $wpdb->get_col($wpdb->prepare(
+            "SELECT COLUMN_NAME FROM information_schema.STATISTICS WHERE table_schema = %s AND table_name = %s AND index_name = 'user_lesson_step' ORDER BY seq_in_index",
+            DB_NAME, $table_name
+        ));
+        if ($cols === ['user_id', 'lesson_id', 'step_index', 'sub_index']) return; // already widened
+        if (empty($cols)) return; // key doesn't exist yet for some other reason — let dbDelta create it fresh
+
+        $wpdb->query("ALTER TABLE $table DROP INDEX user_lesson_step");
+    }
+
     private static function create_or_update_schema(): bool {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();
+
+        // dbDelta() cannot widen an existing UNIQUE KEY's column list —
+        // confirmed live: it saw user_lesson_step already existed and
+        // tried to ADD a second key of the same name instead of
+        // altering it, a real "Duplicate key name" SQL error, silent
+        // to anything that doesn't check dbDelta's return value (which
+        // nothing here did before this). Explicit DROP first, only when
+        // the OLD (3-column) shape is actually present, so this is a
+        // no-op on a fresh install where dbDelta creates the correct
+        // 4-column key from scratch.
+        self::maybe_widen_progress_unique_key();
 
         // One real, queryable-across-users table — same convention as
         // bh-monetization-woo's bhm_wallet/bhm_entitlements: anything
@@ -160,6 +198,7 @@ class BHC_Activator {
             user_id bigint(20) unsigned NOT NULL,
             lesson_id bigint(20) unsigned NOT NULL,
             step_index int(11) NOT NULL,
+            sub_index int(11) NOT NULL DEFAULT 0,
             completed_at datetime DEFAULT CURRENT_TIMESTAMP,
             score int(11) DEFAULT NULL,
             passed tinyint(1) DEFAULT NULL,
@@ -167,8 +206,17 @@ class BHC_Activator {
             answers longtext DEFAULT NULL,
             watched_percent int(11) DEFAULT NULL,
             PRIMARY KEY  (id),
-            UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index)
+            UNIQUE KEY user_lesson_step (user_id, lesson_id, step_index, sub_index)
         ) $charset;";
+        // sub_index: 0 is the step's own completion row (every existing
+        // row, and every non-annotation step, writes only this) — a
+        // positive value is one specific in-video annotation's own
+        // completion, independent of the step and of every other
+        // annotation in it. The unique key widened from (user, lesson,
+        // step) to include sub_index, which is additive: every existing
+        // row already implicitly has sub_index = 0 (the column default),
+        // so no existing row's uniqueness changes, and dbDelta() applies
+        // this as an ALTER TABLE, not a data migration.
         // watched_percent: the furthest playback position (as a percent of
         // duration) BHC_Progress::update_watch_progress() has recorded for
         // a video step — NULL for every non-video step, same "real SQL

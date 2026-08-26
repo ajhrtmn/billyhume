@@ -6,6 +6,33 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.5.0 — OPEN.md item 22, resolved: in-video annotations get their own
+completion tracking (sub_index), not just the step they live in --
+AJ's call. bhc_progress gained a sub_index column (DB_VERSION 1.6),
+default 0 (the step's own row, exactly what every existing row already
+is). Every BHC_Progress method threads an optional $sub_index = 0
+parameter, so every existing call site keeps working completely
+unchanged -- purely additive. New completed_annotations() is the
+per-annotation counterpart to the existing completed_steps().
+
+Real bug caught by testing the migration against an actual database
+rather than trusting dbDelta(): widening the UNIQUE KEY from 3 columns
+to 4 isn't something dbDelta can do -- it saw the key name already
+existed and tried to ADD a duplicate, a genuine SQL error ("Duplicate
+key name") that would have silently failed on every real upgrade.
+Fixed with an explicit DROP INDEX step (checked via
+information_schema, not a version flag, so it's safe to call
+unconditionally) before dbDelta recreates it correctly. Verified live:
+ran the broken version first and watched it fail exactly as described,
+then confirmed the fix runs clean, is idempotent on a second run, and
+that annotations complete/fail independently of the step and of each
+other while completed_steps() correctly ignores annotation rows.
+
+Also resolves the CHANGELOG.md drift flagged in OPEN.md (header was
+0.4.91, this file's newest entry was 0.4.86) -- three intervening
+version bumps (0.4.87-0.4.91) still have no recorded entries; not
+backfilled here, since reconstructing them needs the real history
+behind each bump, which no session recorded at the time.
 
 0.4.86 — Real SEO timing bug, found live during a production-
 readiness audit: BH_SEO::set_page_data() was only ever called from
