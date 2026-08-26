@@ -4559,3 +4559,64 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
 ) div.wp-menu-image {
     background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
+
+/* ==========================================================================
+   NATIVE CHROME (2026-08-25) -- AJ's own call: the admin bar and #adminmenu
+   sidebar stay at WordPress core's own stock appearance everywhere, always,
+   so this skin's identity lives in page CONTENT (#wpbody-content) only --
+   the same scoping model a well-behaved third-party plugin like WooCommerce
+   or MailPoet already uses for itself, never touching the shared chrome
+   around it. Last in the file on purpose: at equal specificity, later
+   source order wins every tie against the ~275 #adminmenu/#wpadminbar rules
+   above, and most of those carry !important, so these do too.
+
+   Deliberately NOT exhaustive -- this resets the handful of properties that
+   actually carry the skin's identity (background, text color, hover/current
+   state), not every one of those ~275 individual selectors. Matches this
+   file's own established pattern for de-skinning a surface (see the
+   shsas-unowned block for #wpbody-content above): common structural
+   properties, not a rule-by-rule counter-argument. Icon/badge-level
+   treatment is a known, explicitly deferred follow-up.
+
+   Values are WordPress core's own literal defaults for the active "Modern"
+   admin color scheme (wp-admin/css/colors/modern/colors.css) plus the
+   scheme-independent base (wp-admin/css/admin-menu.css) -- read directly
+   from both files, not guessed. A site running a different color scheme
+   will see that scheme's own colors here, same as any unskinned WP install. */
+#adminmenuback,
+#adminmenuwrap,
+#adminmenu,
+#wpadminbar {
+    background: #1e1e1e !important;
+}
+#adminmenu a,
+#wpadminbar .ab-item,
+#wpadminbar a.ab-item,
+#wpadminbar > #wp-toolbar span.ab-label,
+#wpadminbar > #wp-toolbar span.noticon {
+    color: #fff !important;
+}
+#adminmenu .wp-submenu {
+    background: #0c0c0c !important;
+}
+#adminmenu .wp-submenu a {
+    color: #bbb !important;
+}
+#adminmenu a:hover,
+#adminmenu li.menu-top:hover,
+#adminmenu li.opensub > a.menu-top,
+#adminmenu li > a.menu-top:focus,
+#wpadminbar .ab-top-menu > li:hover > .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-item:focus {
+    color: #fff !important;
+    background-color: #3858e9 !important;
+}
+#adminmenu .wp-submenu a:focus,
+#adminmenu .wp-submenu a:hover {
+    color: #fff !important;
+}
+#adminmenu li.wp-has-current-submenu a.wp-has-current-submenu,
+#adminmenu li.current a.menu-top {
+    background: #2271b1 !important;
+    color: #fff !important;
+}

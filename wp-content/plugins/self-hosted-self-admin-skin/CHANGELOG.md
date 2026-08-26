@@ -6,6 +6,25 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.63.0 — Admin bar and #adminmenu sidebar deliberately reverted to
+WordPress core's own stock appearance, always, on AJ's own call: this
+skin's distinctive identity now lives only in page CONTENT
+(#wpbody-content) on screens it owns, matching how WooCommerce/MailPoet
+theme only their own pages and never touch the shared chrome around
+them. `assets/css/admin-bar.css` is no longer enqueued anywhere (kept
+on disk, header updated to explain why — its structural fixes may be
+worth re-applying narrowly later). Added a ~60-line native-chrome reset
+to the end of admin-skin.css, appended last so it wins every cascade
+tie against the ~275 existing #adminmenu/#wpadminbar rules earlier in
+the file; values are WordPress core's own literal defaults for the
+active "Modern" color scheme, read directly from
+wp-admin/css/colors/modern/colors.css and wp-admin/css/admin-menu.css,
+not guessed. Verified live: the Dashboard/current-menu-item highlight
+is genuine WP blue (#2271b1) instead of this skin's accent, and the
+sidebar/admin-bar background matches core's own default dark canvas.
+Deliberately not exhaustive — menu-item icon coloring (the
+--shsas-item-hue "wayfinding" treatment) is untouched and a known,
+explicitly deferred follow-up, not an oversight.
 
 0.31.0 — Direct field report ("Media & CDN Setup wizard provider
 cards appear dimmed/disabled"). This screen (the-self-hosted-self's
