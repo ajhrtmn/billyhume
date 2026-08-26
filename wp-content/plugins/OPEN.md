@@ -31,6 +31,14 @@ These are cheap and disproportionately improve how the whole thing feels.
 6b. **Admin-GUI override seam.** `admin-skin.css` is 50% `!important` (1,457 declarations), so customising any admin screen means a specificity war. Needs a deliberate, verified cascade pass — note `!important` *reverses* `@layer` precedence, so layering alone won't solve it. See `DESIGN-CRAFT.md` "CSS architecture".
 6c. **Hardcoded hex outside the token system** — 200+ literals across seven plugin stylesheets (`kanban-board.css` 42, `bhm/frontend.css` 34, `feedback.css` 31, `registry.css` 30, …). They don't follow the theme and can't be re-skinned.
 
+## Parked — `self-hosted-self-admin-skin` is EXPERIMENTAL (2026-08-25)
+
+**Deactivated, back burner, AJ's call.** Chasing "look native everywhere except our own pages" cost a long session and produced several confidently-wrong "it's native now" claims — every round matched only *color* and declared victory, while the menu kept rendering in the skin's own font at its own sizes, with 44px rows instead of core's ~34px, and an active item drawn as a left glow bar rather than core's solid blue fill. The lesson worth keeping: **to verify "does this look native," turn the plugin off and compare — never measure one property and generalise.**
+
+Left in a coherent state (unowned screens load none of its CSS at all; a `shsas_full_skin` option restores the old everywhere-skin; chrome font/metrics/active-item matched). Not deleted — the design-token system, contrast/accessibility work, and command palette are real and may be worth harvesting. Just not active and not a priority.
+
+**Where the design effort goes instead:** this ecosystem's own pages and front end (Tier 2 below), which is where a distinct identity actually belongs.
+
 ## Tier 2 — the front-end craft gap
 
 The largest single distance between the current state and the stated vision. `DESIGN-CRAFT.md` argues this in full; the work items:
