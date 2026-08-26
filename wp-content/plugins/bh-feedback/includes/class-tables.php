@@ -14,6 +14,7 @@ final class BHF_Tables {
 
     private const NAMES = [
         'reviews' => 'bh_feedback_reviews',
+        'annotations' => 'bh_feedback_annotations',
     ];
 
     private static function name(string $key): string {
@@ -23,6 +24,7 @@ final class BHF_Tables {
     }
 
     public static function reviews(): string { return self::name('reviews'); }
+    public static function annotations(): string { return self::name('annotations'); }
 
     /** @return array<string,string> accessor key => prefixed table name */
     public static function all(): array {

@@ -129,3 +129,69 @@
     display: inline-block;
     margin-left: 8px;
 }
+
+.bhf-waveform {
+    --bhf-waveform-color: var(--bh-accent, #8a8a8a);
+    position: relative;
+    margin: 10px 0;
+}
+.bhf-waveform-canvas {
+    width: 100%;
+    height: 70px;
+    display: block;
+    background: var(--bh-surface-2, #f6f6f7);
+    border: 1px solid var(--bh-border, #e2e2e2);
+    border-radius: var(--bh-radius-sm, 6px);
+}
+.bhf-waveform-canvas--clickable {
+    cursor: crosshair;
+}
+.bhf-waveform-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    pointer-events: none;
+}
+.bhf-waveform-marker {
+    position: absolute;
+    top: 0;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    border-radius: 50%;
+    background: var(--bh-accent, #c85c48);
+    border: 2px solid var(--bh-surface, #fff);
+    cursor: pointer;
+    pointer-events: auto;
+}
+.bhf-annotation-thread {
+    display: none;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--bh-surface-2, #f6f6f7);
+    border: 1px solid var(--bh-border, #e2e2e2);
+    border-radius: var(--bh-radius-sm, 6px);
+}
+.bhf-annotation-thread--open {
+    display: block;
+}
+.bhf-annotation-thread-heading {
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+.bhf-annotation-reply {
+    margin: 6px 0 0 12px;
+    padding-left: 8px;
+    border-left: 2px solid var(--bh-border, #e2e2e2);
+}
+.bhf-annotation-reply-form {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+}
+.bhf-annotation-reply-form textarea {
+    flex: 1;
+    box-sizing: border-box;
+}

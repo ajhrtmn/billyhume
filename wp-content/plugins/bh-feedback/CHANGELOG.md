@@ -6,6 +6,53 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.2.0 — Tier 3 item 16: timestamped waveform audio annotations, the
+"third tier" this plugin's own docblock had deferred since v1. Shipped
+as a FEATURE of the existing 'detailed' tier (explicit decision) rather
+than a new priced tier — a detailed review can now carry timestamp-
+anchored notes on the waveform in addition to its plain-text body, same
+price. Authorship rule (explicit decision): only the request's current
+reviewer can drop a new top-level marker; the submitter can reply
+under an existing marker but can't start new ones — a paid, one-expert
+relationship, not an open thread.
+
+New `bh_feedback_annotations` table (DB_VERSION 1.1) — top-level rows
+carry their own timestamp, replies (parent_id set) inherit the
+parent's for display and store none of their own. New `BHF_Annotations`
+class owns all authorization (tier check, reviewer-of-record check,
+parent-ownership check) behind one `create()` entry point, called from
+a new `wp_ajax_bhf_add_annotation` handler.
+
+Front end: first JS this plugin has ever shipped (`assets/ts/
+feedback.ts` -> `assets/js/feedback.js`, plain `tsc`, no bundler — same
+convention as bh-courses). Decodes the submitted track client-side via
+the Web Audio API purely to draw a peaks waveform (no server-side peak
+generation, no new dependency); markers render as an absolutely-
+positioned button overlay for real keyboard-focusable hit targets
+rather than raw canvas coordinate hit-testing. Enhancement-only: no
+Web Audio API support (or a decode failure) just leaves the canvas
+blank — the existing plain `<audio controls>` element on the same card
+is the real fallback either way.
+
+Real bug caught by this class's own real-DB verification pass, not by
+reasoning: `create()` read `$wpdb->insert_id` AFTER calling
+`OUS_Notifications::notify()`, which does its own internal INSERT —
+silently clobbering `$wpdb->insert_id` before this method's own return
+statement read it. A reviewer's first marker was being handed back
+with the *notification* table's row id, not its own — invisible until a
+reply was attempted against that wrong id and failed with "marker no
+longer exists." Fixed by capturing `$wpdb->insert_id` into a local
+variable immediately after this table's own INSERT, before anything
+else touches `$wpdb`.
+
+Verified end-to-end against the real local WP+MySQL install: schema
+migration (DB_VERSION 1.0 -> 1.1), the full authorization matrix
+(wrong tier rejected, non-reviewer top-level marker rejected, reviewer
+marker accepted, submitter reply accepted, unrelated user's reply
+rejected, reply against a nonexistent parent rejected), and the
+resulting thread tree shape. `npx tsc --noEmit` clean; the committed
+`feedback.js` is a fresh, unedited compile of `feedback.ts`.
+
 0.1.5 — Ecosystem quality Phase 2, brick 3/13: added native return
 types and parameter types across all 9 includes files (60 findings,
 both mechanical level-6 categories). One small real fix: render_

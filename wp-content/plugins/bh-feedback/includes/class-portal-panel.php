@@ -12,6 +12,43 @@ if (!defined('ABSPATH')) exit;
 class BHF_PortalPanel {
     public static function init(): void {
         add_filter('bhi_portal_panels', [self::class, 'register_panel']);
+        add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
+    }
+
+    // Same "portal is a virtual page, gate on its query var" pattern
+    // bh-contest's own class-portal-panel.php already established.
+    public static function maybe_enqueue(): void {
+        if (!class_exists('BHI_Portal') || !get_query_var(BHI_Portal::QUERY_VAR)) return;
+        wp_enqueue_script('bhf-feedback', BHF_URL . 'assets/js/feedback.js', [], BHF_VER, true);
+        wp_localize_script('bhf-feedback', 'BHFData', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('bhf_annotations'),
+        ]);
+    }
+
+    /**
+     * Renders the waveform + marker overlay + thread panel for one
+     * request — shared by the reviewer's claimed-request card (where
+     * canMark is true) and the submitter's completed-request card
+     * (read + reply only). 'detailed' tier only — see
+     * BHF_Annotations::tier_supports_annotations()'s own docblock.
+     */
+    private static function render_waveform(\WP_Post $request, bool $can_mark): void {
+        if (!class_exists('BHF_Annotations') || !BHF_Annotations::tier_supports_annotations($request->ID)) return;
+        $attachment_id = (int) get_post_meta($request->ID, '_bhf_attachment_id', true);
+        if (!$attachment_id) return;
+
+        $annotations = BHF_Annotations::for_request($request->ID);
+        echo '<div class="bhf-waveform" data-request-id="' . (int) $request->ID . '" data-can-mark="' . ($can_mark ? '1' : '0') . '" data-audio-url="' . esc_url(wp_get_attachment_url($attachment_id)) . '" data-annotations="' . esc_attr(wp_json_encode($annotations)) . '">';
+        echo '<canvas class="bhf-waveform-canvas" width="600" height="70"></canvas>';
+        echo '<div class="bhf-waveform-markers"></div>';
+        echo '<div class="bhf-annotation-thread"></div>';
+        echo '</div>';
+        if ($can_mark) {
+            echo '<p class="description">Click the waveform to drop a timestamped note.</p>';
+        } elseif ($annotations) {
+            echo '<p class="description">Click a marker to read or reply to a timestamped note.</p>';
+        }
     }
 
     /**
@@ -76,6 +113,7 @@ class BHF_PortalPanel {
                     if ($review) {
                         echo '<div class="bhf-review-body">' . wp_kses_post(wpautop($review['body'])) . '</div>';
                     }
+                    self::render_waveform($request, false);
                 }
                 echo '</div>';
             }
@@ -105,6 +143,7 @@ class BHF_PortalPanel {
                 if ($dup) {
                     echo '<p class="bhf-duplicate-flag">&#9888; Same audio file as a prior request (' . esc_html(get_the_title($dup) ?: ('#' . $dup)) . ') — possible resubmission.</p>';
                 }
+                self::render_waveform($request, true);
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
                 echo '<input type="hidden" name="action" value="bhf_complete_review" />';
                 echo '<input type="hidden" name="request_id" value="' . (int) $request->ID . '" />';

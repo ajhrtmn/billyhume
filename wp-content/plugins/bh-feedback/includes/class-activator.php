@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) exit;
  * it gets its own flat table instead.
  */
 class BHF_Activator {
-    const DB_VERSION = '1.0';
+    const DB_VERSION = '1.1';
 
     public static function activate(): void {
         if (self::create_or_update_schema()) {
@@ -52,8 +52,37 @@ class BHF_Activator {
             KEY reviewer_user_id (reviewer_user_id)
         ) $charset;";
         dbDelta($sql);
-
         if ($wpdb->last_error) return false;
-        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reviews)) === $reviews;
+
+        // Timestamped waveform annotations (DB_VERSION 1.1) — 'detailed'
+        // tier only (see class-annotations.php's own docblock for why
+        // this stayed a feature of the existing tier rather than a new
+        // priced one). A top-level marker (parent_id 0) carries its own
+        // timestamp_seconds; a reply (parent_id > 0) inherits the
+        // parent's timestamp for display and leaves this column NULL —
+        // no reason to duplicate it, threads are always read via the
+        // parent. request_id/parent_id are NOT foreign keys to a CPT or
+        // to this same table via a real FK constraint — same posture
+        // bh-crm's tags table and every other lightweight relational
+        // table in this ecosystem already takes, since WordPress core's
+        // own tables (wp_posts) aren't InnoDB-FK-friendly across a
+        // dbDelta-managed plugin table anyway.
+        $annotations = BHF_Tables::annotations();
+        $sql2 = "CREATE TABLE $annotations (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            request_id bigint(20) unsigned NOT NULL,
+            parent_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            user_id bigint(20) unsigned NOT NULL,
+            timestamp_seconds decimal(10,3) DEFAULT NULL,
+            body text NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY request_id (request_id),
+            KEY parent_id (parent_id)
+        ) $charset;";
+        dbDelta($sql2);
+
+        return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $reviews)) === $reviews
+            && $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $annotations)) === $annotations;
     }
 }

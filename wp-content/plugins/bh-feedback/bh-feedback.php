@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Feedback
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on The Self-Hosted Self's shared identity/wallet.
- * Version:     0.1.5
+ * Version:     0.2.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHF_PATH', plugin_dir_path(__FILE__));
 define('BHF_URL',  plugin_dir_url(__FILE__));
-define('BHF_VER',  '0.1.5');
+define('BHF_VER',  '0.2.0');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo
@@ -26,7 +26,7 @@ define('BHF_VER',  '0.1.5');
  * it for "has this exact file already been submitted before" — pure
  * bonus, never required.
  */
-foreach (['tables', 'activator', 'post-types', 'pricing', 'requests', 'queue', 'admin', 'portal-panel', 'test-suite'] as $f) {
+foreach (['tables', 'activator', 'post-types', 'pricing', 'requests', 'queue', 'annotations', 'admin', 'portal-panel', 'test-suite'] as $f) {
     require_once BHF_PATH . "includes/class-$f.php";
 }
 
@@ -44,6 +44,7 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHF_PostTypes', 'register']);
     add_action('init', ['BHF_Requests', 'init']);
     add_action('init', ['BHF_Queue', 'init']);
+    add_action('init', ['BHF_Annotations', 'init']);
     add_action('init', ['BHF_Admin', 'init']);
     add_action('init', ['BHF_PortalPanel', 'init']);
     if (class_exists('OUS_TestRunner')) add_action('init', ['BHF_TestSuite', 'init']);
