@@ -6,6 +6,34 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.0 — Streaming ships to production. AJ's explicit call, 2026-08-26.
+
+BHS_Env::hidden_in_production() previously defaulted to HIDDEN unless
+a site's wp-config.php defined BHS_FORCE_VISIBLE — but this ecosystem
+deploys via direct FTP file copy (deploy-ftp.yml), never a fresh WP
+"Activate" click, and wp-config.php isn't tracked by git at all. There
+was never an actual path to ship "streaming is now visible" through
+the normal push-to-master flow the constant's own doc comment assumed
+existed. Found live: reactivating the plugin on production did nothing
+(correctly -- this was never gated by activation state), and the
+entire feature (dashboard card, admin menus for tracks/releases/
+playlists/feed sources/video, the front-end shortcode/block, and the
+auto-created "Streaming" page from BHS_Activator) stayed invisible.
+
+Inverted the default: visible everywhere unless a site opts OUT via
+define('BHS_FORCE_HIDDEN', true) in its own wp-config.php -- for a
+staging/preview site building the NEXT unreleased streaming feature
+without it leaking, the original problem this class solved. That
+constant genuinely can live in a local, untracked wp-config.php since
+hiding is a deliberate per-install exception now, not the shipped
+default every production site needs to remember to unset.
+
+Verified locally across all five surfaces this gates: bhs_track and
+bhl_stream (video) admin menus visible, OUS_Registry dashboard card
+present, [bh_streaming] shortcode renders the real player (not empty
+output). Full gate suite clean (PHPStan, PHPUnit, Twig/PHP parity).
+
+
 
 0.5.32 — BHS_Booklet: the "CD jacket" bonus content AJ asked for —
 liner notes, a lyrics sheet (reusing the existing lyrics field, not
