@@ -6,6 +6,52 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+**STATUS 2026-08-25: EXPERIMENTAL, back burner, deactivated.** AJ's
+call, and the right one. Chasing "look native except on our own pages"
+consumed a long session and several confidently-wrong "it's native now"
+claims (see 0.66.0 for the honest post-mortem). The underlying goal —
+give this ecosystem's own UI a distinct, cohesive identity — is better
+served by investing in the ecosystem's own pages and front end than by
+re-skinning wp-admin around them. Not deleted: the design-token system,
+contrast/accessibility work, and command palette here are real and may
+be worth harvesting later. Just not active, and not a priority.
+
+0.66.0 — Native for real this time, found by finally doing the
+comparison AJ asked for several rounds earlier: turn the plugin OFF,
+turn it ON, look at the difference. Every previous round only ever
+checked and matched COLOR, kept measuring color, and kept declaring the
+chrome native — while the menu was still rendering in this skin's own
+display font at larger sizes, with 44px touch-target rows instead of
+core's ~34px, and with the current/active item drawn as this skin's
+transparent-plus-left-glow-bar treatment instead of core's solid blue
+fill (that last one carried !important, so setting the color alone
+never took effect). That is why the menu kept reading as "not native"
+through several rounds of confident color fixes. Now matched: font
+family, sizes, line-heights, row padding/height, core's block+float
+icon layout instead of the flex row, and the real active-item fill.
+
+Also structural, and the more important half: unowned screens no longer
+load this plugin's CSS or fonts AT ALL (shsas_enqueue_assets() returns
+early) rather than loading everything and resetting back to native. A
+reset can only ever cover UI patterns someone thought to write a rule
+for, and an earlier attempt this same day proved it -- flipping the
+owned default while still loading the stylesheet produced a half-reset
+core dashboard with an illegible dark-on-dark welcome panel. Nothing
+loaded means nothing to miss. Generic core screens (Dashboard, Posts,
+Settings...) are unowned by default now; this ecosystem's own CPT
+screens (bh_course, bh_contest, etc.) stay owned.
+
+And the option AJ asked for: shsas_full_skin (checkbox on Settings >
+General) restores the pre-today "full skin everywhere, including all
+chrome" behavior. Default OFF -- native is the default, not the only
+mode. Verified both states live, plugin-on vs plugin-off vs
+full-skin-on. NOTE, flagged rather than buried: native rows drop the
+44px WCAG 2.5.5 touch target back to core's ~34px on native-chrome
+screens. That is core's own shipped behavior (identical to running no
+skin at all) and "native chrome" isn't meaningful with custom row
+heights, but it IS a real regression relative to the skinned version;
+the full-skin option restores it.
+
 0.65.0 — Native menu icons for native menu items. Direct follow-up:
 "the icons are still skinned. I'm ok with it, but not for what should
 be native icons." The mask-icon-plus-hue-color replacement system a

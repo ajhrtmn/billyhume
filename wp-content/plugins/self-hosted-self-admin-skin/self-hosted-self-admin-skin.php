@@ -1,15 +1,15 @@
 <?php
 /**
- * Plugin Name: Admin Skin — The Self-Hosted Self
- * Description: A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
- * Version:     0.65.0
+ * Plugin Name: Admin Skin — The Self-Hosted Self (EXPERIMENTAL)
+ * Description: EXPERIMENTAL / on the back burner as of 2026-08-25 — deactivated by default, not part of the shipping ecosystem. Matching WP core's own native chrome convincingly turned out to need far more than color matching (font, sizing, row metrics, active-item treatment), and the effort was better spent elsewhere; the design effort belongs on this ecosystem's OWN pages, not on re-skinning wp-admin. A wp-admin-only visual/UX mod — reskins the default WordPress dashboard with a calmer dark/light palette, real accessibility work (focus states, contrast, reduced-motion, larger touch targets), a genuinely mobile-friendly admin menu, and a couple of small "it just works" touches (a Cmd/Ctrl+K command palette, a light/dark toggle). Standalone and portable — works with any theme and any other plugins, never touches the front end at all.
+ * Version:     0.66.0
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('SHSAS_VER', '0.65.0');
+define('SHSAS_VER', '0.66.0');
 
 define('SHSAS_URL', plugin_dir_url(__FILE__));
 define('SHSAS_PATH', plugin_dir_path(__FILE__));
@@ -20,7 +20,28 @@ define('SHSAS_PATH', plugin_dir_path(__FILE__));
  * front-end request, so this plugin can never conflict with any
  * theme's own front-end styles regardless of what site it's on.
  */
+/**
+ * 2026-08-25: native-by-default, matching the same instruction behind
+ * shsas_screen_is_owned()'s new default. Rather than loading the full
+ * stylesheet everywhere and RESETTING it back to native on unowned
+ * screens (fragile -- the reset can only ever cover UI patterns someone
+ * thought to add a rule for, and core wp-admin has far more of those
+ * than WooCommerce/MailPoet combined), unowned screens simply never
+ * load this plugin's CSS/fonts at all. Nothing to reset means nothing
+ * can be missed.
+ *
+ * The counterpart: a site can still opt into the pre-2026-08-25 "full
+ * skin everywhere" behavior via the shsas_full_skin option (Design
+ * Suite setting) -- native is the default, not the only mode.
+ */
+function shsas_full_skin_enabled(): bool {
+    return (bool) get_option('shsas_full_skin', false);
+}
+
 function shsas_enqueue_assets(): void {
+    if (!shsas_full_skin_enabled() && !shsas_screen_is_owned()) {
+        return;
+    }
     // 'wp-admin' as a dependency (not just registered/loaded some other
     // way) guarantees WP core's own admin stylesheet prints BEFORE this
     // one — real bug found live: an empty deps array left load order to
@@ -160,6 +181,10 @@ add_action('admin_head', 'shsas_bridge_bhy_tokens', 999);
  * the `shsas_owned_screen` filter and THIRD-PARTY-SKINNING.md.
  */
 function shsas_screen_is_owned(): bool {
+    // Opted into the pre-2026-08-25 "full skin everywhere" behavior --
+    // every screen is owned, same as this function's original default.
+    if (shsas_full_skin_enabled()) return true;
+
     $screen = function_exists('get_current_screen') ? get_current_screen() : null;
     if (!$screen) return true;
 
@@ -178,14 +203,36 @@ function shsas_screen_is_owned(): bool {
         return (bool) apply_filters('shsas_owned_screen', false, $id, $screen);
     }
 
-    // Core screens (dashboard, post lists, media, users, settings...) are
-    // deliberately themed and stay owned. Third-party CPT screens ride on
-    // core's own list-table markup, which this skin themes correctly.
-    return (bool) apply_filters('shsas_owned_screen', true, $id, $screen);
+    // 2026-08-25: generic core screens (Dashboard, Posts, Media, Users,
+    // Settings...) are unowned/native by default now -- direct, repeated
+    // instruction: "our styles should only impact our own pages." Only a
+    // screen for one of THIS ecosystem's own custom post types
+    // (bh_course, bh_contest, a CPT list/edit screen, which never goes
+    // through the _page_ branch above) stays owned.
+    //
+    // An EARLIER attempt at this same change (same day) shipped broken:
+    // flipping only this default, while still loading admin-skin.css's
+    // shsas-unowned RESET block on the now-unowned screen, produced a
+    // half-reset mess (the reset was only ever built/verified against
+    // WooCommerce/MailPoet's markup, not core's own dashboard widgets --
+    // the welcome panel rendered illegible dark-on-dark). Caught live,
+    // reverted immediately. The real fix, alongside this one: don't rely
+    // on a reset chasing every core UI pattern -- shsas_enqueue_assets()
+    // now skips loading admin-skin.css entirely on unowned screens, so
+    // there is nothing to reset. See that function's own comment.
+    $post_type = !empty($screen->post_type) ? (string) $screen->post_type : '';
+    if ($post_type !== '' && strpos($post_type, 'bh') === 0) {
+        return true;
+    }
+    return (bool) apply_filters('shsas_owned_screen', false, $id, $screen);
 }
 
 function shsas_admin_body_class(string $classes): string {
-    return $classes . (shsas_screen_is_owned() ? ' shsas-owned' : ' shsas-unowned');
+    $classes .= shsas_screen_is_owned() ? ' shsas-owned' : ' shsas-unowned';
+    if (shsas_full_skin_enabled()) {
+        $classes .= ' shsas-full-skin';
+    }
+    return $classes;
 }
 add_filter('admin_body_class', 'shsas_admin_body_class');
 
@@ -381,4 +428,37 @@ function shsas_menu_url(string $slug): string {
         return admin_url('admin.php?page=' . $slug);
     }
     return admin_url($slug);
+}
+
+/**
+ * The opt-in counterpart to native-by-default (2026-08-25): a single
+ * checkbox on Settings > General, WordPress's own long-standing home for
+ * "site-wide behavior toggles that aren't really a whole settings page."
+ * Deliberately NOT a new admin page -- see CLAUDE.md's own documented
+ * incident history with add_submenu_page()/get_plugin_page_hook() on
+ * this install before reaching for that again.
+ */
+function shsas_register_full_skin_setting(): void {
+    register_setting('general', 'shsas_full_skin', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'rest_sanitize_boolean',
+        'default' => false,
+    ]);
+    add_settings_field(
+        'shsas_full_skin',
+        'Admin Skin',
+        'shsas_render_full_skin_field',
+        'general'
+    );
+}
+add_action('admin_init', 'shsas_register_full_skin_setting');
+
+function shsas_render_full_skin_field(): void {
+    ?>
+    <label>
+        <input type="checkbox" name="shsas_full_skin" value="1" <?php checked(shsas_full_skin_enabled()); ?>>
+        Theme the entire admin (bar, menu, every screen) instead of just this ecosystem's own pages
+    </label>
+    <p class="description">Off by default: the admin bar and sidebar menu stay WordPress's own stock appearance, and only this ecosystem's own plugin pages get the distinctive look — the same scoping model WooCommerce/MailPoet use for themselves. Turn this on to restore the full, everywhere skin instead.</p>
+    <?php
 }

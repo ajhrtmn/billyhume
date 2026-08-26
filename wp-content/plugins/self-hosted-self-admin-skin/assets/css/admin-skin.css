@@ -456,26 +456,31 @@ body.wp-admin a:hover, body.wp-admin a:focus { color: var(--shsas-focus); }
    -moz- prefix duplicated because ::selection and ::-moz-selection
    cannot be combined in one selector list (an unknown pseudo-element
    invalidates the WHOLE rule in every browser). */
-body.wp-admin ::selection,
-body.wp-admin input::selection,
-body.wp-admin textarea::selection {
+/* 2026-08-25: narrowed from body.wp-admin (everywhere) to owned page
+   content only -- native chrome and unowned/third-party screens now get
+   the browser's own default selection color, same as everything else
+   under the native-chrome decision above. Still real for the actual
+   "ours" surface this was written for. */
+body.shsas-owned #wpbody-content ::selection,
+body.shsas-owned #wpbody-content input::selection,
+body.shsas-owned #wpbody-content textarea::selection {
     background: rgba(242, 237, 225, 0.22);
 }
-body.wp-admin ::-moz-selection,
-body.wp-admin input::-moz-selection,
-body.wp-admin textarea::-moz-selection {
+body.shsas-owned #wpbody-content ::-moz-selection,
+body.shsas-owned #wpbody-content input::-moz-selection,
+body.shsas-owned #wpbody-content textarea::-moz-selection {
     background: rgba(242, 237, 225, 0.22);
 }
 /* Light mode inverts the relationship — a light wash on a light
    ground is invisible, so lift with the dark ink instead. */
-html[data-shsas-theme="light"] body.wp-admin ::selection,
-html[data-shsas-theme="light"] body.wp-admin input::selection,
-html[data-shsas-theme="light"] body.wp-admin textarea::selection {
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content ::selection,
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content input::selection,
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content textarea::selection {
     background: rgba(36, 31, 22, 0.16);
 }
-html[data-shsas-theme="light"] body.wp-admin ::-moz-selection,
-html[data-shsas-theme="light"] body.wp-admin input::-moz-selection,
-html[data-shsas-theme="light"] body.wp-admin textarea::-moz-selection {
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content ::-moz-selection,
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content input::-moz-selection,
+html[data-shsas-theme="light"] body.shsas-owned #wpbody-content textarea::-moz-selection {
     background: rgba(36, 31, 22, 0.16);
 }
 
@@ -4560,6 +4565,16 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     background-color: var(--shsas-item-hue, var(--shsas-accent)) !important;
 }
 
+/* Everything in this file that forces WP core's own native chrome
+   colors (NATIVE CHROME, PART 2, and NATIVE MENU ICONS below) is wrapped
+   in this selector so the shsas_full_skin option (Design Suite setting,
+   default OFF) can restore this skin's original chrome theming instead
+   -- native is the default, not the only mode. Native CSS nesting
+   (Baseline since 2023, same era as this file's own :has() usage) --
+   the bare selectors below implicitly combine as descendants of this
+   wrapper, not a preprocessor step. */
+body:not(.shsas-full-skin) {
+
 /* ==========================================================================
    NATIVE CHROME (2026-08-25) -- AJ's own call: the admin bar and #adminmenu
    sidebar stay at WordPress core's own stock appearance everywhere, always,
@@ -4620,6 +4635,120 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     background: #2271b1 !important;
     color: #fff !important;
 }
+/* The ACTIVE/CURRENT item specifically. Setting the color above was not
+   enough: this skin replaces core's solid blue fill with a transparent
+   background plus a left glow bar (its own "no fill, one bold row with a
+   bar" treatment, a few hundred lines up), and those rules carry
+   !important -- so the row kept rendering as the skin's bar-marker, not
+   core's filled blue row, no matter what color was set here. Undo the
+   whole treatment (fill, glow bar, bold weight, and the transparent
+   li background behind it), not just the color. */
+#adminmenu li.menu-top.current,
+#adminmenu li.wp-has-current-submenu,
+#adminmenu li.opensub,
+#adminmenu li.wp-menu-open,
+#adminmenu .wp-submenu li.current {
+    background: transparent !important;
+}
+#adminmenu li.menu-top.current > a.menu-top,
+#adminmenu li.wp-has-current-submenu > a.menu-top {
+    background: #2271b1 !important;
+    color: #fff !important;
+    font-weight: 400 !important;
+    box-shadow: none !important;
+}
+/* Core's own inline submenu under the current item: its own darker
+   panel, not this skin's transparent treatment. */
+#adminmenu li.wp-has-current-submenu > .wp-submenu {
+    background: #0c0c0c !important;
+}
+#adminmenu .wp-submenu li.current a,
+#adminmenu .wp-submenu a.current {
+    color: #fff !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+/* TYPOGRAPHY + ROW RHYTHM. Found by finally comparing the menu with the
+   plugin OFF vs ON rather than only checking colors: with it off, labels
+   are core's own ~13px/1.3 on the system font in compact rows; with it
+   on they were noticeably larger, looser, and on this skin's own display
+   font. Matching color alone could never fix that, which is why the menu
+   kept reading as "not native" through several rounds of color fixes.
+   Core's own values, read from wp-admin/css/admin-menu.css. */
+#adminmenu,
+#adminmenu a,
+#adminmenu a.menu-top,
+#adminmenu .wp-menu-name,
+#adminmenu a.menu-top .wp-menu-name,
+#adminmenu .wp-submenu a,
+#wpadminbar,
+#wpadminbar .ab-item,
+#wpadminbar a.ab-item,
+#wpadminbar > #wp-toolbar span.ab-label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    letter-spacing: normal !important;
+}
+#adminmenu a {
+    line-height: 1.3 !important;
+    padding: 2px 5px !important;
+}
+#adminmenu a.menu-top .wp-menu-name {
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+    font-weight: 400 !important;
+    padding: 8px 8px 8px 36px !important;
+}
+#adminmenu .wp-submenu a {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
+    padding: 5px 0 !important;
+}
+/* Core lays the icon out absolutely inside that 36px left pad, rather
+   than as a flex row -- restore that model so the padding above lands
+   the label where core puts it. */
+#adminmenu a.menu-top {
+    display: block !important;
+}
+#adminmenu div.wp-menu-image {
+    float: left !important;
+    width: 36px !important;
+    height: 34px !important;
+    margin: 0 !important;
+    text-align: center !important;
+}
+#adminmenu div.wp-menu-image::before {
+    font-size: 20px !important;
+    line-height: inherit !important;
+    width: auto !important;
+    padding: 7px 0 !important;
+}
+/* Row height/flex row -> core's own block layout and natural height.
+   NOTE, deliberately flagged rather than buried: this drops the 44px
+   minimum touch target (--shsas-row-h, WCAG 2.5.5 / iOS HIG) back to
+   core's own ~34px rows on these native-chrome screens. That is a real
+   accessibility regression relative to the skinned version -- but it is
+   WordPress core's own shipped behavior, identical to running no skin
+   at all, and "native chrome" is not meaningful if the rows are still a
+   custom height. The full-skin option restores the 44px targets along
+   with everything else. */
+#adminmenu a.menu-top {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    gap: 0 !important;
+    letter-spacing: normal !important;
+}
+.folded #adminmenu a.menu-top,
+.auto-fold #adminmenu a.menu-top {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+}
+
+} /* end body:not(.shsas-full-skin) -- NATIVE CHROME */
 
 /* ==========================================================================
    OWNED-SCREEN EMPHASIS (2026-08-25) -- now that chrome is deliberately
@@ -4703,6 +4832,8 @@ body.shsas-owned .ous-badge {
         0 0 14px -1px color-mix(in srgb, var(--shsas-glow) 70%, transparent),
         0 0 28px 2px color-mix(in srgb, var(--shsas-glow) 30%, transparent);
 }
+
+body:not(.shsas-full-skin) {
 
 /* ==========================================================================
    NATIVE CHROME, PART 2 (2026-08-25) -- the first native-chrome pass above
@@ -4850,3 +4981,5 @@ body.shsas-owned .ous-badge {
 #adminmenu li.menu-icon-settings.current div.wp-menu-image::before {
     color: #fff !important;
 }
+
+} /* end body:not(.shsas-full-skin) -- NATIVE CHROME, PART 2 + NATIVE MENU ICONS */
