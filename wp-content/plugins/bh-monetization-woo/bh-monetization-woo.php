@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.5.21
+ * Version:     0.6.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.5.21');
+define('BHM_VER',  '0.6.0');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
@@ -35,7 +35,7 @@ define('BHM_URL',  plugin_dir_url(__FILE__));
  *   unavailable rather than this plugin building its own parallel
  *   recurring-billing logic.
  */
-foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions'] as $f) {
+foreach (['tables', 'money', 'activator', 'tiers', 'gate', 'post-gate', 'wallet', 'fraud', 'admin', 'product-sync', 'monetization-ui', 'play-gating', 'entitlements', 'products', 'gifts', 'referrals', 'downloads', 'frontend', 'style-surface', 'debug', 'mock-commerce', 'crm-integration', 'portal-panel', 'recommendations', 'storefront', 'test-suite', 'blocks', 'anchoring', 'purchase-ledger', 'ledger-crm-integration', 'auctions', 'auction-admin', 'auction-frontend'] as $f) {
     require_once BHM_PATH . "includes/class-$f.php";
 }
 
@@ -81,6 +81,11 @@ add_action('plugins_loaded', function () {
     // that actually closes/finalizes an auction at its scheduled end
     // time; see class-auctions.php's own docblock for the full design.
     add_action('init',          ['BHM_Auctions', 'init']);
+    // Authoring metabox (BHM_AuctionAdmin) + front-end bid form
+    // (BHM_AuctionFrontend) — the "next pass" class-auctions.php's own
+    // docblock flagged as not yet built; shipped 2026-08-26.
+    add_action('init',          ['BHM_AuctionAdmin', 'init']);
+    add_action('init',          ['BHM_AuctionFrontend', 'init']);
     // BHM_PortalPanel is a class_exists()-guarded consumer of BHI_Portal's
     // filter, not a hard dependency — harmless if core is absent/too old.
     add_action('init',          ['BHM_PortalPanel', 'init']);

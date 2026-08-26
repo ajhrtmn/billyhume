@@ -6,6 +6,49 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.0 — Tier 3 item 17 (auction listings): finished BHM_Auctions
+(class-auctions.php), which turned out to already be a real, working
+backend engine (bidding, outbid handling, reserve, OUS_Jobs auto-close)
+from a 2026-08-01 design pass — OPEN.md's item 17 wrongly still called
+this "not yet scoped in detail." Two real gaps existed and got closed:
+
+1. No authoring UI or bid form. Added `BHM_AuctionAdmin` (class-
+   auction-admin.php — product-edit metabox: turn a product into an
+   auction, starting/reserve price, end time; locks those fields once
+   real bids exist) and `BHM_AuctionFrontend` (class-auction-frontend.php
+   — front-end bid form/status, makes an auction product non-
+   purchasable via the normal Add to Cart form).
+2. Payment timing was bid-time BHM_Wallet holds, captured on win.
+   Explicit standing instruction from the project owner mid-build:
+   "charge on win is important." Reworked place_bid()/close_auction()
+   so a bid never holds funds — only a soft available-balance courtesy
+   check — and the winner is charged directly via BHM_Wallet::debit()
+   (the same atomic primitive pay-per-play already uses) at close. A
+   winner whose balance can't cover it by then closes the auction
+   unsold rather than falling back to the next bidder (real v2 gap,
+   not attempted here).
+
+Also answers VISION.md's "how does an auction closing interact with
+BHM_Fraud" question: BHM_Fraud has no synchronous purchase-blocking
+gate (it's reactive, post-refund pattern tracking), so the real
+integration is its existing per-user flags — a winner already flagged
+via `_bhm_refund_flagged`/`_bhm_refund_shared_device_flagged` skips the
+automatic charge and the auction sits in a new `awaiting_review` status
+until `BHM_AuctionAdmin::handle_resolve_flagged_auction()` approves
+(charges) or rejects (unsold) it by hand — same "flag for a human,
+never auto-restrict" posture BHM_Fraud's own docblock establishes.
+
+Verified end-to-end against the real local WP+WooCommerce+MySQL
+install: created a real product, converted it to an auction, placed
+bids from two real users with real wallet rows (confirmed a bid holds
+zero funds, confirmed an under-funded bid is rejected), closed the
+auction and confirmed the winner's wallet was debited the exact
+winning amount at close (not before) and the product's winner meta was
+set correctly; separately verified the fraud-flagged path end-to-end
+(a flagged bidder's win is NOT auto-charged, balance stays untouched,
+status reports `awaiting_review`, and the admin approve action then
+charges correctly and finalizes).
+
 0.5.21 — First real-database integration test in this ecosystem
 (tests-integration/, separate from the pure-logic tests/ tier): real
 WordPress + real MySQL via @wordpress/env, verifying BHM_Wallet::debit()'s
