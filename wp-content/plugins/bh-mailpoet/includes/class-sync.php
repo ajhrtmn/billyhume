@@ -116,6 +116,31 @@ class BHMP_Sync {
             }
 
             if ($existing) {
+                // BUG FIX (2026-08-26): subscribeToList() unconditionally
+                // moves a subscriber back to 'subscribed' regardless of
+                // their PRIOR status — confirmed by reading MailPoet's
+                // own Subscribers::subscribeToLists() (lib/API/MP/v1/
+                // Subscribers.php): it only skips the status write if
+                // the subscriber is ALREADY 'subscribed', never checks
+                // for 'unsubscribed'. This plugin calls sync_contact()
+                // constantly (7 BH_Event types, WooCommerce order
+                // completion, entitlement grants, every profile update,
+                // the daily full resync) — every single one of those
+                // was silently re-subscribing anyone who had ever
+                // clicked unsubscribe, the moment they next logged in,
+                // voted, bought something, or got a wallet credit. A
+                // real, ongoing consent violation, not a one-time bug.
+                // Fix: never call subscribeToList() for a subscriber
+                // whose global status (or, more narrowly, whose status
+                // on THIS specific list) is already 'unsubscribed' —
+                // contact info (name) still gets nothing to update here
+                // since MailPoet has no separate "update without
+                // resubscribing" call, but that's an acceptable trade
+                // vs. silently overriding an explicit opt-out.
+                if (self::is_unsubscribed($existing, $list_id)) {
+                    self::log('info', 'Skipped resubscribing a contact who previously unsubscribed.', ['user_id' => $user_id]);
+                    return true; // not an error — respecting an explicit unsubscribe is success, not failure
+                }
                 $api->subscribeToList($existing['id'], $list_id, ['send_confirmation_email' => false]);
             } else {
                 $api->addSubscriber($subscriber, [$list_id], ['send_confirmation_email' => false]);
@@ -125,6 +150,20 @@ class BHMP_Sync {
             self::log('error', 'Failed to sync a contact to MailPoet.', ['user_id' => $user_id, 'error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    /**
+     * @param array<string, mixed> $subscriber MailPoet's own getSubscriber() response shape.
+     * @param int|string $list_id
+     */
+    private static function is_unsubscribed(array $subscriber, $list_id): bool {
+        if (($subscriber['status'] ?? '') === 'unsubscribed') return true; // global unsubscribe (the "unsubscribe from everything" link)
+        foreach ($subscriber['subscriptions'] ?? [] as $sub) {
+            if ((string) ($sub['segment_id'] ?? '') === (string) $list_id) {
+                return ($sub['status'] ?? '') === 'unsubscribed'; // per-list unsubscribe on this specific list
+            }
+        }
+        return false;
     }
 
     /**
@@ -149,12 +188,72 @@ class BHMP_Sync {
             } else {
                 $failed++;
             }
+            // Same safety-net reasoning as sync_contact() itself getting
+            // a daily resync — a tag edit made through some path other
+            // than BHCRM_Tags::handle_save() (bulk-tag action, a future
+            // API) might not always reach bhcrm/tags_saved.
+            if (class_exists('BHCRM_Tags')) self::sync_tags($user_id, BHCRM_Tags::get($user_id));
         }
 
         update_option('bhmp_last_sync_at', time());
         update_option('bhmp_last_sync_counts', ['synced' => $synced, 'failed' => $failed]);
 
         return ['synced' => $synced, 'failed' => $failed, 'skipped_no_mailpoet' => false];
+    }
+
+    // Namespaced so this plugin only ever adds/removes tags IT applied —
+    // a tag a human added directly in MailPoet's own UI (for MailPoet-
+    // only purposes, unrelated to bh-crm) is never touched by the diff
+    // in sync_tags() below, since it won't start with this prefix.
+    const TAG_PREFIX = 'BH-CRM: ';
+
+    /**
+     * Mirrors bh-crm's free-text tags (BHCRM_Tags) onto the same
+     * MailPoet subscriber sync_contact() maintains, via MailPoet's own
+     * Tags API (tagSubscriber()/untagSubscriber()) — lets a MailPoet
+     * campaign/automation segment by bh-crm tag (e.g. "contest winner",
+     * "vinyl backer") without this plugin inventing its own segment
+     * concept. Driven by the bhcrm/tags_saved BH_Event's own payload
+     * (see BHMP_InstantSync::sync_from_event()) — no extra DB read of
+     * bh-crm's tag storage needed, the event already carries the full
+     * current tag list for that person.
+     *
+     * @param string[] $tags The person's full current bh-crm tag list (not a delta) — same shape bhcrm/tags_saved's payload carries.
+     */
+    public static function sync_tags(int $user_id, array $tags): bool {
+        $api = self::api();
+        if (!$api) return false;
+
+        $user = get_userdata($user_id);
+        if (!$user || !$user->user_email) return false;
+
+        try {
+            $existing = null;
+            try {
+                $existing = $api->getSubscriber($user->user_email);
+            } catch (\Throwable $e) {
+                $existing = null;
+            }
+            if (!$existing) return false; // not a MailPoet subscriber yet — sync_contact() creates them; nothing to tag until then
+
+            $current_tag_names = array_map(static fn($t) => (string) ($t['name'] ?? ''), $existing['tags'] ?? []);
+            $current_managed = array_values(array_filter($current_tag_names, static fn($n) => str_starts_with($n, self::TAG_PREFIX)));
+            $wanted = array_values(array_unique(array_map(
+                static fn($t) => self::TAG_PREFIX . $t,
+                array_filter(array_map('strval', $tags), static fn($t) => $t !== '')
+            )));
+
+            foreach (array_diff($wanted, $current_managed) as $to_add) {
+                $api->tagSubscriber($existing['id'], $to_add);
+            }
+            foreach (array_diff($current_managed, $wanted) as $to_remove) {
+                $api->untagSubscriber($existing['id'], $to_remove);
+            }
+            return true;
+        } catch (\Throwable $e) {
+            self::log('error', 'Failed to sync bh-crm tags to MailPoet.', ['user_id' => $user_id, 'error' => $e->getMessage()]);
+            return false;
+        }
     }
 
     /** Account deletion / explicit "stop syncing this person" path. */

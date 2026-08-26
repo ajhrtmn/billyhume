@@ -6,6 +6,41 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+1.2.0 — Robustness pass across every MailPoet integration point,
+prompted by a direct request to make sure MailPoet usage in this
+ecosystem is deep and well-done, not just present. Read MailPoet's own
+installed source (lib/API/MP/v1/Subscribers.php) rather than assuming
+behavior from its public docs.
+
+Found and fixed a real, ongoing consent bug: `subscribeToList()`
+unconditionally moves a subscriber back to 'subscribed' unless their
+status is ALREADY 'subscribed' — it never checks for 'unsubscribed'.
+`sync_contact()` runs constantly (7 watched BH_Event types, WooCommerce
+order completion, entitlement grants, every profile update, the daily
+full resync) — every one of those was silently re-subscribing anyone
+who had ever clicked unsubscribe, the moment they next logged in,
+voted, bought something, or got a wallet credit. `sync_contact()` now
+checks the subscriber's global AND per-list status first and skips the
+resubscribe call entirely if either is 'unsubscribed'.
+
+Added tag sync: bh-crm's free-text person tags (BHCRM_Tags) now mirror
+onto the MailPoet subscriber via MailPoet's own Tags API
+(tagSubscriber()/untagSubscriber()), namespaced `BH-CRM: ` so this
+plugin only ever touches tags it applied itself — a tag added directly
+in MailPoet's own UI is never clobbered. Driven by the bhcrm/tags_saved
+BH_Event's own payload (no extra bh-crm read needed) for real-time
+sync, plus a safety-net pass in the daily full resync covering
+BHCRM_Tags::handle_bulk_tag(), which — confirmed by reading it — never
+emits that event at all. This is a real, concrete "add more where
+useful": lets a MailPoet campaign/automation segment by bh-crm tag
+(e.g. "contest winner") without this plugin inventing its own segment
+mechanism.
+
+Verified both fixes end-to-end against the real local WP+MySQL+MailPoet
+install (5.36.0): created a real subscriber, unsubscribed them via
+MailPoet's own unsubscribe() call, re-ran sync_contact() and confirmed
+they stayed unsubscribed; ran sync_tags() and confirmed tags were
+added/removed correctly and only the namespaced ones were touched.
 
 1.1.4 — Closes this plugin's own long-standing "NOT runtime-
 verified" disclosure (class-sync.php's docblock, present since this

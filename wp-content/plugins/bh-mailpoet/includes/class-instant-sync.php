@@ -86,6 +86,16 @@ class BHMP_InstantSync {
     public static function sync_from_event($type, $job_args, $args): void {
         if (!in_array($type, self::watched_event_types(), true)) return;
         $user_id = (int) ($job_args['user_id'] ?? 0);
-        if ($user_id) BHMP_Sync::sync_contact($user_id);
+        if (!$user_id) return;
+
+        BHMP_Sync::sync_contact($user_id);
+
+        // bhcrm/tags_saved carries the person's full current tag list in
+        // its own payload — mirror it onto the same MailPoet subscriber
+        // via BHMP_Sync::sync_tags(), no extra bh-crm read needed.
+        if ($type === 'bhcrm/tags_saved') {
+            $tags = $job_args['payload']['tags'] ?? [];
+            if (is_array($tags)) BHMP_Sync::sync_tags($user_id, $tags);
+        }
     }
 }
