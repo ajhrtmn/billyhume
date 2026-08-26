@@ -229,6 +229,7 @@ class OUS_Dashboard {
         if ($status === 'active') {
             $version = OUS_Registry::version($key);
             if ($version) echo '<p class="ous-card-meta">v' . esc_html($version) . '</p>';
+            self::render_github_status($key);
             if (!empty($info['dashboard_link'])) {
                 echo '<a class="button" href="' . esc_url(admin_url($info['dashboard_link'])) . '">Open &rarr;</a>';
             }
@@ -250,6 +251,32 @@ class OUS_Dashboard {
         }
 
         echo '</div>';
+    }
+
+    // OPEN.md item 15a: per-card inline GitHub status, not only
+    // centrally on Debug Tools. Deliberately reads OUS_GithubUpdates'
+    // own cached result (the 'ous_github_update_status' option, written
+    // by its cron-scheduled check_all()/check_one()) rather than making
+    // a live API call per card per dashboard load — this page can show
+    // 14 cards, and a live GitHub round-trip for each would make a
+    // routine visit slow and burn API rate limit for no reason the
+    // cron job doesn't already serve. "Unknown" (never checked yet) is
+    // a real, expected state right after activation, not an error.
+    private static function render_github_status(string $key): void {
+        if (!class_exists('OUS_GithubUpdates')) return;
+        $status = get_option('ous_github_update_status', []);
+        $entry = $status[$key] ?? null;
+        if ($entry === null) {
+            echo '<p class="ous-card-meta ous-card-meta-muted">GitHub: not checked yet</p>';
+            return;
+        }
+        if (!empty($entry['update_available'])) {
+            echo '<p class="ous-card-meta ous-card-github-update"><span class="dashicons dashicons-update"></span> Update available (' . esc_html((string) $entry['remote_version']) . ')</p>';
+        } elseif ($entry['remote_version'] === null) {
+            echo '<p class="ous-card-meta ous-card-meta-muted">GitHub: check failed</p>';
+        } else {
+            echo '<p class="ous-card-meta ous-card-meta-muted">GitHub: up to date</p>';
+        }
     }
 
     /** @param array<string, mixed> $info */

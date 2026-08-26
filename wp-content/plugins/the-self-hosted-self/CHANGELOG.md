@@ -9,6 +9,19 @@ has been reworded or dropped.
 
 ---
 
+3.14.0 — OPEN.md item 15: per-card GitHub status, and the convention
+that formalizes it. Ecosystem dashboard cards now show a live status
+line under the version (reading OUS_GithubUpdates' own cached
+check-status option, not a per-card live API call -- see
+render_github_status()'s own comment for why): "Update available
+(x.y.z)", "up to date", "check failed", or "not checked yet" right
+after activation. Verified all four states render correctly by
+seeding the option directly. Also: CONVENTIONS.md now states the
+"every new plugin gets a card" rule as a first-build-step convention,
+not just an idea -- this has already been missed twice for real
+(bh-streaming, self-hosted-self-admin-skin both shipped a full session
+before someone noticed).
+
 3.13.1 — Front-end audit continued to the pages item 7 still missed
 (contest single, streaming track, checkout, my-account, and the
 portal's logged-out /account/ page — CRM's own public-facing surface

@@ -165,6 +165,10 @@ bh-contest → bh-courses → bh-crm → bh-monetization-woo → bh-streaming �
 - **Don't vendor or inline shared code at build time.** That is the drift problem, and this codebase has paid for it repeatedly: eleven near-identical table classes, `.bhm-paywall` duplicated into `bh-streaming` and silently diverging, eight hand-rolled badge shapes. Copies drift; references don't.
 - **Don't over-share.** Eleven `class-tables.php` files look like duplication, but each is a genuinely different data map; a shared base would save ~15 lines per plugin and buy a parse-time coupling risk. Structural similarity is not duplication — *the same knowledge in two places* is.
 
+## Every new plugin gets a dashboard card, as a first build step
+
+OPEN.md item 15b, formalized: when a new ecosystem plugin is scaffolded, register it with `OUS_Registry` (the `ous_registered_plugins` filter, or the `Ecosystem` plugin header for a zero-config minimal card via `discover_unregistered()`) *before* writing its first real feature, not as an afterthought once it's already built. The dashboard (`class-dashboard.php`) is this ecosystem's own install/activate/status surface — a plugin nobody can see there is a plugin nobody can turn on without already knowing it exists. Costs one array entry; the alternative has already happened once (`bh-streaming`/`self-hosted-self-admin-skin` both shipped real, working code for a full session before someone noticed the deploy whitelist or the registry hadn't been told).
+
 ## Reviewing your own comment
 
 Ask: **would a competent reader who knows PHP and WordPress need this?** If it explains the language, delete it. If it explains the domain or a constraint, keep it — short. If it explains history, it belongs in git.
