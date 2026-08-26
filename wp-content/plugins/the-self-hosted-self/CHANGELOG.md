@@ -9,6 +9,49 @@ has been reworded or dropped.
 
 ---
 
+3.13.0 — First real ecosystem-wide front-end audit (OPEN.md item 7,
+"Never done"), and the defects it found. The audit itself only covered
+4 generic theme pages before this; expanded to 13 including the
+ecosystem's own surfaces (courses catalog/single/long-title, gated
+lesson, shop, product, cart, blog post, search results), paths verified
+against real published content rather than assumed.
+
+Three real defects, all fixed:
+
+1. **`--bh-accent-contrast` was consumed in 15 places and DEFINED
+   NOWHERE.** Every use fell through to its own hardcoded fallback, and
+   the fallbacks disagreed -- 11 saying dark (#150705), 4 saying white
+   (#fff). Both cannot be right on the same fill. Now derived in
+   inline_css() by measuring which of the theme's own ink colours has
+   more real WCAG contrast against the CHOSEN accent, so it stays
+   correct for any accent an admin picks. Exactly the lesson the admin
+   skin already learned with --shsas-accent-text (its token bridge
+   mapped every FILL colour but never the foreground meant to sit on
+   one).
+2. **`color_accent` #C1503A -> #C85C48** (~4% lighter, same hue), AJ's
+   call, same precedent as --shsas-neon-cyan on 2026-08-23: move the
+   token rather than patch around it. Fixed .oust-btn-primary (4.20:1)
+   and bh-courses' .bhc-archive-kicker (4.17:1), both needing 4.5. The
+   button failure had been sitting in OPEN.md unfixed since the tooling
+   adoption pass.
+3. Two audit FALSE POSITIVES calibrated rather than "fixed" in the CSS
+   -- deliberate `-webkit-line-clamp` truncation (bh-courses' .bhc-excerpt)
+   and image-replacement text (WP core's own login logo) both read as
+   sheared content. Calibrating the checker instead of the design is the
+   same discipline TOOLING-EVALUATION.md already records for
+   check-accent-on-tint.
+
+Result: zero contrast/clipping/overflow findings across 13 pages x 6
+widths, verified by deliberately reverting the accent and watching 166
+failures return, then restoring.
+
+**Still open, deliberately not fixed here:** the light "The Door — Day"
+theme's accent already fails (3.92:1 as text on its own ground, 3.48:1
+on surface) and always did -- the audit only exercises the dark theme,
+so it never surfaced. Lightening helps dark grounds and HURTS light
+ones, so Day needs its own DARKER accent, which is a separate call.
+Recorded in OPEN.md rather than guessed at.
+
 3.12.0 (follow-up fix) — BH_Storybook_Panel::redirect()'s exit() call
 declared `never`, not `void`, found by finally running the whole
 project through PHPStan level 6 rather than only php -l: without it,

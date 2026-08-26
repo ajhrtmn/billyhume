@@ -171,6 +171,10 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Storybook visual regression
+        # PW_STORYBOOK gates playwright.config.ts's webServer block -- see
+        # that file's own comment for why it can't be unconditional.
+        env:
+          PW_STORYBOOK: '1'
         run: npx playwright test --project=storybook
 
   typescript:

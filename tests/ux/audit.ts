@@ -134,7 +134,29 @@ export async function audit(page: Page): Promise<Finding[]> {
       // clientHeight 0 means deliberately collapsed (a closed nav/accordion),
       // not sheared content — the whole point of the collapse is to hide it.
       const collapsed = el.clientHeight === 0 || el.clientWidth === 0;
-      const clipY = !collapsed && (cs.overflowY === 'hidden' || cs.overflowY === 'clip') && el.scrollHeight > el.clientHeight + 2;
+      let clipY = !collapsed && (cs.overflowY === 'hidden' || cs.overflowY === 'clip') && el.scrollHeight > el.clientHeight + 2;
+      // -webkit-line-clamp is deliberate multi-line truncation -- it works
+      // BY making scrollHeight exceed clientHeight, exactly the signal this
+      // check looks for, so every clamped element read as sheared content.
+      // The single-line equivalent (text-overflow:ellipsis + nowrap) was
+      // already excluded below; this is the same intent, multi-line. Found
+      // 2026-08-25 when the first real ecosystem-wide front-end audit
+      // flagged .bhc-excerpt (a deliberate 3-line clamp on course cards)
+      // on every catalog page. Calibrating the checker, not the CSS --
+      // "fixing" a deliberate clamp to satisfy a checker is exactly the
+      // failure TOOLING-EVALUATION.md already records for check-accent-on-tint.
+      if (clipY && (cs as any).webkitLineClamp && (cs as any).webkitLineClamp !== 'none') clipY = false;
+      // Image replacement: text deliberately hidden behind a background
+      // image (WP core's own login logo does exactly this -- an <a> sized
+      // to an 84px logo with the site name overflowing invisibly behind
+      // it). The text is not sheared, it is intentionally not shown.
+      // Multi-layer backgrounds are the norm here, not the exception: WP
+      // core's login logo computes backgroundImage "none, url(...)" and
+      // backgroundRepeat "no-repeat, no-repeat" (a PNG fallback layer plus
+      // the real SVG). A strict === comparison matched neither and let the
+      // finding through -- caught by reading the real computed values off
+      // the live page rather than trusting the first guess.
+      const imageReplaced = cs.backgroundImage.includes('url(') && cs.backgroundRepeat.includes('no-repeat');
       let clipX = !collapsed && (cs.overflowX === 'hidden' || cs.overflowX === 'clip') && el.scrollWidth > el.clientWidth + 2;
       // Deliberate truncation, not a clip.
       if (clipX && cs.textOverflow === 'ellipsis' && cs.whiteSpace === 'nowrap') clipX = false;
@@ -156,7 +178,7 @@ export async function audit(page: Page): Promise<Finding[]> {
           return pos === 'absolute' || pos === 'fixed';
         });
       }
-      if ((clipY || clipX) && !decorativeOnly) {
+      if ((clipY || clipX) && !decorativeOnly && !imageReplaced) {
         findings.push({
           kind: 'clipping', selector: sel(el),
           detail: clipY ? `scrollHeight ${el.scrollHeight} > clientHeight ${el.clientHeight}`

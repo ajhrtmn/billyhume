@@ -52,10 +52,23 @@ export default defineConfig({
   // same as before this project existed. reuseExistingServer means a
   // developer who already ran `npm run storybook` locally on :6006
   // doesn't get a second one fighting it for the port.
-  webServer: {
-    command: 'npm run storybook:fixtures && npx storybook build -o storybook-static && npx http-server storybook-static -p 6006 -s',
-    url: 'http://localhost:6006',
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  // Gated behind PW_STORYBOOK: Playwright's webServer is GLOBAL, not
+  // per-project, so an unconditional entry here tried to build Storybook
+  // before the `public`/`admin` audits too -- which broke them outright
+  // (a native-binding failure in the build toolchain took the whole run
+  // down with "Process from config.webServer was not able to start").
+  // Found 2026-08-25 the first time the public audit was run after this
+  // block was added. The storybook project is the only one that needs a
+  // server started for it; public/admin assume a WordPress install is
+  // already running (WP_BASE_URL), same as before Storybook existed.
+  ...(process.env.PW_STORYBOOK
+    ? {
+        webServer: {
+          command: 'npm run storybook:fixtures && npx storybook build -o storybook-static && npx http-server storybook-static -p 6006 -s',
+          url: 'http://localhost:6006',
+          reuseExistingServer: !process.env.CI,
+          timeout: 180_000,
+        },
+      }
+    : {}),
 });

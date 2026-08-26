@@ -291,7 +291,15 @@ class BHY_Style {
         'color_border'      => '#3D1B14',
         'color_text'        => '#EDDFCB',
         'color_text_dim'    => '#B99584',
-        'color_accent'      => '#C1503A',
+        // 2026-08-25: #C1503A -> #C85C48, ~4% lighter, same hue. AJ's call,
+        // same precedent as --shsas-neon-cyan (2026-08-23): when a colour's
+        // aesthetic value and its legibility conflict, move the token rather
+        // than patch around it. Measured, not guessed -- the first real
+        // ecosystem-wide front-end audit found TWO AA failures sharing this
+        // one root cause: .oust-btn-primary (dark ink on accent fill) at
+        // 4.20:1 and bh-courses' .bhc-archive-kicker (accent as text on the
+        // night ground) at 4.17:1, both needing 4.5. Now 4.77:1 and 4.73:1.
+        'color_accent'      => '#C85C48',
         'color_accent_soft' => '#E0A184',
         'color_overlay'     => '#0D0504D1',
         'cat_color_1' => '#C1503A', 'cat_color_2' => '#D9A441', 'cat_color_3' => '#B8785A', 'cat_color_4' => '#8C3B2E',
@@ -357,7 +365,7 @@ class BHY_Style {
             'The Door — Night' => [
                 'color_bg' => '#170807', 'color_surface' => '#220C0A', 'color_surface_2' => '#2C120E',
                 'color_border' => '#3D1B14', 'color_text' => '#EDDFCB', 'color_text_dim' => '#B99584',
-                'color_accent' => '#C1503A', 'color_accent_soft' => '#E0A184', 'color_overlay' => '#0D0504D1',
+                'color_accent' => '#C85C48', 'color_accent_soft' => '#E0A184', 'color_overlay' => '#0D0504D1',
                 'cat_color_1' => '#C1503A', 'cat_color_2' => '#D9A441', 'cat_color_3' => '#B8785A', 'cat_color_4' => '#8C3B2E',
                 'cat_color_5' => '#C98B5E', 'cat_color_6' => '#A66A4D', 'cat_color_7' => '#D96C4D', 'cat_color_8' => '#7A4A38',
             ],
@@ -652,6 +660,36 @@ class BHY_Style {
     // consuming plugin's own stylesheet already reads from — enqueued
     // after that stylesheet so it wins the cascade. The stylesheets
     // themselves never need to change per site; only this changes.
+    /**
+     * Which of two candidate inks reads better on $bg — plain WCAG
+     * relative-luminance contrast, the same formula tests/ux/audit.ts
+     * measures with, so the value this picks is the value that audit
+     * scores. Used for --bh-accent-contrast (see inline_css()).
+     */
+    private static function ink_on(string $bg, string $light_ink, string $dark_ink): string {
+        return self::contrast($light_ink, $bg) >= self::contrast($dark_ink, $bg) ? $light_ink : $dark_ink;
+    }
+
+    private static function contrast(string $a, string $b): float {
+        $la = self::relative_luminance($a);
+        $lb = self::relative_luminance($b);
+        $hi = max($la, $lb);
+        $lo = min($la, $lb);
+        return ($hi + 0.05) / ($lo + 0.05);
+    }
+
+    private static function relative_luminance(string $hex): float {
+        $hex = ltrim(trim($hex), '#');
+        if (strlen($hex) === 3) $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        if (strlen($hex) < 6 || !ctype_xdigit(substr($hex, 0, 6))) return 0.0;
+        $ch = [];
+        foreach ([0, 2, 4] as $i) {
+            $v = hexdec(substr($hex, $i, 2)) / 255;
+            $ch[] = $v <= 0.03928 ? $v / 12.92 : pow(($v + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * $ch[0] + 0.7152 * $ch[1] + 0.0722 * $ch[2];
+    }
+
     public static function inline_css(?int $entity_id = null): string {
         $s = self::get($entity_id);
         $vars = [
@@ -678,6 +716,25 @@ class BHY_Style {
         // stays reserved for its original one-off job (lightening an
         // already-accent-colored element on hover).
         $decls .= '--bh-accent-muted-bg:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 18%, ' . self::safe_color($s['color_surface']) . ');';
+
+        // --bh-accent-contrast: the ink that sits ON a filled accent
+        // surface (a primary button, a filled nav pill), not beside it.
+        // REAL BUG this fixes, found 2026-08-25 by the first ecosystem-wide
+        // front-end audit: this token was CONSUMED in 15 places across the
+        // theme and front-nav.css but DEFINED nowhere, so every use fell
+        // through to its own hardcoded fallback -- and those fallbacks
+        // disagreed, 11 saying dark (#150705) and 4 saying white (#fff).
+        // Both cannot be right on the same fill, and the white ones
+        // measured 4.13:1 (needs 4.5) once the accent was lightened.
+        //
+        // Derived rather than hand-picked, same reasoning as the muted-bg
+        // above: pick whichever of the theme's own ink/ground colours has
+        // more contrast against the CHOSEN accent, so it stays correct for
+        // any accent an admin picks instead of needing a matching ink to be
+        // hand-chosen every time. Exactly the lesson the admin skin already
+        // learned with --shsas-accent-text (its bridge mapped every FILL
+        // colour but never the foreground meant to sit on one).
+        $decls .= '--bh-accent-contrast:' . self::safe_color(self::ink_on($s['color_accent'], $s['color_text'], $s['color_bg'])) . ';';
 
         // Same derivation logic, different job: a button using
         // --bh-accent as its own background with light/white text on

@@ -100,7 +100,8 @@ Playwright, Stylelint, Vitest, PHPCS (security, changed-files) and a CSS formatt
 
 ## Found by the new tooling, not yet fixed
 
-- **Theme search button fails AA** — `button.wp-block-search__button` measures **4.2:1** (needs 4.5) at every width, both the block and `.oust-btn-primary` variants.
+- ~~**Theme search button fails AA**~~ **FIXED 2026-08-25** (the-self-hosted-self 3.13.0), along with its real root cause: `--bh-accent-contrast` was consumed in 15 places but defined nowhere, so uses fell through to disagreeing hardcoded fallbacks (11 dark, 4 white). Now derived from measured contrast against the chosen accent. Accent also moved #C1503A -> #C85C48 (AJ's call).
+- **Light "The Door — Day" theme accent fails AA** (found 2026-08-25, NOT fixed) — `#C1503A` measures **3.92:1** as text on its own `#F4E9DC` ground and **3.48:1** on `#EADCC8` surface. Pre-existing and never surfaced because `tests/ux/public.spec.ts` only exercises the dark theme. Lightening (the dark-theme fix) makes Day *worse*; Day needs its own darker accent, which is a separate design call. Either give the light theme its own accent value, or extend the front-end audit to run both themes — the harness already has `setTheme()`/`THEMES` for it.
 - **Touch targets under 44px at ≤782** — `.oust-nav-toggle` 40×40, `.oust-card-readmore` 61×18, `.oust-site-brand` 202×30.
 - **CHANGELOG.md behind Version: header on 4 plugins** (found 2026-08-25 by `tools/check-changelog-drift.sh`, now advisory in CI) — `bh-contest` (header 3.7.33, changelog's newest entry 3.7.30), `bh-courses` (0.4.91 vs 0.4.86), `bh-tickets` (1.0.3 vs 1.0.2), and `self-hosted-self-admin-skin` (0.62.0 vs 0.31.0 — the widest gap, from the CHANGELOG extraction on 2026-08-23 never being kept current since). Not backfilled: reconstructing accurate entries for versions already shipped needs the real history behind each bump, which no session since has recorded.
 
