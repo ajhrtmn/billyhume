@@ -6,6 +6,20 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.65.0 — Native menu icons for native menu items. Direct follow-up:
+"the icons are still skinned. I'm ok with it, but not for what should
+be native icons." The mask-icon-plus-hue-color replacement system a
+few hundred lines up in admin-skin.css was replacing WP core's own
+dashicon glyphs for the ten native/core menu items (Dashboard, Posts,
+Media, Pages, Comments, Appearance, Plugins, Users, Tools, Settings) --
+the wrong call now that chrome is meant to be native. Restored the
+real dashicon glyphs (codepoints read directly from wp-includes/css/
+dashicons.css, e.g. \f226 for Dashboard) and native icon color for
+exactly those ten items. This ecosystem's own plugin menu items
+(Design Suite, Contests, Courses, etc.) are untouched and keep their
+custom icon + wayfinding hue color, confirmed live: ours colorful and
+glowing, everything native stays native, right down to the icon glyph.
+
 0.64.0 — Native chrome, round 2, plus owned-screen emphasis. The first
 native-chrome pass (0.63.0) reset the broad structural colors but missed
 several more specific overrides: toolbar icon glyphs read dim instead of

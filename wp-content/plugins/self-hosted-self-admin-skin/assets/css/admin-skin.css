@@ -4781,3 +4781,72 @@ body.shsas-owned .ous-badge {
     background: #0c0c0c !important;
     color: #fff !important;
 }
+
+/* ==========================================================================
+   NATIVE MENU ICONS (2026-08-25) -- direct follow-up: "the icons are still
+   skinned. I'm ok with it, but not for what should be native icons." The
+   custom mask-icon-plus-hue-color system a few hundred lines up
+   (#adminmenu li.menu-icon-dashboard div.wp-menu-image::before etc.) was a
+   deliberate REPLACEMENT of WP core's own dashicon glyphs for exactly the
+   ten native/core menu items (Dashboard, Posts, Media, Pages, Comments,
+   Appearance, Plugins, Users, Tools, Settings) -- the wrong call now that
+   chrome is meant to be native. This skin's OWN plugin items (Design Suite,
+   Contests, Courses, etc., matched via their own .menu-icon-* classes
+   further up) are untouched by this block and keep their custom icon +
+   wayfinding hue, same as before.
+
+   Restores the actual WP core dashicon glyph (real codepoints, read
+   directly from wp-includes/css/dashicons.css, not guessed) and native
+   icon color, undoing the mask-image/background-color-hue replacement. */
+#adminmenu li.menu-icon-dashboard div.wp-menu-image::before,
+#adminmenu li.menu-icon-post div.wp-menu-image::before,
+#adminmenu li.menu-icon-media div.wp-menu-image::before,
+#adminmenu li.menu-icon-page div.wp-menu-image::before,
+#adminmenu li.menu-icon-comments div.wp-menu-image::before,
+#adminmenu li.menu-icon-appearance div.wp-menu-image::before,
+#adminmenu li.menu-icon-plugins div.wp-menu-image::before,
+#adminmenu li.menu-icon-users div.wp-menu-image::before,
+#adminmenu li.menu-icon-tools div.wp-menu-image::before,
+#adminmenu li.menu-icon-settings div.wp-menu-image::before {
+    font: normal 20px/1 dashicons, sans-serif !important;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+    background-color: transparent !important;
+    color: hsl(0, 7%, 95%) !important;
+    filter: none !important;
+}
+#adminmenu li.menu-icon-dashboard div.wp-menu-image::before { content: "\f226" !important; }
+#adminmenu li.menu-icon-post div.wp-menu-image::before { content: "\f109" !important; }
+#adminmenu li.menu-icon-media div.wp-menu-image::before { content: "\f104" !important; }
+#adminmenu li.menu-icon-page div.wp-menu-image::before { content: "\f105" !important; }
+#adminmenu li.menu-icon-comments div.wp-menu-image::before { content: "\f101" !important; }
+#adminmenu li.menu-icon-appearance div.wp-menu-image::before { content: "\f100" !important; }
+#adminmenu li.menu-icon-plugins div.wp-menu-image::before { content: "\f106" !important; }
+#adminmenu li.menu-icon-users div.wp-menu-image::before { content: "\f110" !important; }
+#adminmenu li.menu-icon-tools div.wp-menu-image::before { content: "\f107" !important; }
+#adminmenu li.menu-icon-settings div.wp-menu-image::before { content: "\f108" !important; }
+/* Hover/current states on these same ten items previously forced the icon
+   to solid white via the same hue system -- native hover/current color
+   instead (core's own convention, same value on every item). */
+#adminmenu li.menu-icon-dashboard.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-post.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-media.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-page.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-comments.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-appearance.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-plugins.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-users.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-tools.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-settings.menu-top:hover div.wp-menu-image::before,
+#adminmenu li.menu-icon-dashboard.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-post.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-media.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-page.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-comments.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-appearance.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-plugins.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-users.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-tools.current div.wp-menu-image::before,
+#adminmenu li.menu-icon-settings.current div.wp-menu-image::before {
+    color: #fff !important;
+}
