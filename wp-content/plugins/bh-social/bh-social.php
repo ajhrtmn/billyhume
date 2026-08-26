@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Social
  * Description: Social/marketing platform integrations — organic cross-posting + stats (YouTube, Twitch, Meta/Instagram, TikTok) behind a BH_SocialPlatform interface, plus paid ad-campaign draft-capture (Roku, Spotify, Amazon DSP, Samsung, Vizio) behind a separate BH_AdsPlatform interface. Depends only on The Self-Hosted Self's shared identity and job queue.
- * Version:     0.4.0
+ * Version:     0.5.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,11 +11,11 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHSO_PATH', plugin_dir_path(__FILE__));
 define('BHSO_URL',  plugin_dir_url(__FILE__));
-define('BHSO_VER',  '0.4.0');
+define('BHSO_VER',  '0.5.0');
 
 foreach ([
     'tables', 'activator',
-    'social-platform', 'youtube-platform', 'twitch-platform', 'meta-platform', 'tiktok-platform', 'platform-registry',
+    'social-platform', 'connection-health', 'youtube-platform', 'twitch-platform', 'meta-platform', 'tiktok-platform', 'platform-registry',
     'ads-platform', 'roku-ads', 'spotify-ads', 'amazon-dsp-ads', 'samsung-ads', 'vizio-ads', 'ads-platform-registry',
     'admin', 'auto-announce', 'test-suite',
 ] as $f) {

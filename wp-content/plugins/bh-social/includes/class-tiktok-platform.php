@@ -113,6 +113,7 @@ class BHSO_TikTok implements BH_SocialPlatform {
     public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
+        if (BHSO_ConnectionHealth::is_broken(self::settings())) return 'needs_reauth';
         return 'connected';
     }
 
@@ -304,6 +305,16 @@ class BHSO_TikTok implements BH_SocialPlatform {
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {
+        $result = $this->do_cross_post($args);
+        BHSO_ConnectionHealth::track('tiktok', $result);
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $args
+     * @return true|\WP_Error
+     */
+    private function do_cross_post($args) {
         $attachment_id = (int) ($args['attachment_id'] ?? 0);
         $file_path = $attachment_id ? get_attached_file($attachment_id) : false;
         if (!$file_path || !file_exists($file_path)) {
@@ -384,6 +395,13 @@ class BHSO_TikTok implements BH_SocialPlatform {
     /* ---------------- stats pull (limited — no broad analytics API) ---------------- */
 
     public function pull_stats() {
+        $result = $this->do_pull_stats();
+        BHSO_ConnectionHealth::track('tiktok', $result);
+        return $result;
+    }
+
+    /** @return true|\WP_Error */
+    private function do_pull_stats() {
         $profile = $this->api_get('/user/info/', ['fields' => 'follower_count,likes_count,video_count']);
         if (is_wp_error($profile)) return $profile;
 

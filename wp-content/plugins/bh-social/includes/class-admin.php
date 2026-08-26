@@ -342,6 +342,11 @@ class BHSO_Admin {
         } elseif ($status === 'not_connected') {
             $auth_url = BHSO_YouTube::authorize_url();
             echo is_wp_error($auth_url) ? esc_html($auth_url->get_error_message()) : 'Configured, not connected. <a href="' . esc_url($auth_url) . '" class="button button-primary">Connect YouTube Account</a>';
+        } elseif ($status === 'needs_reauth') {
+            $auth_url = BHSO_YouTube::authorize_url();
+            $last_error = BHSO_ConnectionHealth::last_error($s);
+            echo '&#9888; Connection is broken' . ($last_error ? ' (' . esc_html($last_error) . ')' : '') . ' — reconnect. ';
+            echo is_wp_error($auth_url) ? '' : '<a href="' . esc_url($auth_url) . '" class="button button-primary">Reconnect YouTube Account</a>';
         } else {
             echo '&#9989; Connected' . (!empty($s['channel_title']) ? ' as <strong>' . esc_html($s['channel_title']) . '</strong>' : '') . '. ';
             echo '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=bhso_disconnect_youtube'), 'bhso_disconnect_youtube')) . '" class="button" onclick="return confirm(\'Disconnect this YouTube account?\');">Disconnect</a>';
@@ -379,6 +384,11 @@ class BHSO_Admin {
         } elseif ($status === 'not_connected') {
             $auth_url = BHSO_Twitch::authorize_url();
             echo is_wp_error($auth_url) ? esc_html($auth_url->get_error_message()) : 'Configured, not connected. <a href="' . esc_url($auth_url) . '" class="button button-primary">Connect Twitch Account</a>';
+        } elseif ($status === 'needs_reauth') {
+            $auth_url = BHSO_Twitch::authorize_url();
+            $last_error = BHSO_ConnectionHealth::last_error($s);
+            echo '&#9888; Connection is broken' . ($last_error ? ' (' . esc_html($last_error) . ')' : '') . ' — reconnect. ';
+            echo is_wp_error($auth_url) ? '' : '<a href="' . esc_url($auth_url) . '" class="button button-primary">Reconnect Twitch Account</a>';
         } else {
             echo '&#9989; Connected' . (!empty($s['broadcaster_login']) ? ' as <strong>' . esc_html($s['broadcaster_login']) . '</strong>' : '') . '. ';
             echo '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=bhso_disconnect_twitch'), 'bhso_disconnect_twitch')) . '" class="button" onclick="return confirm(\'Disconnect this Twitch account?\');">Disconnect</a>';
@@ -427,7 +437,8 @@ class BHSO_Admin {
             $auth_url = BHSO_Meta::authorize_url();
             echo is_wp_error($auth_url) ? esc_html($auth_url->get_error_message()) : 'Configured, not connected. <a href="' . esc_url($auth_url) . '" class="button button-primary">Connect Facebook/Instagram</a>';
         } elseif ($status === 'needs_reauth') {
-            echo '&#9888; Token expired — reconnect. <a href="' . esc_url(BHSO_Meta::authorize_url()) . '" class="button button-primary">Reconnect</a>';
+            $last_error = BHSO_ConnectionHealth::last_error($s);
+            echo '&#9888; ' . ($last_error ? 'Connection is broken (' . esc_html($last_error) . ')' : 'Token expired') . ' — reconnect. <a href="' . esc_url(BHSO_Meta::authorize_url()) . '" class="button button-primary">Reconnect</a>';
         } else {
             echo '&#9989; Connected' . (!empty($s['ig_username']) ? ' as <strong>@' . esc_html($s['ig_username']) . '</strong>' : '') . (!empty($s['page_name']) ? ' (Page: ' . esc_html($s['page_name']) . ')' : '') . '. ';
             echo '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=bhso_disconnect_meta'), 'bhso_disconnect_meta')) . '" class="button" onclick="return confirm(\'Disconnect this Meta connection?\');">Disconnect</a>';
@@ -466,6 +477,11 @@ class BHSO_Admin {
         } elseif ($status === 'not_connected') {
             $auth_url = BHSO_TikTok::authorize_url();
             echo is_wp_error($auth_url) ? esc_html($auth_url->get_error_message()) : 'Configured, not connected. <a href="' . esc_url($auth_url) . '" class="button button-primary">Connect TikTok Account</a>';
+        } elseif ($status === 'needs_reauth') {
+            $auth_url = BHSO_TikTok::authorize_url();
+            $last_error = BHSO_ConnectionHealth::last_error($s);
+            echo '&#9888; Connection is broken' . ($last_error ? ' (' . esc_html($last_error) . ')' : '') . ' — reconnect. ';
+            echo is_wp_error($auth_url) ? '' : '<a href="' . esc_url($auth_url) . '" class="button button-primary">Reconnect TikTok Account</a>';
         } else {
             echo '&#9989; Connected' . (!empty($s['display_name']) ? ' as <strong>' . esc_html($s['display_name']) . '</strong>' : '') . '. ';
             echo '<a href="' . esc_url(wp_nonce_url(admin_url('admin-post.php?action=bhso_disconnect_tiktok'), 'bhso_disconnect_tiktok')) . '" class="button" onclick="return confirm(\'Disconnect this TikTok account?\');">Disconnect</a>';

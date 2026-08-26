@@ -133,6 +133,7 @@ class BHSO_Meta implements BH_SocialPlatform {
         // signal rather than assuming permanence.
         $s = self::settings();
         if (!empty($s['token_expires_at']) && $s['token_expires_at'] < time()) return 'needs_reauth';
+        if (BHSO_ConnectionHealth::is_broken($s)) return 'needs_reauth';
         return 'connected';
     }
 
@@ -315,6 +316,16 @@ class BHSO_Meta implements BH_SocialPlatform {
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {
+        $result = $this->do_cross_post($args);
+        BHSO_ConnectionHealth::track('meta', $result);
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $args
+     * @return true|\WP_Error
+     */
+    private function do_cross_post($args) {
         $s = self::settings();
         if (empty($s['ig_user_id'])) return new WP_Error('not_connected', 'Meta isn\'t connected yet.');
 
@@ -372,6 +383,13 @@ class BHSO_Meta implements BH_SocialPlatform {
     /* ---------------- stats pull ---------------- */
 
     public function pull_stats() {
+        $result = $this->do_pull_stats();
+        BHSO_ConnectionHealth::track('meta', $result);
+        return $result;
+    }
+
+    /** @return true|\WP_Error */
+    private function do_pull_stats() {
         $s = self::settings();
         if (empty($s['ig_user_id'])) return new WP_Error('not_connected', 'Meta isn\'t connected yet.');
 

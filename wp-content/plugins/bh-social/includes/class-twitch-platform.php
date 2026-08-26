@@ -103,6 +103,7 @@ class BHSO_Twitch implements BH_SocialPlatform {
     public function get_status(): string {
         if (!$this->is_configured()) return 'not_configured';
         if (!$this->is_connected()) return 'not_connected';
+        if (BHSO_ConnectionHealth::is_broken(self::settings())) return 'needs_reauth';
         return 'connected';
     }
 
@@ -294,6 +295,16 @@ class BHSO_Twitch implements BH_SocialPlatform {
      */
     /** @param array<string, mixed> $args */
     public function cross_post($args) {
+        $result = $this->do_cross_post($args);
+        BHSO_ConnectionHealth::track('twitch', $result);
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $args
+     * @return true|\WP_Error
+     */
+    private function do_cross_post($args) {
         $s = self::settings();
         if (empty($s['broadcaster_id'])) return new WP_Error('not_connected', 'Twitch isn\'t connected yet.');
 
@@ -323,6 +334,13 @@ class BHSO_Twitch implements BH_SocialPlatform {
     /* ---------------- stats pull: live status + follower count ---------------- */
 
     public function pull_stats() {
+        $result = $this->do_pull_stats();
+        BHSO_ConnectionHealth::track('twitch', $result);
+        return $result;
+    }
+
+    /** @return true|\WP_Error */
+    private function do_pull_stats() {
         $s = self::settings();
         if (empty($s['broadcaster_id'])) return new WP_Error('not_connected', 'Twitch isn\'t connected yet.');
 

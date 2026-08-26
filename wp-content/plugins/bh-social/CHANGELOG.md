@@ -6,6 +6,45 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.5.0 — Live-robustness pass: connection health tracking, prompted by a
+direct request to harden third-party integrations for production. Real
+gap found: `get_status()` on all four organic platforms only ever
+checked "do we have a stored refresh_token" — never whether it still
+actually works. A revoked or expired token left the settings page
+showing a green "Connected" badge indefinitely while the twice-daily
+stats-pull job quietly failed forever (visible only in the generic
+Debug Tools job-failure table, which nobody checks proactively). This
+is a real, live-relevant risk: a Google OAuth app left in "Testing"
+publish mode (the default until submitted for verification) has
+refresh tokens that expire after just 7 days of inactivity — YouTube
+in particular was likely to silently die if not exercised regularly.
+
+New `BHSO_ConnectionHealth` class, piggybacking on each platform's own
+existing settings option (no new table): `track()` records the outcome
+of every real API call; `is_broken()` reports true only when the most
+RECENT outcome was a failure (a freshly connected platform that's never
+been called yet stays optimistically 'connected', not a false
+'needs_reauth'). Each platform's public `cross_post()`/`pull_stats()`
+now delegate to a renamed `do_cross_post()`/`do_pull_stats()` and call
+`track()` once on the way out — covers every internal failure path
+(token refresh, HTTP error, non-2xx API response) without needing a
+record call at each individual early return inside those methods.
+
+Unified the resulting state under `needs_reauth` — the exact string
+Meta's own token-expiry check already used, rather than inventing a
+second status with the same meaning. Confirmed via `grep` that
+YouTube/Twitch/TikTok's admin sections had NO branch for this status at
+all before this change (only Meta did) — a future `needs_reauth` from
+any of those three would have silently fallen into the "else, looks
+connected" branch, defeating the entire point. All four sections now
+show a distinct warning with the last recorded error message and a
+one-click reconnect link.
+
+Verified against the real local WP+MySQL install: a fresh connection
+(no calls yet) correctly reads 'connected'; a tracked failure flips it
+to 'needs_reauth' with the right error message; a subsequent tracked
+success correctly flips it back to 'connected'.
+
 0.4.0 — Tier 3 item 18 (social integrations), cross-posting sub-feature:
 added `BHSO_AutoAnnounce`, an opt-in (default OFF), Twitch-only
 auto-announce for the first publish of `bh_course` / `bh_contest` /
