@@ -4620,3 +4620,164 @@ body.shsas-owned #wpbody-content .menu-settings .howto {
     background: #2271b1 !important;
     color: #fff !important;
 }
+
+/* ==========================================================================
+   OWNED-SCREEN EMPHASIS (2026-08-25) -- now that chrome is deliberately
+   native everywhere (see NATIVE CHROME above), the moment a screen becomes
+   "ours" needs to read unmistakably, right at the boundary. Direct request:
+   push the existing glow/light language further on screens this skin
+   already owns -- more confident, not more decorated. Every rule here
+   AMPLIFIES an existing treatment (the h1 rule, the card shadow, the badge
+   glow) rather than introducing a new decorative element; per the standing
+   design brief, the six-neon set stays reserved for things that already
+   carry real weight (a title, a raised surface, a status signal), never
+   applied to something plain just for flourish. Scoped to body.shsas-owned
+   throughout -- unowned screens (WooCommerce, MailPoet, core Profile/
+   Settings) get none of this, matching today's chrome-native decision. */
+
+/* The page-title rule: was a quiet 48px fade, the one loud moment on the
+   whole page. On an owned screen it's the very first thing composing-with-
+   light should mark as "you are here" -- wider, with real glow instead of
+   a flat gradient, echoing the frosted-glass/neon language everywhere else
+   already carries real signal. */
+body.shsas-owned .wrap h1::after {
+    width: 96px;
+    height: 3px;
+    box-shadow:
+        0 0 10px 1px color-mix(in srgb, var(--shsas-accent) 70%, transparent),
+        0 0 24px 3px color-mix(in srgb, var(--shsas-accent) 35%, transparent);
+    animation: shsas-owned-rule-draw 520ms ease-out;
+}
+@keyframes shsas-owned-rule-draw {
+    from {
+        width: 0;
+        box-shadow: none;
+    }
+    to {
+        width: 96px;
+        box-shadow:
+            0 0 10px 1px color-mix(in srgb, var(--shsas-accent) 70%, transparent),
+            0 0 24px 3px color-mix(in srgb, var(--shsas-accent) 35%, transparent);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.shsas-owned .wrap h1::after { animation: none; }
+}
+
+/* Raised surfaces: the existing shadow already reads as "this plane is
+   lifted." Layering a faint accent-hued edge and glow underneath makes the
+   same surface feel lit from within rather than just cast-shadowed --
+   composing with light, not a heavier border. Hover deepens both, so an
+   interactive card feels like it responds to attention. */
+body.shsas-owned .postbox,
+body.shsas-owned .stuffbox,
+body.shsas-owned .bhy-card,
+body.shsas-owned .card,
+body.shsas-owned .ous-card,
+body.shsas-owned .ous-metrics-card {
+    border-color: color-mix(in srgb, var(--shsas-accent) 30%, var(--shsas-border)) !important;
+    box-shadow:
+        var(--shsas-shadow),
+        0 0 0 1px color-mix(in srgb, var(--shsas-accent) 14%, transparent),
+        0 0 26px -8px color-mix(in srgb, var(--shsas-accent) 40%, transparent);
+}
+body.shsas-owned .postbox:hover,
+body.shsas-owned .card:hover,
+body.shsas-owned .ous-card:hover,
+body.shsas-owned .ous-metrics-card:hover {
+    box-shadow:
+        var(--shsas-shadow-lg),
+        0 0 0 1px color-mix(in srgb, var(--shsas-accent) 28%, transparent),
+        0 0 34px -6px color-mix(in srgb, var(--shsas-accent) 55%, transparent);
+}
+
+/* Badge/notice glow: same hue system, same shape, just more confident --
+   wider blur radius and higher opacity than the original "just enough to
+   read as lit" tuning. Still the same --shsas-glow custom property every
+   semantic tone (success/warning/danger/info) already swaps, so every
+   existing tone gets the stronger treatment for free. */
+body.shsas-owned .bhy-badge,
+body.shsas-owned .order-status,
+body.shsas-owned .ous-badge {
+    box-shadow:
+        0 0 14px -1px color-mix(in srgb, var(--shsas-glow) 70%, transparent),
+        0 0 28px 2px color-mix(in srgb, var(--shsas-glow) 30%, transparent);
+}
+
+/* ==========================================================================
+   NATIVE CHROME, PART 2 (2026-08-25) -- the first native-chrome pass above
+   reset the broad structural colors (canvas background, base link/hover/
+   current-item color) but missed several more specific overrides layered on
+   top of those earlier in this file. Found live: toolbar icon glyphs read
+   dim/washed-out instead of crisp white (a catch-all .ab-icon/.ab-item
+   color rule earlier in the file), the WP logo icon kept this skin's own
+   accent blue, dropdown submenus (site name, "+ New", user menu) kept this
+   skin's dark-surface tokens, and toolbar count bubbles (comments, updates)
+   kept an accent-tinted pill instead of WP core's own red. Same
+   append-at-the-end-to-win-every-tie approach as the first pass. */
+#wpadminbar {
+    border-bottom-color: rgb(47, 47, 47) !important;
+}
+#wpadminbar .ab-icon,
+#wpadminbar .ab-item::before,
+#wpadminbar #wp-admin-bar-new-content .ab-icon::before {
+    color: #fff !important;
+}
+/* The WP logo specifically had its own accent-colored override (an even
+   more specific selector than the broad reset above) -- core's own Modern
+   scheme gives it no special color at all, so it just joins every other
+   icon here rather than keeping a leftover skin accent. */
+#wpadminbar #wp-admin-bar-wp-logo .ab-icon::before,
+#wpadminbar #wp-admin-bar-wp-logo > .ab-item::before,
+#wpadminbar #wp-admin-bar-wp-logo:hover .ab-icon::before,
+#wpadminbar #wp-admin-bar-wp-logo:hover > .ab-item::before {
+    color: #fff !important;
+}
+/* Dropdown submenus (site name, "+ New", the user menu, comments/updates
+   panels) -- core's own dark panel, not this skin's surface tokens. */
+#wpadminbar .quicklinks .menupop ul.ab-submenu,
+#wpadminbar .quicklinks .ab-sub-wrapper,
+#wpadminbar #wp-admin-bar-new-content .ab-submenu {
+    background: #1e1e1e !important;
+}
+#wpadminbar .quicklinks .menupop ul.ab-submenu .ab-item,
+#wpadminbar #wp-admin-bar-new-content .ab-submenu .ab-item,
+#wpadminbar .ab-submenu a:focus {
+    color: #fff !important;
+    background: transparent !important;
+}
+#wpadminbar .quicklinks .menupop ul.ab-submenu li:hover .ab-item,
+#wpadminbar #wp-admin-bar-new-content .ab-submenu li:hover .ab-item,
+#wpadminbar .ab-top-menu > li > .ab-item:focus {
+    background: #2c3338 !important;
+    color: #fff !important;
+}
+/* Toolbar count bubbles: WP core's own red, the same convention across
+   every admin color scheme, not this skin's accent-tinted pill. */
+#wpadminbar .ab-item .count-1,
+#wpadminbar .ab-item .comment-count,
+#wpadminbar .ab-item .update-plugins,
+#wpadminbar .ab-item .plugin-count,
+#wpadminbar .ab-item .theme-count,
+#wpadminbar .ab-item .translation-count,
+#wpadminbar .ab-item .core-updates {
+    background: #d63638 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+/* Sidebar count pills (Comments, Plugins/Themes updates) -- still this
+   skin's own quiet veiled-glass pill (rgba(255,255,255,.055)) rather than
+   core's own Modern-scheme blue. Native chrome covers these too. */
+#adminmenu .update-plugins,
+#adminmenu .awaiting-mod {
+    background: #3858e9 !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+#adminmenu li.current a .awaiting-mod,
+#adminmenu li a.wp-has-current-submenu .update-plugins,
+#adminmenu li:hover a .awaiting-mod,
+#adminmenu li.menu-top:hover > a .update-plugins {
+    background: #0c0c0c !important;
+    color: #fff !important;
+}

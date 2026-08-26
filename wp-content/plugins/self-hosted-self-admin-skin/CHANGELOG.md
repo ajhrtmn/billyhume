@@ -6,6 +6,29 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.64.0 — Native chrome, round 2, plus owned-screen emphasis. The first
+native-chrome pass (0.63.0) reset the broad structural colors but missed
+several more specific overrides: toolbar icon glyphs read dim instead of
+crisp white (a catch-all .ab-icon/.ab-item color rule), the WP logo icon
+kept this skin's own accent blue (a real, if incorrectly-attributed-to-
+core, leftover — checked wp-admin/css/colors/modern/colors.css directly:
+core's Modern scheme gives the logo no special color at all), dropdown
+submenus (site name, "+ New", user menu) kept this skin's dark-surface
+tokens, and both toolbar and sidebar count bubbles (comments, updates)
+kept an accent-tinted pill instead of WP core's own colors. All found by
+checking the real rendered page, not assumed from reading the CSS.
+Verified clean at 375/768/1440 in a fresh tab.
+
+Also, on the same call: owned screens (screens this skin still themes)
+get a more confident version of the existing glow language, per AJ's own
+"a bit more flash and neon flare and striking structure" -- amplifies
+three EXISTING treatments rather than adding new decoration: the page-
+title underline (wider, real glow instead of a flat gradient), raised
+surfaces (postbox/card edge now lit with a faint accent glow under the
+existing shadow), and badge/notice glow intensity (same hue system, wider
+blur radius). Scoped to body.shsas-owned throughout, so unowned screens
+(WooCommerce, MailPoet, core Profile/Settings) get none of it.
+
 0.63.0 — Admin bar and #adminmenu sidebar deliberately reverted to
 WordPress core's own stock appearance, always, on AJ's own call: this
 skin's distinctive identity now lives only in page CONTENT
