@@ -6,6 +6,28 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.9.0 — Bulk moderation for the Submissions list: previously a
+submission could only be approved (native Publish/Update) or rejected
+(the reason-coded form in the submission's own bh_approval metabox)
+one at a time, with zero bulk support and zero per-row actions on the
+list itself. Added a real bulk_actions-edit-bh_submission /
+handle_bulk_actions-edit-bh_submission pair with Approve and Reject
+options (Reject reuses the exact same vote-refund + contestant email +
+audit-log path as the single-submission form, extracted into a shared
+BH_AdminModeration::reject_submission(), just with a fixed 'other'
+reason code since bulk has no per-row note field), a success notice
+showing the count, a per-row "Approve" quick action on any pending
+submission (nonce'd admin-post handler, one click instead of opening
+the edit screen), and a display_post_states hook so a 'rejected'
+submission actually shows "— Rejected" next to its title the way core
+statuses do automatically (it previously showed nothing). Verified
+live against real data: bulk-selected a submission, ran Reject via the
+list's own bulk-action dropdown, confirmed the "1 submission rejected
+and notified" notice, the Rejected filter count, and the "— Rejected"
+title state; then used the new per-row Approve link to restore it,
+confirming the full round-trip. `php -l`, PHPStan, and `composer test`
+all clean.
+
 3.8.0 — Contest Settings metabox rebuild: moved from the narrow 'side'
 column to a real 'normal'-context grid (`.bhc-settings-grid`,
 `auto-fit`/`minmax(230px, 1fr)`) so Submissions/Contact info/Voting/

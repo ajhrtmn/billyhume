@@ -21,6 +21,116 @@ class BH_AdminModeration {
         add_action('admin_post_bh_reject_submission', [self::class, 'handle_reject_submission']);
 
         add_action('wp_ajax_bh_advance_round', [self::class, 'ajax_advance_round']);
+
+        // Bulk moderation on the Submissions list — previously the only
+        // way to approve/reject was one submission at a time from inside
+        // its own edit screen. Approve is native WP (publish); Reject
+        // reuses the exact same vote-refund + email + audit-log path as
+        // the single-submission reject form, just with a fixed 'other'
+        // reason code (bulk has no per-row note field to collect a
+        // specific one from — same fallback the single form already
+        // uses for an unrecognized reason_code).
+        add_filter('bulk_actions-edit-bh_submission', [self::class, 'add_bulk_actions']);
+        add_filter('handle_bulk_actions-edit-bh_submission', [self::class, 'handle_bulk_actions'], 10, 3);
+        add_action('admin_notices', [self::class, 'bulk_action_notice']);
+
+        // Quick per-row Approve — the single-click equivalent of opening
+        // the submission and clicking Update after setting status to
+        // Published, for the common case where there's nothing to
+        // actually review in the edit screen itself.
+        add_filter('post_row_actions', [self::class, 'add_quick_approve_row_action'], 10, 2);
+        add_action('admin_post_bh_quick_approve', [self::class, 'handle_quick_approve']);
+
+        // 'rejected' has no built-in "— Rejected" title-state text the
+        // way core 'pending'/'draft' get automatically — without this a
+        // rejected submission just reads as a bare title with no status
+        // at all in the list.
+        add_filter('display_post_states', [self::class, 'add_rejected_post_state'], 10, 2);
+    }
+
+    /**
+     * @param array<string,string> $actions
+     * @return array<string,string>
+     */
+    public static function add_bulk_actions(array $actions): array {
+        $actions['bh_approve'] = 'Approve';
+        $actions['bh_reject']  = 'Reject';
+        return $actions;
+    }
+
+    /** @param array<int,int> $post_ids */
+    public static function handle_bulk_actions(string $redirect_to, string $action, array $post_ids): string {
+        if ($action !== 'bh_approve' && $action !== 'bh_reject') return $redirect_to;
+        if (!current_user_can('manage_options')) return $redirect_to;
+
+        $done = 0;
+        foreach ($post_ids as $pid) {
+            $pid = (int) $pid;
+            $post = get_post($pid);
+            if (!$post || $post->post_type !== 'bh_submission') continue;
+
+            if ($action === 'bh_approve') {
+                wp_update_post(['ID' => $pid, 'post_status' => 'publish']);
+            } else {
+                self::reject_submission($pid, 'other', '');
+            }
+            $done++;
+        }
+
+        return add_query_arg($action === 'bh_approve' ? 'bh_bulk_approved' : 'bh_bulk_rejected', $done, $redirect_to);
+    }
+
+    public static function bulk_action_notice(): void {
+        $screen = get_current_screen();
+        if (!$screen || $screen->id !== 'edit-bh_submission') return;
+
+        if (!empty($_GET['bh_bulk_approved'])) {
+            $n = (int) $_GET['bh_bulk_approved'];
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%d submission approved.', '%d submissions approved.', $n), $n)) . '</p></div>';
+        }
+        if (!empty($_GET['bh_bulk_rejected'])) {
+            $n = (int) $_GET['bh_bulk_rejected'];
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html(sprintf(_n('%d submission rejected and notified.', '%d submissions rejected and notified.', $n), $n)) . '</p></div>';
+        }
+    }
+
+    /**
+     * @param array<string,string> $actions
+     * @return array<string,string>
+     */
+    public static function add_quick_approve_row_action(array $actions, \WP_Post $post): array {
+        if ($post->post_type !== 'bh_submission' || $post->post_status === 'publish') return $actions;
+        if (!current_user_can('manage_options')) return $actions;
+
+        $url = wp_nonce_url(
+            admin_url('admin-post.php?action=bh_quick_approve&submission_id=' . $post->ID),
+            'bh_quick_approve_' . $post->ID
+        );
+        $actions['bh_approve'] = '<a href="' . esc_url($url) . '">Approve</a>';
+        return $actions;
+    }
+
+    public static function handle_quick_approve(): void {
+        $pid = (int) ($_GET['submission_id'] ?? 0);
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bh_quick_approve_' . $pid)) wp_die('Bad nonce.', '', ['back_link' => true]);
+        if (!current_user_can('manage_options')) wp_die('Not allowed.', '', ['back_link' => true]);
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
+
+        wp_update_post(['ID' => $pid, 'post_status' => 'publish']);
+        wp_safe_redirect(wp_get_referer() ?: admin_url('edit.php?post_type=bh_submission'));
+        exit;
+    }
+
+    /**
+     * @param array<string,string> $states
+     * @return array<string,string>
+     */
+    public static function add_rejected_post_state(array $states, \WP_Post $post): array {
+        if ($post->post_type === 'bh_submission' && $post->post_status === 'rejected') {
+            $states['bh_rejected'] = 'Rejected';
+        }
+        return $states;
     }
 
     // Fires the public "new entry approved" Discord notification at the
@@ -131,8 +241,26 @@ class BH_AdminModeration {
         if (!$post || $post->post_type !== 'bh_submission') wp_die('Submission not found.', '', ['back_link' => true]);
 
         $reason_code = sanitize_key($_POST['reason_code'] ?? 'other');
-        if (!isset(BH_Admin::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
         $note = sanitize_textarea_field(wp_unslash($_POST['note'] ?? ''));
+        self::reject_submission($pid, $reason_code, $note);
+
+        wp_safe_redirect(get_edit_post_link($pid, ''));
+        exit;
+    }
+
+    /**
+     * The actual reject work, shared by the single-submission form above
+     * and the Submissions-list bulk "Reject" action — real reasoning
+     * behind a rejection either way. Sets the 'rejected' post_status
+     * (registered in class-post-types.php), stores the prefab reason +
+     * freeform note, and emails the contestant with both — closing the
+     * gap where a rejected submission previously just sat at 'pending'
+     * forever with no notification either way.
+     */
+    public static function reject_submission(int $pid, string $reason_code, string $note): void {
+        $post = get_post($pid);
+        if (!$post || $post->post_type !== 'bh_submission') return;
+        if (!isset(BH_Admin::REJECTION_REASONS[$reason_code])) $reason_code = 'other';
 
         // Real bug this closes: this Reject action is available for a
         // submission at ANY pre-rejected status, including 'publish' —
@@ -181,9 +309,6 @@ class BH_AdminModeration {
         if (class_exists('OUS_Audit')) {
             OUS_Audit::log('submission_rejected', 'bh_submission', $pid, ['reason_code' => $reason_code, 'contest_id' => $cid]);
         }
-
-        wp_safe_redirect(get_edit_post_link($pid, ''));
-        exit;
     }
 
     // ROADMAP-ux-polish-and-feature-parity-2026-07.md 2b — the admin
