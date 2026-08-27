@@ -416,8 +416,12 @@ class BH_Reveal {
         ob_start();
         ?>
         <style><?php echo BHY_Style::inline_css($cid); ?></style>
-        <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr((string) $cid); ?>">
-            <div class="bh-reveal-loading">Waiting for reveal to start…</div>
+        <div class="bh-reveal-wrap">
+            <button type="button" class="bh-reveal-sound-toggle" id="bh-reveal-sound-toggle" aria-label="Toggle reveal sound effects" aria-pressed="true">🔊</button>
+            <span class="bh-reveal-live" id="bh-reveal-live"><span class="bh-reveal-live-dot"></span><span class="bh-reveal-live-label">LIVE</span></span>
+            <div class="bh-container bh-reveal-stage" id="bh-reveal-stage" data-contest="<?php echo esc_attr((string) $cid); ?>">
+                <div class="bh-reveal-loading">Waiting for reveal to start…</div>
+            </div>
         </div>
         <?php
         return ob_get_clean();

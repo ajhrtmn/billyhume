@@ -6,6 +6,32 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.11.0 — Results Reveal ([bh_results_reveal]) polish pass: kept the
+existing architecture (server-authoritative _bh_reveal_step, the
+public poll-based display, the catch-up walker for late joiners —
+research this session confirmed this system was already complete, not
+a gap) and focused on animation quality, sound, mobile, and perceived
+latency instead. Added: synthesized Web Audio cues (no shipped audio
+asset — a self-hosted ecosystem shouldn't pull one from a CDN for two
+sound effects) — a quiet blip on each entry landing, a distinct
+ascending three-note fanfare reserved for #1 specifically, both
+respecting a new persistent (localStorage) sound on/off toggle
+top-right of the stage, defaulting on since a reveal running unattended
+in OBS needs the presenter's preference to stick across the whole
+session; a canvas confetti burst on the #1 moment only (vanilla JS, no
+library, torn down after ~2.6s); a LIVE badge (matching the existing
+Results-page pulse-dot pattern) that switches to a red "RECONNECTING"
+state after 3 consecutive failed polls, instead of failing silently;
+prefers-reduced-motion now disables the stagger/scale/confetti motion
+entirely rather than only respecting it in the CSS keyframe as before;
+and the poll interval dropped from 2500ms to 1500ms so the public
+display doesn't lag as visibly behind the admin's own click-to-advance.
+TypeScript source (assets/ts/reveal.ts) recompiled clean under strict
+mode; verified live in a real browser — sound toggle round-trips and
+persists to localStorage, no horizontal overflow at 375px, reveal.js
+and the REST poll both load/respond 200. `php -l`, PHPStan, and
+`composer test` all clean.
+
 3.10.0 — Turned Live Console into the actual "run this contest right
 now" hub instead of building a competing 6th admin screen next to it:
 research this session found Console already colocated phase status,

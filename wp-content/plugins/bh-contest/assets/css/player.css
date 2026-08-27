@@ -1232,3 +1232,88 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
         transform: scale(1) translateY(0);
     }
 }
+@media (prefers-reduced-motion: reduce) {
+    .bh-reveal-intro h1,
+    .bh-reveal-entry-new {
+        animation: none;
+    }
+}
+
+.bh-reveal-wrap {
+    position: relative;
+}
+.bh-reveal-sound-toggle {
+    position: absolute;
+    top: calc(12px * var(--bh-space-scale));
+    right: calc(12px * var(--bh-space-scale));
+    z-index: 2;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 999px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.bh-reveal-sound-toggle:hover { border-color: var(--bh-accent); }
+
+.bh-reveal-live {
+    position: absolute;
+    top: calc(12px * var(--bh-space-scale));
+    left: calc(12px * var(--bh-space-scale));
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: 999px;
+    padding: 4px 12px 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: var(--bh-text-dim);
+}
+.bh-reveal-live-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1DB954;
+    animation: bh-reveal-live-pulse 1.6s infinite;
+}
+.bh-reveal-live-stalled .bh-reveal-live-dot {
+    background: #b3261e;
+    animation: none;
+}
+@keyframes bh-reveal-live-pulse {
+    0% { opacity: 1; }
+    50% { opacity: .3; }
+    100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bh-reveal-live-dot { animation: none; }
+}
+
+.bh-reveal-confetti {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+@media (max-width: 480px) {
+    .bh-reveal-sound-toggle {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+    .bh-reveal-live {
+        font-size: 10px;
+        padding: 3px 10px 3px 7px;
+    }
+}
