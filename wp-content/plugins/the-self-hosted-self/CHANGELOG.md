@@ -9,6 +9,19 @@ has been reworded or dropped.
 
 ---
 
+3.15.6 — Fixed the account-overview "Continue learning" widget
+(class-portal.php) linking a student straight into a course whose
+tier/purchase access had lapsed since they enrolled — enrollment and
+ongoing access are tracked independently (bh-courses' own
+BHC_Progress vs BHC_Gate), and this widget only checked the first,
+landing a student on that course's own paywall despite framing it as
+ready to resume with a real progress percent. Now hides the section
+entirely when the most-recent in-progress course isn't currently
+accessible, consistent with the widget's own "obvious or gone" rule.
+Companion fix in bh-courses 0.8.1 (My Courses panel + the same-bug
+user-bar quick link). Verified live as a real enrolled subscriber
+fixture. `php -l`, PHPStan, and `composer test` all clean.
+
 3.15.5 — OPEN.md item 8 (unaudited admin screens): ran `tests/ux/
 admin.spec.ts` for the first time ever with real credentials — the
 `test.skip(!hasCreds, ...)` guard meant it had silently never executed

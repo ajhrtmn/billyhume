@@ -35,6 +35,18 @@ class BHC_PortalPanel {
             $course = get_post($course_id);
             if (!$course || $course->post_status !== 'publish') continue;
             if (BHC_Progress::is_course_completed($user_id, $course_id)) continue;
+            // Real bug found by spot-checking the student experience live:
+            // enrollment is recorded independently of ongoing tier access
+            // (a supporter tier can lapse, or this enrollment could predate
+            // a course that later became paid), so a course a student was
+            // once enrolled in isn't necessarily one they can still open.
+            // Without this check, this link sent a student with real
+            // recorded progress straight into a paywall the moment they
+            // clicked "Continue" from their own account/portal — the exact
+            // kind of confusing dead end BHC_Render_Lesson::
+            // render_lesson_steps() already avoids by checking access
+            // before rendering lesson content.
+            if (!class_exists('BHC_Gate') || !BHC_Gate::user_can_access_course($user_id, $course_id)) continue;
 
             $percent = BHC_Progress::course_percent($user_id, $course_id);
             $next_lesson = BHC_Progress::first_incomplete_lesson($user_id, $course_id);
@@ -130,18 +142,30 @@ class BHC_PortalPanel {
             // inconsistent with that and dead in practice.
             $percent = BHC_Progress::course_percent($user_id, $course_id);
             $completed = BHC_Progress::is_course_completed($user_id, $course_id);
+            // Same real bug fixed in the quick-link above: enrollment and
+            // ongoing tier access are tracked independently, so a course
+            // this student has real recorded progress in isn't necessarily
+            // one they can still open (a lapsed tier, or a course that
+            // became paid after they enrolled). Rather than a "Continue"
+            // button that dead-ends at a paywall, show the same locked
+            // framing the drip/tier gates already use elsewhere.
+            $accessible = !class_exists('BHC_Gate') || BHC_Gate::user_can_access_course($user_id, $course_id);
 
             echo '<div class="bhi-portal-course-card">';
             echo '<h3>' . esc_html($course->post_title) . '</h3>';
             echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
             echo '<p>' . (int) $percent . '% complete' . ($completed ? ' — <strong>Completed</strong>' : '') . '</p>';
-            // Audit fix (2026-07-25): this used to always link to the
-            // course page, unlike the quick-link above (line ~36) which
-            // already does the smarter thing — jump straight to the next
-            // incomplete lesson. Now consistent.
-            $continue_lesson = !$completed ? BHC_Progress::first_incomplete_lesson($user_id, $course_id) : 0;
-            $continue_url = $continue_lesson ? get_permalink($continue_lesson) : get_permalink($course_id);
-            echo '<p><a class="button" href="' . esc_url($continue_url) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';
+            if (!$accessible) {
+                echo '<p class="bhi-portal-course-locked">&#128274; Access has lapsed — <a href="' . esc_url((string) get_permalink($course_id)) . '">view options</a></p>';
+            } else {
+                // Audit fix (2026-07-25): this used to always link to the
+                // course page, unlike the quick-link above (line ~36) which
+                // already does the smarter thing — jump straight to the next
+                // incomplete lesson. Now consistent.
+                $continue_lesson = !$completed ? BHC_Progress::first_incomplete_lesson($user_id, $course_id) : 0;
+                $continue_url = $continue_lesson ? get_permalink($continue_lesson) : get_permalink($course_id);
+                echo '<p><a class="button" href="' . esc_url($continue_url) . '">' . ($completed ? 'Review' : 'Continue') . '</a></p>';
+            }
             echo '</div>';
         }
         echo '</div>';

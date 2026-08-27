@@ -6,6 +6,28 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.8.1 — Real bug found spot-checking the student experience live (as
+an actual enrolled subscriber, not an admin bypassing gates): a student
+whose tier access lapsed after enrolling still saw a "Continue" button
+— both on the account-overview "Continue learning" widget and on the
+My Courses portal panel — pointing straight at a course they could no
+longer open, landing on that course's own paywall despite the widget
+framing it as ready to resume with a real progress percent.
+Enrollment and ongoing tier/purchase access are tracked independently
+(BHC_Tables::enrollments() vs BHC_Gate::user_can_access_course()), and
+nothing checked the second before offering the first. Fixed in both
+BHC_PortalPanel (register_user_bar_link() now skips an inaccessible
+course entirely; the full My Courses list shows "Access has lapsed —
+view options" instead of a dead-end Continue button) and the core
+account-overview widget in the-self-hosted-self's class-portal.php
+(hides the "Continue learning" section entirely rather than linking
+into it, matching that widget's own already-stated "obvious or gone"
+rule). Verified live end-to-end as the uxaudit_subscriber fixture:
+before the fix, /account/ showed "Continue learning ... 17% complete"
+leading to the course's Become a Supporter paywall; after, the widget
+is gone and /account/courses/ shows the locked framing instead. `php
+-l`, PHPStan, and `composer test` all clean.
+
 0.8.0 — Course-authoring UX pass: closed the real gap a research pass
 found in the course edit screen's lesson-order list — "5 steps" was
 all a course author could see per lesson without leaving the screen

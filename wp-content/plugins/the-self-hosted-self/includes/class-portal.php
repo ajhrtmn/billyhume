@@ -459,7 +459,16 @@ class BHI_Portal {
         // (that full list already lives on the Courses tab itself). ----
         if (class_exists('BHC_Progress')) {
             $course_id = BHC_Progress::most_recent_in_progress_course($user_id);
-            if ($course_id && get_post_status($course_id) === 'publish') {
+            // Enrollment and ongoing tier/purchase access are tracked
+            // independently (a supporter tier can lapse after
+            // enrollment) — found live spot-checking this exact widget:
+            // it linked straight into a course this account could no
+            // longer open, landing on that course's own paywall despite
+            // being framed here as "Continue learning" with a real
+            // progress percent. "Obvious or gone" (this widget's own
+            // stated rule below) means gone, not a dead end.
+            $accessible = $course_id && (!class_exists('BHC_Gate') || BHC_Gate::user_can_access_course($user_id, $course_id));
+            if ($course_id && $accessible && get_post_status($course_id) === 'publish') {
                 $shown_anything = true;
                 $percent = BHC_Progress::course_percent($user_id, $course_id);
                 echo '<div class="bhi-portal-section bhi-overview-course">';
@@ -898,6 +907,7 @@ class BHI_Portal {
   .bhi-portal-course-list { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); margin-top:12px; }
   .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); }
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
+  .bhi-portal-course-locked { color:var(--bh-text-dim, #6b7280); font-size:13px; }
   .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }
   .bhi-portal-progress-fill { height:100%; background:var(--bh-accent, #2271b1); transition:width 0.5s cubic-bezier(0.22,1,0.36,1); }
   /* bh-courses' My Courses panel (BHC_PortalPanel) — real cross-course
