@@ -6,6 +6,33 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.8.0 — Contest Settings metabox rebuild: moved from the narrow 'side'
+column to a real 'normal'-context grid (`.bhc-settings-grid`,
+`auto-fit`/`minmax(230px, 1fr)`) so Submissions/Contact info/Voting/
+Results/Discord render as `BHY_UI::card()` panels instead of one
+cramped stacked column. Phase banner and the client-side status dot now
+use real `bhy-badge` classes (variant + dot) instead of ad-hoc inline
+color styles. Hit and fixed, twice, the exact "apostrophe inside a
+comment inside a single-quoted PHP string" parse-error class this
+repo's own CLAUDE.md documents as a historical incident — both times
+caught immediately by `php -l` before reaching a live page; the
+reasoning now lives in a real PHP `//` comment above the `echo
+'<style>'` block, never inside the CSS string itself. Also fixed a
+follow-up checkbox-rendering bug from that same pass: WP core's own
+forms.css already sets `appearance: none` on `input[type="checkbox"]`
+and draws the checkmark via a `::before` background-image sized to its
+own default 1rem box, so the `accent-color`/explicit `width`/`height`/
+`margin` overrides I'd added had zero visual effect from accent-color
+and fought the checkmark's calibrated positioning from the size/margin
+overrides — removed entirely rather than patched, letting WP core's own
+checkbox styling apply unmodified. Verified live at 1440px/localhost:
+`getComputedStyle()` confirms checkboxes inside the grid are now
+byte-identical (aside from WP's own `:checked` border-color state) to a
+stock WP checkbox elsewhere on the same page, and a screenshot confirms
+correct blue checkmarks on checked boxes with no visual glitch. Every
+original field name/id/JS hook preserved unchanged. `php -l`, PHPStan,
+and `composer test` all clean.
+
 3.7.33 — HOTFIX: live went down on every admin page with "Call to
 undefined method OUS_Pages::ensure()" in bh-courses' class-activator.php.
 Version skew — bh-courses deployed with the new ensure() call while

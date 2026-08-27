@@ -152,7 +152,17 @@ class BH_AdminMetaboxes {
     public static function add_meta_boxes(): void {
         add_meta_box('bh_approval', 'Submission Details & Approval', [self::class, 'render_approval_box'], 'bh_submission', 'normal', 'high');
 
-        add_meta_box('bh_contest_settings', 'Contest Rules & Results', [self::class, 'render_contest_settings_box'], 'bh_contest', 'side', 'default');
+        // Live-robustness/UX audit (2026-08-27): this was 'side' —
+        // roughly 30 interdependent fields crammed into WordPress's
+        // ~280px sidebar column, by a wide margin the worst screen in
+        // this ecosystem. Moved to 'normal'/'high' (the main, wide
+        // column, same context BH_AdminReports' own live dashboard
+        // uses) and restructured into real BHY_UI::card() sections
+        // below — every field name/id and every line of the existing,
+        // working client-side logic (live status dots, the contact-
+        // field dependency rules, the Discord announce fetch) is
+        // UNCHANGED, only the layout wrapping it moved.
+        add_meta_box('bh_contest_settings', 'Contest Rules & Results', [self::class, 'render_contest_settings_box'], 'bh_contest', 'normal', 'high');
 
         add_meta_box('bh_contest_categories', 'Voting Categories', [self::class, 'render_contest_categories_box'], 'bh_contest', 'normal', 'default');
 
@@ -202,17 +212,83 @@ class BH_AdminMetaboxes {
         // behavior, not something that has to be configured first.
         $sub_always_open = ($sub_start === '' && $sub_end === '');
 
+        // Visual polish pass: this ad-hoc inline-styled banner (and the
+        // matching ad-hoc "Live now"/"Closed" dots further down) never
+        // matched the shared BHY_UI::badge() component the rest of this
+        // ecosystem uses for exactly this "status pill" job — three
+        // fixed colors (contest_phase_summary()'s own #1DB954/#8a8a8a/
+        // #b3261e) map cleanly onto badge()'s existing success/neutral/
+        // danger variants, so there's no reason for a one-off here.
         $phase = BH_Helpers::contest_phase_summary($post->ID);
-        echo '<div style="padding:8px 10px;border-radius:4px;background:' . esc_attr($phase['color']) . '1a;border:1px solid ' . esc_attr($phase['color']) . ';margin-bottom:14px;">'
-           . '<strong style="color:' . esc_attr($phase['color']) . ';font-size:12px;">' . esc_html($phase['label']) . '</strong></div>';
+        $phase_variant = ['#1DB954' => 'success', '#8a8a8a' => 'neutral', '#b3261e' => 'danger'][$phase['color']] ?? 'neutral';
+        echo '<p style="margin:0 0 16px;">' . (class_exists('BHY_UI')
+            ? BHY_UI::badge($phase['label'], ['variant' => $phase_variant, 'dot' => true])
+            : esc_html($phase['label'])) . '</p>';
 
-        echo '<p style="display:flex;align-items:center;justify-content:space-between;"><strong>Submissions</strong> <span id="bh_sub_dot"></span></p>';
+        // Inline, scoped to this metabox — same convention this file's
+        // own style/branding metabox and class-admin-reports.php's live
+        // dashboard already use for admin-screen-specific CSS, no
+        // separate enqueued stylesheet needed for something this scoped.
+        //
+        // minmax is 230px, not the more typical 320px, because this
+        // metabox's own "normal" context column measured only ~480px
+        // wide on this screen (bh-contest's own postbox layout splits
+        // "normal" into two sub-columns alongside Voting Categories/
+        // Judging Format) — confirmed live, not assumed, since a naive
+        // 320px minimum meant auto-fit could only ever place one column
+        // per row here.
+        //
+        // Real bug caught writing this exact line: an early version put
+        // this same reasoning as a /* CSS comment */ INSIDE the single-
+        // quoted PHP string below, with a plain apostrophe in
+        // "metabox's own" — silently terminating the PHP string early,
+        // the identical failure class documented in this repo's own
+        // CLAUDE.md ("BHY_UI::admin_page_css() ... an unescaped
+        // apostrophe inside a comment inside that string silently
+        // terminated the string mid-file"). Caught immediately by
+        // `php -l` before this ever reached a real page. Comment stays
+        // out here as a real PHP comment; the CSS string below is now
+        // plain rules only, no embedded prose.
+        //
+        // No custom checkbox styling below on purpose. WP core forms.css
+        // already sets appearance:none on input[type=checkbox] and draws
+        // the checkmark via a sized, negative-margin ::before
+        // background-image tuned to its own default 1rem box --
+        // accent-color has no effect on an appearance:none control, and
+        // overriding width/height/margin here fought that positioning and
+        // broke the checkmark. Left unstyled deliberately; the label rule
+        // below only wraps long label text, it does not touch the
+        // checkbox box model.
+        echo '<style>
+            .bhc-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; align-items: start; }
+            .bhc-settings-grid-full { grid-column: 1 / -1; }
+            .bhc-settings-grid .bhy-card, .bhc-settings-grid-full .bhy-card {
+                margin: 0;
+                height: 100%;
+                box-sizing: border-box;
+            }
+            .bhc-settings-grid .bhy-card-title, .bhc-settings-grid-full .bhy-card-title {
+                margin: 0 0 12px;
+                padding-bottom: 8px;
+                border-bottom: 1px solid var(--bhy-border, #dcdcde);
+                font-size: 12px;
+                font-weight: 600;
+                letter-spacing: .04em;
+                text-transform: uppercase;
+                color: var(--bhy-ink-dim, #646970);
+            }
+            .bhc-settings-grid label { display: flex; align-items: flex-start; gap: 6px; }
+        </style>';
+        echo '<div class="bhc-settings-grid">';
+
+        // ---- Submissions ----
+        ob_start();
+        echo '<p style="display:flex;align-items:center;justify-content:space-between;margin-top:0;"><span></span> <span id="bh_sub_dot"></span></p>';
         echo '<p><label><input type="checkbox" id="bh_sub_always_open" name="bh_sub_always_open" value="1" ' . checked($sub_always_open, true, false) . '> Open submissions the moment this contest is published</label></p>';
         echo '<div id="bh_sub_dates" style="' . ($sub_always_open ? 'display:none;' : '') . '">';
         echo "<p>Opens: <input type='datetime-local' id='bh_sub_start' name='bh_sub_start' value='" . esc_attr($sub_start) . "'></p>";
         echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_sub_end' name='bh_sub_end' value='" . esc_attr($sub_end) . "'></p>";
         echo '</div>';
-
         // Off by default — a submission with no audio yet ('draft'
         // status) can't earn the bonus vote or reach admin review
         // until it's finished (class-api.php's submit()/replace_audio()),
@@ -222,14 +298,17 @@ class BH_AdminMetaboxes {
         // real file at submit time.
         $allow_audio_optional = (bool) get_post_meta($post->ID, '_bh_allow_audio_optional', true);
         echo '<p><label><input type="checkbox" name="bh_allow_audio_optional" value="1" ' . checked($allow_audio_optional, true, false) . '> Allow submitting without audio yet — a fan can reserve their entry with title/artist/contact info, then finish by uploading a file later (from their account portal) any time before submissions close</label></p>';
+        $submissions_html = ob_get_clean();
+        echo class_exists('BHY_UI') ? BHY_UI::card($submissions_html, ['title' => 'Submissions']) : ('<h3>Submissions</h3>' . $submissions_html);
 
+        // ---- Contact info ----
+        ob_start();
         $contact_cfg = BH_Helpers::contact_config($post->ID);
         $field_labels = [
             'real_name' => 'Real name', 'discord_name' => 'Discord', 'twitch_name' => 'Twitch',
             'youtube_name' => 'YouTube', 'typical_platform' => 'Typical platform (dropdown)', 'phone' => 'Phone',
         ];
-        echo '<hr><p><strong>Contact info collected at submission</strong></p>';
-        echo '<p class="description">Choose what this contest asks submitters for. Leave everything as-is for the default (all fields shown, real name + at least one handle required, phone optional).</p>';
+        echo '<p class="description" style="margin-top:0;">Choose what this contest asks submitters for. Leave everything as-is for the default (all fields shown, real name + at least one handle required, phone optional).</p>';
         foreach ($field_labels as $key => $label) {
             $shown = in_array($key, $contact_cfg['show'], true);
             echo '<label style="display:block;margin:2px 0;"><input type="checkbox" class="bh-contact-show" data-field="' . esc_attr($key) . '" name="bh_contact_show[]" value="' . esc_attr($key) . '" ' . checked($shown, true, false) . '> ' . esc_html($label) . '</label>';
@@ -239,18 +318,25 @@ class BH_AdminMetaboxes {
         echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_handle" value="1" ' . checked(!empty($contact_cfg['require_handle']), true, false) . '> At least one platform handle (Discord/Twitch/YouTube)</label>';
         echo '<label style="display:block;margin:2px 0;"><input type="checkbox" name="bh_require_phone" value="1" ' . checked(!empty($contact_cfg['require_phone']), true, false) . ' class="bh-contact-require" data-requires="phone"> Phone</label>';
         echo '<p class="description">A field can only be required if it\'s also shown above — unchecking "shown" for a required field will un-require it automatically.</p>';
+        $contact_html = ob_get_clean();
+        echo class_exists('BHY_UI') ? BHY_UI::card($contact_html, ['title' => 'Contact info collected at submission']) : ('<h3>Contact info collected at submission</h3>' . $contact_html);
 
-        echo '<hr><p style="display:flex;align-items:center;justify-content:space-between;"><strong>Voting</strong> <span id="bh_vote_dot"></span></p>';
+        // ---- Voting ----
+        ob_start();
+        echo '<p style="display:flex;align-items:center;justify-content:space-between;margin-top:0;"><span></span> <span id="bh_vote_dot"></span></p>';
         echo "<p>Opens: <input type='datetime-local' id='bh_start' name='bh_start' value='" . esc_attr($start) . "'> <button type=\"button\" class=\"button button-small\" id=\"bh_vote_start_now\">When submissions close</button></p>";
         echo "<p>Closes: &nbsp;<input type='datetime-local' id='bh_end' name='bh_end' value='" . esc_attr($end) . "'></p>";
-
-        echo '<hr><p>Votes per category: '
+        echo '<p style="margin-top:14px;">Votes per category: '
            . '<input type="number" name="bh_vote_base" min="0" max="20" style="width:56px;" value="' . esc_attr($base !== '' ? $base : BH_VOTE_BASE) . '"> base'
            . ' + <input type="number" name="bh_vote_bonus" min="0" max="20" style="width:56px;" value="' . esc_attr($bonus !== '' ? $bonus : BH_VOTE_BONUS) . '"> bonus for submitting</p>';
         echo '<p class="description">Applies to every category on this contest independently (voting in 3 categories with 1+1 votes = up to 6 total). Leave blank for the site default. Bonus only counts once a submission is approved.</p>';
-        echo '<hr><p><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
-        echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
+        $voting_html = ob_get_clean();
+        echo class_exists('BHY_UI') ? BHY_UI::card($voting_html, ['title' => 'Voting']) : ('<h3>Voting</h3>' . $voting_html);
 
+        // ---- Results ----
+        ob_start();
+        echo '<p style="margin-top:0;"><label><input type="checkbox" name="bh_results_published" value="1" ' . checked($pub, '1', false) . '> <strong>Publish Results to Public</strong></label></p>';
+        echo '<p><em>Check this only after the contest ends and you have audited the votes.</em></p>';
         if ($pub === '1') {
             $sent_at = get_post_meta($post->ID, '_bh_winner_notifications_sent_at', true);
             $send_url = wp_nonce_url(admin_url('admin-post.php?action=bh_send_winners&contest_id=' . $post->ID), 'bh_send_winners');
@@ -263,21 +349,29 @@ class BH_AdminMetaboxes {
             }
             echo '</p>';
         }
+        $results_html = ob_get_clean();
+        echo class_exists('BHY_UI') ? BHY_UI::card($results_html, ['title' => 'Results']) : ('<h3>Results</h3>' . $results_html);
 
+        // ---- Discord ----
+        ob_start();
         $webhook = get_post_meta($post->ID, '_bh_discord_webhook', true);
-        echo '<hr><p><strong>Discord notifications</strong> <span class="description">(optional)</span></p>';
-        echo '<p><input type="url" name="bh_discord_webhook" value="' . esc_attr($webhook) . '" placeholder="https://discord.com/api/webhooks/..." style="width:100%;"></p>';
-        echo '<p class="description">Automatically posts when a track is submitted or voting starts. The results announcement is sent separately, on demand — see "Send Winner Notifications" above. Get a webhook URL from a Discord channel\'s Settings &rarr; Integrations &rarr; Webhooks. Leave blank for no notifications.</p>';
-
+        echo '<p class="description" style="margin-top:0;">Automatically posts when a track is submitted or voting starts. The results announcement is sent separately, on demand — see "Send Winner Notifications" above. Get a webhook URL from a Discord channel\'s Settings &rarr; Integrations &rarr; Webhooks. Leave blank for no notifications.</p>';
+        echo '<p><input type="url" name="bh_discord_webhook" value="' . esc_attr($webhook) . '" placeholder="https://discord.com/api/webhooks/..." style="width:100%;max-width:480px;"></p>';
         if ($webhook) {
             $reveal_url = ($rp = (int) get_option('bh_reveal_page_id')) ? get_permalink($rp) : '';
             echo '<p><strong>Announce to Discord</strong> <span class="description">— sends right away, independent of Save/Update</span></p>';
-            echo '<textarea id="bh_discord_message" rows="2" style="width:100%;" placeholder="e.g. Going live for the results reveal in 5 minutes!"></textarea>';
+            echo '<textarea id="bh_discord_message" rows="2" style="width:100%;max-width:480px;" placeholder="e.g. Going live for the results reveal in 5 minutes!"></textarea>';
             echo '<p style="margin:6px 0;">';
             if ($reveal_url) echo '<button type="button" class="button button-small" id="bh_discord_preset_reveal">Fill: Going live for reveal</button> ';
             echo '</p>';
             echo '<p><button type="button" class="button" id="bh_discord_send">Send to Discord</button> <span id="bh_discord_status" style="margin-left:8px;font-size:12px;"></span></p>';
         }
+        $discord_html = ob_get_clean();
+        echo '<div class="bhc-settings-grid-full">';
+        echo class_exists('BHY_UI') ? BHY_UI::card($discord_html, ['title' => 'Discord notifications (optional)']) : ('<h3>Discord notifications (optional)</h3>' . $discord_html);
+        echo '</div>';
+
+        echo '</div>'; // .bhc-settings-grid
         ?>
         <script>
         (function () {
@@ -315,11 +409,17 @@ class BH_AdminMetaboxes {
         </script>
         <script>
         (function () {
+            // Same bhy-badge markup BHY_UI::badge() itself renders
+            // server-side (the phase pill above uses it directly) —
+            // this one has to be built client-side since it recomputes
+            // live as the date fields change, but it should still look
+            // identical rather than being a second, ad-hoc status-pill
+            // style living right next to the real component.
             function dot(status) {
                 var live = status === 'open';
                 var label = status === 'open' ? 'Live now' : (status === 'upcoming' ? 'Not started' : (status === 'closed' ? 'Closed' : 'Not scheduled'));
-                return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:' + (live ? '#1DB954' : '#b3261e') + ';">'
-                    + '<span style="width:7px;height:7px;border-radius:50%;background:' + (live ? '#1DB954' : '#b3261e') + ';"></span>' + label + '</span>';
+                var variant = live ? 'bhy-badge-success' : (status === 'upcoming' ? 'bhy-badge-neutral' : 'bhy-badge-danger');
+                return '<span class="bhy-badge ' + variant + ' bhy-badge-dot">' + label + '</span>';
             }
             function computeStatus(startEl, endEl, alwaysOpenIfBlank) {
                 var sv = startEl ? startEl.value : '', ev = endEl ? endEl.value : '';
