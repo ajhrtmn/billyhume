@@ -284,18 +284,53 @@ class BHC_Admin {
         echo '<p class="description">Drag to reorder. Only lessons whose "Belongs to course" field (below, on the lesson itself) points here show up. <a href="' . esc_url($add_lesson_url) . '">+ Add New Lesson to this course</a></p>';
         echo '<ul id="bhc-lesson-order-list" class="bhc-order-list">';
         foreach ($ordered as $l) {
-            $step_count = class_exists('BHC_Steps') ? BHC_Steps::count($l->ID) : 0;
+            $steps = class_exists('BHC_Steps') ? BHC_Steps::get($l->ID) : [];
+            $step_count = count($steps);
             $unassign_url = wp_nonce_url(
                 admin_url('admin-post.php?action=bhc_unassign_lesson&lesson_id=' . (int) $l->ID . '&course_id=' . (int) $post->ID),
                 'bhc_unassign_lesson_' . $l->ID
             );
-            echo '<li class="bhc-order-item" data-id="' . (int) $l->ID . '">'
-               . '<span class="bhc-order-drag-handle" title="Drag to reorder">&#8942;&#8942;</span>'
-               . '<a class="bhc-order-title" href="' . esc_url(get_edit_post_link($l->ID, 'raw')) . '">' . esc_html($l->post_title) . '</a>'
-               . '<span class="bhc-order-steps">' . (int) $step_count . ' step' . ($step_count === 1 ? '' : 's') . '</span>'
-               . '<em class="bhc-order-status bhc-order-status-' . esc_attr($l->post_status) . '">' . esc_html($l->post_status) . '</em>'
-               . '<a class="bhc-order-unassign" href="' . esc_url($unassign_url) . '" onclick="return confirm(\'Remove ' . esc_js($l->post_title) . ' from this course? The lesson itself isn\\\'t deleted.\');" title="Remove from this course">&times;</a>'
-               . '</li>';
+            // Real gap this closes (Tier 2 course-authoring pass,
+            // 2026-08-27): before this, "5 steps" was all this row ever
+            // showed — seeing WHICH five steps, and of what type, meant
+            // leaving this screen entirely to open that lesson's own
+            // edit screen. A native <details> disclosure, not a JS
+            // widget: no conflict with SortableJS (which drags via the
+            // dedicated .bhc-order-drag-handle, never a click inside
+            // <summary>), no extra request (the step data's already
+            // being read for the count above), and degrades to nothing
+            // special with JS disabled — it's still just an <ol> a
+            // screen reader or no-JS browser can read straight through.
+            // Restructured as a header row + an optional full-width
+            // expansion below it, rather than one long flex row — a
+            // long lesson title next to a status pill in a single row
+            // either collided or wrapped mid-badge. The header row now
+            // always stays one line (title ellipsis-truncates instead
+            // of wrapping); the step list, when present, gets the
+            // entire row's width on its own line instead of being
+            // squeezed into whatever space was left after the title.
+            echo '<li class="bhc-order-item" data-id="' . (int) $l->ID . '">';
+            echo '<div class="bhc-order-item-header">';
+            echo '<span class="bhc-order-drag-handle" title="Drag to reorder">&#8942;&#8942;</span>';
+            echo '<a class="bhc-order-title" href="' . esc_url(get_edit_post_link($l->ID, 'raw')) . '" title="' . esc_attr($l->post_title) . '">' . esc_html($l->post_title) . '</a>';
+            echo '<em class="bhc-order-status bhc-order-status-' . esc_attr($l->post_status) . '">' . esc_html($l->post_status) . '</em>';
+            echo '<a class="bhc-order-unassign" href="' . esc_url($unassign_url) . '" onclick="return confirm(\'Remove ' . esc_js($l->post_title) . ' from this course? The lesson itself isn\\\'t deleted.\');" title="Remove from this course">&times;</a>';
+            echo '</div>';
+            if ($step_count) {
+                echo '<details class="bhc-order-steps-detail">';
+                echo '<summary>' . $step_count . ' step' . ($step_count === 1 ? '' : 's') . '</summary>';
+                echo '<ol class="bhc-order-steps-list">';
+                foreach ($steps as $s) {
+                    $type = (string) ($s['type'] ?? '');
+                    echo '<li><span class="bhc-step-type-icon bhc-step-type-' . esc_attr($type) . '" aria-hidden="true">' . self::step_type_icon($type) . '</span>' . esc_html(self::describe_step($s)) . '</li>';
+                }
+                echo '</ol>';
+                echo '<a class="bhc-order-edit-link" href="' . esc_url(get_edit_post_link($l->ID, 'raw')) . '">Edit this lesson &rarr;</a>';
+                echo '</details>';
+            } else {
+                echo '<p class="bhc-order-no-steps">No steps yet.</p>';
+            }
+            echo '</li>';
         }
         echo '</ul>';
         echo '<input type="hidden" name="bhc_lesson_order" id="bhc_lesson_order" value="' . esc_attr(implode(',', array_map(fn($l) => $l->ID, $ordered))) . '">';
@@ -721,6 +756,22 @@ class BHC_Admin {
         $preview_url = get_post_status($post->ID) === 'publish' ? get_permalink($post->ID) : get_preview_post_link($post->ID);
         echo '<p><a class="button button-primary" href="' . esc_url($preview_url) . '" target="_blank" rel="noopener">Preview as student &rarr;</a></p>';
         echo '<p class="description">A lesson is a sequence of steps — mix Lesson: Text/Image/Video/Quiz blocks in any order above. Students see one step at a time and move forward as they complete each one.</p>';
+    }
+
+    // A small per-type glyph for the course-screen step outline — pure
+    // visual scanning aid (BHC_Steps::VALID_TYPES is the actual source
+    // of truth for what's a real type; this just needs SOMETHING to
+    // show, never gates behavior). Plain Unicode, not Dashicons: this
+    // renders inside a plugin's own metabox, not wp-admin chrome, and
+    // Dashicons' ligature-font approach needs the class present on an
+    // element the current markup doesn't otherwise use.
+    private static function step_type_icon(string $type): string {
+        $icons = [
+            'text' => '&#9776;', 'image' => '&#128247;', 'video' => '&#9654;',
+            'quiz' => '&#10067;', 'resource' => '&#128206;', 'callout' => '&#128161;',
+            'checklist' => '&#9745;', 'chord-chart' => '&#127925;', 'audio-compare' => '&#9878;',
+        ];
+        return $icons[$type] ?? '&#8226;';
     }
 
     // One line of real content per step, not just its type — reads

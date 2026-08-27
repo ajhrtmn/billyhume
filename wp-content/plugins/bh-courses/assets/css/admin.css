@@ -58,15 +58,18 @@
     list-style: none;
 }
 
+/* A card: a fixed-height header row (always one line, never collides
+   with a status pill) plus an optional full-width expansion below it —
+   redesigned from a single flex row (2026-08-27 course-authoring pass)
+   after a long lesson title wrapping next to the status pill read as
+   genuinely broken, not just tight. */
 .bhc-order-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     background: var(--bhy-surface, #fff);
     border: 1px solid var(--bhy-border, #dcdcde);
     border-radius: var(--bhy-radius-sm, 6px);
     padding: 10px 12px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    transition: border-color .15s ease;
 }
 
 .bhc-order-item:hover {
@@ -81,6 +84,12 @@
     opacity: .35;
 }
 
+.bhc-order-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .bhc-order-drag-handle {
     cursor: grab;
     color: var(--bhy-ink-dim, #a7aaad);
@@ -88,6 +97,7 @@
     line-height: 1;
     padding: 4px 6px; /* real touch target, not just the glyph's own tiny hit area */
     user-select: none;
+    flex-shrink: 0;
 }
 
 .bhc-order-drag-handle:active {
@@ -96,19 +106,87 @@
 
 .bhc-order-title {
     flex: 1;
+    min-width: 0;
     font-weight: 600;
     color: var(--bhy-ink, #1d2327);
     text-decoration: none;
+    /* Ellipsis, not wrap — a second line of title pushed the status
+       pill down into it before this pass; one clean line plus the
+       full title on hover (title="") reads calmer than a jagged wrap. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .bhc-order-title:hover {
     color: var(--bhy-accent, #2271b1);
     text-decoration: underline;
 }
 
-.bhc-order-steps {
+.bhc-order-steps-detail {
+    margin-top: 8px;
+}
+.bhc-order-steps-detail > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    list-style: none; /* replaced by the ::before caret, one look across browsers instead of each engine's own native marker */
     font-size: 12px;
+    font-weight: 600;
     color: var(--bhy-ink-dim, #646970);
-    white-space: nowrap;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--bhy-surface-2, #f0f0f1);
+}
+.bhc-order-steps-detail > summary:hover {
+    color: var(--bhy-ink, #1d2327);
+}
+.bhc-order-steps-detail > summary::-webkit-details-marker { display: none; }
+.bhc-order-steps-detail > summary::before {
+    content: '\25B8'; /* ▸ */
+    font-size: 10px;
+    transition: transform .15s ease;
+}
+.bhc-order-steps-detail[open] > summary::before {
+    transform: rotate(90deg);
+}
+.bhc-order-steps-detail[open] > summary {
+    background: color-mix(in srgb, var(--bhy-accent, #2271b1) 15%, transparent);
+    color: var(--bhy-ink, #1d2327);
+}
+.bhc-order-steps-list {
+    margin: 10px 0 8px 4px;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    color: var(--bhy-ink, #1d2327);
+}
+.bhc-order-steps-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+}
+.bhc-order-steps-list li:not(:last-child) {
+    border-bottom: 1px solid var(--bhy-surface-2, #f0f0f1);
+}
+.bhc-step-type-icon {
+    flex-shrink: 0;
+    width: 1.4em;
+    text-align: center;
+    opacity: .75;
+}
+.bhc-order-edit-link {
+    display: inline-block;
+    margin: 2px 0 0 4px;
+    font-size: 12px;
+    text-decoration: none;
+}
+.bhc-order-no-steps {
+    margin: 8px 0 0 4px;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--bhy-ink-dim, #a7aaad);
 }
 
 .bhc-order-status {

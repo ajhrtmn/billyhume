@@ -6,6 +6,31 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.8.0 — Course-authoring UX pass: closed the real gap a research pass
+found in the course edit screen's lesson-order list — "5 steps" was
+all a course author could see per lesson without leaving the screen
+entirely to open that lesson's own edit page. Each lesson row is now a
+native `<details>` disclosure showing the real step list (type icon +
+content snippet per step, reusing the existing `describe_step()`
+formatter this plugin's own lesson metabox already had) plus a direct
+"Edit this lesson" link — no extra request, since the step data was
+already being read to compute the existing step-count number.
+Deliberately plain HTML/CSS, not a JS widget or Datastar: this is
+purely a client-side reveal of already-rendered content, not server
+state changing over time, so the lighter tool is the correct one per
+this ecosystem's own rendering-layer conventions.
+
+Restructured the row layout after an initial version had a long
+lesson title collide with the status pill when it wrapped — the header
+(drag handle, title, status, remove) is now a fixed one-line row with
+ellipsis truncation, and the step-list disclosure lives in its own
+full-width area below it, never squeezed into leftover flex space.
+
+Verified live in a real browser (not just reasoned through) at both
+1280px and 375px: real lesson content renders correctly, no horizontal
+overflow at either width, title truncation and the disclosure's own
+open/close caret work as expected.
+
 0.7.0 — OPEN.md item 20, resolved: it turned out to be a stale tracker
 entry, not unstarted work. OUS_Revisions (the-self-hosted-self) already
 exists, fully built, with real consumers (bh-contest, bh-monetization-
