@@ -6,6 +6,32 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.10.0 — Turned Live Console into the actual "run this contest right
+now" hub instead of building a competing 6th admin screen next to it:
+research this session found Console already colocated phase status,
+CSV exports, fraud alerts, the Reveal controls, and a per-submission
+table — the missing piece was that none of it was actionable and none
+of the at-a-glance counts (approved/pending/votes/voters) were
+surfaced. Added: a stat row (Approved / Pending review / Votes /
+Voters, via the existing BH_Helpers::submission_count()/vote_count()
+plus a new BH_Helpers::voter_count()) right under the phase badge, with
+the Pending count linking straight to that contest's filtered,
+pending-only Submissions list and rendered in an attention color when
+non-zero; quick links out to Full results and All submissions; an
+Actions column on the per-submission table with an inline one-click
+Approve (the same bh_quick_approve handler added in 3.9.0) and an Edit
+link (labeled "Edit / Reject" when still undecided, since the full
+reason-coded reject form already lives on that screen); and split the
+Status column's binary Approved/Pending badge into three real states
+(Approved/success, Pending/warning, Rejected/neutral) — a rejected
+submission previously rendered with the same red "Pending" badge as
+one still awaiting a first decision, which read as though it still
+needed one. Verified live: toggled a real submission to pending,
+confirmed the stat row and inline actions updated correctly, approved
+it via the new Console action, confirmed the count and badge updated,
+restored original state. No horizontal overflow at 375px. `php -l`,
+PHPStan, and `composer test` all clean.
+
 3.9.0 — Bulk moderation for the Submissions list: previously a
 submission could only be approved (native Publish/Update) or rejected
 (the reason-coded form in the submission's own bh_approval metabox)

@@ -63,7 +63,39 @@ class BH_Console {
         echo '<p><span class="bhy-badge bhy-badge-dot" style="background:' . esc_attr($phase['color']) . '1a;color:' . esc_attr($phase['color']) . ';">' . esc_html($phase['label']) . '</span> &middot; ';
         $export_base = admin_url('admin-post.php?action=bh_export&contest_id=' . $cid);
         echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=submissions', 'bh_export')) . '">Export submissions (CSV)</a> &middot; ';
-        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . '">Export votes (CSV)</a></p>';
+        echo '<a href="' . esc_url(wp_nonce_url($export_base . '&type=votes', 'bh_export')) . '">Export votes (CSV)</a> &middot; ';
+        echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_contest&page=bh-results&contest_id=' . $cid)) . '">Full results</a> &middot; ';
+        echo '<a href="' . esc_url(admin_url('edit.php?post_type=bh_submission&bh_contest_filter=' . $cid)) . '">All submissions</a></p>';
+
+        // "Everything you'd otherwise have to visit 3 other screens to
+        // piece together" — approved/pending counts (the moderation
+        // queue depth) plus votes/voters, right next to the phase badge
+        // so a glance at Console tells you both where the contest is
+        // AND whether anything needs attention.
+        $approved = BH_Helpers::submission_count($cid, 'publish');
+        $pending  = BH_Helpers::submission_count($cid, 'pending');
+        $votes    = BH_Helpers::vote_count($cid);
+        $voters   = BH_Helpers::voter_count($cid);
+        echo '<div class="bhc-console-stats">';
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $approved . '</span><span class="bhc-console-stat-label">Approved</span></div>';
+        if ($pending > 0) {
+            $pending_url = esc_url(admin_url('edit.php?post_type=bh_submission&post_status=pending&bh_contest_filter=' . $cid));
+            echo '<div class="bhc-console-stat bhc-console-stat-attn"><a href="' . $pending_url . '"><span class="bhc-console-stat-num">' . (int) $pending . '</span><span class="bhc-console-stat-label">Pending review</span></a></div>';
+        } else {
+            echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">0</span><span class="bhc-console-stat-label">Pending review</span></div>';
+        }
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $votes . '</span><span class="bhc-console-stat-label">Votes</span></div>';
+        echo '<div class="bhc-console-stat"><span class="bhc-console-stat-num">' . (int) $voters . '</span><span class="bhc-console-stat-label">Voters</span></div>';
+        echo '</div>';
+        echo '<style>
+            .bhc-console-stats { display: flex; gap: 12px; margin: 0 0 16px; flex-wrap: wrap; }
+            .bhc-console-stat { background: var(--bhy-surface, #fff); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); padding: 8px 16px; text-align: center; min-width: 90px; }
+            .bhc-console-stat a { text-decoration: none; color: inherit; display: block; }
+            .bhc-console-stat-num { display: block; font-size: 20px; font-weight: 700; line-height: 1.2; }
+            .bhc-console-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--bhy-ink-dim, #646970); }
+            .bhc-console-stat-attn { border-color: #b3261e; }
+            .bhc-console-stat-attn .bhc-console-stat-num { color: #b3261e; }
+        </style>';
 
         $suspicious = BH_Helpers::suspicious_voters($cid);
         if ($suspicious) {
@@ -118,7 +150,7 @@ class BH_Console {
 
         echo '<div class="bhy-table-wrap">';
         echo '<table class="wp-list-table widefat striped"><thead><tr>'
-           . '<th>Track</th><th>Status</th><th>Identity</th><th>Live votes</th>'
+           . '<th>Track</th><th>Status</th><th>Identity</th><th>Live votes</th><th>Actions</th>'
            . '</tr></thead><tbody>';
 
         foreach ($subs as $p) {
@@ -134,11 +166,27 @@ class BH_Console {
             echo '<td><strong>' . esc_html($p->post_title) . '</strong><br><span style="color:var(--bhy-ink-dim);">' . esc_html($artist) . '</span>';
             if ($url) echo '<br><audio controls preload="none" src="' . esc_url($url) . '" style="height:32px;margin-top:6px;max-width:240px;"></audio>';
             echo '</td>';
-            echo '<td>' . ($p->post_status === 'publish'
-                ? '<span class="bhy-badge bhy-badge-success">Approved</span>'
-                : '<span class="bhy-badge bhy-badge-danger">Pending</span>') . '</td>';
+            // Distinguish "hasn't been reviewed yet" from "was reviewed
+            // and turned down" — both used to render as the same red
+            // "Pending" badge, which read as though a rejected entry
+            // still needed a decision.
+            $status_badge = [
+                'publish'  => '<span class="bhy-badge bhy-badge-success">Approved</span>',
+                'rejected' => '<span class="bhy-badge bhy-badge-neutral">Rejected</span>',
+            ][$p->post_status] ?? '<span class="bhy-badge bhy-badge-warning">Pending</span>';
+            echo '<td>' . $status_badge . '</td>';
             echo '<td>' . self::identity_cell($profile) . '</td>';
             echo '<td style="font-weight:600;">' . esc_html((string) $votes) . '</td>';
+            echo '<td>';
+            if ($p->post_status !== 'publish') {
+                $approve_url = wp_nonce_url(
+                    admin_url('admin-post.php?action=bh_quick_approve&submission_id=' . $p->ID),
+                    'bh_quick_approve_' . $p->ID
+                );
+                echo '<a href="' . esc_url($approve_url) . '">Approve</a> &middot; ';
+            }
+            echo '<a href="' . esc_url((string) get_edit_post_link($p->ID, '')) . '">Edit' . ($p->post_status !== 'publish' ? ' / Reject' : '') . '</a>';
+            echo '</td>';
             echo '</tr>';
         }
 

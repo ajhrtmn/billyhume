@@ -474,6 +474,13 @@ class BH_Helpers {
         ));
     }
 
+    public static function voter_count(int $cid): int {
+        global $wpdb;
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(DISTINCT user_id) FROM " . self::table() . " WHERE contest_id = %d", $cid
+        ));
+    }
+
     public static function user_total_votes(int $uid): int {
         global $wpdb;
         return (int) $wpdb->get_var($wpdb->prepare(
