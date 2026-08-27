@@ -9,6 +9,64 @@ has been reworded or dropped.
 
 ---
 
+3.15.4 — Tier 2 item 7 (systematic front-end audit): found and fixed a
+real dead link while adding CRM public profiles to the audit's page
+list. `BHI_PublicProfile::profile_url()` — the URL bh-crm's own admin
+person view links to as "View public profile page" — pointed straight
+at `home_url('/')` regardless of whether the home page actually hosted
+`[bh_profile]` anywhere. On this install (no static front page
+configured, nothing embedding that shortcode) it was a genuinely dead
+link: visiting it landed on the ordinary blog index with an unused
+`?bh_user=` query string, confirmed live. `OUS_Pages` already exists
+for exactly this — bh-contest/bh-courses/bh-monetization-woo each grew
+their own private "find or create the page hosting my shortcode"
+before it consolidated that pattern — this class just never got the
+same treatment. Now calls `OUS_Pages::ensure('bh_profile',
+'bhi_profile_page_id', 'Profile')`, adopting a hand-authored page if
+one exists or creating a real one if not, same as every other
+consumer.
+
+Verified end-to-end against the real local install: deleted the
+option to simulate a fresh install, called `profile_url()`, confirmed
+a real "Profile" page was created hosting `[bh_profile]`, confirmed a
+second call adopts the same page rather than creating a duplicate, and
+loaded the resulting URL in a real browser — a genuine profile page
+renders (avatar, achievements, activity), not a blank blog index.
+
+Auditing that new page surfaced a second real bug: a long achievement
+title (e.g. "Completed with Distinction: Mixing Basics for Bedroom
+Producers") pushed the whole page into horizontal scroll at 375px
+(confirmed: `html` scrollWidth 384 > innerWidth 375). Root cause,
+found by walking the actual flex ancestor chain in a real browser, not
+guessed: `.bhi-profile__header` is `flex-direction:column` with
+`align-items:center` (not `stretch`), so its child
+`.bhi-profile__badges` sizes to its own content's natural width and is
+then centered — nothing capped it at the parent's real width, so one
+long badge's `nowrap` text grew the whole badges row to 392px inside a
+343px parent. A first attempt fixing only `.bhi-badge` itself
+(`max-width:100%` + ellipsis) did nothing, because `100%` was
+resolving against that already-oversized container — real lesson
+worth keeping: `max-width:100%` on a flex item is only as good as its
+own containing block's width, and a `flex-direction:column` container
+with `align-items:center` won't constrain that for you. Fixed at the
+actual source (`.bhi-profile__badges` itself), plus kept the
+`.bhi-badge` ellipsis treatment as a second layer so an individual
+badge that's still too long for its row truncates gracefully rather
+than wrapping into a multi-line blob inside a rounded pill.
+
+Also fixed a related false-positive in this session's own audit
+tooling (`tests/ux/audit.ts`): its touch-target check only ever read
+`getBoundingClientRect()` on the real element, with no way to see an
+invisible `::before`/`::after` hit-area extension — exactly the
+technique this codebase's own `.oust-site-brand`/`.oust-card-readmore`
+already use (see 3.15.3). Every page audited was reporting those two
+as failing 44px minimums that a real browser measurement had already
+confirmed pass. Now checks computed pseudo-element size too.
+
+Two new pages added to `tests/ux/public.spec.ts`'s audited list this
+pass (streaming library, and the CRM public profile above); all 20
+audited pages pass with the corrected tooling.
+
 3.15.3 — Closed OPEN.md's remaining "found by tooling, not yet fixed"
 items. "The Door — Day" theme preset's `color_accent` was still
 `#C1503A` (measured 3.92:1 on its `#F4E9DC` background, 3.48:1 on

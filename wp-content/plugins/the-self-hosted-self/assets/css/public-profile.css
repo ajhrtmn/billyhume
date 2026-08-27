@@ -36,6 +36,17 @@
     gap: 6px;
     justify-content: center;
     margin-bottom: 8px;
+    /* The real root cause of the overflow bug documented on .bhi-badge
+       below: .bhi-profile__header is flex-direction:column with
+       align-items:center (not stretch), so THIS element — a flex item
+       of that column — sizes to its own content's natural width and is
+       then centered, with nothing capping it at the parent's actual
+       width. A long badge's nowrap text pushed this container itself to
+       392px inside a 343px parent, so .bhi-badge's own max-width:100%
+       was only ever resolving against an already-oversized container.
+       Fixed one level up, at the actual source. */
+    max-width: 100%;
+    box-sizing: border-box;
 }
 .bhi-badge {
     background: var(--bh-surface-2);
@@ -46,6 +57,27 @@
     font-size: 0.8em;
     text-decoration: none;
     white-space: nowrap;
+    /* Real horizontal-overflow bug, found by the Tier 2 front-end audit
+       (2026-08-26): a long achievement title (e.g. "Completed with
+       Distinction: Mixing Basics for Bedroom Producers") stayed on one
+       line at its full natural width (measured 392px) regardless of
+       viewport — the parent's flex-wrap:wrap only lets BADGES wrap onto
+       new rows, it can't make one badge's own text narrower. At 375px
+       that pushed the whole page into horizontal scroll. Confirmed live
+       via a real browser measurement (html scrollWidth 384 > 375).
+       max-width + ellipsis keeps this a genuine compact pill (multi-line
+       text would look wrong in a rounded badge) while guaranteeing it
+       never exceeds its container. */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    /* min-width:0 is what actually makes this work: a flex item's
+       default min-width is `auto`, meaning "never shrink below your own
+       content's natural size" — which is exactly why max-width:100%
+       alone did nothing (verified live: still 393px wide with only that
+       in place). */
+    min-width: 0;
 }
 .bhi-profile__bio {
     background: var(--bh-surface);

@@ -29,15 +29,25 @@ const PAGES: Array<{ name: string; path: string }> = [
   { name: 'Search (results)',  path: '/?s=test' },
   // 2026-08-26: continuing OPEN.md item 7 -- contest, streaming single,
   // storefront checkout/account were still unaudited after the first
-  // pass. CRM's public-facing surface (class-public-profile.php) turned
-  // out to be a logged-in portal PANEL, not a standalone public page --
-  // audited via /account/ instead, which is the actual public entry
-  // point (redirects to login logged-out, exercising that real page).
+  // pass.
   { name: 'Contest (single)',  path: '/bh_contest/fall-anthem-showdown/' },
   { name: 'Streaming track',   path: '/bhs_track/midnight-static/' },
+  { name: 'Streaming library', path: '/streaming/' },
   { name: 'Checkout',          path: '/checkout/' },
   { name: 'My account',        path: '/my-account/' },
   { name: 'Portal / account (logged out)', path: '/account/' },
+  // A prior pass here noted CRM's public profile (class-public-profile.php)
+  // was "a logged-in portal panel, not a standalone public page" -- that
+  // was wrong, or at least described a different real bug: BHI_PublicProfile
+  // ::profile_url() pointed straight at home_url('/') regardless of whether
+  // the home page actually hosted [bh_profile] anywhere, so the link this
+  // ecosystem itself generates (bh-crm's own "View public profile page"
+  // link) was genuinely dead on an install with no matching home page --
+  // confirmed live, landing on the ordinary blog index. Fixed via OUS_Pages
+  // (the-self-hosted-self 3.15.4) the same way bh-contest/bh-courses/
+  // bh-monetization-woo already resolve their own catalog pages; this now
+  // audits the real, rendering page that fix creates.
+  { name: 'CRM public profile', path: '/profile/?bh_user=1' },
 ];
 
 for (const p of PAGES) {

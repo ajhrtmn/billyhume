@@ -103,10 +103,27 @@ class BHI_PublicProfile {
         ');
     }
 
+    // Bug found during the Tier 2 front-end audit (2026-08-26): this
+    // pointed straight at home_url('/') regardless of whether the home
+    // page actually renders [bh_profile] anywhere — on a fresh install
+    // with no static front page (or one that doesn't host this
+    // shortcode), "View public profile page" was a genuinely dead
+    // link, landing on the ordinary blog index with an unused
+    // ?bh_user= query string. bh-contest/bh-courses/bh-monetization-woo
+    // each grew their own private version of "find or create the page
+    // that hosts my shortcode" before OUS_Pages consolidated it
+    // (class-pages.php's own docblock) — this class just never got
+    // the same treatment. Same fix: ensure() adopts a hand-authored
+    // page if one already exists, or creates a real "Profile" page
+    // hosting [bh_profile], rather than assuming one does.
     public static function profile_url(int $user_id): string {
         $data = BHI_Profiles::get($user_id);
         $key = $data['profile_slug'] ?: $user_id;
-        return add_query_arg('bh_user', $key, home_url('/'));
+
+        $page_id = class_exists('OUS_Pages') ? OUS_Pages::ensure('bh_profile', 'bhi_profile_page_id', 'Profile') : 0;
+        $base_url = $page_id ? get_permalink($page_id) : false;
+
+        return add_query_arg('bh_user', $key, $base_url ?: home_url('/'));
     }
 
     /** @param array<string, mixed>|string $atts */

@@ -193,7 +193,25 @@ export async function audit(page: Page): Promise<Finding[]> {
         // enlarging them would break the paragraph. Only standalone controls
         // (block/flex/inline-block) carry the 44px minimum.
         const inlineInText = cs.display === 'inline' && !!el.closest('p, li, td, blockquote, figcaption');
-        if (!inlineInText && r.width > 0 && r.height > 0 && (r.width < 44 || r.height < 44)) {
+        // A real, deliberate technique (used on this exact site's own
+        // .oust-site-brand / .oust-card-readmore) is an invisible
+        // ::before/::after sized to the real 44px minimum, layered over
+        // a visually smaller element — grown text padding would shift
+        // sibling layout, an invisible hit-area extension doesn't.
+        // getBoundingClientRect() has no equivalent for a pseudo-
+        // element, so checking only the real element's own box was a
+        // false positive on exactly the elements this technique was
+        // used to fix. Pseudo width/height (not position) is enough to
+        // confirm the technique was actually applied, matching this
+        // check's own existing precision (a size check, not a full
+        // hit-test).
+        const pseudoCovers = (pseudo: '::before' | '::after') => {
+          const pcs = getComputedStyle(el, pseudo);
+          if (pcs.content === 'none' || pcs.content === '') return false;
+          return parseFloat(pcs.width) >= 44 && parseFloat(pcs.height) >= 44;
+        };
+        const hasExpandedHitArea = pseudoCovers('::before') || pseudoCovers('::after');
+        if (!inlineInText && !hasExpandedHitArea && r.width > 0 && r.height > 0 && (r.width < 44 || r.height < 44)) {
           findings.push({ kind: 'touch-target', selector: sel(el), detail: `${Math.round(r.width)}x${Math.round(r.height)} (min 44x44)` });
         }
       }
