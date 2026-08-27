@@ -6,6 +6,24 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+1.0.3 — Cleared the Test Runner's one remaining red test, which had
+stood long enough that STATE.md documented it as expected:
+`for_user()` "includes the requester's own ticket." A real defect, not
+a flaky assertion: `$wpdb` returns every column as a string, bigint
+primary keys included, but the test compared strictly
+(`in_array($id, array_column($rows,'id'), true)`) — `"12" !== 12`, so
+the match never happened. The test was right; the model was loose —
+`get()`/`for_user()`/`all()` each documented an `array<int, ...>` shape
+their return values didn't actually honor. Fixed by normalizing `id`,
+`user_id`, `assigned_to`, and `ticket_id` to `int` in one shared
+private helper, making the documented shape genuinely true rather than
+relaxing the test to accept strings (which would have left every other
+strict-comparison caller broken and hidden the next instance). Checked
+the whole ecosystem for the same latent bug (`array_column()` paired
+with a strict `in_array`) — this was the only occurrence. Test Runner:
+635/635 passing across 19 suites, fully green for the first time in
+this project's recorded history.
+
 1.0.2 — Real gap found in a functional-depth audit (this plugin's
 admin/portal UI was fully present, but "does it actually do the
 job" had never been checked end to end). BHT_Replies::maybe_notify()

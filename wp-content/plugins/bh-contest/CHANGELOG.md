@@ -6,6 +6,61 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.7.33 — HOTFIX: live went down on every admin page with "Call to
+undefined method OUS_Pages::ensure()" in bh-courses' class-activator.php.
+Version skew — bh-courses deployed with the new ensure() call while
+core on that install was still older — and the cross-plugin guard
+couldn't see it: `class_exists('OUS_Pages')` returned true (the class
+was there), only the METHOD was missing, so the call fatalled anyway.
+"Is this plugin installed" and "is this plugin new enough" are
+different questions, and only the second is what a call actually
+depends on. Every peer call into OUS_Pages now names the method it
+needs via `method_exists()`, not `class_exists()` — five sites across
+bh-courses and bh-contest, covering ensure() and url(). Proven against
+a simulated skew: a core exposing url() but not ensure() correctly
+lets the ensure()-dependent call return early with no fatal, while the
+url()-dependent calls keep working — the old class_exists guard would
+have gone straight into the crash. Recorded in CONVENTIONS.md as a
+standing rule, since a peer plugin deploying ahead of core is the
+normal state on a host that syncs plugin folders independently.
+
+Also in this pass: a hover bridge between a sidebar item and its
+flyout — a transparent ::before spans the ~14px dead space between a
+160px sidebar item (ends at 153px) and its flyout panel (starts at
+167px), so crossing that gap no longer closes the flyout under the
+pointer. Verified: all five probe points across the former dead zone
+now hit-test inside the submenu, flyout position unchanged.
+
+3.7.32 — One shared catalog for courses and contests, on a real
+front-end elevation scale. The two catalogs (the screens a visitor
+spends the most time browsing) had drifted on every axis: grid min
+(220px vs 260px), gap (20px hardcoded vs a token-driven calc), radius
+(10px hardcoded vs a token), depth (a hardcoded shadow vs none at
+all), hover (lift + accent glow vs none at all). Two catalogs on one
+site shouldn't disagree about what a card is. Foundation first:
+BHY_Style emitted `--bh-radius`/`--bh-space-scale`/accent tokens but no
+elevation tokens at all — exactly why one catalog hardcoded a shadow
+and the other had none. `--bh-shadow-sm`/`-shadow`/`-shadow-lg` now
+ship alongside the admin scale added earlier, alpha tuned between the
+admin light/dark values since the front-end palette is user-
+configurable.
+
+3.7.31 — Single contest and course pages get a way back to their
+catalog. A single course or contest was a dead end — nothing on the
+page led back to the catalog it came from, only the browser Back
+button or the site menu. Three partial answers had grown up
+independently for "which page is the catalog": bh-contest stored a
+`bh_archive_page_id` option at activation AND separately ran a
+`get_posts()` search for the literal shortcode; bh-monetization-woo
+remembered its pages on `save_post`; bh-courses had no way to find its
+own catalog at all — each misses a real case (an option only exists if
+activation created the page, a save_post hook only learns about a page
+when someone re-saves it, neither knows about a page an author made by
+hand). New `OUS_Pages` tries the recorded option first (verifying it
+still exists and is published), falls back to searching page content
+for the shortcode or an equivalent block, then caches for a day and
+flushes on any page save/delete. Both call sites are
+`class_exists()`-guarded at hook-call time.
 
 3.7.30 — Same SEO-timing bug found and fixed on bh-courses this
 session, same fix here: BH_Auth::render()'s SEO block only ever ran

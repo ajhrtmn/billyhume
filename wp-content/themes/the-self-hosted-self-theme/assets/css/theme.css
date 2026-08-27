@@ -235,9 +235,17 @@ body.admin-bar .oust-site-header { top: 32px; }
    when it's tight" decision to the secondary nav instead of the
    primary brand mark. */
 .oust-site-brand {
+    /* OPEN.md touch-target gap, fixed 2026-08-26: measured 202x30 —
+       width is fine, height is under the 44px minimum. The 72px-tall
+       header (.oust-site-header-inner above) has real space above/
+       below this link already (it's vertically centered), so an
+       invisible ::after hit-area extension fits without growing the
+       header itself or touching the primary nav to its right. */
+    position: relative;
     display: flex; flex-direction: column; justify-content: center; gap: 2px;
     text-decoration: none; flex-shrink: 0;
 }
+.oust-site-brand::after { content: ''; position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 100%; min-height: 44px; }
 .oust-site-brand:hover { color: var(--bh-text, #EDDFCB); }
 .oust-site-brand-kicker {
     font-family: var(--bh-font-display, sans-serif); font-size: 10px; font-weight: 700;
@@ -310,8 +318,12 @@ body.admin-bar .oust-site-header { top: 32px; }
 .oust-nav-list li.oust-submenu-flip > ul { left: auto; right: 0; }
 
 .oust-nav-toggle {
+    /* OPEN.md touch-target gap, fixed 2026-08-26: was 40x40, under the
+       44px minimum — a real square icon button (not text riding on a
+       larger click area), so grown directly rather than via an
+       invisible hit-area trick. */
     display: none; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
-    width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--bh-border, #3D1B14);
+    width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--bh-border, #3D1B14);
     background: transparent; cursor: pointer; flex-shrink: 0;
 }
 .oust-nav-toggle-bar { width: 18px; height: 2px; background: var(--bh-text, #EDDFCB); border-radius: 2px; transition: transform .2s ease, opacity .2s ease; }
@@ -518,7 +530,15 @@ body.admin-bar .oust-site-header { top: 32px; }
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     font-size: 12px; color: var(--bh-text-dim, #B99584);
 }
-.oust-card-readmore { font-weight: 600; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); text-decoration: none; white-space: nowrap; }
+/* OPEN.md touch-target gap, fixed 2026-08-26: measured 61x18, well
+   under the 44px minimum. A real footer link (not a decorative
+   affordance riding on a whole-card click — the thumb/title links are
+   separate), so it needed its own real tap target. Expanded via an
+   invisible ::after pseudo-element rather than padding, since padding
+   would grow the visible footer row and shift the date span it sits
+   next to in this flex, space-between row. */
+.oust-card-readmore { position: relative; font-weight: 600; color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); text-decoration: none; white-space: nowrap; }
+.oust-card-readmore::after { content: ''; position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 100%; min-width: 44px; height: 44px; }
 .oust-card-readmore:hover { color: color-mix(in srgb, var(--bh-accent, #C1503A) 65%, var(--bh-text, #EDDFCB)); }
 
 /* ---------------- Buttons ---------------- */

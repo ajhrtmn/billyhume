@@ -372,7 +372,16 @@ class BHY_Style {
             'The Door — Day' => [
                 'color_bg' => '#F4E9DC', 'color_surface' => '#EADCC8', 'color_surface_2' => '#E0CFB5',
                 'color_border' => '#C9B096', 'color_text' => '#2B120C', 'color_text_dim' => '#6B4A3A',
-                'color_accent' => '#C1503A', 'color_accent_soft' => '#E8B49A', 'color_overlay' => '#170807B3',
+                // OPEN.md AA gap, fixed 2026-08-26: the old #C1503A (shared
+                // with Night's own accent) measured 3.92:1 on #F4E9DC and
+                // 3.48:1 on #EADCC8 — both fail AA's 4.5:1 text minimum.
+                // Night's own fix (lightening to #C85C48) makes Day WORSE,
+                // since Day's ground is already light — Day needs a
+                // DARKER value instead. #A83D1A keeps the same warm
+                // terracotta hue (just deepened, not hue-shifted) and
+                // measures 5.24:1 / 4.65:1 — both real AA passes, verified
+                // via WCAG relative-luminance math, not eyeballed.
+                'color_accent' => '#A83D1A', 'color_accent_soft' => '#E8B49A', 'color_overlay' => '#170807B3',
                 'cat_color_1' => '#C1503A', 'cat_color_2' => '#B8860B', 'cat_color_3' => '#8B5E3C', 'cat_color_4' => '#7A2E22',
                 'cat_color_5' => '#A8623D', 'cat_color_6' => '#8C5A3C', 'cat_color_7' => '#B6432E', 'cat_color_8' => '#5C2C1E',
             ],

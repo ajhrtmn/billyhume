@@ -9,6 +9,31 @@ has been reworded or dropped.
 
 ---
 
+3.15.3 — Closed OPEN.md's remaining "found by tooling, not yet fixed"
+items. "The Door — Day" theme preset's `color_accent` was still
+`#C1503A` (measured 3.92:1 on its `#F4E9DC` background, 3.48:1 on
+`#EADCC8` surface — both fail AA's 4.5:1 text minimum); Night's own
+earlier fix (lightening to `#C85C48`) doesn't apply here since Day's
+ground is already light and lightening further would make it worse.
+Changed to `#A83D1A` instead — same warm terracotta hue, deepened, not
+hue-shifted — measured via the same WCAG relative-luminance math this
+class already uses elsewhere: 5.24:1 on background, 4.65:1 on surface,
+both real AA passes. The live site is currently on "The Door — Night"
+(confirmed by reading the actual `bhy_style_settings` option), so this
+is a preset-catalog fix for whenever Day gets selected, not an
+immediate visual change to the live site today.
+
+Also fixed the three still-open touch targets under 44px, all
+confirmed via direct browser measurement (`getBoundingClientRect()`),
+not assumed: `.oust-nav-toggle` (40x40, a real square icon button) grown
+directly to 44x44; `.oust-site-brand` (202x30) and `.oust-card-readmore`
+(61x18) — both real independently-focusable links, not decorative
+riders on a larger click area — given an invisible `::after` hit-area
+extension to 44px tall instead of visible padding, since padding would
+have grown the header/footer rows they sit in and shifted their
+siblings. Verified live in a browser: all three now measure a true
+44px (or taller) hit area with zero visible layout change.
+
 3.15.2 — Companion wizard changes for bh-live 0.9.6's continued live-
 robustness pass: `class-media-wizard.php` now shows an "orphaned
 deployment" notice with a removal button whenever a Workers Chat
