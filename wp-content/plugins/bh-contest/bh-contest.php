@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.11.0
+ * Version:     3.11.1
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.11.0');
+define('BH_VER',        '3.11.1');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));

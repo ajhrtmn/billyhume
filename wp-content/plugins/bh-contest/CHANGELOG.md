@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.11.1 — Registered a "Results Reveal" preview in the Design Suite's
+Storybook gallery (BH_StyleSurfaces::reveal_preview()), matching what
+3.11.0's polish pass actually renders (LIVE badge, sound toggle,
+winner-highlighted board) — this surface had no preview at all before,
+unlike the Player/Sign Up & Submit/Results surfaces already registered.
+Verified live: shows up under the Contest group and renders correctly
+against the active theme.
+
 3.11.0 — Results Reveal ([bh_results_reveal]) polish pass: kept the
 existing architecture (server-authoritative _bh_reveal_step, the
 public poll-based display, the catch-up walker for late joiners —

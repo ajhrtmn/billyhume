@@ -31,6 +31,16 @@ class BH_StyleSurfaces {
             'group' => 'Contest', 'label' => 'Results',
             'render' => [self::class, 'results_preview'],
         ];
+        // Live Results Reveal board (bh-contest 3.11.0's polish pass) —
+        // real static markup matching what reveal.ts actually renders
+        // for a category_reveal step (the LIVE badge, sound toggle, and
+        // winner-highlighted board), so a design review doesn't require
+        // spinning up a real contest and clicking through the reveal
+        // sequence to see the current look.
+        $surfaces['bh-contest-reveal'] = [
+            'group' => 'Contest', 'label' => 'Results Reveal',
+            'render' => [self::class, 'reveal_preview'],
+        ];
         // Design Suite gallery gap: the guided "New Contest" wizard
         // (BH_ContestWizard, built this session — VISION.md's own
         // "it just works" principle) is a real wp-admin screen
@@ -203,6 +213,49 @@ Best Production</textarea>
             <label class="bh-file-label"><span>Choose an audio file…</span></label>
             <small>MP3 or M4A · Max 20MB</small>
             <button class="bh-upload-btn bh-btn bh-btn-primary">Upload</button>
+        </div>
+    </div>
+</div>
+        <?php
+        return ['css_url' => self::css_url(), 'html' => ob_get_clean()];
+    }
+
+    /** @return array{css_url:string, html:string|false} */
+    public static function reveal_preview(): array {
+        ob_start();
+        ?>
+<div class="bh-reveal-wrap">
+    <button type="button" class="bh-reveal-sound-toggle" aria-label="Toggle reveal sound effects" aria-pressed="true">🔊</button>
+    <span class="bh-reveal-live"><span class="bh-reveal-live-dot"></span><span class="bh-reveal-live-label">LIVE</span></span>
+    <div class="bh-container bh-reveal-stage">
+        <div class="bh-reveal-board">
+            <div class="bh-reveal-kicker">Overall</div>
+            <div class="bh-reveal-entries">
+                <div class="bh-reveal-entry bh-reveal-entry-winner bh-reveal-entry-new">
+                    <span class="bh-reveal-medal">🥇</span>
+                    <span class="bh-reveal-entry-info">
+                        <span class="bh-reveal-entry-title">Midnight Static</span>
+                        <span class="bh-reveal-entry-artist">Nova Bloom</span>
+                    </span>
+                    <span class="bh-reveal-entry-votes">128 votes</span>
+                </div>
+                <div class="bh-reveal-entry">
+                    <span class="bh-reveal-medal">🥈</span>
+                    <span class="bh-reveal-entry-info">
+                        <span class="bh-reveal-entry-title">Glass Horizon</span>
+                        <span class="bh-reveal-entry-artist">Echo Parade</span>
+                    </span>
+                    <span class="bh-reveal-entry-votes">96 votes</span>
+                </div>
+                <div class="bh-reveal-entry">
+                    <span class="bh-reveal-medal">#3</span>
+                    <span class="bh-reveal-entry-info">
+                        <span class="bh-reveal-entry-title">Paper Satellites</span>
+                        <span class="bh-reveal-entry-artist">The Low Reply</span>
+                    </span>
+                    <span class="bh-reveal-entry-votes">54 votes</span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
