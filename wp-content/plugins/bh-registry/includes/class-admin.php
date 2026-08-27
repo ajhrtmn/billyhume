@@ -125,7 +125,18 @@ class BHR_Admin {
         echo '<div class="bhy-card" style="margin-bottom:16px;max-width:640px;">';
         echo '<h2 style="margin-top:0;">This Site\'s Identity</h2>';
         echo '<p class="description">When submitting THIS site\'s own feed to another site\'s registry, that site will fetch <code>' . esc_html($url) . '</code> and expect it to contain exactly this token. Self-served automatically — no filesystem access needed.</p>';
-        echo '<p><input type="text" readonly value="' . esc_attr($token) . '" style="width:100%;max-width:420px;font-family:monospace;" onclick="this.select();"></p>';
+        // Real clipping bug, found by the Tier 2 admin audit (2026-08-26):
+        // a fixed max-width:420px monospace token field doesn't shrink
+        // its TEXT to fit at narrow widths (confirmed: scrollWidth
+        // 331 > clientWidth 309 at 375px) — the field itself resizes
+        // via width:100%, but the token content just silently ran off
+        // the visible edge with no indication anything was cut off.
+        // text-overflow:ellipsis fixes the visual (an ellipsis at least
+        // looks intentional) without changing the actual behavior this
+        // field exists for: onclick="this.select()" still selects and
+        // copies the real, full, un-truncated value regardless of how
+        // much of it is visible.
+        echo '<p><input type="text" readonly value="' . esc_attr($token) . '" style="width:100%;max-width:420px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" onclick="this.select();"></p>';
         echo '<p>' . self::action_link(0, 'regenerate_wellknown_token', 'Regenerate token', null, 'Regenerate this site\'s outbound identity token? Any registry that already verified this site using the old token will need it re-verified.') . '</p>';
         echo '</div>';
     }

@@ -853,9 +853,31 @@ class OUS_DebugLog {
            on a bare WordPress install with no skin, each is still the
            correct ink for its own unbridged fallback fill. */
         .ous-log-level-pill[data-level="error"] { --ous-log-level-color: var(--bhy-danger, #d63638); --ous-log-level-text: var(--bhy-accent-text, #fff); }
-        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: var(--bhy-accent-text, #1e1e1e); }
+        /* Real AA failure, found by the Tier 2 admin-screen audit
+           (2026-08-26, the FIRST time this whole audit spec was ever
+           run with real credentials): --bhy-accent-text only ever
+           gets a real value from self-hosted-self-admin-skin, which
+           is currently deactivated (see OPEN.md's "Parked" section) —
+           so this always falls through to its own #1e1e1e fallback
+           regardless of theme. That fallback assumed a LIGHT warning
+           fill (correct for the literal #dba617 fallback just above),
+           but this admin's real --bhy-warning resolves to a much
+           darker amber (measured rgb(138,90,0)) — #1e1e1e on that
+           measures 2.81:1, well under AA. White, the same fallback
+           error/info already use successfully here, measures 5.93:1
+           on the same real background. */
+        .ous-log-level-pill[data-level="warning"] { --ous-log-level-color: var(--bhy-warning, #dba617); --ous-log-level-text: var(--bhy-accent-text, #fff); }
         .ous-log-level-pill[data-level="info"] { --ous-log-level-color: var(--bhy-accent, #2271b1); --ous-log-level-text: var(--bhy-accent-text, #fff); }
-        .ous-log-meta { font-size: 11px; color: var(--bhy-ink-dim, #646970); }
+        /* Real AA failure, found by the same audit: --bhy-ink-dim's own
+           shared value (#646970, class-ui.php) measured 4.41:1 against
+           this specific row's #e5e6e6 background — barely under the
+           4.5:1 minimum. A LOCAL override here, not a change to the
+           shared token: --bhy-ink-dim is used all over the admin UI
+           against lighter/darker backgrounds where it already passes,
+           and darkening it globally risked fixing this one pairing by
+           breaking others nobody measured. #5a5f66 measures 5.15:1
+           against this row's actual background. */
+        .ous-log-meta { font-size: 11px; color: #5a5f66; }
         /* Real specificity bug caught by checking computed style, not
            assuming: this is an <a>, and the admin skin's global
            `body.wp-admin a { color: var(--shsas-accent); }` (element +

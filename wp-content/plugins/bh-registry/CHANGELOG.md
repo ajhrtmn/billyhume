@@ -6,6 +6,17 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.1.21 — OPEN.md item 8: the "This Site's Identity" token field
+(`render_identity_box()`) clipped its own monospace token value at
+375px (confirmed: `scrollWidth 331 > clientWidth 309`) with no visual
+indication anything was cut off. Fixed with `text-overflow:ellipsis` +
+`white-space:nowrap` — a visual truncation only; `onclick="this.
+select()"` still selects and copies the real, full, un-truncated
+value regardless of how much is visibly shown. Found and verified via
+the real Playwright admin audit, run for the first time ever with real
+credentials this pass (see the-self-hosted-self 3.15.5's own entry for
+the harness fixes that made this possible).
+
 0.1.20 — Security fix found during a live-robustness audit of this
 plugin's federation surface: `BHR_Verification`'s three outbound checks
 (`check_domain_ownership()`, `check_activitypub_actor()`,

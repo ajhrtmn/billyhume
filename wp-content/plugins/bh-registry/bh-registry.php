@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Registry
  * Description: A global, decentralized artist-link registry — a cross-instance directory of artists' public ActivityPub/RSS-Podcasting-2.0 links, submitted voluntarily and verified by domain ownership. Stores links and metadata only; never media.
- * Version:     0.1.20
+ * Version:     0.1.21
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHR_VER',  '0.1.20');
+define('BHR_VER',  '0.1.21');
 
 define('BHR_PATH', plugin_dir_path(__FILE__));
 define('BHR_URL',  plugin_dir_url(__FILE__));

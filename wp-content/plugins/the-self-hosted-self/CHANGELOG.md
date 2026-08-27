@@ -9,6 +9,63 @@ has been reworded or dropped.
 
 ---
 
+3.15.5 — OPEN.md item 8 (unaudited admin screens): ran `tests/ux/
+admin.spec.ts` for the first time ever with real credentials — the
+`test.skip(!hasCreds, ...)` guard meant it had silently never executed
+in any prior session (`WP_ADMIN_USER`/`WP_ADMIN_PASS` had never been
+set). Added the remaining named screens from item 8 (bh-registry
+Submissions/Peers, bh-streaming Pro Wizard, bh-monetization-woo tier
+settings + a real tier's post-edit screen, a real lesson's post-edit
+screen for "quiz editor") using a scoped, throwaway administrator test
+account, deleted immediately after this pass — never the site owner's
+real account.
+
+Two real, previously-invisible bugs surfaced immediately: the
+pre-existing 'API Docs' screen entry 403s outright ("Sorry, you are
+not allowed to access this page") — but that's not a live bug,
+`class-api-docs.php`'s own docblock already documents this exact,
+extensively-investigated WordPress page-hook-resolution failure at
+length and deliberately never hooks `add_menu()` because of it; removed
+the stale test entry pointing at that known-dead URL in favor of the
+real, working access point (the API Docs section on 'Debug Tools',
+already audited). Separately, the Gutenberg block editor legitimately
+hides `#wpadminbar` in its default fullscreen mode — a real WordPress
+behavior, not a bug — so the harness's own "are we logged in, not
+bounced to login" check was asserting the wrong thing for post-edit
+screens; switched to checking for `body.wp-admin` instead, which is
+present regardless of fullscreen mode.
+
+With the harness itself fixed, this same first real run surfaced two
+genuine AA contrast failures on 'Debug Tools' that had been there the
+whole time, at every screen width: `.ous-log-level-pill[data-level=
+"warning"]` measured 2.81:1 (needs 4.5) — `--bhy-accent-text` only
+ever gets a real value from the currently-deactivated admin skin, so
+this always fell through to a `#1e1e1e` fallback that assumed a much
+LIGHTER warning fill than what actually renders here; changed the
+fallback to `#fff`, matching the same fallback error/info already use
+successfully, now 5.93:1. `.ous-log-meta` measured 4.41:1, barely under
+AA, against `--bhy-ink-dim`'s shared value — fixed with a LOCAL
+override (not a change to the shared token, which passes fine
+elsewhere against different backgrounds nobody measured) to `#5a5f66`,
+5.15:1.
+
+Also fixed the logged-in FRONT END side of item 7 (not wp-admin): new
+`tests/ux/logged-in.spec.ts` authenticates as a real, persistent
+subscriber-role test fixture (never the site owner's account — a
+subscriber can't reach wp-admin at all, so this project's own "only
+admins should ever see wp-admin" concern doesn't apply here) with real
+seeded state (enrolled in a course, one lesson step complete). Found
+and fixed one more real AA failure this way: the portal's active-nav
+tab used raw `--bh-accent` as TEXT color on a dark surface (3.68:1) —
+`--bh-accent-contrast` is the wrong token for this (that one is for
+ink ON TOP OF an accent-filled background, the reverse situation);
+fixed with the same `color-mix(65% accent, 35% text)` blend
+`.oust-card-readmore` already uses elsewhere for exactly this
+"accent-tinted but still readable" need, now 5.61:1.
+
+All fixes verified against the real local install via the actual
+Playwright harness (not reasoned through) before and after.
+
 3.15.4 — Tier 2 item 7 (systematic front-end audit): found and fixed a
 real dead link while adding CRM public profiles to the audit's page
 list. `BHI_PublicProfile::profile_url()` — the URL bh-crm's own admin

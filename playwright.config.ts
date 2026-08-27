@@ -29,6 +29,18 @@ export default defineConfig({
       testMatch: /public\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // Logged-in FRONT END (not wp-admin) as an ordinary subscriber —
+    // courses in progress, portal panels, contest/streaming while
+    // authenticated. Distinct from 'admin' (wp-admin screens, needs a
+    // real credentialed account) — this authenticates inline against a
+    // throwaway subscriber-role test fixture each run, no stored
+    // session or real credentials needed, since subscriber can't reach
+    // wp-admin at all regardless.
+    {
+      name: 'logged-in',
+      testMatch: /logged-in\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'admin',

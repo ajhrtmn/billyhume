@@ -824,7 +824,19 @@ class BHI_Portal {
   .bhi-portal-nav a.is-active {
     background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #2271b1) 14%, transparent));
     border-left-color: var(--bh-accent, #2271b1);
-    color: var(--bh-accent, #2271b1);
+    /* Real AA failure, found by the Tier 2 logged-in front-end audit
+       (2026-08-26): raw --bh-accent as TEXT color measured 3.68:1 on
+       this portal's dark surface (need 4.5:1) — the border/background
+       uses above are fine (not text-contrast-constrained), but reading
+       the accent directly as body-sized text never was. Same
+       color-mix(65% accent, 35% text) blend .oust-card-readmore
+       already uses elsewhere in this ecosystem for exactly this
+       "accent-tinted but still readable" need — measured 5.61:1 here,
+       a real AA pass with margin, not just theoretically better.
+       --bh-accent-contrast is the WRONG token for this: that one picks
+       readable ink for use ON TOP OF an accent-colored background, the
+       opposite situation from accent-colored text on a themed surface. */
+    color: color-mix(in srgb, var(--bh-accent, #2271b1) 65%, var(--bh-text, #1d2327));
     font-weight: 600;
   }
   .bhi-portal-main { flex:1; min-width:0; padding:32px 40px; max-width:820px; }
