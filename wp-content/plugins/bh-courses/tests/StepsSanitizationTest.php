@@ -79,6 +79,80 @@ final class StepsSanitizationTest extends TestCase
         $this->assertSame('upload', $result[0]['source']);
     }
 
+    public function testVideoChaptersSurviveWithValidTimeAndTitle()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
+            ['time' => 45, 'title' => 'EQ Bands Explained'],
+            ['time' => 0, 'title' => 'Intro'],
+        ]]]);
+        $this->assertCount(2, $result[0]['chapters'], 'Both chapters have a real title and a real time — neither should be dropped.');
+    }
+
+    public function testVideoChaptersAreSortedByTimeRegardlessOfAuthoringOrder()
+    {
+        // courses.js walks this list assuming ascending time (it uses
+        // "the next chapter's start" to compute the current chapter's
+        // segment width) — an admin adding chapters out of order must
+        // not ship a list that breaks that assumption.
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
+            ['time' => 90, 'title' => 'Common Mistakes'],
+            ['time' => 0, 'title' => 'Intro'],
+            ['time' => 45, 'title' => 'EQ Bands Explained'],
+        ]]]);
+        $this->assertSame([0, 45, 90], array_column($result[0]['chapters'], 'time'));
+    }
+
+    public function testVideoChapterWithNoTitleIsDropped()
+    {
+        // A bare timestamp with nothing to call it has nothing useful to
+        // show in the strip or the list — same "don't store dead weight"
+        // posture the empty-URL/no-attachment video tests above take.
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
+            ['time' => 10, 'title' => ''],
+            ['time' => 20, 'title' => '   '],
+        ]]]);
+        $this->assertSame([], $result[0]['chapters']);
+    }
+
+    public function testVideoChapterWithNegativeTimeIsClampedToZero()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
+            ['time' => -30, 'title' => 'Somehow negative'],
+        ]]]);
+        $this->assertSame(0, $result[0]['chapters'][0]['time']);
+    }
+
+    public function testVideoChapterTitleIsSanitizedAgainstMarkup()
+    {
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42, 'chapters' => [
+            ['time' => 0, 'title' => '<script>alert(1)</script>Intro'],
+        ]]]);
+        $this->assertStringNotContainsString('<script>', $result[0]['chapters'][0]['title']);
+    }
+
+    public function testVideoWithNoChaptersAttributeDefaultsToEmptyArray()
+    {
+        // The common case — most video steps have no chapters at all —
+        // must not become a missing array key class-render-lesson.php's
+        // `(array) ($step['chapters'] ?? [])` would otherwise have to
+        // guard against on every read.
+        $result = BHC_Steps::save(1, [['type' => 'video', 'attachment_id' => 42]]);
+        $this->assertSame([], $result[0]['chapters']);
+    }
+
+    public function testCloudflareStreamVideoDoesNotStoreChapters()
+    {
+        // Chapters (like annotations and watch_threshold) only apply to
+        // a real, same-origin-seekable <video> tag — a Cloudflare Stream
+        // iframe embed can't be seeked by this plugin's own JS at all,
+        // so the 'chapters' key is never even part of that branch's
+        // stored shape in the first place.
+        $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'cloudflare_stream', 'stream_uid' => str_repeat('a', 32), 'chapters' => [
+            ['time' => 0, 'title' => 'Intro'],
+        ]]]);
+        $this->assertArrayNotHasKey('chapters', $result[0]);
+    }
+
     public function testQuizQuestionWithNoValidChoicesIsDropped()
     {
         // All-blank choices (e.g. an admin added a question row then

@@ -6,6 +6,61 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.9.0 — YouTube-style chapters for video lesson steps, direct request
+(AJ: "video courses need chapters, and a visual representation and
+navigation via them in the video player, like YouTube"). New
+`chapters` attribute on bhc/video ([{ time, title }]), authored via a
+repeater panel in the block Inspector (mirrors the existing video-
+overlays UI: a shared live preview player, "Use preview's time" per
+row to grab the exact timestamp instead of typing it blind). Rendered
+as a segmented strip (each chapter's real proportional share of the
+runtime, click-to-seek, current chapter highlighted live via
+timeupdate) plus a clickable timestamped list beneath it — a
+companion to the video, not drawn on the native seek bar itself:
+`<video controls>` gives no way to paint markers onto the browser's
+own scrubber, and replacing native controls entirely with a custom bar
+was a much bigger, riskier rebuild (losing native fullscreen/
+accessibility/mobile handling) than this feature warranted. Same
+trackable-real-<video>-tag-only constraint as watch_threshold/
+annotations — a Cloudflare Stream or oEmbed iframe embed can't be
+seeked by this plugin's own JS, so chapters only apply to an uploaded
+file or a direct video URL.
+
+Two real bugs found and fixed live while building this, both from the
+same root cause (a schema/allowlist this ecosystem validates against
+in more than one place, and I only updated one of them at first): (1)
+BH_Content's own tree-validator only keeps attributes present in the
+schema BH_ContentBridge registers for bhc/video server-side — adding
+`chapters` to the JS block's attributes alone let it save into
+post_content fine but silently vanish by the time _bhc_steps was
+resynced, since that PHP-side schema never knew the key existed. (2)
+BHC_Steps::save()'s own explicit per-field allowlist for the video
+step type needed the same addition, plus a new sanitize_chapters()
+(sorts by time, drops a chapter with no title, clamps a negative time
+to zero) mirroring sanitize_annotations()'s existing shape. Also fixed
+a third, unrelated pre-existing bug this feature's real content
+happened to be tall enough to expose: a mobile-only CSS rule
+(`.bhc-step-video { max-height: 220px }`) was unscoped and matched
+BOTH the actual <video> tag AND the whole step's own outer wrapper div
+(which carries the identical literal class via the bhc-step-{type}
+naming convention) — capping the entire step's height on mobile
+instead of just the video, with the overflow (caption, Mark Complete
+button, and now the chapter strip/list) rendering outside its own
+box's contribution to page layout and visually overlapping whatever
+came next on the page (confirmed live: the site footer). Tag-qualified
+to `video.bhc-step-video`, consistent with an identical fix already
+documented elsewhere in this same stylesheet for the desktop rule.
+
+7 new PHPUnit tests (happy path, sort-by-time, empty-title dropped,
+negative-time clamped, markup stripped from title, default-empty-array
+for a video with no chapters, and confirmed absent entirely on a
+Cloudflare Stream step). Verified live end-to-end: authored 3 chapters
+in the real block editor, confirmed correct segment proportions
+(37.66/37.66/24.69% summing to 100), confirmed click-to-seek and
+active-chapter highlighting during real playback, confirmed no
+horizontal overflow and no overlap at 375px and 1280px. `php -l`,
+PHPStan, and `composer test` all clean.
+
 0.8.2 — bhc/catalog and bhc/course (bhc-blocks.ts) were still
 registered as block API version 1, a real WordPress deprecation
 ("may work as a non-iframe editor") — added `apiVersion: 3` to both.

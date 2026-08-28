@@ -239,6 +239,16 @@
             over_limit_mb: { type: 'number', default: 0 },
             // ROADMAP-lms-v3.md Section 1 — [{ time, type, payload }].
             annotations: { type: 'array', default: [] },
+            // YouTube-style chapters — [{ time, title }]. Rendered as a
+            // segmented strip + a clickable list below the video (see
+            // class-render-lesson.php/courses.ts); native <video controls>
+            // gives no way to draw markers ON the browser's own seek bar
+            // itself, so this is a companion strip directly beneath it
+            // rather than a literal overlay on the native scrubber — the
+            // deliberate, scoped answer to "like YouTube" without
+            // replacing native controls (fullscreen/accessibility/mobile
+            // behavior all stay exactly what they already are).
+            chapters: { type: 'array', default: [] },
         },
         supports: { html: false },
         edit: function (props: any) {
@@ -274,6 +284,36 @@
                 }).catch(function () { if (!cancelled) setPreviewUrl(''); });
                 return function () { cancelled = true; };
             }, [attrs.source, attrs.attachment_id]);
+
+            var chapters = attrs.chapters || [];
+            function updateChapter(i: number, patch: any) {
+                var next = chapters.slice();
+                next[i] = Object.assign({}, next[i], patch);
+                setAttrs({ chapters: next });
+            }
+            var chapterRows = chapters.map(function (c: any, i: any) {
+                return el('div', { key: i, className: 'bhc-studio-chapter-row', style: { display: 'flex', gap: '8px', alignItems: 'flex-end', marginBottom: '10px' } },
+                    el(wp.components.TextControl, {
+                        type: 'number', label: __('Time (seconds)'), value: c.time || 0,
+                        style: { width: '90px' },
+                        onChange: function (v: any) { updateChapter(i, { time: parseInt(v, 10) || 0 }); },
+                    }),
+                    previewUrl ? el(wp.components.Button, {
+                        variant: 'secondary',
+                        onClick: function () {
+                            if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
+                        },
+                    }, __('Use preview’s time')) : null,
+                    el(wp.components.TextControl, {
+                        label: __('Chapter title'), value: c.title || '', style: { flex: 1 },
+                        onChange: function (v: any) { updateChapter(i, { title: v }); },
+                    }),
+                    el(wp.components.Button, {
+                        variant: 'tertiary', isDestructive: true,
+                        onClick: function () { setAttrs({ chapters: chapters.filter(function (_: any, idx: any) { return idx !== i; }) }); },
+                    }, __('Remove'))
+                );
+            });
 
             var annotations = attrs.annotations || [];
             function updateAnnotation(i: number, patch: any) {
@@ -356,12 +396,30 @@
                         onChange: function (v: any) { setAttrs({ source: v }); },
                     })
                 ),
+                // Rendered once, shared by both the Chapters and Video
+                // overlays panels below via the same previewRef — each
+                // panel's own "Use preview's time" button just reads
+                // whatever this one video's currentTime is. Two separate
+                // <video ref={previewRef}> elements (one per panel) would
+                // silently fight over the same ref (only the
+                // last-rendered one wins it), breaking whichever panel
+                // isn't currently attached if an author ever has both
+                // panels open at once — PanelBody doesn't guarantee
+                // they're mutually exclusive.
+                previewUrl ? el(wp.components.PanelBody, { title: __('Preview (for setting chapter/overlay times)'), initialOpen: false },
+                    el('video', { ref: previewRef, src: previewUrl, controls: true, style: { width: '100%', borderRadius: '4px' } }),
+                    el('p', { className: 'description' }, __('Scrub/play to a moment, then use a chapter or overlay row\'s "Use preview\'s time" button below.'))
+                ) : null,
+                el(wp.components.PanelBody, { title: __('Chapters'), initialOpen: false },
+                    el('p', { className: 'description' }, __('Shown as a segmented strip plus a clickable list beneath the video (only for an uploaded file or a direct video URL — a YouTube/Vimeo-style embed can\'t be chapter-navigated the same way).')),
+                    chapterRows,
+                    el(wp.components.Button, {
+                        variant: 'secondary',
+                        onClick: function () { setAttrs({ chapters: chapters.concat([{ time: 0, title: '' }]) }); },
+                    }, __('+ Add chapter'))
+                ),
                 el(wp.components.PanelBody, { title: __('Video overlays (pop-up moments)'), initialOpen: false },
                     el('p', { className: 'description' }, __('Note/Hotspot/Question pause the video at a timestamp and wait for a dismiss/answer click. Banner is different on purpose — a non-blocking caption that slides in and disappears on its own, playback never stops.')),
-                    previewUrl ? el('div', { style: { marginBottom: '12px' } },
-                        el('video', { ref: previewRef, src: previewUrl, controls: true, style: { width: '100%', borderRadius: '4px' } }),
-                        el('p', { className: 'description' }, __('Scrub/play to a moment, then use each row\'s "Use preview\'s current time" button below.'))
-                    ) : null,
                     annotationRows,
                     el(wp.components.Button, {
                         variant: 'secondary',

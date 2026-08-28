@@ -148,11 +148,11 @@ class BHC_Steps {
                     if (!$raw || !filter_var($raw, FILTER_VALIDATE_URL)) continue;
                     $url = esc_url_raw($raw);
                     if (!$url) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);
                     if (!$attachment_id) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 }
             } elseif ($type === 'quiz') {
                 $questions = [];
@@ -311,6 +311,28 @@ class BHC_Steps {
         // Playback-order, not authoring-order — courses.js walks this
         // list expecting ascending timestamps so it can find "the next
         // unshown annotation" with a simple forward scan.
+        usort($clean, fn($a, $b) => $a['time'] <=> $b['time']);
+        return array_values($clean);
+    }
+
+    // YouTube-style chapters — [{ time, title }]. A chapter with no
+    // title has nothing to show in the strip/list beyond a bare
+    // timestamp, so (like an empty annotation note above) it's dropped
+    // here rather than stored dead. Sort is playback-order for the same
+    // reason sanitize_annotations() sorts above — class-render-lesson.php
+    // also re-sorts before output, but this keeps the stored shape sane
+    // regardless of which caller reads it.
+    /**
+     * @param mixed $chapters
+     * @return array<int, array<string, mixed>>
+     */
+    private static function sanitize_chapters($chapters): array {
+        $clean = [];
+        foreach ((array) $chapters as $c) {
+            $title = sanitize_text_field($c['title'] ?? '');
+            if ($title === '') continue;
+            $clean[] = ['time' => max(0, (int) ($c['time'] ?? 0)), 'title' => $title];
+        }
         usort($clean, fn($a, $b) => $a['time'] <=> $b['time']);
         return array_values($clean);
     }

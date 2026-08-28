@@ -303,6 +303,18 @@ class BHC_ContentBridge {
             // Just needs to round-trip through the schema so a lesson's
             // annotations survive the tree<->legacy-steps conversion.
             'annotations' => ['type' => 'array', 'default' => []],
+            // YouTube-style chapters — [{ time, title }]. Real bug, found
+            // live: this schema entry is what BH_Content's tree parser
+            // actually validates/coerces attrs against when reading a
+            // lesson's post_content back out — adding `chapters` to the
+            // JS block's own attributes (courses-studio-blocks.ts) alone
+            // was not enough. A chapter list saved fine into post_content
+            // (confirmed via wp.data.select('core/editor').
+            // getEditedPostContent()) but silently vanished by the time
+            // get_tree()/tree_to_steps() produced the _bhc_steps array
+            // class-render-lesson.php actually reads from, since this
+            // side never knew the key existed.
+            'chapters' => ['type' => 'array', 'default' => []],
         ], function ($attrs) {
             $out = '<div class="bhc-step bhc-step-video">';
             if ($attrs['source'] === 'cloudflare_stream' && $attrs['stream_uid']) {

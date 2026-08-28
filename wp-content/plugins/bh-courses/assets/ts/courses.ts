@@ -70,6 +70,11 @@ interface BHCVideoAnnotation {
     payload: BHCVideoAnnotationPayload;
 }
 
+interface BHCVideoChapter {
+    time: number;
+    title: string;
+}
+
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
         // Catalog filter bar: works as a plain GET form with zero JS
@@ -518,6 +523,120 @@ interface BHCVideoAnnotation {
                     if (video.currentTime < annotations[i]!.time) shown[i] = false;
                 }
             });
+        });
+
+        // YouTube-style chapters: a segmented strip + a clickable list,
+        // inserted as a sibling right AFTER .bhc-video-wrap rather than
+        // inside it — that wrap is a `display: flex` row centering the
+        // <video> (annotation overlays escape it anyway via `position:
+        // absolute`), so a normal-flow child appended inside it would
+        // render beside the video, not below. A new sibling element
+        // avoids touching that existing layout at all. Native <video
+        // controls> gives no way to draw markers on the browser's own
+        // seek bar, so this strip is the deliberate, scoped stand-in —
+        // see courses-studio-blocks.ts's own comment on bhc/video's
+        // chapters attribute for the same reasoning.
+        lesson.querySelectorAll<HTMLVideoElement>('.bhc-step-video[data-chapters]').forEach(function (video) {
+            var chapters: BHCVideoChapter[];
+            try {
+                chapters = JSON.parse(video.dataset.chapters ?? '[]');
+            } catch (e) {
+                return;
+            }
+            if (!Array.isArray(chapters) || !chapters.length) return;
+
+            var wrap = video.closest('.bhc-video-wrap');
+            if (!wrap || !wrap.parentNode) return;
+
+            function formatTime(seconds: number): string {
+                var m = Math.floor(seconds / 60);
+                var s = Math.floor(seconds % 60);
+                return m + ':' + (s < 10 ? '0' : '') + s;
+            }
+
+            var container = document.createElement('div');
+            container.className = 'bhc-video-chapters';
+
+            var strip = document.createElement('div');
+            strip.className = 'bhc-video-chapter-strip';
+            container.appendChild(strip);
+
+            var list = document.createElement('ol');
+            list.className = 'bhc-video-chapter-list';
+            container.appendChild(list);
+
+            var segments: HTMLElement[] = [];
+            var items: HTMLElement[] = [];
+
+            function escText(s: unknown) {
+                var d = document.createElement('div');
+                d.textContent = s == null ? '' : String(s);
+                return d.innerHTML;
+            }
+
+            // Segment widths need the video's real duration, which isn't
+            // known until metadata loads (a fresh page load has none
+            // yet) — everything that needs `duration` is built inside
+            // this handler rather than up front.
+            function buildSegments() {
+                var duration = video.duration;
+                if (!duration || !isFinite(duration)) return;
+                strip.innerHTML = '';
+                list.innerHTML = '';
+                segments = [];
+                items = [];
+
+                chapters.forEach(function (chapter, i) {
+                    var start = chapter.time;
+                    var end = i + 1 < chapters.length ? chapters[i + 1]!.time : duration;
+                    // Real edge case, found live: authored chapter times
+                    // can outlive the actual file (mismatched test data,
+                    // or a shorter replacement file uploaded after
+                    // chapters were written) — clamping both ends to the
+                    // real duration keeps widths in [0, 100]% instead of
+                    // producing a segment hundreds of percent wide that
+                    // blows out the flex row, or a negative span.
+                    var clampedStart = Math.min(start, duration);
+                    var clampedEnd = Math.min(end, duration);
+                    var widthPct = Math.max(0, ((clampedEnd - clampedStart) / duration) * 100);
+
+                    var segment = document.createElement('button');
+                    segment.type = 'button';
+                    segment.className = 'bhc-video-chapter-segment';
+                    segment.style.width = widthPct + '%';
+                    segment.title = chapter.title || formatTime(start);
+                    segment.addEventListener('click', function () { video.currentTime = start; video.play(); });
+                    strip.appendChild(segment);
+                    segments.push(segment);
+
+                    var item = document.createElement('li');
+                    item.className = 'bhc-video-chapter-item';
+                    item.innerHTML = '<button type="button" class="bhc-video-chapter-item-btn">'
+                        + '<span class="bhc-video-chapter-item-time">' + formatTime(start) + '</span>'
+                        + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || 'Chapter ' + (i + 1)) + '</span>'
+                        + '</button>';
+                    item.querySelector('button')!.addEventListener('click', function () { video.currentTime = start; video.play(); });
+                    list.appendChild(item);
+                    items.push(item);
+                });
+            }
+
+            function highlightActive() {
+                if (!segments.length) return;
+                var t = video.currentTime;
+                var activeIndex = 0;
+                for (var i = 0; i < chapters.length; i++) {
+                    if (t >= chapters[i]!.time) activeIndex = i;
+                }
+                segments.forEach(function (seg, i) { seg.classList.toggle('active', i === activeIndex); });
+                items.forEach(function (item, i) { item.classList.toggle('active', i === activeIndex); });
+            }
+
+            if (video.readyState >= 1 /* HAVE_METADATA */) buildSegments();
+            video.addEventListener('loadedmetadata', buildSegments);
+            video.addEventListener('timeupdate', highlightActive);
+
+            wrap.parentNode.insertBefore(container, wrap.nextSibling);
         });
 
         lesson.addEventListener('click', function (e) {

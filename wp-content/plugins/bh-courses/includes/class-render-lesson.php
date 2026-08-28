@@ -282,6 +282,19 @@ class BHC_Render_Lesson {
             // never the iframe branch below.
             $annotations = (array) ($step['annotations'] ?? []);
             $annotations_attr = $annotations ? ' data-annotations="' . esc_attr(wp_json_encode($annotations)) . '"' : '';
+            // YouTube-style chapters — same trackable-<video>-tag-only
+            // constraint as watch_threshold/annotations above (a
+            // cross-origin iframe embed can't be seeked by our own JS),
+            // so this is only ever emitted alongside a real <video> tag.
+            // Sorted by time here once, server-side, rather than trusting
+            // whatever order an author happened to add rows in the
+            // editor — courses.js's strip/list rendering assumes
+            // ascending order and would otherwise need to re-sort itself
+            // (or worse, silently render a nonsensical strip) if this
+            // shipped unsorted.
+            $chapters = (array) ($step['chapters'] ?? []);
+            usort($chapters, function ($a, $b) { return ($a['time'] ?? 0) <=> ($b['time'] ?? 0); });
+            $chapters_attr = $chapters ? ' data-chapters="' . esc_attr(wp_json_encode(array_values($chapters))) . '"' : '';
             if ($step['source'] === 'upload') {
                 // wp_get_attachment_url() is the one API surface an
                 // offload plugin (see The Self-Hosted Self's dashboard entry for
@@ -294,7 +307,7 @@ class BHC_Render_Lesson {
                     // overlays (courses.js) a positioned parent to sit
                     // over the video frame — harmless either way when
                     // there are no annotations.
-                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . '></video></div>';
+                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
                     $trackable = true;
                 } else {
                     echo '<p class="bhc-empty">Video file not found.</p>';
@@ -332,7 +345,7 @@ class BHC_Render_Lesson {
                 if ($embed_url) {
                     echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
                 } else {
-                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . '></video></div>';
+                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
                     $trackable = true;
                 }
             }
