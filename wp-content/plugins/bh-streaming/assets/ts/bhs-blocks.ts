@@ -45,6 +45,7 @@ interface BHSBlocksWindow extends Window {
     const ServerSideRender = (serverSideRender as { default?: unknown }).default || serverSideRender;
 
     blocks.registerBlockType('bhs/player', {
+        apiVersion: 3,
         title: 'Streaming Player (BH Streaming)',
         description: 'The streaming library/player app — the same [bh_streaming] shortcode, as a real block with a live preview.',
         icon: 'format-audio',

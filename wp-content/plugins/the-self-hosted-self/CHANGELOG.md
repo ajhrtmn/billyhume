@@ -9,6 +9,29 @@ has been reworded or dropped.
 
 ---
 
+3.15.7 — CRITICAL fix: the block editor's canvas was rendering at a
+real, measured 0px height on any post-edit screen with metaboxes tall
+enough to fill the available space — confirmed on bh_course, bh_lesson,
+AND a stock WooCommerce Product with none of this ecosystem's own JS
+involved, so this was never about Lit, the admin skin, or anything
+plugin-specific: WP core's resizable "Meta Boxes" panel has no min-
+height reserved for the canvas above it (only a min-width on the same
+inline style), so it can default to giving metaboxes 100% of the space
+and the canvas 0%. The block editor was fully intact and fully
+functional the whole time — this is why "building lessons" looked like
+a missing feature: the real Lesson: Text/Image/Video/Quiz block editor
+was rendering at zero pixels tall, hidden above a "Meta Boxes" bar that
+had silently claimed the entire screen. Fixed with one unscoped,
+always-loaded rule (OUS_UI::print_block_editor_metabox_fix(), hooked
+alongside the existing design-system CSS print) — `.editor-resizable-
+editor { min-height: 300px !important; }` — loaded on every admin
+screen, not just this ecosystem's own, since the bug isn't ecosystem-
+specific. Verified live: collapsing the "Meta Boxes" toggle already
+proved the canvas rendered correctly the instant it got any room at
+all; after this fix a fresh page load never starts at zero. Confirmed
+on Product, bh_course, and bh_lesson edit screens. `php -l`, PHPStan,
+and `composer test` all clean.
+
 3.15.6 — Fixed the account-overview "Continue learning" widget
 (class-portal.php) linking a student straight into a course whose
 tier/purchase access had lapsed since they enrolled — enrollment and

@@ -22,6 +22,7 @@
     var ServerSideRender = serverSideRender.default || serverSideRender;
 
     blocks.registerBlockType('bhm/buy', {
+        apiVersion: 3,
         title: __('Buy Button (Monetization)', 'bh-monetization-woo'),
         description: __('A "Buy" button/form for a purchasable track or release — the same [bhm_buy] shortcode, as a real block with a live preview.', 'bh-monetization-woo'),
         icon: 'cart',
@@ -86,6 +87,7 @@
     });
 
     blocks.registerBlockType('bhm/tip-jar', {
+        apiVersion: 3,
         title: __('Tip Jar (Monetization)', 'bh-monetization-woo'),
         description: __('A "send a tip" form — the same [bhm_tip_jar] shortcode, as a real block with a live preview.', 'bh-monetization-woo'),
         icon: 'money-alt',
@@ -102,6 +104,7 @@
     });
 
     blocks.registerBlockType('bhm/tiers', {
+        apiVersion: 3,
         title: __('Supporter Tiers (Monetization)', 'bh-monetization-woo'),
         description: __('The supporter-tier picker grid — the same [bhm_tiers] shortcode, as a real block with a live preview.', 'bh-monetization-woo'),
         icon: 'awards',

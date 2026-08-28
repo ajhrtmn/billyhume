@@ -6,6 +6,17 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.8.2 — bhc/catalog and bhc/course (bhc-blocks.ts) were still
+registered as block API version 1, a real WordPress deprecation
+("may work as a non-iframe editor") — added `apiVersion: 3` to both.
+Found while diagnosing a separate, much bigger live bug (a completely
+broken block-editor canvas on bh_lesson/bh_course — see
+the-self-hosted-self 3.15.7's changelog for the actual root cause,
+which turned out to be unrelated to this). Fixed regardless since it's
+a real, easy warning to clear. `npx tsc` recompiled clean.
+
+---
+
 0.8.1 — Real bug found spot-checking the student experience live (as
 an actual enrolled subscriber, not an admin bypassing gates): a student
 whose tier access lapsed after enrolling still saw a "Continue" button

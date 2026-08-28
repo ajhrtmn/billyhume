@@ -6,6 +6,17 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.2 — bhs/player (bhs-blocks.ts) was still registered as block API
+version 1, a real WordPress deprecation ("may work as a non-iframe
+editor") — added `apiVersion: 3`. Found while diagnosing a separate,
+much bigger live bug (a completely broken block-editor canvas on
+bh_course/bh_lesson — see the-self-hosted-self 3.15.7's changelog for
+the actual root cause, which turned out to be unrelated to this).
+Fixed regardless since it's a real, easy warning to clear. `npx tsc`
+recompiled clean.
+
+---
+
 0.6.1 — Fixed the specific reason the Streaming page didn't
 auto-create on live even after 0.6.0 and a plugin reactivate.
 

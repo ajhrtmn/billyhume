@@ -54,6 +54,7 @@
         return [contests, loading];
     }
     blocks.registerBlockType('bh/contest-player', {
+        apiVersion: 3,
         title: __('Contest Player (BH Contest)', 'bh-contest'),
         description: __('The contest voting player — the same [bh_contest_player] shortcode, as a real block with a live preview.', 'bh-contest'),
         icon: 'playlist-audio',
@@ -75,6 +76,7 @@
         save: function () { return null; },
     });
     blocks.registerBlockType('bh/results-reveal', {
+        apiVersion: 3,
         title: __('Results Reveal Display (BH Contest)', 'bh-contest'),
         description: __('The public Results Reveal display (what OBS captures) — the same [bh_results_reveal] shortcode, as a real block with a live preview.', 'bh-contest'),
         icon: 'megaphone',
@@ -96,6 +98,7 @@
         save: function () { return null; },
     });
     blocks.registerBlockType('bh/archive', {
+        apiVersion: 3,
         title: __('Archive (BH Contest)', 'bh-contest'),
         description: __('The public past-contests archive browser — the same [bh_archive] shortcode, as a real block with a live preview.', 'bh-contest'),
         icon: 'archive',

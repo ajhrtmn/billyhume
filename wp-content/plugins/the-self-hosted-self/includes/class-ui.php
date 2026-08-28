@@ -573,6 +573,31 @@ class BHY_UI {
     public static function init_shared_admin_assets(): void {
         add_action('admin_head', [self::class, 'print_design_system_css']);
         add_action('admin_footer', [self::class, 'print_design_system_js']);
+        add_action('admin_head', [self::class, 'print_block_editor_metabox_fix']);
+    }
+
+    /**
+     * Real bug, found live: the block editor's resizable Meta Boxes
+     * panel (core, not this ecosystem's own code) has no minimum height
+     * reserved for the actual canvas above it, only a min-width on the
+     * same inline style. On ANY screen with metaboxes whose natural
+     * stacked height reaches the available space (which is nearly every
+     * real post-edit screen with more than one or two boxes — confirmed
+     * on bh_course, bh_lesson, AND a stock WooCommerce Product with zero
+     * of this ecosystem's own JS involved), the canvas gets squeezed to
+     * a real, measured 0px height — not scrolled off-screen, not
+     * covered by another panel, an actual 0-height iframe with fully
+     * rendered content trapped inside it. The one-click workaround
+     * (collapsing the "Meta Boxes" toggle at the top of the screen)
+     * proves the canvas renders fine the instant it's given ANY room;
+     * this just gives it a floor so a fresh page load never starts at
+     * zero. Unscoped (every admin screen, not just this ecosystem's own
+     * — the bug reproduces identically on core/third-party screens) via
+     * the same "load everywhere, cheap, no gating" posture OUS_Toast's
+     * assets already use.
+     */
+    public static function print_block_editor_metabox_fix(): void {
+        echo '<style>.editor-resizable-editor{min-height:300px !important;}</style>';
     }
 
     /**

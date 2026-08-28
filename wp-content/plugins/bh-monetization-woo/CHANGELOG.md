@@ -6,6 +6,19 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.2 — bhm/buy, bhm/tip-jar, and bhm/tiers (bhm-blocks.js — this
+plugin has no TS pilot conversion yet, so this file is edited
+directly) were still registered as block API version 1, a real
+WordPress deprecation ("may work as a non-iframe editor") — added
+`apiVersion: 3` to all three. Found while diagnosing a separate, much
+bigger live bug (a completely broken block-editor canvas on
+bh_course/bh_lesson AND a stock WooCommerce Product — see
+the-self-hosted-self 3.15.7's changelog for the actual root cause,
+which turned out to be unrelated to this). Fixed regardless since it's
+a real, easy warning to clear.
+
+---
+
 0.6.1 — Live-robustness pass on this plugin's money paths, specifically
 what happens when one `woocommerce_order_status_completed`/`_refunded`/
 `_cancelled` listener throws. Real, ALREADY-PROVEN class of bug in this

@@ -29,6 +29,7 @@
     const Placeholder = components.Placeholder;
     const ServerSideRender = serverSideRender.default || serverSideRender;
     blocks.registerBlockType('bhc/catalog', {
+        apiVersion: 3,
         title: __('Course Catalog (BH Courses)', 'bh-courses'),
         description: __('The full course catalog grid — the same [bh_courses] shortcode, as a real block with a live preview.', 'bh-courses'),
         icon: 'welcome-learn-more',
@@ -41,6 +42,7 @@
         save: function () { return null; },
     });
     blocks.registerBlockType('bhc/course', {
+        apiVersion: 3,
         title: __('Single Course (BH Courses)', 'bh-courses'),
         description: __('A single course’s detail page — the same [bh_course] shortcode, as a real block with a live preview.', 'bh-courses'),
         icon: 'welcome-learn-more',
