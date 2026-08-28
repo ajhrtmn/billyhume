@@ -258,31 +258,37 @@ body.admin-bar .oust-site-header { top: 32px; }
 }
 .oust-site-brand .custom-logo { max-height: 44px; width: auto; display: block; }
 
-/* min-width:0 (so this can shrink at all inside a flex row) PLUS a
-   real overflow escape hatch: if this nav's own natural width still
-   exceeds whatever room is left after the brand mark keeps its full
-   width above, scroll horizontally within the nav's own lane instead
-   of silently clipping items off-screen with no way to reach them. A
-   deliberately THIN, visible, on-brand scrollbar rather than a hidden
-   one — an invisible scroll affordance is its own real usability trap
-   (a person has no way to know there's more nav to find), so this
-   stays honest about the state rather than pretending the overflow
-   isn't there. A real production menu (this test site's own 10-item
-   nav is inflated with QA-artifact entries like "Test Post 1"/"Contest
-   Test Page") should rarely if ever actually need to scroll — this is
-   a safety net for when it does, not the primary UX. */
+/* Real UX fix, replacing an earlier horizontal-scroll "safety net" for
+   a nav wider than its row: scrolling still meant a clipped/cut-off
+   item (most visibly the "Go to Portal" CTA button, the one item that
+   should never look broken) sitting right at the edge with no
+   affordance beyond a thin 4px scrollbar. A "More" overflow menu
+   (Priority+/"more nav" pattern) is the standard real answer — nothing
+   is ever clipped or hidden behind a scroll gesture; whatever doesn't
+   fit collapses into one extra dropdown, same as any other submenu.
+   See theme.js's priority-nav IIFE for the measurement/collapse logic,
+   and header.php for the trigger's own markup right after the menu. */
 .oust-primary-nav {
     min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--bh-border, #3D1B14) transparent;
 }
-.oust-primary-nav::-webkit-scrollbar { height: 4px; }
-.oust-primary-nav::-webkit-scrollbar-track { background: transparent; }
-.oust-primary-nav::-webkit-scrollbar-thumb { background: var(--bh-border, #3D1B14); border-radius: 4px; }
 .oust-nav-list {
     display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0;
 }
+/* The "More" trigger reuses every other top-level item's look/dropdown
+   mechanism (same LI, same position:fixed <ul> below) — hidden by
+   default, theme.js only reveals it once it's actually collected at
+   least one overflowed item. A <button>, not an <a>, since it opens a
+   menu rather than navigating anywhere itself. */
+.oust-nav-more { display: none; }
+.oust-nav-more.has-items { display: block; }
+.oust-nav-more > button {
+    display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 0 16px;
+    border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--bh-text-dim, #B99584);
+    background: transparent; border: 0; font-family: inherit; cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+.oust-nav-more > button:hover { color: var(--bh-text, #EDDFCB); background: var(--bh-surface-2, #2C120E); }
+.oust-nav-more-caret { font-size: 10px; }
 .oust-nav-list li { position: relative; }
 .oust-nav-list a {
     display: inline-flex; align-items: center; height: 38px; padding: 0 16px;
@@ -297,25 +303,52 @@ body.admin-bar .oust-site-header { top: 32px; }
 }
 
 /* Sub-menus: a plain dropdown, matched to the surface/border/radius
-   vocabulary used everywhere else rather than a browser-default panel. */
+   vocabulary used everywhere else rather than a browser-default panel.
+   `position: fixed`, not `absolute`: this nav row needs overflow-x:auto
+   as a horizontal-scroll safety net (above), and per the CSS Overflow
+   spec, overflow-x set to anything but visible silently forces
+   overflow-y to auto too on that SAME box (confirmed live — measured
+   overflow-y: auto despite no rule ever setting it), which clipped
+   every dropdown extending below the row to the row's own ~38-72px
+   height. Fixed positioning is laid out against the viewport, not any
+   ancestor, so it is never clipped by an ancestor's overflow at all —
+   theme.js sets top/left as inline styles the moment a dropdown opens
+   (mouseenter/focusin), computed from the trigger's own
+   getBoundingClientRect(), and flips right-aligned there too when it
+   would run off the right edge.
+
+   Without JS (or before it runs), fixed positioning has no ancestor to
+   inherit a sane position from the way `absolute` would, so this needs
+   a real static fallback rather than silently rendering at 0,0 — the
+   header is a constant 72px tall (.oust-site-header-inner), so
+   top:78px (72 + 6, same gap the old absolute version used) plus the
+   header's own admin-bar offset lines up with the header's bottom edge
+   either way; left matches the header's own horizontal padding. Not
+   pixel-perfect per item without JS, but visible and usable rather
+   than broken. */
 .oust-nav-list ul {
-    display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+    display: none; position: fixed; top: 78px; left: 24px; z-index: 50;
     min-width: 200px; list-style: none; margin: 0; padding: 6px;
     background: var(--bh-surface, #220C0A); border: 1px solid var(--bh-border, #3D1B14);
     border-radius: var(--bh-radius-sm, 8px); box-shadow: 0 16px 32px -12px rgba(0,0,0,.5);
 }
+body.admin-bar .oust-nav-list ul { top: 110px; }
 .oust-nav-list li:hover > ul, .oust-nav-list li:focus-within > ul { display: block; }
 .oust-nav-list ul a { height: 34px; border-radius: 6px; width: 100%; }
-/* A submenu near the right edge of the nav bar (e.g. the last one or
-   two top-level items — Contests/Courses on this site, added by
-   OUS_MenuSync) would otherwise run off the viewport on desktop, since
-   every submenu anchors left:0 relative to its own parent regardless
-   of how close that parent sits to the right edge. theme.js measures
-   each submenu's actual position on hover/focus and adds this class
-   only when it would genuinely overflow — real per-item overflow
-   detection, not a hardcoded "last N items" guess that would break the
-   moment the menu's real content changes. */
-.oust-nav-list li.oust-submenu-flip > ul { left: auto; right: 0; }
+/* An item that lands in the More dropdown (theme.js's priority-nav
+   collapse) can bring its own submenu with it (e.g. "Courses" with
+   "Songwriting Fundamentals" nested under it) — requiring a second
+   hover, on an item already one hover deep inside More, to ever
+   discover that submenu exists is a real discoverability trap. Inside
+   More specifically, show it inline/expanded and indented instead,
+   the same always-visible treatment the mobile menu already uses for
+   every submenu regardless of depth — one hover opens everything
+   there is to see under that trigger. */
+.oust-nav-more ul ul {
+    display: block; position: static; margin: 2px 0 4px 12px; padding: 0;
+    border: 0; box-shadow: none; background: transparent;
+}
+.oust-nav-more ul ul a { height: 30px; font-size: 13px; }
 
 .oust-nav-toggle {
     /* OPEN.md touch-target gap, fixed 2026-08-26: was 40x40, under the

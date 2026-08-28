@@ -28,6 +28,12 @@
                 'menu_class' => 'oust-nav-list',
                 'fallback_cb' => 'oust_default_menu',
                 'depth' => 2,
+                // "More" overflow trigger, appended after every real menu
+                // item — theme.js moves whichever top-level items don't
+                // fit into its <ul>, keeping the account/portal CTA (the
+                // menu's own last item, .ous-menu-account-cta) out of
+                // scope entirely so it never gets swept in with them.
+                'items_wrap' => '<ul id="%1$s" class="%2$s">%3$s<li class="oust-nav-more"><button type="button" aria-haspopup="true" aria-expanded="false">' . esc_html__('More', 'the-self-hosted-self-theme') . ' <span class="oust-nav-more-caret" aria-hidden="true">&#9662;</span></button><ul></ul></li></ul>',
             ]);
             ?>
         </nav>
