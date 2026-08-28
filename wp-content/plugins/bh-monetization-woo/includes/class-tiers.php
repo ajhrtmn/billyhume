@@ -429,8 +429,21 @@ class BHM_Tiers {
         return $ids;
     }
 
+    // Real bug, found live stress-testing the Membership & Wallet portal
+    // panel: bhm_tiers_page_id had gone stale (the page it once pointed
+    // at had since been deleted) and this had zero validation on the
+    // stored ID before trusting it — get_permalink() on a deleted post
+    // returns false, esc_url(false) becomes an empty string, and an
+    // empty href on an <a> resolves to the CURRENT page. "See supporter
+    // tiers" silently looped back to the membership page itself instead
+    // of erroring or falling back. Now checks the page still exists and
+    // is actually published before trusting it, same
+    // exists-and-not-trashed guard bh-contest's page_links_html() (and
+    // several other "resolve the real page for X" call sites across
+    // this ecosystem) already use for exactly this class of staleness.
     public static function tiers_page_url(): string {
         $page_id = (int) get_option('bhm_tiers_page_id', 0);
-        return $page_id ? get_permalink($page_id) : home_url('/');
+        $status  = $page_id ? get_post_status($page_id) : false;
+        return ($page_id && $status && $status !== 'trash') ? (string) get_permalink($page_id) : home_url('/');
     }
 }

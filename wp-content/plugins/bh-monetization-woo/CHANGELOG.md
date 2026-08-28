@@ -6,6 +6,21 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.3 — Real bug, found live stress-testing the Membership & Wallet
+portal panel: "See supporter tiers" silently looped back to the
+current page instead of going anywhere. bhm_tiers_page_id had gone
+stale (the page it once pointed at, post 293, had since been deleted
+entirely — confirmed live, its own edit screen 404s with "attempted
+to edit an item that does not exist"), and BHM_Tiers::tiers_page_url()
+had zero validation on the stored ID: get_permalink() on a deleted
+post returns false, esc_url(false) becomes an empty string, and an
+empty href resolves to the current page. The admin settings screen
+already self-heals this correctly (checks get_post() before trusting
+the option); the front-end helper never got the same guard. Now
+checks the page still exists and isn't trashed before trusting it,
+falling back to home_url('/') otherwise. `php -l`, PHPStan, and
+`composer test` all clean.
+
 0.6.2 — bhm/buy, bhm/tip-jar, and bhm/tiers (bhm-blocks.js — this
 plugin has no TS pilot conversion yet, so this file is edited
 directly) were still registered as block API version 1, a real
