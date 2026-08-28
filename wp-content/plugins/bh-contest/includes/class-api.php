@@ -147,6 +147,16 @@ class BH_API {
             'results_published' => get_post_meta($cid, '_bh_results_published', true) === '1',
             'vote_limit'        => $vote_limit,
             'votes_remaining'   => $votes_remaining,
+            // Real bug, found live: the player had zero client-side
+            // awareness of the contest's own voting window — every "Vote"
+            // button stayed fully enabled regardless of phase, and a
+            // voter only ever discovered voting had closed after a real
+            // round trip failed with "Voting is not open right now,"
+            // toast-only, no upfront indication. player.ts now uses this
+            // to disable voting and show a real closed-state banner
+            // instead of an always-live-looking UI that quietly rejects
+            // every click.
+            'voting_open'       => class_exists('BH_Rounds') ? BH_Rounds::is_voting_open($cid) : BH_Helpers::is_voting_open($cid),
         ]);
     }
 

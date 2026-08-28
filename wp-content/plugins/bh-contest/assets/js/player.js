@@ -217,6 +217,15 @@ class BHPlayer {
                 </div>
 
                 <div class="bh-category-tabs" style="display:none;"></div>
+                <!-- Real bug, found live: every "Vote" button stayed
+                     fully enabled regardless of the contest's own voting
+                     window, so a voter only ever discovered voting had
+                     closed after a real round trip failed with a
+                     toast-only error — no upfront indication the whole
+                     page was showing a live-looking UI for a contest
+                     that had already ended. See loadTracks()'s
+                     voting_open handling and renderTrackRows(). -->
+                <div class="bh-voting-closed-banner" style="display:none;">Voting has closed for this contest.</div>
                 <!-- Audit fix (2026-07-25): a voter previously had no
                      persistent way to see votes remaining in the active
                      category — only a post-vote toast that disappeared.
@@ -819,6 +828,8 @@ class BHPlayer {
             this.contest = String(body.contest_id);
         this.resultsPublished = !!body.results_published;
         this.q('.bh-results-btn').style.display = this.resultsPublished ? 'inline-flex' : 'none';
+        this.votingOpen = body.voting_open !== false; // absent (older cache) reads as open, never as closed
+        this.q('.bh-voting-closed-banner').style.display = this.votingOpen ? 'none' : 'block';
         this.categories = body.categories || [];
         if (!this.activeCategory || !this.categories.some(c => c.slug === this.activeCategory)) {
             this.activeCategory = this.categories.length ? this.categories[0].slug : '';
@@ -931,8 +942,17 @@ class BHPlayer {
     renderTrackRows() {
         const list = this.q('.bh-tracklist');
         const color = this.catColor(this.activeCategory);
+        const votingClosed = this.votingOpen === false;
         list.innerHTML = this.tracks.map((t, i) => {
             const voted = !!(t.votes && t.votes[this.activeCategory]);
+            // An already-cast vote still reads as "Voted" (it happened,
+            // reflecting reality), but a NOT-yet-cast vote shows as
+            // disabled once voting has closed rather than staying a
+            // fully live-looking button that would just reject the
+            // click with a toast — the whole point of the banner above
+            // is to make that state visible before a click, not just
+            // after one.
+            const disabled = votingClosed && !voted;
             return `
             <div class="bh-track-row" data-index="${i}">
                 <div class="bh-disc" style="--bh-hue:${this.hue(t.id)}"></div>
@@ -940,9 +960,9 @@ class BHPlayer {
                     <div class="bh-track-title">${this.esc(t.title)}</div>
                     <div class="bh-track-artist">${this.esc(t.artist)}</div>
                 </div>
-                <button class="bh-vote-btn ${voted ? 'voted' : ''}" data-id="${t.id}" id="vote-${t.id}" style="--bh-cat-color:${color}">
+                <button class="bh-vote-btn ${voted ? 'voted' : ''}" data-id="${t.id}" id="vote-${t.id}" style="--bh-cat-color:${color}"${disabled ? ' disabled' : ''}>
                     <svg class="bh-check" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
-                    <span>${voted ? 'Voted' : 'Vote'}</span>
+                    <span>${voted ? 'Voted' : (votingClosed ? 'Closed' : 'Vote')}</span>
                 </button>
             </div>`;
         }).join('');

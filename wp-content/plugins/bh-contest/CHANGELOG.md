@@ -6,6 +6,22 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.12.0 — Stress-testing the actual voting flow live turned up a real
+gap: the player had zero client-side awareness of a contest's own
+voting window. Every "Vote" button stayed fully enabled regardless of
+phase, and a voter only ever discovered voting had closed after a
+real round trip returned "Voting is not open right now" as a toast —
+no upfront indication the whole page was showing a live-looking UI
+for a contest that had already ended. The public /tracks REST
+response now includes voting_open (same BH_Rounds/BH_Helpers check
+the vote-cast endpoint already used server-side), and player.ts uses
+it to show a real "Voting has closed for this contest" banner and
+disable every not-yet-cast vote button (an already-cast vote still
+shows "Voted" — that happened, and stays true). Verified live against
+a real closed contest (Fall Anthem Showdown, voting ended 2026-07-19):
+banner shown, all four buttons read "Closed" and are actually
+disabled. `npx tsc`, `php -l`, PHPStan, and `composer test` all clean.
+
 3.11.3 — Fixed two real broken links in the Contest Submissions
 portal panel, both found live by clicking through it as a fan rather
 than reasoning about the code: (1) the empty-state "See open contests"

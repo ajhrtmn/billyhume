@@ -228,6 +228,21 @@
     margin-bottom: calc(18px * var(--bh-space-scale));
     flex-wrap: wrap;
 }
+/* Real bug, found live: every "Vote" button stayed fully enabled
+   regardless of the contest's own voting window — a full-width,
+   unmissable notice (not a quiet ambient pill like
+   .bh-votes-remaining below) since it changes what every button on
+   this page actually does right now. */
+.bh-voting-closed-banner {
+    font-size: calc(13px * var(--bh-font-scale));
+    font-weight: 600;
+    color: var(--bh-text);
+    background: color-mix(in srgb, var(--bh-text-dim) 14%, transparent);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius-sm);
+    padding: calc(10px * var(--bh-space-scale)) calc(14px * var(--bh-space-scale));
+    margin-bottom: calc(14px * var(--bh-space-scale));
+}
 /* Audit fix (2026-07-25) — persistent votes-remaining indicator, see
    BHContestPlayer.renderVotesRemaining(). A small quiet pill rather
    than a full-width text line: it's a persistent status readout, not
