@@ -6,6 +6,27 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.11.3 — Fixed two real broken links in the Contest Submissions
+portal panel, both found live by clicking through it as a fan rather
+than reasoning about the code: (1) the empty-state "See open contests"
+link was a hardcoded home_url('/contests/') guess — that page has
+never existed on this install (the real listing lives wherever
+[bh_archive] was actually placed, /archive/ here). Every OTHER "back
+to the archive" link in this plugin already resolves this correctly
+via OUS_Pages::url('bh_archive', 'bh_archive_page_id') (see
+class-auth.php); this one just never got the same treatment. Now
+uses the same resolution, and is omitted entirely (rather than
+linking to a 404) if no archive page exists yet. (2) Every submission
+card's "View" button linked to get_permalink($sub->ID) — bh_submission
+is registered 'public' => false with no front-end single-view template
+of its own, so this always 404'd regardless of the submission's own
+status (confirmed live via a direct ?p= request, not just read from
+the post-type registration). A submission isn't its own page in this
+plugin; it's an entry within its contest's real front-end page (the
+one _bh_page_id points at). "View" now links there instead, and is
+omitted if that page doesn't exist. `php -l`, PHPStan, and
+`composer test` all clean.
+
 3.11.2 — bh/contest-player, bh/results-reveal, and bh/archive
 (bh-contest-blocks.ts) were still registered as block API version 1, a
 real WordPress deprecation ("may work as a non-iframe editor") — added

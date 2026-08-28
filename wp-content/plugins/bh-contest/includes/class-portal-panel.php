@@ -66,7 +66,22 @@ class BH_PortalPanel {
             echo '<div class="bhi-portal-empty">'
                . '<span class="dashicons dashicons-microphone"></span>'
                . '<p>You haven\'t submitted anything to a contest yet.</p>';
-            if (post_type_exists('bh_contest')) echo '<a class="button" href="' . esc_url(home_url('/contests/')) . '">See open contests &rarr;</a>';
+            // Real bug, found live: this was a hardcoded home_url('/contests/')
+            // guess — a page slug that has never existed on this install (the
+            // real contest listing lives wherever [bh_archive] was placed,
+            // /archive/ here, but that's the site author's own choice of
+            // slug/title, not something safe to hardcode). Every other "back
+            // to the archive" link in this plugin already resolves it via
+            // OUS_Pages (see class-auth.php's own identical guard/call) —
+            // this one just never got the same fix. Omitted entirely (same
+            // as those other call sites) rather than link to a 404 when core
+            // is absent or no archive page exists yet.
+            if (method_exists('OUS_Pages', 'url')) {
+                $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
+                if ($archive_url) {
+                    echo '<a class="button" href="' . esc_url($archive_url) . '">See open contests &rarr;</a>';
+                }
+            }
             echo '</div>';
             return;
         }
@@ -100,8 +115,22 @@ class BH_PortalPanel {
             if ($pending_id) echo ' <span class="bhi-overview-dim">(replacement pending review)</span>';
             echo '</p>';
 
-            if ($sub->post_status === 'publish') {
-                echo '<p><a class="button" href="' . esc_url(get_permalink($sub->ID)) . '">View</a></p>';
+            // Real bug, found live: get_permalink($sub->ID) always returns
+            // a plausible-looking URL string, but bh_submission is
+            // registered 'public' => false (class-post-types.php) with no
+            // front-end single-view template of its own, so this always
+            // 404'd — confirmed live via a direct ?p= request. A
+            // submission isn't its own page in this plugin; it's an entry
+            // within its contest's real front-end page (the one
+            // _bh_page_id points at, the same page every other "view this
+            // contest" link in the plugin already resolves through — see
+            // BH_AdminMenus::page_links_html()). Links there instead.
+            if ($sub->post_status === 'publish' && $contest_id) {
+                $contest_page_id = (int) get_post_meta($contest_id, '_bh_page_id', true);
+                $contest_page_status = $contest_page_id ? get_post_status($contest_page_id) : false;
+                if ($contest_page_id && $contest_page_status && $contest_page_status !== 'trash') {
+                    echo '<p><a class="button" href="' . esc_url((string) get_permalink($contest_page_id)) . '">View</a></p>';
+                }
             }
 
             if ($sub->post_status === 'rejected') {
