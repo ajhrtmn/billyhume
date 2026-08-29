@@ -481,110 +481,158 @@
                 }
             });
         });
-        // YouTube-style chapters: a segmented strip + a clickable list,
-        // inserted as a sibling right AFTER .bhc-video-wrap rather than
-        // inside it — that wrap is a `display: flex` row centering the
-        // <video> (annotation overlays escape it anyway via `position:
-        // absolute`), so a normal-flow child appended inside it would
-        // render beside the video, not below. A new sibling element
-        // avoids touching that existing layout at all. Native <video
-        // controls> gives no way to draw markers on the browser's own
-        // seek bar, so this strip is the deliberate, scoped stand-in —
-        // see courses-studio-blocks.ts's own comment on bhc/video's
-        // chapters attribute for the same reasoning.
-        lesson.querySelectorAll('.bhc-step-video[data-chapters]').forEach(function (video) {
-            var _a;
-            var chapters;
-            try {
-                chapters = JSON.parse((_a = video.dataset.chapters) !== null && _a !== void 0 ? _a : '[]');
-            }
-            catch (e) {
-                return;
-            }
-            if (!Array.isArray(chapters) || !chapters.length)
-                return;
+        // Real YouTube-style chapter markers ON the seek bar itself, plus
+        // a clickable chapter list beneath the video.
+        //
+        // Why Plyr at all: native `<video controls>` is drawn by the
+        // browser engine, not the page — no CSS or JS can reach inside it
+        // to paint markers on its scrubber. The only way to put markers
+        // literally on the seek bar is to supply the control bar
+        // ourselves, which is exactly what every player with visible
+        // chapter markers (YouTube, Vimeo) actually does. Plyr (MIT,
+        // vendored — see class-render.php's enqueue comment) WRAPS the
+        // existing <video> rather than replacing it: `player.media` IS
+        // this same element, so the annotations/watch-threshold blocks
+        // above keep working untouched (same .currentTime, same
+        // 'timeupdate'), and this block only adds chrome around it.
+        //
+        // Degrades honestly: if Plyr's script didn't load at all, the
+        // `window.Plyr` guard leaves the native controls exactly as they
+        // were and the chapter LIST below still renders and still seeks
+        // — only the on-scrubber markers are lost, since those are the
+        // one piece that genuinely cannot exist without a custom bar.
+        lesson.querySelectorAll('.bhc-step-video').forEach(function (video) {
             var wrap = video.closest('.bhc-video-wrap');
             if (!wrap || !wrap.parentNode)
                 return;
+            var chapters = [];
+            if (video.dataset.chapters) {
+                try {
+                    var parsed = JSON.parse(video.dataset.chapters);
+                    if (Array.isArray(parsed))
+                        chapters = parsed;
+                }
+                catch (e) { /* malformed chapter data — treat as none, never break playback */ }
+            }
+            var PlyrCtor = window.Plyr;
+            var player = null;
+            if (PlyrCtor) {
+                var plyrAssets = window.BHCPlyrAssets || {};
+                player = new PlyrCtor(video, {
+                    // Deliberately NOT Plyr's full default control set —
+                    // this is a lesson video, not a media app: no
+                    // download button (the file is course content, and a
+                    // resource step is the real "here, take this file"
+                    // affordance), no PIP/airplay clutter.
+                    controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
+                    settings: ['speed'],
+                    speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
+                    // Both of Plyr's own shipped defaults point at
+                    // cdn.plyr.io — overridden to this plugin's vendored
+                    // copies so a lesson page never reaches out to a
+                    // third-party CDN (CLAUDE.md's standing self-hosted
+                    // rule). Localized by class-render.php.
+                    iconUrl: plyrAssets.iconUrl,
+                    blankVideo: plyrAssets.blankVideo,
+                });
+            }
             function formatTime(seconds) {
                 var m = Math.floor(seconds / 60);
                 var s = Math.floor(seconds % 60);
                 return m + ':' + (s < 10 ? '0' : '') + s;
             }
-            var container = document.createElement('div');
-            container.className = 'bhc-video-chapters';
-            var strip = document.createElement('div');
-            strip.className = 'bhc-video-chapter-strip';
-            container.appendChild(strip);
-            var list = document.createElement('ol');
-            list.className = 'bhc-video-chapter-list';
-            container.appendChild(list);
-            var segments = [];
-            var items = [];
             function escText(s) {
                 var d = document.createElement('div');
                 d.textContent = s == null ? '' : String(s);
                 return d.innerHTML;
             }
-            // Segment widths need the video's real duration, which isn't
-            // known until metadata loads (a fresh page load has none
-            // yet) — everything that needs `duration` is built inside
-            // this handler rather than up front.
-            function buildSegments() {
+            function seekTo(seconds) {
+                video.currentTime = seconds;
+                var playResult = video.play();
+                // A programmatic play() can legitimately reject (autoplay
+                // policy on a not-yet-interacted-with page) — the seek
+                // itself still happened, which is the part that matters.
+                if (playResult && typeof playResult.catch === 'function')
+                    playResult.catch(function () { });
+            }
+            if (!chapters.length)
+                return;
+            /* ---- markers drawn directly on Plyr's own progress bar ---- */
+            var markers = [];
+            function buildMarkers() {
+                if (!player)
+                    return;
                 var duration = video.duration;
                 if (!duration || !isFinite(duration))
                     return;
-                strip.innerHTML = '';
-                list.innerHTML = '';
-                segments = [];
-                items = [];
+                var progress = wrap.querySelector('.plyr__progress');
+                if (!progress)
+                    return;
+                markers.forEach(function (m) { m.remove(); });
+                markers = [];
                 chapters.forEach(function (chapter, i) {
-                    var start = chapter.time;
-                    var end = i + 1 < chapters.length ? chapters[i + 1].time : duration;
-                    // Real edge case, found live: authored chapter times
-                    // can outlive the actual file (mismatched test data,
-                    // or a shorter replacement file uploaded after
-                    // chapters were written) — clamping both ends to the
-                    // real duration keeps widths in [0, 100]% instead of
-                    // producing a segment hundreds of percent wide that
-                    // blows out the flex row, or a negative span.
-                    var clampedStart = Math.min(start, duration);
-                    var clampedEnd = Math.min(end, duration);
-                    var widthPct = Math.max(0, ((clampedEnd - clampedStart) / duration) * 100);
-                    var segment = document.createElement('button');
-                    segment.type = 'button';
-                    segment.className = 'bhc-video-chapter-segment';
-                    segment.style.width = widthPct + '%';
-                    segment.title = chapter.title || formatTime(start);
-                    segment.addEventListener('click', function () { video.currentTime = start; video.play(); });
-                    strip.appendChild(segment);
-                    segments.push(segment);
-                    var item = document.createElement('li');
-                    item.className = 'bhc-video-chapter-item';
-                    item.innerHTML = '<button type="button" class="bhc-video-chapter-item-btn">'
-                        + '<span class="bhc-video-chapter-item-time">' + formatTime(start) + '</span>'
-                        + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || 'Chapter ' + (i + 1)) + '</span>'
-                        + '</button>';
-                    item.querySelector('button').addEventListener('click', function () { video.currentTime = start; video.play(); });
-                    list.appendChild(item);
-                    items.push(item);
+                    // A chapter authored past the real runtime (a shorter
+                    // file swapped in later) has nowhere on the bar to
+                    // sit — skip rather than pin a misleading marker at
+                    // 100%.
+                    if (chapter.time > duration)
+                        return;
+                    var marker = document.createElement('button');
+                    marker.type = 'button';
+                    marker.className = 'bhc-plyr-chapter-marker';
+                    marker.style.left = ((chapter.time / duration) * 100) + '%';
+                    marker.title = (chapter.title || 'Chapter ' + (i + 1)) + ' — ' + formatTime(chapter.time);
+                    marker.setAttribute('aria-label', 'Jump to chapter: ' + (chapter.title || 'Chapter ' + (i + 1)));
+                    marker.addEventListener('click', function (e) {
+                        // Plyr's progress bar is itself a seek control —
+                        // without this the click both hits the marker AND
+                        // scrubs to wherever the pointer landed, which is
+                        // a few pixels off from the chapter's real start.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        seekTo(chapter.time);
+                    });
+                    progress.appendChild(marker);
+                    markers.push(marker);
                 });
             }
+            /* ---- the chapter list beneath the video ---- */
+            var container = document.createElement('div');
+            container.className = 'bhc-video-chapters';
+            var list = document.createElement('ol');
+            list.className = 'bhc-video-chapter-list';
+            container.appendChild(list);
+            var items = [];
+            chapters.forEach(function (chapter, i) {
+                var item = document.createElement('li');
+                item.className = 'bhc-video-chapter-item';
+                item.innerHTML = '<button type="button" class="bhc-video-chapter-item-btn">'
+                    + '<span class="bhc-video-chapter-item-time">' + formatTime(chapter.time) + '</span>'
+                    + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || 'Chapter ' + (i + 1)) + '</span>'
+                    + '</button>';
+                item.querySelector('button').addEventListener('click', function () { seekTo(chapter.time); });
+                list.appendChild(item);
+                items.push(item);
+            });
             function highlightActive() {
-                if (!segments.length)
-                    return;
                 var t = video.currentTime;
                 var activeIndex = 0;
                 for (var i = 0; i < chapters.length; i++) {
                     if (t >= chapters[i].time)
                         activeIndex = i;
                 }
-                segments.forEach(function (seg, i) { seg.classList.toggle('active', i === activeIndex); });
                 items.forEach(function (item, i) { item.classList.toggle('active', i === activeIndex); });
+                markers.forEach(function (m, i) { m.classList.toggle('active', i === activeIndex); });
             }
+            // Plyr rebuilds its own controls on a source change, and its
+            // progress bar doesn't exist until 'ready' — hooking both
+            // that and loadedmetadata covers "markers survive whenever
+            // the bar or the duration is (re)established".
+            if (player)
+                player.on('ready', buildMarkers);
             if (video.readyState >= 1 /* HAVE_METADATA */)
-                buildSegments();
-            video.addEventListener('loadedmetadata', buildSegments);
+                buildMarkers();
+            video.addEventListener('loadedmetadata', buildMarkers);
             video.addEventListener('timeupdate', highlightActive);
             wrap.parentNode.insertBefore(container, wrap.nextSibling);
         });

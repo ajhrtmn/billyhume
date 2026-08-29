@@ -179,7 +179,42 @@ class BHC_Render {
         // core-absent case degrades to this plugin's own styles.
         wp_enqueue_style('ous-catalog');
         if (class_exists('BHY_Style')) wp_add_inline_style('bhc-front', BHY_Style::inline_css());
-        wp_enqueue_script('bhc-front', BHC_URL . 'assets/js/courses.js', [], BHC_VER, true);
+
+        // Real seek-bar chapter markers (AJ's own direct ask: "like
+        // YouTube") only reach a genuine <video> tag's own scrubber via
+        // a real custom control bar — native <video controls> is drawn
+        // by the browser engine itself, completely unreachable from CSS
+        // or JS. Plyr (MIT, vendored — assets/js/vendor/plyr.min.js/.css,
+        // same "own the file, no CDN" posture as anime.js/Howler
+        // elsewhere in this ecosystem) is scoped to lesson pages only,
+        // since it's the one screen that ever renders a bhc/video step.
+        // Plyr WRAPS the existing native <video> element rather than
+        // replacing it — courses.ts's existing annotations/watch-
+        // threshold code (video.currentTime, timeupdate) needed zero
+        // changes, only the chapter-marker rendering moved from a
+        // companion strip to real ticks on Plyr's own progress bar.
+        // iconUrl/blankVideo both explicitly overridden to this
+        // plugin's own vendored copies — Plyr's own shipped default
+        // config points both at cdn.plyr.io, exactly the "quiet
+        // dependency on a third-party service" this ecosystem's own
+        // standing rule (CLAUDE.md) rules out; blankVideo is a real,
+        // locally-generated 2x2px/0.1s silent MP4 (ffmpeg), not a
+        // reference to Plyr's own hosted one.
+        $deps = [];
+        if (is_singular('bh_lesson')) {
+            wp_enqueue_style('bhc-plyr', BHC_URL . 'assets/js/vendor/plyr.css', [], BHC_VER);
+            wp_enqueue_script('bhc-plyr', BHC_URL . 'assets/js/vendor/plyr.min.js', [], '3.8.4', true);
+            wp_localize_script('bhc-plyr', 'BHCPlyrAssets', [
+                'iconUrl'    => BHC_URL . 'assets/js/vendor/plyr.svg',
+                'blankVideo' => BHC_URL . 'assets/js/vendor/plyr-blank.mp4',
+            ]);
+            // A real dependency, not just load order: courses.js
+            // constructs `new Plyr(...)` at DOMContentLoaded, so Plyr's
+            // own global has to exist by then.
+            $deps[] = 'bhc-plyr';
+        }
+
+        wp_enqueue_script('bhc-front', BHC_URL . 'assets/js/courses.js', $deps, BHC_VER, true);
         wp_localize_script('bhc-front', 'BHCData', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('bhc_progress'),

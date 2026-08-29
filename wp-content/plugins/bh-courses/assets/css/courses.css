@@ -1320,37 +1320,69 @@ video.bhc-step-video {
     .bhc-video-banner, .bhc-video-banner-out { animation: none; }
 }
 
-/* YouTube-style chapters — a segmented strip (each chapter's real
-   share of the runtime, click-to-seek) plus a clickable list beneath
-   it. Deliberately a companion strip below the video, not drawn on
-   the seek bar itself: native <video controls> gives no way to paint
-   markers onto the browser's own scrubber, so replacing controls
-   entirely with a custom bar was the only way to put this literally
-   ON the seek bar — a much bigger, riskier rebuild (losing native
-   fullscreen/accessibility/mobile handling) than this feature
-   warranted. See courses.ts's own comment on this same call. */
+/* YouTube-style chapters. The markers are drawn directly ON the seek
+   bar — real ticks positioned by percentage inside Plyr's own
+   .plyr__progress element (see courses.ts). This is only possible
+   because the video step uses Plyr's control bar rather than native
+   `<video controls>`, which the browser draws itself and no CSS can
+   reach into. The clickable list below the video is the companion,
+   same as YouTube's own chapter list. */
+/* Every marker rule is scoped INSIDE .plyr on purpose. Plyr ships
+   `.plyr button { width: auto }` — specificity (0,1,1), which beats a
+   bare `.bhc-plyr-chapter-marker` (0,1,0) and collapsed these empty
+   buttons to 0px wide (found live: markers were in the DOM at correct
+   percentages but invisible). `.plyr .bhc-plyr-chapter-marker` is
+   (0,2,0) and wins cleanly, without resorting to !important. */
+.plyr .bhc-plyr-chapter-marker {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 12px;
+    padding: 0;
+    border: 0;
+    border-radius: 1px;
+    background: var(--bh-text, #fff);
+    opacity: .55;
+    cursor: pointer;
+    z-index: 3;
+    transition: opacity .15s ease, height .15s ease;
+}
+.plyr .bhc-plyr-chapter-marker:hover,
+.plyr .bhc-plyr-chapter-marker:focus-visible {
+    opacity: 1;
+    height: 16px;
+}
+.plyr .bhc-plyr-chapter-marker.active {
+    background: var(--bh-accent, #C1503A);
+    opacity: 1;
+}
+/* Plyr's progress bar is a thin target; widening only the marker's HIT
+   area (not its visible tick) keeps the ticks looking precise while
+   staying tappable on a phone. */
+.plyr .bhc-plyr-chapter-marker::after {
+    content: '';
+    position: absolute;
+    inset: -10px -6px;
+}
+/* Plyr sizes itself to its container; without this it can exceed the
+   step card's own width on a narrow screen. */
+.bhc-video-wrap .plyr {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.bhc-video-wrap .plyr--video { background: #000; }
+/* Plyr reads its accent from this variable — point it at this
+   ecosystem's own token so the player matches the site's theme
+   instead of shipping Plyr's default blue. */
+.bhc-video-wrap .plyr { --plyr-color-main: var(--bh-accent, #C1503A); }
+
 .bhc-video-chapters {
     max-width: 100%;
     margin: 8px 0 16px;
 }
-.bhc-video-chapter-strip {
-    display: flex;
-    gap: 2px;
-    height: 8px;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-.bhc-video-chapter-segment {
-    height: 100%;
-    padding: 0;
-    border: 0;
-    background: var(--bh-surface-2);
-    cursor: pointer;
-    transition: background-color .15s ease;
-}
-.bhc-video-chapter-segment:hover { background: var(--bh-text-dim); }
-.bhc-video-chapter-segment.active { background: var(--bh-accent); }
 .bhc-video-chapter-list {
     list-style: none;
     margin: 0;

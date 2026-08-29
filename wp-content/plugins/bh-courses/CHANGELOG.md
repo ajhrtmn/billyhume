@@ -6,6 +6,51 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.10.0 — Chapter markers now render ON the seek bar itself, conquering
+the limitation 0.9.0 shipped with (AJ: "I'd love to conquer the
+limitations"). Native `<video controls>` is drawn by the browser
+engine and is unreachable from CSS/JS, so the only way to paint
+markers on a scrubber is to supply the control bar — which is exactly
+what YouTube/Vimeo do. Vendored Plyr 3.8.4 (MIT, ~113KB min,
+assets/js/vendor/) and switched video lesson steps to it.
+
+Deliberately low-risk by construction: Plyr WRAPS the existing
+`<video>` rather than replacing it — `player.media` is the same
+element, still inside the same `.bhc-video-wrap`, so the annotations
+and watch-threshold code needed literally zero changes. Verified that
+claim rather than assuming it: added a real watch_threshold (50%) and
+a real note annotation to a live lesson, played it through, and
+confirmed the annotation still paused playback at its timestamp and
+the step still auto-completed at threshold — both under Plyr, then
+removed those QA artifacts. Also confirmed the same `<video>` element
+survives in the DOM with a settable currentTime.
+
+Self-hosted posture preserved: Plyr's own shipped defaults point
+iconUrl and blankVideo at cdn.plyr.io. Both are overridden to
+vendored local copies (plyr.svg fetched from the same MIT release;
+plyr-blank.mp4 generated locally with ffmpeg as a 2x2px/0.1s silent
+clip, 1.6KB) so a lesson page never contacts a third-party CDN, per
+CLAUDE.md's standing rule. Plyr is enqueued ONLY on singular
+bh_lesson screens, and courses.js declares a real dependency on it.
+
+Degrades honestly: if Plyr's script fails to load, a `window.Plyr`
+guard leaves native controls untouched and the chapter LIST still
+renders and still seeks — only the on-scrubber markers are lost,
+being the one piece that genuinely cannot exist without a custom bar.
+
+One real CSS bug found live while building this: markers were in the
+DOM at correct percentages but invisible, because Plyr ships
+`.plyr button { width: auto }` — specificity (0,1,1), which beats a
+bare `.bhc-plyr-chapter-marker` (0,1,0) and collapsed the empty
+marker buttons to 0px wide. Every marker rule is now scoped inside
+`.plyr` (0,2,0) to win cleanly without `!important`. Verified live:
+3 markers at 0% / 37.66% / 75.31%, each 3x12px, click-to-seek jumps
+to the exact chapter start (not wherever the pointer landed — the
+handler stops propagation so Plyr's own bar doesn't also scrub), and
+both the marker and its list row highlight as the active chapter.
+Player accent bound to --bh-accent so it matches the site theme.
+Checked at 375px and desktop; no horizontal overflow.
+
 0.9.0 — YouTube-style chapters for video lesson steps, direct request
 (AJ: "video courses need chapters, and a visual representation and
 navigation via them in the video player, like YouTube"). New
