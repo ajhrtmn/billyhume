@@ -1100,6 +1100,33 @@ interface BHCMedia {
                     }
                     form.querySelectorAll<HTMLInputElement>('input').forEach(function (el) { el.disabled = true; });
 
+                    // Real bug, caught live (AJ: "if you fail a quiz, it
+                    // breaks"): a fail WITH attempts remaining fell
+                    // through every branch below with no code path left
+                    // to re-enable the submit button or the (just
+                    // force-disabled, two lines up) inputs — quizSubmitBtn
+                    // stayed stuck reading "Submitting…" forever, and the
+                    // "give it another shot" message right above it had
+                    // no actual way to act on it. Only the pass case
+                    // (swaps in "Continue") and the exhausted case
+                    // (explicitly re-disables everything, already
+                    // correct) ever touched the button again.
+                    function resetQuizForm() {
+                        var review = form.querySelector('.bhc-quiz-review');
+                        if (review) review.remove();
+                        form.querySelectorAll<HTMLElement>('.bhc-quiz-question').forEach(function (fs) { fs.style.display = ''; });
+                        form.querySelectorAll<HTMLInputElement>('input').forEach(function (el) { el.disabled = false; el.checked = false; });
+                        resultBox.style.display = 'none';
+                        resultBox.textContent = '';
+                        if (quizSubmitBtn) {
+                            quizSubmitBtn.style.display = '';
+                            quizSubmitBtn.disabled = false;
+                            quizSubmitBtn.textContent = quizSubmitLabel;
+                        }
+                        var tryAgainBtn = form.querySelector('.bhc-quiz-try-again');
+                        if (tryAgainBtn) tryAgainBtn.remove();
+                    }
+
                     step.classList.add('bhc-step-done');
                     markStepDone(index);
                     updateSidebarProgress(result);
@@ -1121,6 +1148,23 @@ interface BHCMedia {
                         form.appendChild(continueBtn);
                     } else if (result.max_attempts && result.attempts_remaining === 0) {
                         form.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button[type="submit"]').forEach(function (el) { el.disabled = true; });
+                    } else {
+                        // Failed, but a retry is genuinely available
+                        // (attempts_remaining > 0, or max_attempts is 0/
+                        // unlimited) — this is the exact case that used
+                        // to leave the form permanently stuck. A real
+                        // "Try again" button, same pattern as the pass
+                        // case's "Continue" button just above, replaces
+                        // the now-inert original submit button and
+                        // actually does what the result message already
+                        // promises.
+                        if (quizSubmitBtn) quizSubmitBtn.style.display = 'none';
+                        var tryAgainBtn = document.createElement('button');
+                        tryAgainBtn.type = 'button';
+                        tryAgainBtn.className = 'bhc-btn bhc-btn-secondary bhc-quiz-try-again';
+                        tryAgainBtn.textContent = 'Try again';
+                        tryAgainBtn.addEventListener('click', resetQuizForm);
+                        form.appendChild(tryAgainBtn);
                     }
                 })
                 .catch(function () {

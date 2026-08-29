@@ -6,6 +6,105 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.12.0 — A real design pass over the lesson-building editor (AJ: "make
+the currently showing gui more magical, clean and organized" →
+"the course/lesson creation tools should all be enhanced to feel
+designed and thought about"), plus two confirmed live bugs found while
+verifying it: one front-end layout overflow, one broken quiz retry.
+
+Editor GUI. All nine step blocks (text/image/video/callout/checklist/
+chord-chart/resource/audio-compare/quiz) now share one authoring shell
+— a labelled header with the step's own icon and an at-a-glance
+summary ("3 chapters", "Pass 70%", "4 items"), real thumbnails/file
+names instead of a bare "File selected (#268)", and a shared empty
+state — replacing nine independent stacks of unstyled form fields that
+read as one undifferentiated column with no way to tell a Quiz from a
+Callout while scrolling. Quiz questions get the same treatment: a real
+numbered "QUESTION 1/2/3" card instead of an anonymous stack, the
+number recovered live from the block's actual sibling position
+(getBlockOrder()) so it stays correct across reorders. The old
+`paddingTop: 32px` toolbar-collision hack, repeated inline in all nine
+blocks, is gone — the shared header band gives Gutenberg's floating
+toolbar something intentional to dock against instead.
+
+Chapters and overlays moved OUT of the Settings sidebar and directly
+into the canvas (AJ: "can they not be part of lesson building rather"
+— asked live after the previous redesign pass made every other video
+setting visible in-canvas except these two, which stayed buried behind
+a gear icon a course author had no reason to open). They're real
+`<details>` sections under the video picker now, pre-expanded whenever
+they already hold content.
+
+Both rows were then streamlined and made more explicit (two more live
+asks, back to back): a chapter used to show its timestamp TWICE — a
+read-only badge up top and a separately-labelled "Start (seconds)"
+field below — collapsed into one editable field. Four stacked,
+fully-labelled rows (time / grab-preview button / type / remove) above
+any real content shrank to one compact "chrome" row per chapter/
+overlay. Every icon-only control in that row (previously relying on a
+hover tooltip alone) now pairs its icon with a real word — "Now",
+"Remove" — so the row reads correctly at a glance, not just on hover.
+Adding a chapter/overlay still captures the live preview's current
+playhead in one click ("+ Add chapter at 0:42"), mirrored into React
+state so that label never goes stale while scrubbing.
+
+Real contrast bug, caught live via getComputedStyle() rather than
+assumed from a screenshot: the post editor's canvas is an IFRAME that
+loads the active theme's own front-end stylesheet for true WYSIWYG —
+this theme sets a cream/tan body text color for its own dark hero
+look, and since nothing in the new shell set an explicit `color`,
+every label, paragraph, and timestamp inside it was silently
+inheriting that tan against the shell's own white card
+(rgb(237,223,203) on rgb(255,255,255) — nearly invisible). One
+`color: #1e1e1e` on the shared shell class fixed every descendant that
+didn't set its own, including WordPress's own
+`.components-base-control__label` (the "TITLE"/"CAPTION" field
+labels), which carries no color rule of its own either.
+
+Front-end layout bug, found while saving real demo content into every
+step type to verify front-end rendering (AJ: "check width"). The
+lesson page's two-column layout (`.bhc-lesson-layout`, step content +
+sidebar) carried an `alignwide` class on the assumption it would get
+the theme's generic wide-content treatment. This theme instead has its
+own bespoke `.oust-prose .alignwide` rule — a
+margin-left:50%/transform:translateX(-50%)/width:100vw bleed trick
+built for real Gutenberg content sitting directly in prose. Applied to
+this bespoke flex layout instead, `100vw` (which includes the
+scrollbar gutter) and the percentage margin (which doesn't) disagreed
+by the scrollbar's width, rendering the element ~7.5px past the
+viewport's actual left edge on every lesson page — confirmed via
+`getBoundingClientRect()`, not just eyeballed. Fixed by dropping the
+borrowed class entirely and instead widening `.oust-container-narrow`
+specifically for this template via its own stable `body.single-bh_lesson`
+class — a plain max-width bump inherits the container's already-correct
+centering with no transform or viewport-unit math to get wrong.
+Verified at both the pane's default width and a 375px mobile emulation:
+`document.documentElement.scrollWidth` now equals `clientWidth` exactly
+at both.
+
+Quiz retry bug, caught live (AJ: "it seems like if you fail a quiz, it
+breaks"). Failing a quiz with attempts remaining (or unlimited
+attempts) left the form permanently stuck: the submit button was
+disabled and relabelled "Submitting…" before the request went out, but
+NO code path ever reset it back — only the login-required, server-
+error, exhausted-attempts, and network-error branches did that. A
+plain "you got some wrong, try again" result fell through all four and
+left a student staring at a "Take another look and give it another
+shot" message with a dead, disabled button and no way to act on it
+(the answer inputs were also unconditionally disabled the same way).
+Fixed with a real `resetQuizForm()` — removes the answer breakdown,
+re-shows the question fields, re-enables and un-checks every input,
+restores the submit button — wired to a new "Try again" button that
+appears exactly where the old submit button silently died. Verified
+end to end in a live session, no reload: fail with 0/2 → "Try again" →
+confirmed every input/button reset → resubmit with correct answers →
+100% pass → "Continue" appears, exactly the flow that was broken
+before.
+
+`npx tsc`, `php -l`, PHPStan, and `composer test` all clean.
+
+---
+
 0.11.0 — The second half of "conquer the limitations" (AJ): chapters,
 overlays AND watch-progress now all work on YouTube and Vimeo steps,
 not just an uploaded file or direct URL. Plus a real pass over the

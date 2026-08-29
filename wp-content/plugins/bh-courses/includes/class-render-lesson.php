@@ -86,14 +86,26 @@ class BHC_Render_Lesson {
             echo '</div>';
         }
 
-        // alignwide is the theme's own opt-in mechanism (theme.json's
-        // wideSize, 1340px in Twenty Twenty-Five) for a block that wants
-        // more than the default constrained content width (645px) — this
-        // layout is a direct child of .entry-content.is-layout-constrained,
-        // so it qualifies for the same core-generated CSS rule real
-        // Gutenberg blocks use, without this plugin needing to fight the
-        // theme's own width constraint with a bespoke override.
-        echo '<div class="bhc-lesson-layout alignwide">';
+        // Real bug, caught live via getBoundingClientRect(): this div
+        // used to carry `alignwide` on the assumption (this comment's
+        // old wording) that it would get core's generic wideSize
+        // treatment. This theme isn't running core's block-supports
+        // width system though — it has its OWN bespoke
+        // `.oust-prose .alignwide` rule (blocks.css), a
+        // margin-left:50%/transform:translateX(-50%)/width:100vw bleed
+        // trick built for real Gutenberg content sitting directly in
+        // prose. Applied to this bespoke two-column app layout instead,
+        // `100vw` (which includes the scrollbar gutter) and the
+        // percentage margin (which doesn't) disagreed by the
+        // scrollbar's width, rendering this element ~7.5px past the
+        // viewport's actual left edge — a small permanent horizontal
+        // clip on every lesson page. Fixed by dropping the borrowed
+        // class entirely and instead widening `.oust-container-narrow`
+        // specifically for this template (`body.single-bh_lesson`, see
+        // courses.css) — a plain max-width bump inherits the
+        // container's already-correct centering with no transform or
+        // viewport-unit math to get wrong.
+        echo '<div class="bhc-lesson-layout">';
         // Persistent lesson list + overall progress, so a student can jump
         // to any earlier lesson or see how much of the course is left
         // without leaving this page — previously the only course-level

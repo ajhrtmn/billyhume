@@ -207,6 +207,184 @@ class BHC_ContentBridge {
         if ($screen !== 'bh_lesson') return $settings;
 
         $settings['styles'][] = ['css' => '
+            /* ---- shared authoring shell for every lesson step block ----
+               See courses-studio-blocks.ts stepShell()/pickerPlaceholder()
+               for the reasoning. This is the only channel that reaches the
+               post editor\'s IFRAMED canvas (the same constraint already
+               documented for .bhc-studio-choice-row below), so all of it
+               lives here rather than in an enqueued stylesheet. */
+            .bhc-studio-step {
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                background: #fff;
+                overflow: hidden;
+                /* The post editor\'s canvas is an IFRAME that loads the
+                   active theme\'s own front-end stylesheet for true
+                   WYSIWYG (this theme sets a cream/tan body text color
+                   for its own dark hero look). Nothing in this shell set
+                   an explicit color, so every label/paragraph/timestamp
+                   inside it was silently inheriting that tan against
+                   this card\'s white background — confirmed live via
+                   getComputedStyle() (rgb(237,223,203) text on
+                   rgb(255,255,255)), not just eyeballed. One color here
+                   fixes every descendant that doesn\'t set its own,
+                   including WP\'s own .components-base-control__label
+                   (the "TITLE"/"CAPTION" field labels), which carries no
+                   color rule of its own either. */
+                color: #1e1e1e;
+                /* Replaces the padding-top:32px hack every one of these
+                   blocks used to carry inline: Gutenberg docks its
+                   floating toolbar inside a block\'s own top edge when
+                   there is no room above. A real header band gives the
+                   toolbar something to sit against that is meant to be
+                   there. */
+                margin-top: 28px;
+            }
+            .bhc-studio-head {
+                display: flex; align-items: center; gap: 7px;
+                padding: 7px 12px;
+                background: #f6f7f7;
+                border-bottom: 1px solid #e0e0e0;
+                font-size: 11px; font-weight: 600;
+                letter-spacing: .05em; text-transform: uppercase;
+                color: #50575e;
+            }
+            .bhc-studio-head svg { fill: #757575; }
+            .bhc-studio-head-label { flex-shrink: 0; }
+            /* At-a-glance summary ("3 chapters", "4 items") so a long
+               lesson is scannable without opening each step. */
+            .bhc-studio-head-meta {
+                margin-left: auto;
+                text-transform: none; letter-spacing: 0;
+                font-weight: 400; color: #757575;
+            }
+            .bhc-studio-body { padding: 12px; }
+            .bhc-studio-body > *:last-child { margin-bottom: 0; }
+
+            .bhc-studio-placeholder {
+                display: flex; flex-direction: column; align-items: center;
+                gap: 6px; text-align: center;
+                padding: 22px 16px;
+                border: 1px dashed #c3c4c7; border-radius: 6px;
+                background: #fbfbfb;
+            }
+            .bhc-studio-placeholder svg { fill: #a7aaad; }
+            .bhc-studio-placeholder-title { margin: 0; font-size: 13px; font-weight: 600; color: #1e1e1e; }
+            .bhc-studio-placeholder-help { margin: 0 0 4px; font-size: 12px; color: #757575; max-width: 320px; }
+
+            .bhc-studio-chosen {
+                display: flex; align-items: center; gap: 8px;
+                padding: 8px 10px; margin-bottom: 12px;
+                border: 1px solid #e0e0e0; border-radius: 6px; background: #fbfbfb;
+            }
+            .bhc-studio-chosen svg { fill: #757575; flex-shrink: 0; }
+            .bhc-studio-chosen-name {
+                font-size: 13px; font-weight: 500; color: #1e1e1e;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            .bhc-studio-chosen-note { font-size: 12px; color: #757575; flex-shrink: 0; }
+            .bhc-studio-chosen > .components-button { margin-left: auto; flex-shrink: 0; }
+
+            /* An in-canvas preview of the real media, so an author can
+               see WHAT this step is without leaving the editor. */
+            .bhc-studio-preview {
+                width: 100%; max-height: 260px; display: block;
+                border-radius: 4px; background: #000; margin-bottom: 12px;
+            }
+            .bhc-studio-preview-audio { background: transparent; margin-bottom: 8px; }
+
+            .bhc-studio-image-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+            img.bhc-studio-image-thumb {
+                width: 64px; height: 64px; object-fit: cover;
+                border-radius: 4px; border: 1px solid #e0e0e0; display: block;
+            }
+            span.bhc-studio-image-thumb {
+                display: inline-flex; align-items: center; justify-content: center;
+                width: 64px; height: 64px; border-radius: 4px;
+                border: 1px dashed #c3c4c7; font-size: 11px; color: #757575;
+            }
+            .bhc-studio-checklist-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+            .bhc-studio-checklist-row .components-base-control { flex: 1; margin-bottom: 0; }
+            .bhc-studio-checklist-box {
+                flex-shrink: 0; width: 16px; height: 16px; border-radius: 3px;
+                border: 1.5px solid #c3c4c7; background: #fff;
+            }
+            .bhc-studio-empty-hint { margin: 0 0 10px; font-size: 12px; color: #757575; font-style: italic; }
+            .bhc-studio-monospace textarea { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; }
+            .bhc-studio-audio-compare-clip { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+            .bhc-studio-audio-compare-clip:last-of-type { border-bottom: none; padding-bottom: 0; margin-bottom: 12px; }
+
+            /* Chapter/overlay rows — streamlined to a single compact
+               "chrome" row (order, time, grab-from-preview, type,
+               remove) above whatever real content the row holds,
+               instead of each of those living on its own fully-labelled
+               line. Icon buttons in this row always pair the icon with
+               a real word (see courses-studio-blocks.ts\'s own comment)
+               so the row stays explicit at a glance, not just on hover. */
+            .bhc-studio-chapter-row, .bhc-studio-annotation-row {
+                border: 1px solid #e0e0e0; border-radius: 6px;
+                padding: 8px 10px; margin-bottom: 8px; background: #fff;
+            }
+            .bhc-studio-chapter-row.has-warning { border-color: #d9a800; background: #fefaf0; }
+            .bhc-studio-chapter-row-top {
+                display: flex; align-items: center; gap: 4px; margin-bottom: 6px;
+            }
+            .bhc-studio-order-badge {
+                flex-shrink: 0; width: 20px; height: 20px; border-radius: 10px;
+                background: #f0f0f0; color: #1e1e1e; font-size: 11px; font-weight: 600;
+                display: inline-flex; align-items: center; justify-content: center;
+            }
+            /* A plain number input reading as a real, explicit timestamp
+               field rather than a bare unlabeled box — the "sec" suffix
+               beside it stands in for the label hidden via
+               hideLabelFromVision (kept for screen readers), the same
+               trade every compact chrome-row control here makes. */
+            .bhc-studio-time-input { width: 64px; margin-bottom: 0 !important; }
+            .bhc-studio-time-input input { text-align: right; }
+            .bhc-studio-time-unit { font-size: 12px; color: #757575; margin-right: 4px; }
+            .bhc-studio-chapter-row-top .components-button.is-tertiary {
+                padding: 0 6px; height: 28px;
+            }
+            .bhc-studio-overlay-type { min-width: 84px; margin-bottom: 0 !important; margin-left: 4px; }
+            .bhc-studio-overlay-type select { height: 28px; min-height: 28px; }
+            .bhc-studio-row-warning { margin: 4px 0 0; font-size: 12px; color: #8a6d00; }
+
+            /* Chapters/overlays authored directly in the lesson-building
+               canvas (AJ: "can they not be part of lesson building
+               rather" than a settings-sidebar panel) — a plain <details>
+               rather than PanelBody so it reads as part of this step\'s
+               own content, not a floating settings widget stacked
+               inside one. */
+            .bhc-studio-subsection {
+                border: 1px solid #e0e0e0; border-radius: 6px;
+                margin-bottom: 12px; background: #fbfbfb;
+            }
+            .bhc-studio-subsection > summary {
+                padding: 8px 12px; cursor: pointer; font-weight: 600; font-size: 13px;
+                list-style: none; display: flex; align-items: center; gap: 6px;
+                color: #1e1e1e;
+            }
+            .bhc-studio-subsection > summary::-webkit-details-marker { display: none; }
+            .bhc-studio-subsection > summary::before {
+                content: \'\'; width: 0; height: 0;
+                border-left: 4px solid #757575; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+                transition: transform .1s ease;
+            }
+            .bhc-studio-subsection[open] > summary::before { transform: rotate(90deg); }
+            .bhc-studio-subsection-count {
+                background: #e0e0e0; color: #1e1e1e; border-radius: 9px;
+                font-size: 11px; font-weight: 600; padding: 1px 7px;
+            }
+            .bhc-studio-subsection > summary ~ * { padding-left: 12px; padding-right: 12px; }
+            .bhc-studio-subsection > summary ~ *:last-child { padding-bottom: 12px; }
+            .bhc-studio-subsection .description { margin-top: 4px; }
+
+            .bhc-studio-empty {
+                border: 1px dashed #ccc; border-radius: 6px; padding: 14px;
+                text-align: center; color: #757575; font-size: 12px; margin: 8px 0 10px;
+            }
+'];
+        $settings['styles'][] = ['css' => '
             .bhc-studio-choice-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
             .bhc-studio-choice-row > * { margin-bottom: 0 !important; }
             /* The text input sits two levels inside .components-base-control
@@ -235,6 +413,20 @@ class BHC_ContentBridge {
                second one belongs to a different, larger scope than the
                question it visually follows. */
             .bhc-studio-add-choice { margin-bottom: 20px; }
+            /* Each question as its own card, matching the chapter-row
+               treatment elsewhere in this file — without this, a quiz of
+               several questions read as one undifferentiated scroll of
+               "Question" text fields with no visual break between them. */
+            .bhc-studio-quiz-question {
+                border: 1px solid #e0e0e0; border-radius: 6px;
+                background: #fff; padding: 14px 14px 4px; margin-bottom: 12px;
+                color: #1e1e1e; /* see .bhc-studio-step\'s own comment on why this is needed inside the editor\'s themed iframe */
+            }
+            .bhc-studio-question-badge {
+                display: inline-block; margin-bottom: 8px;
+                font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+                color: #757575;
+            }
             /* Gutenberg wraps any custom InnerBlocks appender in its own
                ".block-list-appender" div, which (a) shrink-wraps to the
                button\'s natural width by default — width:100% on the

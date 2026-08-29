@@ -90,6 +90,110 @@
     // no absolute positioning, no raw-HTML editing escape hatch.
     var SUPPORTS = { html: false, position: false, spacing: { margin: true, padding: true }, color: { background: true, text: true } };
 
+    /* ==================================================================
+     * Shared authoring shell for every lesson step block.
+     *
+     * Before this, each of the nine step blocks rendered as a bare stack
+     * of form fields — visually identical to each other, so a lesson of
+     * eight steps read as one undifferentiated column of inputs with no
+     * way to tell a Quiz from a Callout at a glance. Each also repeated
+     * its own `paddingTop: 32px` toolbar-collision hack inline, and the
+     * media-backed ones surfaced a raw database row id ("File selected
+     * (#268)") as if that meant something to a course author.
+     *
+     * These helpers give all nine one consistent frame: a labelled
+     * header with the step's own type/icon, an optional at-a-glance
+     * summary chip, real human file names instead of ids, and a shared
+     * empty state. Styling lives in class-content-bridge.php's
+     * `styles` array (the only channel that reaches the editor's
+     * IFRAMED canvas — see that file's own note on why a plain
+     * wp_enqueue_style can't).
+     * ================================================================== */
+
+    /** The step's own frame: type header + body. */
+    function stepShell(icon: any, label: any, meta: any, blockProps: any, children: any[]) {
+        return el('div', blockProps,
+            el('div', { className: 'bhc-studio-head' },
+                el(wp.components.Icon, { icon: icon, size: 16 }),
+                el('span', { className: 'bhc-studio-head-label' }, label),
+                meta ? el('span', { className: 'bhc-studio-head-meta' }, meta) : null
+            ),
+            el('div', { className: 'bhc-studio-body' }, children)
+        );
+    }
+
+    /**
+     * Resolves an attachment id to something a human recognises (its
+     * title, and a size/duration where the REST payload carries one).
+     * Returns null while in flight or if the attachment is gone — every
+     * caller renders a plain fallback rather than a spinner, since this
+     * is decoration on top of an id that already works.
+     */
+    function useAttachment(id: any) {
+        var state = wp.element.useState(null);
+        var media = state[0], setMedia = state[1];
+        wp.element.useEffect(function () {
+            if (!id) { setMedia(null); return; }
+            var cancelled = false;
+            wp.apiFetch({ path: '/wp/v2/media/' + id })
+                .then(function (m: any) { if (!cancelled) setMedia(m); })
+                .catch(function () { if (!cancelled) setMedia(null); });
+            return function () { cancelled = true; };
+        }, [id]);
+        return media;
+    }
+
+    /** "Worksheet.pdf" beats "File selected (#268)". */
+    function mediaName(media: any, fallbackId: any) {
+        if (media && (media.title || media.slug)) {
+            return (media.title && media.title.rendered) || media.slug || ('#' + fallbackId);
+        }
+        return fallbackId ? __('Attachment #') + fallbackId : '';
+    }
+
+    /**
+     * The shared "nothing chosen yet" state — an inviting target with a
+     * real explanation, rather than a lone unlabelled button. Mirrors
+     * how core's own image/video blocks open.
+     */
+    function pickerPlaceholder(icon: any, title: any, help: any, button: any) {
+        return el('div', { className: 'bhc-studio-placeholder' },
+            el(wp.components.Icon, { icon: icon, size: 24 }),
+            el('p', { className: 'bhc-studio-placeholder-title' }, title),
+            help ? el('p', { className: 'bhc-studio-placeholder-help' }, help) : null,
+            button
+        );
+    }
+
+    /**
+     * One real thumbnail for an attachment id. Its own component (not a
+     * loop inside the caller) because it calls useAttachment — a hook,
+     * which React forbids running in a loop.
+     */
+    function AttachmentThumb(props: any) {
+        var media = useAttachment(props.id);
+        var src = media && media.media_details && media.media_details.sizes && media.media_details.sizes.thumbnail
+            ? media.media_details.sizes.thumbnail.source_url
+            : (media && media.source_url) || '';
+        if (!src) return el('span', { className: 'bhc-studio-image-thumb' }, '#' + props.id);
+        return el('img', {
+            className: 'bhc-studio-image-thumb',
+            src: src,
+            alt: (media && media.alt_text) || '',
+            title: mediaName(media, props.id),
+        });
+    }
+
+    /** A chosen file, shown as a real row rather than a bare id. */
+    function chosenFile(icon: any, name: any, note: any, changeButton: any) {
+        return el('div', { className: 'bhc-studio-chosen' },
+            el(wp.components.Icon, { icon: icon, size: 18 }),
+            el('span', { className: 'bhc-studio-chosen-name' }, name),
+            note ? el('span', { className: 'bhc-studio-chosen-note' }, note) : null,
+            changeButton
+        );
+    }
+
     wp.blocks.registerBlockType('bhc/text', {
         apiVersion: 3,
         title: __('Lesson: Text'),
@@ -109,13 +213,19 @@
         supports: Object.assign({}, SUPPORTS),
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-text' });
-            return el(wp.blockEditor.RichText, Object.assign({}, blockProps, {
-                tagName: 'div',
-                value: attrs.content,
-                onChange: function (v: any) { setAttrs({ content: v }); },
-                placeholder: __('Lesson text…'),
-            }));
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-text bhc-studio-step' });
+            // RichText is nested inside the shell's body rather than
+            // being the block root — the shell only frames it, so
+            // Gutenberg's own rich-text editing surface is unchanged.
+            return stepShell('text', __('Text'), null, blockProps, [
+                el(wp.blockEditor.RichText, {
+                    key: 'rt',
+                    tagName: 'div',
+                    value: attrs.content,
+                    onChange: function (v: any) { setAttrs({ content: v }); },
+                    placeholder: __('Write this step’s text…'),
+                }),
+            ]);
         },
         save: function (props: any) {
             var blockProps = wp.blockEditor.useBlockProps.save();
@@ -135,34 +245,41 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // paddingTop: Gutenberg docks its floating block toolbar
-            // INSIDE a block's own top edge, overlapping its first
-            // control, whenever there's no room to float it above (the
-            // case whenever this is the first/only block in a lesson —
-            // the common case for a course just getting started). Real
-            // authoring friction caught this session on bhc/video's
-            // Source picker; this small buffer keeps every block's own
-            // first control clear of that zone instead of relying on
-            // there happening to be another block above it.
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-image', style: { paddingTop: '32px' } });
-            var thumbs = (attrs.attachment_ids || []).map(function (id: any) {
-                return el('span', { key: id, className: 'bhc-studio-image-thumb' }, '#' + id);
-            });
-            return el('div', blockProps,
-                el(wp.blockEditor.MediaUploadCheck, {},
-                    el(wp.blockEditor.MediaUpload, {
-                        multiple: true,
-                        allowedTypes: ['image'],
-                        value: attrs.attachment_ids,
-                        onSelect: function (media: any) { setAttrs({ attachment_ids: (media || []).map(function (m: any) { return m.id; }) }); },
-                        render: function (obj: any) {
-                            return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_ids.length ? __('Change image(s)') : __('Select image(s)'));
-                        },
-                    })
-                ),
-                thumbs.length ? el('div', { className: 'bhc-studio-image-thumbs' }, thumbs) : null,
-                el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v: any) { setAttrs({ caption: v }); } })
+            // The old paddingTop:32px inline hack (Gutenberg docks its
+            // floating toolbar inside a block's own top edge when there's
+            // no room above) is gone — the shared shell's header band
+            // and margin-top now give the toolbar something intentional
+            // to sit against, for every step type at once.
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-image bhc-studio-step' });
+            var ids = attrs.attachment_ids || [];
+            var picker = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' },
+                el(wp.blockEditor.MediaUpload, {
+                    multiple: true,
+                    allowedTypes: ['image'],
+                    value: ids,
+                    onSelect: function (media: any) { setAttrs({ attachment_ids: (media || []).map(function (m: any) { return m.id; }) }); },
+                    render: function (obj: any) {
+                        return el(wp.components.Button, { variant: ids.length ? 'secondary' : 'primary', onClick: obj.open },
+                            ids.length ? __('Change images') : __('Select images'));
+                    },
+                })
             );
+            return stepShell('format-image', __('Image'), ids.length ? ids.length + (ids.length === 1 ? __(' image') : __(' images')) : null, blockProps, [
+                ids.length
+                    // Real thumbnails of the actual chosen images —
+                    // previously this showed "#268" chips, a database id
+                    // presented to a course author as if it identified
+                    // anything to them.
+                    ? el('div', { key: 'thumbs', className: 'bhc-studio-image-thumbs' },
+                        ids.map(function (id: any) { return el(AttachmentThumb, { key: id, id: id }); }))
+                    : pickerPlaceholder('format-image', __('No image chosen yet'), __('Pick one or more images to show at this point in the lesson.'), picker),
+                ids.length ? el('div', { key: 'change', style: { marginBottom: '12px' } }, picker) : null,
+                el(wp.components.TextControl, {
+                    key: 'cap', label: __('Caption'), value: attrs.caption,
+                    placeholder: __('Optional — shown beneath the image'),
+                    onChange: function (v: any) { setAttrs({ caption: v }); },
+                }),
+            ]);
         },
         save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/image callback
     });
@@ -179,7 +296,7 @@
         supports: Object.assign({}, SUPPORTS),
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-callout bhc-callout-' + attrs.variant });
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-callout bhc-studio-step bhc-callout-' + attrs.variant });
             var variantPicker = el(wp.blockEditor.InspectorControls, {},
                 el(wp.components.PanelBody, { title: __('Callout settings') },
                     el(wp.components.SelectControl, {
@@ -194,14 +311,18 @@
                     })
                 )
             );
+            var variantLabel = attrs.variant === 'warning' ? __('Warning') : attrs.variant === 'note' ? __('Note') : __('Tip');
             return el(wp.element.Fragment, {},
                 variantPicker,
-                el(wp.blockEditor.RichText, Object.assign({}, blockProps, {
-                    tagName: 'div',
-                    value: attrs.content,
-                    onChange: function (v: any) { setAttrs({ content: v }); },
-                    placeholder: __('Key idea, tip, or warning…'),
-                }))
+                stepShell('megaphone', __('Callout'), variantLabel, blockProps, [
+                    el(wp.blockEditor.RichText, {
+                        key: 'rt',
+                        tagName: 'div',
+                        value: attrs.content,
+                        onChange: function (v: any) { setAttrs({ content: v }); },
+                        placeholder: __('Key idea, tip, or warning\u2026'),
+                    }),
+                ])
             );
         },
         save: function (props: any) {
@@ -253,11 +374,11 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // See bhc/image's blockProps comment — same toolbar-collision
-            // buffer, still needed here even after moving Source to the
-            // Inspector: the "Select video" button / URL field is now
-            // the first remaining canvas control.
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-video', style: { paddingTop: '32px' } });
+            // The old paddingTop:32px toolbar-collision hack is gone —
+            // the shared shell's header band gives the floating toolbar
+            // something intentional to dock against instead (see
+            // bhc-studio-step's own comment in class-content-bridge.php).
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-video bhc-studio-step' });
             // Source picker lives in the Inspector sidebar, not inline in
             // canvas — caught live (real authoring friction, confirmed
             // only reachable via the wp.data API during testing, not the
@@ -320,59 +441,63 @@
                 .sort(function (a: any, b: any) { return a.time - b.time; })
                 .map(function (r: any) { return r.i; });
 
+            // Streamlined to two rows (three only when a warning applies)
+            // instead of the original four-row stack. The old version
+            // showed the timestamp TWICE — a read-only badge up top AND
+            // a separate, fully-labelled "Start (seconds)" field further
+            // down — which reads as two different facts about the
+            // chapter until you look closely and realise they're the
+            // same number. Now there's exactly one time field, it's the
+            // editable one, and it sits where the old read-only badge
+            // used to be.
             var chapterRows = chapters.map(function (c: any, i: any) {
                 var isPastEnd = previewDuration > 0 && (c.time || 0) > previewDuration;
                 var untitled = !(c.title || '').trim();
-                return el('div', {
-                    key: i,
-                    className: 'bhc-studio-chapter-row',
-                    style: {
-                        border: '1px solid ' + (isPastEnd || untitled ? '#d9a800' : '#e0e0e0'),
-                        borderRadius: '6px', padding: '10px 12px', marginBottom: '8px', background: '#fff',
-                    },
-                },
-                    el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
+                return el('div', { key: i, className: 'bhc-studio-chapter-row' + (isPastEnd || untitled ? ' has-warning' : '') },
+                    el('div', { className: 'bhc-studio-chapter-row-top' },
                         // Playback position, not array position — the
                         // number an author actually reasons about.
-                        el('span', {
-                            style: {
-                                flexShrink: 0, minWidth: '22px', height: '22px', borderRadius: '11px',
-                                background: '#f0f0f0', color: '#1e1e1e', fontSize: '11px', fontWeight: 600,
-                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        el('span', { className: 'bhc-studio-order-badge' }, String(playbackOrder.indexOf(i) + 1)),
+                        el(wp.components.TextControl, {
+                            type: 'number', label: __('Start time, in seconds'), hideLabelFromVision: true,
+                            className: 'bhc-studio-time-input', value: c.time || 0,
+                            onChange: function (v: any) { updateChapter(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
+                        }),
+                        el('span', { className: 'bhc-studio-time-unit' }, __('sec')),
+                        // Icon + a real word, not an icon alone — a bare
+                        // icon here would need a hover to find out what
+                        // it does; "Now" says it outright: this sets the
+                        // time to wherever the preview is playing right
+                        // now. The tooltip (via `label`) still spells out
+                        // the full behavior for anyone who pauses on it.
+                        previewUrl ? el(wp.components.Button, {
+                            variant: 'tertiary', size: 'small', icon: 'controls-forward',
+                            label: __('Set this chapter\'s time to the preview\'s current position'), showTooltip: true,
+                            className: 'bhc-studio-grab-time',
+                            onClick: function () {
+                                if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
                             },
-                        }, String(playbackOrder.indexOf(i) + 1)),
-                        el('code', { style: { fontSize: '12px', padding: '2px 6px', background: '#f0f0f0', borderRadius: '3px' } }, fmtTime(c.time)),
+                        }, __('Now')) : null,
                         el('span', { style: { flex: 1 } }),
                         el(wp.components.Button, {
-                            variant: 'tertiary', isDestructive: true, size: 'small',
+                            variant: 'tertiary', isDestructive: true, size: 'small', icon: 'no-alt',
+                            label: __('Remove this chapter'), showTooltip: true,
                             onClick: function () { setAttrs({ chapters: chapters.filter(function (_: any, idx: any) { return idx !== i; }) }); },
                         }, __('Remove'))
                     ),
                     el(wp.components.TextControl, {
-                        label: __('Title'),
+                        label: __('Chapter title'), hideLabelFromVision: true,
                         value: c.title || '',
-                        placeholder: __('e.g. Setting the compressor'),
+                        placeholder: __('Chapter title, e.g. “Setting the compressor”'),
                         onChange: function (v: any) { updateChapter(i, { title: v }); },
                     }),
-                    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'flex-end' } },
-                        el(wp.components.TextControl, {
-                            type: 'number', label: __('Start (seconds)'), value: c.time || 0,
-                            onChange: function (v: any) { updateChapter(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
-                        }),
-                        previewUrl ? el(wp.components.Button, {
-                            variant: 'secondary', style: { marginBottom: '8px' },
-                            onClick: function () {
-                                if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
-                            },
-                        }, __('Set to preview')) : null
-                    ),
                     // Real, specific warnings rather than letting either
                     // case fail silently on the front end (an untitled
                     // chapter is dropped on save by sanitize_chapters();
                     // one past the end renders no marker at all).
-                    untitled ? el('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#8a6d00' } },
+                    untitled ? el('p', { className: 'bhc-studio-row-warning' },
                         __('Needs a title — untitled chapters are discarded when you save.')) : null,
-                    isPastEnd ? el('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#8a6d00' } },
+                    isPastEnd ? el('p', { className: 'bhc-studio-row-warning' },
                         __('Starts after this video ends (') + fmtTime(previewDuration) + __(') — it won\'t appear on the seek bar.')) : null
                 );
             });
@@ -412,35 +537,56 @@
                 } else {
                     typeFields = el(wp.components.TextControl, { label: __('Text'), value: a.payload.text || '', onChange: function (v: any) { updatePayload(i, { text: v }); } });
                 }
-                return el('div', { key: i, className: 'bhc-studio-annotation-row', style: { border: '1px solid #ddd', borderRadius: '4px', padding: '10px', marginBottom: '10px' } },
-                    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'flex-end' } },
+                // Same streamlining as the chapter rows: time, the
+                // "grab from preview" action, type, and remove all share
+                // one compact top row instead of four stacked fields
+                // before any real content (the note/question text) even
+                // appears.
+                return el('div', { key: i, className: 'bhc-studio-annotation-row' },
+                    el('div', { className: 'bhc-studio-chapter-row-top' },
                         el(wp.components.TextControl, {
-                            type: 'number', label: __('Time (seconds)'), value: a.time || 0,
-                            onChange: function (v: any) { updateAnnotation(i, { time: parseInt(v, 10) || 0 }); },
+                            type: 'number', label: __('Time, in seconds'), hideLabelFromVision: true,
+                            className: 'bhc-studio-time-input', value: a.time || 0,
+                            onChange: function (v: any) { updateAnnotation(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
                         }),
+                        el('span', { className: 'bhc-studio-time-unit' }, __('sec')),
                         previewUrl ? el(wp.components.Button, {
-                            variant: 'secondary', style: { marginBottom: '8px' },
+                            variant: 'tertiary', size: 'small', icon: 'controls-forward',
+                            label: __('Set this overlay\'s time to the preview\'s current position'), showTooltip: true,
                             onClick: function () { updateAnnotation(i, { time: Math.floor(previewTime) }); },
-                        }, __('Set to preview')) : null
+                        }, __('Now')) : null,
+                        el(wp.components.SelectControl, {
+                            label: __('Overlay type'), hideLabelFromVision: true,
+                            className: 'bhc-studio-overlay-type', value: a.type,
+                            options: [
+                                { label: __('Note'), value: 'note' },
+                                { label: __('Hotspot'), value: 'hotspot' },
+                                { label: __('Question (self-check)'), value: 'question' },
+                                { label: __('Banner — non-blocking, TRL-style'), value: 'banner' },
+                            ],
+                            onChange: function (v: any) { updateAnnotation(i, { type: v, payload: v === 'question' ? { question: '', choices: [], correct_index: 0 } : { text: '' } }); },
+                        }),
+                        el('span', { style: { flex: 1 } }),
+                        el(wp.components.Button, {
+                            variant: 'tertiary', isDestructive: true, size: 'small', icon: 'no-alt',
+                            label: __('Remove this overlay'), showTooltip: true,
+                            onClick: function () { setAttrs({ annotations: annotations.filter(function (_: any, idx: any) { return idx !== i; }) }); },
+                        }, __('Remove'))
                     ),
-                    el(wp.components.SelectControl, {
-                        label: __('Type'), value: a.type,
-                        options: [
-                            { label: __('Note'), value: 'note' },
-                            { label: __('Hotspot'), value: 'hotspot' },
-                            { label: __('Question (self-check)'), value: 'question' },
-                            { label: __('Banner — non-blocking, TRL-style'), value: 'banner' },
-                        ],
-                        onChange: function (v: any) { updateAnnotation(i, { type: v, payload: v === 'question' ? { question: '', choices: [], correct_index: 0 } : { text: '' } }); },
-                    }),
-                    typeFields,
-                    el(wp.components.Button, {
-                        variant: 'tertiary', isDestructive: true,
-                        onClick: function () { setAttrs({ annotations: annotations.filter(function (_: any, idx: any) { return idx !== i; }) }); },
-                    }, __('Remove'))
+                    typeFields
                 );
             });
 
+            // Source is a genuine block-level SETTING (like core's own
+            // image block putting "alt text"/link destination in the
+            // sidebar) — it stays in the Inspector. Chapters and
+            // overlays are real STEP CONTENT an author builds up over
+            // several passes, the same category as the caption or the
+            // chapter/checklist text everywhere else in this file — so,
+            // per AJ's live call ("can they not be part of lesson
+            // building"), they're authored directly in the canvas below,
+            // not hidden behind a settings-sidebar panel a course author
+            // has no reason to think to open.
             var sourcePicker = el(wp.blockEditor.InspectorControls, {},
                 el(wp.components.PanelBody, { title: __('Video settings') },
                     el(wp.components.SelectControl, {
@@ -455,138 +601,160 @@
                             .concat(((window as any).bhcMediaTierB && (window as any).bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : []),
                         onChange: function (v: any) { setAttrs({ source: v }); },
                     })
-                ),
-                // Rendered once, shared by both the Chapters and Video
-                // overlays panels below via the same previewRef — each
-                // panel's own "Use preview's time" button just reads
-                // whatever this one video's currentTime is. Two separate
-                // <video ref={previewRef}> elements (one per panel) would
-                // silently fight over the same ref (only the
-                // last-rendered one wins it), breaking whichever panel
-                // isn't currently attached if an author ever has both
-                // panels open at once — PanelBody doesn't guarantee
-                // they're mutually exclusive.
-                previewUrl ? el(wp.components.PanelBody, { title: __('Preview'), initialOpen: true },
-                    el('video', {
-                        ref: previewRef, src: previewUrl, controls: true,
-                        style: { width: '100%', borderRadius: '4px', display: 'block' },
-                        onTimeUpdate: function (e: any) { setPreviewTime(e.target.currentTime); },
-                        onLoadedMetadata: function (e: any) { setPreviewDuration(isFinite(e.target.duration) ? e.target.duration : 0); },
-                    }),
-                    el('p', { className: 'description', style: { marginBottom: 0 } },
-                        __('Scrub to a moment, then add a chapter or overlay — both pick up this timestamp.'))
-                ) : null,
-                el(wp.components.PanelBody, { title: __('Chapters') + (chapters.length ? ' (' + chapters.length + ')' : ''), initialOpen: false },
-                    el('p', { className: 'description', style: { marginTop: 0 } },
-                        __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')),
-                    chapters.length
-                        ? chapterRows
-                        // A real empty state instead of a bare button
-                        // floating under a heading — says what this does
-                        // and what the fastest path to a first chapter is.
-                        : el('div', {
-                            style: {
-                                border: '1px dashed #ccc', borderRadius: '6px', padding: '16px',
-                                textAlign: 'center', color: '#757575', fontSize: '13px', marginBottom: '10px',
-                            },
-                        }, previewUrl
-                            ? __('No chapters yet. Scrub the preview above to a moment, then add a chapter — it picks up that timestamp automatically.')
-                            : __('No chapters yet. Select a video first, then add chapters at the moments that matter.')),
-                    // The magical bit: adding a chapter captures wherever
-                    // the preview is sitting RIGHT NOW, so the normal
-                    // workflow is "scrub, add, type a title" instead of
-                    // "add, read the time off the player, retype it as a
-                    // number." Falls back to 0 with no preview loaded.
-                    el(wp.components.Button, {
-                        variant: 'primary',
-                        onClick: function () {
-                            var at = Math.floor(previewTime);
-                            // Never silently stack two chapters on the
-                            // same second — the second one would be an
-                            // unreachable duplicate marker.
-                            var taken = chapters.some(function (c: any) { return (c.time || 0) === at; });
-                            setAttrs({ chapters: chapters.concat([{ time: taken ? at + 1 : at, title: '' }]) });
-                        },
-                    }, previewUrl ? __('+ Add chapter at ') + fmtTime(previewTime) : __('+ Add chapter'))
-                ),
-                el(wp.components.PanelBody, { title: __('Overlays') + (annotations.length ? ' (' + annotations.length + ')' : ''), initialOpen: false },
-                    el('p', { className: 'description', style: { marginTop: 0 } }, __('Note, Hotspot and Question pause the video at a timestamp and wait for a click. Banner is deliberately different — a caption that slides in and leaves on its own, without stopping playback.')),
-                    annotations.length ? annotationRows : el('div', {
-                        style: {
-                            border: '1px dashed #ccc', borderRadius: '6px', padding: '16px',
-                            textAlign: 'center', color: '#757575', fontSize: '13px', marginBottom: '10px',
-                        },
-                    }, __('No overlays yet.')),
-                    el(wp.components.Button, {
-                        variant: 'secondary',
-                        onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
-                    }, previewUrl ? __('+ Add overlay at ') + fmtTime(previewTime) : __('+ Add overlay'))
                 )
             );
+
+            var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 },
+                el('summary', {}, __('Chapters'), chapters.length ? el('span', { className: 'bhc-studio-subsection-count' }, chapters.length) : null),
+                el('p', { className: 'description' },
+                    __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')),
+                chapters.length
+                    ? chapterRows
+                    : el('div', { className: 'bhc-studio-empty' }, previewUrl
+                        ? __('No chapters yet. Scrub the preview above to a moment, then add a chapter — it picks up that timestamp automatically.')
+                        : __('No chapters yet. Add one at the moments that matter — type a time if there\'s no preview to scrub yet.')),
+                // The magical bit: adding a chapter captures wherever the
+                // preview is sitting RIGHT NOW, so the normal workflow is
+                // "scrub, add, type a title" instead of "add, read the
+                // time off the player, retype it as a number." Falls
+                // back to 0 with no preview loaded.
+                el(wp.components.Button, {
+                    variant: 'primary',
+                    onClick: function () {
+                        var at = Math.floor(previewTime);
+                        // Never silently stack two chapters on the same
+                        // second — the second one would be an
+                        // unreachable duplicate marker.
+                        var taken = chapters.some(function (c: any) { return (c.time || 0) === at; });
+                        setAttrs({ chapters: chapters.concat([{ time: taken ? at + 1 : at, title: '' }]) });
+                    },
+                }, previewUrl ? __('+ Add chapter at ') + fmtTime(previewTime) : __('+ Add chapter'))
+            );
+
+            var overlaysSection = el('details', { key: 'overlays', className: 'bhc-studio-subsection', open: annotations.length > 0 },
+                el('summary', {}, __('Overlays'), annotations.length ? el('span', { className: 'bhc-studio-subsection-count' }, annotations.length) : null),
+                el('p', { className: 'description' }, __('Note, Hotspot and Question pause the video at a timestamp and wait for a click. Banner is deliberately different — a caption that slides in and leaves on its own, without stopping playback.')),
+                annotations.length ? annotationRows : el('div', { className: 'bhc-studio-empty' }, __('No overlays yet.')),
+                el(wp.components.Button, {
+                    variant: 'secondary',
+                    onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
+                }, previewUrl ? __('+ Add overlay at ') + fmtTime(previewTime) : __('+ Add overlay'))
+            );
+
+            var videoAttachment = attrs.source === 'upload' ? useAttachment(attrs.attachment_id) : null;
+            var sourceLabel = attrs.source === 'url' ? __('URL') : attrs.source === 'cloudflare_stream' ? __('Cloudflare Stream') : __('Upload');
+            var meta = sourceLabel
+                + (chapters.length ? ' · ' + chapters.length + __(' chapters') : '')
+                + (annotations.length ? ' · ' + annotations.length + __(' overlays') : '');
+
+            var picker;
+            if (attrs.source === 'url') {
+                picker = el(wp.components.TextControl, {
+                    key: 'src', label: __('Video URL'),
+                    placeholder: __('https://youtube.com/watch?v=… or a direct video file URL'),
+                    value: attrs.video_url,
+                    onChange: function (v: any) { setAttrs({ video_url: v }); },
+                });
+            } else if (attrs.source === 'cloudflare_stream') {
+                picker = el(wp.components.TextControl, {
+                    key: 'src', label: __('Cloudflare Stream video UID'),
+                    help: __('Upload the video to Cloudflare Stream yourself first, then paste the resulting UID here — a 32-character code from its dashboard/API response.'),
+                    value: attrs.stream_uid,
+                    onChange: function (v: any) { setAttrs({ stream_uid: v.trim().toLowerCase() }); },
+                });
+            } else {
+                var uploadButton = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' },
+                    el(wp.blockEditor.MediaUpload, {
+                        allowedTypes: ['video'],
+                        value: attrs.attachment_id,
+                        // Immediate, cheap feedback before an author even
+                        // finishes — BHC_VideoSettings::check_tree() still
+                        // re-checks the real file server-side on save
+                        // (authoritative; this is a convenience only, a
+                        // REST/programmatic save never runs this JS at
+                        // all). window.BHCMaxVideoMB is localized
+                        // per-request (0 = no limit, the default — never
+                        // blocks anything here). Deliberately no
+                        // window.confirm()/alert() — a blocking native
+                        // dialog here is a known hazard in this
+                        // ecosystem's own automated QA tooling (and a
+                        // worse UX generally); the file is always
+                        // accepted, with a plain inline warning shown
+                        // instead via over_limit_mb state.
+                        onSelect: function (media: any) {
+                            var maxMB = (window as any).BHCMaxVideoMB || 0;
+                            var sizeBytes = media.filesizeInBytes || (media.filesize ? media.filesize * 1024 : 0);
+                            var overLimit = maxMB && sizeBytes && (sizeBytes / 1048576) > maxMB;
+                            setAttrs({ attachment_id: media.id, over_limit_mb: overLimit ? Math.round(sizeBytes / 1048576) : 0 });
+                        },
+                        render: function (obj: any) {
+                            return el(wp.components.Button, { variant: attrs.attachment_id ? 'secondary' : 'primary', onClick: obj.open },
+                                attrs.attachment_id ? __('Change video') : __('Select video'));
+                        },
+                    })
+                );
+                var overLimitWarning = (attrs.over_limit_mb && (window as any).BHCMaxVideoMB && attrs.over_limit_mb > (window as any).BHCMaxVideoMB)
+                    // Recomputed against the CURRENT live limit on every
+                    // render, not just trusted from the stored attribute
+                    // — attrs.over_limit_mb was only ever correct at the
+                    // moment the file was selected, so if the site's
+                    // limit is later raised, lowered, or was 0 (no limit)
+                    // all along, a stale stored value would otherwise
+                    // keep showing a wrong warning.
+                    ? el('p', { key: 'warn', className: 'bhc-video-size-warning', style: { color: '#b32d2e' } },
+                        __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + (window as any).BHCMaxVideoMB + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
+                    : null;
+                picker = attrs.attachment_id
+                    // A real thumbnail + file name, in place of the old
+                    // bare "Change video" button with no indication of
+                    // WHICH video was already chosen.
+                    ? el('div', { key: 'chosen' },
+                        // This IS the scrub source for chapters/overlays
+                        // below (ref + time/duration wiring) — one real
+                        // preview player doing double duty as "does this
+                        // look right" AND "grab me this timestamp",
+                        // rather than a second, redundant player.
+                        previewUrl ? el('video', {
+                            key: 'prev', ref: previewRef, className: 'bhc-studio-preview', src: previewUrl, controls: true, preload: 'metadata',
+                            onTimeUpdate: function (e: any) { setPreviewTime(e.target.currentTime); },
+                            onLoadedMetadata: function (e: any) { setPreviewDuration(isFinite(e.target.duration) ? e.target.duration : 0); },
+                        })
+                            : chosenFile('format-video', mediaName(videoAttachment, attrs.attachment_id), null, null),
+                        el('div', { key: 'row', style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' } },
+                            el('span', { style: { fontSize: '13px', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+                                mediaName(videoAttachment, attrs.attachment_id)),
+                            uploadButton
+                        ),
+                        overLimitWarning
+                    )
+                    : pickerPlaceholder('format-video', __('No video chosen yet'), __('Select the file this lesson step plays.'), uploadButton);
+            }
+
             return el(wp.element.Fragment, {},
                 sourcePicker,
-                el('div', blockProps,
-                attrs.source === 'url'
-                    ? el(wp.components.TextControl, { label: __('Video URL'), value: attrs.video_url, onChange: function (v: any) { setAttrs({ video_url: v }); } })
-                    : attrs.source === 'cloudflare_stream'
-                    ? el(wp.components.TextControl, {
-                        label: __('Cloudflare Stream video UID'),
-                        help: __('Upload the video to Cloudflare Stream yourself first, then paste the resulting UID here — a 32-character code from its dashboard/API response.'),
-                        value: attrs.stream_uid,
-                        onChange: function (v: any) { setAttrs({ stream_uid: v.trim().toLowerCase() }); },
-                    })
-                    : el(wp.blockEditor.MediaUploadCheck, {},
-                        el(wp.blockEditor.MediaUpload, {
-                            allowedTypes: ['video'],
-                            value: attrs.attachment_id,
-                            // Immediate, cheap feedback before an author
-                            // even finishes — BHC_VideoSettings::check_tree()
-                            // still re-checks the real file server-side on
-                            // save (authoritative; this is a convenience
-                            // only, a REST/programmatic save never runs
-                            // this JS at all). window.BHCMaxVideoMB is
-                            // localized per-request (0 = no limit, the
-                            // default — never blocks anything here).
-                            // Deliberately no window.confirm()/alert() —
-                            // a blocking native dialog here is a known
-                            // hazard in this ecosystem's own automated
-                            // QA tooling (and a worse UX generally); the
-                            // file is always accepted, with a plain
-                            // inline warning shown instead via
-                            // over_limit_mb state.
-                            onSelect: function (media: any) {
-                                var maxMB = (window as any).BHCMaxVideoMB || 0;
-                                var sizeBytes = media.filesizeInBytes || (media.filesize ? media.filesize * 1024 : 0);
-                                var overLimit = maxMB && sizeBytes && (sizeBytes / 1048576) > maxMB;
-                                setAttrs({ attachment_id: media.id, over_limit_mb: overLimit ? Math.round(sizeBytes / 1048576) : 0 });
-                            },
-                            render: function (obj: any) {
-                                return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_id ? __('Change video') : __('Select video'));
-                            },
-                        }),
-                        // Recomputed against the CURRENT live limit on every
-                        // render, not just trusted from the stored
-                        // attribute — attrs.over_limit_mb was only ever
-                        // correct at the moment the file was selected, so
-                        // if the site's limit is later raised, lowered, or
-                        // was 0 (no limit) all along, a stale stored value
-                        // would otherwise keep showing a wrong warning
-                        // (e.g. "over this site's 0MB limit").
-                        (attrs.over_limit_mb && (window as any).BHCMaxVideoMB && attrs.over_limit_mb > (window as any).BHCMaxVideoMB)
-                            ? el('p', { className: 'bhc-video-size-warning', style: { color: '#b32d2e' } },
-                                __('This file is about ') + attrs.over_limit_mb + __('MB, over this site\'s ') + (window as any).BHCMaxVideoMB + __('MB direct-upload limit. Consider switching Source to "URL (oEmbed)" instead.'))
-                            : null
-                    ),
-                el(wp.components.TextControl, { label: __('Caption'), value: attrs.caption, onChange: function (v: any) { setAttrs({ caption: v }); } }),
-                el(wp.components.RangeControl, {
-                    label: __('Require watched % to auto-complete (0 = off, any playback completes it)'),
-                    value: attrs.watch_threshold,
-                    min: 0,
-                    max: 100,
-                    onChange: function (v: any) { setAttrs({ watch_threshold: v || 0 }); },
-                    help: attrs.source === 'url' ? __('Only enforceable for a direct video URL — a YouTube/Vimeo-style embed can\'t be watch-tracked, so this is ignored for iframe embeds.') : undefined,
-                })
-                )
+                stepShell('format-video', __('Video'), meta, blockProps, [
+                    picker,
+                    el(wp.components.TextControl, {
+                        key: 'cap', label: __('Caption'), value: attrs.caption,
+                        placeholder: __('Optional — shown beneath the video'),
+                        onChange: function (v: any) { setAttrs({ caption: v }); },
+                    }),
+                    chaptersSection,
+                    overlaysSection,
+                    el(wp.components.RangeControl, {
+                        key: 'thresh',
+                        label: __('Require watched % to auto-complete'),
+                        value: attrs.watch_threshold,
+                        min: 0,
+                        max: 100,
+                        onChange: function (v: any) { setAttrs({ watch_threshold: v || 0 }); },
+                        help: attrs.source === 'cloudflare_stream'
+                            ? __('Not enforceable for Cloudflare Stream yet — this plugin has no SDK for it, so the step always completes on any playback.')
+                            : attrs.watch_threshold === 0
+                            ? __('Off — any playback marks this step complete.')
+                            : __('A student must watch at least this much before the step auto-completes.'),
+                    }),
+                ])
             );
         },
         save: function () { return null; }, // dynamic
@@ -611,28 +779,31 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // See bhc/image's blockProps comment — same toolbar-collision buffer.
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource', style: { paddingTop: '32px' } });
-            return el('div', blockProps,
-                el(wp.blockEditor.MediaUploadCheck, {},
-                    el(wp.blockEditor.MediaUpload, {
-                        value: attrs.attachment_id,
-                        onSelect: function (media: any) {
-                            // Default the label to the file's own name on
-                            // first pick — a course creator can still
-                            // override it, but "Worksheet.pdf" beats an
-                            // empty label if they never touch this field.
-                            setAttrs({ attachment_id: media.id, label: attrs.label || media.title || media.filename || '' });
-                        },
-                        render: function (obj: any) {
-                            return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs.attachment_id ? __('Change file') : __('Select file'));
-                        },
-                    })
-                ),
-                attrs.attachment_id ? el('p', { className: 'bhc-studio-resource-selected' }, __('File selected (#') + attrs.attachment_id + ')') : null,
-                el(wp.components.TextControl, { label: __('Label'), value: attrs.label, placeholder: __('e.g. Worksheet.pdf'), onChange: function (v: any) { setAttrs({ label: v }); } }),
-                el(wp.components.TextControl, { label: __('Description (optional)'), value: attrs.description, onChange: function (v: any) { setAttrs({ description: v }); } })
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource bhc-studio-step' });
+            var media = useAttachment(attrs.attachment_id);
+            var picker = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' },
+                el(wp.blockEditor.MediaUpload, {
+                    value: attrs.attachment_id,
+                    onSelect: function (m: any) {
+                        // Default the label to the file's own name on
+                        // first pick — a course creator can still
+                        // override it, but "Worksheet.pdf" beats an
+                        // empty label if they never touch this field.
+                        setAttrs({ attachment_id: m.id, label: attrs.label || m.title || m.filename || '' });
+                    },
+                    render: function (obj: any) {
+                        return el(wp.components.Button, { variant: attrs.attachment_id ? 'secondary' : 'primary', onClick: obj.open },
+                            attrs.attachment_id ? __('Change file') : __('Select file'));
+                    },
+                })
             );
+            return stepShell('media-default', __('Resource'), null, blockProps, [
+                attrs.attachment_id
+                    ? chosenFile('media-default', mediaName(media, attrs.attachment_id), null, picker)
+                    : pickerPlaceholder('media-default', __('No file chosen yet'), __('A worksheet, PDF, or reference doc a student can download from this step.'), picker),
+                el(wp.components.TextControl, { key: 'label', label: __('Label'), value: attrs.label, placeholder: __('e.g. Worksheet.pdf'), onChange: function (v: any) { setAttrs({ label: v }); } }),
+                el(wp.components.TextControl, { key: 'desc', label: __('Description'), value: attrs.description, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ description: v }); } }),
+            ]);
         },
         save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/resource callback
     });
@@ -658,10 +829,11 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-checklist', style: { paddingTop: '32px' } });
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-checklist bhc-studio-step' });
             var items = attrs.items || [];
             var rows = items.map(function (item: any, i: any) {
                 return el('div', { key: i, className: 'bhc-studio-checklist-row' },
+                    el('span', { className: 'bhc-studio-checklist-box' }),
                     el(wp.components.TextControl, {
                         value: item,
                         placeholder: __('Checklist item…'),
@@ -672,16 +844,16 @@
                         },
                     }),
                     el(wp.components.Button, {
-                        variant: 'tertiary', isDestructive: true,
+                        variant: 'tertiary', isDestructive: true, icon: 'no-alt', label: __('Remove item'),
                         onClick: function () { setAttrs({ items: items.filter(function (_: any, idx: any) { return idx !== i; }) }); },
-                    }, __('Remove'))
+                    })
                 );
             });
-            return el('div', blockProps,
-                el(wp.components.TextControl, { label: __('Title (optional)'), value: attrs.title, placeholder: __('e.g. Before you export…'), onChange: function (v: any) { setAttrs({ title: v }); } }),
-                rows,
-                el(wp.components.Button, { variant: 'secondary', onClick: function () { setAttrs({ items: items.concat(['']) }); } }, __('+ Add item'))
-            );
+            return stepShell('yes-alt', __('Checklist'), items.length ? items.length + (items.length === 1 ? __(' item') : __(' items')) : null, blockProps, [
+                el(wp.components.TextControl, { key: 'title', label: __('Title'), value: attrs.title, placeholder: __('e.g. Before you export…'), onChange: function (v: any) { setAttrs({ title: v }); } }),
+                items.length ? el('div', { key: 'rows' }, rows) : el('p', { key: 'empty', className: 'bhc-studio-empty-hint' }, __('No items yet — add the first thing a student should check off.')),
+                el(wp.components.Button, { key: 'add', variant: 'secondary', onClick: function () { setAttrs({ items: items.concat(['']) }); } }, __('+ Add item')),
+            ]);
         },
         save: function () { return null; },
     });
@@ -698,17 +870,19 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-chord-chart', style: { paddingTop: '32px' } });
-            return el('div', blockProps,
-                el(wp.components.TextControl, { label: __('Title (optional)'), value: attrs.title, placeholder: __('e.g. Verse'), onChange: function (v: any) { setAttrs({ title: v }); } }),
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-chord-chart bhc-studio-step' });
+            return stepShell('editor-code', __('Chord/Tab Chart'), null, blockProps, [
+                el(wp.components.TextControl, { key: 'title', label: __('Title'), value: attrs.title, placeholder: __('e.g. Verse'), onChange: function (v: any) { setAttrs({ title: v }); } }),
                 el(wp.components.TextareaControl, {
+                    key: 'content',
                     label: __('Chord/tab chart'),
+                    className: 'bhc-studio-monospace',
                     help: __('Plain monospace text — alignment is preserved exactly as typed.'),
                     value: attrs.content,
                     rows: 8,
                     onChange: function (v: any) { setAttrs({ content: v }); },
-                })
-            );
+                }),
+            ]);
         },
         save: function () { return null; },
     });
@@ -728,28 +902,32 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-audio-compare', style: { paddingTop: '32px' } });
-            function clipPicker(idKey: any, labelKey: any, defaultLabel: any) {
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-audio-compare bhc-studio-step' });
+            function ClipPicker(p: any) {
+                var media = useAttachment(attrs[p.idKey]);
+                var picker = el(wp.blockEditor.MediaUploadCheck, { key: 'pick' },
+                    el(wp.blockEditor.MediaUpload, {
+                        allowedTypes: ['audio'],
+                        value: attrs[p.idKey],
+                        onSelect: function (m: any) { setAttrs((function (o: any) { o[p.idKey] = m.id; return o; })({})); },
+                        render: function (obj: any) {
+                            return el(wp.components.Button, { variant: attrs[p.idKey] ? 'secondary' : 'primary', onClick: obj.open },
+                                attrs[p.idKey] ? __('Change audio') : __('Select audio'));
+                        },
+                    })
+                );
                 return el('div', { className: 'bhc-studio-audio-compare-clip' },
-                    el(wp.components.TextControl, { label: __('Label'), value: attrs[labelKey], placeholder: defaultLabel, onChange: function (v: any) { setAttrs((function (o: any) { o[labelKey] = v; return o; })({})); } }),
-                    el(wp.blockEditor.MediaUploadCheck, {},
-                        el(wp.blockEditor.MediaUpload, {
-                            allowedTypes: ['audio'],
-                            value: attrs[idKey],
-                            onSelect: function (media: any) { setAttrs((function (o: any) { o[idKey] = media.id; return o; })({})); },
-                            render: function (obj: any) {
-                                return el(wp.components.Button, { variant: 'secondary', onClick: obj.open }, attrs[idKey] ? __('Change audio') : __('Select audio'));
-                            },
-                        })
-                    ),
-                    attrs[idKey] ? el('p', { className: 'bhc-studio-audio-compare-selected' }, __('Audio selected (#') + attrs[idKey] + ')') : null
+                    el(wp.components.TextControl, { label: __('Label'), value: attrs[p.labelKey], placeholder: p.defaultLabel, onChange: function (v: any) { setAttrs((function (o: any) { o[p.labelKey] = v; return o; })({})); } }),
+                    attrs[p.idKey]
+                        ? chosenFile('controls-volumeon', mediaName(media, attrs[p.idKey]), null, picker)
+                        : pickerPlaceholder('controls-volumeon', __('No clip chosen'), null, picker)
                 );
             }
-            return el('div', blockProps,
-                clipPicker('attachment_id_a', 'label_a', 'A'),
-                clipPicker('attachment_id_b', 'label_b', 'B'),
-                el(wp.components.TextControl, { label: __('Caption (optional)'), value: attrs.caption, onChange: function (v: any) { setAttrs({ caption: v }); } })
-            );
+            return stepShell('controls-volumeon', __('Audio A/B Compare'), null, blockProps, [
+                el(ClipPicker, { key: 'a', idKey: 'attachment_id_a', labelKey: 'label_a', defaultLabel: 'A' }),
+                el(ClipPicker, { key: 'b', idKey: 'attachment_id_b', labelKey: 'label_b', defaultLabel: 'B' }),
+                el(wp.components.TextControl, { key: 'cap', label: __('Caption'), value: attrs.caption, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ caption: v }); } }),
+            ]);
         },
         save: function () { return null; },
     });
@@ -768,15 +946,18 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz' });
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz bhc-studio-step' });
             // Real child blocks, not a repeater — this is the whole
             // point of Section 3.2's promotion. allowedBlocks keeps
-            // quiz-question scoped to living only inside a quiz.
-            var innerBlocksProps = wp.blockEditor.useInnerBlocksProps(blockProps, {
-                allowedBlocks: ['bhc/quiz-question'],
-                templateLock: false,
-                renderAppender: AddQuestionAppender,
-            });
+            // quiz-question scoped to living only inside a quiz. The
+            // inner-blocks area IS the shell's body — passed as its own
+            // className so stepShell's own header/body divs still frame
+            // it consistently with every other step type.
+            var innerBlocksProps = wp.blockEditor.useInnerBlocksProps(
+                { className: 'bhc-studio-body' },
+                { allowedBlocks: ['bhc/quiz-question'], templateLock: false, renderAppender: AddQuestionAppender }
+            );
+            var meta = __('Pass ') + attrs.passing_score + '%' + (attrs.max_attempts ? ', ' + attrs.max_attempts + __(' attempts') : '');
             return el(wp.element.Fragment, {},
                 el(wp.blockEditor.InspectorControls, {},
                     el(wp.components.PanelBody, { title: __('Quiz settings') },
@@ -786,7 +967,14 @@
                         el(wp.components.ToggleControl, { label: __('Shuffle answer order'), checked: attrs.shuffle_choices, onChange: function (v: any) { setAttrs({ shuffle_choices: v }); } })
                     )
                 ),
-                el('div', innerBlocksProps)
+                el('div', blockProps,
+                    el('div', { className: 'bhc-studio-head' },
+                        el(wp.components.Icon, { icon: 'forms', size: 16 }),
+                        el('span', { className: 'bhc-studio-head-label' }, __('Quiz')),
+                        el('span', { className: 'bhc-studio-head-meta' }, meta)
+                    ),
+                    el('div', innerBlocksProps)
+                )
             );
         },
         save: function () {
@@ -813,8 +1001,17 @@
         supports: { html: false },
         edit: function (props: any) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
-            // See bhc/image's blockProps comment — same toolbar-collision buffer.
-            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question', style: { paddingTop: '32px' } });
+            var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question' });
+            // This block's own index among its quiz siblings — InnerBlocks
+            // renders each question as an equal sibling with no number of
+            // its own, so a quiz of 10 questions read as an undifferentiated
+            // stack of "Question" text fields with nothing to tell them
+            // apart while scrolling. useBlockEditContext() + getBlockOrder()
+            // recovers the real position instead of any per-block stored
+            // index (which would drift the moment questions are reordered).
+            var qClientId = wp.blockEditor.useBlockEditContext().clientId;
+            var qParentId = wp.data.select('core/block-editor').getBlockRootClientId(qClientId);
+            var qIndex = wp.data.select('core/block-editor').getBlockOrder(qParentId).indexOf(qClientId);
             var choices = attrs.choices && attrs.choices.length ? attrs.choices : ['', ''];
 
             function setChoice(i: number, v: any) {
@@ -853,7 +1050,8 @@
             });
 
             return el('div', blockProps,
-                el(wp.components.TextControl, { label: __('Question'), value: attrs.question, onChange: function (v: any) { setAttrs({ question: v }); } }),
+                el('div', { className: 'bhc-studio-question-badge' }, __('Question ') + (qIndex > -1 ? qIndex + 1 : '?')),
+                el(wp.components.TextControl, { label: __('Question'), value: attrs.question, placeholder: __('What do you ask the student?'), onChange: function (v: any) { setAttrs({ question: v }); } }),
                 el('p', { className: 'description' }, __('Select the radio next to the correct choice.')),
                 choiceRows,
                 // className carries its own margin-bottom (see
