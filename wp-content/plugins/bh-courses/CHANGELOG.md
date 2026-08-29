@@ -6,6 +6,71 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.11.0 — The second half of "conquer the limitations" (AJ): chapters,
+overlays AND watch-progress now all work on YouTube and Vimeo steps,
+not just an uploaded file or direct URL. Plus a real pass over the
+chapter-authoring GUI.
+
+Provider embeds. A YouTube/Vimeo URL no longer renders as an opaque
+<iframe> — it renders as a Plyr provider embed
+(`<div data-plyr-provider data-plyr-embed-id>`, resolved by the new
+BHC_Render_Lesson::to_plyr_provider()). Plyr mounts the provider's own
+SDK against it and exposes the SAME instance API (currentTime,
+duration, play, 'timeupdate') it does for an HTML5 video. Verified
+live against a real YouTube video: Plyr read its true duration (03:34)
+so markers landed at genuinely correct percentages, clicking a chapter
+seeked the actual YouTube player to 01:00, and an overlay annotation
+fired and paused it — all three features working on an embed, which
+this file's own comments previously documented as impossible.
+
+The trade-off is real and was AJ's explicit call: controlling a
+YouTube/Vimeo embed is impossible without loading that provider's
+script, so those two step types do reach a third-party origin —
+unlike every other asset here. Deliberately scoped: an author who
+wants zero third-party contact still has the uploaded-file and
+direct-URL sources, which stay fully local, and a provider this
+plugin has no SDK for still renders as a plain iframe with
+chapters/overlays/progress withheld rather than shown as controls
+that would silently do nothing.
+
+To make that possible without duplicating logic three ways, courses.ts
+now builds ONE media adapter per video step up front (BHCMedia —
+currentTime/seek/duration/play/pause/on) and the watch-progress,
+overlay and chapter blocks all drive that instead of reaching for a
+raw <video> element. When Plyr is present everything routes through
+it (uniform across html5 and providers); the raw-element path is only
+the fallback for a genuine <video> when Plyr's script failed to load.
+Re-ran the full live regression after that refactor — chapters,
+annotations and watch-threshold auto-complete all still behave
+identically on an uploaded file.
+
+Authoring GUI, rebuilt (AJ: "make that gui a little more magical,
+clean and organized"). Each chapter is now a real card instead of a
+cramped control row: a badge showing its true PLAYBACK position (not
+its array index — rows stay put while you edit, so silently
+reordering them under the cursor would be worse), the timestamp
+formatted mm:ss, title first, and a Remove aligned right. Panel
+headers carry live counts ("Chapters (3)"). Real empty states replace
+a bare button under a heading. The preview player moved into its own
+always-open panel shared by both chapters and overlays — one <video>,
+one ref, instead of two competing for the same one.
+
+The magical bit: the primary action reads "+ Add chapter at 0:42" and
+captures wherever the preview is sitting, so the workflow is scrub →
+add → title, instead of add → read the time off the player → retype
+it as a number. That required mirroring the playhead into React state
+(a ref alone renders the label once and then quietly lies, since
+scrubbing changes no state). Same for overlays. Two honest inline
+warnings added: an untitled chapter says it will be discarded on save
+(sanitize_chapters() drops it), and one starting past the video's real
+end says so and names the duration, since it renders no marker at all.
+
+Front end: chapter list gained a quiet "CHAPTERS" label and the active
+row now gets the accent rail + tint treatment the lesson sidebar's
+current-lesson row already uses — one visual language for "you are
+here". 1 new PHPUnit test (chapters survive on a url-source step).
+`npx tsc`, `php -l`, PHPStan and `composer test` all clean.
+
 0.10.0 — Chapter markers now render ON the seek bar itself, conquering
 the limitation 0.9.0 shipped with (AJ: "I'd love to conquer the
 limitations"). Native `<video controls>` is drawn by the browser

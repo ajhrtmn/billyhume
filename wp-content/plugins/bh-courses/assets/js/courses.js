@@ -281,16 +281,116 @@
                 }
             }
         }
+        /* ---------------- one player + one adapter per video step ----------------
+         *
+         * Built ONCE up front so the three feature blocks below
+         * (watch-progress, overlays, chapters) all drive the same player
+         * through one interface instead of each reaching for the raw
+         * <video> element.
+         *
+         * That indirection is what lets all three work on a YouTube or
+         * Vimeo step at all. Those render as a Plyr provider embed (a
+         * <div data-plyr-provider>, see class-render-lesson.php), where
+         * there is no <video> element to hold a .currentTime or fire a
+         * 'timeupdate' — Plyr's own instance API supplies both, and
+         * exposes the identical shape for a plain HTML5 file. So:
+         * whenever Plyr is present, everything routes through it; the
+         * raw-element path is only the fallback for a genuine <video>
+         * when Plyr's script failed to load at all.
+         */
+        var mediaAdapters = [];
+        lesson.querySelectorAll('.bhc-step-video').forEach(function (el) {
+            var isProvider = el.hasAttribute('data-plyr-provider');
+            var videoEl = el.tagName === 'VIDEO' ? el : null;
+            var PlyrCtor = window.Plyr;
+            var player = null;
+            if (PlyrCtor) {
+                var plyrAssets = window.BHCPlyrAssets || {};
+                player = new PlyrCtor(el, {
+                    // Deliberately NOT Plyr's full default control set —
+                    // this is a lesson video, not a media app: no
+                    // download button (a resource step is the real
+                    // "here, take this file" affordance), no PIP clutter.
+                    controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
+                    settings: ['speed'],
+                    speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
+                    // Both of Plyr's own shipped defaults point at
+                    // cdn.plyr.io — overridden to this plugin's vendored
+                    // copies so an uploaded/direct-URL lesson never
+                    // reaches a third-party CDN (CLAUDE.md's standing
+                    // self-hosted rule). A YouTube/Vimeo step
+                    // unavoidably contacts its own provider; that is the
+                    // explicit, accepted trade for controlling it.
+                    iconUrl: plyrAssets.iconUrl,
+                    blankVideo: plyrAssets.blankVideo,
+                });
+            }
+            // No Plyr AND no real <video> means a provider embed we
+            // cannot drive — skip it rather than register an adapter
+            // whose every method silently no-ops.
+            if (!player && !videoEl)
+                return;
+            var media = {
+                isProvider: isProvider,
+                player: player,
+                currentTime: function () { return player ? player.currentTime : (videoEl ? videoEl.currentTime : 0); },
+                seek: function (t) { if (player) {
+                    player.currentTime = t;
+                }
+                else if (videoEl) {
+                    videoEl.currentTime = t;
+                } },
+                duration: function () {
+                    var d = player ? player.duration : (videoEl ? videoEl.duration : 0);
+                    return (typeof d === 'number' && isFinite(d)) ? d : 0;
+                },
+                play: function () {
+                    var r = player ? player.play() : (videoEl ? videoEl.play() : undefined);
+                    // A programmatic play() can legitimately reject
+                    // (autoplay policy) — any seek that preceded it still
+                    // happened, which is the part that matters.
+                    if (r && typeof r.catch === 'function')
+                        r.catch(function () { });
+                },
+                pause: function () { if (player) {
+                    player.pause();
+                }
+                else if (videoEl) {
+                    videoEl.pause();
+                } },
+                on: function (evt, cb) {
+                    if (player) {
+                        player.on(evt, cb);
+                    }
+                    else if (videoEl) {
+                        videoEl.addEventListener(evt, cb);
+                    }
+                },
+            };
+            mediaAdapters.push({ el: el, media: media });
+        });
+        function mediaFor(el) {
+            if (!el)
+                return null;
+            for (var i = 0; i < mediaAdapters.length; i++) {
+                if (mediaAdapters[i].el === el)
+                    return mediaAdapters[i].media;
+            }
+            return null;
+        }
         // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: real video
-        // progress tracking. Only <video data-watch-threshold> elements
+        // progress tracking. Only elements carrying data-watch-threshold
         // get a listener — class-render-lesson.php only renders that
-        // attribute for a course-creator-configured, directly-trackable
-        // (non-iframe) video step; everything else is untouched by this
-        // block. Throttled to once per whole-percent change (a raw
-        // timeupdate fires many times a second) to avoid hammering the
-        // AJAX endpoint during normal playback.
+        // attribute for a course-creator-configured, genuinely trackable
+        // step (an upload, a direct URL, or a YouTube/Vimeo provider
+        // embed); an opaque third-party iframe never gets it. Throttled
+        // to once per whole-percent change (a raw timeupdate fires many
+        // times a second) to avoid hammering the AJAX endpoint.
         lesson.querySelectorAll('.bhc-step-video[data-watch-threshold]').forEach(function (video) {
             var _a;
+            var media = mediaFor(video);
+            if (!media)
+                return;
             var step = video.closest('.bhc-step');
             var index = parseInt((_a = step.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10);
             var lastSent = -1;
@@ -328,10 +428,11 @@
                     advanceWithBeat(index);
                 });
             }
-            video.addEventListener('timeupdate', function () {
-                if (!video.duration || step.classList.contains('bhc-step-done'))
+            media.on('timeupdate', function () {
+                var duration = media.duration();
+                if (!duration || step.classList.contains('bhc-step-done'))
                     return;
-                sendProgress(Math.floor((video.currentTime / video.duration) * 100));
+                sendProgress(Math.floor((media.currentTime() / duration) * 100));
             });
         });
         // ROADMAP-lms-v3.md Section 1 — interactive video overlays.
@@ -352,6 +453,9 @@
         // continuing the video, unlike a step failing to mark complete.
         lesson.querySelectorAll('.bhc-step-video[data-annotations]').forEach(function (video) {
             var _a, _b;
+            var media = mediaFor(video);
+            if (!media)
+                return;
             var annotationStep = video.closest('.bhc-step');
             var annotationStepIndex = annotationStep ? parseInt((_a = annotationStep.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10) : -1;
             var annotations;
@@ -377,7 +481,7 @@
                 if (overlay)
                     overlay.remove();
                 overlay = null;
-                video.play();
+                media.play();
             }
             // TRL-style lower-third: slides in, auto-dismisses on its
             // own after a few seconds, and — the whole point of this
@@ -401,7 +505,7 @@
                     showBanner(a, index);
                     return;
                 }
-                video.pause();
+                media.pause();
                 shown[index] = true;
                 overlay = document.createElement('div');
                 overlay.className = 'bhc-video-overlay bhc-video-overlay-' + a.type;
@@ -458,14 +562,14 @@
                 }
                 wrap.appendChild(overlay);
             }
-            video.addEventListener('timeupdate', function () {
+            media.on('timeupdate', function () {
                 if (overlay)
                     return; // already paused on one; don't stack a second
                 for (var i = 0; i < annotations.length; i++) {
                     if (shown[i])
                         continue;
                     var a = annotations[i];
-                    if (video.currentTime >= a.time) {
+                    if (media.currentTime() >= a.time) {
                         showAnnotation(a, i);
                         break;
                     }
@@ -474,9 +578,9 @@
             // A student rewinding past an already-shown annotation
             // shouldn't be trapped by it again — same "resume, don't
             // relitigate" posture a real interactive-video player takes.
-            video.addEventListener('seeked', function () {
+            media.on('seeked', function () {
                 for (var i = 0; i < annotations.length; i++) {
-                    if (video.currentTime < annotations[i].time)
+                    if (media.currentTime() < annotations[i].time)
                         shown[i] = false;
                 }
             });
@@ -484,24 +588,22 @@
         // Real YouTube-style chapter markers ON the seek bar itself, plus
         // a clickable chapter list beneath the video.
         //
-        // Why Plyr at all: native `<video controls>` is drawn by the
-        // browser engine, not the page — no CSS or JS can reach inside it
-        // to paint markers on its scrubber. The only way to put markers
-        // literally on the seek bar is to supply the control bar
-        // ourselves, which is exactly what every player with visible
-        // chapter markers (YouTube, Vimeo) actually does. Plyr (MIT,
-        // vendored — see class-render.php's enqueue comment) WRAPS the
-        // existing <video> rather than replacing it: `player.media` IS
-        // this same element, so the annotations/watch-threshold blocks
-        // above keep working untouched (same .currentTime, same
-        // 'timeupdate'), and this block only adds chrome around it.
+        // Why a custom control bar at all: native `<video controls>` is
+        // drawn by the browser engine, not the page — no CSS or JS can
+        // reach inside it to paint markers on its scrubber. Supplying
+        // the bar ourselves (via Plyr) is the only way, and is exactly
+        // what every player with visible chapter markers does. The
+        // player itself is created once in the shared adapter pass
+        // above; this block only draws chrome onto it.
         //
-        // Degrades honestly: if Plyr's script didn't load at all, the
-        // `window.Plyr` guard leaves the native controls exactly as they
-        // were and the chapter LIST below still renders and still seeks
-        // — only the on-scrubber markers are lost, since those are the
-        // one piece that genuinely cannot exist without a custom bar.
+        // Degrades honestly: with no Plyr at all, a real <video> keeps
+        // its native controls and the chapter LIST below still renders
+        // and still seeks — only the on-scrubber markers are lost, being
+        // the one piece that cannot exist without a custom bar.
         lesson.querySelectorAll('.bhc-step-video').forEach(function (video) {
+            var media = mediaFor(video);
+            if (!media)
+                return;
             var wrap = video.closest('.bhc-video-wrap');
             if (!wrap || !wrap.parentNode)
                 return;
@@ -514,28 +616,7 @@
                 }
                 catch (e) { /* malformed chapter data — treat as none, never break playback */ }
             }
-            var PlyrCtor = window.Plyr;
-            var player = null;
-            if (PlyrCtor) {
-                var plyrAssets = window.BHCPlyrAssets || {};
-                player = new PlyrCtor(video, {
-                    // Deliberately NOT Plyr's full default control set —
-                    // this is a lesson video, not a media app: no
-                    // download button (the file is course content, and a
-                    // resource step is the real "here, take this file"
-                    // affordance), no PIP/airplay clutter.
-                    controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
-                    settings: ['speed'],
-                    speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
-                    // Both of Plyr's own shipped defaults point at
-                    // cdn.plyr.io — overridden to this plugin's vendored
-                    // copies so a lesson page never reaches out to a
-                    // third-party CDN (CLAUDE.md's standing self-hosted
-                    // rule). Localized by class-render.php.
-                    iconUrl: plyrAssets.iconUrl,
-                    blankVideo: plyrAssets.blankVideo,
-                });
-            }
+            var player = media.player;
             function formatTime(seconds) {
                 var m = Math.floor(seconds / 60);
                 var s = Math.floor(seconds % 60);
@@ -547,13 +628,8 @@
                 return d.innerHTML;
             }
             function seekTo(seconds) {
-                video.currentTime = seconds;
-                var playResult = video.play();
-                // A programmatic play() can legitimately reject (autoplay
-                // policy on a not-yet-interacted-with page) — the seek
-                // itself still happened, which is the part that matters.
-                if (playResult && typeof playResult.catch === 'function')
-                    playResult.catch(function () { });
+                media.seek(seconds);
+                media.play();
             }
             if (!chapters.length)
                 return;
@@ -562,8 +638,8 @@
             function buildMarkers() {
                 if (!player)
                     return;
-                var duration = video.duration;
-                if (!duration || !isFinite(duration))
+                var duration = media.duration();
+                if (!duration)
                     return;
                 var progress = wrap.querySelector('.plyr__progress');
                 if (!progress)
@@ -599,6 +675,10 @@
             /* ---- the chapter list beneath the video ---- */
             var container = document.createElement('div');
             container.className = 'bhc-video-chapters';
+            var heading = document.createElement('p');
+            heading.className = 'bhc-video-chapters-heading';
+            heading.textContent = 'Chapters';
+            container.appendChild(heading);
             var list = document.createElement('ol');
             list.className = 'bhc-video-chapter-list';
             container.appendChild(list);
@@ -615,7 +695,7 @@
                 items.push(item);
             });
             function highlightActive() {
-                var t = video.currentTime;
+                var t = media.currentTime();
                 var activeIndex = 0;
                 for (var i = 0; i < chapters.length; i++) {
                     if (t >= chapters[i].time)
@@ -630,10 +710,10 @@
             // the bar or the duration is (re)established".
             if (player)
                 player.on('ready', buildMarkers);
-            if (video.readyState >= 1 /* HAVE_METADATA */)
+            if (media.duration() > 0)
                 buildMarkers();
-            video.addEventListener('loadedmetadata', buildMarkers);
-            video.addEventListener('timeupdate', highlightActive);
+            media.on('loadedmetadata', buildMarkers);
+            media.on('timeupdate', highlightActive);
             wrap.parentNode.insertBefore(container, wrap.nextSibling);
         });
         lesson.addEventListener('click', function (e) {

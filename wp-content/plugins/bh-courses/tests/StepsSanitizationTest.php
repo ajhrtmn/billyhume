@@ -153,6 +153,20 @@ final class StepsSanitizationTest extends TestCase
         $this->assertArrayNotHasKey('chapters', $result[0]);
     }
 
+    public function testUrlSourceVideoKeepsChapters()
+    {
+        // A YouTube/Vimeo URL now renders as a real Plyr provider embed
+        // (BHC_Render_Lesson::to_plyr_provider()) with genuine seek
+        // control, so chapters are stored and used for that source too —
+        // not just an uploaded file.
+        $result = BHC_Steps::save(1, [['type' => 'video', 'source' => 'url', 'video_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'chapters' => [
+            ['time' => 60, 'title' => 'Bridge'],
+            ['time' => 0, 'title' => 'Cold open'],
+        ]]]);
+        $this->assertSame('url', $result[0]['source']);
+        $this->assertSame([0, 60], array_column($result[0]['chapters'], 'time'));
+    }
+
     public function testQuizQuestionWithNoValidChoicesIsDropped()
     {
         // All-blank choices (e.g. an admin added a question row then

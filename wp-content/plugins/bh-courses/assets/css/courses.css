@@ -1381,7 +1381,17 @@ video.bhc-step-video {
 
 .bhc-video-chapters {
     max-width: 100%;
-    margin: 8px 0 16px;
+    margin: 10px 0 16px;
+}
+/* A quiet section label, so the list reads as "chapters" rather than
+   an unexplained row of timestamps under the player. */
+.bhc-video-chapters-heading {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bh-text-dim);
 }
 .bhc-video-chapter-list {
     list-style: none;
@@ -1390,6 +1400,18 @@ video.bhc-step-video {
     display: flex;
     flex-direction: column;
     gap: 2px;
+}
+/* The active row gets a real accent rail, matching the treatment the
+   sidebar's current-lesson row already uses — one visual language for
+   "you are here" across the whole lesson surface. */
+.bhc-video-chapter-item {
+    border-left: 2px solid transparent;
+    border-radius: 0 6px 6px 0;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.bhc-video-chapter-item.active {
+    border-left-color: var(--bh-accent);
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
 }
 .bhc-video-chapter-item-btn {
     display: flex;

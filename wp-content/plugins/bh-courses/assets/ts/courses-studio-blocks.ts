@@ -276,6 +276,16 @@
             var previewUrlState = wp.element.useState('');
             var previewUrl = previewUrlState[0], setPreviewUrl = previewUrlState[1];
             var previewRef = wp.element.useRef(null);
+            // The preview's live playhead, mirrored into state purely so
+            // the "+ Add chapter at 0:42" button can SHOW the timestamp
+            // it's about to capture. A ref alone can't do this — scrubbing
+            // the video changes no React state, so the label would render
+            // once and then quietly lie. Also drives the past-the-end
+            // warning, which needs a real duration to compare against.
+            var previewTimeState = wp.element.useState(0);
+            var previewTime = previewTimeState[0], setPreviewTime = previewTimeState[1];
+            var previewDurationState = wp.element.useState(0);
+            var previewDuration = previewDurationState[0], setPreviewDuration = previewDurationState[1];
             wp.element.useEffect(function () {
                 if (attrs.source !== 'upload' || !attrs.attachment_id) { setPreviewUrl(''); return; }
                 var cancelled = false;
@@ -291,27 +301,79 @@
                 next[i] = Object.assign({}, next[i], patch);
                 setAttrs({ chapters: next });
             }
+            // mm:ss, the way a timestamp is actually read — the stored
+            // shape stays plain seconds (portability rule), this is
+            // display only. Mirrors formatTime() in courses.ts so the
+            // editor and the student see the identical string.
+            function fmtTime(total: number) {
+                var s = Math.max(0, Math.floor(total || 0));
+                return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+            }
+            // Chapters are stored in authoring order but always PLAY in
+            // time order (BHC_Steps::sanitize_chapters() sorts on save).
+            // Showing the real playback position here — rather than
+            // silently reordering the rows under the author's cursor
+            // mid-edit — keeps "what I'm editing" stable while still
+            // making the true order obvious.
+            var playbackOrder = chapters
+                .map(function (c: any, i: any) { return { i: i, time: c.time || 0 }; })
+                .sort(function (a: any, b: any) { return a.time - b.time; })
+                .map(function (r: any) { return r.i; });
+
             var chapterRows = chapters.map(function (c: any, i: any) {
-                return el('div', { key: i, className: 'bhc-studio-chapter-row', style: { display: 'flex', gap: '8px', alignItems: 'flex-end', marginBottom: '10px' } },
+                var isPastEnd = previewDuration > 0 && (c.time || 0) > previewDuration;
+                var untitled = !(c.title || '').trim();
+                return el('div', {
+                    key: i,
+                    className: 'bhc-studio-chapter-row',
+                    style: {
+                        border: '1px solid ' + (isPastEnd || untitled ? '#d9a800' : '#e0e0e0'),
+                        borderRadius: '6px', padding: '10px 12px', marginBottom: '8px', background: '#fff',
+                    },
+                },
+                    el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
+                        // Playback position, not array position — the
+                        // number an author actually reasons about.
+                        el('span', {
+                            style: {
+                                flexShrink: 0, minWidth: '22px', height: '22px', borderRadius: '11px',
+                                background: '#f0f0f0', color: '#1e1e1e', fontSize: '11px', fontWeight: 600,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            },
+                        }, String(playbackOrder.indexOf(i) + 1)),
+                        el('code', { style: { fontSize: '12px', padding: '2px 6px', background: '#f0f0f0', borderRadius: '3px' } }, fmtTime(c.time)),
+                        el('span', { style: { flex: 1 } }),
+                        el(wp.components.Button, {
+                            variant: 'tertiary', isDestructive: true, size: 'small',
+                            onClick: function () { setAttrs({ chapters: chapters.filter(function (_: any, idx: any) { return idx !== i; }) }); },
+                        }, __('Remove'))
+                    ),
                     el(wp.components.TextControl, {
-                        type: 'number', label: __('Time (seconds)'), value: c.time || 0,
-                        style: { width: '90px' },
-                        onChange: function (v: any) { updateChapter(i, { time: parseInt(v, 10) || 0 }); },
-                    }),
-                    previewUrl ? el(wp.components.Button, {
-                        variant: 'secondary',
-                        onClick: function () {
-                            if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
-                        },
-                    }, __('Use preview’s time')) : null,
-                    el(wp.components.TextControl, {
-                        label: __('Chapter title'), value: c.title || '', style: { flex: 1 },
+                        label: __('Title'),
+                        value: c.title || '',
+                        placeholder: __('e.g. Setting the compressor'),
                         onChange: function (v: any) { updateChapter(i, { title: v }); },
                     }),
-                    el(wp.components.Button, {
-                        variant: 'tertiary', isDestructive: true,
-                        onClick: function () { setAttrs({ chapters: chapters.filter(function (_: any, idx: any) { return idx !== i; }) }); },
-                    }, __('Remove'))
+                    el('div', { style: { display: 'flex', gap: '8px', alignItems: 'flex-end' } },
+                        el(wp.components.TextControl, {
+                            type: 'number', label: __('Start (seconds)'), value: c.time || 0,
+                            onChange: function (v: any) { updateChapter(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
+                        }),
+                        previewUrl ? el(wp.components.Button, {
+                            variant: 'secondary', style: { marginBottom: '8px' },
+                            onClick: function () {
+                                if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
+                            },
+                        }, __('Set to preview')) : null
+                    ),
+                    // Real, specific warnings rather than letting either
+                    // case fail silently on the front end (an untitled
+                    // chapter is dropped on save by sanitize_chapters();
+                    // one past the end renders no marker at all).
+                    untitled ? el('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#8a6d00' } },
+                        __('Needs a title — untitled chapters are discarded when you save.')) : null,
+                    isPastEnd ? el('p', { style: { margin: '4px 0 0', fontSize: '12px', color: '#8a6d00' } },
+                        __('Starts after this video ends (') + fmtTime(previewDuration) + __(') — it won\'t appear on the seek bar.')) : null
                 );
             });
 
@@ -358,10 +420,8 @@
                         }),
                         previewUrl ? el(wp.components.Button, {
                             variant: 'secondary', style: { marginBottom: '8px' },
-                            onClick: function () {
-                                if (previewRef.current) updateAnnotation(i, { time: Math.floor(previewRef.current.currentTime) });
-                            },
-                        }, __('Use preview’s current time')) : null
+                            onClick: function () { updateAnnotation(i, { time: Math.floor(previewTime) }); },
+                        }, __('Set to preview')) : null
                     ),
                     el(wp.components.SelectControl, {
                         label: __('Type'), value: a.type,
@@ -406,25 +466,61 @@
                 // isn't currently attached if an author ever has both
                 // panels open at once — PanelBody doesn't guarantee
                 // they're mutually exclusive.
-                previewUrl ? el(wp.components.PanelBody, { title: __('Preview (for setting chapter/overlay times)'), initialOpen: false },
-                    el('video', { ref: previewRef, src: previewUrl, controls: true, style: { width: '100%', borderRadius: '4px' } }),
-                    el('p', { className: 'description' }, __('Scrub/play to a moment, then use a chapter or overlay row\'s "Use preview\'s time" button below.'))
+                previewUrl ? el(wp.components.PanelBody, { title: __('Preview'), initialOpen: true },
+                    el('video', {
+                        ref: previewRef, src: previewUrl, controls: true,
+                        style: { width: '100%', borderRadius: '4px', display: 'block' },
+                        onTimeUpdate: function (e: any) { setPreviewTime(e.target.currentTime); },
+                        onLoadedMetadata: function (e: any) { setPreviewDuration(isFinite(e.target.duration) ? e.target.duration : 0); },
+                    }),
+                    el('p', { className: 'description', style: { marginBottom: 0 } },
+                        __('Scrub to a moment, then add a chapter or overlay — both pick up this timestamp.'))
                 ) : null,
-                el(wp.components.PanelBody, { title: __('Chapters'), initialOpen: false },
-                    el('p', { className: 'description' }, __('Shown as a segmented strip plus a clickable list beneath the video (only for an uploaded file or a direct video URL — a YouTube/Vimeo-style embed can\'t be chapter-navigated the same way).')),
-                    chapterRows,
+                el(wp.components.PanelBody, { title: __('Chapters') + (chapters.length ? ' (' + chapters.length + ')' : ''), initialOpen: false },
+                    el('p', { className: 'description', style: { marginTop: 0 } },
+                        __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')),
+                    chapters.length
+                        ? chapterRows
+                        // A real empty state instead of a bare button
+                        // floating under a heading — says what this does
+                        // and what the fastest path to a first chapter is.
+                        : el('div', {
+                            style: {
+                                border: '1px dashed #ccc', borderRadius: '6px', padding: '16px',
+                                textAlign: 'center', color: '#757575', fontSize: '13px', marginBottom: '10px',
+                            },
+                        }, previewUrl
+                            ? __('No chapters yet. Scrub the preview above to a moment, then add a chapter — it picks up that timestamp automatically.')
+                            : __('No chapters yet. Select a video first, then add chapters at the moments that matter.')),
+                    // The magical bit: adding a chapter captures wherever
+                    // the preview is sitting RIGHT NOW, so the normal
+                    // workflow is "scrub, add, type a title" instead of
+                    // "add, read the time off the player, retype it as a
+                    // number." Falls back to 0 with no preview loaded.
                     el(wp.components.Button, {
-                        variant: 'secondary',
-                        onClick: function () { setAttrs({ chapters: chapters.concat([{ time: 0, title: '' }]) }); },
-                    }, __('+ Add chapter'))
+                        variant: 'primary',
+                        onClick: function () {
+                            var at = Math.floor(previewTime);
+                            // Never silently stack two chapters on the
+                            // same second — the second one would be an
+                            // unreachable duplicate marker.
+                            var taken = chapters.some(function (c: any) { return (c.time || 0) === at; });
+                            setAttrs({ chapters: chapters.concat([{ time: taken ? at + 1 : at, title: '' }]) });
+                        },
+                    }, previewUrl ? __('+ Add chapter at ') + fmtTime(previewTime) : __('+ Add chapter'))
                 ),
-                el(wp.components.PanelBody, { title: __('Video overlays (pop-up moments)'), initialOpen: false },
-                    el('p', { className: 'description' }, __('Note/Hotspot/Question pause the video at a timestamp and wait for a dismiss/answer click. Banner is different on purpose — a non-blocking caption that slides in and disappears on its own, playback never stops.')),
-                    annotationRows,
+                el(wp.components.PanelBody, { title: __('Overlays') + (annotations.length ? ' (' + annotations.length + ')' : ''), initialOpen: false },
+                    el('p', { className: 'description', style: { marginTop: 0 } }, __('Note, Hotspot and Question pause the video at a timestamp and wait for a click. Banner is deliberately different — a caption that slides in and leaves on its own, without stopping playback.')),
+                    annotations.length ? annotationRows : el('div', {
+                        style: {
+                            border: '1px dashed #ccc', borderRadius: '6px', padding: '16px',
+                            textAlign: 'center', color: '#757575', fontSize: '13px', marginBottom: '10px',
+                        },
+                    }, __('No overlays yet.')),
                     el(wp.components.Button, {
                         variant: 'secondary',
-                        onClick: function () { setAttrs({ annotations: annotations.concat([{ time: 0, type: 'note', payload: { text: '' } }]) }); },
-                    }, __('+ Add overlay moment'))
+                        onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
+                    }, previewUrl ? __('+ Add overlay at ') + fmtTime(previewTime) : __('+ Add overlay'))
                 )
             );
             return el(wp.element.Fragment, {},

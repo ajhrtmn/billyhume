@@ -247,6 +247,37 @@ class BHC_Render_Lesson {
         return null;
     }
 
+    /**
+     * A YouTube/Vimeo URL resolved to the provider + bare video ID Plyr
+     * needs for a real, controllable embed (data-plyr-provider /
+     * data-plyr-embed-id) rather than a raw, opaque <iframe>.
+     *
+     * This is what lifts the old "chapters/annotations/watch-progress
+     * only work on a same-origin <video> tag" limitation for these two
+     * providers: Plyr loads YouTube's or Vimeo's own player SDK and
+     * exposes the SAME instance API (currentTime, duration, play,
+     * 'timeupdate') it does for an HTML5 video, so courses.ts drives all
+     * three features through one adapter with no provider-specific code
+     * of its own. The trade-off is real and deliberate (AJ's explicit
+     * call): controlling a YouTube/Vimeo embed is impossible without
+     * loading that provider's script, so these two step types do reach a
+     * third-party origin — unlike every other asset in this ecosystem.
+     * An author who wants zero third-party contact still has the
+     * uploaded-file and direct-URL sources, which stay fully local.
+     *
+     * @return array{provider:string, id:string}|null
+     */
+    private static function to_plyr_provider(string $url): ?array {
+        if (preg_match('#youtu\.be/([A-Za-z0-9_-]+)#i', $url, $m)
+            || preg_match('#youtube\.com/(?:watch\?v=|shorts/|embed/)([A-Za-z0-9_-]+)#i', $url, $m)) {
+            return ['provider' => 'youtube', 'id' => $m[1]];
+        }
+        if (preg_match('#vimeo\.com/(?:video/)?(\d+)#i', $url, $m)) {
+            return ['provider' => 'vimeo', 'id' => $m[1]];
+        }
+        return null;
+    }
+
     /** @param array<string, mixed> $step */
     private static function render_step(int $lesson_id, int $index, $step, bool $is_done): string {
         ob_start();
@@ -341,12 +372,37 @@ class BHC_Render_Lesson {
                 // direct video URL — good enough for v1 without needing
                 // provider-specific integration code.
                 $url = $step['video_url'];
-                $embed_url = self::to_embed_url($url);
-                if ($embed_url) {
-                    echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
-                } else {
-                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
+                $provider = self::to_plyr_provider($url);
+                if ($provider) {
+                    // YouTube/Vimeo as a REAL controllable player rather
+                    // than an opaque <iframe>: Plyr mounts the provider's
+                    // own SDK against this div and exposes the same
+                    // instance API (currentTime/duration/play/'timeupdate')
+                    // it does for an HTML5 <video>. That's what makes
+                    // chapters, overlays and watch-progress work here at
+                    // all — the constraint this file's own comment above
+                    // used to describe as unfixable. Marked $trackable
+                    // for the same reason: courses.ts drives it through
+                    // one media adapter, so the progress note and
+                    // auto-complete behave identically to an upload.
+                    echo '<div class="bhc-video-wrap"><div class="bhc-step-video bhc-step-video-provider"'
+                        . ' data-plyr-provider="' . esc_attr($provider['provider']) . '"'
+                        . ' data-plyr-embed-id="' . esc_attr($provider['id']) . '"'
+                        . $threshold_attr . $annotations_attr . $chapters_attr . '></div></div>';
                     $trackable = true;
+                } else {
+                    $embed_url = self::to_embed_url($url);
+                    if ($embed_url) {
+                        // A provider this plugin has no SDK for — still a
+                        // plain, uncontrollable iframe, and still honestly
+                        // not trackable. Chapters/overlays/watch-progress
+                        // are all withheld rather than rendered as
+                        // controls that would silently do nothing.
+                        echo '<iframe class="bhc-step-video-embed" src="' . esc_url($embed_url) . '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+                    } else {
+                        echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
+                        $trackable = true;
+                    }
                 }
             }
             if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
