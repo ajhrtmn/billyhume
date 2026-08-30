@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.15.10 — Refreshed bundled/bh-courses.zip (0.12.2) and
+bundled/bh-contest.zip (3.12.4) after their full-bleed-layout fix, so a
+dashboard install ships the centred templates, not the sprawling ones.
+
 3.15.9 — `bundled/*.zip` (the peer-plugin copies the core dashboard
 installs from) had drifted badly — bh-courses 0.4.80 vs live 0.12.1,
 bh-contest 3.7.28 vs 3.12.3, bh-feedback 0.1.5 vs 0.2.0, and so on for
