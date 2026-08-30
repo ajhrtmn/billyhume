@@ -137,6 +137,34 @@
             return;
         var lessonId = (_a = lesson.dataset.lessonId) !== null && _a !== void 0 ? _a : '';
         var stepCount = parseInt((_b = lesson.dataset.stepCount) !== null && _b !== void 0 ? _b : '0', 10);
+        // The live (Etch) site's frontend hydration blanks class="bhc-step
+        // …" off each step wrapper on load — server HTML is correct
+        // (verified), something client-side strips it. Rebuild the class
+        // from the data-* attributes render-lesson.php emits alongside, so
+        // the card styling and every '.bhc-step' selector below keep
+        // working. Because the strip's timing vs. this script isn't
+        // guaranteed, re-assert for a few seconds via an observer rather
+        // than just once. No-op wherever the class already survived.
+        function reassertStepClass(el) {
+            if (el.classList.contains('bhc-step'))
+                return;
+            var t = el.dataset.stepType || '';
+            el.className = 'bhc-step' + (t ? ' bhc-step-' + t : '') + (el.dataset.stepDone ? ' bhc-step-done' : '');
+        }
+        var stepWrappers = lesson.querySelectorAll('[data-step-index]');
+        stepWrappers.forEach(reassertStepClass);
+        try {
+            var classGuard = new MutationObserver(function (muts) {
+                muts.forEach(function (m) {
+                    var t = m.target;
+                    if (m.attributeName === 'class' && t.hasAttribute('data-step-index'))
+                        reassertStepClass(t);
+                });
+            });
+            stepWrappers.forEach(function (el) { classGuard.observe(el, { attributes: true, attributeFilter: ['class'] }); });
+            setTimeout(function () { classGuard.disconnect(); }, 5000);
+        }
+        catch (e) { /* no MutationObserver — the one-shot pass above still ran */ }
         function showStep(index) {
             lesson.querySelectorAll('.bhc-step, [data-step-index]').forEach(function (el) {
                 var _a;
@@ -470,8 +498,21 @@
                     if (!res.success || !res.data || !res.data.auto_completed)
                         return;
                     var note = step.querySelector('.bhc-video-progress-note');
-                    if (note)
-                        note.style.display = 'none';
+                    if (note) {
+                        // Settle the gate into its "watched" state
+                        // instead of hiding it — the figure stays on
+                        // screen, full bar, no "completes at N%" tail.
+                        note.classList.add('bhc-watch-gate--done');
+                        var fill = note.querySelector('.bhc-watch-gate-fill');
+                        if (fill)
+                            fill.style.width = '100%';
+                        var pctEl = note.querySelector('.bhc-watch-gate-pct');
+                        if (pctEl)
+                            pctEl.textContent = '100%';
+                        var label = note.querySelector('.bhc-watch-gate-label');
+                        if (label)
+                            label.innerHTML = '<span class="bhc-watch-gate-pct">100%</span> watched';
+                    }
                     var btn = step.querySelector('.bhc-mark-complete');
                     if (btn) {
                         btn.disabled = true;

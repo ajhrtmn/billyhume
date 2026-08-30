@@ -6,6 +6,24 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.19 — Now that 0.16.18 is actually live, two things confirmed by
+inspecting the real DOM:
+1. The step wrapper's class IS stripped client-side by the Etch site's
+   frontend hydration — server HTML has class="bhc-step bhc-step-video
+   bhc-step-done", the live DOM has class="". It's a one-shot strip on
+   load, not a live observer; the container was never display:none
+   (verified 549px tall, visible) — it just lost its card styling.
+   Fixes: render-lesson emits data-step-type / data-step-done on the
+   wrapper; courses.js rebuilds the class from those on init AND via a
+   5-second MutationObserver (timing vs. Etch isn't guaranteed); and
+   courses.css now also styles .bhc-lesson [data-step-index] so the
+   card looks right even before/without JS.
+2. "No percentages" — the watch-% gate was rendered display:none once
+   the step was complete. It now stays visible in a settled
+   .bhc-watch-gate--done state (full bar, "✓ 100% watched", de-
+   emphasised) instead of vanishing — same "keep the figure legible
+   after the fact" treatment the portal panels got.
+
 0.16.18 — The real reason live stayed broken through 0.16.13–0.16.17:
 a host page-cache. Confirmed by inspection — the plugin files on live
 were current (CHANGELOG at 0.16.17, class-bunny.php present) but the

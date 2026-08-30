@@ -158,7 +158,15 @@ class BHC_Render_Lesson {
             // OUTSIDE this div (e.g. a stepper dot) — without this, focus
             // stayed on the now-hidden previous step's last-clicked
             // element, orienting nobody using a keyboard or screen reader.
-            echo '<div class="bhc-step bhc-step-' . esc_attr($step['type']) . ($is_done ? ' bhc-step-done' : '') . '" data-step-index="' . (int) $i . '" tabindex="-1"' . $visible . '>';
+            // data-step-type / data-step-done duplicate what the class
+            // encodes: the live (Etch) site's frontend hydration strips
+            // class="bhc-step …" off this wrapper on load (server HTML is
+            // correct — verified — something client-side blanks it), and
+            // courses.js rebuilds the class from these attributes so
+            // styling and its own '.bhc-step' selectors keep working.
+            echo '<div class="bhc-step bhc-step-' . esc_attr($step['type']) . ($is_done ? ' bhc-step-done' : '')
+                . '" data-step-index="' . (int) $i . '" data-step-type="' . esc_attr($step['type']) . '"' . ($is_done ? ' data-step-done="1"' : '')
+                . ' tabindex="-1"' . $visible . '>';
             echo self::render_step($lesson_id, $i, $step, $is_done);
             // Revisiting an earlier (already-rendered, already-completed)
             // step is just showing a different one of these divs — no
@@ -476,13 +484,14 @@ class BHC_Render_Lesson {
                 // A quiet gate affordance, not a big sentence: a thin
                 // progress track toward the threshold + a compact label.
                 // courses.js updates .bhc-watch-gate-fill / -pct live on
-                // timeupdate and hides the whole .bhc-video-progress-note
-                // wrapper on auto-complete (kept that class on the
-                // wrapper so the existing querySelector still resolves).
-                $pct = max(0, min(100, (int) $watched));
-                echo '<div class="bhc-video-progress-note bhc-watch-gate"' . ($is_done ? ' style="display:none;"' : '') . ' data-threshold="' . (int) $threshold . '">'
+                // timeupdate, and on auto-complete adds .bhc-watch-gate--done
+                // (a settled "watched" state) rather than hiding it — the
+                // figure stays legible, matching how the rest of the
+                // portal keeps its progress numbers visible after the fact.
+                $pct = $is_done ? 100 : max(0, min(100, (int) $watched));
+                echo '<div class="bhc-video-progress-note bhc-watch-gate' . ($is_done ? ' bhc-watch-gate--done' : '') . '" data-threshold="' . (int) $threshold . '">'
                     . '<div class="bhc-watch-gate-track"><span class="bhc-watch-gate-fill" style="width:' . $pct . '%;"></span></div>'
-                    . '<p class="bhc-watch-gate-label"><span class="bhc-watch-gate-pct">' . $pct . '%</span> watched &middot; completes at ' . (int) $threshold . '%</p>'
+                    . '<p class="bhc-watch-gate-label"><span class="bhc-watch-gate-pct">' . $pct . '%</span> watched' . ($is_done ? '' : ' &middot; completes at ' . (int) $threshold . '%') . '</p>'
                     . '</div>';
                 echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>Completed</button>';
             } else {

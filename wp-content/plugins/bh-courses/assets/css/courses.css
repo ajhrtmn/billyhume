@@ -1247,7 +1247,12 @@ a.bhc-pagination-number:hover {
    — a faint shadow so the lesson-taking surface reads as a considered,
    physical stack of content, not flat boxes with only a border to
    separate them from the page background. */
-.bhc-step {
+/* [data-step-index] is the same wrapper as .bhc-step — matched here too
+   because the live Etch site strips the class off it on load (courses.js
+   rebuilds it, but this keeps the card styled in the gap before JS runs
+   and if JS fails entirely). */
+.bhc-step,
+.bhc-lesson [data-step-index] {
     background: var(--bh-surface);
     border: 1px solid var(--bh-border);
     border-left: 4px solid var(--bh-border);
@@ -1607,6 +1612,19 @@ video.bhc-step-video {
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     color: var(--bh-text);
+}
+/* Settled "watched" state — kept on screen after the step completes
+   (was display:none) so the figure stays legible, just de-emphasised. */
+.bhc-watch-gate--done {
+    opacity: .72;
+}
+.bhc-watch-gate--done .bhc-watch-gate-fill {
+    background: color-mix(in srgb, var(--bh-accent) 55%, var(--bh-text-dim));
+}
+.bhc-watch-gate--done .bhc-watch-gate-label::before {
+    content: "\2713\00a0";
+    color: var(--bh-accent);
+    font-weight: 700;
 }
 
 /* Depth-of-magic pass: a callout's three variants are each ONE base

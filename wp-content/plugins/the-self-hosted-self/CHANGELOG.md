@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.14 — Refresh bundled bh-courses.zip (0.16.19 — rebuild the step
+wrapper class Etch strips client-side; keep the watch-% figure visible
+after completion).
+
 3.21.13 — Refresh bundled bh-courses.zip (0.16.18 — never full-page
 cache a lesson/course view; that host page-cache, not any code bug,
 is why live stayed broken and kept 403ing on Bunny).
