@@ -6,6 +6,9 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.8 — Contest Library cards arrive in a quick stagger, matching
+the courses catalog. Reduced-motion-guarded.
+
 3.15.7 — Contest Submissions portal panel: each submission's vote
 count is a designed figure (.bhi-datum) instead of a plain "N votes"
 sentence — same treatment the Overview panels now use.

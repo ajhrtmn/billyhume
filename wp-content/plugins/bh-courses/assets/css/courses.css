@@ -319,6 +319,13 @@
     height: 100%;
     background: var(--bh-accent);
     transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    /* Fill up on first paint too, not only when JS later changes the
+       width — a progress bar that snaps to its value on load reads as
+       static; one that fills reads as "here's where you are". The
+       width is already the real value inline; this just animates the
+       reveal of that width via a left-anchored scaleX. */
+    transform-origin: left center;
+    animation: bhc-fill-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .bhc-progress-label {
     font-size: 12px;
@@ -330,8 +337,9 @@
     font-weight: 600;
     margin-top: -4px;
 }
+@keyframes bhc-fill-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) {
-    .bhc-progress-fill { transition: none; }
+    .bhc-progress-fill { transition: none; animation: none; transform: none; }
 }
 
 /* ---- course lesson list ---- */
@@ -1831,12 +1839,26 @@ video.bhc-step-video {
     background: var(--bh-accent-muted-bg, var(--bh-surface-2));
     border: 1px solid var(--bh-accent);
     border-radius: 10px;
+    /* Passing a quiz is a moment — let it arrive like one. */
+    animation: bhc-pass-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes bhc-pass-in {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to   { opacity: 1; transform: none; }
 }
 .bhc-quiz-pass-icon {
     font-size: 26px;
     line-height: 1;
     color: var(--bh-accent);
     margin-bottom: 2px;
+    animation: bhc-pass-check 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.15s both;
+}
+@keyframes bhc-pass-check {
+    from { transform: scale(0); }
+    to   { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-quiz-result.bhc-pass, .bhc-quiz-pass-icon { animation: none; }
 }
 .bhc-quiz-pass-score {
     font-size: 16px;
@@ -2344,4 +2366,29 @@ a.bhc-pagination-number:active,
     .bhc-course-card:active,
     a.bhc-pagination-number:active,
     .bhc-video-chapter-item-btn:active { transform: none; }
+}
+
+/* ================= Movement pass =================
+   Considered motion on the surfaces students actually move through —
+   entrances that signal "this just arrived" and give the UI a sense of
+   response, not decoration. All reduced-motion-guarded. */
+
+/* Catalog cards arrive in a quick left-to-right stagger instead of
+   snapping in as one block. */
+.bhc-catalog .bhc-course-card {
+    animation: bhc-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bhc-catalog .bhc-course-card:nth-child(1) { animation-delay: 0s; }
+.bhc-catalog .bhc-course-card:nth-child(2) { animation-delay: 0.05s; }
+.bhc-catalog .bhc-course-card:nth-child(3) { animation-delay: 0.1s; }
+.bhc-catalog .bhc-course-card:nth-child(4) { animation-delay: 0.15s; }
+.bhc-catalog .bhc-course-card:nth-child(5) { animation-delay: 0.2s; }
+.bhc-catalog .bhc-course-card:nth-child(n+6) { animation-delay: 0.24s; }
+@keyframes bhc-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bhc-catalog .bhc-course-card { animation: none; }
 }

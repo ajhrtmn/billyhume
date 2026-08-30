@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.6 — Movement pass. Progress bars fill up on first paint (a
+left-anchored scaleX reveal of the real width) instead of snapping.
+Catalog cards arrive in a quick left-to-right stagger. The quiz-pass
+banner springs in and its check scales up — it's a moment, it should
+arrive like one. In the lesson editor, the "Add a step" pill breathes
+while the lesson has no steps yet and goes calm once there's
+something to build on. All reduced-motion-guarded.
+
 0.16.5 — Front-end interaction states + a quiz-score figure.
 
 - The lesson/catalog UIs had hover but almost no :focus-visible and

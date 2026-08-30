@@ -287,3 +287,17 @@
 /* Don't cover the block toolbar when a block is being edited near the
    bottom — nudge out of the way while the inserter panel is open. */
 .is-inserter-opened .bhc-add-step-dock { display: none; }
+
+/* The "Add a step" pill gently breathes while the lesson has no steps
+   yet (so a new author notices it) and goes calm once there's
+   something to build on. .is-empty is toggled by the dock component. */
+.bhc-add-step-dock.is-empty .bhc-add-step-dock-btn {
+    animation: bhc-dock-breathe 2.4s ease-in-out infinite;
+}
+@keyframes bhc-dock-breathe {
+    0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,.22); }
+    50%      { box-shadow: 0 4px 16px rgba(0,0,0,.22), 0 0 0 6px color-mix(in srgb, var(--wp-admin-theme-color, #3858e9) 18%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-add-step-dock.is-empty .bhc-add-step-dock-btn { animation: none; }
+}

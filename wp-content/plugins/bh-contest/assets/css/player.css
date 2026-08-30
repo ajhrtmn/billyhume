@@ -1168,6 +1168,21 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     gap: calc(18px * var(--bh-space-scale));
     align-items: stretch;
 }
+/* Cards arrive in a quick stagger, matching the courses catalog. */
+.bh-contests-landing-grid .bh-contest-card {
+    animation: bh-contest-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bh-contests-landing-grid .bh-contest-card:nth-child(2) { animation-delay: 0.05s; }
+.bh-contests-landing-grid .bh-contest-card:nth-child(3) { animation-delay: 0.1s; }
+.bh-contests-landing-grid .bh-contest-card:nth-child(4) { animation-delay: 0.15s; }
+.bh-contests-landing-grid .bh-contest-card:nth-child(n+5) { animation-delay: 0.2s; }
+@keyframes bh-contest-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bh-contests-landing-grid .bh-contest-card { animation: none; }
+}
 
 /* ---- card shell ---- */
 .bh-contest-card {

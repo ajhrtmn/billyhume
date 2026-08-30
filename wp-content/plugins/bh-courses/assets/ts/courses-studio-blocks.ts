@@ -1422,7 +1422,7 @@
             }
 
             return createPortal(
-                el('div', { className: 'bhc-add-step-dock' },
+                el('div', { className: 'bhc-add-step-dock' + (info.count === 0 ? ' is-empty' : '') },
                     el(wp.components.Button, {
                         variant: 'primary',
                         icon: 'plus',
