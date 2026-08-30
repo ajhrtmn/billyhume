@@ -1309,22 +1309,19 @@ a.bhc-pagination-number:hover {
    own intrinsic width (via the width:auto/margin:auto below), visibly
    offsetting every other control in that step — not just the video. */
 video.bhc-step-video {
-    /* max-width/max-height + width/height:auto (not width:100%) is
-       deliberate — it lets the video scale down to fit either
-       constraint while preserving its OWN intrinsic aspect ratio, same
-       pattern a responsive image uses to avoid distortion. width:100%
-       here would force the box to full column width regardless of the
-       video's real ratio, which for anything other than roughly 16:9
-       either stretches/squashes the picture (no object-fit, no explicit
-       height, so the browser can't do anything else) or leaves the
-       native controls bar spanning a width that doesn't match the
-       visible picture underneath it. */
+    /* Fill the column, let the browser compute height from the video's
+       own aspect ratio (width:100% + height:auto scales a <video>
+       proportionally, exactly like an <img> — no distortion, and the
+       native control bar tracks the picture). Was width/height:auto,
+       which pinned a low-resolution source to its tiny intrinsic pixel
+       size — a 640px master rendered as a ~260px thumbnail in a
+       full-width layout (reported live). max-height keeps a portrait /
+       square clip from dominating the viewport. */
     display: block;
-    max-width: 100%;
-    max-height: 480px;
-    width: auto;
+    width: 100%;
     height: auto;
-    margin: 0 auto 8px;
+    max-height: 72vh;
+    margin: 0 0 8px;
     border-radius: 6px;
     /* --bh-surface-2 (a dark shade already derived from the same accent
        family everywhere else in this design system) replaces a flat
@@ -1351,8 +1348,13 @@ video.bhc-step-video {
    video's own centered box, not the full step-card width. */
 .bhc-video-wrap {
     position: relative;
-    display: flex;
-    justify-content: center;
+    /* Cap the video at a comfortable viewing width and centre it in the
+       lesson column, rather than stretching it the full ~930px main
+       area (too wide to watch) or letting a small source shrink to a
+       thumbnail. */
+    width: 100%;
+    max-width: 820px;
+    margin-inline: auto;
 }
 .bhc-video-overlay {
     position: absolute;

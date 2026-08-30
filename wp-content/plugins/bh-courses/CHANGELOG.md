@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.11 — Lesson video was tiny. video.bhc-step-video used
+width/height:auto, which pinned a low-resolution source to its
+intrinsic pixel size — a 640px master showed as a ~260px thumbnail
+in a full-width layout. Now width:100% + height:auto (scales a
+<video> proportionally, no distortion), the wrap capped at 820px
+and centred, max-height 72vh so a portrait clip can't dominate.
+
 0.16.10 — The lesson stepper's per-type hue hint pulled straight
 from the raw --bh-cat-* category rainbow, so on a warm palette the
 video step's play icon came out bright green ("Colors"). Each type
