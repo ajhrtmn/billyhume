@@ -43,6 +43,40 @@ Since this ecosystem already stores nearly everything as ordinary post meta (`_b
 
 https://docs.etchwp.com/public-api documents `window.etch` — a browser-side, experimental (v0.x) TypeScript API, distributed as an MIT-licensed npm package (`@digital-gravy/etch-public-api`), for scripts to read/mutate the **document Etch's builder is actively editing** (blocks, styles, loops, components, custom fields, undo/redo) while someone is using the builder. This is a tool for building companion browser tooling/extensions that script the *builder UI itself* — not a server-side registration point for a plugin's content types, and not something this ecosystem has any reason to integrate with. Documented here only so it isn't mistaken for the "map to custom elements" extension point discussed above — it is a different thing.
 
+---
+
+## Addendum 2026-08-30 — a real, confirmed incompatibility: Etch blanks `class` on `the_content`-injected markup
+
+The research above holds for **blocks** (passthrough) and **meta binding**. It missed a third surface, found live on `billyhume.net`:
+
+**Etch's front-end hydration strips the `class` attribute (`class=""`) off DOM nodes a plugin appends to `the_content` via a filter.** It keeps `data-*` and `tabindex`, drops classes. One-shot on page load — not a live `MutationObserver`. The server HTML is correct (verified by comparing the raw response to the rendered DOM); only the hydrated DOM is affected.
+
+Hit with `bh-courses` lesson step wrappers: `BHC_Render_Lesson` emits
+`<div class="bhc-step bhc-step-video bhc-step-done" data-step-index="…">`, the live DOM showed `<div class="" data-step-index="…">`. `courses.js` keyed its step show/hide and feature wiring on `.bhc-step`, so the step container went invisible after a bulk-hide and the chapter list / watch-% never attached.
+
+### Why filter priority doesn't fix it
+
+Moving the `the_content` append to `PHP_INT_MAX` (after Etch's own filter) did **not** help — Etch hydrates client-side from the final DOM regardless of PHP filter order.
+
+### The mitigation pattern (bh-courses 0.16.19)
+
+For any wrapper this ecosystem injects into `the_content` and then relies on by class:
+
+1. **Emit `data-*` mirrors** of anything the class encodes (`data-step-type`, `data-step-done`).
+2. **Rebuild the class in JS on init** from those attributes, and **re-assert via a short (~5s) `MutationObserver`** — the strip's timing vs. your own script isn't guaranteed.
+3. **Add a CSS fallback** that also matches the `[data-*]` attribute selector, so the element is styled in the gap before JS runs and if JS fails entirely.
+
+### Scope
+
+This only affects markup added through `the_content` (or a similar late content filter). It does **not** affect:
+- Registered blocks (passthrough renders their `render_callback` output untouched).
+- Anything rendered by a shortcode *inside* a block Etch owns — still passthrough.
+- Admin screens.
+
+If another peer plugin starts appending class-dependent markup to `the_content` on this site, expect the same and apply the same three-part mitigation. Tracked as a project memory (`project_etch_strips_classes`).
+
+---
+
 ## Bottom line / recommendation
 
 1. **Don't build a page-builder-agnostic "interface contract" layer.** Elementor/Beaver Builder/Bricks/Divi each have genuinely incompatible proprietary widget systems — a real adapter for all of them would be unbounded scope for speculative value. The two integration surfaces this ecosystem already has — shortcodes (near-universal fallback; most builders have a raw-shortcode/raw-HTML widget) and real Gutenberg blocks (core WP +, per the research above, Etch specifically) — already cover the paradigms that matter for this project.

@@ -80,11 +80,12 @@ Consolidated 2026-08-23: 26 docs down to 16, after a pass that verified claims a
 
 **Reference:**
 - `TOOLING-EVALUATION.md` — which third-party tools to adopt and refuse, measured against the real deploy pipeline. The governing test: **deployment is a verbatim FTP sync with no build step, so build-time tooling is fine and runtime dependencies are not** — "does the committed artifact run with nothing but PHP and WordPress?"
+- `RUNBOOK-live-updates.md` — how the ecosystem plugins actually reach `billyhume.net` (the in-wp-admin GitHub Updates panel pulling from `dev`, NOT the `stable`→FTP path), the checker-lag and 8h page-cache traps, verification via the `smoke` job, rollback, and who to escalate to. Read before pushing anything meant to go live.
 - `UX-AUDIT-PLAN.md` — the step-by-step screen-by-screen UX audit plan (~70 screens, 6 widths, both themes), including what needs a session that can log out.
 - `CONVENTIONS.md` — documentation/structure/naming rules: code carries its own meaning, comments answer "why" in ≤3 lines, `// WHY:` for load-bearing constraints, no changelog blocks in source.
 - `STYLE-SYSTEM.md` — the four style layers (tokens/utilities/components/plugin-local). Check before writing any new style rule.
 - `TESTS.md` — the three gates and how to run them. (Its old "no PHP runtime available" claim was wrong and has been corrected — a real runtime, MySQL, PHPStan, and the Test Runner are all available. Run things.)
-- `ETCH-COMPATIBILITY-NOTES.md` — why full-content-replacement was dropped. Still binding.
+- `ETCH-COMPATIBILITY-NOTES.md` — why full-content-replacement was dropped (still binding), plus the 2026-08-30 addendum: Etch's front-end hydration blanks `class=""` off `the_content`-injected markup on the live site — mirror class state into `data-*` and rebuild in JS.
 - `CODEBASE-WALKTHROUGH.md` / `WALKTHROUGH-GUIDE.md` — onboarding curriculum, and the screen-by-screen GUI inventory that doubles as the audit checklist.
 - **Page-builder deletion reasoning** — the `PAGE-BUILDER-DELETE-KEEP-AUDIT.md` this file used to cite never actually existed on disk (a phantom reference, found and removed 2026-08-23). The surviving reasoning is the "page-builder saga" section above plus `the-self-hosted-self.php`'s own changelog around the 3.4.76 / deletion entries. `PAGE-BUILDER-REBUILD-PLAN.md` was also deleted the same day: it described `BH_Component_Studio` as "actually built and seeded" when all three of its files had long since been removed, which made it actively misleading. Read the saga section before assuming any deleted class should come back.
 
