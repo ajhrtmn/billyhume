@@ -426,7 +426,13 @@ class OUS_GithubUpdates {
         if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
         check_admin_referer('ous_updates_toggle_absent');
         update_option('ous_updates_show_absent', !empty($_POST['show_absent']), false);
-        wp_safe_redirect(add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')) . '#ous-section-ous-github-updates');
+        // Back to whichever admin screen sent this — the Debug Tools
+        // panels and the ecosystem dashboard (page=ous) share the toggle.
+        $back = wp_get_referer();
+        if (!$back || strpos($back, admin_url()) !== 0) {
+            $back = add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')) . '#ous-section-ous-github-updates';
+        }
+        wp_safe_redirect($back);
         exit;
     }
 

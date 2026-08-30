@@ -114,8 +114,32 @@ class OUS_Dashboard {
             echo '<p><a class="button button-hero" href="' . esc_url($url) . '">Install &amp; Activate Everything</a></p>';
         }
 
+        // Clutter control, shared with the Debug Tools update panels: on
+        // a site that only uses a few ecosystem plugins, the rest show as
+        // "Not installed" cards forever. Hide those by default.
+        $show_absent = class_exists('OUS_GithubUpdates') && OUS_GithubUpdates::show_absent_rows();
+        $missing = $present = 0;
+        foreach ($registry as $k => $i) {
+            if (OUS_Registry::status($k) === 'missing') $missing++; else $present++;
+        }
+        // On a fresh install (nothing set up yet) the whole point of this
+        // page is the install list — don't hide it. Only collapse the
+        // "Not installed" cards once the ecosystem is partially in use.
+        $collapse_missing = !$show_absent && $missing > 0 && $present > 0;
+        $hidden = $collapse_missing ? $missing : 0;
+        if ($hidden || $show_absent) {
+            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin:4px 0 14px;">';
+            echo '<input type="hidden" name="action" value="ous_updates_toggle_absent">';
+            wp_nonce_field('ous_updates_toggle_absent');
+            echo '<label style="cursor:pointer;"><input type="checkbox" name="show_absent" value="1"' . checked($show_absent, true, false) . ' onchange="this.form.submit()"> ';
+            echo 'Show ecosystem plugins that aren\'t installed here';
+            if (!$show_absent && $hidden) echo ' <span class="description">(' . (int) $hidden . ' hidden)</span>';
+            echo '</label></form>';
+        }
+
         echo '<div class="ous-cards">';
         foreach ($registry as $key => $info) {
+            if ($collapse_missing && OUS_Registry::status($key) === 'missing') continue;
             self::render_card($key, $info);
         }
         echo '</div>';

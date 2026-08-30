@@ -9,6 +9,15 @@ has been reworded or dropped.
 
 ---
 
+3.21.17 — The ecosystem dashboard (page=ous) shares the "not installed
+here" clutter toggle. Once the ecosystem is partially in use, the
+"Not installed" plugin cards collapse behind the same
+ous_updates_show_absent option the Debug Tools update panels use, with
+a checkbox + hidden-count on the dashboard itself. A fresh install
+(nothing set up yet) still shows the full list — that's the point of
+the page then. handle_toggle_absent() now returns to whichever screen
+submitted it (wp_get_referer, admin-only).
+
 3.21.16 — Fan/student accounts hardened, public profile pages hidden, and a clutter toggle for the updates panels.
 
 MEMBER ROLE. Portal self-registration (BHI_Auth::register) now lands new
