@@ -6,6 +6,12 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.9 — The video step's "Source" select moves out of the block
+settings sidebar (where authors kept missing it) and inline to the
+top of the step card, labelled "Video source", with a divider above
+the picker. It's the first, defining choice for the step — it should
+be the first thing visible, not a hidden setting.
+
 0.16.8 — Fix the Bunny Stream video step crashing the editor.
 useAttachment() (a hook) was called only for source==='upload', so
 switching a video step's Source to Bunny Stream (or URL) changed

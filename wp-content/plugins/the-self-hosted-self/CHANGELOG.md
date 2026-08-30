@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.21.4 — Refresh bundled bh-courses.zip (0.16.9, inline video Source picker).
+
 3.21.3 — Refresh bundled bh-courses.zip (0.16.8, Bunny step editor crash fix).
 
 3.21.2 — Standalone surfaces set --bh-header-clearance to 24px (was

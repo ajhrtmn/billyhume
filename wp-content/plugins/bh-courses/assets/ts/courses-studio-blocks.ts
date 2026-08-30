@@ -737,24 +737,26 @@
             // building"), they're authored directly in the canvas below,
             // not hidden behind a settings-sidebar panel a course author
             // has no reason to think to open.
-            var sourcePicker = el(wp.blockEditor.InspectorControls, {},
-                el(wp.components.PanelBody, { title: __('Video settings') },
-                    el(wp.components.SelectControl, {
-                        label: __('Source'),
-                        value: attrs.source,
-                        // Cloudflare Stream only appears as an option when
-                        // Tier B is actually enabled (the-self-hosted-self's Media &
-                        // CDN Setup, OUS_MediaWizard::tier_b_enabled(),
-                        // localized as window.bhcMediaTierB) — an install
-                        // that never opted in never sees it.
-                        options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }]
-                            .concat(((window as any).bhcMediaTierB && (window as any).bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : [])
-                            // Private (signed) sources — only shown once configured in Media & CDN Setup (window.bhcMediaSigned).
-                            .concat(((window as any).bhcMediaSigned && (window as any).bhcMediaSigned.bunny) ? [{ label: __('Bunny Stream (private)'), value: 'bunny_stream' }] : [])
-                            .concat(((window as any).bhcMediaSigned && (window as any).bhcMediaSigned.r2) ? [{ label: __('Cloudflare R2 (private, signed)'), value: 'signed_r2' }] : []),
-                        onChange: function (v: any) { setAttrs({ source: v }); },
-                    })
-                )
+            // Source is the first, defining choice for a video step
+            // (uploaded file vs URL vs a private provider) — it belongs
+            // inline at the top of the step, not tucked in the block
+            // settings sidebar where authors kept missing it. Rendered
+            // as the first child of stepShell() below.
+            var sourcePicker = el('div', { key: 'src', className: 'bhc-studio-source' },
+                el(wp.components.SelectControl, {
+                    label: __('Video source'),
+                    value: attrs.source,
+                    // Cloudflare Stream only appears when Tier B is
+                    // enabled (window.bhcMediaTierB); Bunny / R2 only
+                    // once configured in Media & CDN Setup
+                    // (window.bhcMediaSigned).
+                    options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }]
+                        .concat(((window as any).bhcMediaTierB && (window as any).bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : [])
+                        .concat(((window as any).bhcMediaSigned && (window as any).bhcMediaSigned.bunny) ? [{ label: __('Bunny Stream (private)'), value: 'bunny_stream' }] : [])
+                        .concat(((window as any).bhcMediaSigned && (window as any).bhcMediaSigned.r2) ? [{ label: __('Cloudflare R2 (private, signed)'), value: 'signed_r2' }] : []),
+                    onChange: function (v: any) { setAttrs({ source: v }); },
+                    __nextHasNoMarginBottom: true,
+                })
             );
 
             var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 },
@@ -937,8 +939,8 @@
             }
 
             return el(wp.element.Fragment, {},
-                sourcePicker,
                 stepShell('format-video', __('Video'), meta, blockProps, [
+                    sourcePicker,
                     picker,
                     chaptersSection,
                     overlaysSection,

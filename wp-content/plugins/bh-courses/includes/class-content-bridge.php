@@ -380,6 +380,18 @@ class BHC_ContentBridge {
             /* The tail-end per-step options (caption, completion rule) —
                grouped into one quiet panel so they read as "settings for
                this step", not a pile of loose controls after the media. */
+            /* The video step\'s Source select, now inline at the top of
+               the step instead of buried in the block sidebar. Sits
+               above the picker with a hairline divider so it reads as
+               "choose how this video is delivered" first. */
+            .bhc-studio-source {
+                margin-bottom: 14px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            .bhc-studio-source .components-base-control { margin-bottom: 0; }
+            .bhc-studio-source select { max-width: 280px; }
+
             .bhc-studio-settings {
                 border: 1px solid #e0e0e0;
                 border-radius: 6px;
