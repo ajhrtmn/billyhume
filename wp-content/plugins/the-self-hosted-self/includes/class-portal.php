@@ -1111,7 +1111,18 @@ class BHI_Portal {
      this whole page previously had zero transition beyond the
      progress-bar fill. Cards stagger in behind the heading rather than
      everything appearing at the exact same instant. */
-  .bhi-portal-main > h1 { animation: bhi-portal-in 0.35s ease both; }
+  /* The "Welcome back, X" heading had no size rule of its own and was
+     inheriting the theme's hero-scale h1 (~40px+), dwarfing everything
+     under it. A page greeting, not a hero. */
+  .bhi-portal-main > h1 {
+    margin: 2px 0 20px;
+    font-family: var(--bh-font-display, inherit);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    animation: bhi-portal-in 0.35s ease both;
+  }
   .bhi-portal-main > .bhi-overview-stats,
   .bhi-portal-main > .bhi-portal-section,
   .bhi-portal-course-list > * {
@@ -1145,11 +1156,22 @@ class BHI_Portal {
        not a polish issue. Wrapping costs a row or two of height and makes
        every destination reachable without scrolling, which is the correct
        trade for a nav. */
-    .bhi-portal-nav { width:100%; display:flex; flex-wrap:wrap; row-gap:2px; padding:8px 0; border-right:none; border-bottom:1px solid var(--bh-border, #e2e2e2);  }
+    /* NOT sticky on a phone — the desktop rule sets position:sticky and
+       the mobile block never overrode it, so this tall wrapped strip
+       stuck under the header and the page content scrolled UP THROUGH
+       it ("ui funk on scroll" from the field). A column-stacked mobile
+       nav belongs at the top of the flow and scrolls away normally. */
+    .bhi-portal-nav {
+      position:static; top:auto;
+      width:100%; display:flex; flex-wrap:wrap; row-gap:2px;
+      padding:10px 8px; margin-right:0; margin-bottom:18px;
+      border-right:none; border-bottom:1px solid var(--bh-border, #e2e2e2);
+    }
     .bhi-portal-brand { display:none; } /* the page <title>/site header already says whose account this is */
     .bhi-portal-nav a { flex-shrink:0; padding:10px 14px; border-left:none; border-bottom:3px solid transparent; }
     .bhi-portal-nav a.is-active { border-left-color:transparent; border-bottom-color:var(--bh-accent, #2271b1); }
-    .bhi-portal-main { padding:20px 16px; max-width:none; }
+    .bhi-portal-main { padding:4px 16px 40px; max-width:none; }
+    .bhi-portal-main > h1 { font-size:22px; margin-bottom:16px; }
   }
 
   /* Judicious front-end use of the same help-tooltip pattern the admin

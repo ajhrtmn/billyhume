@@ -9,6 +9,14 @@ has been reworded or dropped.
 
 ---
 
+3.20.12 — Portal mobile polish. The nav strip stayed position:sticky
+on phones (the desktop rule set it, the mobile block never overrode
+it), so the wrapped strip stuck under the header and page content
+scrolled up through it. It's static + spaced on mobile now. The
+"Welcome back, X" heading had no size rule and was inheriting the
+theme's hero-scale h1 (~40px+); it's a considered 26px (22px mobile)
+now. Also refreshes bundled/bh-contest.zip (3.15.6).
+
 3.20.11 — Refresh bundled/bh-contest.zip (3.15.5, page auto-create hardening).
 
 3.20.10 — Refresh bundled/bh-courses.zip (0.16.3, "+ Add a step" button).

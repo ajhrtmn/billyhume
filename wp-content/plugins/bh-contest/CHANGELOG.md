@@ -6,6 +6,12 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.6 — Blanket-clear text-decoration on the ecosystem's own
+headings / *-label / *-badge / *-kicker elements inside .bh-container
+— a builder-theme global rule was drawing a line-through + underline
+on non-link text (the "Contests" brand, the "LIVE" reveal badge).
+The .bh-brand-only fix from 3.15.4 is superseded by this.
+
 3.15.5 — maybe_create_default_pages() hardening. The old code stamped
 bh_pages_version whether or not each singleton page (Reveal /
 Archive / Contests) actually got created, so one transient

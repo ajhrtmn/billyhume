@@ -72,6 +72,14 @@
     padding: 0;
     list-style: none;
 }
+/* Live-reported twice ("Contests" brand, "LIVE" reveal badge): some
+   builder-theme global typography rules put a line-through / underline
+   on non-link text in the content area, and text-decoration propagates
+   into descendant text unless the element clears it. Blanket-clear it
+   for the ecosystem's own headings/labels. */
+.bh-container :where(h1, h2, h3, h4, h5, h6, .bh-brand, [class*="-label"], [class*="-badge"], [class*="-kicker"]) {
+    text-decoration: none;
+}
 .bh-container :where(a) {
     text-decoration: none;
     color: inherit;
