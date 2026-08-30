@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.3 — Contest player page: the "All contests" back-link now points
+at the Contest Library (the lifecycle browser), not the Archive (the
+flat entry catalog); falls back to the archive if the library page
+doesn't exist. Fixed the page width: the back-link and before/after
+slot content rendered outside the centred .bh-container, flush to the
+viewport edge while the player sat at 1200px — now wrapped in
+.bh-player-aside (same 1200px centring), and .bh-container drops its
+duplicate header clearance when the aside precedes it.
+
 3.15.2 — Contest Library cards now link to the contest's real page.
 The bh_contest CPT is 'public' => false, so get_permalink() on it is a
 dead link — the player lives on a separate Page (_bh_page_id). Cards

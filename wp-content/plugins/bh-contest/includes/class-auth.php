@@ -155,17 +155,26 @@ class BH_Auth {
         // author's choice; bh_archive_page_id is what this plugin's own
         // activator records when it creates the page. Omitted entirely when
         // core is absent or no archive page exists -- never a link to nowhere.
+        // "All contests" belongs on the Contest Library (the lifecycle
+        // browser of the contests themselves), not the Archive (the flat
+        // every-entry catalog). Prefer the library page; fall back to
+        // the archive only if the library page doesn't exist yet, then
+        // to nothing — never a link to nowhere.
+        $back_url = '';
+        $lib_pid = (int) get_option('bh_contest_library_page_id', 0);
+        if ($lib_pid && get_post_status($lib_pid) === 'publish') {
+            $back_url = (string) get_permalink($lib_pid);
+        } elseif (method_exists('OUS_Pages', 'url')) {
+            $back_url = (string) (OUS_Pages::url('bh_archive', 'bh_archive_page_id') ?: '');
+        }
         $back_link = '';
-        if (method_exists('OUS_Pages', 'url')) {
-            $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
-            if ($archive_url) {
-                // No inline margin — the shared .ous-back-link rule
-                // (front-nav.css) owns the spacing, including the
-                // header-clearance top margin an inline style would defeat.
-                $back_link = '<p class="ous-back-link bh-back-to-archive">'
-                    . '<a href="' . esc_url($archive_url) . '">'
-                    . '<span aria-hidden="true">&larr;</span> All contests</a></p>';
-            }
+        if ($back_url) {
+            // No inline margin — the shared .ous-back-link rule
+            // (front-nav.css) owns the spacing, including the
+            // header-clearance top margin an inline style would defeat.
+            $back_link = '<p class="ous-back-link bh-back-to-archive">'
+                . '<a href="' . esc_url($back_url) . '">'
+                . '<span aria-hidden="true">&larr;</span> All contests</a></p>';
         }
 
         $submission_link = '';
@@ -209,6 +218,17 @@ class BH_Auth {
             // BH_Element not loaded — no slot content to merge with, but the submission link still stands on its own.
             $before = $back_link . $submission_link;
         }
+
+        // $before/$after render OUTSIDE the .bh-container that player.js
+        // builds inside .bh-player-root, so without their own aligned
+        // wrapper the "All contests" link and any slot content sat
+        // flush against the viewport edge while the player below was
+        // centred at 1200px. .bh-player-aside matches that width and
+        // centring (see player.css); the --before variant also carries
+        // the floating-header clearance so .bh-container can drop its
+        // own (player.css neutralises it when the aside precedes it).
+        if ($before !== '') $before = '<div class="bh-player-aside bh-player-aside--before">' . $before . '</div>';
+        if ($after !== '')  $after  = '<div class="bh-player-aside bh-player-aside--after">' . $after . '</div>';
 
         return $before . '<div ' . $attrs . '></div>' . $after;
     }

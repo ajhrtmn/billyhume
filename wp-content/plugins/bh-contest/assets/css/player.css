@@ -113,6 +113,24 @@
     margin-inline: auto;
 }
 
+/* ---- server-rendered asides around the JS player ----
+   The "All contests" back-link and any before/after BH_Element slot
+   content render as siblings OUTSIDE the .bh-container player.js builds
+   inside .bh-player-root, so they need their own wrapper to line up
+   with the centred 1200px player instead of sitting against the
+   viewport edge. --before also owns the floating-header clearance
+   (via .ous-back-link's own margin-top), so .bh-container drops its
+   duplicate top padding when the aside precedes it. */
+.bh-player-aside {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: calc(24px * var(--bh-space-scale));
+    box-sizing: border-box;
+}
+.bh-player-aside--before + .bh-player-root .bh-container {
+    padding-top: calc(16px * var(--bh-space-scale));
+}
+
 /* ---------------- Header ---------------- */
 .bh-header {
     display: flex;
