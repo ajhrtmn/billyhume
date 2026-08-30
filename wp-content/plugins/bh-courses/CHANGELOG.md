@@ -6,6 +6,26 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.18 — The real reason live stayed broken through 0.16.13–0.16.17:
+a host page-cache. Confirmed by inspection — the plugin files on live
+were current (CHANGELOG at 0.16.17, class-bunny.php present) but the
+lesson HTML was cached from when BHC_VER was 0.12.2, so browsers
+loaded courses.js?ver=0.12.2 and the proxy served the pre-fix file for
+that URL. None of the fixes ran; the "expired" Bunny embed token in
+that same stale HTML (sign_bunny TTL 4h, page cache 8h) is the
+persistent 403.
+- New: template_redirect on is_singular(['bh_lesson','bh_course'])
+  sets DONOTCACHEPAGE + DONOTCACHEOBJECT + nocache_headers() — a
+  lesson/course view is per-student AND embeds a short-lived signed
+  media URL, it must never be full-page cached. Mirrors
+  BHI_Portal::never_cache_portal().
+- the_content append of the step walker moved to priority PHP_INT_MAX
+  so a builder theme that re-parses the_content can't normalise the
+  step markup (kept from 0.16.17's investigation; harmless if that
+  wasn't the cause).
+A one-time "purge all" of the host/page cache on live is still needed
+to clear what's already stored.
+
 0.16.17 — Front-end lesson JS now survives the step wrapper losing its
 class attribute. On the live (Etch) site something strips
 class="bhc-step …" off the outer step <div> after render — it keeps

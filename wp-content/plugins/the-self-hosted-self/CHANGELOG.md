@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.13 — Refresh bundled bh-courses.zip (0.16.18 — never full-page
+cache a lesson/course view; that host page-cache, not any code bug,
+is why live stayed broken and kept 403ing on Bunny).
+
 3.21.12 — Regenerate stale bundled zips flagged by the freshness
 panel: bh-contest (3.15.8 -> 3.15.9), bh-feedback (0.2.0 -> 0.2.1).
 No code change.

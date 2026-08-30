@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.17
+ * Version:     0.16.18
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.17');
+define('BHC_VER',  '0.16.18');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -105,6 +105,13 @@ add_action('plugins_loaded', function () {
             BH_Event::register_event_type('bhc/session_booked', ['starts_at' => 'string', 'instructor_id' => 'int']);
         }
     }, 20);
+    // Priority PHP_INT_MAX: append the step-walker markup AFTER every
+    // other the_content filter has run — a builder theme (Etch on the
+    // live site) that re-parses the_content output through its own DOM
+    // representation was stripping class="bhc-step …" off the outer step
+    // wrappers (data-* survived), which broke courses.js's step
+    // show/hide and left the container invisible. Running last means the
+    // builder's pass never sees this markup to normalise it.
     add_filter('the_content', function ($content) {
         if (get_post_type() === 'bh_lesson' && is_singular('bh_lesson') && in_the_loop() && is_main_query()) {
             return $content . BHC_Render::render_lesson_steps(get_the_ID());
@@ -127,7 +134,7 @@ add_action('plugins_loaded', function () {
             return $out;
         }
         return $content;
-    });
+    }, PHP_INT_MAX);
 
     // Real bug, production-readiness sweep 2026-08-16: BH_SEO's tags
     // are echoed at wp_head (priority 1), which fires before the_content()
@@ -140,6 +147,25 @@ add_action('plugins_loaded', function () {
         if (is_singular('bh_course') && class_exists('BHC_Render_Course')) {
             BHC_Render_Course::set_seo_data(get_queried_object_id());
         }
+    });
+
+    // A lesson/course view must never be full-page cached. Two reasons,
+    // both hit live: (1) it's per-student — progress state, the enroll
+    // gate, "Log in to view this lesson" vs the real content; a cache
+    // that serves one student's page to another (or the logged-out
+    // shell to someone who just logged in) is broken. (2) a video step
+    // embeds a SIGNED media URL (BHY_MediaToken::sign_bunny / sign_r2)
+    // that expires in ~4h — an 8h host page-cache then serves an
+    // expired token to every later visitor, which Bunny answers with a
+    // 403 inside the player. DONOTCACHEPAGE covers Rocket / W3TC / WP
+    // Super Cache / LiteSpeed / the Bluehost/Endurance cache; the
+    // Cache-Control header stops shared proxies and the browser too.
+    // Same pattern as BHI_Portal::never_cache_portal().
+    add_action('template_redirect', function () {
+        if (!is_singular(['bh_lesson', 'bh_course'])) return;
+        if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+        if (!defined('DONOTCACHEOBJECT')) define('DONOTCACHEOBJECT', true);
+        nocache_headers();
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
