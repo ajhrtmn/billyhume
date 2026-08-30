@@ -993,13 +993,24 @@ class BHI_Portal {
      gets auto-wrapped. :where() keeps specificity flat so a panel can
      still override intentionally. */
   .bhi-portal-main :where(h1, h2, h3, h4) { font-family:var(--bh-font-display, inherit); line-height:1.25; letter-spacing:-0.01em; }
+  /* Explicit color + real selectors (not :where) — the theme's own
+     h2/h3 color rules were bleeding through onto "Welcome back",
+     "Continue learning", "Notifications" (they'd inherit the site's
+     heading colour, not the ecosystem's text token). Force the token. */
+  .bhi-portal-main h1, .bhi-portal-main h2, .bhi-portal-main h3,
+  .bhi-portal-section h1, .bhi-portal-section h2, .bhi-portal-section h3 {
+    color: var(--bh-text, #1d2327) !important;
+  }
   .bhi-portal-main h1 { font-size:22px; font-weight:700; margin:0 0 16px; }
-  .bhi-portal-main h2 { font-size:16px; font-weight:600; margin:22px 0 12px; }
-  .bhi-portal-main h3 { font-size:14px; font-weight:600; margin:18px 0 6px; }
-  .bhi-portal-main h4 { font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--bh-text-dim, #6b7280); margin:14px 0 5px; }
+  .bhi-portal-main h2 { font-size:16px; font-weight:600; margin:20px 0 12px; }
+  .bhi-portal-main h3 { font-size:14px; font-weight:600; margin:16px 0 6px; }
+  .bhi-portal-main h4 { font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--bh-text-dim, #6b7280) !important; margin:14px 0 5px; }
   .bhi-portal-main > :where(h1, h2, h3, h4):first-child { margin-top:0; }
   .bhi-portal-section > :where(h1, h2, h3, h4):first-child { margin-top:0; }
-  .bhi-portal-section h2 { margin-top:0; }
+  /* Every panel section heading is the first thing in its card: no top
+     margin, a consistent 12px below. */
+  .bhi-portal-section h2, .bhi-portal-section h3 { margin:0 0 12px; }
+  .bhi-portal-section > h2 + *, .bhi-portal-section > h3 + * { margin-top:0; }
 
   /* Every button in a panel, not just [type=submit] — bare
      <button type="button"> (Notifications' "Mark all read",
@@ -1269,12 +1280,13 @@ class BHI_Portal {
      inheriting the theme's hero-scale h1 (~40px+), dwarfing everything
      under it. A page greeting, not a hero. */
   .bhi-portal-main > h1 {
-    margin: 2px 0 20px;
+    margin: 0 0 18px;
     font-family: var(--bh-font-display, inherit);
     font-size: 26px;
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: -0.01em;
+    color: var(--bh-text, #1d2327);
     animation: bhi-portal-in 0.35s ease both;
   }
   .bhi-portal-main > .bhi-overview-stats,

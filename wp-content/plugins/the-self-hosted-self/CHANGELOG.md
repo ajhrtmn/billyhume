@@ -9,6 +9,15 @@ has been reworded or dropped.
 
 ---
 
+3.21.1 — Portal heading colour + margin fix. "Welcome back",
+"Continue learning", "Notifications" were inheriting the active
+theme's own h1/h2/h3 colour (the :where() heading rules set size but
+not colour, and carry zero specificity), so on a non-default palette
+the headings bled the site's heading colour instead of the
+ecosystem's --bh-text. Forced --bh-text with real selectors, and
+normalised heading margins (section headings 0 top / 12px bottom;
+the welcome greeting 0 / 18px).
+
 3.21.0 — Standalone ecosystem chrome. Billy's call: the course /
 contest / portal pages should feel like "the other half of the
 site", not blend into it. On any surface a plugin opts in via the
