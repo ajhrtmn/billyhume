@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.20.16 — Refresh bundled bh-courses.zip (0.16.6) + bh-contest.zip (3.15.8).
+
 3.20.15 — Refresh bundled bh-courses.zip (0.16.5).
 
 3.20.14 — Refresh bundled bh-courses.zip (0.16.4) + bh-contest.zip (3.15.7).
