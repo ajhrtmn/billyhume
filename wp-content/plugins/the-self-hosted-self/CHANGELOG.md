@@ -9,6 +9,17 @@ has been reworded or dropped.
 
 ---
 
+3.20.13 — Portal Overview: the key figure in each panel (course
+percent, unread count, contest votes) was rendered inside a plain
+<p> that inherited the theme's large body size — big text that read
+as accidental, not designed, and made those data points feel
+second-class. Introduced .bhi-datum (a display-font, tabular,
+accent-tinted value + a quiet caption label — the same small-stat
+vocabulary as .bhi-overview-stat up top). Continue-learning shows
+the % as a figure at the end of the progress track; Notifications
+and Latest-contest-activity lead with the number as a real datum.
+Panel <p> prose is now a fixed 14px so sentences stop shouting.
+
 3.20.12 — Portal mobile polish. The nav strip stayed position:sticky
 on phones (the desktop rule set it, the mobile block never overrode
 it), so the wrapped strip stuck under the header and page content

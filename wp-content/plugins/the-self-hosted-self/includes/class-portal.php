@@ -496,8 +496,10 @@ class BHI_Portal {
                 echo '<h2>Continue learning</h2>';
                 echo '<div class="bhi-portal-course-card">';
                 echo '<h3>' . esc_html(get_the_title($course_id)) . '</h3>';
+                echo '<div class="bhi-progress-row">';
                 echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
-                echo '<p>' . (int) $percent . '% complete</p>';
+                echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span><span class="bhi-datum-label">done</span></span>';
+                echo '</div>';
                 echo '<p><a class="button" href="' . esc_url(get_permalink($course_id)) . '">Continue &rarr;</a></p>';
                 echo '</div></div>';
             }
@@ -520,9 +522,12 @@ class BHI_Portal {
                 }
                 echo '<div class="bhi-portal-section bhi-overview-contest">';
                 echo '<h2>Latest contest activity</h2>';
-                echo '<p>"' . esc_html($sub->post_title) . '"';
-                if ($contest_id) echo ' in <strong>' . esc_html(get_the_title($contest_id)) . '</strong>';
-                echo ' — ' . esc_html(ucfirst($sub->post_status)) . ', ' . (int) $votes . ' vote' . ($votes === 1 ? '' : 's') . '</p>';
+                echo '<p class="bhi-overview-contest-line">&ldquo;' . esc_html($sub->post_title) . '&rdquo;';
+                if ($contest_id) echo ' &middot; ' . esc_html(get_the_title($contest_id));
+                echo '</p>';
+                echo '<div class="bhi-datum bhi-contest-figure">'
+                    . '<span class="bhi-datum-value">' . (int) $votes . '</span>'
+                    . '<span class="bhi-datum-label">vote' . ($votes === 1 ? '' : 's') . ' &middot; ' . esc_html(ucfirst($sub->post_status)) . '</span></div>';
                 echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/submissions/')) . '">View submissions &rarr;</a></p>';
                 echo '</div>';
             }
@@ -535,7 +540,9 @@ class BHI_Portal {
                 $shown_anything = true;
                 echo '<div class="bhi-portal-section bhi-overview-notifications">';
                 echo '<h2>Notifications</h2>';
-                echo '<p>' . (int) $unread . ' unread notification' . ($unread === 1 ? '' : 's') . '.</p>';
+                echo '<div class="bhi-datum bhi-notif-figure">'
+                    . '<span class="bhi-datum-value">' . (int) $unread . '</span>'
+                    . '<span class="bhi-datum-label">unread notification' . ($unread === 1 ? '' : 's') . '</span></div>';
                 echo '<p><a class="button" href="' . esc_url(home_url('/' . self::REWRITE_SLUG . '/notifications/')) . '">View &rarr;</a></p>';
                 echo '</div>';
             }
@@ -970,6 +977,36 @@ class BHI_Portal {
   .bhi-portal-section:last-child { margin-bottom:0; }
   .bhi-portal-section h2 { margin:0 0 14px; font-size:16px; font-weight:600; }
   .bhi-portal-section > *:last-child { margin-bottom:0; }
+  /* Panel prose had no size of its own and inherited the theme's
+     large body <p>, which is why key figures rendered inside a <p>
+     ("0% complete", "2 unread notifications") read as accidental
+     shouting. Sentences are 14px; the numbers that matter get the
+     .bhi-datum treatment below instead of just being big text. */
+  .bhi-portal-section p { font-size:14px; line-height:1.55; }
+
+  /* A designed figure+label pair — the ecosystem's small-stat
+     vocabulary (matches .bhi-overview-stat up top), for the one number
+     each panel is actually about. The value is a display-font,
+     tabular, accent-tinted figure; the label is a quiet caption. Never
+     just a big sentence. */
+  .bhi-datum { display:inline-flex; align-items:baseline; gap:8px; }
+  .bhi-datum-value {
+    font-family:var(--bh-font-display, inherit); font-weight:700; line-height:1;
+    font-size:24px; font-variant-numeric:tabular-nums;
+    color:color-mix(in srgb, var(--bh-accent, #2271b1) 68%, var(--bh-text, #1d2327));
+  }
+  .bhi-datum-label { font-size:12px; color:var(--bh-text-dim, #6b7280); }
+
+  /* Continue learning — the bar and the % read as one unit on a row,
+     the % as a real figure at the end of the track, not a caption
+     under it. */
+  .bhi-progress-row { display:flex; align-items:center; gap:12px; margin:10px 0 14px; }
+  .bhi-progress-row .bhi-portal-progress-bar { flex:1; }
+  .bhi-progress-figure { flex-shrink:0; gap:5px; }
+  .bhi-progress-figure .bhi-datum-value { font-size:16px; }
+
+  .bhi-notif-figure, .bhi-contest-figure { margin:2px 0 14px; }
+  .bhi-overview-contest-line { color:var(--bh-text-dim, #6b7280); margin:0 0 4px; }
 
   /* ---- Normalized rhythm for auto-wrapped panels ----
      Peer-plugin panels echo bare h2/h3/p/label/fieldset with no
