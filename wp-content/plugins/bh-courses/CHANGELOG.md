@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.12 — The Bunny Stream step's iframe had no CSS at all and fell
+back to the 300x150 HTML default. .bhc-step-video-bunny now gets the
+same 16:9 responsive frame as the oEmbed providers; the iframe fills
+it.
+
 0.16.11 — Lesson video was tiny. video.bhc-step-video used
 width/height:auto, which pinned a low-resolution source to its
 intrinsic pixel size — a 640px master showed as a ~260px thumbnail

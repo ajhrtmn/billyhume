@@ -127,8 +127,12 @@ class BHY_MediaToken {
         $token = hash('sha256', $s['bunny_token_key'] . $video_guid . $expiry);
         $token = (string) apply_filters('bhy_media_token_bunny', $token, $video_guid, $expiry, $s['bunny_token_key']);
 
+        // responsive=true — tell Bunny's player to fill the iframe
+        // rather than letterbox to its own fixed frame (our wrapper
+        // already holds the 16:9 aspect box). No autoplay / muted: this
+        // is a lesson, the student presses play.
         return sprintf(
-            'https://iframe.mediadelivery.net/embed/%s/%s?token=%s&expires=%d',
+            'https://iframe.mediadelivery.net/embed/%s/%s?token=%s&expires=%d&responsive=true',
             rawurlencode($s['bunny_library_id']),
             rawurlencode($video_guid),
             rawurlencode($token),
