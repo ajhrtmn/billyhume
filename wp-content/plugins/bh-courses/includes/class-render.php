@@ -184,7 +184,24 @@ class BHC_Render {
         // locally-generated 2x2px/0.1s silent MP4 (ffmpeg), not a
         // reference to Plyr's own hosted one.
         $deps = [];
-        if (is_singular('bh_lesson')) {
+        // A lesson (and therefore a bhc/video step) renders on the
+        // standalone lesson page AND inline inside the course view
+        // (is_singular('bh_course') / a page embedding [bh_course] /
+        // bhc/course). Gating Plyr + Bunny's player.js on bh_lesson
+        // alone meant that inside the course/portal view a video kept
+        // its bare controls and NONE of the chapter list, seek markers,
+        // pausing overlays or watch-% tracking loaded — reported live as
+        // "adding watch percentage killed everything for chapters" (it
+        // was the surrounding context that differed, not the setting).
+        // Pure catalog listings ([bh_courses] / bhc/catalog) never show
+        // a video, so they still skip this.
+        global $post;
+        $renders_lesson = is_singular(['bh_lesson', 'bh_course'])
+            || ($post instanceof \WP_Post && (
+                has_shortcode($post->post_content, 'bh_course')
+                || has_block('bhc/course', $post)
+            ));
+        if ($renders_lesson) {
             wp_enqueue_style('bhc-plyr', BHC_URL . 'assets/js/vendor/plyr.css', [], BHC_VER);
             wp_enqueue_script('bhc-plyr', BHC_URL . 'assets/js/vendor/plyr.min.js', [], '3.8.4', true);
             wp_localize_script('bhc-plyr', 'BHCPlyrAssets', [
@@ -201,8 +218,7 @@ class BHC_Render {
             // work over the cross-origin iframe. Only pulled in when the
             // lesson actually has one — same "enqueue what the content
             // needs" rule as Plyr itself.
-            $lesson = get_queried_object();
-            if ($lesson instanceof \WP_Post && self::lesson_has_bunny_step((int) $lesson->ID)) {
+            if (self::context_has_bunny_step()) {
                 wp_enqueue_script('bhc-bunny-playerjs', 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js', [], null, true);
                 $deps[] = 'bhc-bunny-playerjs';
             }
@@ -220,6 +236,35 @@ class BHC_Render {
         if (!$lesson_id || !class_exists('BHC_Steps')) return false;
         foreach (BHC_Steps::get($lesson_id) as $step) {
             if (($step['type'] ?? '') === 'video' && ($step['source'] ?? '') === 'bunny_stream') return true;
+        }
+        return false;
+    }
+
+    /**
+     * Whether the page being rendered will show a Bunny video step —
+     * whether that's a standalone lesson OR a lesson rendered inline
+     * inside its course view. Checking every lesson of a course is a
+     * handful of cheap meta reads and only happens on course pages.
+     */
+    private static function context_has_bunny_step(): bool {
+        $obj = get_queried_object();
+        if ($obj instanceof \WP_Post && $obj->post_type === 'bh_lesson') {
+            return self::lesson_has_bunny_step((int) $obj->ID);
+        }
+
+        $course_id = 0;
+        if ($obj instanceof \WP_Post && $obj->post_type === 'bh_course') {
+            $course_id = (int) $obj->ID;
+        } elseif ($obj instanceof \WP_Post && class_exists('BHC_PostTypes')) {
+            // A page embedding [bh_course id="N"] / the bhc/course block.
+            if (preg_match('/\[bh_course[^\]]*\bid=["\']?(\d+)/', $obj->post_content, $m)) {
+                $course_id = (int) $m[1];
+            }
+        }
+        if (!$course_id || !class_exists('BHC_PostTypes')) return false;
+
+        foreach (BHC_PostTypes::lesson_order($course_id) as $lesson_id) {
+            if (self::lesson_has_bunny_step((int) $lesson_id)) return true;
         }
         return false;
     }

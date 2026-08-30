@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.9 — Regenerate bundled bh-courses.zip (now 0.16.15): the panel
+flagged it stale at 0.16.9 while 0.16.13 was installed — the previous
+3.21.8 bump never actually re-zipped. No core code change.
+
 3.21.8 — Refresh bundled bh-courses.zip (0.16.13, Bunny chapter sync).
 
 3.21.7 — sign_bunny() appends responsive=true so Bunny's player fills

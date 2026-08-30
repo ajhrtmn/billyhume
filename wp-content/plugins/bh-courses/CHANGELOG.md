@@ -6,6 +6,31 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.15 — Fix: Plyr + Bunny's player.js only loaded on the standalone
+lesson page, so a video shown INSIDE the course view (is_singular
+bh_course, or a page embedding [bh_course]/bhc/course) fell back to
+bare controls with no chapter list, no seek markers, no pausing
+overlays and no live watch-% — surfaced as "adding watch percentage
+killed everything for chapters" (the context differed, not the
+setting). Enqueue now covers any lesson-rendering context, with a
+context_has_bunny_step() that walks a course's lessons so player.js
+still loads only when a Bunny step is actually on the page. Pure
+catalog listings still skip both. NOT runtime-verified.
+
+0.16.14 — Bunny chapter sync now writes through the documented Update
+Video endpoint (POST /library/{id}/videos/{guid} with a `chapters`
+array) instead of a `/chapters` sub-path that isn't a stable route —
+that's why no markers appeared on Bunny's seek bar. Empty chapter
+titles get a "Chapter N" fallback (Bunny 400s the whole request on a
+blank title). Still needs the Bunny API key set (Media & CDN Setup) —
+the playback token key alone isn't enough for this. NOT runtime-
+verified against live Bunny.
+Stepper dots: dropped the per-type --bh-cat-* hue tint entirely (it
+read muddy/reddish on warm palettes — third "Colors" report). Type is
+the icon SHAPE only now; the dot's colour is purely its progress
+STATE, always in core palette tokens (--bh-accent / --bh-accent-muted-
+bg), and the done/current icon switches to --bh-accent for contrast.
+
 0.16.13 — Wire the custom video features into Bunny's own player.
 On lesson save, each Bunny step's chapters are pushed to Bunny
 (POST /library/{id}/videos/{guid}/chapters) so they render on

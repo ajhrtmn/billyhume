@@ -1147,7 +1147,8 @@ a.bhc-pagination-number:hover {
     content: '';
     width: 16px;
     height: 16px;
-    background-color: var(--bhc-step-hue, var(--bh-text-dim));
+    background-color: var(--bh-text-dim);
+    transition: background-color 0.15s ease;
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-position: center;
@@ -1190,30 +1191,12 @@ a.bhc-pagination-number:hover {
     mask-image: url(../icons/step-audio-compare.svg);
 }
 
-/* The "subtle hue hints depending upon lesson type" half — one custom
-   property per type, deliberately drawn from the site's own themeable
-   --bh-cat-* category palette rather than new invented literals, so a
-   site that re-themes its palette re-themes these too. Kept SUBTLE by
-   design: the hue tints the small icon inside the dot, not the dot's
-   whole fill or border — the existing done/current/disabled states
-   stay the primary, unambiguous progress signal, and type is a
-   secondary at-a-glance hint layered under it rather than a competing
-   one. Text deliberately keeps the neutral --bh-text-dim default (it's
-   the most common type by far; coloring it too would make the whole
-   stepper read as noise rather than making the special types pop). */
-/* Live-reported ("Colors"): the raw --bh-cat-* rainbow (green, blue,
-   etc.) clashed hard against a warm palette — a bright-green play icon
-   on the video step. Keep the per-type hue HINT AJ asked for, but pull
-   each one most of the way toward --bh-accent so it only nudges the
-   hue and everything stays in the theme's family, on any palette. */
-.bhc-stepper-image { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-3, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-video { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-7, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-quiz { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-2, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-resource { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-5, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-callout { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-4, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-checklist { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-6, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-chord-chart { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-8, var(--bh-accent)) 28%, var(--bh-accent)); }
-.bhc-stepper-audio-compare { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-1, var(--bh-accent)) 28%, var(--bh-accent)); }
+/* Step TYPE is carried entirely by the icon SHAPE (the mask-image per
+   .bhc-stepper-{type} above). No per-type colour: every attempt at a
+   --bh-cat-* hue hint here — even mixed most of the way to --bh-accent —
+   read as muddy on a warm palette and off-family on others (three
+   separate "Colors" reports). The dot's colour now says one thing only,
+   its progress STATE, and always in core palette tokens. */
 
 .bhc-stepper-dot[disabled] {
     cursor: default;
@@ -1223,10 +1206,12 @@ a.bhc-pagination-number:hover {
     background: var(--bh-accent-muted-bg, var(--bh-surface-2));
     border-color: var(--bh-accent);
 }
+.bhc-stepper-dot.bhc-stepper-done::before { background-color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-current {
     border-color: var(--bh-accent);
-    box-shadow: 0 0 0 3px var(--bh-accent-soft);
+    box-shadow: 0 0 0 3px var(--bh-accent-muted-bg, var(--bh-surface-2));
 }
+.bhc-stepper-dot.bhc-stepper-current::before { background-color: var(--bh-accent); }
 .bhc-stepper-dot:not([disabled]):hover { border-color: var(--bh-accent); }
 .bhc-stepper-dot.bhc-stepper-pulse { animation: bhc-pulse 0.5s ease; }
 

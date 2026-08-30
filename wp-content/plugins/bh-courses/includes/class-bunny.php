@@ -71,10 +71,17 @@ class BHC_Bunny {
             $start = max(0, (int) ($c['time'] ?? 0));
             $end   = ($i + 1 < $n) ? max(0, (int) ($chapters[$i + 1]['time'] ?? 0)) : ($len > $start ? $len : $start + 1);
             if ($end <= $start) $end = $start + 1;
-            $payload[] = ['title' => (string) ($c['title'] ?? ''), 'start' => $start, 'end' => $end];
+            // Bunny rejects the whole request if any chapter title is
+            // empty (min length 1), so never send a blank one.
+            $title = trim((string) ($c['title'] ?? ''));
+            if ($title === '') $title = 'Chapter ' . ($i + 1);
+            $payload[] = ['title' => $title, 'start' => $start, 'end' => $end];
         }
 
-        $res = self::api('POST', '/library/' . self::lib() . '/videos/' . rawurlencode($guid) . '/chapters', ['chapters' => $payload]);
+        // Chapters are written through the Update Video endpoint
+        // (POST /library/{id}/videos/{guid} with a `chapters` array) —
+        // the documented path. There is no stable `/chapters` sub-route.
+        $res = self::api('POST', '/library/' . self::lib() . '/videos/' . rawurlencode($guid), ['chapters' => $payload]);
         if (is_wp_error($res)) {
             if (class_exists('OUS_DebugLog')) {
                 OUS_DebugLog::log('warning', 'Bunny chapter sync failed.', ['guid' => $guid, 'error' => $res->get_error_message()], 'BHC_Bunny');
