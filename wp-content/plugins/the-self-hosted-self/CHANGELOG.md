@@ -9,6 +9,14 @@ has been reworded or dropped.
 
 ---
 
+3.21.18 — Refresh bundled bh-courses.zip (0.16.20). .bh-eco-nav-link.is-active painted accent-tinted text on an accent-
+tint background (color-mix of --bh-accent on --bh-accent-muted-bg) —
+the exact shape tools/check-accent-on-tint.js exists to catch, measured
+3.23:1 elsewhere. The active pill now reads from the tint fill + a 1px
+accent inset border, with the label kept at the full --bh-text
+foreground. `npm run check:accent` green again (was red on dev since the
+eco-nav landed).
+
 3.21.17 — The ecosystem dashboard (page=ous) shares the "not installed
 here" clutter toggle. Once the ecosystem is partially in use, the
 "Not installed" plugin cards collapse behind the same

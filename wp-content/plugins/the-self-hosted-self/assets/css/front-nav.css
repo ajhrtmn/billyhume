@@ -261,8 +261,13 @@ body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
     background: color-mix(in srgb, var(--bh-accent, #C1503A) 12%, transparent);
 }
 .bh-eco-nav-link.is-active {
-    color: color-mix(in srgb, var(--bh-accent, #C1503A) 70%, var(--bh-text, #EDDFCB));
+    /* Accent-tinted TEXT on an accent-tint background measured 3.23:1
+       elsewhere (tools/check-accent-on-tint.js). "Active" reads from
+       the accent-tint fill + an accent hairline instead; the label
+       keeps the full surface foreground so it stays legible. */
+    color: var(--bh-text, #EDDFCB);
     background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #C1503A) 16%, transparent));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bh-accent, #C1503A) 45%, transparent);
 }
 .bh-eco-nav-link:focus-visible,
 .bh-eco-nav-home:focus-visible {
