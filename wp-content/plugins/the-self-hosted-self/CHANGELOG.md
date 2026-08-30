@@ -9,6 +9,15 @@ has been reworded or dropped.
 
 ---
 
+3.18.0 — Ecosystem pages now default to the host theme's typeface. New
+`BHY_Style::INHERIT_FONT` ("Theme default") is the out-of-the-box choice
+for both font slots — `--bh-font-display` / `--bh-font-body` emit
+`inherit`, so a course / contest / portal page uses whatever font the
+active theme set (Outfit on billyhume.net) instead of imposing Jost /
+Atkinson Hyperlegible. Still one dropdown pick to switch to a bundled
+Google Font or a custom stack. An install that had explicitly chosen a
+font keeps it (only the untouched default changes).
+
 3.17.1 — Refreshed bundled/bh-courses.zip to 0.14.0 (in-editor Bunny workflow).
 
 3.17.0 — `BHY_MediaToken` gains the optional Bunny **API key**

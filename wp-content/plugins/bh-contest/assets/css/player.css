@@ -88,7 +88,13 @@
 }
 .bh-container {
     line-height: 1.4;
-    background-color: var(--bh-bg);
+    /* Transparent by default so the host theme's page background shows
+       through — the player reads as part of the site, not a dark slab
+       dropped onto it. The inner cards/header carry their own
+       --bh-surface fills for the contrast the controls need. A site that
+       wants the old contained-dark-panel look can set
+       `.bh-container { background: var(--bh-bg); }` in its own CSS. */
+    background-color: transparent;
     color: var(--bh-text);
     font-family: var(--bh-font-body);
     padding: calc(28px * var(--bh-space-scale)) calc(24px * var(--bh-space-scale));

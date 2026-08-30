@@ -318,9 +318,14 @@ class BHY_Style {
         // Sans stays in FONT_OPTIONS below as a real, selectable
         // alternative, not removed. Was Space Grotesk / Inter before
         // that, also kept.
-        'font_display'        => 'Jost',
+        // 'Theme default' (the INHERIT sentinel — see font_family() and
+        // FONT_OPTIONS) is the out-of-the-box choice: an ecosystem
+        // installed onto a real site should look like THAT site, not
+        // impose its own typeface on every course/contest/portal page.
+        // Jost / Atkinson Hyperlegible are still one dropdown pick away.
+        'font_display'        => 'Theme default',
         'font_display_custom' => '',
-        'font_body'           => 'Atkinson Hyperlegible',
+        'font_body'           => 'Theme default',
         'font_body_custom'    => '',
         'font_scale'  => '1',
         'space_scale' => '1',
@@ -328,6 +333,12 @@ class BHY_Style {
         'radius_sm'   => '8',
         'bar_height'  => '84',
     ];
+
+    // The one non-Google-Font choice. Its emitted value is `inherit`, so
+    // the page keeps whatever font the active theme set — see
+    // font_family() / inline_css(). Handled specially everywhere
+    // FONT_OPTIONS is iterated (loading, saving, the picker).
+    const INHERIT_FONT = 'Theme default';
 
     const FONT_OPTIONS = [
         'Space Grotesk'         => 'Space+Grotesk:wght@500;600;700',
@@ -757,8 +768,10 @@ class BHY_Style {
         $decls .= '--bh-accent-hover:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 85%, black);';
         $decls .= '--bh-accent-pressed:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 70%, black);';
 
-        $decls .= '--bh-font-display:' . self::css_safe_string(self::font_family($s, 'display')) . ', sans-serif;';
-        $decls .= '--bh-font-body:' . self::css_safe_string(self::font_family($s, 'body')) . ', sans-serif;';
+        $fd = self::font_family($s, 'display');
+        $fb = self::font_family($s, 'body');
+        $decls .= '--bh-font-display:' . ($fd === 'inherit' ? 'inherit' : self::css_safe_string($fd) . ', sans-serif') . ';';
+        $decls .= '--bh-font-body:'    . ($fb === 'inherit' ? 'inherit' : self::css_safe_string($fb) . ', sans-serif') . ';';
         $decls .= '--bh-font-scale:' . self::safe_number($s['font_scale'], 0.75, 1.6, 1) . ';';
         $decls .= '--bh-space-scale:' . self::safe_number($s['space_scale'], 0.6, 1.8, 1) . ';';
         $decls .= '--bh-radius:' . self::safe_number($s['radius'], 0, 32, 12) . 'px;';
@@ -850,7 +863,7 @@ class BHY_Style {
         }
         foreach (['font_display', 'font_body'] as $key) {
             $picked = sanitize_text_field($incoming[$key] ?? self::DEFAULTS[$key]);
-            $data[$key] = (array_key_exists($picked, self::FONT_OPTIONS) || $picked === 'Custom') ? $picked : self::DEFAULTS[$key];
+            $data[$key] = (array_key_exists($picked, self::FONT_OPTIONS) || $picked === 'Custom' || $picked === self::INHERIT_FONT) ? $picked : self::DEFAULTS[$key];
             $data[$key . '_custom'] = sanitize_text_field($incoming[$key . '_custom'] ?? '');
         }
         $data['font_scale']  = self::safe_number($incoming['font_scale']  ?? null, 0.75, 1.6, 1);
@@ -874,9 +887,12 @@ class BHY_Style {
     /** @param array<string, mixed> $s */
     public static function font_family($s, string $slot): string {
         $picked = $s['font_' . $slot];
+        if ($picked === self::INHERIT_FONT) return 'inherit';
         if ($picked === 'Custom' || !array_key_exists($picked, self::FONT_OPTIONS)) {
             $custom = trim((string) $s['font_' . $slot . '_custom']);
-            return $custom !== '' ? $custom : self::DEFAULTS['font_' . $slot];
+            if ($custom !== '') return $custom;
+            $fallback = self::DEFAULTS['font_' . $slot];
+            return $fallback === self::INHERIT_FONT ? 'inherit' : $fallback;
         }
         return $picked;
     }

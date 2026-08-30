@@ -281,11 +281,12 @@ class BHY_UI {
     /** @param array<string, mixed> $s */
     public static function font_field(string $key, string $label, $s): void {
         $picked = $s[$key];
-        $is_custom = !array_key_exists($picked, BHY_Style::FONT_OPTIONS);
+        $is_custom = $picked !== BHY_Style::INHERIT_FONT && !array_key_exists($picked, BHY_Style::FONT_OPTIONS);
         ?>
         <div class="bhy-font-field">
             <label for="<?php echo esc_attr($key); ?>"><?php echo esc_html($label); ?></label>
             <select id="<?php echo esc_attr($key); ?>" name="<?php echo esc_attr($key); ?>" data-custom-target="<?php echo esc_attr($key); ?>_custom">
+                <option value="<?php echo esc_attr(BHY_Style::INHERIT_FONT); ?>" <?php selected($picked, BHY_Style::INHERIT_FONT); ?>><?php echo esc_html(BHY_Style::INHERIT_FONT); ?> (match the site theme)</option>
                 <?php foreach (BHY_Style::FONT_OPTIONS as $name => $param): ?>
                     <?php
                     // Font selectors preview their real typeface: an

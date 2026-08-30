@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.12.5 — `.bh-container` is transparent by default instead of painting
+`var(--bh-bg)`, so the host theme's page background shows through and the
+player reads as part of the site rather than a dark slab dropped on it.
+Inner cards/header keep their own `--bh-surface` fills for control
+contrast; a site wanting the old contained-panel look can set
+`.bh-container { background: var(--bh-bg); }` itself.
+
 3.12.4 — Same full-bleed problem bh-courses 0.12.2 fixed, on the contest
 side: `.bh-container` (the player, the archive, the reveal stage) had no
 max-width, so on desktop a "Title · Artist · Vote" row stretched ~1400px
