@@ -221,6 +221,20 @@ class OUS_CoreTestSuite {
             $rows[] = OUS_TestRunner::assert_same(hash('sha256', 'bkey' . $guid . $bq['expires'], false), $bq['token'] ?? null, 'sign_bunny token = sha256(token_key + guid + expires)');
             $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_bunny('not-a-uuid'), 'sign_bunny rejects a non-UUID guid');
 
+            // js_config shape (the editor keys off this).
+            $jc = BHY_MediaToken::js_config();
+            $rows[] = OUS_TestRunner::assert_same(['bunny', 'bunnyApi', 'r2'], array_keys($jc), 'js_config() exposes bunny / bunnyApi / r2');
+            $rows[] = OUS_TestRunner::assert_false($jc['bunnyApi'], 'bunnyApi is false with no API key set');
+
+            // Upload signature — null without the API key, deterministic with it.
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::bunny_upload_signature($guid), 'bunny_upload_signature returns null without the Bunny API key');
+            update_option(BHY_MediaToken::OPTION, array_merge((array) get_option(BHY_MediaToken::OPTION, []), ['bunny_api_key' => 'apikey']));
+            $usig = BHY_MediaToken::bunny_upload_signature($guid, 900);
+            $rows[] = OUS_TestRunner::assert_same(hash('sha256', '4242' . 'apikey' . $usig['expires'] . $guid), $usig['signature'] ?? null, 'bunny_upload_signature = sha256(library_id + api_key + expiry + guid)');
+            $rows[] = OUS_TestRunner::assert_same('https://video.bunnycdn.com/tusupload', $usig['endpoint'] ?? null, 'bunny_upload_signature endpoint is Bunny\'s TUS URL');
+            $rows[] = OUS_TestRunner::assert_true(BHY_MediaToken::js_config()['bunnyApi'], 'bunnyApi flips true once the API key is set');
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::bunny_upload_signature('nope'), 'bunny_upload_signature rejects a non-UUID guid');
+
             if ($orig === false) { delete_option(BHY_MediaToken::OPTION); } else { update_option(BHY_MediaToken::OPTION, $orig); }
         }
 

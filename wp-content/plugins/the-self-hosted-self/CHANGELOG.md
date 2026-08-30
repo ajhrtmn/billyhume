@@ -9,6 +9,15 @@ has been reworded or dropped.
 
 ---
 
+3.17.0 — `BHY_MediaToken` gains the optional Bunny **API key**
+(alongside the playback token key). With it set:
+`bunny_api_configured()` is true, `js_config()` reports `bunnyApi`, and
+`bunny_upload_signature($guid)` mints a presigned TUS upload signature
+(`sha256(library_id + api_key + expiry + guid)`) so a browser can upload
+straight to Bunny without the key. Settings field added to Media & CDN
+Setup. 7 more Test Runner assertions. The key is never exposed client-
+side — bh-courses proxies list/create through REST.
+
 3.16.1 — Refreshed bundled/bh-courses.zip to 0.13.0 (signed private video sources).
 
 3.16.0 — Signed, private video delivery (`BHY_MediaToken`,

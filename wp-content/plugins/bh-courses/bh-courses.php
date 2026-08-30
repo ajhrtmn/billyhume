@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.13.0
+ * Version:     0.14.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.13.0');
+define('BHC_VER',  '0.14.0');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -34,7 +34,7 @@ define('BHC_URL',  plugin_dir_url(__FILE__));
  *   audio/video (plain HTML5 media, or an oEmbed URL), but never reads
  *   bh-streaming's own catalog tables directly.
  */
-foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
+foreach (['tables', 'post-types', 'activator', 'admin', 'steps', 'progress', 'achievements', 'leaderboard', 'progress-admin', 'instructor-notes', 'video-settings', 'nudges', 'drip-nudges', 'gate', 'render-catalog', 'render-course', 'render-lesson', 'render', 'style-surface', 'lesson-surface', 'crm-integration', 'debug', 'test-suite', 'content-bridge', 'portal-panel', 'comments', 'certificates', 'share-cards', 'blocks', 'bunny', 'reviews', 'privacy', 'sessions', 'sessions-admin', 'sessions-portal'] as $f) {
     require_once BHC_PATH . "includes/class-$f.php";
 }
 
@@ -58,6 +58,7 @@ add_action('plugins_loaded', function () {
     // BH_Blocks/bh-streaming's BHS_Blocks — hooked normally at 'init'
     // instead of called directly at plugins_loaded time.
     add_action('init',          ['BHC_Blocks', 'init']);
+    add_action('init',          ['BHC_Bunny', 'init']);
     add_action('init', ['BHC_Progress', 'init']);
     add_action('init', ['BHC_Achievements', 'init']);
     add_action('init', ['BHC_Privacy', 'init']);

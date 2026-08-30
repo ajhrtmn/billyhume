@@ -150,9 +150,23 @@ class BHC_ContentBridge {
         // Private (signed) video sources — Bunny Stream and Cloudflare
         // R2 + Worker (BHY_MediaToken). Same "the option only appears
         // once it's actually configured" rule as Tier B above.
-        wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaSigned', class_exists('BHY_MediaToken')
-            ? BHY_MediaToken::js_config()
-            : ['bunny' => false, 'r2' => false]);
+        $signed = class_exists('BHY_MediaToken') ? BHY_MediaToken::js_config() : ['bunny' => false, 'bunnyApi' => false, 'r2' => false];
+        wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaSigned', $signed);
+
+        // In-editor Bunny library browser / uploader / chapter preview
+        // (BHC_Bunny). player.js drives the preview iframe the same way
+        // the front end does; tus-js-client (vendored, UMD global) does
+        // the resumable direct-to-Bunny upload. Only loaded when Bunny is
+        // actually wired up — a lesson with no Bunny step pays nothing.
+        if (!empty($signed['bunny'])) {
+            wp_enqueue_script('bhc-bunny-playerjs', 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js', [], null, true);
+            wp_enqueue_script('bhc-tus', (defined('BHC_URL') ? BHC_URL : plugins_url('', dirname(__FILE__)) . '/') . 'assets/js/vendor/tus.min.js', [], '3.7.5', true);
+            wp_localize_script('bhc-courses-studio-blocks', 'bhcBunny', [
+                'restBase' => esc_url_raw(rest_url('bhc/v1/bunny')),
+                'nonce'    => wp_create_nonce('wp_rest'),
+                'hasApi'   => !empty($signed['bunnyApi']),
+            ]);
+        }
     }
 
     // Real bug, caught live: bhc/quiz-question's own edit view renders

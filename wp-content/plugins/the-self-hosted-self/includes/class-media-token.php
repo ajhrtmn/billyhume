@@ -37,21 +37,36 @@ class BHY_MediaToken {
 
     /* ---------------- settings ---------------- */
 
-    /** @return array{bunny_library_id:string,bunny_token_key:string,r2_worker_url:string,r2_signing_secret:string} */
+    /** @return array{bunny_library_id:string,bunny_token_key:string,bunny_api_key:string,r2_worker_url:string,r2_signing_secret:string} */
     public static function settings(): array {
         $s = get_option(self::OPTION, []);
         return [
             'bunny_library_id'  => (string) ($s['bunny_library_id'] ?? ''),
+            // Signs playback embed URLs (Library → API → Token Authentication Key).
             'bunny_token_key'   => (string) ($s['bunny_token_key'] ?? ''),
+            // Manages videos: list / create / presign resumable upload
+            // (Library → API → the "API Key" / AccessKey). Optional — set
+            // it to get the in-editor Bunny library picker + uploader.
+            'bunny_api_key'     => (string) ($s['bunny_api_key'] ?? ''),
             'r2_worker_url'     => (string) ($s['r2_worker_url'] ?? ''),
             'r2_signing_secret' => (string) ($s['r2_signing_secret'] ?? ''),
         ];
     }
 
+    /** Enough to sign a playback URL. */
     public static function bunny_configured(): bool {
         $s = self::settings();
         return $s['bunny_library_id'] !== '' && $s['bunny_token_key'] !== '';
     }
+
+    /** Enough to talk to Bunny's video-management API (list / create / upload). */
+    public static function bunny_api_configured(): bool {
+        $s = self::settings();
+        return $s['bunny_library_id'] !== '' && $s['bunny_api_key'] !== '';
+    }
+
+    public static function bunny_library_id(): string { return self::settings()['bunny_library_id']; }
+    public static function bunny_api_key(): string { return self::settings()['bunny_api_key']; }
 
     public static function r2_configured(): bool {
         $s = self::settings();
@@ -60,7 +75,36 @@ class BHY_MediaToken {
 
     /** For wp_localize_script — tells an editor which signed sources to offer. */
     public static function js_config(): array {
-        return ['bunny' => self::bunny_configured(), 'r2' => self::r2_configured()];
+        return [
+            'bunny'    => self::bunny_configured(),
+            'bunnyApi' => self::bunny_api_configured(),
+            'r2'       => self::r2_configured(),
+        ];
+    }
+
+    /**
+     * Presigned signature for a Bunny TUS resumable upload. The client
+     * (tus-js-client) sends this as the AuthorizationSignature /
+     * AuthorizationExpire metadata; Bunny accepts the direct upload
+     * without the API key ever reaching the browser.
+     *   signature = sha256( library_id + api_key + expiry + video_guid )
+     *
+     * @return array{signature:string,expires:int,library_id:string,video_guid:string,endpoint:string}|null
+     */
+    public static function bunny_upload_signature(string $video_guid, ?int $ttl = null): ?array {
+        if (!self::bunny_api_configured()) return null;
+        $video_guid = strtolower(trim($video_guid));
+        if (!preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/', $video_guid)) return null;
+
+        $s = self::settings();
+        $expires = time() + ($ttl ?? HOUR_IN_SECONDS);
+        return [
+            'signature'  => hash('sha256', $s['bunny_library_id'] . $s['bunny_api_key'] . $expires . $video_guid),
+            'expires'    => $expires,
+            'library_id' => $s['bunny_library_id'],
+            'video_guid' => $video_guid,
+            'endpoint'   => 'https://video.bunnycdn.com/tusupload',
+        ];
     }
 
     /* ---------------- signing ---------------- */
@@ -134,9 +178,10 @@ class BHY_MediaToken {
         echo '<input type="hidden" name="action" value="bhy_media_token_save">';
 
         echo '<h3>Bunny Stream</h3>';
-        echo '<p class="description">In your Bunny Stream library → <strong>API</strong>, turn on <em>Token Authentication</em> and copy the key. The Library ID is the number in the library\'s URL.</p>';
+        echo '<p class="description">Everything below is on the Stream library\'s <strong>API</strong> tab. The Library ID is the number in the library\'s URL. Turn on <em>Token Authentication</em> for the key that signs playback. The <em>API Key</em> is optional — add it to get an in-lesson-editor "pick from your Bunny library" browser and drag-and-drop upload (bh-courses 0.14+); leave it blank and authors just paste a video GUID.</p>';
         echo '<p><label>Library ID<br><input type="text" name="bunny_library_id" value="' . esc_attr($s['bunny_library_id']) . '" style="width:100%;max-width:320px;"></label></p>';
         echo '<p><label>Token Authentication Key<br><input type="password" name="bunny_token_key" value="" placeholder="' . ($s['bunny_token_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
+        echo '<p><label>API Key <span class="description">(optional — for the in-editor library picker &amp; uploader)</span><br><input type="password" name="bunny_api_key" value="" placeholder="' . ($s['bunny_api_key'] !== '' ? 'already set — leave blank to keep it' : '') . '" style="width:100%;max-width:480px;" autocomplete="off"></label></p>';
 
         echo '<h3 style="margin-top:24px;">Cloudflare R2 + Worker</h3>';
         echo '<p class="description">Deploy <code>the-self-hosted-self/tools/r2-video-worker.js</code> (see the notes at the top of that file), bind your private bucket, and set the Worker\'s <code>SIGNING_SECRET</code> to the same value you enter here.</p>';
@@ -158,6 +203,8 @@ class BHY_MediaToken {
             // blank password field = keep the stored secret
             'bunny_token_key'   => ($_POST['bunny_token_key'] ?? '') !== ''
                 ? sanitize_text_field(wp_unslash($_POST['bunny_token_key'])) : $existing['bunny_token_key'],
+            'bunny_api_key'     => ($_POST['bunny_api_key'] ?? '') !== ''
+                ? sanitize_text_field(wp_unslash($_POST['bunny_api_key'])) : $existing['bunny_api_key'],
             'r2_signing_secret' => ($_POST['r2_signing_secret'] ?? '') !== ''
                 ? sanitize_text_field(wp_unslash($_POST['r2_signing_secret'])) : $existing['r2_signing_secret'],
         ];

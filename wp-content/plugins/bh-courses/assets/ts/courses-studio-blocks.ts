@@ -62,6 +62,57 @@
         );
     }
 
+    // The video block's "Choose from Bunny library" browser. Talks to
+    // BHC_Bunny's REST routes (class-bunny.php) — the Bunny API key stays
+    // server-side. Renders in a wp.components.Modal; a click hands the
+    // GUID back to the block.
+    function BunnyLibraryModal(props: { cfg: any; onPick: (guid: string) => void; onClose: () => void }) {
+        var itemsState = wp.element.useState([] as any[]);
+        var items = itemsState[0], setItems = itemsState[1];
+        var loadingState = wp.element.useState(true);
+        var loading = loadingState[0], setLoading = loadingState[1];
+        var errState = wp.element.useState('');
+        var err = errState[0], setErr = errState[1];
+        var searchState = wp.element.useState('');
+        var search = searchState[0], setSearch = searchState[1];
+
+        wp.element.useEffect(function () {
+            var cancelled = false;
+            setLoading(true); setErr('');
+            var t = window.setTimeout(function () {
+                wp.apiFetch({ url: props.cfg.restBase + '/videos?page=1&search=' + encodeURIComponent(search), headers: { 'X-WP-Nonce': props.cfg.nonce } })
+                    .then(function (r: any) { if (!cancelled) { setItems((r && r.items) || []); setLoading(false); } })
+                    .catch(function (e: any) { if (!cancelled) { setErr(String((e && e.message) || __('Could not reach Bunny.'))); setLoading(false); } });
+            }, 250); // debounce the search box
+            return function () { cancelled = true; window.clearTimeout(t); };
+        }, [search]);
+
+        return el(wp.components.Modal, { title: __('Your Bunny Stream library'), onRequestClose: props.onClose, className: 'bhc-bunny-modal' },
+            el(wp.components.SearchControl, { value: search, onChange: setSearch, __nextHasNoMarginBottom: true }),
+            err ? el(wp.components.Notice, { status: 'error', isDismissible: false }, err) : null,
+            loading ? el('p', { className: 'description', style: { padding: '24px 0' } }, __('Loading…')) : null,
+            (!loading && !err && !items.length) ? el('p', { className: 'description', style: { padding: '24px 0' } }, __('No videos in this library yet.')) : null,
+            el('div', { className: 'bhc-bunny-grid', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px', maxHeight: '52vh', overflow: 'auto', marginTop: '12px' } },
+                items.map(function (v: any) {
+                    var ready = v.status === 4 || v.status === 3;
+                    return el('button', {
+                        key: v.guid, type: 'button', className: 'bhc-bunny-grid-item',
+                        onClick: function () { props.onPick(v.guid); },
+                        style: { textAlign: 'left', border: '1px solid #ddd', borderRadius: '6px', padding: '0', overflow: 'hidden', background: '#fff', cursor: 'pointer' },
+                    },
+                        v.thumbnail
+                            ? el('img', { src: v.thumbnail, alt: '', style: { width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', background: '#000' } })
+                            : el('div', { style: { width: '100%', aspectRatio: '16 / 9', background: '#111' } }),
+                        el('div', { style: { padding: '6px 8px' } },
+                            el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, v.title || v.guid),
+                            el('div', { className: 'description', style: { fontSize: '11px' } },
+                                ready ? (Math.floor((v.length || 0) / 60) + ':' + ('0' + Math.floor((v.length || 0) % 60)).slice(-2)) : __('processing…')))
+                    );
+                })
+            )
+        );
+    }
+
     // Replaces InnerBlocks.ButtonBlockAppender (an icon-only "+" square)
     // for bhc/quiz. That default appender rendered right next to
     // bhc/quiz-question's own "Add choice" button (a completely
@@ -420,6 +471,88 @@
                 return function () { cancelled = true; };
             }, [attrs.source, attrs.attachment_id]);
 
+            // ---- Bunny Stream: in-editor library, upload, and preview ----
+            var bunnyCfg = (window as any).bhcBunny || null;
+            var bunnyEmbedState = wp.element.useState('');
+            var bunnyEmbedUrl = bunnyEmbedState[0], setBunnyEmbedUrl = bunnyEmbedState[1];
+            var bunnyModalState = wp.element.useState(false);
+            var bunnyModalOpen = bunnyModalState[0], setBunnyModalOpen = bunnyModalState[1];
+            var bunnyUploadState = wp.element.useState(null as null | { pct: number; label: string; error?: string });
+            var bunnyUpload = bunnyUploadState[0], setBunnyUpload = bunnyUploadState[1];
+            var bunnyPlayerRef = wp.element.useRef(null);
+            var bunnyFileRef = wp.element.useRef(null);
+
+            // Resolve a signed, scrubbing preview URL whenever the chosen GUID changes.
+            wp.element.useEffect(function () {
+                if (attrs.source !== 'bunny_stream' || !attrs.bunny_guid || !bunnyCfg) { setBunnyEmbedUrl(''); return; }
+                var cancelled = false;
+                wp.apiFetch({ url: bunnyCfg.restBase + '/embed?guid=' + encodeURIComponent(attrs.bunny_guid), headers: { 'X-WP-Nonce': bunnyCfg.nonce } })
+                    .then(function (r: any) { if (!cancelled) setBunnyEmbedUrl((r && r.url) || ''); })
+                    .catch(function () { if (!cancelled) setBunnyEmbedUrl(''); });
+                return function () { cancelled = true; };
+            }, [attrs.source, attrs.bunny_guid]);
+
+            // Drive previewTime from the Bunny preview iframe via player.js,
+            // so "+ Add chapter at 0:42" works the same as for an upload.
+            wp.element.useEffect(function () {
+                var pjsCtor = (window as any).playerjs;
+                var frame = bunnyPlayerRef.current as HTMLIFrameElement | null;
+                if (!bunnyEmbedUrl || !pjsCtor || !frame) return;
+                var p: any = new pjsCtor.Player(frame);
+                p.on('timeupdate', function (v: any) {
+                    if (v && typeof v.seconds === 'number') setPreviewTime(v.seconds);
+                    if (v && typeof v.duration === 'number' && v.duration > 0) setPreviewDuration(v.duration);
+                });
+                p.on('ready', function () { p.getDuration(function (d: number) { if (d > 0) setPreviewDuration(d); }); });
+                return function () { try { p.off && p.off('timeupdate'); } catch (e) { /* player.js has no off in 0.1 — GC handles it */ } };
+            }, [bunnyEmbedUrl]);
+
+            function bunnyPick(guid: string) {
+                setAttrs({ bunny_guid: (guid || '').trim().toLowerCase() });
+                setBunnyModalOpen(false);
+            }
+
+            function bunnyStartUpload(file: File) {
+                var tus = (window as any).tus;
+                if (!bunnyCfg || !bunnyCfg.hasApi || !tus) { setBunnyUpload({ pct: 0, label: '', error: __('Uploading needs the Bunny API key set in Media & CDN Setup.') }); return; }
+                setBunnyUpload({ pct: 0, label: __('Creating video…') });
+                var headers = { 'X-WP-Nonce': bunnyCfg.nonce, 'Content-Type': 'application/json' };
+                wp.apiFetch({ url: bunnyCfg.restBase + '/video', method: 'POST', headers: headers, body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, '') }) })
+                    .then(function (r: any) {
+                        var guid = r && r.guid;
+                        if (!guid) throw new Error('no guid');
+                        return wp.apiFetch({ url: bunnyCfg.restBase + '/upload-signature', method: 'POST', headers: headers, body: JSON.stringify({ guid: guid }) })
+                            .then(function (sig: any) {
+                                setBunnyUpload({ pct: 0, label: __('Uploading…') });
+                                var up = new tus.Upload(file, {
+                                    endpoint: sig.endpoint,
+                                    retryDelays: [0, 2000, 6000, 12000],
+                                    headers: {
+                                        AuthorizationSignature: sig.signature,
+                                        AuthorizationExpire: String(sig.expires),
+                                        LibraryId: String(sig.library_id),
+                                        VideoId: sig.video_guid,
+                                    },
+                                    metadata: { filetype: file.type || 'video/mp4', title: file.name },
+                                    onError: function (err: any) { setBunnyUpload({ pct: 0, label: '', error: String((err && err.message) || err) }); },
+                                    onProgress: function (sent: number, total: number) { setBunnyUpload({ pct: total ? Math.round((sent / total) * 100) : 0, label: __('Uploading…') }); },
+                                    onSuccess: function () {
+                                        setBunnyUpload({ pct: 100, label: __('Bunny is processing the video — it becomes playable in a minute or two.') });
+                                        setAttrs({ bunny_guid: String(guid).toLowerCase() });
+                                        window.setTimeout(function () { setBunnyUpload(null); }, 6000);
+                                    },
+                                });
+                                up.start();
+                            });
+                    })
+                    .catch(function (e: any) { setBunnyUpload({ pct: 0, label: '', error: String((e && e.message) || __('Upload failed.')) }); });
+            }
+
+            // True whenever there's a scrubable preview whose playhead the
+            // "at 0:42" affordances can read — an uploaded file, or a
+            // Bunny video with its signed preview resolved.
+            var hasScrubPreview = !!previewUrl || (attrs.source === 'bunny_stream' && !!bunnyEmbedUrl);
+
             var chapters = attrs.chapters || [];
             function updateChapter(i: number, patch: any) {
                 var next = chapters.slice();
@@ -474,13 +607,11 @@
                         // time to wherever the preview is playing right
                         // now. The tooltip (via `label`) still spells out
                         // the full behavior for anyone who pauses on it.
-                        previewUrl ? el(wp.components.Button, {
+                        hasScrubPreview ? el(wp.components.Button, {
                             variant: 'tertiary', size: 'small', icon: 'controls-forward',
                             label: __('Set this chapter\'s time to the preview\'s current position'), showTooltip: true,
                             className: 'bhc-studio-grab-time',
-                            onClick: function () {
-                                if (previewRef.current) updateChapter(i, { time: Math.floor(previewRef.current.currentTime) });
-                            },
+                            onClick: function () { updateChapter(i, { time: Math.floor(previewTime) }); },
                         }, __('Now')) : null,
                         el('span', { style: { flex: 1 } }),
                         el(wp.components.Button, {
@@ -554,7 +685,7 @@
                             onChange: function (v: any) { updateAnnotation(i, { time: Math.max(0, parseInt(v, 10) || 0) }); },
                         }),
                         el('span', { className: 'bhc-studio-time-unit' }, __('sec')),
-                        previewUrl ? el(wp.components.Button, {
+                        hasScrubPreview ? el(wp.components.Button, {
                             variant: 'tertiary', size: 'small', icon: 'controls-forward',
                             label: __('Set this overlay\'s time to the preview\'s current position'), showTooltip: true,
                             onClick: function () { updateAnnotation(i, { time: Math.floor(previewTime) }); },
@@ -635,7 +766,7 @@
                         var taken = chapters.some(function (c: any) { return (c.time || 0) === at; });
                         setAttrs({ chapters: chapters.concat([{ time: taken ? at + 1 : at, title: '' }]) });
                     },
-                }, previewUrl ? __('+ Add chapter at ') + fmtTime(previewTime) : __('+ Add chapter'))
+                }, hasScrubPreview ? __("+ Add chapter at ") + fmtTime(previewTime) : __("+ Add chapter"))
             );
 
             var overlaysSection = el('details', { key: 'overlays', className: 'bhc-studio-subsection', open: annotations.length > 0 },
@@ -645,7 +776,7 @@
                 el(wp.components.Button, {
                     variant: 'secondary',
                     onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
-                }, previewUrl ? __('+ Add overlay at ') + fmtTime(previewTime) : __('+ Add overlay'))
+                }, hasScrubPreview ? __("+ Add overlay at ") + fmtTime(previewTime) : __("+ Add overlay"))
             );
 
             var videoAttachment = attrs.source === 'upload' ? useAttachment(attrs.attachment_id) : null;
@@ -674,12 +805,40 @@
                     onChange: function (v: any) { setAttrs({ stream_uid: v.trim().toLowerCase() }); },
                 });
             } else if (attrs.source === 'bunny_stream') {
-                picker = el(wp.components.TextControl, {
-                    key: 'src', label: __('Bunny Stream video GUID'),
-                    help: __('Upload to your Bunny Stream library first, then paste the video\'s GUID (a UUID, e.g. 1a2b3c4d-…). Chapters, overlays and the watch threshold all still work. Playback links are signed per viewer and expire.'),
-                    value: attrs.bunny_guid,
-                    onChange: function (v: any) { setAttrs({ bunny_guid: v.trim().toLowerCase() }); },
+                var bunnyFileInput = el('input', {
+                    key: 'file', type: 'file', accept: 'video/*', style: { display: 'none' }, ref: bunnyFileRef,
+                    onChange: function (e: any) { var f = e.target.files && e.target.files[0]; if (f) bunnyStartUpload(f); e.target.value = ''; },
                 });
+                picker = el('div', { key: 'src', className: 'bhc-studio-bunny-picker' },
+                    el(wp.components.TextControl, {
+                        label: __('Bunny Stream video GUID'),
+                        help: (bunnyCfg && bunnyCfg.hasApi)
+                            ? __('Pick from your library or upload below — or paste a GUID. Chapters, overlays and the watch threshold all work; playback links are signed per viewer and expire.')
+                            : __('Paste the video\'s GUID (a UUID) from your Bunny Stream library. Add the Bunny API key in Media & CDN Setup to browse and upload right here instead.'),
+                        value: attrs.bunny_guid,
+                        onChange: function (v: any) { setAttrs({ bunny_guid: v.trim().toLowerCase() }); },
+                    }),
+                    (bunnyCfg && bunnyCfg.hasApi) ? el('div', { className: 'bhc-studio-bunny-actions', style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' } },
+                        el(wp.components.Button, { variant: 'secondary', onClick: function () { setBunnyModalOpen(true); } }, __('Choose from Bunny library')),
+                        el(wp.components.Button, { variant: 'secondary', onClick: function () { var n = bunnyFileRef.current as HTMLInputElement | null; if (n) n.click(); } }, __('Upload new video')),
+                        bunnyFileInput
+                    ) : null,
+                    bunnyUpload ? el('div', { className: 'bhc-studio-bunny-upload' },
+                        bunnyUpload.error
+                            ? el(wp.components.Notice, { status: 'error', isDismissible: false }, bunnyUpload.error)
+                            : el('div', {},
+                                el('progress', { value: bunnyUpload.pct, max: 100, style: { width: '100%' } }),
+                                el('p', { className: 'description' }, bunnyUpload.label || (bunnyUpload.pct + '%')))
+                    ) : null,
+                    bunnyModalOpen ? el(BunnyLibraryModal, { cfg: bunnyCfg, onPick: bunnyPick, onClose: function () { setBunnyModalOpen(false); } }) : null,
+                    // Signed preview — the same iframe the front end shows,
+                    // driven by player.js so "+ Add chapter at 0:42" picks
+                    // up the real playhead instead of asking for a typed
+                    // number.
+                    (attrs.bunny_guid && bunnyEmbedUrl) ? el('div', { key: 'prev', className: 'bhc-studio-preview bhc-studio-preview-bunny', style: { aspectRatio: '16 / 9', marginTop: '8px' } },
+                        el('iframe', { ref: bunnyPlayerRef, src: bunnyEmbedUrl, style: { width: '100%', height: '100%', border: '0' }, allow: 'autoplay; encrypted-media; picture-in-picture', allowFullScreen: true })
+                    ) : null
+                );
             } else if (attrs.source === 'signed_r2') {
                 picker = el(wp.components.TextControl, {
                     key: 'src', label: __('R2 object key'),

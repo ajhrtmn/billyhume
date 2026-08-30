@@ -6,6 +6,24 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.14.0 — In-lesson-editor Bunny Stream workflow, so an author never
+leaves the editor (needs the Bunny API key in Media & CDN Setup;
+without it the step still takes a pasted GUID):
+
+- **Choose from Bunny library** — a modal browser (`BHC_Bunny` REST
+  routes proxy Bunny's video API; the API key stays server-side),
+  searchable, thumbnails, click to select.
+- **Upload new video** — picks a file, creates the Bunny video, then
+  `tus-js-client` (vendored, UMD) resumably uploads *straight to Bunny*
+  with a presigned signature; progress bar; GUID auto-fills on success.
+- **Signed preview** — the same signed iframe the front end shows,
+  driven by player.js, so "+ Add chapter / overlay at 0:42" reads the
+  real playhead instead of asking for a typed number.
+
+New `class-bunny.php` (`bhc/v1/bunny/{videos,video,upload-signature,embed}`,
+all `edit_posts` + Bunny-configured gated). tus-js-client 3.7.5 vendored
+into `assets/js/vendor/`. NOT runtime-verified against a live library.
+
 0.13.0 — Two new private video-step sources, both via `BHY_MediaToken`
 (the-self-hosted-self 3.16.0):
 
