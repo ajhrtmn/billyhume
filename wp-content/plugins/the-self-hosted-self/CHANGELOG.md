@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.21.10 — Refresh bundled bh-courses.zip (0.16.16, Bunny chapter
+sync robustness + manual trigger). No core code change.
+
 3.21.9 — Regenerate bundled bh-courses.zip (now 0.16.15): the panel
 flagged it stale at 0.16.9 while 0.16.13 was installed — the previous
 3.21.8 bump never actually re-zipped. No core code change.

@@ -6,6 +6,26 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.16 — Bunny chapter sync robustness + a manual trigger.
+- Dedupe hash is now schema-versioned (CHAPTER_SYNC_SCHEMA), so the
+  first save after a plugin update always re-pushes once even if the
+  chapter set is byte-identical to what a previous (possibly broken)
+  version recorded as "synced" — this is the likely reason a prior
+  attempt looked like a no-op.
+- The hash is NOT stored while the video's length is still 0 (Bunny
+  still encoding), because the last chapter's `end` is a guess until
+  then; the next lesson save corrects it.
+- Success now logs an `info` line to Console & Logs ("Bunny chapters
+  synced", with count + video_length); failures log the payload too.
+- New editor button in the Chapters panel of a Bunny video step —
+  "Sync chapters to Bunny now" (POST bhc/v1/bunny/sync-chapters) —
+  pushes the block's live chapter list straight to Bunny and reports
+  the count, so an author can confirm the native scrub bar picked them
+  up without a full lesson save. Bypasses the dedupe cache. Needs the
+  Bunny API key. Verified against Bunny's OpenAPI: ChapterModel is
+  {title (req, minLen 1), start, end} seconds; no `/chapters` route
+  exists, Update Video is the path. NOT runtime-verified on live.
+
 0.16.15 — Fix: Plyr + Bunny's player.js only loaded on the standalone
 lesson page, so a video shown INSIDE the course view (is_singular
 bh_course, or a page embedding [bh_course]/bhc/course) fell back to

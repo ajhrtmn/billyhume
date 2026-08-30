@@ -43,12 +43,26 @@ class BHC_Bunny {
         }
     }
 
+    /** Bump when the request shape below changes, so the first save on a
+     *  new plugin version always re-pushes once even if the chapter set
+     *  itself is byte-identical to what a previous (possibly broken)
+     *  version already "synced". */
+    const CHAPTER_SYNC_SCHEMA = 2;
+
     /**
-     * Replace a Bunny video's chapter list with ours. Deduped by a
-     * stored hash so an unchanged set costs no API call. Bunny wants
-     * {title, start, end} per chapter (end > start); ours is
-     * [{time, title}] so end = the next chapter's start, and the last
-     * runs to the video's own length.
+     * Replace a Bunny video's chapter list with ours via the Update
+     * Video endpoint (POST /library/{id}/videos/{guid}, `chapters`
+     * array — verified against Bunny's OpenAPI: there is no `/chapters`
+     * sub-route, and ChapterModel is {title (required, minLen 1), start,
+     * end} in whole seconds). Ours is [{time, title}]: end = the next
+     * chapter's start, last runs to the video's own length.
+     *
+     * Deduped by a stored hash so an unchanged set costs no API call —
+     * EXCEPT the hash isn't stored while the video's length is still
+     * unknown (0), because the last chapter's `end` is a guess until
+     * Bunny finishes encoding; leaving the hash unstored lets the next
+     * lesson save correct it.
+     *
      * @param array<int, array{time:int, title:string}> $chapters
      * @return true|\WP_Error|null null = Bunny API not configured
      */
@@ -57,8 +71,8 @@ class BHC_Bunny {
         $guid = trim($guid);
         if (!preg_match('/^[a-f0-9-]{20,64}$/i', $guid)) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny GUID.');
 
-        $opt = 'bhc_bunny_chapters_' . md5($guid);
-        $hash = md5(wp_json_encode($chapters));
+        $opt  = 'bhc_bunny_chapters_' . md5($guid);
+        $hash = md5(self::CHAPTER_SYNC_SCHEMA . '|' . wp_json_encode($chapters));
         if (get_option($opt) === $hash) return true;
 
         $len = 0;
@@ -78,17 +92,18 @@ class BHC_Bunny {
             $payload[] = ['title' => $title, 'start' => $start, 'end' => $end];
         }
 
-        // Chapters are written through the Update Video endpoint
-        // (POST /library/{id}/videos/{guid} with a `chapters` array) —
-        // the documented path. There is no stable `/chapters` sub-route.
         $res = self::api('POST', '/library/' . self::lib() . '/videos/' . rawurlencode($guid), ['chapters' => $payload]);
         if (is_wp_error($res)) {
             if (class_exists('OUS_DebugLog')) {
-                OUS_DebugLog::log('warning', 'Bunny chapter sync failed.', ['guid' => $guid, 'error' => $res->get_error_message()], 'BHC_Bunny');
+                OUS_DebugLog::log('warning', 'Bunny chapter sync failed.', ['guid' => $guid, 'error' => $res->get_error_message(), 'payload' => $payload], 'BHC_Bunny');
             }
             return $res;
         }
-        update_option($opt, $hash, false);
+        if (class_exists('OUS_DebugLog')) {
+            OUS_DebugLog::log('info', 'Bunny chapters synced.', ['guid' => $guid, 'count' => count($payload), 'video_length' => $len], 'BHC_Bunny');
+        }
+        // Only remember this as "done" once the end times are real.
+        if ($len > 0 || $n <= 1) update_option($opt, $hash, false);
         return true;
     }
 
@@ -109,6 +124,15 @@ class BHC_Bunny {
             'callback'            => [self::class, 'create_video'],
             'permission_callback' => $can,
             'args'                => ['title' => ['type' => 'string', 'required' => true, 'sanitize_callback' => 'sanitize_text_field']],
+        ]);
+        register_rest_route(self::NS, '/bunny/sync-chapters', [
+            'methods'             => 'POST',
+            'callback'            => [self::class, 'rest_sync_chapters'],
+            'permission_callback' => $can,
+            'args'                => [
+                'guid'     => ['type' => 'string', 'required' => true, 'sanitize_callback' => 'sanitize_text_field'],
+                'chapters' => ['required' => true],
+            ],
         ]);
         register_rest_route(self::NS, '/bunny/upload-signature', [
             'methods'             => 'POST',
@@ -165,6 +189,32 @@ class BHC_Bunny {
         $sig = BHY_MediaToken::bunny_upload_signature((string) $req['guid']);
         if (!$sig) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny video GUID, or Bunny API is not configured.', ['status' => 400]);
         return new WP_REST_Response($sig, 200);
+    }
+
+    /**
+     * Force a chapter push for one video, straight from the editor —
+     * so an author can confirm Bunny's own scrub bar picked them up
+     * without waiting on a full lesson save. Accepts the block's live
+     * chapter list ([{time,title}]) so it works before the lesson is
+     * even saved. Bypasses the dedupe hash on purpose.
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public static function rest_sync_chapters(\WP_REST_Request $req) {
+        $guid = (string) $req['guid'];
+        $raw  = $req['chapters'];
+        if (is_string($raw)) $raw = json_decode($raw, true);
+        $chapters = [];
+        foreach ((array) $raw as $c) {
+            if (!is_array($c)) continue;
+            $chapters[] = ['time' => max(0, (int) ($c['time'] ?? 0)), 'title' => (string) ($c['title'] ?? '')];
+        }
+        usort($chapters, static fn($a, $b) => $a['time'] <=> $b['time']);
+
+        delete_option('bhc_bunny_chapters_' . md5(trim($guid))); // force, don't trust the dedupe cache
+        $res = self::sync_chapters($guid, $chapters);
+        if (is_wp_error($res)) return $res;
+        if ($res === null) return new WP_Error('bhc_bunny_no_api', 'Set the Bunny API key in Media &amp; CDN Setup first.', ['status' => 400]);
+        return new WP_REST_Response(['synced' => count($chapters)], 200);
     }
 
     /** @return \WP_REST_Response|\WP_Error */

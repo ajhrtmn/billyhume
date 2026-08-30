@@ -453,6 +453,8 @@
             var bunnyUpload = bunnyUploadState[0], setBunnyUpload = bunnyUploadState[1];
             var bunnyPlayerRef = wp.element.useRef(null);
             var bunnyFileRef = wp.element.useRef(null);
+            var bunnySyncState = wp.element.useState(null);
+            var bunnySync = bunnySyncState[0], setBunnySync = bunnySyncState[1];
             // Resolve a signed, scrubbing preview URL whenever the chosen GUID changes.
             wp.element.useEffect(function () {
                 if (attrs.source !== 'bunny_stream' || !attrs.bunny_guid || !bunnyCfg) {
@@ -698,6 +700,29 @@
             }));
             var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 }, el('summary', {}, __('Chapters'), chapters.length ? el('span', { className: 'bhc-studio-subsection-count' }, chapters.length) : null), el('p', { className: 'description' }, __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')), attrs.source === 'bunny_stream'
                 ? el('p', { className: 'description' }, __('↪ These also sync to Bunny\'s own player (its scrub bar) each time you save the lesson.'))
+                : null, (attrs.source === 'bunny_stream' && bunnyCfg && bunnyCfg.hasApi && attrs.bunny_guid)
+                ? el('div', { className: 'bhc-studio-bunny-sync', style: { display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0 8px' } }, el(wp.components.Button, {
+                    variant: 'secondary',
+                    isBusy: !!(bunnySync && bunnySync.busy),
+                    disabled: !!(bunnySync && bunnySync.busy) || !chapters.length,
+                    onClick: function () {
+                        setBunnySync({ busy: true });
+                        wp.apiFetch({
+                            url: bunnyCfg.restBase + '/sync-chapters',
+                            method: 'POST',
+                            headers: { 'X-WP-Nonce': bunnyCfg.nonce, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ guid: attrs.bunny_guid, chapters: chapters }),
+                        }).then(function (r) {
+                            setBunnySync({ ok: (r && r.synced) || 0 });
+                        }).catch(function (e) {
+                            setBunnySync({ error: (e && e.message) || __('Sync failed.') });
+                        });
+                    },
+                }, __('Sync chapters to Bunny now')), bunnySync && typeof bunnySync.ok === 'number'
+                    ? el('span', { className: 'description', style: { color: '#1a7f37' } }, __('Pushed ') + bunnySync.ok + __(' to Bunny.'))
+                    : null, bunnySync && bunnySync.error
+                    ? el('span', { className: 'description', style: { color: '#cc1818' } }, bunnySync.error)
+                    : null)
                 : null, chapters.length
                 ? chapterRows
                 : el('div', { className: 'bhc-studio-empty' }, previewUrl
