@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.10 — The lesson stepper's per-type hue hint pulled straight
+from the raw --bh-cat-* category rainbow, so on a warm palette the
+video step's play icon came out bright green ("Colors"). Each type
+hue is now color-mix(28% cat, 72% --bh-accent) — the hint survives
+but stays in the theme's family on any palette; the icon SHAPE is
+the real type differentiator anyway.
+
 0.16.9 — The video step's "Source" select moves out of the block
 settings sidebar (where authors kept missing it) and inline to the
 top of the step card, labelled "Video source", with a divider above

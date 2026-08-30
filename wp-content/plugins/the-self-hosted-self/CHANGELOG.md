@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.21.5 — Refresh bundled bh-courses.zip (0.16.10, stepper hue harmonised).
+
 3.21.4 — Refresh bundled bh-courses.zip (0.16.9, inline video Source picker).
 
 3.21.3 — Refresh bundled bh-courses.zip (0.16.8, Bunny step editor crash fix).

@@ -1201,14 +1201,19 @@ a.bhc-pagination-number:hover {
    one. Text deliberately keeps the neutral --bh-text-dim default (it's
    the most common type by far; coloring it too would make the whole
    stepper read as noise rather than making the special types pop). */
-.bhc-stepper-image { --bhc-step-hue: var(--bh-cat-3, var(--bh-accent)); }
-.bhc-stepper-video { --bhc-step-hue: var(--bh-cat-7, var(--bh-accent)); }
-.bhc-stepper-quiz { --bhc-step-hue: var(--bh-cat-2, var(--bh-accent)); }
-.bhc-stepper-resource { --bhc-step-hue: var(--bh-cat-5, var(--bh-accent)); }
-.bhc-stepper-callout { --bhc-step-hue: var(--bh-cat-4, var(--bh-accent)); }
-.bhc-stepper-checklist { --bhc-step-hue: var(--bh-cat-6, var(--bh-accent)); }
-.bhc-stepper-chord-chart { --bhc-step-hue: var(--bh-cat-8, var(--bh-accent)); }
-.bhc-stepper-audio-compare { --bhc-step-hue: var(--bh-cat-1, var(--bh-accent)); }
+/* Live-reported ("Colors"): the raw --bh-cat-* rainbow (green, blue,
+   etc.) clashed hard against a warm palette — a bright-green play icon
+   on the video step. Keep the per-type hue HINT AJ asked for, but pull
+   each one most of the way toward --bh-accent so it only nudges the
+   hue and everything stays in the theme's family, on any palette. */
+.bhc-stepper-image { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-3, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-video { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-7, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-quiz { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-2, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-resource { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-5, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-callout { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-4, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-checklist { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-6, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-chord-chart { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-8, var(--bh-accent)) 28%, var(--bh-accent)); }
+.bhc-stepper-audio-compare { --bhc-step-hue: color-mix(in srgb, var(--bh-cat-1, var(--bh-accent)) 28%, var(--bh-accent)); }
 
 .bhc-stepper-dot[disabled] {
     cursor: default;
