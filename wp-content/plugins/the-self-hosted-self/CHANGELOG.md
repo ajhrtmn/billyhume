@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.21.3 — Refresh bundled bh-courses.zip (0.16.8, Bunny step editor crash fix).
+
 3.21.2 — Standalone surfaces set --bh-header-clearance to 24px (was
 0) so the portal sidebar and every ecosystem page keep a small gap
 below the eco-nav's border instead of sitting flush against it.

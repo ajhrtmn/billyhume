@@ -717,7 +717,14 @@
                 variant: 'secondary',
                 onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
             }, hasScrubPreview ? __("+ Add overlay at ") + fmtTime(previewTime) : __("+ Add overlay")));
-            var videoAttachment = attrs.source === 'upload' ? useAttachment(attrs.attachment_id) : null;
+            // useAttachment() is a hook (useState + useEffect inside) —
+            // it MUST be called unconditionally every render. Calling it
+            // only for source==='upload' changed the hook count when the
+            // author switched Source to Bunny/URL, tripping React error
+            // #300 ("rendered fewer hooks than expected") and blanking
+            // the block with "encountered an error". Pass 0 when it's
+            // not an upload; the hook no-ops on a falsy id.
+            var videoAttachment = useAttachment(attrs.source === 'upload' ? attrs.attachment_id : 0);
             var sourceLabel = attrs.source === 'url' ? __('URL')
                 : attrs.source === 'cloudflare_stream' ? __('Cloudflare Stream')
                     : attrs.source === 'bunny_stream' ? __('Bunny Stream')

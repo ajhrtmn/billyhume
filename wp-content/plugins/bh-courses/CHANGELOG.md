@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.8 — Fix the Bunny Stream video step crashing the editor.
+useAttachment() (a hook) was called only for source==='upload', so
+switching a video step's Source to Bunny Stream (or URL) changed
+the render's hook count and tripped React error #300 — the block
+went to "This block has encountered an error and cannot be
+previewed." Called unconditionally now (id 0 = no-op). With this,
+the full in-editor Bunny GUI works: Source picker, GUID field,
+"Choose from Bunny library" modal, "Upload new video" (tus direct
+to Bunny), and the signed chapter-scrub preview.
+
 0.16.7 — Course surfaces (catalog page, any single course/lesson)
 opt into the ecosystem's standalone chrome (bh_standalone_surface).
 
