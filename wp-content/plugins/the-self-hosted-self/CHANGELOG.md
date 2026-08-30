@@ -9,6 +9,21 @@ has been reworded or dropped.
 
 ---
 
+3.15.9 — `bundled/*.zip` (the peer-plugin copies the core dashboard
+installs from) had drifted badly — bh-courses 0.4.80 vs live 0.12.1,
+bh-contest 3.7.28 vs 3.12.3, bh-feedback 0.1.5 vs 0.2.0, and so on for
+all 13 — so a one-click install from the dashboard was shipping
+months-old code. Rebuilt every one from live source (matching how
+deploy-ftp.yml ships a plugin folder).
+
+`OUS_Registry::regenerate_bundled_zip()` also now skips `node_modules/`
+and `vendor/` (and keeps skipping `.git/` / `.DS_Store`). It excluded
+only OS/VCS clutter before, so running it against a working checkout
+that still had a Composer-installed test `vendor/` on disk produced a
+1.6 MB bh-monetization-woo bundle full of test-harness dependencies. A
+clean FTP-deployed site has none of those dirs, so this changes nothing
+there — it just stops a dev-machine regenerate from bloating the bundle.
+
 3.15.8 — Front-end responsive/overlap fixes found doing a full-width
 sweep of the ecosystem pages against real content on a staging copy.
 

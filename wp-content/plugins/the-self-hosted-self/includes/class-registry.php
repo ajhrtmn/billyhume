@@ -551,9 +551,19 @@ class OUS_Registry {
         );
         foreach ($iterator as $item) {
             $relative = $slug . '/' . substr($item->getPathname(), strlen($source_dir) + 1);
-            // Same exclusions the manual rebuild used this same pass —
-            // OS/VCS clutter, never anything the plugin actually ships.
-            if (basename($item) === '.DS_Store' || strpos($relative, '/.git/') !== false) continue;
+            // OS/VCS clutter, plus dev-only trees that .gitignore keeps
+            // out of the repo and deploy-ftp.yml never ships. On a clean
+            // FTP-deployed live site none of these exist, so this is a
+            // no-op there — it matters only when this runs against a
+            // working checkout that still has node_modules/ or a
+            // Composer-installed vendor/ on disk (a real 1.6 MB
+            // bh-monetization-woo bundle got produced exactly that way).
+            // No peer plugin commits a runtime vendor/ — only the core
+            // itself does (Timber), and the core is never bundled here.
+            if (basename($item) === '.DS_Store') continue;
+            foreach (['/.git/', '/node_modules/', '/vendor/'] as $d) {
+                if (strpos($relative, $d) !== false) continue 2;
+            }
             if ($item->isDir()) {
                 $zip->addEmptyDir($relative);
             } else {
