@@ -649,7 +649,7 @@ class BHC_Render_Lesson {
         // not a plainer server-rendered version of it.
         echo '<div class="bhc-quiz-result bhc-pass">';
         echo '<div class="bhc-quiz-pass-icon">&#10003;</div>';
-        echo '<p class="bhc-quiz-pass-score">Quiz passed &mdash; ' . $score . '%.</p>';
+        echo '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' . $score . '%</span><span class="bhc-datum-label">quiz passed</span></div>';
         echo '<p class="bhc-quiz-pass-sub">Nice work.</p>';
         echo '</div>';
         echo '</div>';

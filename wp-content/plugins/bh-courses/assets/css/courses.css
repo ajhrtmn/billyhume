@@ -1849,6 +1849,38 @@ video.bhc-step-video {
     margin: 0;
 }
 
+/* ---- .bhc-datum ----
+   The ecosystem's front-end "one number this thing is about" figure —
+   a display-font, tabular, accent-tinted value paired with a quiet
+   caption, never just big text. Mirrors the portal's .bhi-datum. */
+.bhc-datum {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+.bhc-datum-value {
+    font-family: var(--bh-font-display, inherit);
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    font-size: 30px;
+    color: color-mix(in srgb, var(--bh-accent) 72%, var(--bh-text));
+}
+.bhc-datum-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--bh-text-dim);
+}
+/* Inline variant (value + label on one baseline) for tighter spots. */
+.bhc-datum--inline { flex-direction: row; align-items: baseline; gap: 6px; }
+.bhc-datum--inline .bhc-datum-value { font-size: 16px; }
+.bhc-datum--inline .bhc-datum-label { text-transform: none; letter-spacing: 0; }
+
+.bhc-quiz-pass-figure { margin: 2px 0 4px; }
+
 /* ---- quiz per-question review/breakdown ---- */
 .bhc-quiz-review { margin-top: 8px; }
 .bhc-quiz-question-review {
@@ -2255,4 +2287,61 @@ video.bhc-step-video {
 .bhc-buy-once-badge .woocommerce-Price-currencySymbol,
 .bhc-buy-once-badge bdi {
     color: inherit;
+}
+
+/* ================= Interaction states =================
+   Keyboard focus and press feedback were thin here (hover was covered,
+   :focus-visible almost absent, :active nowhere) — a tab-through of the
+   catalog or the lesson walker showed nothing, and clicks had no give.
+   One consistent language: a 2px accent outline for focus (matching
+   front-nav.css), a small settle on :active. All reduced-motion-safe
+   (transforms only, and the cards already gate their transitions). */
+
+/* --- shared focus ring --- */
+.bhc-course-card:focus-visible,
+.bhc-btn:focus-visible,
+.bhc-btn-secondary:focus-visible,
+.bhc-mark-complete:focus-visible,
+a.bhc-pagination-number:focus-visible,
+.bhc-pagination-current:focus-visible,
+.bhc-video-chapter-item-btn:focus-visible,
+.bhc-quiz-choice:focus-within,
+.bhc-catalog-filters .bhc-btn:focus-visible,
+.bhc-sidebar-lesson-list a:focus-visible,
+.bhc-back-to-catalog:focus-visible {
+    outline: 2px solid var(--bh-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+/* The quiz choice is a label wrapping a radio — reflect the radio's
+   keyboard focus on the whole row, and drop the radio's own ring so
+   there aren't two. */
+.bhc-quiz-choice:focus-within { background: var(--bh-surface-2); }
+.bhc-quiz-choice input[type="radio"]:focus-visible { outline: none; }
+
+/* --- press feedback --- */
+.bhc-btn:active,
+.bhc-btn-secondary:active,
+.bhc-mark-complete:active {
+    transform: translateY(1px);
+}
+.bhc-course-card:active {
+    transform: translateY(-1px) scale(0.995);
+    transition-duration: .08s;
+}
+.bhc-quiz-choice:active { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
+a.bhc-pagination-number:active,
+.bhc-video-chapter-item-btn:active { transform: translateY(1px); }
+
+.bhc-btn, .bhc-btn-secondary, .bhc-mark-complete {
+    transition: background-color .15s ease, transform .08s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bhc-btn:active,
+    .bhc-btn-secondary:active,
+    .bhc-mark-complete:active,
+    .bhc-course-card:active,
+    a.bhc-pagination-number:active,
+    .bhc-video-chapter-item-btn:active { transform: none; }
 }

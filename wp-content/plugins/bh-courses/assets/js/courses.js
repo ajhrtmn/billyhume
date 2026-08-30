@@ -1096,7 +1096,7 @@
                     // numbers, never user input, so building this as
                     // HTML (not textContent) carries no injection risk.
                     resultBox.innerHTML = '<div class="bhc-quiz-pass-icon">&#10003;</div>'
-                        + '<p class="bhc-quiz-pass-score">Quiz passed — ' + result.score + '%.</p>'
+                        + '<div class="bhc-datum bhc-quiz-pass-figure"><span class="bhc-datum-value">' + result.score + '%</span><span class="bhc-datum-label">quiz passed</span></div>'
                         + '<p class="bhc-quiz-pass-sub">' + correctCount + '/' + result.total + ' correct. Nice work.</p>';
                 }
                 else if (attemptsExhausted) {

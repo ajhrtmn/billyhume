@@ -6,6 +6,21 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.5 — Front-end interaction states + a quiz-score figure.
+
+- The lesson/catalog UIs had hover but almost no :focus-visible and
+  no :active — a keyboard tab-through showed nothing and clicks had
+  no give. One language now: a 2px accent focus outline (matching
+  front-nav.css) on cards / buttons / pagination / chapter rows /
+  sidebar links, :focus-within on the quiz choice label, and a small
+  settle on :active. Reduced-motion-guarded.
+- Quiz pass banner: the score was buried in a "Quiz passed — 80%."
+  sentence despite the card being built to put it "front and
+  centre". It's a real .bhc-datum figure now (new shared front-end
+  figure component, mirrors the portal's .bhi-datum) — the % big and
+  display-set, "quiz passed" as the caption. Both the live-submit
+  and revisit render paths updated identically.
+
 0.16.4 — My Courses portal panel: each course's completion % is now
 a designed figure at the end of its progress track (the .bhi-datum
 value + caption vocabulary the Overview panels use), not a plain
