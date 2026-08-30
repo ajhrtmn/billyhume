@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.16.1 — Refreshed bundled/bh-courses.zip to 0.13.0 (signed private video sources).
+
 3.16.0 — Signed, private video delivery (`BHY_MediaToken`,
 `class-media-token.php`) — the "the course is for sale, playback must not
 be a shareable link" layer that sits on top of storage/offload (which
