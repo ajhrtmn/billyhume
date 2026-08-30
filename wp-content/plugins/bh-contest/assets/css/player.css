@@ -1409,6 +1409,12 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-card {
     isolation: isolate;
 }
+/* A contest with no published player page yet renders as a <div>, not
+   a link — don't imply it's clickable. */
+.bh-contest-card.is-unlinked { cursor: default; }
+.bh-contest-card.is-unlinked:hover { transform: none; box-shadow: none; border-color: var(--bh-border); }
+.bh-contest-card.is-unlinked:hover::after { opacity: 0; animation: none; }
+.bh-contest-card.is-unlinked .bh-contest-card-more { display: none; }
 /* The card is one big <a>; block themes (Etch/ACSS here) reassert
    `text-decoration: underline` on a:hover at a specificity the
    .bh-container :where(a) reset doesn't cover, and it propagates to

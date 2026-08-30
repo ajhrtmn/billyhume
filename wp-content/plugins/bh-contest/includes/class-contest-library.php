@@ -45,6 +45,23 @@ class BH_Contest_Library {
         return $t ?: 0;
     }
 
+    // The real front-end URL for a contest. The bh_contest CPT is
+    // 'public' => false — get_permalink() on it is not a usable link.
+    // The actual player lives on a separate WP Page whose id is in
+    // _bh_page_id (auto-created by BH_AdminMenus). BH_ShareCards::
+    // contest_page_url() already resolves exactly this (published page
+    // -> its permalink, else home). '' when there's no real page yet,
+    // so the card can render un-linked rather than pointing at the
+    // homepage.
+    private static function contest_url(int $cid): string {
+        if (class_exists('BH_ShareCards') && method_exists('BH_ShareCards', 'contest_page_url')) {
+            $url = BH_ShareCards::contest_page_url($cid);
+            return ($url && $url !== home_url('/') && $url !== trailingslashit(home_url())) ? $url : '';
+        }
+        $pid = (int) get_post_meta($cid, '_bh_page_id', true);
+        return ($pid && get_post_status($pid) === 'publish') ? (string) get_permalink($pid) : '';
+    }
+
     // Compresses a contest's whole lifecycle into one model every part
     // of the card renders from — stage (0 submissions, 1 voting, 2
     // results; -1 not started, 3 fully done), a visual tone, the next
@@ -269,7 +286,7 @@ class BH_Contest_Library {
             $groups[$life['group']][] = [
                 'id'      => $c->ID,
                 'title'   => get_the_title($c->ID) ?: __('(untitled contest)', 'bh-contest'),
-                'url'     => get_permalink($c->ID),
+                'url'     => self::contest_url($c->ID),
                 'excerpt' => wp_trim_words(wp_strip_all_tags((string) $c->post_content), 22, '…'),
                 'life'    => $life,
             ];
@@ -316,7 +333,12 @@ class BH_Contest_Library {
                 $life  = $item['life'];
                 $cid   = $item['id'];
                 $class = 'bh-contest-card tone-' . $life['tone'] . ($life['ending_soon'] ? ' is-ending' : '');
-                echo '<a class="' . esc_attr($class) . '" href="' . esc_url($item['url']) . '">';
+                // Link to the contest's real page when it has one;
+                // otherwise render the card as a plain container rather
+                // than a dead link (see contest_url()).
+                $tag = $item['url'] !== '' ? 'a' : 'div';
+                $href = $item['url'] !== '' ? ' href="' . esc_url($item['url']) . '"' : '';
+                echo '<' . $tag . ' class="' . esc_attr($class) . ($item['url'] === '' ? ' is-unlinked' : '') . '"' . $href . '>';
 
                 // ---- cover ----
                 $cover = get_the_post_thumbnail_url($cid, 'large');
@@ -377,7 +399,7 @@ class BH_Contest_Library {
                 }
                 echo '</ol>';
 
-                echo '</a>';
+                echo '</' . $tag . '>';
             }
             echo '</div></div>';
         }

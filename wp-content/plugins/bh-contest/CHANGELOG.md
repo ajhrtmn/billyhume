@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.2 — Contest Library cards now link to the contest's real page.
+The bh_contest CPT is 'public' => false, so get_permalink() on it is a
+dead link — the player lives on a separate Page (_bh_page_id). Cards
+now resolve that via BH_ShareCards::contest_page_url(); a contest with
+no published page yet renders as a plain container instead of a link
+to the homepage.
+
 3.15.1 — Contest Library card hover: the card is one big <a>, and the
 block theme reasserts text-decoration:underline on a:hover at a
 specificity the .bh-container reset didn't cover, so every stat, chip
