@@ -155,7 +155,7 @@ jobs:
 
       - name: Upload run logs (always, even on failure)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ai-run-logs
           path: .ai_workflow/*.log
