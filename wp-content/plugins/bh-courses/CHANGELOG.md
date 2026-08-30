@@ -6,6 +6,21 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.15.2 — Lesson step-editor UX pass.
+
+- Media titles with HTML entities ("01 &#8211; Intro") were rendered
+  literally — the REST title.rendered string is HTML-encoded and the
+  block editor prints strings as text. mediaName() (and the Bunny
+  library picker) now decode entities once at the choke point.
+- The video step's trailing controls (caption, "require watched % to
+  auto-complete") are grouped into one quiet .bhc-studio-settings
+  panel instead of loose controls trailing off after the media.
+- Consistent field-label rhythm across every step (WP's
+  .components-base-control__label carried no spacing of its own),
+  roomier step body, a real border + larger cap on the in-canvas
+  preview, and the chapter/overlay chrome row wraps instead of
+  overflowing a narrow canvas.
+
 0.15.1 — Catalog filter bar: the "Filter" submit now matches the pill
 inputs beside it (same 40px height, pill radius, 13px type, no stray
 top margin) instead of reading as a 6px-radius button bolted on. Custom

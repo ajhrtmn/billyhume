@@ -97,7 +97,7 @@
                 style: { textAlign: 'left', border: '1px solid #ddd', borderRadius: '6px', padding: '0', overflow: 'hidden', background: '#fff', cursor: 'pointer' },
             }, v.thumbnail
                 ? el('img', { src: v.thumbnail, alt: '', style: { width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', background: '#000' } })
-                : el('div', { style: { width: '100%', aspectRatio: '16 / 9', background: '#111' } }), el('div', { style: { padding: '6px 8px' } }, el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, v.title || v.guid), el('div', { className: 'description', style: { fontSize: '11px' } }, ready ? (Math.floor((v.length || 0) / 60) + ':' + ('0' + Math.floor((v.length || 0) % 60)).slice(-2)) : __('processing…'))));
+                : el('div', { style: { width: '100%', aspectRatio: '16 / 9', background: '#111' } }), el('div', { style: { padding: '6px 8px' } }, el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, decodeEntities(v.title || '') || v.guid), el('div', { className: 'description', style: { fontSize: '11px' } }, ready ? (Math.floor((v.length || 0) / 60) + ':' + ('0' + Math.floor((v.length || 0) % 60)).slice(-2)) : __('processing…'))));
         })));
     }
     // Replaces InnerBlocks.ButtonBlockAppender (an icon-only "+" square)
@@ -174,10 +174,20 @@
         }, [id]);
         return media;
     }
+    /** REST `title.rendered` is HTML-encoded ("01 &#8211; Intro"); the
+     *  block editor renders strings as text, so entities show literally.
+     *  Decode once, here, where every media label passes through. */
+    function decodeEntities(s) {
+        if (!s || s.indexOf('&') === -1)
+            return s;
+        var t = document.createElement('textarea');
+        t.innerHTML = s;
+        return t.value;
+    }
     /** "Worksheet.pdf" beats "File selected (#268)". */
     function mediaName(media, fallbackId) {
         if (media && (media.title || media.slug)) {
-            return (media.title && media.title.rendered) || media.slug || ('#' + fallbackId);
+            return decodeEntities((media.title && media.title.rendered) || media.slug || ('#' + fallbackId));
         }
         return fallbackId ? __('Attachment #') + fallbackId : '';
     }
@@ -817,14 +827,16 @@
             }
             return el(wp.element.Fragment, {}, sourcePicker, stepShell('format-video', __('Video'), meta, blockProps, [
                 picker,
-                el(wp.components.TextControl, {
+                chaptersSection,
+                overlaysSection,
+                // Caption + completion rule grouped as one quiet
+                // "options for this step" panel, rather than loose
+                // controls trailing off after the media.
+                el('div', { key: 'settings', className: 'bhc-studio-settings' }, el(wp.components.TextControl, {
                     key: 'cap', label: __('Caption'), value: attrs.caption,
                     placeholder: __('Optional — shown beneath the video'),
                     onChange: function (v) { setAttrs({ caption: v }); },
-                }),
-                chaptersSection,
-                overlaysSection,
-                el(wp.components.RangeControl, {
+                }), el(wp.components.RangeControl, {
                     key: 'thresh',
                     label: __('Require watched % to auto-complete'),
                     value: attrs.watch_threshold,
@@ -836,7 +848,7 @@
                         : attrs.watch_threshold === 0
                             ? __('Off — any playback marks this step complete.')
                             : __('A student must watch at least this much before the step auto-completes.'),
-                }),
+                })),
             ]));
         },
         save: function () { return null; }, // dynamic

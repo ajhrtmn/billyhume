@@ -104,7 +104,7 @@
                             ? el('img', { src: v.thumbnail, alt: '', style: { width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', display: 'block', background: '#000' } })
                             : el('div', { style: { width: '100%', aspectRatio: '16 / 9', background: '#111' } }),
                         el('div', { style: { padding: '6px 8px' } },
-                            el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, v.title || v.guid),
+                            el('div', { style: { fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, decodeEntities(v.title || '') || v.guid),
                             el('div', { className: 'description', style: { fontSize: '11px' } },
                                 ready ? (Math.floor((v.length || 0) / 60) + ':' + ('0' + Math.floor((v.length || 0) % 60)).slice(-2)) : __('processing…')))
                     );
@@ -194,10 +194,20 @@
         return media;
     }
 
+    /** REST `title.rendered` is HTML-encoded ("01 &#8211; Intro"); the
+     *  block editor renders strings as text, so entities show literally.
+     *  Decode once, here, where every media label passes through. */
+    function decodeEntities(s: string): string {
+        if (!s || s.indexOf('&') === -1) return s;
+        var t = document.createElement('textarea');
+        t.innerHTML = s;
+        return t.value;
+    }
+
     /** "Worksheet.pdf" beats "File selected (#268)". */
     function mediaName(media: any, fallbackId: any) {
         if (media && (media.title || media.slug)) {
-            return (media.title && media.title.rendered) || media.slug || ('#' + fallbackId);
+            return decodeEntities((media.title && media.title.rendered) || media.slug || ('#' + fallbackId));
         }
         return fallbackId ? __('Attachment #') + fallbackId : '';
     }
@@ -918,26 +928,31 @@
                 sourcePicker,
                 stepShell('format-video', __('Video'), meta, blockProps, [
                     picker,
-                    el(wp.components.TextControl, {
-                        key: 'cap', label: __('Caption'), value: attrs.caption,
-                        placeholder: __('Optional — shown beneath the video'),
-                        onChange: function (v: any) { setAttrs({ caption: v }); },
-                    }),
                     chaptersSection,
                     overlaysSection,
-                    el(wp.components.RangeControl, {
-                        key: 'thresh',
-                        label: __('Require watched % to auto-complete'),
-                        value: attrs.watch_threshold,
-                        min: 0,
-                        max: 100,
-                        onChange: function (v: any) { setAttrs({ watch_threshold: v || 0 }); },
-                        help: attrs.source === 'cloudflare_stream'
-                            ? __('Not enforceable for Cloudflare Stream yet — this plugin has no SDK for it, so the step always completes on any playback.')
-                            : attrs.watch_threshold === 0
-                            ? __('Off — any playback marks this step complete.')
-                            : __('A student must watch at least this much before the step auto-completes.'),
-                    }),
+                    // Caption + completion rule grouped as one quiet
+                    // "options for this step" panel, rather than loose
+                    // controls trailing off after the media.
+                    el('div', { key: 'settings', className: 'bhc-studio-settings' },
+                        el(wp.components.TextControl, {
+                            key: 'cap', label: __('Caption'), value: attrs.caption,
+                            placeholder: __('Optional — shown beneath the video'),
+                            onChange: function (v: any) { setAttrs({ caption: v }); },
+                        }),
+                        el(wp.components.RangeControl, {
+                            key: 'thresh',
+                            label: __('Require watched % to auto-complete'),
+                            value: attrs.watch_threshold,
+                            min: 0,
+                            max: 100,
+                            onChange: function (v: any) { setAttrs({ watch_threshold: v || 0 }); },
+                            help: attrs.source === 'cloudflare_stream'
+                                ? __('Not enforceable for Cloudflare Stream yet — this plugin has no SDK for it, so the step always completes on any playback.')
+                                : attrs.watch_threshold === 0
+                                ? __('Off — any playback marks this step complete.')
+                                : __('A student must watch at least this much before the step auto-completes.'),
+                        })
+                    ),
                 ])
             );
         },

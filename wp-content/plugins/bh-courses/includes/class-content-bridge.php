@@ -279,8 +279,40 @@ class BHC_ContentBridge {
                 text-transform: none; letter-spacing: 0;
                 font-weight: 400; color: #757575;
             }
-            .bhc-studio-body { padding: 12px; }
+            .bhc-studio-body { padding: 16px; }
+            .bhc-studio-body > * { margin-bottom: 16px; }
             .bhc-studio-body > *:last-child { margin-bottom: 0; }
+            /* WP component labels ("TITLE", "CAPTION", "REQUIRE WATCHED %")
+               carry no bottom spacing of their own and sat almost on top
+               of their input. One consistent rhythm for every field
+               label in a step. */
+            .bhc-studio-body .components-base-control__label {
+                display: block;
+                margin-bottom: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: .04em;
+                text-transform: uppercase;
+                color: #50575e;
+            }
+            .bhc-studio-body .components-base-control__help {
+                margin-top: 6px;
+                font-size: 12px;
+                color: #757575;
+            }
+
+            /* The tail-end per-step options (caption, completion rule) —
+               grouped into one quiet panel so they read as "settings for
+               this step", not a pile of loose controls after the media. */
+            .bhc-studio-settings {
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                background: #fbfbfb;
+                padding: 14px;
+            }
+            .bhc-studio-settings > * { margin-bottom: 14px; }
+            .bhc-studio-settings > *:last-child { margin-bottom: 0; }
+            .bhc-studio-settings .components-range-control__root { margin-bottom: 0; }
 
             .bhc-studio-placeholder {
                 display: flex; flex-direction: column; align-items: center;
@@ -309,10 +341,13 @@ class BHC_ContentBridge {
             /* An in-canvas preview of the real media, so an author can
                see WHAT this step is without leaving the editor. */
             .bhc-studio-preview {
-                width: 100%; max-height: 260px; display: block;
-                border-radius: 4px; background: #000; margin-bottom: 12px;
+                width: 100%; max-height: 320px; display: block;
+                border-radius: 6px; background: #000;
+                border: 1px solid #e0e0e0;
+                margin-bottom: 10px;
             }
-            .bhc-studio-preview-audio { background: transparent; margin-bottom: 8px; }
+            .bhc-studio-preview-bunny { border: 1px solid #e0e0e0; }
+            .bhc-studio-preview-audio { background: transparent; border: 0; margin-bottom: 8px; }
 
             .bhc-studio-image-thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
             img.bhc-studio-image-thumb {
@@ -348,7 +383,8 @@ class BHC_ContentBridge {
             }
             .bhc-studio-chapter-row.has-warning { border-color: #d9a800; background: #fefaf0; }
             .bhc-studio-chapter-row-top {
-                display: flex; align-items: center; gap: 4px; margin-bottom: 6px;
+                display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+                flex-wrap: wrap; /* time field + buttons + type select overflow a narrow canvas otherwise */
             }
             .bhc-studio-order-badge {
                 flex-shrink: 0; width: 20px; height: 20px; border-radius: 10px;
