@@ -6,6 +6,12 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.23 — Course-view detail polish: progress track 12%%->18%% (the
+unfilled portion was near-invisible on black); done-lesson title
+opacity 0.66->0.72; the review star picker's idle state is now a hollow
+star (transparent fill + --bh-text-dim outline) that fills accent on
+hover/select, instead of dim solid stars reading as a half-filled row.
+
 0.16.22 — Follow-up to 0.16.21: `.bhc-lesson-list .bhc-check` (0,2,0,
 source-order-later) was overriding the new check-chip `display:
 inline-grid` back to `inline-block`, so the tick sat top-left instead

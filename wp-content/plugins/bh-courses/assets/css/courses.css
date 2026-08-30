@@ -308,7 +308,7 @@
 .bhc-progress-bar {
     height: 6px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--bh-text) 12%, transparent);
+    background: color-mix(in srgb, var(--bh-text) 18%, transparent);
     overflow: hidden;
 }
 /* Width changes (a step/lesson completing) used to jump instantly —
@@ -372,7 +372,7 @@
 .bhc-lesson-list li.bhc-lesson-done > a,
 .bhc-lesson-list li.bhc-lesson-done > span:first-child {
     color: var(--bh-text);
-    opacity: 0.66;
+    opacity: 0.72;
     font-weight: 400;
 }
 .bhc-lesson-progress {
@@ -935,8 +935,12 @@ a.bhc-pagination-number:hover {
 .bhc-review-star-choice {
     cursor: pointer;
     font-size: 26px;
-    color: var(--bh-text-dim);
-    transition: color .12s ease, transform .12s ease;
+    /* Idle = a hollow star (the glyph is solid ★, so draw it as an
+       outline): reads as "empty rating, your input goes here" rather
+       than a dim half-filled row. Hover/checked fills it accent. */
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--bh-text-dim);
+    transition: color .12s ease, -webkit-text-stroke-color .12s ease, transform .12s ease;
 }
 .bhc-review-star-choice:hover { transform: scale(1.12); }
 .bhc-review-star-choice input {
@@ -949,6 +953,7 @@ a.bhc-pagination-number:hover {
 .bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked),
 .bhc-review-star-picker:not(:hover) .bhc-review-star-choice:has(input:checked) ~ .bhc-review-star-choice {
     color: var(--bh-accent);
+    -webkit-text-stroke-width: 0;
 }
 .bhc-review-star-choice input:focus-visible + span {
     outline: 2px solid var(--bh-accent);
