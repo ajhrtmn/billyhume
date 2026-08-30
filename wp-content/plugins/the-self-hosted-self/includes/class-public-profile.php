@@ -66,13 +66,12 @@ class BHI_PublicProfile {
     public static function maybe_enqueue(): void {
         global $post;
         // The portal's Profile panel renders this same edit form via
-        // render_portal_panel(), but the portal is a custom rewrite-driven
-        // virtual page with no real $post/post_content, so
-        // has_shortcode($post->post_content, 'bh_profile') is never true
-        // there. get_query_var(BHI_Portal::QUERY_VAR) is true for every
-        // portal page load regardless of active panel, so enqueue there
-        // too — every panel benefits from this shared CSS, not just Profile.
-        $on_portal = class_exists('BHI_Portal') && get_query_var(BHI_Portal::QUERY_VAR);
+        // render_portal_panel(). The portal now renders inside the theme
+        // via the /account/ page + [bhi_account_portal] shortcode, so
+        // has_shortcode($post->post_content, 'bh_profile') still isn't
+        // true there — BHI_Portal::is_portal_context() covers every panel
+        // load, so this shared CSS reaches all of them, not just Profile.
+        $on_portal = class_exists('BHI_Portal') && BHI_Portal::is_portal_context();
         if (!$on_portal && (!$post || !has_shortcode($post->post_content, 'bh_profile'))) return;
         wp_enqueue_style('bhi-public-profile', OUS_URL . 'assets/css/public-profile.css', [], OUS_VER);
         $fonts = BHY_Style::google_fonts_url();

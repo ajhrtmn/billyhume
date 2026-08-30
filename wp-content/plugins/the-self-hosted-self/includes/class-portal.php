@@ -56,8 +56,25 @@ class BHI_Portal {
         // since WP_Hook::do_action() walks not-yet-reached priority
         // buckets in order within one call.
         add_action('init', [self::class, 'add_rewrite'], 20);
+        // The portal now renders THROUGH a real /account/ page + a
+        // shortcode, so it flows through the active theme (header nav,
+        // footer, page background) instead of the standalone
+        // <!DOCTYPE> document render_shell() used to print and exit on.
+        add_action('init', [self::class, 'ensure_page'], 25);
+        // The shortcode is just a marker a human sees in the page editor —
+        // it returns nothing. The real HTML is injected via the_content at
+        // a very late priority so no content filter (wpautop, wptexturize,
+        // Etch's own processing) mangles the markup — a real bug the
+        // straight-quote-based Datastar data-* attributes hit as
+        // wptexturize turned them into curly quotes and broke the badge.
+        add_shortcode('bhi_account_portal', '__return_empty_string');
+        add_filter('the_content', [self::class, 'inject_portal'], 99);
         add_filter('query_vars', [self::class, 'add_query_var']);
-        add_action('template_redirect', [self::class, 'maybe_render']);
+        add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue_assets']);
+        // Logged-out visitor to /account/ or a panel — send them to the
+        // themed login card (the page itself renders it via the
+        // shortcode, but a panel deep-link should land on the base URL).
+        add_action('template_redirect', [self::class, 'maybe_redirect_panel_when_logged_out']);
         add_action('wp_ajax_ous_portal_live_status', [self::class, 'ajax_live_status']);
 
         // Without an overview tab, the portal landed a visitor on a bare
@@ -250,7 +267,7 @@ class BHI_Portal {
     // object cache (Redis/Memcached) keeps serving the old rewrite_rules
     // value on every subsequent request, forever, because nothing ever
     // re-checks.
-    const REWRITE_VERSION = '2';
+    const REWRITE_VERSION = '3';
 
     // Rate-limit guard for the DB-bypassing verification below — cheap on
     // its own, but a real flush_rewrite_rules() touches .htaccess/DB on
@@ -282,8 +299,10 @@ class BHI_Portal {
             );
         }
 
-        add_rewrite_rule('^' . self::REWRITE_SLUG . '/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
-        add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?' . self::QUERY_VAR . '=1&panel=$matches[1]', 'top');
+        // /account/ is a real published page (ensure_page()); only the
+        // /account/{panel}/ sub-URLs need a rule, pointing at that same
+        // page with the panel id in a query var the shortcode reads.
+        add_rewrite_rule('^' . self::REWRITE_SLUG . '/([^/]+)/?$', 'index.php?pagename=' . self::REWRITE_SLUG . '&bhi_panel=$matches[1]', 'top');
 
         if (class_exists('BHY_RewriteHealer')) {
             BHY_RewriteHealer::maybe_heal('^' . self::REWRITE_SLUG, 'bhi_portal_rewrite_last_attempt', 'Portal', self::VERIFY_THROTTLE_SECONDS);
@@ -297,6 +316,7 @@ class BHI_Portal {
     public static function add_query_var($vars): array {
         $vars[] = self::QUERY_VAR;
         $vars[] = 'panel';
+        $vars[] = 'bhi_panel';
         return $vars;
     }
 
@@ -530,19 +550,61 @@ class BHI_Portal {
         }
     }
 
-    public static function maybe_render(): void {
-        if (!get_query_var(self::QUERY_VAR)) return;
+    /** The /account/ page (option-recorded, adopted if hand-made). */
+    public static function ensure_page(): void {
+        if (!class_exists('OUS_Pages')) return;
+        OUS_Pages::ensure('bhi_account_portal', 'bhi_portal_page_id', 'Account');
+    }
 
-        if (!is_user_logged_in()) {
-            status_header(200);
-            nocache_headers();
-            self::render_login(home_url('/' . self::REWRITE_SLUG . '/'));
-            exit;
+    public static function account_page_id(): int {
+        return (int) get_option('bhi_portal_page_id', 0);
+    }
+
+    private static function is_account_request(): bool {
+        return self::is_portal_context();
+    }
+
+    /** True on any /account/ (or /account/{panel}/) page load. Public so
+     *  other code that used to check the old QUERY_VAR can switch to it. */
+    public static function is_portal_context(): bool {
+        $pid = self::account_page_id();
+        return $pid > 0 && function_exists('is_page') && is_page($pid);
+    }
+
+    /**
+     * Swap the /account/ page's body for the portal, after every other
+     * the_content filter has run. Only on the real account page's main
+     * loop — never a random page that happens to contain the marker text.
+     */
+    public static function inject_portal(string $content): string {
+        if (!self::is_account_request() || !is_main_query() || !in_the_loop()) return $content;
+        // Built once and reused: some setups run the_content twice, and
+        // the second pass' wptexturize/wpautop would corrupt the HTML
+        // this filter injected on the first (a bare `>` inside a
+        // Datastar data-* attribute breaks their naive tag detection).
+        static $html = null;
+        if ($html === null) {
+            $html = is_user_logged_in()
+                ? self::portal_content()
+                : self::login_html(home_url('/' . self::REWRITE_SLUG . '/'));
         }
+        return $html;
+    }
 
-        status_header(200);
-        nocache_headers();
-        self::render_shell();
+    public static function maybe_enqueue_assets(): void {
+        if (!self::is_account_request()) return;
+        wp_register_style('ous-portal', false, [], defined('OUS_VER') ? OUS_VER : null);
+        wp_enqueue_style('ous-portal');
+        wp_add_inline_style('ous-portal', self::portal_css());
+        if (is_user_logged_in() && class_exists('OUS_Hypermedia')) OUS_Hypermedia::enqueue();
+    }
+
+    /** A logged-out deep link to /account/{panel}/ has nothing to show —
+     *  bounce it to the base page (which renders the login card). */
+    public static function maybe_redirect_panel_when_logged_out(): void {
+        if (is_user_logged_in() || !get_query_var('bhi_panel')) return;
+        if (!self::is_account_request()) return;
+        wp_safe_redirect(home_url('/' . self::REWRITE_SLUG . '/'));
         exit;
     }
 
@@ -560,22 +622,13 @@ class BHI_Portal {
      * full-page redirect to pick up the new session — no client-side
      * session state to manage here.
      */
-    private static function render_login(string $redirect_to): void {
-        $has_style = class_exists('BHY_Style');
+    private static function login_html(string $redirect_to): string {
+        ob_start();
         ?>
-<!DOCTYPE html>
-<html <?php language_attributes(); ?>>
-<head>
-<meta charset="<?php bloginfo('charset'); ?>">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?php echo esc_html(get_bloginfo('name')); ?> — Log in</title>
-<?php wp_head(); ?>
-<?php if ($has_style): BHY_Style::inline_css(); endif; ?>
 <style>
-  body.bhi-portal-login {
-    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    background:var(--bh-bg, #f6f6f7); color:var(--bh-text, #1d2327);
-    font-family:var(--bh-font-body, -apple-system), -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  .bhi-portal-login {
+    min-height:60vh; display:flex; align-items:center; justify-content:center;
+    color:var(--bh-text, #1d2327);
     padding:24px; box-sizing:border-box;
   }
   .bhi-login-card {
@@ -617,8 +670,7 @@ class BHI_Portal {
   .bhi-login-foot a { color:var(--bh-accent, #2271b1); text-decoration:none; }
   .bhi-login-panel[hidden] { display:none; }
 </style>
-</head>
-<body class="bhi-portal-login">
+<div class="bhi-portal-login">
 <div class="bhi-login-card">
   <div class="bhi-login-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
   <div class="bhi-login-sub">Sign in to your account</div>
@@ -724,10 +776,9 @@ class BHI_Portal {
   });
 })();
 </script>
-<?php wp_footer(); ?>
-</body>
-</html>
+</div>
         <?php
+        return (string) ob_get_clean();
     }
 
     /**
@@ -756,40 +807,16 @@ class BHI_Portal {
         exit;
     }
 
-    private static function render_shell(): void {
-        $panels = self::get_panels();
-        $requested = sanitize_key(get_query_var('panel'));
-        $active = $requested && self::get_panel($requested) ? $requested : ($panels[0]['id'] ?? '');
-
-        // Live nav indicators (Phase 2 follow-up, this session): the
-        // notification badge and wallet chip below are Datastar-bound to
-        // signals seeded here with the real page-load values, then kept
-        // current by a periodic poll (ajax_live_status()) — a bounded,
-        // request-per-poll GET every 30s, not a held-open SSE connection,
-        // deliberately, since this ecosystem targets ordinary shared
-        // hosting where holding a connection open per visitor tab is a
-        // real resource-exhaustion risk on a small PHP-FPM worker pool.
-        // OUS_Hypermedia::enqueue() is safe to call unconditionally here
-        // (the-self-hosted-self core, always present when this class runs at all).
-        if (class_exists('OUS_Hypermedia')) OUS_Hypermedia::enqueue();
-        $unread_count = class_exists('OUS_Notifications') ? (int) OUS_Notifications::unread_count(get_current_user_id()) : 0;
-        $wallet_balance_display = class_exists('BHM_Wallet') ? number_format(BHM_Wallet::balance_cents(get_current_user_id()) / 100, 2) : '';
-
-        // The portal gets its own front-end design treatment (explicitly
-        // meant to look nothing like default WordPress, per the roadmap
-        // doc) but still draws on BHY_Style's existing design tokens
-        // rather than inventing a second, disconnected visual language.
-        $has_style = class_exists('BHY_Style');
+    /**
+     * The portal shell's CSS. Enqueued as inline style on the /account/
+     * page (maybe_enqueue_assets()) rather than printed into a standalone
+     * <head> — the portal now renders inside the active theme. Scoped to
+     * .bhi-portal / .bhi-portal-* so nothing leaks onto the rest of a
+     * themed page.
+     */
+    private static function portal_css(): string {
+        ob_start();
         ?>
-<!DOCTYPE html>
-<html <?php language_attributes(); ?>>
-<head>
-<meta charset="<?php bloginfo('charset'); ?>">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?php echo esc_html(get_bloginfo('name')); ?> — Account</title>
-<?php wp_head(); ?>
-<?php if ($has_style): BHY_Style::inline_css(); endif; ?>
-<style>
   /* QA fix: every rule below previously referenced
      --bhy-color-* custom properties (--bhy-color-bg, --bhy-color-
      surface, --bhy-color-border, --bhy-color-text, --bhy-color-
@@ -812,9 +839,22 @@ class BHI_Portal {
      820px-capped, 32px-padded main column simply doesn't fit a phone
      screen) and tighter, token-driven spacing in place of the
      original's ad hoc pixel values. */
-  body.bhi-portal { margin:0; background:var(--bh-bg, #f6f6f7); color:var(--bh-text, #1d2327); font-family:var(--bh-font-body, -apple-system), -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-  .bhi-portal-shell { display:flex; min-height:100vh; }
-  .bhi-portal-nav { width:220px; flex-shrink:0; background:var(--bh-surface, #fff); border-right:1px solid var(--bh-border, #e2e2e2); padding:24px 0; }
+  .bhi-portal { color:var(--bh-text, #1d2327); font-family:var(--bh-font-body, inherit); }
+  /* Clears a floating (position:absolute) site header — same shared
+     token bh-courses / bh-contest use. The portal renders inside the
+     theme now, so its top would otherwise sit under the nav. */
+  .bhi-portal-shell {
+    display:flex; align-items:stretch; min-height:70vh;
+    padding-top: var(--bh-header-clearance, 72px);
+    padding-inline: 20px; gap: 0;
+    max-width: 1120px; margin-inline: auto; box-sizing: border-box;
+  }
+  .bhi-portal-nav {
+    width:220px; flex-shrink:0; align-self:flex-start;
+    background:var(--bh-surface, #fff); border:1px solid var(--bh-border, #e2e2e2);
+    border-radius: var(--bh-radius, 12px); padding:20px 0; margin-right:28px;
+    position:sticky; top: calc(var(--bh-header-clearance, 72px) + 16px);
+  }
   .bhi-portal-nav a { display:flex; align-items:center; gap:10px; padding:11px 20px; color:var(--bh-text, #1d2327); text-decoration:none; font-size:14px; border-left:3px solid transparent; }
   .bhi-portal-nav a:hover { background:var(--bh-surface-2, #f6f7f7); }
   /* Real design-brief violation, direct feedback ("the menus selected
@@ -848,7 +888,7 @@ class BHI_Portal {
     color: color-mix(in srgb, var(--bh-accent, #2271b1) 65%, var(--bh-text, #1d2327));
     font-weight: 600;
   }
-  .bhi-portal-main { flex:1; min-width:0; padding:32px 40px; max-width:820px; }
+  .bhi-portal-main { flex:1; min-width:0; padding:8px 0 40px; max-width:820px; }
   .bhi-portal-brand { padding:0 20px 20px; font-family:var(--bh-font-display, inherit); font-weight:700; font-size:16px; }
   .bhi-portal-wallet-chip {
     display:flex; align-items:center; gap:6px; margin:0 20px 16px; padding:8px 12px; border-radius:999px;
@@ -963,7 +1003,7 @@ class BHI_Portal {
   .bhi-tier-chip-row { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
   .bhi-tier-chip { display:flex; flex-direction:column; gap:4px; }
   .bhi-wallet-balance { display:flex; align-items:baseline; gap:8px; }
-  .bhi-portal-notif-badge { display:inline-block; min-width:16px; padding:1px 5px; margin-left:4px; border-radius:999px; background:#d63638; color:#fff; font-size:11px; line-height:16px; text-align:center; }
+  .bhi-portal-nav a .bhi-portal-notif-badge { display:inline-block; min-width:16px; padding:1px 5px; margin-left:4px; border-radius:999px; background:#d63638; color:#fff; font-size:11px; line-height:16px; text-align:center; }
   .bhi-wallet-balance-amount { font-family:var(--bh-font-display, inherit); font-size:28px; font-weight:700; }
   .bhi-ledger-credit { color:#2e7d32; font-weight:600; }
   .bhi-ledger-debit { color:var(--bh-text-dim, #6b7280); }
@@ -1112,9 +1152,24 @@ class BHI_Portal {
   .bhi-portal .bhi-portal-wallet-chip .dashicons { width:16px; height:16px; }
   .bhi-portal .bhi-achievement-badge .dashicons { width:14px; height:14px; }
   .bhi-portal .bhi-portal-empty .dashicons { width:32px; height:32px; }
-</style>
-</head>
-<body class="bhi-portal">
+<?php
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * The portal's markup (nav rail + active panel), returned for the
+     * [bhi_account_portal] shortcode so it renders inside the theme.
+     */
+    private static function portal_content(): string {
+        $panels = self::get_panels();
+        $requested = sanitize_key((string) (get_query_var('bhi_panel') ?: get_query_var('panel')));
+        $active = $requested && self::get_panel($requested) ? $requested : ($panels[0]['id'] ?? '');
+        $unread_count = class_exists('OUS_Notifications') ? (int) OUS_Notifications::unread_count(get_current_user_id()) : 0;
+        $wallet_balance_display = class_exists('BHM_Wallet') ? number_format(BHM_Wallet::balance_cents(get_current_user_id()) / 100, 2) : '';
+
+        ob_start();
+        ?>
+<div class="bhi-portal">
 <div class="bhi-portal-shell"<?php if (class_exists('OUS_Hypermedia')): ?>
   data-signals="{unreadCount: <?php echo (int) $unread_count; ?>, walletBalance: '<?php echo esc_js($wallet_balance_display); ?>'}"
   data-on-interval__duration.30s="@get('<?php echo esc_url(admin_url('admin-ajax.php?action=ous_portal_live_status')); ?>')"
@@ -1143,7 +1198,7 @@ class BHI_Portal {
         <span class="dashicons <?php echo esc_attr($panel['icon'] ?? 'dashicons-admin-generic'); ?>"></span>
         <?php echo esc_html($panel['label']); ?>
         <?php if ($panel['id'] === 'notifications'): ?>
-          <span class="bhi-portal-notif-badge" data-show="$unreadCount > 0" data-text="$unreadCount"<?php echo $unread_count > 0 ? '' : ' style="display:none;"'; ?>><?php echo (int) $unread_count; ?></span>
+          <span class="bhi-portal-notif-badge" data-show="$unreadCount" data-text="$unreadCount"<?php echo $unread_count > 0 ? '' : ' style="display:none;"'; ?>><?php echo (int) $unread_count; ?></span>
         <?php endif; ?>
       </a>
     <?php endforeach; ?>
@@ -1191,9 +1246,8 @@ class BHI_Portal {
   document.addEventListener('focusout', function (e) { if (e.target.closest('.bhi-tip')) hide(); });
 })();
 </script>
-<?php wp_footer(); ?>
-</body>
-</html>
+</div>
         <?php
+        return (string) ob_get_clean();
     }
 }

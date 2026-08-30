@@ -9,6 +9,30 @@ has been reworded or dropped.
 
 ---
 
+3.19.0 — The account portal (/account/, /account/{panel}/) now
+renders INSIDE the active theme instead of printing its own standalone
+<!DOCTYPE> document and exiting. The site header/nav, footer and page
+background are Billy's, not a bare dark app shell.
+
+- /account/ is a real published page (OUS_Pages::ensure), content
+  `[bhi_account_portal]`. The portal HTML is injected via the_content at
+  priority 99 (built once, reused — some setups run the_content twice and
+  the second pass' wptexturize would corrupt a Datastar data-* attr that
+  contained a bare `>`; that `>` is also gone now).
+- /account/{panel}/ → a rewrite rule pointing at that page with the
+  panel id in `bhi_panel`. REWRITE_VERSION bumped (re-flush).
+- render_shell()/render_login() → portal_content()/login_html(), string
+  returners with no doc scaffold. The ~300-line inline <style> is now
+  portal_css(), enqueued as inline style on the account page only,
+  re-scoped from `body.bhi-portal` to `.bhi-portal`. Nav rail is a
+  bordered card that clears the floating header via
+  --bh-header-clearance and sticks below it; shell caps at 1120px,
+  centred. Mobile breakpoint kept.
+- New BHI_Portal::is_portal_context() (public) replaces the old
+  get_query_var(QUERY_VAR) check in class-public-profile.php.
+- Logged-out visitors to /account/ get the themed login card in-page; a
+  logged-out /account/{panel}/ deep link bounces to /account/.
+
 3.18.0 — Ecosystem pages now default to the host theme's typeface. New
 `BHY_Style::INHERIT_FONT` ("Theme default") is the out-of-the-box choice
 for both font slots — `--bh-font-display` / `--bh-font-body` emit
