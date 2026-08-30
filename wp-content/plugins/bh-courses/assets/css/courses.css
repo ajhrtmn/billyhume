@@ -1523,6 +1523,46 @@ video.bhc-step-video {
     .bhc-video-chapter-item-btn { padding: 8px; font-size: 14px; }
 }
 
+/* Watch-to-complete gate. Was a bare <p> with no rule of its own, so
+   it inherited the lesson body's ~18px paragraph size and read as the
+   loudest thing under the player despite being a secondary hint.
+   Now a compact affordance: a thin progress track toward the
+   threshold + a small muted caption. Importance is carried by the
+   bar, not by shouting the text. courses.js updates -fill / -pct on
+   timeupdate. */
+.bhc-watch-gate {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 420px;
+    margin: 12px 0 4px;
+}
+.bhc-watch-gate-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--bh-surface-2, #e2e2e2);
+    overflow: hidden;
+}
+.bhc-watch-gate-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: var(--bh-accent);
+    transition: width .3s ease;
+}
+.bhc-watch-gate-label {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--bh-text-dim);
+}
+.bhc-watch-gate-pct {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--bh-text);
+}
+
 /* Depth-of-magic pass: a callout's three variants are each ONE base
    color at a fixed tint (background) plus that same color at full
    strength (left border/icon) — 'tip' derives from --bh-accent (this

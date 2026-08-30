@@ -28,7 +28,12 @@ class BHC_PostTypes {
                 'name' => 'Courses', 'menu_name' => 'Courses', 'singular_name' => 'Course',
                 'add_new_item' => 'Add New Course', 'edit_item' => 'Edit Course', 'all_items' => 'All Courses',
             ],
-            'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => 'courses',
+            // has_archive is deliberately OFF: the /courses/ catalog is a
+            // real Page with the bhc/catalog block (rendered through the
+            // active theme via the_content), not a CPT archive served by
+            // a hand-rolled full-page template. Single courses still live
+            // at /courses/<slug>/ via the rewrite slug below.
+            'public' => true, 'show_ui' => true, 'show_in_menu' => true, 'has_archive' => false,
             'rewrite' => ['slug' => 'courses'],
             'menu_icon' => OUS_MenuIcons::courses(), 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',

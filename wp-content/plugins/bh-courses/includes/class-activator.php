@@ -58,6 +58,20 @@ class BHC_Activator {
         }
     }
 
+    // 0.15.0: has_archive was removed from bh_course (the /courses/
+    // catalog is now the real Page, not a CPT archive template). A
+    // file-replace deploy never fires the activation hook, so the old
+    // /courses/ archive rewrite rule would otherwise linger in the
+    // cached rules and keep shadowing the Page until something else
+    // flushed. One-time, option-gated, on admin_init (after
+    // ensure_catalog_page has run) — same posture as every other
+    // deploy-safe migration in this plugin.
+    public static function maybe_flush_after_archive_removal(): void {
+        if (get_option('bhc_flushed_archive_removal') === '1') return;
+        flush_rewrite_rules(false);
+        update_option('bhc_flushed_archive_removal', '1');
+    }
+
     // Content-repair migration, separate concern from the schema
     // version above (own option, own version counter) — same "cheap
     // early-return on every load, only marks itself done on real

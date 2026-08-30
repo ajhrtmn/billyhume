@@ -473,7 +473,17 @@ class BHC_Render_Lesson {
                 // The progress note gives the student a visible reason
                 // nothing happened yet if they just click play and walk
                 // away without it reaching the threshold.
-                echo '<p class="bhc-video-progress-note"' . ($is_done ? ' style="display:none;"' : '') . '>Watch ' . (int) $threshold . '% to mark this step complete' . ($watched > 0 ? ' (' . (int) $watched . '% watched so far)' : '') . '.</p>';
+                // A quiet gate affordance, not a big sentence: a thin
+                // progress track toward the threshold + a compact label.
+                // courses.js updates .bhc-watch-gate-fill / -pct live on
+                // timeupdate and hides the whole .bhc-video-progress-note
+                // wrapper on auto-complete (kept that class on the
+                // wrapper so the existing querySelector still resolves).
+                $pct = max(0, min(100, (int) $watched));
+                echo '<div class="bhc-video-progress-note bhc-watch-gate"' . ($is_done ? ' style="display:none;"' : '') . ' data-threshold="' . (int) $threshold . '">'
+                    . '<div class="bhc-watch-gate-track"><span class="bhc-watch-gate-fill" style="width:' . $pct . '%;"></span></div>'
+                    . '<p class="bhc-watch-gate-label"><span class="bhc-watch-gate-pct">' . $pct . '%</span> watched &middot; completes at ' . (int) $threshold . '%</p>'
+                    . '</div>';
                 echo '<button type="button" class="bhc-btn bhc-mark-complete" style="display:' . ($is_done ? '' : 'none') . ';" disabled>Completed</button>';
             } else {
                 echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';

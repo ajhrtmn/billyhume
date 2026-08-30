@@ -33,7 +33,6 @@ class BHC_Render {
         add_shortcode('bh_courses', [self::class, 'render_catalog']);
         add_shortcode('bh_course', [self::class, 'render_course']);
         add_action('wp_enqueue_scripts', [self::class, 'maybe_enqueue']);
-        add_filter('template_include', [self::class, 'maybe_use_archive_template']);
         add_filter('render_block', [self::class, 'suppress_generic_post_navigation'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_broken_byline'], 10, 2);
         add_filter('render_block', [self::class, 'suppress_duplicate_course_title'], 10, 2);
@@ -122,34 +121,18 @@ class BHC_Render {
         return $block_content;
     }
 
-    // A real, themeable /courses/ archive ('has_archive' => 'courses',
-    // class-post-types.php) rather than the catalog only ever being
-    // reachable via the [bh_courses] shortcode — the same "public CPT
-    // with its own view" instinct BHC_Render_Lesson::render_lesson_steps()'s
-    // own docblock already states for lessons. Respects a theme's own
-    // archive-bh_course.php if one exists (WordPress's normal template
-    // hierarchy already resolves that BEFORE template_include fires —
-    // this filter only supplies the fallback the theme didn't provide),
-    // same "degrade to a sane default, never fight a real override"
-    // posture as everything else in this ecosystem.
-    public static function maybe_use_archive_template(string $template): string {
-        if (!is_post_type_archive('bh_course')) return $template;
-        if ($template && strpos(basename($template), 'archive-bh_course') !== false) return $template;
-        return BHC_PATH . 'templates/archive-bh_course.php';
-    }
+    // The /courses/ catalog is a real published Page holding the
+    // bhc/catalog block (BHC_Activator::ensure_catalog_page), rendered
+    // through the_content by the active theme — same as the account
+    // portal and the contest pages. It used to be a CPT archive
+    // ('has_archive' => 'courses') served by a hand-rolled full-page
+    // template (templates/archive-bh_course.php, deleted), which on a
+    // block theme meant reconstructing the document shell by hand
+    // instead of letting the theme own it. has_archive is off now; the
+    // Page wins /courses/ once rewrites are flushed
+    // (BHC_Activator::maybe_flush_after_archive_removal).
 
     public static function maybe_enqueue(): void {
-        // Extended to also cover the bh_course post-type ARCHIVE
-        // ('has_archive' => 'courses', class-post-types.php) — the
-        // catalog rebuild (BHC_Render_Catalog) is a real enough surface
-        // (search/filter/sort) that it needs its assets there too, not
-        // just on a page carrying the [bh_courses] shortcode explicitly.
-        // The is_singular() branch (shortcode-embedded catalog, a
-        // course/lesson page) is unchanged.
-        if (is_post_type_archive('bh_course')) {
-            self::enqueue_assets();
-            return;
-        }
         if (!is_singular()) return;
         global $post;
         // has_block() alongside each has_shortcode() — ROADMAP-ux-polish-

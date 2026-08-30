@@ -477,11 +477,22 @@
                     advanceWithBeat(index);
                 });
             }
+            var gateFill = step.querySelector('.bhc-watch-gate-fill');
+            var gatePct = step.querySelector('.bhc-watch-gate-pct');
+            var lastShown = -1;
             media.on('timeupdate', function () {
                 var duration = media.duration();
                 if (!duration || step.classList.contains('bhc-step-done'))
                     return;
-                sendProgress(Math.floor((media.currentTime() / duration) * 100));
+                var percent = Math.floor((media.currentTime() / duration) * 100);
+                if (percent !== lastShown) {
+                    lastShown = percent;
+                    if (gateFill)
+                        gateFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
+                    if (gatePct)
+                        gatePct.textContent = Math.min(100, Math.max(0, percent)) + '%';
+                }
+                sendProgress(percent);
             });
         });
         // ROADMAP-lms-v3.md Section 1 — interactive video overlays.

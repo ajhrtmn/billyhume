@@ -6,6 +6,27 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.15.0 — /courses/ catalog renders through the theme; watch-gate
+restyle.
+
+- The /courses/ catalog is now the real published Page holding the
+  bhc/catalog block, rendered by the active theme via the_content —
+  the same treatment the account portal and contest pages already get.
+  has_archive removed from bh_course; the hand-rolled
+  templates/archive-bh_course.php (which reconstructed the document
+  shell by hand on a block theme) is deleted. Single courses stay at
+  /courses/<slug>/. maybe_flush_after_archive_removal() flushes
+  rewrites once on a file-replace deploy so the Page takes /courses/.
+  The bhc/catalog block now emits the "Course Catalog / Courses"
+  kicker+title+rule the template used to.
+- Video watch-to-complete gate: was a bare <p> with no CSS, so it
+  inherited the lesson body's ~18px paragraph size and read as the
+  loudest thing under the player. Now a compact affordance — a thin
+  progress track toward the threshold + a small muted caption, with
+  courses.js updating the fill/percent live on timeupdate. The <p>'s
+  .bhc-video-progress-note class is kept on the wrapper so the
+  existing auto-complete hide still resolves.
+
 0.14.1 — Course single page (/courses/<slug>/) was rendering
 full-bleed into Etch's <main> with no width cap, so the header/hero and
 lesson list sprawled edge to edge while the lesson and catalog views

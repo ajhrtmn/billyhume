@@ -101,6 +101,24 @@ class BHC_Render_Catalog {
 
         $uid = get_current_user_id();
         ob_start();
+
+        // The kicker + title + accent rule the old
+        // templates/archive-bh_course.php printed above the grid. Now
+        // that /courses/ is the real catalog Page (rendered through the
+        // theme via the_content) instead of a CPT-archive template,
+        // this has to come from the render itself — but ONLY on the
+        // designated catalog page, never on some other page that
+        // happens to embed [bh_courses]/bhc:catalog inside its own
+        // prose (which already has its own <h1>).
+        $catalog_page_id = (int) get_option('bhc_catalog_page_id', 0);
+        if ($catalog_page_id && get_queried_object_id() === $catalog_page_id && is_main_query()) {
+            echo '<header class="bhc-archive-header">'
+                . '<span class="bhc-archive-kicker">' . esc_html__('Course Catalog', 'bh-courses') . '</span>'
+                . '<h1 class="bhc-archive-title">' . esc_html__('Courses', 'bh-courses') . '</h1>'
+                . '<div class="bhc-archive-rule" aria-hidden="true"></div>'
+                . '</header>';
+        }
+
         echo '<div class="bhc-catalog-wrap">';
         echo self::render_catalog_filters($search, $category, $topic, $sort);
 
