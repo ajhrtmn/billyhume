@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.20.10 — Refresh bundled/bh-courses.zip (0.16.3, "+ Add a step" button).
+
 3.20.9 — Refresh bundled/bh-courses.zip (0.16.2, courses classic editor).
 
 3.20.8 — Fix "logs in but stays on the login page" on the live
