@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.5 — maybe_create_default_pages() hardening. The old code stamped
+bh_pages_version whether or not each singleton page (Reveal /
+Archive / Contests) actually got created, so one transient
+wp_insert_post failure meant that page never got another try. Now:
+each page whose option was never set is retried every admin_init
+until it succeeds, and the version is only stamped once all three
+exist. A page the owner deliberately trashed is left alone. Default
+title for the reveal page is now "Reveal" (was "Reveal Party") for
+fresh installs; existing pages keep their name.
+
 3.15.4 — .bh-brand (the "Contests" / "Archive" page heading) explicitly
 clears text-decoration — a builder-theme global typography rule was
 putting a line-through + underline on it (text-decoration propagates

@@ -87,23 +87,45 @@ class BH_Activator {
     // a version bump — admin_init reliably fires the next time he's in
     // wp-admin after a deploy, which he will be.
     public static function maybe_create_default_pages(): void {
-        if (get_option('bh_pages_version') === self::PAGES_VERSION) return;
+        $pages = [
+            ['bh_reveal_page_id', 'Reveal', '[bh_results_reveal]'],
+            ['bh_archive_page_id', 'Archive', '[bh_archive]'],
+            // The Contest Library is a distinct page from the Archive: the
+            // Library browses the contests themselves by lifecycle; the
+            // Archive is the flat catalog of every entry ever submitted.
+            ['bh_contest_library_page_id', 'Contests', '[bh_contest_library]'],
+        ];
 
-        self::maybe_create_singleton_page('bh_reveal_page_id', 'Reveal Party', '[bh_results_reveal]');
-        self::maybe_create_singleton_page('bh_archive_page_id', 'Archive', '[bh_archive]');
-        // The Contest Library is a distinct page from the Archive: the
-        // Library browses the contests themselves by lifecycle; the
-        // Archive is the flat catalog of every entry ever submitted.
-        self::maybe_create_singleton_page('bh_contest_library_page_id', 'Contests', '[bh_contest_library]');
+        $version_current = get_option('bh_pages_version') === self::PAGES_VERSION;
+        $all_ok = true;
+        foreach ($pages as [$opt, $title, $shortcode]) {
+            // Fast path: version already stamped AND this page's option
+            // is set → nothing to do. But a page whose option was NEVER
+            // set (a create that failed once) still gets retried every
+            // admin_init until it works — the old code stamped
+            // bh_pages_version regardless of per-page success, so a
+            // single transient wp_insert_post failure meant the page
+            // never got another chance.
+            if ($version_current && (int) get_option($opt, 0)) continue;
+            $all_ok = self::maybe_create_singleton_page($opt, $title, $shortcode) && $all_ok;
+        }
 
-        update_option('bh_pages_version', self::PAGES_VERSION);
+        // Only stamp the version once every page actually exists — same
+        // "mark done on real success" discipline as the schema
+        // migration above.
+        if ($all_ok) update_option('bh_pages_version', self::PAGES_VERSION);
     }
 
-    // No status/existence check needed here anymore — the version gate
-    // above already ensures this only ever runs once per PAGES_VERSION,
-    // so there's nothing left to optimize at this level.
-    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): void {
-        if ((int) get_option($option_key, 0)) return;
+    // True if the page exists (already recorded, or created now); false
+    // if a create was attempted and failed. A stored id pointing at a
+    // trashed/deleted post is treated as "gone but on purpose" — not
+    // recreated — so an owner who removed a page stays in control.
+    private static function maybe_create_singleton_page(string $option_key, string $title, string $shortcode): bool {
+        $existing = (int) get_option($option_key, 0);
+        if ($existing) {
+            $status = get_post_status($existing);
+            return $status !== false; // recorded page still a real post (published/draft/trash all fine)
+        }
 
         $new_id = wp_insert_post([
             'post_title'   => $title,
@@ -111,9 +133,10 @@ class BH_Activator {
             'post_status'  => 'publish',
             'post_content' => $shortcode,
         ], true);
-        if (is_wp_error($new_id)) return;
+        if (is_wp_error($new_id) || !$new_id) return false;
 
         update_option($option_key, $new_id);
+        return true;
     }
 
     // Returns true only if every step here actually succeeded — see the
