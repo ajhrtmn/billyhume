@@ -188,10 +188,13 @@ body.bh-standalone > footer,
 body.bh-standalone > footer.footer {
     display: none !important;
 }
-/* No floating theme header to clear anymore — the eco-nav sits in
-   normal flow. */
+/* No floating theme header to clear anymore, but every ecosystem
+   surface still wants breathing room below the eco-nav — this token
+   already drives that top spacing on the catalog, the lesson layout
+   and the portal shell, so a small value here keeps them all
+   consistent instead of flush against the eco-nav's border. */
 body.bh-standalone {
-    --bh-header-clearance: 0px;
+    --bh-header-clearance: 24px;
     background: var(--bh-bg, #170807);
 }
 body.bh-standalone main,

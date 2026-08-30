@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.2 — Standalone surfaces set --bh-header-clearance to 24px (was
+0) so the portal sidebar and every ecosystem page keep a small gap
+below the eco-nav's border instead of sitting flush against it.
+
 3.21.1 — Portal heading colour + margin fix. "Welcome back",
 "Continue learning", "Notifications" were inheriting the active
 theme's own h1/h2/h3 colour (the :where() heading rules set size but
