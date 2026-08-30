@@ -6,6 +6,12 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.1 — Contest Library card hover: the card is one big <a>, and the
+block theme reasserts text-decoration:underline on a:hover at a
+specificity the .bh-container reset didn't cover, so every stat, chip
+and track label underlined on hover. Killed explicitly for the card
+link in all interaction states.
+
 3.15.0 — The contest lifecycle view is now its own standalone page,
 [bh_contest_library] (auto-created page "Contests"), distinct from the
 Archive. The Archive goes back to being purely the flat

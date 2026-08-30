@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.15.1 — Catalog filter bar: the "Filter" submit now matches the pill
+inputs beside it (same 40px height, pill radius, 13px type, no stray
+top margin) instead of reading as a 6px-radius button bolted on. Custom
+CSS chevron on the selects so all three controls line up.
+
 0.15.0 — /courses/ catalog renders through the theme; watch-gate
 restyle.
 

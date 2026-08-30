@@ -137,8 +137,32 @@ class OUS_UserBar {
             .bhi-user-bar-link {
                 flex: 0 0 auto; font-size: 13px; color: var(--bh-text, #1d2327); text-decoration: none;
                 padding: 6px 12px; border-radius: 999px; background: var(--bh-surface-2, #f6f6f7); white-space: nowrap;
+                border: 1px solid transparent;
+                transition: background-color .15s ease, border-color .15s ease, color .15s ease;
             }
-            .bhi-user-bar-link:hover { background: var(--bh-accent-soft, #eef4ff); }
+            /* --bh-accent-muted-bg, NOT --bh-accent-soft: soft is a light
+               warm tint (light-cream text on it measured ~1.4:1 on the
+               live dark theme — the washed-out "Account" hover in the
+               field report). muted-bg is the low-alpha accent-into-
+               surface mix this token system exists for exactly this
+               "accent tint behind body text" case, and stays legible
+               for any configured accent/surface pair. */
+            .bhi-user-bar-link:hover,
+            .bhi-user-bar-link:focus-visible {
+                background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #b3502e) 16%, var(--bh-surface, #fff)));
+                border-color: color-mix(in srgb, var(--bh-accent, #b3502e) 40%, transparent);
+                color: var(--bh-text, #1d2327);
+                outline: none;
+            }
+            .bhi-user-bar-bell {
+                transition: background-color .15s ease, box-shadow .15s ease;
+            }
+            .bhi-user-bar-bell:hover,
+            .bhi-user-bar-bell:focus-visible {
+                background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #b3502e) 16%, var(--bh-surface, #fff)));
+                box-shadow: 0 0 0 3px color-mix(in srgb, var(--bh-accent, #b3502e) 16%, transparent);
+                outline: none;
+            }
             .bhi-user-bar-link-meta { color: var(--bh-text-dim, #6b7280); margin-left: 6px; }
             body.bhi-has-user-bar { padding-bottom: 56px; }
             /* Real bug, caught live: the rounded top corners + lift

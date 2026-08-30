@@ -9,6 +9,13 @@ has been reworded or dropped.
 
 ---
 
+3.20.1 — Front-end user bar: the link hover state used --bh-accent-soft
+(a light warm tint) behind --bh-text — light-cream on light-terracotta,
+~1.4:1, the washed-out "Account" hover in the field report. Switched to
+--bh-accent-muted-bg (the token meant for accent tint behind body text)
+plus an explicit hover text color and a real focus-visible state; the
+bell gets a matching hover/focus treatment.
+
 3.20.0 — GitHub Updates + account-portal polish.
 
 - GitHub Updates: the core plugin (the-self-hosted-self) now has its

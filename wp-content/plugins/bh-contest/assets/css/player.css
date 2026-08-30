@@ -1409,6 +1409,19 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 .bh-contest-card {
     isolation: isolate;
 }
+/* The card is one big <a>; block themes (Etch/ACSS here) reassert
+   `text-decoration: underline` on a:hover at a specificity the
+   .bh-container :where(a) reset doesn't cover, and it propagates to
+   every bit of text inside — the "everything underlined on hover" in
+   the field report. Kill it explicitly for this link in every
+   interaction state. */
+.bh-contests-landing a.bh-contest-card,
+.bh-contests-landing a.bh-contest-card:hover,
+.bh-contests-landing a.bh-contest-card:focus,
+.bh-contests-landing a.bh-contest-card:focus-visible,
+.bh-contests-landing a.bh-contest-card:active {
+    text-decoration: none !important;
+}
 .bh-contest-card::after {
     content: "";
     position: absolute;

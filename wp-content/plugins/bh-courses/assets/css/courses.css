@@ -537,9 +537,36 @@
     flex: 1 1 200px;
     min-width: 180px;
 }
-/* .bhc-btn / .bhc-btn-secondary are defined once, further down (the
-   lesson-step pass) — this catalog-pass version was fully shadowed by
-   that later, identical-specificity rule and was dead weight. */
+/* Align the "Filter" submit with the pill inputs it sits next to — the
+   shared .bhc-btn (defined in the lesson-step pass below) is a 6px-
+   radius, 14px, margin-top:12px button that read as a different
+   control bolted onto the row. Inside the filter bar it matches: same
+   height, same pill radius, same type size, no stray top margin. All
+   three controls get one explicit height so they line up exactly
+   regardless of their intrinsic box differences. */
+.bhc-catalog-filters .bhc-filter-search,
+.bhc-catalog-filters .bhc-filter-select,
+.bhc-catalog-filters .bhc-btn {
+    height: 40px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    font-size: 13px;
+    line-height: 1;
+}
+.bhc-catalog-filters .bhc-btn {
+    margin-top: 0;
+    padding: 0 20px;
+    font-weight: 600;
+}
+.bhc-catalog-filters .bhc-filter-select {
+    padding-right: 34px;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: right 16px center, right 11px center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    -webkit-appearance: none;
+    appearance: none;
+}
 
 /* ---- catalog: pagination ---- */
 .bhc-pagination {
