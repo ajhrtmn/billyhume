@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.17.1 — Refreshed bundled/bh-courses.zip to 0.14.0 (in-editor Bunny workflow).
+
 3.17.0 — `BHY_MediaToken` gains the optional Bunny **API key**
 (alongside the playback token key). With it set:
 `bunny_api_configured()` is true, `js_config()` reports `bunnyApi`, and
