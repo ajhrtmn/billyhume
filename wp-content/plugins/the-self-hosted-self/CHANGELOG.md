@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.20.14 — Refresh bundled bh-courses.zip (0.16.4) + bh-contest.zip (3.15.7).
+
 3.20.13 — Portal Overview: the key figure in each panel (course
 percent, unread count, contest votes) was rendered inside a plain
 <p> that inherited the theme's large body size — big text that read
