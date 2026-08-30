@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Feedback
  * Description: Paid feedback on a track — a fan pays with wallet credit for a quick-take or detailed written review; any account with the Reviewer job claims it from a shared queue. Depends only on The Self-Hosted Self's shared identity/wallet.
- * Version:     0.2.0
+ * Version:     0.2.1
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 // Version history: see this plugin's CHANGELOG.md (and git log).
 define('BHF_PATH', plugin_dir_path(__FILE__));
 define('BHF_URL',  plugin_dir_url(__FILE__));
-define('BHF_VER',  '0.2.0');
+define('BHF_VER',  '0.2.1');
 
 /**
  * A genuine PEER to bh-courses/bh-contest/bh-streaming/bh-monetization-woo

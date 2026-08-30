@@ -58,7 +58,10 @@ class BHF_Requests {
         ob_start(); ?>
         <div class="bhf-submit-form">
             <?php echo $notice; ?>
-            <p class="bhf-balance"><?php echo esc_html(sprintf(__('Wallet balance: $%s', 'bh-feedback'), number_format($balance / 100, 2))); ?></p>
+            <div class="bhi-datum bhi-datum--inline bhf-balance">
+                <span class="bhi-datum-value">$<?php echo esc_html(number_format($balance / 100, 2)); ?></span>
+                <span class="bhi-datum-label"><?php esc_html_e('wallet balance', 'bh-feedback'); ?></span>
+            </div>
             <form method="post" enctype="multipart/form-data" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="bhf_submit_request" />
                 <?php wp_nonce_field('bhf_submit_request', 'bhf_nonce'); ?>

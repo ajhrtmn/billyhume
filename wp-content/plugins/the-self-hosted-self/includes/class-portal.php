@@ -984,6 +984,79 @@ class BHI_Portal {
      .bhi-datum treatment below instead of just being big text. */
   .bhi-portal-section p { font-size:14px; line-height:1.55; }
 
+  /* ---- one type scale for every panel ----
+     Peer-plugin panels (Feedback, Sessions, Notifications, …) emit
+     bare h1/h2/h3/h4 that inherited the theme's hero-scale headings —
+     "Claimed by you", "Your upcoming sessions", "Notifications" all
+     rendered ~40px, jammed against a one-line body. This covers every
+     level whether the panel wraps itself in .bhi-portal-section or
+     gets auto-wrapped. :where() keeps specificity flat so a panel can
+     still override intentionally. */
+  .bhi-portal-main :where(h1, h2, h3, h4) { font-family:var(--bh-font-display, inherit); line-height:1.25; letter-spacing:-0.01em; }
+  .bhi-portal-main h1 { font-size:22px; font-weight:700; margin:0 0 16px; }
+  .bhi-portal-main h2 { font-size:16px; font-weight:600; margin:22px 0 12px; }
+  .bhi-portal-main h3 { font-size:14px; font-weight:600; margin:18px 0 6px; }
+  .bhi-portal-main h4 { font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--bh-text-dim, #6b7280); margin:14px 0 5px; }
+  .bhi-portal-main > :where(h1, h2, h3, h4):first-child { margin-top:0; }
+  .bhi-portal-section > :where(h1, h2, h3, h4):first-child { margin-top:0; }
+  .bhi-portal-section h2 { margin-top:0; }
+
+  /* Every button in a panel, not just [type=submit] — bare
+     <button type="button"> (Notifications' "Mark all read",
+     bh-feedback's tier picker helpers) fell through to native chrome. */
+  .bhi-portal-main button, .bhi-portal-main .bhcore-btn, .bhi-portal-main .button {
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:9px 18px; border:1px solid transparent; border-radius:var(--bh-radius-sm, 6px);
+    background:var(--bh-accent, #2271b1); color:var(--bh-accent-contrast, #fff);
+    font-size:14px; font-weight:600; font-family:inherit; line-height:1.2; cursor:pointer; text-decoration:none;
+    transition:background-color .15s ease, border-color .15s ease, transform .08s ease;
+  }
+  .bhi-portal-main button:hover, .bhi-portal-main .bhcore-btn:hover, .bhi-portal-main .button:hover {
+    background:var(--bh-accent-hover, var(--bh-accent-soft, #2271b1));
+  }
+  .bhi-portal-main button:active, .bhi-portal-main .bhcore-btn:active, .bhi-portal-main .button:active { transform:translateY(1px); }
+  .bhi-portal-main button:focus-visible, .bhi-portal-main .bhcore-btn:focus-visible, .bhi-portal-main .button:focus-visible,
+  .bhi-portal-main a:focus-visible, .bhi-portal-main input:focus-visible, .bhi-portal-main select:focus-visible {
+    outline:2px solid var(--bh-accent, #2271b1); outline-offset:2px;
+  }
+  /* Secondary / low-emphasis buttons stay quiet (cancel, small-action,
+     WP's own .button-small / .is-secondary). */
+  .bhi-portal-main button.button-small, .bhi-portal-main .button-small,
+  .bhi-portal-main button.is-secondary, .bhi-portal-main .bhi-btn--secondary,
+  .bhi-portal-main .bhcore-mark-all-read {
+    background:transparent; border-color:var(--bh-border, #e2e2e2); color:var(--bh-text, #1d2327);
+    padding:6px 12px; font-size:13px;
+  }
+  .bhi-portal-main button.button-small:hover, .bhi-portal-main .button-small:hover,
+  .bhi-portal-main .bhcore-mark-all-read:hover { border-color:var(--bh-accent, #2271b1); background:transparent; }
+
+  /* Panels that used WordPress's own admin .widefat table class get
+     nothing on the front end — give it (and any bare panel <table>)
+     the shared .bhi-portal-table look. */
+  .bhi-portal-main table { width:100%; border-collapse:collapse; margin:6px 0 4px; font-size:13.5px; }
+  .bhi-portal-main table th, .bhi-portal-main table td {
+    text-align:left; padding:9px 12px; border-bottom:1px solid var(--bh-border, #e2e2e2);
+  }
+  .bhi-portal-main table th { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--bh-text-dim, #6b7280); }
+  .bhi-portal-main table tr:last-child td { border-bottom:none; }
+
+  /* Disclosure rows (bh-feedback / Notifications "Manage what you get
+     emailed about") read as a consistent quiet toggle, not a stray
+     large line with a browser triangle. */
+  .bhi-portal-main details > summary {
+    cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px;
+    font-size:13px; font-weight:600; color:var(--bh-text-dim, #6b7280);
+    padding:4px 0;
+  }
+  .bhi-portal-main details > summary::-webkit-details-marker { display:none; }
+  .bhi-portal-main details > summary::before {
+    content:""; width:0; height:0; border-left:5px solid currentColor;
+    border-top:4px solid transparent; border-bottom:4px solid transparent;
+    transition:transform .12s ease;
+  }
+  .bhi-portal-main details[open] > summary::before { transform:rotate(90deg); }
+  .bhi-portal-main details > summary:hover { color:var(--bh-text, #1d2327); }
+
   /* A designed figure+label pair — the ecosystem's small-stat
      vocabulary (matches .bhi-overview-stat up top), for the one number
      each panel is actually about. The value is a display-font,
@@ -996,6 +1069,50 @@ class BHI_Portal {
     color:color-mix(in srgb, var(--bh-accent, #2271b1) 68%, var(--bh-text, #1d2327));
   }
   .bhi-datum-label { font-size:12px; color:var(--bh-text-dim, #6b7280); }
+  /* Inline variant: value + label on one baseline, value a touch
+     smaller — for a "Wallet balance $0.00" style line rather than a
+     stacked stat. */
+  .bhi-datum--inline { flex-direction:row; }
+  .bhi-datum--inline .bhi-datum-value { font-size:17px; }
+
+  /* ---- generic panel form furniture ----
+     Was scoped to .bhi-profile--edit only; every panel's fieldsets,
+     legends, form labels and radio/checkbox rows (bh-feedback's tier
+     picker, bh-tickets, …) should read the same. */
+  .bhi-portal-main fieldset {
+    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px);
+    padding:12px 16px 16px; margin:14px 0 0;
+  }
+  .bhi-portal-main legend { font-size:13px; font-weight:600; padding:0 6px; }
+  .bhi-portal-main form > label,
+  .bhi-portal-main fieldset > label:not(.bhi-choice-option):not(.bhi-checkbox) {
+    display:block; font-size:13px; font-weight:600; margin:14px 0 5px;
+  }
+  .bhi-portal-main form > label:first-of-type { margin-top:0; }
+  /* A radio/checkbox choice row: the control, a bold title, and a
+     muted description that wraps under it. Covers .bhf-tier-option and
+     any similar "pick one" list. */
+  .bhi-portal-main label.bhf-tier-option,
+  .bhi-portal-main .bhi-choice-option {
+    display:grid; grid-template-columns:auto 1fr; column-gap:10px; row-gap:2px;
+    align-items:start; padding:10px 12px; margin:8px 0 0;
+    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 6px);
+    cursor:pointer; font-size:14px;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  .bhi-portal-main label.bhf-tier-option:hover,
+  .bhi-portal-main .bhi-choice-option:hover { border-color:var(--bh-accent, #2271b1); }
+  .bhi-portal-main label.bhf-tier-option:has(input:checked),
+  .bhi-portal-main .bhi-choice-option:has(input:checked) {
+    border-color:var(--bh-accent, #2271b1);
+    background:var(--bh-accent-muted-bg, var(--bh-surface-2, #f6f7f7));
+  }
+  .bhi-portal-main label.bhf-tier-option > input[type="radio"],
+  .bhi-portal-main label.bhf-tier-option > input[type="checkbox"] { margin:2px 0 0; accent-color:var(--bh-accent, #2271b1); }
+  .bhi-portal-main label.bhf-tier-option > strong { grid-column:2; }
+  .bhi-portal-main label.bhf-tier-option .bhf-tier-description {
+    grid-column:2; font-size:12.5px; font-weight:400; color:var(--bh-text-dim, #6b7280); line-height:1.45;
+  }
 
   /* Continue learning — the bar and the % read as one unit on a row,
      the % as a real figure at the end of the track, not a caption

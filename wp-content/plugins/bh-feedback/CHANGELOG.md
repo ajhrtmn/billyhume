@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.2.1 — The submit form's "Wallet balance: $0.00" line is a
+.bhi-datum--inline figure (value + caption) instead of a bare bold
+sentence. The tier picker inherits the portal's shared choice-row
+and fieldset styling.
+
 0.2.0 — Tier 3 item 16: timestamped waveform audio annotations, the
 "third tier" this plugin's own docblock had deferred since v1. Shipped
 as a FEATURE of the existing 'detailed' tier (explicit decision) rather

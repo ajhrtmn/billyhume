@@ -9,6 +9,21 @@ has been reworded or dropped.
 
 ---
 
+3.20.17 — Portal panel typography + form furniture, ecosystem-wide.
+Peer-plugin panels (Feedback, Sessions, Notifications, …) emitted
+bare h1/h3/h4 that inherited the theme's hero-scale headings —
+"Claimed by you", "Your upcoming sessions", "Notifications" all
+rendered ~40px jammed on their one-line body. One flat type scale
+now covers every heading level in .bhi-portal-main whether or not a
+panel wraps itself. Every <button> (not just [type=submit]) gets the
+portal button treatment, with a quiet secondary variant
+(button-small / is-secondary / mark-all-read). Panel <table>s
+(incl. WP's .widefat) and <details>/<summary> disclosures get a
+consistent look. fieldset/legend/label styling and a
+radio-choice-row pattern (.bhf-tier-option / .bhi-choice-option)
+generalised out of the profile-only scope. .bhi-datum gains an
+--inline variant.
+
 3.20.16 — Refresh bundled bh-courses.zip (0.16.6) + bh-contest.zip (3.15.8).
 
 3.20.15 — Refresh bundled bh-courses.zip (0.16.5).
