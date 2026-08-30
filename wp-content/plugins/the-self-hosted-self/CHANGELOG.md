@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.20.6 — Refresh bundled/bh-courses.zip (0.16.0, lesson settings sidebar panel).
+
 3.20.5 — Refresh bundled/bh-courses.zip (0.15.2, step-editor UX pass).
 
 3.20.4 — Refresh bundled/bh-contest.zip (3.15.3, player-page back-link + width).
