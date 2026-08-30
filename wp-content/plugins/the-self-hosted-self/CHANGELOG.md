@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.20.2 — Refresh bundled/bh-contest.zip (3.15.1, Contest Library page)
+and bundled/bh-courses.zip (0.15.1, catalog filter-bar alignment).
+
 3.20.1 — Front-end user bar: the link hover state used --bh-accent-soft
 (a light warm tint) behind --bh-text — light-cream on light-terracotta,
 ~1.4:1, the washed-out "Account" hover in the field report. Switched to
