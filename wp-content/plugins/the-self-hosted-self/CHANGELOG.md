@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.21.20 — Refresh bundled bh-courses.zip (0.16.22).
+
 3.21.19 — Refresh bundled bh-courses.zip (0.16.21, course-view
 refinement pass).
 

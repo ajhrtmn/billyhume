@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.22 — Follow-up to 0.16.21: `.bhc-lesson-list .bhc-check` (0,2,0,
+source-order-later) was overriding the new check-chip `display:
+inline-grid` back to `inline-block`, so the tick sat top-left instead
+of centred. Kept inline-grid, kept the pop animation.
+
 0.16.21 — Course-view refinement pass (size / importance / hierarchy).
 - A stray <blockquote> in the course description inherited the block
   theme's own light styling and rendered near-white on near-white

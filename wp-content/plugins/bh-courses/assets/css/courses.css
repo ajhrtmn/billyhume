@@ -1094,7 +1094,8 @@ a.bhc-pagination-number:hover {
    same two keyframes here instead of inventing new ones keeps the
    whole lesson-taking surface feeling like one system. */
 .bhc-lesson-list .bhc-check {
-    display: inline-block;
+    /* keep the chip layout from .bhc-check above — just add the pop */
+    display: inline-grid;
     animation: bhc-marker-pop 0.3s ease both;
 }
 .bhc-module-lesson-list { animation: bhc-step-in 0.25s ease both; }
