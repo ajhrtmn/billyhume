@@ -185,6 +185,45 @@ class OUS_CoreTestSuite {
         $data = BHI_Profiles::get($user_id);
         $rows[] = OUS_TestRunner::assert_same([], $data['links'], 'Saving an empty links array clears them, and get() defaults to an empty array');
 
+        /* ---------------- BHY_MediaToken: signed private video ---------------- */
+        if (class_exists('BHY_MediaToken')) {
+            $orig = get_option(BHY_MediaToken::OPTION);
+
+            // Unconfigured → null, never a broken/half URL.
+            delete_option(BHY_MediaToken::OPTION);
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_r2('a/b.mp4'), 'sign_r2 returns null when R2 delivery is unconfigured');
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_bunny('11111111-2222-3333-4444-555555555555'), 'sign_bunny returns null when Bunny is unconfigured');
+
+            update_option(BHY_MediaToken::OPTION, [
+                'bunny_library_id' => '4242', 'bunny_token_key' => 'bkey',
+                'r2_worker_url' => 'https://w.example.workers.dev/', 'r2_signing_secret' => 'rsecret',
+            ]);
+
+            // R2 signature is the exact HMAC the Worker (tools/r2-video-worker.js) verifies.
+            $key = 'courses/lesson-12/master.mp4';
+            $url = BHY_MediaToken::sign_r2($key, 3600);
+            $rows[] = OUS_TestRunner::assert_true(is_string($url) && strpos($url, 'https://w.example.workers.dev/courses/lesson-12/master.mp4?exp=') === 0, 'sign_r2 builds {worker}/{key}?exp=…&sig=…');
+            $q = [];
+            parse_str((string) parse_url((string) $url, PHP_URL_QUERY), $q);
+            $expected_sig = rtrim(strtr(base64_encode(hash_hmac('sha256', $key . ':' . $q['exp'], 'rsecret', true)), '+/', '-_'), '=');
+            $rows[] = OUS_TestRunner::assert_same($expected_sig, $q['sig'] ?? null, 'sign_r2 sig = base64url(HMAC-SHA256(secret, "key:exp")) — matches the Worker');
+
+            // Path safety.
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_r2('../../etc/passwd'), 'sign_r2 rejects path traversal');
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_r2('https://evil.example/x.mp4'), 'sign_r2 rejects an absolute URL as a key');
+
+            // Bunny: recipe is sha256(token_key + guid + expiry), URL carries token + expires.
+            $guid = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            $burl = BHY_MediaToken::sign_bunny($guid, 3600);
+            $bq = [];
+            parse_str((string) parse_url((string) $burl, PHP_URL_QUERY), $bq);
+            $rows[] = OUS_TestRunner::assert_true(is_string($burl) && strpos($burl, 'https://iframe.mediadelivery.net/embed/4242/' . $guid . '?') === 0, 'sign_bunny builds the mediadelivery embed URL for the configured library');
+            $rows[] = OUS_TestRunner::assert_same(hash('sha256', 'bkey' . $guid . $bq['expires'], false), $bq['token'] ?? null, 'sign_bunny token = sha256(token_key + guid + expires)');
+            $rows[] = OUS_TestRunner::assert_same(null, BHY_MediaToken::sign_bunny('not-a-uuid'), 'sign_bunny rejects a non-UUID guid');
+
+            if ($orig === false) { delete_option(BHY_MediaToken::OPTION); } else { update_option(BHY_MediaToken::OPTION, $orig); }
+        }
+
         return $rows;
     }
 }

@@ -103,8 +103,33 @@ class BHC_Steps {
                 $ids = array_map('intval', (array) ($step['attachment_ids'] ?? []));
                 $clean[] = ['type' => 'image', 'attachment_ids' => array_filter($ids), 'caption' => sanitize_text_field($step['caption'] ?? '')];
             } elseif ($type === 'video') {
-                $source = in_array($step['source'] ?? '', ['url', 'cloudflare_stream'], true) ? $step['source'] : 'upload';
-                if ($source === 'cloudflare_stream') {
+                $source = in_array($step['source'] ?? '', ['url', 'cloudflare_stream', 'bunny_stream', 'signed_r2'], true) ? $step['source'] : 'upload';
+                if ($source === 'bunny_stream') {
+                    // Private delivery via BHY_MediaToken::sign_bunny() —
+                    // the step stores only the Bunny video GUID; the
+                    // library ID + token key are site-wide config (Media
+                    // & CDN Setup). Chapters/annotations/watch_threshold
+                    // ARE kept: courses.js drives the Bunny iframe through
+                    // its player.js postMessage API (see the bunny branch
+                    // in class-render-lesson.php and courses.ts). GUID is a
+                    // UUID (hyphenated hex) — reject anything else rather
+                    // than trusting free text into an embed URL.
+                    $guid = strtolower(trim((string) ($step['bunny_guid'] ?? '')));
+                    if (!$guid || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/', $guid)) continue;
+                    $clean[] = ['type' => 'video', 'source' => 'bunny_stream', 'bunny_guid' => $guid, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                } elseif ($source === 'signed_r2') {
+                    // Private delivery via BHY_MediaToken::sign_r2() — the
+                    // step stores only the object key (path within the
+                    // bucket); the Worker URL + signing secret are
+                    // site-wide config. This renders as a real same-origin
+                    // <video> (the Worker streams with range support), so
+                    // chapters/annotations/watch_threshold work exactly as
+                    // they do for an uploaded file. Key is a plain
+                    // relative path: letters/digits/_-./ and no traversal.
+                    $key = ltrim(trim((string) ($step['r2_key'] ?? '')), '/');
+                    if ($key === '' || strpos($key, '..') !== false || !preg_match('#^[A-Za-z0-9._/-]+$#', $key)) continue;
+                    $clean[] = ['type' => 'video', 'source' => 'signed_r2', 'r2_key' => $key, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                } elseif ($source === 'cloudflare_stream') {
                     // OSS-integration master plan Phase 6 follow-up — a
                     // third video source alongside upload/url, gated in
                     // the UI (courses-studio-blocks.js) behind

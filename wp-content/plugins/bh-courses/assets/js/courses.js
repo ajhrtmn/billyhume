@@ -302,6 +302,55 @@
         lesson.querySelectorAll('.bhc-step-video').forEach(function (el) {
             var isProvider = el.hasAttribute('data-plyr-provider');
             var videoEl = el.tagName === 'VIDEO' ? el : null;
+            // ---- Bunny Stream (private signed embed) ----
+            // A cross-origin iframe, but player.js gives us the same
+            // control surface Plyr does for YouTube/Vimeo, so chapters,
+            // pausing annotations and watch-threshold all work. Degrades
+            // cleanly: if player.js didn't load or never reports ready,
+            // no adapter is registered and the video still plays (the
+            // chapter list just isn't clickable), same as an opaque embed.
+            if (el.classList.contains('bhc-step-video-bunny')) {
+                var iframe = el.querySelector('iframe.bhc-bunny-embed');
+                var PlayerJs = window.playerjs;
+                if (!iframe || !PlayerJs)
+                    return;
+                var pjs = new PlayerJs.Player(iframe);
+                var cachedTime = 0;
+                var cachedDuration = 0;
+                var timeupdateCbs = [];
+                var endedCbs = [];
+                pjs.on('ready', function () {
+                    pjs.getDuration(function (d) { if (isFinite(d) && d > 0)
+                        cachedDuration = d; });
+                });
+                pjs.on('timeupdate', function (v) {
+                    if (v && typeof v.seconds === 'number')
+                        cachedTime = v.seconds;
+                    if (v && typeof v.duration === 'number' && v.duration > 0)
+                        cachedDuration = v.duration;
+                    for (var i = 0; i < timeupdateCbs.length; i++)
+                        timeupdateCbs[i]();
+                });
+                pjs.on('ended', function () { for (var j = 0; j < endedCbs.length; j++)
+                    endedCbs[j](); });
+                var bunnyMedia = {
+                    isProvider: true,
+                    player: null,
+                    currentTime: function () { return cachedTime; },
+                    seek: function (t) { cachedTime = t; pjs.setCurrentTime(t); },
+                    duration: function () { return cachedDuration; },
+                    play: function () { pjs.play(); },
+                    pause: function () { pjs.pause(); },
+                    on: function (evt, cb) {
+                        if (evt === 'timeupdate')
+                            timeupdateCbs.push(cb);
+                        else if (evt === 'ended')
+                            endedCbs.push(cb);
+                    },
+                };
+                mediaAdapters.push({ el: el, media: bunnyMedia });
+                return;
+            }
             var PlyrCtor = window.Plyr;
             var player = null;
             if (PlyrCtor) {

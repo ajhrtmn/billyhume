@@ -9,6 +9,26 @@ has been reworded or dropped.
 
 ---
 
+3.16.0 — Signed, private video delivery (`BHY_MediaToken`,
+`class-media-token.php`) — the "the course is for sale, playback must not
+be a shareable link" layer that sits on top of storage/offload (which
+only ever makes a bucket file public). Two providers, one contract:
+
+- `sign_bunny($video_guid)` — a Bunny Stream embed URL carrying a
+  per-viewer token (`sha256(token_key + guid + expiry)`) that expires in
+  4h. Bunny's own CDN + adaptive streaming.
+- `sign_r2($object_key)` — a URL to `tools/r2-video-worker.js` (a
+  ~90-line Cloudflare Worker, included) carrying
+  `base64url(HMAC-SHA256(secret, "key:exp"))`. The Worker validates it,
+  then streams the private R2 object with byte-range support. R2 has no
+  egress fees.
+
+Both return null until configured, so a caller falls back to a notice,
+not a broken player. Settings live on the existing Media & CDN Setup
+page via a new `ous_media_setup_after` hook — no second screen. Signing
+is covered by the core Test Runner suite (9 assertions, deterministic).
+NOT runtime-verified end-to-end — needs a real R2 bucket / Bunny library.
+
 3.15.11 — Styled the sign-in gate. `OUS_Visibility::render_login_notice()`
 (the "Log in to view this lesson / course / contest" block shared by
 bh-courses and bh-contest) rendered as bare browser-default text plus a

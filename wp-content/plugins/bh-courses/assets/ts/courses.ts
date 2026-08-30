@@ -94,6 +94,20 @@ interface BHCPlyrConstructor {
     new(target: HTMLElement, options?: Record<string, unknown>): BHCPlyrInstance;
 }
 
+// Bunny Stream's iframe speaks the player.js postMessage protocol
+// (assets.mediadelivery.net/playerjs/…). Only the members this file
+// drives are declared. All getters are async (callback), so the adapter
+// below keeps a synchronous cache fed by the 'timeupdate' event.
+interface BHCPlayerJsInstance {
+    on(event: string, handler: (value?: { seconds?: number; duration?: number }) => void): void;
+    play(): void;
+    pause(): void;
+    setCurrentTime(seconds: number): void;
+    getCurrentTime(cb: (seconds: number) => void): void;
+    getDuration(cb: (seconds: number) => void): void;
+}
+interface BHCPlayerJsConstructor { new(el: HTMLIFrameElement | string): BHCPlayerJsInstance; }
+
 /**
  * One uniform handle on "the media for this step", whether that's a
  * real <video> or a YouTube/Vimeo provider embed driven through Plyr.
@@ -398,6 +412,48 @@ interface BHCMedia {
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (el) {
             var isProvider = el.hasAttribute('data-plyr-provider');
             var videoEl = el.tagName === 'VIDEO' ? (el as HTMLVideoElement) : null;
+
+            // ---- Bunny Stream (private signed embed) ----
+            // A cross-origin iframe, but player.js gives us the same
+            // control surface Plyr does for YouTube/Vimeo, so chapters,
+            // pausing annotations and watch-threshold all work. Degrades
+            // cleanly: if player.js didn't load or never reports ready,
+            // no adapter is registered and the video still plays (the
+            // chapter list just isn't clickable), same as an opaque embed.
+            if (el.classList.contains('bhc-step-video-bunny')) {
+                var iframe = el.querySelector<HTMLIFrameElement>('iframe.bhc-bunny-embed');
+                var PlayerJs = (window as unknown as { playerjs?: { Player: BHCPlayerJsConstructor } }).playerjs;
+                if (!iframe || !PlayerJs) return;
+                var pjs = new PlayerJs.Player(iframe);
+                var cachedTime = 0;
+                var cachedDuration = 0;
+                var timeupdateCbs: Array<() => void> = [];
+                var endedCbs: Array<() => void> = [];
+                pjs.on('ready', function () {
+                    pjs.getDuration(function (d) { if (isFinite(d) && d > 0) cachedDuration = d; });
+                });
+                pjs.on('timeupdate', function (v) {
+                    if (v && typeof v.seconds === 'number') cachedTime = v.seconds;
+                    if (v && typeof v.duration === 'number' && v.duration > 0) cachedDuration = v.duration;
+                    for (var i = 0; i < timeupdateCbs.length; i++) timeupdateCbs[i]!();
+                });
+                pjs.on('ended', function () { for (var j = 0; j < endedCbs.length; j++) endedCbs[j]!(); });
+                var bunnyMedia: BHCMedia = {
+                    isProvider: true,
+                    player: null,
+                    currentTime: function () { return cachedTime; },
+                    seek: function (t) { cachedTime = t; pjs.setCurrentTime(t); },
+                    duration: function () { return cachedDuration; },
+                    play: function () { pjs.play(); },
+                    pause: function () { pjs.pause(); },
+                    on: function (evt, cb) {
+                        if (evt === 'timeupdate') timeupdateCbs.push(cb);
+                        else if (evt === 'ended') endedCbs.push(cb);
+                    },
+                };
+                mediaAdapters.push({ el: el, media: bunnyMedia });
+                return;
+            }
 
             var PlyrCtor = (window as unknown as { Plyr?: BHCPlyrConstructor }).Plyr;
             var player: BHCPlyrInstance | null = null;

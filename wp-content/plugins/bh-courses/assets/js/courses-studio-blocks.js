@@ -308,6 +308,10 @@
             // uploads to Stream themselves (see class-steps.php's own
             // comment: no in-plugin upload-to-Stream flow yet).
             stream_uid: { type: 'string', default: '' },
+            // Private (signed) delivery — BHY_MediaToken. The step stores
+            // only the id/key; library + secrets are site-wide config.
+            bunny_guid: { type: 'string', default: '' },
+            r2_key: { type: 'string', default: '' },
             caption: { type: 'string', default: '' },
             // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b — 0
             // means "any playback marks it complete" (the pre-existing
@@ -537,7 +541,10 @@
                 // localized as window.bhcMediaTierB) — an install
                 // that never opted in never sees it.
                 options: [{ label: __('Uploaded file'), value: 'upload' }, { label: __('URL (oEmbed)'), value: 'url' }]
-                    .concat((window.bhcMediaTierB && window.bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : []),
+                    .concat((window.bhcMediaTierB && window.bhcMediaTierB.enabled) ? [{ label: __('Cloudflare Stream'), value: 'cloudflare_stream' }] : [])
+                    // Private (signed) sources — only shown once configured in Media & CDN Setup (window.bhcMediaSigned).
+                    .concat((window.bhcMediaSigned && window.bhcMediaSigned.bunny) ? [{ label: __('Bunny Stream (private)'), value: 'bunny_stream' }] : [])
+                    .concat((window.bhcMediaSigned && window.bhcMediaSigned.r2) ? [{ label: __('Cloudflare R2 (private, signed)'), value: 'signed_r2' }] : []),
                 onChange: function (v) { setAttrs({ source: v }); },
             })));
             var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 }, el('summary', {}, __('Chapters'), chapters.length ? el('span', { className: 'bhc-studio-subsection-count' }, chapters.length) : null), el('p', { className: 'description' }, __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')), chapters.length
@@ -566,7 +573,11 @@
                 onClick: function () { setAttrs({ annotations: annotations.concat([{ time: Math.floor(previewTime), type: 'note', payload: { text: '' } }]) }); },
             }, previewUrl ? __('+ Add overlay at ') + fmtTime(previewTime) : __('+ Add overlay')));
             var videoAttachment = attrs.source === 'upload' ? useAttachment(attrs.attachment_id) : null;
-            var sourceLabel = attrs.source === 'url' ? __('URL') : attrs.source === 'cloudflare_stream' ? __('Cloudflare Stream') : __('Upload');
+            var sourceLabel = attrs.source === 'url' ? __('URL')
+                : attrs.source === 'cloudflare_stream' ? __('Cloudflare Stream')
+                    : attrs.source === 'bunny_stream' ? __('Bunny Stream')
+                        : attrs.source === 'signed_r2' ? __('Cloudflare R2')
+                            : __('Upload');
             var meta = sourceLabel
                 + (chapters.length ? ' · ' + chapters.length + __(' chapters') : '')
                 + (annotations.length ? ' · ' + annotations.length + __(' overlays') : '');
@@ -585,6 +596,22 @@
                     help: __('Upload the video to Cloudflare Stream yourself first, then paste the resulting UID here — a 32-character code from its dashboard/API response.'),
                     value: attrs.stream_uid,
                     onChange: function (v) { setAttrs({ stream_uid: v.trim().toLowerCase() }); },
+                });
+            }
+            else if (attrs.source === 'bunny_stream') {
+                picker = el(wp.components.TextControl, {
+                    key: 'src', label: __('Bunny Stream video GUID'),
+                    help: __('Upload to your Bunny Stream library first, then paste the video\'s GUID (a UUID, e.g. 1a2b3c4d-…). Chapters, overlays and the watch threshold all still work. Playback links are signed per viewer and expire.'),
+                    value: attrs.bunny_guid,
+                    onChange: function (v) { setAttrs({ bunny_guid: v.trim().toLowerCase() }); },
+                });
+            }
+            else if (attrs.source === 'signed_r2') {
+                picker = el(wp.components.TextControl, {
+                    key: 'src', label: __('R2 object key'),
+                    help: __('The path to the file inside your R2 bucket, e.g. courses/lesson-12/master.mp4. Served through your Worker with a per-viewer signed link — behaves exactly like an uploaded file, chapters and all.'),
+                    value: attrs.r2_key,
+                    onChange: function (v) { setAttrs({ r2_key: v.replace(/^\/+/, '') }); },
                 });
             }
             else {

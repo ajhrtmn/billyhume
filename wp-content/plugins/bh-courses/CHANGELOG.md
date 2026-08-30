@@ -6,6 +6,24 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.13.0 — Two new private video-step sources, both via `BHY_MediaToken`
+(the-self-hosted-self 3.16.0):
+
+- **Bunny Stream (private)** — stores just the video GUID; the player is
+  Bunny's iframe, but courses.js drives it through Bunny's player.js
+  postMessage API, so **chapters (list + active highlight + click to
+  seek), pausing overlays, and the watch threshold all still work**. The
+  one thing it can't do is paint markers on Bunny's own scrub bar.
+  player.js is only enqueued on a lesson that actually has a Bunny step.
+- **Cloudflare R2 (private, signed)** — stores just the object key;
+  renders as a real same-origin `<video>` (the Worker streams with range
+  support), so it behaves *exactly* like an uploaded file — every
+  feature, on-scrubber chapter markers included.
+
+Both options only appear in the step editor once configured in Media &
+CDN Setup (`window.bhcMediaSigned`), same rule as the Cloudflare Stream
+source. Step schema stores `{source, bunny_guid|r2_key}` flat — no URLs.
+
 0.12.2 — The lesson template renders straight into a full-bleed <main>
 on a block/builder theme (Etch — no prose container to inherit a width
 from), so on desktop the two-column layout sprawled edge to edge with the

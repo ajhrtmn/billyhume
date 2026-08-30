@@ -146,6 +146,13 @@ class BHC_ContentBridge {
         wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaTierB', [
             'enabled' => class_exists('OUS_MediaWizard') && OUS_MediaWizard::tier_b_enabled(),
         ]);
+
+        // Private (signed) video sources — Bunny Stream and Cloudflare
+        // R2 + Worker (BHY_MediaToken). Same "the option only appears
+        // once it's actually configured" rule as Tier B above.
+        wp_localize_script('bhc-courses-studio-blocks', 'bhcMediaSigned', class_exists('BHY_MediaToken')
+            ? BHY_MediaToken::js_config()
+            : ['bunny' => false, 'r2' => false]);
     }
 
     // Real bug, caught live: bhc/quiz-question's own edit view renders

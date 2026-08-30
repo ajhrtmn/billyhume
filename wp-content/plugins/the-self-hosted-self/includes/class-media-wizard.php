@@ -281,6 +281,15 @@ class OUS_MediaWizard {
             self::render_live_section();
         }
 
+        /**
+         * Lets other core services add their own section to this one
+         * "manage all media from one place" page rather than standing up
+         * a second settings screen — BHY_MediaToken (signed/private
+         * delivery) is the first user. Fires inside .wrap, after
+         * everything above.
+         */
+        do_action('ous_media_setup_after');
+
         echo '</div>';
     }
 

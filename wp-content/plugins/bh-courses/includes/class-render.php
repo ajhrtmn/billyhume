@@ -212,6 +212,17 @@ class BHC_Render {
             // constructs `new Plyr(...)` at DOMContentLoaded, so Plyr's
             // own global has to exist by then.
             $deps[] = 'bhc-plyr';
+
+            // Bunny Stream steps are driven through Bunny's player.js
+            // postMessage bridge so chapters/annotations/watch-threshold
+            // work over the cross-origin iframe. Only pulled in when the
+            // lesson actually has one — same "enqueue what the content
+            // needs" rule as Plyr itself.
+            $lesson = get_queried_object();
+            if ($lesson instanceof \WP_Post && self::lesson_has_bunny_step((int) $lesson->ID)) {
+                wp_enqueue_script('bhc-bunny-playerjs', 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js', [], null, true);
+                $deps[] = 'bhc-bunny-playerjs';
+            }
         }
 
         wp_enqueue_script('bhc-front', BHC_URL . 'assets/js/courses.js', $deps, BHC_VER, true);
@@ -219,6 +230,15 @@ class BHC_Render {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('bhc_progress'),
         ]);
+    }
+
+    /** True if any step of this lesson is a bunny_stream video step. */
+    private static function lesson_has_bunny_step(int $lesson_id): bool {
+        if (!$lesson_id || !class_exists('BHC_Steps')) return false;
+        foreach (BHC_Steps::get($lesson_id) as $step) {
+            if (($step['type'] ?? '') === 'video' && ($step['source'] ?? '') === 'bunny_stream') return true;
+        }
+        return false;
     }
 
     /* ---------------- delegates — real logic lives in the three classes above ---------------- */

@@ -355,6 +355,47 @@ class BHC_Render_Lesson {
                 } else {
                     echo '<p class="bhc-empty">Video file not found.</p>';
                 }
+            } elseif ($step['source'] === 'signed_r2') {
+                // Private delivery, R2 + Worker (BHY_MediaToken::sign_r2).
+                // The Worker streams the private object with byte-range
+                // support, so this is a real same-origin <video> — every
+                // trackable feature (chapters, annotations, watch
+                // threshold) works exactly as it does for an upload.
+                $url = class_exists('BHY_MediaToken')
+                    ? BHY_MediaToken::sign_r2((string) ($step['r2_key'] ?? ''))
+                    : null;
+                if ($url) {
+                    echo '<div class="bhc-video-wrap"><video class="bhc-step-video" controls preload="metadata" src="' . esc_url($url) . '"' . $threshold_attr . $annotations_attr . $chapters_attr . '></video></div>';
+                    $trackable = true;
+                } else {
+                    echo '<p class="bhc-empty">' . esc_html__('This video needs signed-delivery setup finished in Media &amp; CDN Setup.', 'bh-courses') . '</p>';
+                }
+            } elseif ($step['source'] === 'bunny_stream') {
+                // Private delivery, Bunny Stream (BHY_MediaToken::sign_bunny).
+                // A cross-origin iframe — but Bunny's embed speaks the
+                // player.js postMessage protocol, so courses.ts drives it
+                // through the SAME media adapter it uses for a <video> or
+                // a Plyr provider, and chapters / pausing annotations /
+                // watch-threshold all keep working. The one thing it
+                // can't do is paint markers onto Bunny's own scrub bar
+                // (their controls, their iframe) — the chapter list below
+                // the video is the affordance instead.
+                $embed = class_exists('BHY_MediaToken')
+                    ? BHY_MediaToken::sign_bunny((string) ($step['bunny_guid'] ?? ''))
+                    : null;
+                if ($embed) {
+                    // Same shape as the YouTube/Vimeo provider branch: a
+                    // .bhc-step-video DIV (not a <video>) carrying the
+                    // data-* attrs the feature blocks in courses.ts key
+                    // off, with the iframe inside it. courses.ts builds a
+                    // player.js-backed adapter for it.
+                    echo '<div class="bhc-video-wrap"><div class="bhc-step-video bhc-step-video-bunny"' . $threshold_attr . $annotations_attr . $chapters_attr . '>'
+                        . '<iframe class="bhc-bunny-embed" src="' . esc_url($embed) . '" loading="lazy" style="border:none;" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowfullscreen></iframe>'
+                        . '</div></div>';
+                    $trackable = ($threshold > 0 || $annotations || $chapters);
+                } else {
+                    echo '<p class="bhc-empty">' . esc_html__('This video needs Bunny Stream setup finished in Media &amp; CDN Setup.', 'bh-courses') . '</p>';
+                }
             } elseif ($step['source'] === 'cloudflare_stream') {
                 // OSS-integration master plan Phase 6 follow-up: Tier B
                 // wired into a real content type. Cloudflare Stream's own
