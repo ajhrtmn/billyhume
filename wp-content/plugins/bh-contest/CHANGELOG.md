@@ -6,6 +6,10 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.9 — Contest surfaces (any page with a contest shortcode/block,
+single bh_contest) opt into the ecosystem's standalone chrome
+(bh_standalone_surface).
+
 3.15.8 — Contest Library cards arrive in a quick stagger, matching
 the courses catalog. Reduced-motion-guarded.
 

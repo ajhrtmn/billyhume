@@ -51,6 +51,83 @@ class OUS_MenuSync {
         add_filter('wp_nav_menu_objects', [self::class, 'localize_account_link'], 10, 1);
         add_action('admin_init', [self::class, 'migrate_legacy_theme_mods']);
         add_action('wp_enqueue_scripts', [self::class, 'enqueue_cta_style']);
+
+        // "Standalone surface" — an ecosystem page (portal, catalog,
+        // lesson, contest, reveal, …) that the site owner wants to feel
+        // distinct from the main site: the theme's own nav/footer are
+        // hidden and a single "back to <site>" link stands in. Peer
+        // plugins opt their own surfaces in via the bh_standalone_surface
+        // filter; the portal is wired here since it's core.
+        add_filter('bh_standalone_surface', [self::class, 'portal_is_standalone']);
+        add_filter('body_class', [self::class, 'mark_standalone_body']);
+        add_action('wp_body_open', [self::class, 'render_eco_nav']);
+    }
+
+    public static function portal_is_standalone($is): bool {
+        if ($is) return true;
+        return class_exists('BHI_Portal') && BHI_Portal::is_portal_context();
+    }
+
+    /** @param string[] $classes @return string[] */
+    public static function mark_standalone_body($classes): array {
+        if (!is_admin() && apply_filters('bh_standalone_surface', false)) {
+            $classes[] = 'bh-standalone';
+        }
+        return $classes;
+    }
+
+    // The ecosystem's own slim nav bar, printed once at the top of
+    // <body> on a standalone surface (front-nav.css hides the theme's
+    // header/footer and positions this). A "&larr; <site>" link back to
+    // the main website on the left, then the ecosystem's own
+    // destinations (Courses / Contests / Account) — so it reads as "the
+    // other half of the site", distinct but connected, not a bare
+    // orphan page. Destinations come from the conventional page-id
+    // options each plugin already records; bh_eco_nav_items lets a peer
+    // add/reorder/remove.
+    public static function render_eco_nav(): void {
+        if (is_admin() || !apply_filters('bh_standalone_surface', false)) return;
+
+        $current = (int) get_queried_object_id();
+        $known = [
+            'Courses'  => (int) get_option('bhc_catalog_page_id', 0),
+            'Contests' => (int) get_option('bh_contest_library_page_id', 0),
+            'Account'  => class_exists('BHI_Portal') ? (int) get_option('bhi_portal_page_id', 0) : 0,
+        ];
+        $items = [];
+        foreach ($known as $label => $pid) {
+            if ($pid && get_post_status($pid) === 'publish') {
+                $items[] = ['label' => $label, 'url' => (string) get_permalink($pid), 'id' => $pid, 'match' => $label];
+            }
+        }
+        /**
+         * @param array<int, array{label:string,url:string,id:int,match:string}> $items
+         * @param int $current queried object id
+         */
+        $items = apply_filters('bh_eco_nav_items', $items, $current);
+
+        // Which top-level section is "active" for a page that isn't one
+        // of the landing pages itself (a course/lesson single -> Courses,
+        // a contest single -> Contests).
+        $active_match = '';
+        if (is_singular(['bh_course', 'bh_lesson'])) $active_match = 'Courses';
+        elseif (is_singular('bh_contest')) $active_match = 'Contests';
+        elseif (class_exists('BHI_Portal') && BHI_Portal::is_portal_context()) $active_match = 'Account';
+
+        echo '<nav class="bh-eco-nav" aria-label="' . esc_attr__('Ecosystem', 'the-self-hosted-self') . '">';
+        echo '<div class="bh-eco-nav-inner">';
+        echo '<a class="bh-eco-nav-home" href="' . esc_url(home_url('/')) . '" rel="home">'
+            . '<span class="bh-eco-nav-arrow" aria-hidden="true">&larr;</span> ' . esc_html(get_bloginfo('name')) . '</a>';
+        if ($items) {
+            echo '<span class="bh-eco-nav-links">';
+            foreach ($items as $it) {
+                $active = ((int) ($it['id'] ?? 0) === $current) || (($it['match'] ?? '') !== '' && $it['match'] === $active_match);
+                echo '<a class="bh-eco-nav-link' . ($active ? ' is-active' : '') . '" href="' . esc_url($it['url']) . '">'
+                    . esc_html($it['label']) . '</a>';
+            }
+            echo '</span>';
+        }
+        echo '</div></nav>';
     }
 
     /**

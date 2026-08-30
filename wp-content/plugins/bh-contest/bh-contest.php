@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.15.8
+ * Version:     3.15.9
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.15.8');
+define('BH_VER',        '3.15.9');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -94,6 +94,25 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
     add_action('init',          ['BH_Contest_Library', 'init']);
+
+    // Opt the contest surfaces into the ecosystem's standalone chrome
+    // (theme nav/footer hidden, ecosystem's own slim bar) — see
+    // OUS_MenuSync. Any page carrying a contest shortcode/block, or a
+    // single bh_contest.
+    add_filter('bh_standalone_surface', function ($is) {
+        if ($is) return true;
+        if (is_singular('bh_contest')) return true;
+        if (!is_singular()) return false;
+        $post = get_post();
+        if (!$post) return false;
+        foreach (['bh_contest_player', 'bh_results_reveal', 'bh_archive', 'bh_contest_library'] as $sc) {
+            if (has_shortcode($post->post_content, $sc)) return true;
+        }
+        foreach (['bh/contest-player', 'bh/results-reveal', 'bh/archive', 'bh/contest-library'] as $bl) {
+            if (has_block($bl, $post)) return true;
+        }
+        return false;
+    });
     add_action('init',          ['BH_ShareCards', 'init']);
 
     // Registers this plugin's seeding/reset actions into the shared Debug

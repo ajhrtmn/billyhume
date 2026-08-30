@@ -9,6 +9,18 @@ has been reworded or dropped.
 
 ---
 
+3.21.0 — Standalone ecosystem chrome. Billy's call: the course /
+contest / portal pages should feel like "the other half of the
+site", not blend into it. On any surface a plugin opts in via the
+new bh_standalone_surface filter, body.bh-standalone hides the
+theme's own <header>/<footer> and OUS_MenuSync prints a slim
+ecosystem bar at the top: a "<- <site name>" link back to the main
+site, then the ecosystem's own destinations (Courses / Contests /
+Account, from the conventional page-id options; bh_eco_nav_items to
+customise), with the current section pill-highlighted. Shared dark
+background and fonts stay. The portal is wired in here; peers wire
+their own.
+
 3.20.17 — Portal panel typography + form furniture, ecosystem-wide.
 Peer-plugin panels (Feedback, Sessions, Notifications, …) emitted
 bare h1/h3/h4 that inherited the theme's hero-scale headings —

@@ -176,3 +176,98 @@ li.ous-menu-account-cta {
         padding: 32px 20px;
     }
 }
+
+/* ================= Standalone ecosystem surface =================
+   body.bh-standalone (OUS_MenuSync) — a course/contest/portal page the
+   site owner wants to feel like "the other half of the site": the
+   theme's own nav and footer are hidden and the ecosystem shows its
+   own slim bar instead. Fonts and the dark background stay shared. */
+body.bh-standalone > header,
+body.bh-standalone > header.navigation,
+body.bh-standalone > footer,
+body.bh-standalone > footer.footer {
+    display: none !important;
+}
+/* No floating theme header to clear anymore — the eco-nav sits in
+   normal flow. */
+body.bh-standalone {
+    --bh-header-clearance: 0px;
+    background: var(--bh-bg, #170807);
+}
+body.bh-standalone main,
+body.bh-standalone main#main {
+    min-height: 100vh;
+}
+
+.bh-eco-nav {
+    border-bottom: 1px solid var(--bh-border, #3D1B14);
+    background: color-mix(in srgb, var(--bh-bg, #170807) 82%, #000);
+}
+/* The WP admin bar is position:fixed over the top of the page; the
+   eco-nav is the first thing in the body flow, so it needs to start
+   below it while an admin is viewing. */
+body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 32px; }
+@media screen and (max-width: 782px) {
+    body.admin-bar.bh-standalone .bh-eco-nav { margin-top: 46px; }
+}
+.bh-eco-nav-inner {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+}
+.bh-eco-nav-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--bh-font-display, inherit);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    color: var(--bh-text-dim, #B99584);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color .15s ease;
+}
+.bh-eco-nav-home:hover,
+.bh-eco-nav-home:focus-visible { color: var(--bh-text, #EDDFCB); }
+.bh-eco-nav-arrow { font-size: 15px; line-height: 1; }
+.bh-eco-nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    flex-wrap: wrap;
+}
+.bh-eco-nav-link {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bh-text-dim, #B99584);
+    text-decoration: none;
+    transition: color .15s ease, background-color .15s ease;
+}
+.bh-eco-nav-link:hover,
+.bh-eco-nav-link:focus-visible {
+    color: var(--bh-text, #EDDFCB);
+    background: color-mix(in srgb, var(--bh-accent, #C1503A) 12%, transparent);
+}
+.bh-eco-nav-link.is-active {
+    color: color-mix(in srgb, var(--bh-accent, #C1503A) 70%, var(--bh-text, #EDDFCB));
+    background: var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #C1503A) 16%, transparent));
+}
+.bh-eco-nav-link:focus-visible,
+.bh-eco-nav-home:focus-visible {
+    outline: 2px solid var(--bh-accent, #C1503A);
+    outline-offset: 2px;
+}
+@media (max-width: 600px) {
+    .bh-eco-nav-inner { gap: 12px; padding: 10px 16px; }
+    .bh-eco-nav-links { margin-left: 0; width: 100%; }
+    .bh-eco-nav-link { padding: 6px 10px; }
+}

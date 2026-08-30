@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.6
+ * Version:     0.16.7
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.6');
+define('BHC_VER',  '0.16.7');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -54,6 +54,15 @@ add_action('plugins_loaded', function () {
 
     add_action('init', ['BHC_PostTypes', 'register']);
     add_action('init', ['BHC_Render', 'init']);
+
+    // Opt the course surfaces into the ecosystem's standalone chrome
+    // (theme nav/footer hidden, ecosystem's own slim bar shown) — see
+    // OUS_MenuSync. A catalog page, or any single course / lesson.
+    add_filter('bh_standalone_surface', function ($is) {
+        if ($is) return true;
+        $catalog = (int) get_option('bhc_catalog_page_id', 0);
+        return ($catalog && is_page($catalog)) || is_singular(['bh_course', 'bh_lesson']);
+    });
     // QA fix, caught live via WP_DEBUG_LOG: same fix as bh-contest's
     // BH_Blocks/bh-streaming's BHS_Blocks — hooked normally at 'init'
     // instead of called directly at plugins_loaded time.
