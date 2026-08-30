@@ -6,6 +6,25 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.21 — Course-view refinement pass (size / importance / hierarchy).
+- A stray <blockquote> in the course description inherited the block
+  theme's own light styling and rendered near-white on near-white
+  (invisible box). Rich text in .bhc-course-description / .bhc-step-text
+  (blockquote, pre, code, hr, links) is now pinned to the design tokens.
+- Progress: the % is now the figure (15px/700/--bh-text) with "complete"
+  as its caption; neutral tabular track instead of the dim border colour.
+- Lesson list: titles at full --bh-text 15/500; the step ratio dropped
+  its parentheses and reads as <b>done</b>/total (tabular), the finished-
+  lesson check is a filled accent chip and never shows alongside the
+  ratio; a done row keeps its title legible (faint accent wash + slight
+  ease-back) instead of going --bh-text-dim.
+- Reviews: heading gets explicit --bh-text weight; star picker idle
+  colour --bh-border -> --bh-text-dim at 26px with a hover nudge;
+  "Submit review" demoted to a label-width secondary so it stops
+  competing with the Continue CTA.
+- Instructor: a monogram chip when no avatar is set, never WordPress's
+  grey mystery-person.
+
 0.16.20 — Extract the lesson-step DOM helpers (bhcStepClassName /
 bhcReassertStepClass / bhcSetVisibleStep + BHC_STEP_SELECTOR) to module
 scope in courses.ts and expose them as window.BHCLessonStepDom, so the

@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.21.19 — Refresh bundled bh-courses.zip (0.16.21, course-view
+refinement pass).
+
 3.21.18 — Refresh bundled bh-courses.zip (0.16.20). .bh-eco-nav-link.is-active painted accent-tinted text on an accent-
 tint background (color-mix of --bh-accent on --bh-accent-muted-bg) —
 the exact shape tools/check-accent-on-tint.js exists to catch, measured

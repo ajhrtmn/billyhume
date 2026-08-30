@@ -70,7 +70,9 @@ class BHC_Render_Course {
         // badge buried in the meta line — only when there's an actual
         // instructor to show (obvious-or-gone).
         if ($instructor) {
-            echo '<div class="bhc-course-instructor-row">' . get_avatar($instructor->ID, 48) . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div></div>';
+            $inst_name = $instructor->display_name ?: $instructor->user_login;
+            echo '<div class="bhc-course-instructor-row">' . self::instructor_avatar($instructor, $inst_name)
+                . '<div><span class="bhc-course-instructor-label">Taught by</span><span class="bhc-course-instructor-name">' . esc_html($inst_name) . '</span></div></div>';
         }
 
         // Difficulty badge now always lives in the hero overlay above
@@ -258,7 +260,7 @@ class BHC_Render_Course {
             if (!$just_enrolled) {
                 if ($uid) {
                     $percent = BHC_Progress::course_percent($uid, $course_id);
-                    echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+                    echo '<div class="bhc-progress-bar bhc-progress-bar-large"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
                     // Mastery signal — only ever shown once a real quiz has
                     // actually been scored (course_quiz_average() returns
                     // null, not 0, until then), never a "0%" placeholder
@@ -339,7 +341,7 @@ class BHC_Render_Course {
             }
             echo '</div>';
             echo '<textarea class="bhc-review-textarea" placeholder="What did you think? (optional)" rows="3">' . esc_textarea($mine['body'] ?? '') . '</textarea>';
-            echo '<button type="submit" class="bhc-btn">' . ($mine ? 'Update review' : 'Submit review') . '</button>';
+            echo '<button type="submit" class="bhc-btn bhc-btn-secondary bhc-review-submit">' . ($mine ? 'Update review' : 'Submit review') . '</button>';
             echo '<div class="bhc-review-form-result" role="status" aria-live="polite"></div>';
             echo '</fieldset></form>';
             echo '</div>';
@@ -364,7 +366,7 @@ class BHC_Render_Course {
         echo '<nav class="bhc-course-sidebar" aria-label="Course lessons">';
         echo '<a class="bhc-sidebar-course-link" href="' . esc_url(get_permalink($course_id)) . '">' . esc_html(get_the_title($course_id)) . '</a>';
         if ($uid) {
-            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label">' . (int) $percent . '% complete</p>';
+            echo '<div class="bhc-progress-bar"><div class="bhc-progress-fill" style="width:' . (int) $percent . '%"></div></div><p class="bhc-progress-label"><span class="bhc-progress-pct">' . (int) $percent . '%</span> complete</p>';
         }
         echo self::render_grouped_lesson_list($course_id, $uid, $current_lesson_id, true);
         echo '</nav>';
@@ -378,6 +380,20 @@ class BHC_Render_Course {
     // drip-notice/step-progress display instead of just being the two
     // real differences they are.
     /** @return array{html:string, complete:bool, is_current:bool} */
+    /**
+     * The real profile avatar when the instructor set one, otherwise a
+     * monogram — never WordPress's grey mystery-person, which reads as
+     * "broken" next to a considered course header.
+     */
+    private static function instructor_avatar(\WP_User $user, string $name): string {
+        $has_real = class_exists('BHI_Profiles') && (int) (BHI_Profiles::get($user->ID)['avatar_id'] ?? 0) > 0;
+        if ($has_real) {
+            return get_avatar($user->ID, 48, '', $name, ['class' => 'bhc-course-instructor-avatar']);
+        }
+        $initial = function_exists('mb_substr') ? mb_substr(trim($name), 0, 1) : substr(trim($name), 0, 1);
+        return '<span class="bhc-course-instructor-avatar bhc-instructor-monogram" aria-hidden="true">' . esc_html(mb_strtoupper($initial)) . '</span>';
+    }
+
     private static function render_lesson_li(int $lesson_id, int $uid, ?int $current_lesson_id, bool $is_sidebar): array {
         $open = BHC_Gate::lesson_is_open($uid, $lesson_id);
         $step_count = BHC_Steps::count($lesson_id);
@@ -393,10 +409,13 @@ class BHC_Render_Course {
             $html .= '<span>' . esc_html(get_the_title($lesson_id)) . '</span> <span class="bhc-drip-notice">&#128274;'
                 . ($is_sidebar ? '' : ' ' . BHC_Gate::drip_notice($uid, $lesson_id)) . '</span>';
         }
-        if (!$is_sidebar && $open && $uid && $step_count) {
-            $html .= ' <span class="bhc-lesson-progress">(' . (int) $done_count . '/' . (int) $step_count . ')</span>';
+        // The step ratio is a real progress figure, not a parenthetical
+        // aside — done count carries the weight, the total is context.
+        // A finished lesson shows the check chip instead (never both).
+        if (!$is_sidebar && $open && $uid && $step_count && !$complete) {
+            $html .= ' <span class="bhc-lesson-progress"><b>' . (int) $done_count . '</b>/' . (int) $step_count . '</span>';
         }
-        if ($complete) $html .= ' <span class="bhc-check">&#10003;</span>';
+        if ($complete) $html .= ' <span class="bhc-check" aria-label="Lesson complete">&#10003;</span>';
         $html .= '</li>';
         return ['html' => $html, 'complete' => $complete, 'is_current' => $is_current];
     }

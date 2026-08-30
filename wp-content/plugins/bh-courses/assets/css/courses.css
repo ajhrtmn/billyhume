@@ -307,8 +307,8 @@
 
 .bhc-progress-bar {
     height: 6px;
-    border-radius: 3px;
-    background: var(--bh-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--bh-text) 12%, transparent);
     overflow: hidden;
 }
 /* Width changes (a step/lesson completing) used to jump instantly —
@@ -328,8 +328,10 @@
     animation: bhc-fill-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .bhc-progress-label {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--bh-text-dim);
+    font-variant-numeric: tabular-nums;
+    margin-top: 8px;
 }
 .bhc-mastery-label {
     font-size: 12px;
@@ -347,17 +349,52 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 10px 14px;
+    gap: 12px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--bh-border);
 }
-.bhc-lesson-list li a:hover { color: var(--bh-accent); }
-.bhc-lesson-list li.bhc-lesson-done { color: var(--bh-text-dim); }
-.bhc-lesson-progress {
-    font-size: 12px;
-    color: var(--bh-text-dim);
+.bhc-lesson-list li > a,
+.bhc-lesson-list li > span:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--bh-text);
+    text-decoration: none;
 }
-.bhc-check { color: var(--bh-accent); }
+.bhc-lesson-list li a:hover { color: var(--bh-accent); }
+/* Done: the check chip + a faint accent wash carry "completed"; the
+   title only eases back a step instead of going near-invisible. */
+.bhc-lesson-list li.bhc-lesson-done {
+    color: var(--bh-text-dim);
+    background: color-mix(in srgb, var(--bh-accent) 6%, transparent);
+}
+.bhc-lesson-list li.bhc-lesson-done > a,
+.bhc-lesson-list li.bhc-lesson-done > span:first-child {
+    color: var(--bh-text);
+    opacity: 0.66;
+    font-weight: 400;
+}
+.bhc-lesson-progress {
+    flex: 0 0 auto;
+    font-size: 13px;
+    color: var(--bh-text-dim);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+.bhc-check {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    color: var(--bh-accent);
+    font-size: 12px;
+    line-height: 1;
+}
 .bhc-lesson-list li.bhc-lesson-locked { color: var(--bh-text-dim); }
 .bhc-drip-notice { font-size: 12px; }
 .bhc-drip-locked {
@@ -771,6 +808,8 @@ a.bhc-pagination-number:hover {
 .bhc-reviews-section h2 {
     font-family: var(--bh-font-heading);
     font-size: 18px;
+    font-weight: 600;
+    color: var(--bh-text);
     margin-bottom: 14px;
 }
 
@@ -895,9 +934,11 @@ a.bhc-pagination-number:hover {
 }
 .bhc-review-star-choice {
     cursor: pointer;
-    font-size: 22px;
-    color: var(--bh-border);
+    font-size: 26px;
+    color: var(--bh-text-dim);
+    transition: color .12s ease, transform .12s ease;
 }
+.bhc-review-star-choice:hover { transform: scale(1.12); }
 .bhc-review-star-choice input {
     position: absolute;
     opacity: 0;
@@ -1775,6 +1816,100 @@ video.bhc-step-video {
 .bhc-paywall-title { margin-top: 0; }
 .bhc-btn-buy-once { margin-top: 12px; }
 .bhc-btn-secondary:hover { background: var(--bh-border); }
+
+/* Course-view refinement pass — new selectors only; the in-place
+   tweaks to .bhc-progress-*, .bhc-lesson-*, .bhc-review-star-choice
+   etc. live in their own original blocks above. Rich text inside the
+   description/step prose was inheriting the block theme's own light
+   styling (a stray <blockquote> rendered near-white on near-white);
+   these pin it to the design tokens. */
+.bhc-course-description blockquote,
+.bhc-step-text blockquote {
+    margin: 14px 0;
+    padding: 10px 16px;
+    border-left: 3px solid var(--bh-accent);
+    border-radius: 0 8px 8px 0;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    color: var(--bh-text);
+    font-style: italic;
+}
+.bhc-course-description blockquote > :last-child,
+.bhc-step-text blockquote > :last-child {
+    margin-bottom: 0;
+}
+.bhc-course-description a,
+.bhc-step-text a {
+    color: var(--bh-accent);
+    text-underline-offset: 2px;
+}
+.bhc-course-description code,
+.bhc-step-text code {
+    font-family: var(--bh-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+    font-size: 0.9em;
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+.bhc-course-description pre,
+.bhc-step-text pre {
+    background: var(--bh-surface-2);
+    color: var(--bh-text);
+    padding: 12px 14px;
+    border-radius: 8px;
+    overflow-x: auto;
+}
+.bhc-course-description pre code,
+.bhc-step-text pre code {
+    background: none;
+    padding: 0;
+}
+.bhc-course-description hr,
+.bhc-step-text hr {
+    border: 0;
+    border-top: 1px solid var(--bh-border);
+    margin: 18px 0;
+}
+
+/* The % is the figure that matters; "complete" is only its caption. */
+.bhc-progress-pct {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--bh-text);
+}
+/* The done count carries the weight; the total is context. */
+.bhc-lesson-progress b {
+    color: var(--bh-text);
+    font-weight: 700;
+}
+.bhc-lesson-list li.bhc-lesson-current {
+    box-shadow: inset 2px 0 0 var(--bh-accent);
+}
+/* Submitting a review is not the page's primary action — the Continue
+   CTA above is. Sized to its label, not stretched full width. */
+.bhc-review-submit {
+    width: auto;
+    align-self: flex-start;
+    margin-top: 12px;
+}
+/* A monogram, never WordPress's grey mystery-person. */
+.bhc-course-instructor-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.bhc-instructor-monogram {
+    display: inline-grid;
+    place-items: center;
+    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
+    color: color-mix(in srgb, var(--bh-accent) 78%, var(--bh-text));
+    font-family: var(--bh-font-heading, inherit);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
+}
 
 .bhc-quiz-question {
     border: none;
