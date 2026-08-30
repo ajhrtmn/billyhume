@@ -1370,4 +1370,70 @@
 
         plugins.registerPlugin('bhc-lesson-panel', { render: LessonPanel });
     })();
+
+    // ---- Always-visible "Add a step" dock ----
+    // Gutenberg's own end-of-list appender is unreliable — on mobile it
+    // often doesn't render at all ("where's the add button?" from the
+    // field). This is a self-owned button portalled to <body> and
+    // pinned to the bottom of the editor, so there is ALWAYS one
+    // obvious way to add the next step. It opens the (curated) inserter
+    // positioned after the last block.
+    (function registerAddStepDock() {
+        var plugins = wp.plugins;
+        var createPortal = wp.element.createPortal;
+        if (!plugins || !createPortal || !wp.data || !wp.data.useSelect) return;
+        var useSelect = wp.data.useSelect;
+
+        function AddStepDock() {
+            var info = useSelect(function (s: any) {
+                var ed = s('core/editor');
+                var be = s('core/block-editor');
+                var inserterOpen = false;
+                try {
+                    var eStore = s('core/editor');
+                    var pStore = s('core/edit-post');
+                    inserterOpen = !!((eStore && eStore.isInserterOpened && eStore.isInserterOpened())
+                        || (pStore && pStore.isInserterOpened && pStore.isInserterOpened()));
+                } catch (e) { /* ignore */ }
+                return {
+                    postType: ed && ed.getCurrentPostType ? ed.getCurrentPostType() : null,
+                    count: be && be.getBlockCount ? be.getBlockCount() : 0,
+                    inserterOpen: inserterOpen,
+                };
+            }, []);
+            if (info.postType !== 'bh_lesson' || info.inserterOpen) return null;
+
+            function openInserter() {
+                // The inserter toggle lives on core/editor in current WP
+                // and core/edit-post in older builds — NOT
+                // core/block-editor. Try each; pass the positioned-open
+                // object where supported, fall back to a plain boolean.
+                var stores = ['core/editor', 'core/edit-post'];
+                for (var i = 0; i < stores.length; i++) {
+                    var d: any = wp.data.dispatch(stores[i]);
+                    if (!d || typeof d.setIsInserterOpened !== 'function') continue;
+                    try {
+                        d.setIsInserterOpened({ rootClientId: undefined, insertionIndex: info.count, tab: 'blocks' });
+                    } catch (e) {
+                        try { d.setIsInserterOpened(true); } catch (e2) { continue; }
+                    }
+                    return;
+                }
+            }
+
+            return createPortal(
+                el('div', { className: 'bhc-add-step-dock' },
+                    el(wp.components.Button, {
+                        variant: 'primary',
+                        icon: 'plus',
+                        className: 'bhc-add-step-dock-btn',
+                        onClick: openInserter,
+                    }, __('Add a step'))
+                ),
+                document.body
+            );
+        }
+
+        plugins.registerPlugin('bhc-add-step-dock', { render: AddStepDock });
+    })();
 })((window as any).wp);

@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.3 — A real, always-visible "+ Add a step" button. Gutenberg's
+own end-of-list appender is unreliable and often absent on mobile
+("where's the add button?" from the field). This one is a self-owned
+pill portalled to <body>, pinned above the editor's bottom edge /
+the mobile toolbar, shown only on bh_lesson and hidden while the
+inserter is open. Click opens the curated (LMS) block inserter
+positioned after the last step. admin.css is now enqueued on the
+lesson block-editor screen for it (and the sidebar panel).
+
 0.16.2 — bh_course edits on the classic screen again (block editor
 disabled via use_block_editor_for_post_type). A course has no block
 content — post_content is just the catalog description — so the

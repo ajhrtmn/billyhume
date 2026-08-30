@@ -137,6 +137,16 @@ class BHC_ContentBridge {
             defined('BHC_VER') ? BHC_VER : null,
             true
         );
+        // Outer-document CSS for the block editor screen (the sidebar
+        // "Lesson" panel + the portalled "Add a step" dock live here,
+        // NOT in the iframed canvas — those styles go through
+        // add_studio_block_editor_styles()).
+        wp_enqueue_style(
+            'bhc-admin',
+            defined('BHC_URL') ? BHC_URL . 'assets/css/admin.css' : plugins_url('assets/css/admin.css', dirname(__FILE__)),
+            [],
+            defined('BHC_VER') ? BHC_VER : null
+        );
         // OSS-integration master plan Phase 6 follow-up — the video
         // step's Cloudflare Stream source option only appears in the
         // block editor's SelectControl when Tier B was actually turned

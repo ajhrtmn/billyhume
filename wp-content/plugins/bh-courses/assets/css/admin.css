@@ -256,3 +256,34 @@
     width: 100%;
     justify-content: center;
 }
+
+/* ---- "Add a step" dock (courses-studio-blocks.ts registerAddStepDock)
+   A self-owned, always-visible button for adding the next lesson step —
+   Gutenberg's own end-of-list appender is unreliable and often absent
+   on mobile ("where's the add button?"). Portalled to <body> and
+   pinned above the editor's bottom edge / the mobile toolbar. */
+.bhc-add-step-dock {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 24px;
+    z-index: 100;
+    pointer-events: none;
+}
+.bhc-add-step-dock .bhc-add-step-dock-btn {
+    pointer-events: auto;
+    height: 44px;
+    padding: 0 22px 0 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .22);
+}
+.bhc-add-step-dock .bhc-add-step-dock-btn svg { margin-right: 4px; }
+/* Clear the WP mobile bottom toolbar and the browser chrome. */
+@media (max-width: 782px) {
+    .bhc-add-step-dock { bottom: calc(env(safe-area-inset-bottom, 0px) + 64px); }
+}
+/* Don't cover the block toolbar when a block is being edited near the
+   bottom — nudge out of the way while the inserter panel is open. */
+.is-inserter-opened .bhc-add-step-dock { display: none; }
