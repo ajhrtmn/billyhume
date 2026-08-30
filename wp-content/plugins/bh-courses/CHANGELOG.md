@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.2 — bh_course edits on the classic screen again (block editor
+disabled via use_block_editor_for_post_type). A course has no block
+content — post_content is just the catalog description — so the
+block canvas was an empty dark void whose "/" menu offered core
+Video/Image/Embed blocks, and mobile authoring of it was miserable.
+Classic editor gives the description a small honest box; the Course
+Details metabox is the real course builder (sortable lessons,
+add-lesson, step outlines). bh_lesson keeps the block editor.
+
 0.16.1 — Lesson step-block authoring, cleaned up:
 
 - Steps are capped at 680px and centred in the canvas instead of

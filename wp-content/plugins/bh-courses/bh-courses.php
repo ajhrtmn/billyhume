@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.1
+ * Version:     0.16.2
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.1');
+define('BHC_VER',  '0.16.2');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -134,6 +134,14 @@ add_action('plugins_loaded', function () {
     });
 
     add_action('add_meta_boxes', ['BHC_Admin', 'add_meta_boxes']);
+    // Courses edit on the classic screen (see class-post-types.php's
+    // note on bh_course): post_content is only the catalog description,
+    // and the block canvas was an empty dark void offering core
+    // Video/Image/Embed blocks that make no sense for a course — worst
+    // of all on mobile. The Course Details metabox is the real builder.
+    add_filter('use_block_editor_for_post_type', function ($use, $post_type) {
+        return $post_type === 'bh_course' ? false : $use;
+    }, 10, 2);
     add_action('init', ['BHC_Admin', 'register_lesson_meta']);
     add_action('rest_after_insert_bh_lesson', function ($post) { BHC_Admin::reconcile_lesson_placement($post->ID); });
     add_filter('views_edit-bh_course', ['BHC_Admin', 'add_catalog_view_link']);

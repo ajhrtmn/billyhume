@@ -37,13 +37,20 @@ class BHC_PostTypes {
             'rewrite' => ['slug' => 'courses'],
             'menu_icon' => OUS_MenuIcons::courses(), 'supports' => ['title', 'editor', 'thumbnail', 'revisions'],
             'capability_type' => 'post',
-            // show_in_rest is the actual WordPress gate for the block
-            // editor (use_block_editor_for_post_type() checks this AND
-            // 'editor' support, which was already declared above) —
-            // bh_lesson already opts in the same way; this brings course
-            // editing onto the same block-editor screen instead of the
-            // classic metabox chrome, so building a course doesn't feel
-            // like a different app from building its own lessons.
+            // show_in_rest stays true for the REST API generally, but
+            // the block editor for bh_course is turned OFF via a
+            // use_block_editor_for_post_type filter (bh-courses.php). An
+            // earlier pass put courses on the block editor "so it
+            // doesn't feel like a different app from its lessons" — in
+            // practice a course has NO block content (post_content is
+            // just the catalog description), so the canvas was an empty
+            // dark void whose "/" menu offered core Video/Image/Embed
+            // blocks that make no sense for a course, and mobile
+            // authoring of it was miserable. The real course-building
+            // surface is the "Course Details" metabox (sortable
+            // lessons, add-lesson, step outlines); the classic editor
+            // gives post_content a small, honest Description box right
+            // above it, no iframe.
             'show_in_rest' => true,
         ]);
 
