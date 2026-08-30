@@ -133,7 +133,7 @@ class BHC_ContentBridge {
         wp_enqueue_script(
             'bhc-courses-studio-blocks',
             defined('BHC_URL') ? BHC_URL . 'assets/js/courses-studio-blocks.js' : plugins_url('assets/js/courses-studio-blocks.js', dirname(__FILE__)),
-            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'wp-data'],
+            ['wp-blocks', 'wp-element', 'wp-components', 'wp-block-editor', 'wp-api-fetch', 'wp-data', 'wp-plugins', 'wp-editor', 'wp-core-data', 'wp-i18n', 'wp-url'],
             defined('BHC_VER') ? BHC_VER : null,
             true
         );

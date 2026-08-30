@@ -221,3 +221,38 @@
     color: #b32d2e;
     background: #fbeaea;
 }
+
+/* ---- Lesson settings sidebar panel (courses-studio-blocks.ts
+   registerLessonPanel) — the belongs-to-course / module / drip
+   controls, moved out of the buried "Meta Boxes" seam into Gutenberg's
+   own document sidebar so the lesson screen reads as one thing. Uses
+   WP's own sidebar rhythm; only the extras below need rules. */
+.bhc-lesson-panel .bhc-lesson-panel-warn {
+    margin: 8px 0 4px;
+}
+.bhc-lesson-panel .bhc-lesson-panel-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--bhy-ink-dim, #757575);
+    line-height: 1.4;
+}
+.bhc-lesson-panel .bhc-lesson-panel-hint a { text-decoration: none; }
+.bhc-lesson-panel .bhc-lesson-panel-drip {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--bhy-border, #e0e0e0);
+}
+.bhc-lesson-panel .bhc-lesson-panel-group-label {
+    margin: 0 0 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--bhy-ink-dim, #50575e);
+}
+.bhc-lesson-panel .bhc-lesson-panel-drip .components-base-control { margin-top: 12px; }
+.bhc-lesson-panel .bhc-lesson-panel-preview {
+    margin-top: 16px;
+    width: 100%;
+    justify-content: center;
+}

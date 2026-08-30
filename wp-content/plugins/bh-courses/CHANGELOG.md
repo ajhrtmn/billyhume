@@ -6,6 +6,29 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.0 — Lesson authoring cohesion: settings out of the "Meta Boxes"
+seam, into the editor sidebar.
+
+- The belongs-to-course / module-section / drip-availability controls
+  were two 'normal' metaboxes Gutenberg buries below the steps canvas.
+  They're a native "Lesson" document sidebar panel now
+  (PluginDocumentSettingPanel), backed by REST post meta
+  (BHC_Admin::register_lesson_meta). The screen reads as one thing:
+  steps in the canvas, settings in the sidebar. An amber inline notice
+  warns when a lesson is in no course.
+- The read-only "Lesson Steps" summary metabox is removed — the canvas
+  is the source of truth; the cross-lesson outline it half-provided
+  belongs on the course screen.
+- _bhc_course_id (lesson side) is now the source of truth for the
+  course<->lesson link, kept consistent with the course-side
+  _bhc_lesson_order by reconcile_lesson_placement() on every save path
+  (rest_after_insert_bh_lesson + the classic hook). One-time backfill
+  (maybe_backfill_lesson_course_ids) adopts the course for any lesson
+  that was only ever inverse-linked, and reconcile self-heals the same
+  case defensively.
+- save_lesson() no longer processes $POST fields for these (all REST
+  meta now) — just the shared reconcile.
+
 0.15.2 — Lesson step-editor UX pass.
 
 - Media titles with HTML entities ("01 &#8211; Intro") were rendered

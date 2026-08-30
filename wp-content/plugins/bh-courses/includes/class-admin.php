@@ -34,8 +34,90 @@ class BHC_Admin {
         // access/monetization ones across separate metaboxes.
         add_meta_box('bhc_course_catalog', 'Catalog Details', [self::class, 'render_catalog_metabox'], 'bh_course', 'side', 'default');
         add_meta_box('bhc_course_site_menu', 'Site Menu', [self::class, 'render_site_menu_metabox'], 'bh_course', 'side', 'default');
-        add_meta_box('bhc_lesson_details', 'Lesson Details', [self::class, 'render_lesson_metabox'], 'bh_lesson', 'normal', 'high');
-        add_meta_box('bhc_lesson_steps', 'Lesson Steps', [self::class, 'render_steps_metabox'], 'bh_lesson', 'normal', 'high');
+        // Lesson settings (belongs-to-course, module, drip) used to be
+        // two 'normal' metaboxes that Gutenberg dumps into the collapsed
+        // "Meta Boxes" seam below the steps canvas — disjoint from the
+        // authoring flow. They're a native editor sidebar panel now
+        // (registerLessonPanel() in courses-studio-blocks.ts, backed by
+        // the REST meta registered in register_lesson_meta() below), so
+        // the screen reads as one thing: steps in the canvas, settings
+        // in the sidebar. The read-only "Lesson Steps" summary box is
+        // gone entirely — the canvas is the source of truth, and the
+        // cross-lesson outline it half-provided lives on the course
+        // screen where it belongs.
+    }
+
+    // REST-exposed so the Gutenberg "Lesson" sidebar panel can read/
+    // write them via useEntityProp. save_lesson() still handles the
+    // classic $POST path (quick edit, programmatic saves); both write
+    // the same keys, and reconcile_lesson_placement() keeps the
+    // course<->lesson inverse order consistent whichever path ran.
+    public static function register_lesson_meta(): void {
+        $auth = function ($allowed, $meta_key, $post_id) {
+            return current_user_can('edit_post', $post_id);
+        };
+        register_post_meta('bh_lesson', '_bhc_course_id', [
+            'type' => 'integer', 'single' => true, 'show_in_rest' => true, 'default' => 0,
+            'auth_callback' => $auth,
+        ]);
+        register_post_meta('bh_lesson', '_bhc_module_title', [
+            'type' => 'string', 'single' => true, 'show_in_rest' => true, 'default' => '',
+            'sanitize_callback' => 'sanitize_text_field', 'auth_callback' => $auth,
+        ]);
+        register_post_meta('bh_lesson', '_bhc_available_after_days', [
+            'type' => 'string', 'single' => true, 'show_in_rest' => true, 'default' => '',
+            'sanitize_callback' => 'sanitize_text_field', 'auth_callback' => $auth,
+        ]);
+        register_post_meta('bh_lesson', '_bhc_available_on_date', [
+            'type' => 'string', 'single' => true, 'show_in_rest' => true, 'default' => '',
+            'sanitize_callback' => 'sanitize_text_field', 'auth_callback' => $auth,
+        ]);
+    }
+
+    // Self-correcting: makes sure this lesson sits in exactly its
+    // current course's _bhc_lesson_order and no other's — regardless of
+    // what the previous value was. Cheap (course count is tiny) and
+    // idempotent, so it's safe to run from every save path
+    // (rest_after_insert_bh_lesson AND save_lesson's classic path).
+    public static function reconcile_lesson_placement(int $lesson_id): void {
+        if (get_post_type($lesson_id) !== 'bh_lesson') return;
+        $current = (int) get_post_meta($lesson_id, '_bhc_course_id', true);
+        if ($current && get_post_type($current) !== 'bh_course') {
+            $current = 0;
+            update_post_meta($lesson_id, '_bhc_course_id', 0);
+        }
+        $course_ids = get_posts([
+            'post_type' => 'bh_course', 'post_status' => 'any',
+            'numberposts' => -1, 'fields' => 'ids',
+        ]);
+
+        // Backfill: older data (and the seeders) linked a lesson to its
+        // course ONLY via the course-side _bhc_lesson_order, never the
+        // lesson-side _bhc_course_id this panel now treats as the source
+        // of truth. Without this, the first reconcile would read
+        // _bhc_course_id as 0 and DROP the lesson from the order it was
+        // only ever in. So: if the lesson has no course of its own but
+        // exactly one course's order already contains it, adopt that.
+        if (!$current) {
+            $owners = [];
+            foreach ($course_ids as $cid) {
+                if (in_array((int) $lesson_id, BHC_PostTypes::lesson_order((int) $cid), true)) $owners[] = (int) $cid;
+            }
+            if (count($owners) === 1) {
+                $current = $owners[0];
+                update_post_meta($lesson_id, '_bhc_course_id', $current);
+            }
+        }
+        foreach ($course_ids as $cid) {
+            $order = BHC_PostTypes::lesson_order((int) $cid);
+            $has = in_array((int) $lesson_id, $order, true);
+            if ((int) $cid === $current && !$has) {
+                $order[] = (int) $lesson_id;
+                update_post_meta((int) $cid, '_bhc_lesson_order', array_values($order));
+            } elseif ((int) $cid !== $current && $has) {
+                update_post_meta((int) $cid, '_bhc_lesson_order', array_values(array_diff($order, [(int) $lesson_id])));
+            }
+        }
     }
 
     /* ---------------- course metabox: catalog details ---------------- */
@@ -648,116 +730,6 @@ class BHC_Admin {
         exit;
     }
 
-    public static function render_lesson_metabox(\WP_Post $post): void {
-        wp_nonce_field('bhc_save_lesson', 'bhc_lesson_nonce');
-        $current_course = BHC_PostTypes::course_for_lesson($post->ID);
-        // A brand-new lesson started from the course screen's "+ Add
-        // New Lesson to this course" link (see render_course_metabox()
-        // above) arrives with ?bhc_course_id= set — pre-select it here
-        // rather than making the author pick it again from the dropdown.
-        if (!$current_course && !empty($_GET['bhc_course_id'])) {
-            $current_course = (int) $_GET['bhc_course_id'];
-        }
-        $courses = get_posts(['post_type' => 'bh_course', 'numberposts' => -1, 'post_status' => ['publish', 'draft']]);
-
-        // "Every lesson belongs to exactly one course" — emphasized in
-        // the UI, not just enforced in the data model. This box led
-        // with a plain unlabeled select
-        // before; now it's framed as the defining fact about what a
-        // lesson IS, with the lesson's actual position inside that
-        // course's own order shown right here (previously only visible
-        // by going to the course screen and counting).
-        echo '<div class="bhc-lesson-course-box">';
-        echo '<p class="bhc-lesson-course-label">This lesson belongs to</p>';
-        echo '<select name="bhc_course_id" class="bhc-lesson-course-select">';
-        echo '<option value="0">— No course yet —</option>';
-        foreach ($courses as $c) {
-            echo '<option value="' . (int) $c->ID . '"' . selected($current_course, $c->ID, false) . '>' . esc_html($c->post_title) . '</option>';
-        }
-        echo '</select>';
-        if ($current_course) {
-            $position = BHC_PostTypes::lesson_position($post->ID);
-            $lesson_count = BHC_PostTypes::lesson_count($current_course);
-            echo '<p class="description">';
-            if ($position !== null) {
-                echo 'Lesson ' . ($position + 1) . ' of ' . $lesson_count . ' &mdash; ';
-            }
-            echo '<a href="' . esc_url(get_edit_post_link($current_course)) . '">&larr; Back to ' . esc_html(get_the_title($current_course)) . '</a> to reorder or manage the full lesson list.</p>';
-        } else {
-            echo '<p class="description">After saving, go to that course\'s own edit screen to place this lesson in the lesson order.</p>';
-        }
-        echo '</div>';
-
-        // Module/section grouping — purely a display label, walked at
-        // render time (BHC_Render_Course) to bucket consecutive lessons
-        // sharing the same title into a collapsible section. Blank = the
-        // lesson renders standalone exactly as before this field existed,
-        // so no existing course changes until an author opts in. Free
-        // text, not a taxonomy/CPT, to keep authoring as simple as "type
-        // the section name" — grouping is inferred from lesson order
-        // (already author-controlled via drag-drop) plus this label,
-        // never a second ordering system to keep in sync.
-        $module_title = get_post_meta($post->ID, '_bhc_module_title', true);
-        echo '<p><label>Module / section (optional): <input type="text" name="bhc_module_title" value="' . esc_attr($module_title) . '" placeholder="e.g. Module 1: Foundations" style="width:100%;max-width:320px;"></label></p>';
-        echo '<p class="description">Lessons in a row sharing the same module name are grouped under one collapsible heading in the course sidebar. Leave blank to keep this lesson ungrouped.</p>';
-
-        // Drip scheduling — see class-gate.php's docblock: exactly one
-        // of these two, never both, matching "self-paced" vs. "scheduled
-        // cohort" as genuinely different shapes rather than one combined
-        // concept. Blank both = opens immediately once the course itself
-        // is unlocked (unchanged default behavior).
-        $after_days = get_post_meta($post->ID, '_bhc_available_after_days', true);
-        $on_date = get_post_meta($post->ID, '_bhc_available_on_date', true);
-        echo '<h4>Availability (optional)</h4>';
-        echo '<p class="description">Leave both blank to open as soon as the course itself unlocks. Fill in at most one.</p>';
-        echo '<p><label>Available this many days after a student enrolls: <input type="number" min="0" name="bhc_available_after_days" value="' . esc_attr($after_days) . '" style="width:80px;"></label></p>';
-        echo '<p><label>OR available on a fixed date for everyone: <input type="date" name="bhc_available_on_date" value="' . esc_attr($on_date) . '"></label></p>';
-    }
-
-    /* ---------------- lesson metabox (steps summary, read-only) ---------------- */
-
-    // A lesson's steps are now authored directly in this screen's real
-    // main content area (bh_lesson has real 'editor' support as of the
-    // real-post-editor migration — see BHC_ContentBridge's own
-    // docblock) — this metabox is no longer an editor of its own, just
-    // a read-only "what's actually in _bhc_steps right now" summary
-    // (useful since that's the array BHC_Render/BHC_Progress/BHC_Gate
-    // actually read, one save-cycle behind the block editor's own
-    // canvas) plus a "preview as student" link. It never writes step
-    // content — BHC_ContentBridge's save_post_bh_lesson hook is the
-    // only writer, see that class's own docblock.
-    public static function render_steps_metabox(\WP_Post $post): void {
-        $steps = BHC_Steps::get($post->ID);
-
-        // Per-step content labels rather than just a comma-separated list
-        // of TYPES — describe_step() below pulls an actual snippet from
-        // each step's own stored content.
-        if ($steps) {
-            echo '<p class="description">Current steps (' . count($steps) . '):</p>';
-            echo '<ol class="bhc-steps-summary" style="margin:0 0 12px 22px;padding:0;">';
-            foreach ($steps as $s) {
-                echo '<li>' . esc_html(self::describe_step($s)) . '</li>';
-            }
-            echo '</ol>';
-        } else {
-            echo '<p class="description">No steps yet — add Lesson blocks (Text/Image/Video/Quiz) in the editor above.</p>';
-        }
-
-        // "Preview as student" — the actual public permalink, not an
-        // editor-internal preview, since the whole point is seeing the
-        // real step-walker (BHC_Render::render_lesson_steps()) a student
-        // gets, including gating/drip state. Published posts link
-        // straight to the permalink; a draft lesson (the common case
-        // while an instructor is still building it out) uses
-        // WordPress's own preview-link mechanism instead, since a
-        // draft's permalink 404s for anyone without edit rights —
-        // get_preview_post_link() handles the preview nonce/query args
-        // this needs.
-        $preview_url = get_post_status($post->ID) === 'publish' ? get_permalink($post->ID) : get_preview_post_link($post->ID);
-        echo '<p><a class="button button-primary" href="' . esc_url($preview_url) . '" target="_blank" rel="noopener">Preview as student &rarr;</a></p>';
-        echo '<p class="description">A lesson is a sequence of steps — mix Lesson: Text/Image/Video/Quiz blocks in any order above. Students see one step at a time and move forward as they complete each one.</p>';
-    }
-
     // A small per-type glyph for the course-screen step outline — pure
     // visual scanning aid (BHC_Steps::VALID_TYPES is the actual source
     // of truth for what's a real type; this just needs SOMETHING to
@@ -820,70 +792,26 @@ class BHC_Admin {
 
     public static function save_lesson(int $post_id): void {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (get_post_type($post_id) !== 'bh_lesson') return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        if (isset($_POST['bhc_lesson_nonce']) && wp_verify_nonce($_POST['bhc_lesson_nonce'], 'bhc_save_lesson')) {
-            if (isset($_POST['bhc_course_id'])) {
-                $new_course_id = (int) $_POST['bhc_course_id'];
-                // Validated against a real, non-trashed bh_course rather
-                // than trusted as-posted — a crafted or stale POST
-                // (e.g. a course deleted in another tab since this
-                // screen loaded) would otherwise leave the lesson
-                // pointing at nothing.
-                if ($new_course_id && get_post_type($new_course_id) !== 'bh_course') $new_course_id = 0;
-
-                $old_course_id = BHC_PostTypes::course_for_lesson($post_id);
-                update_post_meta($post_id, '_bhc_course_id', $new_course_id);
-
-                // Keep the course's own _bhc_lesson_order (the inverse,
-                // independently-stored pointer) in sync automatically
-                // instead of relying on the author to separately drag
-                // this lesson into place on the course screen — the
-                // exact "two pointers, nothing keeps them in sync" gap
-                // the audit called out. Order-list edits made from the
-                // course screen itself still win on that screen's own
-                // save (save_course() below), this only keeps a lesson
-                // reassigned from ITS OWN screen from vanishing off its
-                // old course or failing to appear on its new one.
-                if ($old_course_id !== $new_course_id) {
-                    if ($old_course_id) self::remove_lesson_from_order($old_course_id, $post_id);
-                    if ($new_course_id) self::add_lesson_to_order($new_course_id, $post_id);
-                }
-            }
-
-            $module_title = sanitize_text_field($_POST['bhc_module_title'] ?? '');
-            if ($module_title !== '') {
-                update_post_meta($post_id, '_bhc_module_title', $module_title);
-            } else {
-                delete_post_meta($post_id, '_bhc_module_title');
-            }
-
-            $after_days = sanitize_text_field($_POST['bhc_available_after_days'] ?? '');
-            $on_date = sanitize_text_field($_POST['bhc_available_on_date'] ?? '');
-            // Enforce "at most one" server-side too, not just via the
-            // form's own description text — a fixed date takes priority
-            // if a crafted or careless POST somehow sets both.
-            if ($on_date !== '') {
-                update_post_meta($post_id, '_bhc_available_on_date', $on_date);
-                delete_post_meta($post_id, '_bhc_available_after_days');
-            } elseif ($after_days !== '') {
-                update_post_meta($post_id, '_bhc_available_after_days', max(0, (int) $after_days));
-                delete_post_meta($post_id, '_bhc_available_on_date');
-            } else {
-                delete_post_meta($post_id, '_bhc_available_after_days');
-                delete_post_meta($post_id, '_bhc_available_on_date');
-            }
+        // Lesson settings (course, module, drip) are all REST meta now,
+        // written by the "Lesson" sidebar panel and reconciled by
+        // rest_after_insert_bh_lesson. This classic hook still covers a
+        // no-JS / quick-edit / programmatic save that set _bhc_course_id
+        // some other way: skip during a REST request (that path has its
+        // own reconcile, and the meta isn't written yet here anyway),
+        // otherwise keep the inverse course<->lesson order honest.
+        if (!(defined('REST_REQUEST') && REST_REQUEST)) {
+            self::reconcile_lesson_placement($post_id);
         }
 
-        // The old bhc_steps_json write path is gone (see
-        // render_steps_metabox() above) — BHC_ContentBridge::sync_legacy_steps()
-        // (a save_post_bh_lesson hook, fired after this same save cycle)
-        // is now the ONLY writer of a lesson's step content. Two writers
-        // pointed at the same _bhc_steps data was the exact "dual-write
-        // divergence" hazard LMS-AUTHORING-DESIGN-PLAN.md Section 6
-        // flagged; closing it by removing the second writer outright
-        // (rather than adding reconciliation logic) is that doc's own
-        // preferred resolution.
+        // Step content is written solely by
+        // BHC_ContentBridge::sync_legacy_steps() (its own
+        // save_post_bh_lesson hook) — never here. Two writers on the
+        // same _bhc_steps data was the dual-write hazard
+        // LMS-AUTHORING-DESIGN-PLAN.md Section 6 flagged; one writer
+        // only is that doc's preferred resolution.
     }
 
     private static function remove_lesson_from_order(int $course_id, int $lesson_id): void {

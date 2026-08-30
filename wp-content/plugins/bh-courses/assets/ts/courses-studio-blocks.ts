@@ -1265,4 +1265,104 @@
         },
         save: function () { return null; }, // dynamic
     });
+
+    // ---- Lesson settings sidebar panel ----
+    // Belongs-to-course, module/section and drip availability used to be
+    // two 'normal' metaboxes Gutenberg buries in the collapsed "Meta
+    // Boxes" seam below the steps canvas — disjoint from authoring.
+    // They're a native editor sidebar panel now: steps in the canvas,
+    // settings in the sidebar, one cohesive screen. Backed by the REST
+    // meta BHC_Admin::register_lesson_meta() registers; the
+    // course<->lesson inverse order is reconciled server-side
+    // (rest_after_insert_bh_lesson). Wrapped in a guarded IIFE so a WP
+    // build without wp.plugins / wp.editor / wp.coreData just no-ops
+    // (same defensive posture as the rest of this file).
+    (function registerLessonPanel() {
+        var plugins = wp.plugins;
+        var editorNs = wp.editor || wp.editPost;
+        var coreData = wp.coreData;
+        if (!plugins || !editorNs || !editorNs.PluginDocumentSettingPanel || !coreData || !coreData.useEntityProp || !wp.data || !wp.data.useSelect) return;
+
+        var PluginDocumentSettingPanel = editorNs.PluginDocumentSettingPanel;
+        var useEntityProp = coreData.useEntityProp;
+        var useSelect = wp.data.useSelect;
+        var c = wp.components;
+
+        function LessonPanel() {
+            var postType = useSelect(function (s: any) { return s('core/editor').getCurrentPostType(); }, []);
+            if (postType !== 'bh_lesson') return null;
+
+            var metaTuple = useEntityProp('postType', 'bh_lesson', 'meta');
+            var meta = metaTuple[0] || {};
+            var setMeta = metaTuple[1];
+            var set = function (patch: any) { setMeta(Object.assign({}, meta, patch)); };
+
+            var courses: any[] = useSelect(function (s: any) {
+                return s('core').getEntityRecords('postType', 'bh_course', {
+                    per_page: -1, status: 'publish,draft', orderby: 'title', order: 'asc', _fields: 'id,title,status',
+                }) || [];
+            }, []);
+            var previewLink: string = useSelect(function (s: any) {
+                var ed = s('core/editor');
+                return (ed.getEditedPostPreviewLink && ed.getEditedPostPreviewLink()) || ((ed.getCurrentPost() || {}) as any).link || '';
+            }, []);
+
+            var courseId = parseInt(meta._bhc_course_id || 0, 10) || 0;
+            var courseOptions = [{ label: __('— Not in a course yet —'), value: '0' }].concat(
+                (courses || []).map(function (co: any) {
+                    var t = (co.title && co.title.rendered) ? decodeEntities(co.title.rendered) : ('#' + co.id);
+                    return { label: t + (co.status === 'draft' ? __(' (draft)') : ''), value: String(co.id) };
+                })
+            );
+            var chosen = (courses || []).filter(function (co: any) { return co.id === courseId; })[0];
+            var chosenTitle = chosen && chosen.title && chosen.title.rendered ? decodeEntities(chosen.title.rendered) : __('the course');
+
+            var afterDays = meta._bhc_available_after_days || '';
+            var onDate = meta._bhc_available_on_date || '';
+
+            return el(PluginDocumentSettingPanel, { name: 'bhc-lesson', title: __('Lesson'), className: 'bhc-lesson-panel' },
+                el(c.SelectControl, {
+                    label: __('Part of course'),
+                    value: String(courseId),
+                    options: courseOptions,
+                    onChange: function (v: string) { set({ _bhc_course_id: parseInt(v, 10) || 0 }); },
+                    __nextHasNoMarginBottom: true,
+                }),
+                courseId === 0
+                    ? el(c.Notice, { status: 'warning', isDismissible: false, className: 'bhc-lesson-panel-warn' },
+                        __('This lesson isn’t in any course — students won’t see it anywhere until you pick one.'))
+                    : el('p', { className: 'bhc-lesson-panel-hint' },
+                        el('a', { href: 'post.php?action=edit&post=' + courseId },
+                            __('Open ') + chosenTitle + __(' to set lesson order →'))),
+                el(c.TextControl, {
+                    label: __('Module / section'),
+                    help: __('Consecutive lessons sharing a module name group under one heading in the course sidebar. Optional.'),
+                    value: meta._bhc_module_title || '',
+                    onChange: function (v: string) { set({ _bhc_module_title: v }); },
+                    __nextHasNoMarginBottom: true,
+                }),
+                el('div', { className: 'bhc-lesson-panel-drip' },
+                    el('p', { className: 'bhc-lesson-panel-group-label' }, __('Availability')),
+                    el('p', { className: 'bhc-lesson-panel-hint' }, __('Blank = opens when the course unlocks. Set at most one.')),
+                    el(c.TextControl, {
+                        type: 'number', min: 0, label: __('Days after a student enrolls'),
+                        value: afterDays, disabled: !!onDate,
+                        onChange: function (v: string) { set({ _bhc_available_after_days: v, _bhc_available_on_date: '' }); },
+                        __nextHasNoMarginBottom: true,
+                    }),
+                    el(c.TextControl, {
+                        type: 'date', label: __('… or a fixed date for everyone'),
+                        value: onDate, disabled: !!afterDays,
+                        onChange: function (v: string) { set({ _bhc_available_on_date: v, _bhc_available_after_days: '' }); },
+                        __nextHasNoMarginBottom: true,
+                    })
+                ),
+                previewLink
+                    ? el(c.Button, { variant: 'secondary', href: previewLink, target: '_blank', rel: 'noopener', className: 'bhc-lesson-panel-preview' }, __('Preview as student ↗'))
+                    : null
+            );
+        }
+
+        plugins.registerPlugin('bhc-lesson-panel', { render: LessonPanel });
+    })();
 })((window as any).wp);

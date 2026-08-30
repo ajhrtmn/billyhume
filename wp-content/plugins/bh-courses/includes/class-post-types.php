@@ -104,7 +104,13 @@ class BHC_PostTypes {
             // for free the moment this flag exists; no OUS_Revisions
             // wiring needed for content that already lives in
             // wp_posts. Zero new code beyond this one supports entry.
-            'supports' => ['title', 'editor', 'revisions'], 'show_in_rest' => true, 'capability_type' => 'post',
+            // 'custom-fields' is what makes WP_REST_Posts_Controller
+            // expose the `meta` field at all — without it the registered
+            // _bhc_* lesson meta (BHC_Admin::register_lesson_meta) is
+            // invisible to REST and the "Lesson" sidebar panel can't
+            // read or save it. Gutenberg hides the raw Custom Fields
+            // metabox by default, so this adds no visible clutter.
+            'supports' => ['title', 'editor', 'revisions', 'custom-fields'], 'show_in_rest' => true, 'capability_type' => 'post',
         ]);
     }
 

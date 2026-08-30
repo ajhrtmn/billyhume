@@ -72,6 +72,32 @@ class BHC_Activator {
         update_option('bhc_flushed_archive_removal', '1');
     }
 
+    // 0.16.0: the lesson "Lesson" sidebar panel treats lesson-side
+    // _bhc_course_id as the source of truth, but older data (and the
+    // seeders) only ever set the course-side _bhc_lesson_order. One-time
+    // backfill: for every lesson with no _bhc_course_id, if exactly one
+    // course's order already contains it, write that course onto the
+    // lesson. Option-gated, admin_init — same deploy-safe posture as the
+    // flush above.
+    public static function maybe_backfill_lesson_course_ids(): void {
+        if (get_option('bhc_backfilled_lesson_course_ids') === '1') return;
+        $courses = get_posts(['post_type' => 'bh_course', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids']);
+        $orders = [];
+        foreach ($courses as $cid) {
+            $orders[(int) $cid] = BHC_PostTypes::lesson_order((int) $cid);
+        }
+        $lessons = get_posts(['post_type' => 'bh_lesson', 'post_status' => 'any', 'numberposts' => -1, 'fields' => 'ids']);
+        foreach ($lessons as $lid) {
+            if ((int) get_post_meta($lid, '_bhc_course_id', true)) continue;
+            $owners = [];
+            foreach ($orders as $cid => $order) {
+                if (in_array((int) $lid, $order, true)) $owners[] = $cid;
+            }
+            if (count($owners) === 1) update_post_meta($lid, '_bhc_course_id', $owners[0]);
+        }
+        update_option('bhc_backfilled_lesson_course_ids', '1');
+    }
+
     // Content-repair migration, separate concern from the schema
     // version above (own option, own version counter) — same "cheap
     // early-return on every load, only marks itself done on real
