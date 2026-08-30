@@ -9,6 +9,20 @@ has been reworded or dropped.
 
 ---
 
+3.15.8 — Front-end responsive/overlap fixes found doing a full-width
+sweep of the ecosystem pages against real content on a staging copy.
+
+- `.ous-back-link` (the shared "← All courses / All contests" affordance
+  on bh-courses and bh-contest child pages) is the first thing rendered
+  into <main>, so under builder themes that float the site header
+  (position:absolute — Etch) it landed under the header, overlapping the
+  nav/hamburger. Now clears it via `margin-top: var(--bh-header-clearance,
+  72px)` — the same one token bh-courses and bh-contest already read.
+- User bar (`class-user-bar.php`): a long "Continue: <course title>" meta
+  pushed Account / Log out off the right edge on phones, forcing a
+  horizontal scroll of the bar to reach them. The meta is now clamped
+  (`max-width: 40vw`, ellipsis) under 480px.
+
 3.15.7 — CRITICAL fix: the block editor's canvas was rendering at a
 real, measured 0px height on any post-edit screen with metaboxes tall
 enough to fill the available space — confirmed on bh_course, bh_lesson,

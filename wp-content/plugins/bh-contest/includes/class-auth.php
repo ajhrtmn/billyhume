@@ -159,7 +159,10 @@ class BH_Auth {
         if (method_exists('OUS_Pages', 'url')) {
             $archive_url = OUS_Pages::url('bh_archive', 'bh_archive_page_id');
             if ($archive_url) {
-                $back_link = '<p class="ous-back-link bh-back-to-archive" style="margin:0 0 10px;">'
+                // No inline margin — the shared .ous-back-link rule
+                // (front-nav.css) owns the spacing, including the
+                // header-clearance top margin an inline style would defeat.
+                $back_link = '<p class="ous-back-link bh-back-to-archive">'
                     . '<a href="' . esc_url($archive_url) . '">'
                     . '<span aria-hidden="true">&larr;</span> All contests</a></p>';
             }

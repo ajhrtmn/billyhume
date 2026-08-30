@@ -82,6 +82,17 @@ li.ous-menu-account-cta {
     font-size: 14px;
     text-decoration: none;
 }
+/* This link is the first thing a listing-child page (a course, a
+ * contest) renders into <main>, so under builder themes that float the
+ * site header (position:absolute — Etch), it landed under the header,
+ * overlapping the nav/hamburger. One shared token, --bh-header-clearance
+ * (bh-courses/-contest read the same one), default 72px to match the
+ * theme's own first-section padding; set it to 0 for a static-header
+ * theme. */
+.ous-back-link {
+    margin-top: var(--bh-header-clearance, 72px);
+    margin-bottom: 10px;
+}
 .ous-back-link:hover,
 .ous-back-link:focus-visible,
 .ous-back-link > a:hover,

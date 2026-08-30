@@ -94,6 +94,10 @@
     font-family: var(--bh-font-body);
     padding: calc(28px * var(--bh-space-scale)) calc(24px * var(--bh-space-scale));
     padding-bottom: calc(var(--bh-bar-height) + 28px * var(--bh-space-scale));
+    /* Clear a position:absolute site header (Etch and similar builder
+       themes overlay the page top and expect each section to pad for
+       it). Tunable per-site; set to 0 for themes with a static header. */
+    padding-top: var(--bh-header-clearance, 72px);
 }
 
 /* ---------------- Header ---------------- */

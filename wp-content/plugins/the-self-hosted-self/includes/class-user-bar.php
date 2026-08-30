@@ -162,6 +162,14 @@ class OUS_UserBar {
             @media (max-width: 480px) {
                 .bhi-user-bar-links { gap: 6px; }
                 .bhi-user-bar-link { padding: 5px 10px; font-size: 12px; }
+                /* A long "Continue: <course title>" meta pushed Account/
+                   Log out off-screen, forcing a horizontal scroll just to
+                   reach them. Clamp it so the primary links stay in view;
+                   the full title is still the link\'s destination. */
+                .bhi-user-bar-link-meta {
+                    display: inline-block; max-width: 40vw; overflow: hidden;
+                    text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+                }
             }
         ');
 

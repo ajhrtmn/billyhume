@@ -557,19 +557,36 @@ class BHCRM_Projects {
         if (($data['surface'] ?? '') !== 'bhcrm_project_board') return;
         if (($data['element_type'] ?? '') !== 'bh/sticky-card') return;
 
-        $new_config = json_decode((string) ($data['config'] ?? ''), true);
-        $new_column = is_array($new_config) ? (string) ($new_config['attrs']['column'] ?? '') : '';
+        $new_column = self::column_from_config(json_decode((string) ($data['config'] ?? ''), true));
 
         if ($old_row === null) {
             self::log_card_move((int) $id, $new_column);
             return;
         }
 
-        $old_config = json_decode((string) ($old_row['config'] ?? ''), true);
-        $old_column = is_array($old_config) ? (string) ($old_config['attrs']['column'] ?? '') : '';
+        $old_column = self::column_from_config(json_decode((string) ($old_row['config'] ?? ''), true));
         if ($old_column !== $new_column) {
             self::log_card_move((int) $id, $new_column);
         }
+    }
+
+    /**
+     * Read the 'column' attr out of a RAW (unresolved) placement config,
+     * tolerating both shapes BH_Element stores it in: a plain string, or
+     * the {"literal": "..."} binding wrapper (class-element-data.php).
+     * on_placement_saved() sees the pre-resolution JSON, so — unlike the
+     * render path at line ~750 where $attrs is already resolved — it must
+     * unwrap this itself. Casting the array form straight to string was a
+     * PHP "Array to string conversion" warning and stored the literal
+     * text "Array" as the column name.
+     *
+     * @param mixed $config
+     */
+    private static function column_from_config($config): string {
+        if (!is_array($config)) return '';
+        $col = $config['attrs']['column'] ?? '';
+        if (is_array($col)) $col = $col['literal'] ?? '';
+        return is_scalar($col) ? (string) $col : '';
     }
 
     public static function log_card_move(int $card_placement_id, string $column): void {

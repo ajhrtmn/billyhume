@@ -50,6 +50,21 @@
     color: var(--bh-text-dim);
 }
 
+/* ---- theme-header clearance ----
+   Many block/builder themes (Etch here) render the site header as
+   position:absolute and expect each page section to carry its own
+   top padding to sit clear of it — the theme's own first section
+   does (~70px). The ecosystem's front-end templates render straight
+   into <main>, so the first element on each (the catalog kicker, the
+   lesson breadcrumb) was tucking under the header and colliding with
+   its menu/hamburger. Shared token with the-self-hosted-self and
+   bh-contest — set --bh-header-clearance once per site, or to 0 for a
+   static-header theme. The "All courses" back-link is handled by
+   .ous-back-link in front-nav.css (it carries that class too). */
+:root { --bhc-header-clearance: var(--bh-header-clearance, 72px); }
+/* .bhc-lesson-breadcrumb / .bhc-archive-header apply --bhc-header-clearance
+   in their own rule blocks below. */
+
 /* ---- archive page header ----
    Real gap, caught live: .bhc-archive-header/.bhc-archive-title sit
    OUTSIDE the .bhc-catalog reset scope above (they're siblings of
@@ -68,7 +83,9 @@
 .bhc-archive-header {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 20px 0;
+    /* top value clears the theme's absolute site header — see
+       --bhc-header-clearance note above */
+    padding: var(--bhc-header-clearance) 20px 0;
     box-sizing: border-box;
 }
 .bhc-archive-kicker {
@@ -99,7 +116,10 @@
     background: linear-gradient(90deg, var(--bh-accent) 0%, color-mix(in srgb, var(--bh-accent) 25%, transparent) 100%);
 }
 @media (max-width: 600px) {
-    .bhc-archive-header { padding: 28px 16px 0; }
+    .bhc-archive-header {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
     .bhc-archive-title { font-size: 26px; }
 }
 
@@ -865,6 +885,8 @@ a.bhc-pagination-number:hover {
     font-size: 13px;
     color: var(--bh-text-dim);
     margin-bottom: 14px;
+    /* clears the theme's floating (position:absolute) site header */
+    padding-top: var(--bhc-header-clearance);
 }
 .bhc-lesson-breadcrumb a {
     font-weight: 600;
@@ -916,9 +938,17 @@ body.single-bh_lesson .oust-container-narrow { max-width: 1100px; }
 .bhc-sidebar-lesson-list li a {
     display: block;
     border-radius: 4px;
-    transition: background-color .15s ease;
+    transition: background-color .15s ease, color .15s ease;
+    /* The sidebar <nav> sits OUTSIDE .bhc-lesson (it's a sibling of
+       .bhc-lesson-main), so the theme-isolation a{color:inherit} reset
+       at the top of this file never reaches these links and the browser
+       default (#00e blue) showed through on a dark theme. Set it here. */
+    color: var(--bh-text-dim);
 }
-.bhc-sidebar-lesson-list li:not(.bhc-lesson-current) a:hover { background: var(--bh-surface-2, rgba(0, 0, 0, .03)); }
+.bhc-sidebar-lesson-list li:not(.bhc-lesson-current) a:hover {
+    background: var(--bh-surface-2, rgba(0, 0, 0, .03));
+    color: var(--bh-text);
+}
 .bhc-sidebar-course-link {
     display: block;
     font-family: var(--bh-font-heading);
@@ -984,6 +1014,14 @@ body.single-bh_lesson .oust-container-narrow { max-width: 1100px; }
         width: 100%;
     }
     .bhc-sidebar-lesson-list { max-height: none; }
+}
+@media (max-width: 600px) {
+    /* The lesson template renders full-bleed into <main> (no theme
+       prose container), so on phones the step cards / sidebar / banners
+       sat flush against both viewport edges. Give the whole column a
+       gutter — matches .bhc-archive-header's 16px mobile inset. */
+    .bhc-lesson-layout { padding-inline: 16px; }
+    .bhc-lesson-breadcrumb { padding-inline: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .bhc-sidebar-lesson-list li.bhc-lesson-current,

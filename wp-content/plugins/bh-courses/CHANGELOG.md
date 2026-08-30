@@ -6,6 +6,28 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.12.1 — Front-end styling fixes found while verifying the ecosystem
+against real (Billy Hume) content on a staging copy.
+
+- Lesson sidebar links rendered in the browser-default #00e blue on the
+  dark theme: the persistent lesson-nav <nav> sits outside the
+  `.bhc-lesson` element, so the file's own theme-isolation
+  `a { color: inherit }` reset never reached it. `.bhc-sidebar-lesson-list
+  li a` now sets `color: var(--bh-text-dim)` (and a `--bh-text` hover)
+  explicitly.
+- The first element on each front-end template (catalog kicker, lesson
+  breadcrumb, "All courses" back-link) tucked under builder themes that
+  render the site header `position: absolute` (Etch), colliding with the
+  header menu/hamburger. `--bhc-header-clearance` now chains to the
+  shared `--bh-header-clearance` token (the-self-hosted-self / bh-contest
+  read the same one; default 72px, set to 0 for static-header themes),
+  applied to `.bhc-archive-header` and `.bhc-lesson-breadcrumb`. The
+  "All courses" back-link is covered by `.ous-back-link` in front-nav.css.
+- The lesson template renders full-bleed into `<main>`, so on phones the
+  step cards / sidebar / banners sat flush against both viewport edges.
+  Added a 16px `padding-inline` gutter to `.bhc-lesson-layout` /
+  `.bhc-lesson-breadcrumb` under 600px, matching the archive header.
+
 0.12.0 — A real design pass over the lesson-building editor (AJ: "make
 the currently showing gui more magical, clean and organized" →
 "the course/lesson creation tools should all be enhanced to feel

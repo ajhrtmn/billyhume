@@ -6,6 +6,17 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+2.4.22 — Bug fix found while seeding the project tracker against real
+content on a staging copy.
+
+- `BHCRM_Projects::on_placement_saved()` cast `config.attrs.column`
+  straight to string, but BH_Element stores that attr as the
+  `{"literal": "..."}` binding wrapper (the render path at ~line 750
+  only sees it already resolved). Result: a PHP "Array to string
+  conversion" warning on every card save/seed, and the literal text
+  "Array" logged as the column name for time-in-column tracking. New
+  `column_from_config()` helper unwraps both shapes.
+
 
 2.4.21 — Real bug fix surfaced by the-self-hosted-self's own final PHPStan
 level 6 brick (typing OUS_Debug::button() with a real `: void`

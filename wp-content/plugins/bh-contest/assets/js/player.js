@@ -212,7 +212,7 @@ class BHPlayer {
                         </button>
                         <button class="bh-submit-btn bh-btn bh-btn-primary" style="display:none;">Submit a Song</button>
                         <button class="bh-login-btn bh-btn bh-btn-outline">Log In</button>
-                        <a href="#" class="bh-logout-btn bh-btn bh-btn-outline" style="display:none;">Log Out</a>
+                        <button type="button" class="bh-logout-btn bh-btn bh-btn-outline" style="display:none;">Log Out</button>
                     </div>
                 </div>
 
@@ -432,7 +432,7 @@ class BHPlayer {
         const show = (name) => { modal(name).style.display = 'flex'; };
         const openAuth = () => { this.setAuthMode(true); show('auth'); };
         this.q('.bh-login-btn').onclick = openAuth;
-        this.q('.bh-logout-btn').onclick = e => { e.preventDefault(); this.logout(); };
+        this.q('.bh-logout-btn').onclick = () => { this.logout(); };
         this.q('.bh-submit-btn').onclick = () => {
             show('submit');
             this.prefillSubmitProfile();
@@ -688,7 +688,7 @@ class BHPlayer {
     }
     async logout() {
         const btn = this.q('.bh-logout-btn');
-        btn.style.pointerEvents = 'none';
+        btn.disabled = true;
         await this.reqIdentity('logout', { method: 'POST' });
         this.toast('Logged out.');
         // Same reasoning as auth(): the session cookie just changed, so a

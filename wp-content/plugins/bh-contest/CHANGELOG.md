@@ -6,6 +6,32 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.12.3 — Link audit (every visible ecosystem link crawled + HTTP-checked
+against real content on a staging copy): all internal links resolve, all
+account sub-pages valid, back-links correct. One cleanup: the player
+header's "Log Out" was `<a href="#">` (functional — a JS click handler,
+preventDefault) while its sibling "Log In" was already a `<button>`. Made
+"Log Out" a `<button type="button">` too so it is an action control, not a
+link to nowhere; handler unchanged.
+
+3.12.2 — Follow-up to 3.12.1's header-clearance fix, found on a mobile
+pass: the "← All contests" back-link carried an inline `style="margin:0
+0 10px"`, which beat the stylesheet's new clearance rule, so the link
+still tucked under a floating (position:absolute) site header and
+overlapped the nav/hamburger. Inline margin removed; spacing now lives
+entirely in the shared `.ous-back-link` rule (front-nav.css), which
+also supplies the `--bh-header-clearance` top margin.
+
+3.12.1 — Front-end styling fix found while verifying against real content
+on a staging copy.
+
+- The contest player/archive `.bh-container` cleared only ~28px at the
+  top, so under builder themes that render the site header
+  `position: absolute` (Etch) the player header (wordmark, Submit/Log
+  out) collided with the theme's own nav. Added
+  `padding-top: var(--bh-header-clearance, 72px)` — tunable per site,
+  0 for static-header themes.
+
 3.12.0 — Stress-testing the actual voting flow live turned up a real
 gap: the player had zero client-side awareness of a contest's own
 voting window. Every "Vote" button stayed fully enabled regardless of
