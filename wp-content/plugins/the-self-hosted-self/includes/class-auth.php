@@ -149,6 +149,18 @@ class BHI_Auth {
 
         OUS_ReliableStore::increment($throttle_key, HOUR_IN_SECONDS);
 
+        // Land the new account on the dedicated low-privilege member role
+        // rather than whatever get_option('default_role') is (usually
+        // `subscriber`). Replaces the role wp_create_user() just set.
+        // Filterable so a site can point signups at `customer`, keep
+        // `subscriber`, or use its own role; an unknown role is ignored
+        // so a bad filter can't leave the account role-less.
+        $role = (string) apply_filters('bhi_registration_role', OUS_Roles::MEMBER_ROLE, $id, $email);
+        if ($role && get_role($role)) {
+            $new_user = new WP_User($id);
+            $new_user->set_role($role);
+        }
+
         $profile_fields = BHI_Profiles::from_request($req);
         if ($profile_fields) BHI_Profiles::save($id, $profile_fields);
 

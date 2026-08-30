@@ -35,6 +35,20 @@ class BHI_PublicProfile {
     }
 
     /**
+     * Whether the SHAREABLE public profile page is a live feature.
+     * Off for now (AJ's call — "hide it from being a thing"). This only
+     * gates the outward-facing page, its URL slug, the link-in-bio
+     * buttons and [bh_profile_link]; the logged-in editor for
+     * avatar / banner / bio / platform handles stays, because those
+     * feed the account portal, comments and get_avatar() regardless.
+     * Stored data is untouched — flip `bhi_public_profiles` to true to
+     * bring the public page back exactly as it was.
+     */
+    public static function public_enabled(): bool {
+        return (bool) apply_filters('bhi_public_profiles', false);
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $panels
      * @return array<int, array<string, mixed>>
      */
@@ -127,6 +141,7 @@ class BHI_PublicProfile {
 
     /** @param array<string, mixed>|string $atts */
     public static function render_link_shortcode($atts): string {
+        if (!self::public_enabled()) return '';
         $atts = shortcode_atts(['user_id' => 0, 'label' => ''], $atts);
         $user_id = (int) $atts['user_id'];
         if (!$user_id) return '';
@@ -142,6 +157,13 @@ class BHI_PublicProfile {
                 return '<p class="bhi-profile-notice">' . esc_html__('Log in to view or edit your profile.', 'the-self-hosted-self') . '</p>';
             }
             return self::render_edit_form(get_current_user_id());
+        }
+
+        // Public profile PAGE is currently disabled — any ?bh_user=
+        // lookup (slug or id) resolves to the same "not available"
+        // notice, regardless of a stored profile_public flag.
+        if (!self::public_enabled()) {
+            return '<p class="bhi-profile-notice">' . esc_html__('Public profiles aren\'t available right now.', 'the-self-hosted-self') . '</p>';
         }
 
         $user_id = ctype_digit($key) ? (int) $key : 0;
@@ -163,6 +185,9 @@ class BHI_PublicProfile {
     }
 
     private static function render_public_view(int $user_id): string {
+        if (!self::public_enabled()) {
+            return '<p class="bhi-profile-notice">' . esc_html__('Public profiles aren\'t available right now.', 'the-self-hosted-self') . '</p>';
+        }
         $data = BHI_Profiles::get($user_id);
         $user = get_userdata($user_id);
         $badges = BHI_Profiles::badges_for($user_id);
@@ -284,6 +309,7 @@ class BHI_PublicProfile {
                 <label>Bio
                     <textarea name="bio" rows="4" maxlength="2000"><?php echo esc_textarea($data['bio']); ?></textarea>
                 </label>
+                <?php if (self::public_enabled()): ?>
                 <label>Profile URL slug
                     <input type="text" name="profile_slug" value="<?php echo esc_attr($data['profile_slug']); ?>" placeholder="your-name" />
                 </label>
@@ -309,6 +335,7 @@ class BHI_PublicProfile {
                     <button type="button" class="bhi-btn bhi-btn--secondary" data-bhi-bio-link-add>+ Add link</button>
                     <p class="bhi-current">Up to <?php echo (int) BHI_Profiles::MAX_LINKS; ?> buttons shown on your public profile page — a song, a store, a social link.</p>
                 </fieldset>
+                <?php endif; ?>
 
                 <fieldset>
                     <legend>Real name</legend>
@@ -332,7 +359,7 @@ class BHI_PublicProfile {
                 </fieldset>
 
                 <button type="submit" class="bhi-btn bhi-btn--primary">Save profile</button>
-                <?php if ($data['profile_public']): ?>
+                <?php if (self::public_enabled() && $data['profile_public']): ?>
                     <a class="bhi-view-link" href="<?php echo esc_url(self::profile_url($user_id)); ?>">View public page</a>
                 <?php endif; ?>
             </form>
@@ -377,11 +404,16 @@ class BHI_PublicProfile {
             $links[] = ['label' => $label, 'url' => $link_urls[$i] ?? ''];
         }
 
+        // Public page is disabled — never accept its fields from a POST,
+        // even a hand-crafted one, and don't disturb whatever slug/links
+        // were saved before it was turned off.
+        $public_on = self::public_enabled();
+
         $data = [
             'bio' => isset($_POST['bio']) ? wp_unslash($_POST['bio']) : '',
-            'profile_slug' => isset($_POST['profile_slug']) ? wp_unslash($_POST['profile_slug']) : '',
-            'links' => $links,
-            'profile_public' => !empty($_POST['profile_public']),
+            'profile_slug' => ($public_on && isset($_POST['profile_slug'])) ? wp_unslash($_POST['profile_slug']) : BHI_Profiles::get($user_id)['profile_slug'],
+            'links' => $public_on ? $links : BHI_Profiles::get($user_id)['links'],
+            'profile_public' => $public_on && !empty($_POST['profile_public']),
             'real_name' => isset($_POST['real_name']) ? wp_unslash($_POST['real_name']) : '',
             'discord_name' => isset($_POST['discord_name']) ? wp_unslash($_POST['discord_name']) : '',
             'twitch_name' => isset($_POST['twitch_name']) ? wp_unslash($_POST['twitch_name']) : '',
@@ -426,9 +458,9 @@ class BHI_PublicProfile {
     // uploads) and attributed to the uploading user.
     //
     // media_handle_upload() performs no capability check of its own, and
-    // BHI_Auth::register() creates plain subscriber accounts, which don't
-    // have upload_files by default. The feature is meant to work for
-    // exactly that subscriber-level user, so a hard
+    // BHI_Auth::register() creates read-only `bh_member` accounts (see
+    // OUS_Roles::MEMBER_ROLE), which don't have upload_files. The feature
+    // is meant to work for exactly that member-level user, so a hard
     // current_user_can('upload_files') block would just break it. Instead,
     // grant upload_files for the duration of this one call only (never
     // persisted, never touches the user's real role/caps) on top of the

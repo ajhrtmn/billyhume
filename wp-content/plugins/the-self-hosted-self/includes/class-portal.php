@@ -221,7 +221,25 @@ class BHI_Portal {
             echo '</tbody></table>';
         }
         echo '<h4>wp-admin lockout</h4>';
-        echo '<p>Excluded roles: <code>' . esc_html(implode(', ', self::excluded_roles())) . '</code></p>';
+        echo '<p>Excluded roles: <code>' . esc_html(implode(', ', self::excluded_roles())) . '</code>'
+           . ' &mdash; an account is locked out only when <em>every</em> role it holds is on this list.</p>';
+
+        echo '<h4>Fan accounts (' . esc_html(class_exists('OUS_Roles') ? OUS_Roles::MEMBER_ROLE : 'bh_member') . ')</h4>';
+        if (class_exists('OUS_Roles') && get_role(OUS_Roles::MEMBER_ROLE)) {
+            $member_count = count_users();
+            $n = (int) ($member_count['avail_roles'][OUS_Roles::MEMBER_ROLE] ?? 0);
+            $subs = (int) ($member_count['avail_roles']['subscriber'] ?? 0);
+            echo '<p>' . esc_html((string) $n) . ' on <code>' . esc_html(OUS_Roles::MEMBER_ROLE) . '</code>'
+               . ($subs ? ', ' . esc_html((string) $subs) . ' still on stock <code>subscriber</code>' : '') . '.</p>';
+            $mig = get_option(BHI_MemberHardening::MIGRATED_OPTION);
+            if (is_array($mig)) {
+                echo '<p class="description">One-time subscriber&rarr;member migration ran ' . esc_html(human_time_diff((int) ($mig['at'] ?? time()))) . ' ago, moved ' . (int) ($mig['moved'] ?? 0) . '.</p>';
+            } else {
+                echo '<p class="description">Subscriber&rarr;member migration hasn\'t run yet (fires on the next admin page load; only touches accounts whose <em>only</em> role is <code>subscriber</code>).</p>';
+            }
+        } else {
+            echo '<p class="description">Role not registered yet.</p>';
+        }
 
         // Registered panels above only prove the PHP ran — a "/account/
         // 404s despite everything else working" report needs a different
@@ -331,12 +349,26 @@ class BHI_Portal {
      */
     /** @return array<int, string> */
     public static function excluded_roles(): array {
-        return apply_filters('bhi_portal_excluded_roles', ['subscriber', 'customer']);
+        $default = ['subscriber', 'customer'];
+        if (class_exists('OUS_Roles')) $default[] = OUS_Roles::MEMBER_ROLE;
+        return apply_filters('bhi_portal_excluded_roles', $default);
     }
 
+    /**
+     * Excluded only when EVERY role the account holds is an excluded
+     * ("ordinary fan") role. Previously any single excluded role was
+     * enough — which meant an account deliberately elevated to
+     * administrator *and still carrying* `bh_member`/`customer` (a
+     * normal state after a staff member also buys something) would get
+     * redirected out of its own wp-admin. A pure no-role account still
+     * counts as excluded — it isn't staff either.
+     */
     private static function user_is_excluded(?\WP_User $user): bool {
         if (!$user || !$user->exists()) return false;
-        return (bool) array_intersect(self::excluded_roles(), (array) $user->roles);
+        $roles = (array) $user->roles;
+        if (!$roles) return true;
+        $excluded = self::excluded_roles();
+        return (bool) array_intersect($excluded, $roles) && !array_diff($roles, $excluded);
     }
 
     public static function maybe_redirect_from_wp_admin(): void {

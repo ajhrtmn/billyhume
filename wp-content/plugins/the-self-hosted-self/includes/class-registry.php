@@ -631,10 +631,23 @@ class OUS_Registry {
 
         echo '<p class="description">Each of this plugin\'s own peer plugins gets reinstalled from a copy bundled inside <code>the-self-hosted-self/bundled/</code>, not from whatever is separately deployed elsewhere — this table exists specifically to catch a bundled copy that got left behind after a real update, before it causes a confusing "I updated it but nothing changed" report.</p>';
 
+        // Same clutter toggle as the GitHub Updates panel — hide the
+        // "not currently installed" rows unless the user asked to see
+        // them there.
+        $show_absent = class_exists('OUS_GithubUpdates') && OUS_GithubUpdates::show_absent_rows();
+        $hidden = 0;
+        if (!$show_absent) {
+            foreach ($rows as $r) { if (empty($r['installed_version'])) $hidden++; }
+        }
+        if (!$show_absent && $hidden) {
+            echo '<p class="description">' . (int) $hidden . ' plugin' . ($hidden === 1 ? '' : 's') . ' not installed here — hidden (toggle in <a href="#ous-section-ous-github-updates">GitHub Updates</a>).</p>';
+        }
+
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
            . '<th>Plugin</th><th>Bundled zip version</th><th>Currently installed version</th><th>Status</th>'
            . '</tr></thead><tbody>';
         foreach ($rows as $row) {
+            if (!$show_absent && empty($row['installed_version'])) continue;
             // Real bug, caught live (a status pill wrapping onto two
             // lines — "up to" / "date" — in a narrow table column):
             // this table was hand-rolling inline background+padding+radius

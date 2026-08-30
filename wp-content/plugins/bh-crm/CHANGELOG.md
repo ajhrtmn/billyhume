@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+2.4.23 — The person view's "View public profile page" link now also
+checks BHI_PublicProfile::public_enabled() (core 3.21.16 hid public
+profile pages by default). An existing profile_public=1 row no longer
+produces a link to a page that only says "not available".
+
 2.4.22 — Bug fix found while seeding the project tracker against real
 content on a staging copy.
 

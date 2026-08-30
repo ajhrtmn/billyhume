@@ -9,6 +9,60 @@ has been reworded or dropped.
 
 ---
 
+3.21.16 — Fan/student accounts hardened, public profile pages hidden, and a clutter toggle for the updates panels.
+
+MEMBER ROLE. Portal self-registration (BHI_Auth::register) now lands new
+accounts on a dedicated `bh_member` role (OUS_Roles::MEMBER_ROLE) — just
+`read`, nothing else — instead of stock `subscriber`. Its own named role
+so hardening and the wp-admin lockout target it precisely and a
+third-party plugin granting caps to `subscriber` never reaches these
+accounts. Filter `bhi_registration_role` to point signups elsewhere;
+`bhi_member_role_caps` / `bhi_member_role_label` to shape the role.
+  - BHI_Portal::excluded_roles() adds `bh_member`; user_is_excluded()
+    now caps an account only when EVERY role it holds is a fan role, so
+    a member later elevated to admin (and still carrying `bh_member`/
+    `customer`, the normal post-purchase state) keeps its wp-admin.
+  - One-time, conservative migration (BHI_MemberHardening): accounts
+    whose ONLY role is stock `subscriber` move to `bh_member`. Multi-
+    role users, customers, staff, admins untouched. `bh_member` is a
+    strict subset of a lone subscriber, so this can only reduce
+    privilege. Status shown in Debug Tools -> Portal.
+
+MONETIZATION unaffected — audited: bh-monetization-woo's entire access
+model (tiers, benefits, licenses/downloads, subscriptions, play/post
+gating) is `bhm_entitlements` rows keyed on user_id, zero role coupling.
+A `bh_member` buys, gets entitlements, and unlocks gated content
+identically; even if Woo/WCS adds `customer` alongside, both are
+excluded roles so the lockout still holds.
+
+NEW BHI_MemberHardening — closes the ambient surface a low-value account
+still had, each piece filterable:
+  - author/user enumeration: ?author=N and /author/<slug>/ 404 for
+    non-staff (filter bhi_allow_author_archives to keep them), REST
+    /wp/v2/users removed for unauthenticated callers (logged-in editors
+    unaffected, /me intact), users sitemap dropped, oEmbed author
+    fields stripped, rest_prepare_user trimmed for non-staff.
+  - Application Passwords off for fan roles (bhi_member_app_passwords).
+  - XML-RPC pingback / getUsersBlogs / system.multicall methods removed
+    (bhi_disable_xmlrpc to kill XML-RPC entirely).
+  - wp-login.php error text collapsed to one message (no user-exists
+    oracle) — the REST login already did this.
+
+PUBLIC PROFILE PAGES HIDDEN. BHI_PublicProfile::public_enabled() gates
+the shareable page — off by default now (filter `bhi_public_profiles`
+to restore). The ?bh_user= lookup, slug field, link-in-bio buttons,
+[bh_profile_link], "View public page" link and the CRM "view public
+profile" link all fall back to a plain "not available" notice / are
+hidden; a crafted POST can't set profile_public/slug/links while it's
+off. The logged-in editor for avatar/banner/bio/handles stays (feeds
+the portal, comments, get_avatar). No stored data touched.
+
+UPDATES PANELS — clutter toggle. GitHub Updates and Bundled Zip
+Freshness now hide rows for ecosystem plugins/themes not installed on
+this site (the bulk of the "Can't detect installed version" noise), with
+a checkbox ("Show plugins/themes not installed on this site") and a
+hidden-count. Option `ous_updates_show_absent`, shared by both panels.
+
 3.21.15 — sign_bunny() now emits autoplay=false&preload=true
 explicitly (+ the existing responsive=true), built via http_build_query
 and filterable through bhy_media_token_bunny_params — a lesson video

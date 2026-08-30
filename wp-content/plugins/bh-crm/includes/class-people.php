@@ -401,7 +401,9 @@ class BHCRM_People {
         echo '<div style="display:flex;align-items:flex-end;gap:var(--bhy-space-3,14px);padding:0 var(--bhy-space-3,12px);">';
         echo '<img src="' . esc_url($avatar) . '" width="80" height="80" style="border-radius:50%;object-fit:cover;border:3px solid var(--bhy-surface,#fff);background:var(--bhy-border,#eee);" />';
         echo '<div>';
-        if ($p['profile_public'] && class_exists('BHI_PublicProfile')) {
+        $public_profiles_live = class_exists('BHI_PublicProfile')
+            && (!method_exists('BHI_PublicProfile', 'public_enabled') || BHI_PublicProfile::public_enabled());
+        if ($p['profile_public'] && $public_profiles_live) {
             echo '<a href="' . esc_url(BHI_PublicProfile::profile_url($uid)) . '" target="_blank">View public profile page &rarr;</a>';
         } else {
             echo '<span style="color:var(--bhy-text-dim,#777);">Profile page not public</span>';

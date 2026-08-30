@@ -33,6 +33,14 @@ if (!defined('ABSPATH')) exit;
 class OUS_Roles {
     const MANAGER_ROLE = 'bhcore_studio_manager';
 
+    // The role every self-registered fan/student/supporter gets (see
+    // BHI_Auth::register): `read` and nothing else — deliberately its
+    // own named role, not stock `subscriber`, so hardening and wp-admin
+    // lockout can target it precisely and a third-party plugin granting
+    // caps to `subscriber` never silently reaches these accounts. See
+    // BHI_MemberHardening for the surface this role is kept away from.
+    const MEMBER_ROLE = 'bh_member';
+
     const DEFAULT_CAPS = [
         // Course instructor: view/manage student progress (bh-courses'
         // BHC_ProgressAdmin). Named generically ("manage_students," not
@@ -101,6 +109,7 @@ class OUS_Roles {
     // fully idempotent.
     public static function activate(): void {
         self::ensure_manager_role();
+        self::ensure_member_role();
 
         $caps = apply_filters('bhcore_role_capabilities', self::DEFAULT_CAPS);
         foreach ($caps as $cap => $role_names) {
@@ -131,5 +140,17 @@ class OUS_Roles {
         $editor = get_role('editor');
         $caps = $editor ? $editor->capabilities : ['read' => true, 'edit_posts' => true, 'upload_files' => true];
         add_role(self::MANAGER_ROLE, 'Studio Manager', $caps);
+    }
+
+    // The fan/student role. Just `read` — enough to be a logged-in
+    // account (the portal, course progress, contest identity, wallet,
+    // notifications, 2FA, password reset all key on user ID, not caps).
+    // add_role() is a silent no-op if it already exists, so an admin who
+    // later tweaks this role's caps by hand is never clobbered.
+    // Filterable so a site can seed it with something extra on creation.
+    private static function ensure_member_role(): void {
+        if (get_role(self::MEMBER_ROLE)) return;
+        $caps = apply_filters('bhi_member_role_caps', ['read' => true]);
+        add_role(self::MEMBER_ROLE, apply_filters('bhi_member_role_label', 'Member'), $caps);
     }
 }

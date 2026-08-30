@@ -85,6 +85,7 @@ class OUS_GithubUpdates {
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
         add_action('admin_post_ous_github_update_now', [self::class, 'handle_update_now']);
         add_action('admin_post_ous_github_check_now', [self::class, 'handle_check_now']);
+        add_action('admin_post_ous_updates_toggle_absent', [self::class, 'handle_toggle_absent']);
 
         if (class_exists('OUS_Jobs')) {
             OUS_Jobs::register(self::JOB_HOOK, [self::class, 'run_check']);
@@ -411,6 +412,24 @@ class OUS_GithubUpdates {
         exit;
     }
 
+    /**
+     * Shared with the Bundled Zip Freshness panel (OUS_Registry): when
+     * off (the default), both tables hide rows for ecosystem plugins/
+     * themes that aren't installed on THIS site — the bulk of the
+     * "Can't detect installed version" noise.
+     */
+    public static function show_absent_rows(): bool {
+        return (bool) get_option('ous_updates_show_absent', false);
+    }
+
+    public static function handle_toggle_absent(): void {
+        if (!current_user_can('update_plugins') && !current_user_can('update_themes')) wp_die('Not allowed.');
+        check_admin_referer('ous_updates_toggle_absent');
+        update_option('ous_updates_show_absent', !empty($_POST['show_absent']), false);
+        wp_safe_redirect(add_query_arg(['page' => 'ous-debug'], admin_url('admin.php')) . '#ous-section-ous-github-updates');
+        exit;
+    }
+
     /* ---------------- the real update: download, re-zip, install ---------------- */
 
     public static function handle_update_now(): void {
@@ -659,12 +678,36 @@ class OUS_GithubUpdates {
 
         $status = get_option('ous_github_update_status', []);
 
+        // Clutter control: most rows on a given site are for ecosystem
+        // plugins that simply aren't installed here ("Can't detect
+        // installed version"). Hide them by default; one toggle brings
+        // them back. Shared with the Bundled Zip Freshness panel.
+        $show_absent = self::show_absent_rows();
+        $absent = static function ($row): bool {
+            return !$row || (empty($row['local_version']) && empty($row['update_available']));
+        };
+        $hidden_count = 0;
+        if (!$show_absent) {
+            foreach (self::$sources as $k => $s) {
+                if ($absent($status[$k] ?? null)) $hidden_count++;
+            }
+        }
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-bottom:10px;">';
+        echo '<input type="hidden" name="action" value="ous_updates_toggle_absent">';
+        wp_nonce_field('ous_updates_toggle_absent');
+        echo '<label style="cursor:pointer;"><input type="checkbox" name="show_absent" value="1"' . checked($show_absent, true, false) . ' onchange="this.form.submit()"> ';
+        echo 'Show plugins/themes not installed on this site';
+        if (!$show_absent && $hidden_count) echo ' <span class="description">(' . (int) $hidden_count . ' hidden)</span>';
+        echo '</label></form>';
+
         echo '<div class="bhy-table-wrap"><table class="widefat striped"><thead><tr>'
            . '<th>Plugin/theme</th><th>Installed</th><th>On GitHub</th><th>Status</th><th></th>'
            . '</tr></thead><tbody>';
 
         foreach (self::$sources as $key => $source) {
             $row = $status[$key] ?? null;
+            if (!$show_absent && $absent($row)) continue;
             echo '<tr>';
             echo '<td><strong>' . esc_html($source['label']) . '</strong><br><span class="description">' . esc_html($source['repo']) . ' @ ' . esc_html($source['branch']) . '</span></td>';
             echo '<td>' . esc_html($row['local_version'] ?? '—') . '</td>';
