@@ -696,7 +696,9 @@
                 onChange: function (v) { setAttrs({ source: v }); },
                 __nextHasNoMarginBottom: true,
             }));
-            var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 }, el('summary', {}, __('Chapters'), chapters.length ? el('span', { className: 'bhc-studio-subsection-count' }, chapters.length) : null), el('p', { className: 'description' }, __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')), chapters.length
+            var chaptersSection = el('details', { key: 'chapters', className: 'bhc-studio-subsection', open: chapters.length > 0 }, el('summary', {}, __('Chapters'), chapters.length ? el('span', { className: 'bhc-studio-subsection-count' }, chapters.length) : null), el('p', { className: 'description' }, __('Markers on the player\'s seek bar plus a clickable list beneath the video, like YouTube.')), attrs.source === 'bunny_stream'
+                ? el('p', { className: 'description' }, __('↪ These also sync to Bunny\'s own player (its scrub bar) each time you save the lesson.'))
+                : null, chapters.length
                 ? chapterRows
                 : el('div', { className: 'bhc-studio-empty' }, previewUrl
                     ? __('No chapters yet. Scrub the preview above to a moment, then add a chapter — it picks up that timestamp automatically.')

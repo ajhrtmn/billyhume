@@ -22,6 +22,67 @@ class BHC_Bunny {
 
     public static function init(): void {
         add_action('rest_api_init', [self::class, 'register_routes']);
+        // After a lesson saves (content-bridge has written _bhc_steps by
+        // priority 20), push each Bunny step's chapters up to Bunny so
+        // they render on Bunny's OWN player scrub bar — the one custom
+        // feature the cross-origin iframe can't paint itself.
+        add_action('save_post_bh_lesson', [self::class, 'sync_lesson_chapters'], 30, 1);
+        add_action('rest_after_insert_bh_lesson', function ($post) { self::sync_lesson_chapters($post->ID); }, 30);
+    }
+
+    /** @param int $lesson_id */
+    public static function sync_lesson_chapters($lesson_id): void {
+        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+        if (!class_exists('BHY_MediaToken') || !BHY_MediaToken::bunny_api_configured()) return;
+        if (!class_exists('BHC_Steps')) return;
+        foreach (BHC_Steps::get((int) $lesson_id) as $step) {
+            if (($step['type'] ?? '') !== 'video' || ($step['source'] ?? '') !== 'bunny_stream') continue;
+            $guid = (string) ($step['bunny_guid'] ?? '');
+            if ($guid === '') continue;
+            self::sync_chapters($guid, is_array($step['chapters'] ?? null) ? $step['chapters'] : []);
+        }
+    }
+
+    /**
+     * Replace a Bunny video's chapter list with ours. Deduped by a
+     * stored hash so an unchanged set costs no API call. Bunny wants
+     * {title, start, end} per chapter (end > start); ours is
+     * [{time, title}] so end = the next chapter's start, and the last
+     * runs to the video's own length.
+     * @param array<int, array{time:int, title:string}> $chapters
+     * @return true|\WP_Error|null null = Bunny API not configured
+     */
+    public static function sync_chapters(string $guid, array $chapters) {
+        if (!class_exists('BHY_MediaToken') || !BHY_MediaToken::bunny_api_configured()) return null;
+        $guid = trim($guid);
+        if (!preg_match('/^[a-f0-9-]{20,64}$/i', $guid)) return new WP_Error('bhc_bunny_bad_guid', 'Not a valid Bunny GUID.');
+
+        $opt = 'bhc_bunny_chapters_' . md5($guid);
+        $hash = md5(wp_json_encode($chapters));
+        if (get_option($opt) === $hash) return true;
+
+        $len = 0;
+        $meta = self::api('GET', '/library/' . self::lib() . '/videos/' . rawurlencode($guid));
+        if (is_array($meta)) $len = (int) ($meta['length'] ?? 0);
+
+        $payload = [];
+        $n = count($chapters);
+        foreach (array_values($chapters) as $i => $c) {
+            $start = max(0, (int) ($c['time'] ?? 0));
+            $end   = ($i + 1 < $n) ? max(0, (int) ($chapters[$i + 1]['time'] ?? 0)) : ($len > $start ? $len : $start + 1);
+            if ($end <= $start) $end = $start + 1;
+            $payload[] = ['title' => (string) ($c['title'] ?? ''), 'start' => $start, 'end' => $end];
+        }
+
+        $res = self::api('POST', '/library/' . self::lib() . '/videos/' . rawurlencode($guid) . '/chapters', ['chapters' => $payload]);
+        if (is_wp_error($res)) {
+            if (class_exists('OUS_DebugLog')) {
+                OUS_DebugLog::log('warning', 'Bunny chapter sync failed.', ['guid' => $guid, 'error' => $res->get_error_message()], 'BHC_Bunny');
+            }
+            return $res;
+        }
+        update_option($opt, $hash, false);
+        return true;
     }
 
     public static function register_routes(): void {

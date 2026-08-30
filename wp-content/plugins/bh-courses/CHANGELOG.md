@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.13 — Wire the custom video features into Bunny's own player.
+On lesson save, each Bunny step's chapters are pushed to Bunny
+(POST /library/{id}/videos/{guid}/chapters) so they render on
+Bunny's native scrub bar — the one thing the cross-origin iframe
+couldn't paint itself. Deduped by hash (unchanged = no API call),
+failures logged to Console & Logs, needs the Bunny API key.
+Chapter list, pausing overlays and the watch-% completion gate keep
+working over the player.js bridge as before (Bunny's player has no
+equivalent for the last two).
+
 0.16.12 — The Bunny Stream step's iframe had no CSS at all and fell
 back to the 300x150 HTML default. .bhc-step-video-bunny now gets the
 same 16:9 responsive frame as the oEmbed providers; the iframe fills

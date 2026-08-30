@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.21.8 — Refresh bundled bh-courses.zip (0.16.13, Bunny chapter sync).
+
 3.21.7 — sign_bunny() appends responsive=true so Bunny's player fills
 our 16:9 wrapper instead of letterboxing to its own frame. Host
 confirmed: iframe.mediadelivery.net/embed/{lib}/{guid}?token&expires
