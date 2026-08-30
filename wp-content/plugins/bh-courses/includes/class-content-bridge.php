@@ -228,6 +228,72 @@ class BHC_ContentBridge {
         if ($screen !== 'bh_lesson') return $settings;
 
         $settings['styles'][] = ['css' => '
+            /* ---- lesson authoring canvas rhythm ----
+               A lesson is a SEQUENCE of steps; the canvas should read as
+               that sequence, not a pile of full-bleed cards. The width
+               cap goes on .bhc-studio-step itself (and the appender) so
+               it holds no matter what content width the active theme
+               sets for the editor iframe — a selector on the editor\'s
+               own root/layout wrappers is fragile across WP versions and
+               was letting the theme\'s full-width layout win. */
+            /* .bhc-studio-step is applied to the .wp-block element
+               itself (useBlockProps className), so this targets the
+               block wrapper directly. !important because the active
+               theme\'s constrained-layout rule sets .wp-block max-width
+               from its own (wide/full) content size at a specificity
+               this would otherwise lose to. */
+            .editor-styles-wrapper .bhc-studio-step {
+                max-width: 680px !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+            }
+            /* Consistent gap between consecutive steps, whatever the
+               theme\'s block-gap is. */
+            .wp-block[data-type^="bhc/"] + .wp-block[data-type^="bhc/"] {
+                margin-top: 22px;
+            }
+            /* The end-of-list appender — an obvious "Add a step" bar,
+               same width as the steps, instead of Gutenberg\'s faint
+               inter-block "+". Width/centre goes on the button itself
+               (its wrapper .block-list-appender is sized by the theme
+               layout at a specificity a plain class would lose to). */
+            .editor-styles-wrapper .block-list-appender { margin-top: 22px; }
+            .editor-styles-wrapper .block-editor-default-block-appender__content,
+            .editor-styles-wrapper .block-list-appender__toggle,
+            .editor-styles-wrapper .block-list-appender .block-editor-button-block-appender {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                width: 100%;
+                max-width: 680px !important;
+                margin-left: auto !important;
+                margin-right: auto !important;
+                min-height: 48px;
+                border: 1px dashed #b8bcc4 !important;
+                border-radius: 8px;
+                background: #f6f7f7 !important;
+                color: #50575e;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: none !important;
+            }
+            .editor-styles-wrapper .block-list-appender__toggle::after,
+            .editor-styles-wrapper .block-editor-default-block-appender__content::after {
+                content: "Add a step";
+            }
+            .editor-styles-wrapper .block-list-appender__toggle svg,
+            .editor-styles-wrapper .block-editor-default-block-appender__content svg {
+                width: 18px; height: 18px; fill: currentColor;
+            }
+            .editor-styles-wrapper .block-list-appender__toggle:hover,
+            .editor-styles-wrapper .block-editor-default-block-appender__content:hover {
+                border-color: var(--wp-admin-theme-color, #3858e9) !important;
+                color: var(--wp-admin-theme-color, #3858e9);
+                background: #fff !important;
+            }
+
             /* ---- shared authoring shell for every lesson step block ----
                See courses-studio-blocks.ts stepShell()/pickerPlaceholder()
                for the reasoning. This is the only channel that reaches the
@@ -236,9 +302,10 @@ class BHC_ContentBridge {
                lives here rather than in an enqueued stylesheet. */
             .bhc-studio-step {
                 border: 1px solid #e0e0e0;
-                border-radius: 6px;
+                border-radius: 8px;
                 background: #fff;
                 overflow: hidden;
+                box-shadow: 0 1px 2px rgba(0,0,0,.04);
                 /* The post editor\'s canvas is an IFRAME that loads the
                    active theme\'s own front-end stylesheet for true
                    WYSIWYG (this theme sets a cream/tan body text color
@@ -253,13 +320,12 @@ class BHC_ContentBridge {
                    (the "TITLE"/"CAPTION" field labels), which carries no
                    color rule of its own either. */
                 color: #1e1e1e;
-                /* Replaces the padding-top:32px hack every one of these
-                   blocks used to carry inline: Gutenberg docks its
-                   floating toolbar inside a block\'s own top edge when
-                   there is no room above. A real header band gives the
-                   toolbar something to sit against that is meant to be
-                   there. */
-                margin-top: 28px;
+                /* Inter-step gap lives on the block wrapper rule above;
+                   this small top margin is only so Gutenberg\'s floating
+                   toolbar (docked inside a block\'s own top edge when
+                   there\'s no room above) has somewhere to sit on the
+                   very first step. */
+                margin-top: 10px;
             }
             .bhc-studio-head {
                 display: flex; align-items: center; gap: 7px;

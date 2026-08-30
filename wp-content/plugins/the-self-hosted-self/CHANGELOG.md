@@ -9,6 +9,14 @@ has been reworded or dropped.
 
 ---
 
+3.20.7 — BHY_BlockStyle's generic "Advanced Styles" panel now skips
+an excludable set of blocks — bhc/* (bh-courses lesson steps) by
+default. A content-primitive step block is authored for its content,
+not tuned for grid/flex/typography; the panel was pure clutter in
+that inspector. Filter: bhy.advancedStyles.excludedBlocks (a trailing
+"/" matches a namespace). Also refreshes bundled/bh-courses.zip
+(0.16.1).
+
 3.20.6 — Refresh bundled/bh-courses.zip (0.16.0, lesson settings sidebar panel).
 
 3.20.5 — Refresh bundled/bh-courses.zip (0.15.2, step-editor UX pass).

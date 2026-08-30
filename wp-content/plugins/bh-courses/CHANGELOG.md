@@ -6,6 +6,19 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.1 — Lesson step-block authoring, cleaned up:
+
+- Steps are capped at 680px and centred in the canvas instead of
+  sprawling full-bleed; consistent 22px gap between steps.
+- The end-of-list appender is a real "Add a step" bar (matches the
+  step width, dashed, hover-lit) instead of Gutenberg's faint
+  inter-block "+". Same treatment on the empty-canvas appender.
+- Step block inspectors decluttered: no spacing / color / extra-CSS-
+  class controls (SUPPORTS trimmed to html/position/customClassName
+  false), and the generic "Advanced Styles" panel no longer attaches
+  to bhc/* (see the-self-hosted-self 3.20.7). A video step's Block
+  panel is now just Video settings + Advanced.
+
 0.16.0 — Lesson authoring cohesion: settings out of the "Meta Boxes"
 seam, into the editor sidebar.
 

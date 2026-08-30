@@ -123,9 +123,14 @@
             },
         }, __('Add another question'));
     }
-    // Same COMMON_SUPPORTS posture as studio.js's own default block set —
-    // no absolute positioning, no raw-HTML editing escape hatch.
-    var SUPPORTS = { html: false, position: false, spacing: { margin: true, padding: true }, color: { background: true, text: true } };
+    // Deliberately minimal. A lesson step is a CONTENT primitive an
+    // author fills in, not a layout box they tune — so no raw-HTML
+    // escape hatch, no absolute positioning, and no spacing / color /
+    // extra-CSS-class controls (those panels were the top "the step
+    // inspector is cluttered noise" complaint). The generic "Advanced
+    // Styles" panel is separately excluded for every bhc/* block in
+    // the-self-hosted-self's block-style-panel.ts.
+    var SUPPORTS = { html: false, position: false, customClassName: false };
     /* ==================================================================
      * Shared authoring shell for every lesson step block.
      *
@@ -269,7 +274,7 @@
             attachment_ids: { type: 'array', default: [] },
             caption: { type: 'string', default: '' },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             // The old paddingTop:32px inline hack (Gutenberg docks its
@@ -389,7 +394,7 @@
             // behavior all stay exactly what they already are).
             chapters: { type: 'array', default: [] },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             // The old paddingTop:32px toolbar-collision hack is gone —
@@ -869,7 +874,7 @@
             label: { type: 'string', default: '' },
             description: { type: 'string', default: '' },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-resource bhc-studio-step' });
@@ -915,7 +920,7 @@
             title: { type: 'string', default: '' },
             items: { type: 'array', default: [] },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-checklist bhc-studio-step' });
@@ -951,7 +956,7 @@
             title: { type: 'string', default: '' },
             content: { type: 'string', default: '' },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-chord-chart bhc-studio-step' });
@@ -982,7 +987,7 @@
             label_b: { type: 'string', default: 'B' },
             caption: { type: 'string', default: '' },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-audio-compare bhc-studio-step' });
@@ -1019,7 +1024,7 @@
             shuffle_questions: { type: 'boolean', default: false },
             shuffle_choices: { type: 'boolean', default: false },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz bhc-studio-step' });
@@ -1053,7 +1058,7 @@
             choices: { type: 'array', default: ['', ''] },
             correct_index: { type: 'number', default: 0 },
         },
-        supports: { html: false },
+        supports: { html: false, customClassName: false },
         edit: function (props) {
             var attrs = props.attributes, setAttrs = props.setAttributes;
             var blockProps = wp.blockEditor.useBlockProps({ className: 'bhc-studio-quiz-question' });

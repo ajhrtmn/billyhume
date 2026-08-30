@@ -243,10 +243,36 @@
             return el(PanelBody, { key: gk, title: __('Style', 'the-self-hosted-self') + ': ' + group.label, initialOpen: false }, rows);
         }));
     }
+    // Blocks this generic layout/style panel should NOT attach to.
+    // Content-primitive "app" blocks (a lesson video step, a quiz
+    // question) are authored for their content, not tuned for grid /
+    // flex / typography — the panel is pure noise in that inspector and
+    // was the top "authoring feels cluttered" complaint. A prefix
+    // ending in "/" matches a whole namespace; anything else is an
+    // exact block name. Filterable so any plugin can opt its own blocks
+    // out (or back in) — bhc/* (bh-courses lesson steps) is excluded by
+    // default.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    var hooksAny = wp.hooks;
+    var excludedBlocks = (typeof hooksAny.applyFilters === 'function'
+        ? hooksAny.applyFilters('bhy.advancedStyles.excludedBlocks', ['bhc/'])
+        : ['bhc/']) || ['bhc/'];
+    function isStylePanelExcluded(name) {
+        if (typeof name !== 'string' || !name)
+            return false;
+        for (var i = 0; i < excludedBlocks.length; i++) {
+            var p = excludedBlocks[i];
+            if (typeof p !== 'string' || !p)
+                continue;
+            if (p.charAt(p.length - 1) === '/' ? name.indexOf(p) === 0 : name === p)
+                return true;
+        }
+        return false;
+    }
     var withAdvancedStyles = createHigherOrderComponent(function (BlockEdit) {
         return function (ownProps) {
             var edit = el(BlockEdit, ownProps);
-            if (!ownProps.isSelected)
+            if (!ownProps.isSelected || isStylePanelExcluded(ownProps.name))
                 return edit;
             return el(Fragment, {}, edit, el(InspectorControls, {}, el(AdvancedStylesPanels, ownProps)));
         };
