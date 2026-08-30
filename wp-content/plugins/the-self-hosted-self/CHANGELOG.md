@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.19.1 — Refresh bundled/bh-contest.zip (3.13.0, contests landing) and
+bundled/bh-courses.zip (0.14.1, course-single width fix).
+
 3.19.0 — The account portal (/account/, /account/{panel}/) now
 renders INSIDE the active theme instead of printing its own standalone
 <!DOCTYPE> document and exiting. The site header/nav, footer and page
