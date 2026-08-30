@@ -9,6 +9,16 @@ has been reworded or dropped.
 
 ---
 
+3.15.11 — Styled the sign-in gate. `OUS_Visibility::render_login_notice()`
+(the "Log in to view this lesson / course / contest" block shared by
+bh-courses and bh-contest) rendered as bare browser-default text plus a
+stray `.button` link — it read as a broken page. New `.ous-login-required`
+rules in front-nav.css: a centred card on `--bh-surface` with a border and
+`--bh-radius`, the message at a real size, and the CTA as a proper
+accent pill (44px min target, hover, reduced-motion + <600px handling).
+px units throughout, not rem — ACSS/builder themes set html{font-size:62.5%}
+and rem-based type came out ~10px.
+
 3.15.10 — Refreshed bundled/bh-courses.zip (0.12.2) and
 bundled/bh-contest.zip (3.12.4) after their full-bleed-layout fix, so a
 dashboard install ships the centred templates, not the sprawling ones.

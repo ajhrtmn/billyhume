@@ -106,3 +106,73 @@ li.ous-menu-account-cta {
     outline-offset: 2px;
     border-radius: 4px;
 }
+
+/* Sign-in gate — OUS_Visibility::render_login_notice(), shown by
+ * bh-courses (lesson + course), bh-contest, and anywhere else that
+ * gates content behind login. It rendered as bare browser-default text
+ * + a stray .button link; give it a real, centred card that reads as a
+ * deliberate "members only" moment, not a broken page. Tokens with
+ * literal fallbacks so it still looks right on a site that hasn't
+ * loaded the brand token block. */
+.ous-login-required {
+    box-sizing: border-box;
+    max-width: 460px;
+    /* px, not rem — builder themes (ACSS) set html{font-size:62.5%},
+       so 1rem there is 10px and rem-based type/spacing comes out tiny */
+    margin: var(--bh-header-clearance, 72px) auto 48px;
+    padding: 40px 32px;
+    text-align: center;
+    background: var(--bh-surface, #faf8f5);
+    border: 1px solid var(--bh-border, #e6e1d9);
+    border-radius: var(--bh-radius, 12px);
+    color: var(--bh-text, #1d2327);
+}
+.ous-login-required p {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--bh-text, #1d2327);
+}
+.ous-login-required p + p {
+    margin-top: 20px;
+}
+/* Beats the theme's own generic .button that also sits on this anchor. */
+.ous-login-required .ous-login-required-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 999px;
+    background: var(--bh-accent, #c0563a);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    transition: background-color .15s ease, transform .15s ease;
+}
+.ous-login-required .ous-login-required-cta:hover {
+    background: var(--bh-accent-strong, var(--bh-accent, #a8442c));
+    transform: translateY(-1px);
+    color: #fff;
+    text-decoration: none;
+}
+.ous-login-required .ous-login-required-cta:focus-visible {
+    outline: 2px solid var(--bh-accent, #c0563a);
+    outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+    .ous-login-required .ous-login-required-cta {
+        transition: none;
+    }
+    .ous-login-required .ous-login-required-cta:hover {
+        transform: none;
+    }
+}
+@media (max-width: 600px) {
+    .ous-login-required {
+        margin-inline: 16px;
+        padding: 32px 20px;
+    }
+}
