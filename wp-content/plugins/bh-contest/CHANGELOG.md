@@ -6,6 +6,38 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.0 — The contest lifecycle view is now its own standalone page,
+[bh_contest_library] (auto-created page "Contests"), distinct from the
+Archive. The Archive goes back to being purely the flat
+every-entry-ever catalog; the Library browses the CONTESTS by where
+each one sits in its life. Each card: the contest's cover (or a
+Streamline-Moderne waveform placeholder), a phase pill with a live
+pulsing dot, a countdown to the next real deadline, structural badges
+(Judged / N rounds), a contextual stat strip (votes + voters while
+voting; entries + categories while open; winner + tally once wrapped),
+and a phase-specific feature block — a crowd-momentum bar during
+voting, a 🥇🥈🥉 podium once results are published, category chips and
+a "Be entry #N ->" nudge while submissions are open. Grouped Open now
+/ Starting soon / Wrapped, sorted by soonest deadline. Fully designed
+hover/focus/active states (accent-rail bloom, light sweep, cover
+warm, arrow lean, momentum shimmer, podium pop), all
+reduced-motion-guarded. bh/contest-library block + the "Contests" page
+render through the active theme via the_content.
+
+3.14.0 — The [bh_archive] contest library is now a real
+lifecycle-organized view, not a labelled list. BH_Archive::
+contest_lifecycle() compresses each contest to one model — which of
+the three canonical stages (submissions -> voting -> results) it's in,
+a visual tone (live / urgent / soon / done / muted), the next real
+deadline (from _bh_sub_end / _bh_end), and whether that deadline is
+inside the "ending soon" window (filterable, default 3 days). Cards
+render that as: a phase pill with a state dot (pulsing while live), a
+countdown to the next deadline ("Voting closes in 2 days", amber when
+ending soon), and a submissions/voting/results stage track with
+filled / ringed / empty dots and a connector line. Grouped Open now /
+Starting soon / Wrapped, and within a group sorted by soonest
+deadline. Track library unchanged below.
+
 3.13.0 — The [bh_archive] page now leads with a real contests
 landing: every published contest as a card linking to its own page,
 grouped "Open now" (accepting submissions / voting open) → "Coming up"

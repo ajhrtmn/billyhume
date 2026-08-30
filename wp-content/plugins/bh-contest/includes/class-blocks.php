@@ -60,6 +60,11 @@ class BH_Blocks {
             'editor_script'   => 'bh-contest-blocks',
             'render_callback' => [self::class, 'render_archive'],
         ]);
+
+        register_block_type('bh/contest-library', [
+            'editor_script'   => 'bh-contest-blocks',
+            'render_callback' => [self::class, 'render_contest_library'],
+        ]);
     }
 
     /** @param array<string, mixed> $attributes */
@@ -75,6 +80,11 @@ class BH_Blocks {
     /** @param array<string, mixed> $attributes */
     public static function render_archive($attributes): string {
         return BH_Archive::render_display_shortcode();
+    }
+
+    /** @param array<string, mixed> $attributes */
+    public static function render_contest_library($attributes): string {
+        return BH_Contest_Library::render_shortcode([]);
     }
 
     public static function register_routes(): void {

@@ -86,70 +86,6 @@ class BH_Archive {
         return $placements;
     }
 
-    // The contests-landing block that sits above the track library: every
-    // published contest as a card linking to its own page, grouped so
-    // ongoing contests (accepting submissions / voting open) lead, then
-    // upcoming, then finished. Server-rendered — no JS, no REST round
-    // trip — because this is the part people need to actually find a
-    // live contest to enter or vote in. The track library below stays
-    // the "everything ever submitted" catalog it already was.
-    private static function render_contests_landing(): string {
-        $contests = get_posts([
-            'post_type' => 'bh_contest', 'post_status' => 'publish',
-            'posts_per_page' => -1, 'orderby' => 'date', 'order' => 'DESC',
-        ]);
-        if (!$contests) return '';
-
-        $ongoing_labels  = ['Accepting submissions', 'Voting open'];
-        $upcoming_needle = ['soon', 'not scheduled'];
-        $groups = ['ongoing' => [], 'upcoming' => [], 'past' => []];
-
-        foreach ($contests as $c) {
-            $phase = class_exists('BH_Helpers') && method_exists('BH_Helpers', 'contest_phase_summary')
-                ? BH_Helpers::contest_phase_summary($c->ID)
-                : ['label' => '', 'color' => '#8a8a8a'];
-            $label = (string) ($phase['label'] ?? '');
-            if (in_array($label, $ongoing_labels, true)) {
-                $bucket = 'ongoing';
-            } elseif (array_filter($upcoming_needle, fn($n) => stripos($label, $n) !== false)) {
-                $bucket = 'upcoming';
-            } else {
-                $bucket = 'past';
-            }
-            $groups[$bucket][] = [
-                'title' => get_the_title($c->ID) ?: '(untitled contest)',
-                'url'   => get_permalink($c->ID),
-                'phase' => $label,
-                'color' => (string) ($phase['color'] ?? '#8a8a8a'),
-                'excerpt' => wp_trim_words(wp_strip_all_tags((string) $c->post_content), 24, '…'),
-            ];
-        }
-
-        $section_titles = ['ongoing' => 'Open now', 'upcoming' => 'Coming up', 'past' => 'Past contests'];
-        ob_start();
-        echo '<div class="bh-contests-landing">';
-        foreach ($section_titles as $key => $heading) {
-            if (!$groups[$key]) continue;
-            echo '<h2 class="bh-contests-landing-heading">' . esc_html($heading) . '</h2>';
-            echo '<div class="bh-contests-landing-grid">';
-            foreach ($groups[$key] as $item) {
-                echo '<a class="bh-contest-card" href="' . esc_url($item['url']) . '">';
-                if ($item['phase']) {
-                    echo '<span class="bh-contest-card-phase" style="--phase-color:' . esc_attr($item['color']) . '">'
-                        . esc_html($item['phase']) . '</span>';
-                }
-                echo '<span class="bh-contest-card-title">' . esc_html($item['title']) . '</span>';
-                if ($item['excerpt']) {
-                    echo '<span class="bh-contest-card-excerpt">' . esc_html($item['excerpt']) . '</span>';
-                }
-                echo '</a>';
-            }
-            echo '</div>';
-        }
-        echo '</div>';
-        return ob_get_clean();
-    }
-
     public static function render_display_shortcode(): string {
         // Shared catalog structure/elevation, registered by the core plugin.
         // By handle, so this plugin never needs to know where core keeps the
@@ -161,10 +97,8 @@ class BH_Archive {
         <style><?php echo BHY_Style::inline_css(); ?></style>
         <div class="bh-container bh-archive" id="bh-archive-root">
             <div class="bh-header">
-                <div class="bh-brand">Contests</div>
+                <div class="bh-brand">Archive</div>
             </div>
-            <?php echo self::render_contests_landing(); ?>
-            <h2 class="bh-contests-landing-heading">Track library</h2>
             <div class="bh-archive-controls ous-catalog-controls">
                 <input type="text" id="bh-archive-search" placeholder="Search title or artist…">
                 <select id="bh-archive-filter"><option value="">All contests</option></select>

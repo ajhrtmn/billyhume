@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.13.0
+ * Version:     3.15.0
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.13.0');
+define('BH_VER',        '3.15.0');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -20,7 +20,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
+foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'contest-library', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 
@@ -93,6 +93,7 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BH_Blocks', 'init']);
     add_action('init',          ['BH_Discord', 'init']);
     add_action('init',          ['BH_Archive', 'init']);
+    add_action('init',          ['BH_Contest_Library', 'init']);
     add_action('init',          ['BH_ShareCards', 'init']);
 
     // Registers this plugin's seeding/reset actions into the shared Debug
@@ -112,7 +113,8 @@ add_action('plugins_loaded', function () {
         $has_player   = has_shortcode($post->post_content, 'bh_contest_player') || has_block('bh/contest-player', $post);
         $has_reveal   = has_shortcode($post->post_content, 'bh_results_reveal') || has_block('bh/results-reveal', $post);
         $has_archive  = has_shortcode($post->post_content, 'bh_archive') || has_block('bh/archive', $post);
-        if (!$has_player && !$has_reveal && !$has_archive) return;
+        $has_library  = has_shortcode($post->post_content, 'bh_contest_library') || has_block('bh/contest-library', $post);
+        if (!$has_player && !$has_reveal && !$has_archive && !$has_library) return;
 
         // Shared across all three shortcodes so Reveal/Archive pages match
         // the player's look automatically, including per-contest overrides.
@@ -150,6 +152,13 @@ add_action('plugins_loaded', function () {
             wp_localize_script('bh-archive', 'BHData', [
                 'rest' => esc_url_raw(rest_url('bh/v1/')),
             ]);
+        }
+
+        if ($has_library) {
+            // Server-rendered, no JS — just the icon font the stat strip
+            // on each card uses (front-end doesn't load dashicons by
+            // default).
+            wp_enqueue_style('dashicons');
         }
     });
 });

@@ -66,7 +66,7 @@ class BH_Activator {
     // (e.g. a third singleton page gets added) and needs to re-run once;
     // maybe_create_singleton_page() stays individually idempotent either
     // way, so re-running only ever creates what's actually missing.
-    const PAGES_VERSION = '2';
+    const PAGES_VERSION = '3'; // 3: added the standalone Contest Library page
 
     // Reveal Party ([bh_results_reveal]) and Archive ([bh_archive]) are
     // singleton, site-wide pages — unlike the per-contest player page,
@@ -91,6 +91,10 @@ class BH_Activator {
 
         self::maybe_create_singleton_page('bh_reveal_page_id', 'Reveal Party', '[bh_results_reveal]');
         self::maybe_create_singleton_page('bh_archive_page_id', 'Archive', '[bh_archive]');
+        // The Contest Library is a distinct page from the Archive: the
+        // Library browses the contests themselves by lifecycle; the
+        // Archive is the flat catalog of every entry ever submitted.
+        self::maybe_create_singleton_page('bh_contest_library_page_id', 'Contests', '[bh_contest_library]');
 
         update_option('bh_pages_version', self::PAGES_VERSION);
     }
