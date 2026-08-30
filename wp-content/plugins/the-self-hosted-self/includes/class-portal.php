@@ -944,6 +944,77 @@ class BHI_Portal {
   .bhi-portal-section:last-child { margin-bottom:0; }
   .bhi-portal-section h2 { margin:0 0 14px; font-size:16px; font-weight:600; }
   .bhi-portal-section > *:last-child { margin-bottom:0; }
+
+  /* ---- Normalized rhythm for auto-wrapped panels ----
+     Peer-plugin panels echo bare h2/h3/p/label/fieldset with no
+     spacing of their own; portal_content() drops them in a
+     .bhi-portal-section--auto card, and these rules give that content
+     consistent vertical rhythm and a real left gutter so "Your
+     upcoming sessions / Nothing booked yet" stops reading as two lines
+     jammed together. Scoped to --auto so panels that DO style
+     themselves (Overview) are untouched. */
+  .bhi-portal-section--auto > *:first-child { margin-top:0; }
+  .bhi-portal-section--auto h2 { margin:22px 0 10px; font-size:17px; font-weight:700; }
+  .bhi-portal-section--auto h3 { margin:18px 0 8px; font-size:15px; font-weight:600; }
+  .bhi-portal-section--auto p { margin:0 0 12px; font-size:14px; line-height:1.55; }
+  .bhi-portal-section--auto ul, .bhi-portal-section--auto ol { font-size:14px; line-height:1.55; }
+  .bhi-portal-section--auto p:last-child { margin-bottom:0; }
+  .bhi-portal-section--auto hr { border:none; border-top:1px solid var(--bh-border, #e2e2e2); margin:18px 0; }
+
+  /* File inputs — the one form control the shell rule above never
+     covered, so every avatar/audio upload field fell through to raw
+     native chrome (a white "Choose File" pill on a dark card). */
+  .bhi-portal-main input[type="file"] {
+    display:block; width:100%; max-width:480px; margin:2px 0 4px; font-size:13px; color:var(--bh-text, inherit);
+  }
+  .bhi-portal-main input[type="file"]::file-selector-button {
+    margin-right:10px; padding:7px 14px; border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 6px);
+    background:var(--bh-surface-2, #f0f0f1); color:var(--bh-text, inherit); font-size:13px; font-weight:600;
+    font-family:inherit; cursor:pointer;
+  }
+  .bhi-portal-main input[type="file"]::file-selector-button:hover { border-color:var(--bh-accent, #2271b1); }
+
+  /* The profile edit form (BHI_Public_Profile::render_edit_form) brings
+     its own <label>-wraps-<input>, <fieldset><legend>, and .bhi-btn
+     button classes from the standalone public-profile page. Inside the
+     portal none of that was styled, so the top half (bare labels) sat
+     flush left with no gap while the bottom half (fieldsets) had a
+     border — the exact inconsistency in the screenshots. Give both
+     halves the same treatment. */
+  .bhi-portal-main .bhi-profile--edit label { display:block; font-size:13px; font-weight:600; margin:16px 0 5px; }
+  .bhi-portal-main .bhi-profile--edit label.bhi-checkbox,
+  .bhi-portal-main .bhi-profile--edit fieldset label.bhi-checkbox { font-weight:400; margin:8px 0 0; display:flex; align-items:center; gap:8px; }
+  .bhi-portal-main .bhi-profile--edit label > input[type="checkbox"] { margin:0; }
+  .bhi-portal-main .bhi-profile--edit fieldset {
+    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px);
+    padding:12px 16px 16px; margin:16px 0 0;
+  }
+  .bhi-portal-main .bhi-profile--edit legend { font-size:13px; font-weight:600; padding:0 6px; }
+  .bhi-portal-main .bhi-profile--edit .bhi-bio-link-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .bhi-portal-main .bhi-profile--edit .bhi-bio-link-row input { margin:0; }
+  .bhi-portal-main .bhi-current { display:block; font-size:12px; color:var(--bh-text-dim, #6b7280); margin-top:6px; }
+  .bhi-portal-main .bhi-profile-notice { margin:0 0 14px; padding:10px 12px; border-radius:var(--bh-radius-sm, 6px); font-size:13px; }
+  .bhi-portal-main .bhi-profile-notice--ok { background:var(--bh-accent-muted-bg, color-mix(in srgb, var(--bh-accent, #2271b1) 12%, transparent)); }
+  .bhi-portal-main .bhi-profile-notice--error { background:#fbeaea; color:#b32d2e; }
+  .bhi-portal-main .bhi-delete-form { margin-top:22px; padding-top:16px; border-top:1px solid var(--bh-border, #e2e2e2); }
+
+  /* .bhi-btn / .bhi-btn--secondary / --danger — the profile form's own
+     button vocabulary. The shell rule above only catches .button and
+     button[type=submit]; "+ Add link" (type=button) and the delete
+     button need these. */
+  .bhi-portal-main .bhi-btn {
+    display:inline-block; padding:9px 18px; border:1px solid transparent; border-radius:var(--bh-radius-sm, 6px);
+    background:var(--bh-accent, #2271b1); color:var(--bh-accent-contrast, #fff);
+    font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; text-decoration:none;
+  }
+  .bhi-portal-main .bhi-btn--secondary { background:transparent; border-color:var(--bh-border, #e2e2e2); color:var(--bh-text, inherit); }
+  .bhi-portal-main .bhi-btn--secondary:hover { border-color:var(--bh-accent, #2271b1); }
+  .bhi-portal-main .bhi-btn--danger { background:transparent; border-color:#b32d2e; color:#d9534f; }
+  .bhi-portal-main .bhi-bio-link-remove {
+    flex-shrink:0; width:32px; height:32px; border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 6px);
+    background:transparent; color:var(--bh-text-dim, #6b7280); cursor:pointer; font-size:16px; line-height:1;
+  }
+  .bhi-portal-main .bhi-view-link { margin-left:12px; font-size:13px; }
   .bhi-portal-course-list { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); margin-top:12px; }
   .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); }
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
@@ -1210,7 +1281,22 @@ class BHI_Portal {
     <?php
     $panel = self::get_panel($active);
     if ($panel) {
+        ob_start();
         call_user_func($panel['render']);
+        $panel_html = trim((string) ob_get_clean());
+        // Panels that already group their own content into
+        // .bhi-portal-section cards (Overview does, with several) print
+        // as-is. Everything else — the many peer-plugin panels that
+        // still echo bare h2/h3/p/form straight into the column — gets
+        // one shared card wrapper so it reads as a deliberate section
+        // with a gutter and rhythm instead of text dumped against the
+        // left edge. One place, so every panel benefits without each
+        // peer plugin needing the wrapper retrofitted into its PHP.
+        if ($panel_html !== '' && strpos($panel_html, 'bhi-portal-section') === false) {
+            echo '<div class="bhi-portal-section bhi-portal-section--auto">' . $panel_html . '</div>';
+        } else {
+            echo $panel_html;
+        }
     } else {
         echo '<p>Nothing to show here yet.</p>';
     }

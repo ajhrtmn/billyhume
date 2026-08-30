@@ -9,6 +9,25 @@ has been reworded or dropped.
 
 ---
 
+3.20.0 — GitHub Updates + account-portal polish.
+
+- GitHub Updates: the core plugin (the-self-hosted-self) now has its
+  own row. It has no OUS_Registry entry and no bundled_zip, so
+  load_sources()' auto-derive never covered it — the one plugin every
+  other row's check depends on could not be updated from the panel.
+  Registered explicitly, same as the companion theme.
+- Account portal: panels that still echo bare h2/h3/p/form (most peer
+  plugins) are now auto-wrapped in one .bhi-portal-section--auto card
+  in portal_content(), so every panel gets a gutter and consistent
+  vertical rhythm instead of text against the left edge. Panels that
+  already build their own .bhi-portal-section cards (Overview) are
+  untouched.
+- Profile edit form inside the portal: file inputs, <label>-wrapped
+  fields, <fieldset>/<legend>, and the .bhi-btn button vocabulary are
+  all styled now (they were bare — top half flush-left with no gap,
+  bottom half bordered, the inconsistency in the field report).
+  ::file-selector-button themed to match.
+
 3.19.1 — Refresh bundled/bh-contest.zip (3.13.0, contests landing) and
 bundled/bh-courses.zip (0.14.1, course-single width fix).
 

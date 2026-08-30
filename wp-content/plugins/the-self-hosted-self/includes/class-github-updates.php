@@ -184,6 +184,24 @@ class OUS_GithubUpdates {
             }
         }
 
+        // The core plugin itself. It has no OUS_Registry entry (the
+        // registry is the peer-plugin manifest — core isn't a peer of
+        // itself) and no bundled_zip (it doesn't bundle a copy of
+        // itself), so the auto-derive above never covers it, and the
+        // one plugin every other row's check depends on had no row of
+        // its own. Registered explicitly here, same shape as the
+        // companion theme below. Overwrite-safe: register() is a plain
+        // set, so if core ever does gain a registry entry this just
+        // loses to it harmlessly.
+        self::register('the-self-hosted-self', [
+            'type' => 'plugin',
+            'label' => 'The Self-Hosted Self (core)',
+            'file' => 'the-self-hosted-self/the-self-hosted-self.php',
+            'repo' => $default_repo,
+            'branch' => $default_branch,
+            'path' => 'wp-content/plugins/the-self-hosted-self',
+        ]);
+
         // Bootstrap fallback for this ecosystem's own companion theme —
         // a real, confirmed chicken-and-egg gap: the theme's own,
         // decentralized registration (the-self-hosted-self-theme/functions.php,
