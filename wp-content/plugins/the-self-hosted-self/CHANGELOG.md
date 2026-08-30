@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.21.11 — Refresh bundled bh-courses.zip (0.16.17, front-end lesson
+JS resilient to the step wrapper losing its class attribute). No core code change.
+
 3.21.10 — Refresh bundled bh-courses.zip (0.16.16, Bunny chapter
 sync robustness + manual trigger). No core code change.
 

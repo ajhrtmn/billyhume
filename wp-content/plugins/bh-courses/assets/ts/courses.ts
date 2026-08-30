@@ -252,7 +252,7 @@ interface BHCMedia {
         var stepCount = parseInt(lesson.dataset.stepCount ?? '0', 10);
 
         function showStep(index: number) {
-            lesson!.querySelectorAll<HTMLElement>('.bhc-step').forEach(function (el) {
+            lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) {
                 var isTarget = parseInt(el.dataset.stepIndex ?? '-1', 10) === index;
                 el.style.display = isTarget ? '' : 'none';
                 el.classList.remove('bhc-step-entering');
@@ -353,7 +353,7 @@ interface BHCMedia {
                 // behavior: advance() silently no-op'd past the end,
                 // leaving a student stranded on the final step with no
                 // way forward except manually finding the course page).
-                lesson!.querySelectorAll<HTMLElement>('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+                lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson!.querySelector('.bhc-lesson-next') as HTMLElement | null;
                 if (nextBlock) {
                     nextBlock.style.display = '';
@@ -410,6 +410,11 @@ interface BHCMedia {
         var mediaAdapters: { el: HTMLElement; media: BHCMedia }[] = [];
 
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video').forEach(function (el) {
+          // One malformed step (or a player library that loaded but
+          // threw on construction) must never abort the whole setup
+          // pass — that would take the chapter list, quiz handlers and
+          // everything downstream with it. Isolate each element.
+          try {
             var isProvider = el.hasAttribute('data-plyr-provider');
             var videoEl = el.tagName === 'VIDEO' ? (el as HTMLVideoElement) : null;
 
@@ -506,6 +511,9 @@ interface BHCMedia {
                 },
             };
             mediaAdapters.push({ el: el, media: media });
+          } catch (err) {
+            if (window.console && console.warn) console.warn('bh-courses: video adapter setup failed for a step, skipping it.', err);
+          }
         });
 
         function mediaFor(el: Element | null): BHCMedia | null {
@@ -527,7 +535,7 @@ interface BHCMedia {
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video[data-watch-threshold]').forEach(function (video) {
             var media = mediaFor(video);
             if (!media) return;
-            var step = video.closest('.bhc-step') as HTMLElement;
+            var step = video.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
             var lastSent = -1;
 
@@ -593,7 +601,7 @@ interface BHCMedia {
         lesson.querySelectorAll<HTMLElement>('.bhc-step-video[data-annotations]').forEach(function (video) {
             var media = mediaFor(video);
             if (!media) return;
-            var annotationStep = video.closest('.bhc-step') as HTMLElement | null;
+            var annotationStep = video.closest('.bhc-step, [data-step-index]') as HTMLElement | null;
             var annotationStepIndex = annotationStep ? parseInt(annotationStep.dataset.stepIndex ?? '-1', 10) : -1;
             var annotations: BHCVideoAnnotation[];
             try {
@@ -859,14 +867,14 @@ interface BHCMedia {
                 // DOM (rendered up front, just hidden), same as every
                 // other step.
                 var targetIndex = parseInt(target.dataset.targetIndex ?? '0', 10);
-                lesson!.querySelectorAll<HTMLElement>('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+                lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson!.querySelector('.bhc-lesson-next') as HTMLElement | null;
                 if (nextBlock) nextBlock.style.display = 'none';
                 showStep(targetIndex);
                 return;
             }
             if (!target.classList.contains('bhc-mark-complete')) return;
-            var step = target.closest('.bhc-step') as HTMLElement;
+            var step = target.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
 
             var body = new URLSearchParams({
@@ -963,7 +971,7 @@ interface BHCMedia {
             var target = e.target as HTMLButtonElement;
             if (!target.classList.contains('bhc-stepper-dot') || target.disabled) return;
             var targetIndex = parseInt(target.dataset.targetIndex ?? '0', 10);
-            lesson!.querySelectorAll<HTMLElement>('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+            lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
             var nextBlock = lesson!.querySelector('.bhc-lesson-next') as HTMLElement | null;
             if (nextBlock) nextBlock.style.display = 'none';
             showStep(targetIndex);
@@ -1038,7 +1046,7 @@ interface BHCMedia {
             var form = e.target as HTMLFormElement;
             if (!form.classList.contains('bhc-quiz-form')) return;
             e.preventDefault();
-            var step = form.closest('.bhc-step') as HTMLElement;
+            var step = form.closest('.bhc-step, [data-step-index]') as HTMLElement;
             var index = parseInt(step.dataset.stepIndex ?? '-1', 10);
 
             // Retry-audit pass, AJ's own standing ask: quiz submission

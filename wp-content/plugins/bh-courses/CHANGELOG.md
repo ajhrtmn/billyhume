@@ -6,6 +6,20 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.17 — Front-end lesson JS now survives the step wrapper losing its
+class attribute. On the live (Etch) site something strips
+class="bhc-step …" off the outer step <div> after render — it keeps
+data-step-index and tabindex, but every courses.js selector was
+'.bhc-step', so showStep() could no longer find the container: it
+stayed display:none after a bulk-hide, i.e. "the whole container is
+invisible", and the chapter list / watch-% never attached because the
+step couldn't be resolved. All visibility-critical selectors now match
+'.bhc-step, [data-step-index]', and the per-step video-adapter setup
+is wrapped in try/catch so one bad element (or a player library that
+loaded but threw) can't abort the whole setup pass and take the
+chapter list + quiz handlers down with it. Root cause of the class
+strip is theme-side, not bh-courses; this makes our JS immune to it.
+
 0.16.16 — Bunny chapter sync robustness + a manual trigger.
 - Dedupe hash is now schema-versioned (CHAPTER_SYNC_SCHEMA), so the
   first save after a plugin update always re-pushes once even if the

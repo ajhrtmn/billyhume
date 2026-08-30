@@ -138,7 +138,7 @@
         var lessonId = (_a = lesson.dataset.lessonId) !== null && _a !== void 0 ? _a : '';
         var stepCount = parseInt((_b = lesson.dataset.stepCount) !== null && _b !== void 0 ? _b : '0', 10);
         function showStep(index) {
-            lesson.querySelectorAll('.bhc-step').forEach(function (el) {
+            lesson.querySelectorAll('.bhc-step, [data-step-index]').forEach(function (el) {
                 var _a;
                 var isTarget = parseInt((_a = el.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10) === index;
                 el.style.display = isTarget ? '' : 'none';
@@ -244,7 +244,7 @@
                 // behavior: advance() silently no-op'd past the end,
                 // leaving a student stranded on the final step with no
                 // way forward except manually finding the course page).
-                lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+                lesson.querySelectorAll('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson.querySelector('.bhc-lesson-next');
                 if (nextBlock) {
                     nextBlock.style.display = '';
@@ -300,123 +300,133 @@
          */
         var mediaAdapters = [];
         lesson.querySelectorAll('.bhc-step-video').forEach(function (el) {
-            var isProvider = el.hasAttribute('data-plyr-provider');
-            var videoEl = el.tagName === 'VIDEO' ? el : null;
-            // ---- Bunny Stream (private signed embed) ----
-            // A cross-origin iframe, but player.js gives us the same
-            // control surface Plyr does for YouTube/Vimeo, so chapters,
-            // pausing annotations and watch-threshold all work. Degrades
-            // cleanly: if player.js didn't load or never reports ready,
-            // no adapter is registered and the video still plays (the
-            // chapter list just isn't clickable), same as an opaque embed.
-            if (el.classList.contains('bhc-step-video-bunny')) {
-                var iframe = el.querySelector('iframe.bhc-bunny-embed');
-                var PlayerJs = window.playerjs;
-                if (!iframe || !PlayerJs)
+            // One malformed step (or a player library that loaded but
+            // threw on construction) must never abort the whole setup
+            // pass — that would take the chapter list, quiz handlers and
+            // everything downstream with it. Isolate each element.
+            try {
+                var isProvider = el.hasAttribute('data-plyr-provider');
+                var videoEl = el.tagName === 'VIDEO' ? el : null;
+                // ---- Bunny Stream (private signed embed) ----
+                // A cross-origin iframe, but player.js gives us the same
+                // control surface Plyr does for YouTube/Vimeo, so chapters,
+                // pausing annotations and watch-threshold all work. Degrades
+                // cleanly: if player.js didn't load or never reports ready,
+                // no adapter is registered and the video still plays (the
+                // chapter list just isn't clickable), same as an opaque embed.
+                if (el.classList.contains('bhc-step-video-bunny')) {
+                    var iframe = el.querySelector('iframe.bhc-bunny-embed');
+                    var PlayerJs = window.playerjs;
+                    if (!iframe || !PlayerJs)
+                        return;
+                    var pjs = new PlayerJs.Player(iframe);
+                    var cachedTime = 0;
+                    var cachedDuration = 0;
+                    var timeupdateCbs = [];
+                    var endedCbs = [];
+                    pjs.on('ready', function () {
+                        pjs.getDuration(function (d) { if (isFinite(d) && d > 0)
+                            cachedDuration = d; });
+                    });
+                    pjs.on('timeupdate', function (v) {
+                        if (v && typeof v.seconds === 'number')
+                            cachedTime = v.seconds;
+                        if (v && typeof v.duration === 'number' && v.duration > 0)
+                            cachedDuration = v.duration;
+                        for (var i = 0; i < timeupdateCbs.length; i++)
+                            timeupdateCbs[i]();
+                    });
+                    pjs.on('ended', function () { for (var j = 0; j < endedCbs.length; j++)
+                        endedCbs[j](); });
+                    var bunnyMedia = {
+                        isProvider: true,
+                        player: null,
+                        currentTime: function () { return cachedTime; },
+                        seek: function (t) { cachedTime = t; pjs.setCurrentTime(t); },
+                        duration: function () { return cachedDuration; },
+                        play: function () { pjs.play(); },
+                        pause: function () { pjs.pause(); },
+                        on: function (evt, cb) {
+                            if (evt === 'timeupdate')
+                                timeupdateCbs.push(cb);
+                            else if (evt === 'ended')
+                                endedCbs.push(cb);
+                        },
+                    };
+                    mediaAdapters.push({ el: el, media: bunnyMedia });
                     return;
-                var pjs = new PlayerJs.Player(iframe);
-                var cachedTime = 0;
-                var cachedDuration = 0;
-                var timeupdateCbs = [];
-                var endedCbs = [];
-                pjs.on('ready', function () {
-                    pjs.getDuration(function (d) { if (isFinite(d) && d > 0)
-                        cachedDuration = d; });
-                });
-                pjs.on('timeupdate', function (v) {
-                    if (v && typeof v.seconds === 'number')
-                        cachedTime = v.seconds;
-                    if (v && typeof v.duration === 'number' && v.duration > 0)
-                        cachedDuration = v.duration;
-                    for (var i = 0; i < timeupdateCbs.length; i++)
-                        timeupdateCbs[i]();
-                });
-                pjs.on('ended', function () { for (var j = 0; j < endedCbs.length; j++)
-                    endedCbs[j](); });
-                var bunnyMedia = {
-                    isProvider: true,
-                    player: null,
-                    currentTime: function () { return cachedTime; },
-                    seek: function (t) { cachedTime = t; pjs.setCurrentTime(t); },
-                    duration: function () { return cachedDuration; },
-                    play: function () { pjs.play(); },
-                    pause: function () { pjs.pause(); },
-                    on: function (evt, cb) {
-                        if (evt === 'timeupdate')
-                            timeupdateCbs.push(cb);
-                        else if (evt === 'ended')
-                            endedCbs.push(cb);
-                    },
-                };
-                mediaAdapters.push({ el: el, media: bunnyMedia });
-                return;
-            }
-            var PlyrCtor = window.Plyr;
-            var player = null;
-            if (PlyrCtor) {
-                var plyrAssets = window.BHCPlyrAssets || {};
-                player = new PlyrCtor(el, {
-                    // Deliberately NOT Plyr's full default control set —
-                    // this is a lesson video, not a media app: no
-                    // download button (a resource step is the real
-                    // "here, take this file" affordance), no PIP clutter.
-                    controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
-                    settings: ['speed'],
-                    speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
-                    // Both of Plyr's own shipped defaults point at
-                    // cdn.plyr.io — overridden to this plugin's vendored
-                    // copies so an uploaded/direct-URL lesson never
-                    // reaches a third-party CDN (CLAUDE.md's standing
-                    // self-hosted rule). A YouTube/Vimeo step
-                    // unavoidably contacts its own provider; that is the
-                    // explicit, accepted trade for controlling it.
-                    iconUrl: plyrAssets.iconUrl,
-                    blankVideo: plyrAssets.blankVideo,
-                });
-            }
-            // No Plyr AND no real <video> means a provider embed we
-            // cannot drive — skip it rather than register an adapter
-            // whose every method silently no-ops.
-            if (!player && !videoEl)
-                return;
-            var media = {
-                isProvider: isProvider,
-                player: player,
-                currentTime: function () { return player ? player.currentTime : (videoEl ? videoEl.currentTime : 0); },
-                seek: function (t) { if (player) {
-                    player.currentTime = t;
                 }
-                else if (videoEl) {
-                    videoEl.currentTime = t;
-                } },
-                duration: function () {
-                    var d = player ? player.duration : (videoEl ? videoEl.duration : 0);
-                    return (typeof d === 'number' && isFinite(d)) ? d : 0;
-                },
-                play: function () {
-                    var r = player ? player.play() : (videoEl ? videoEl.play() : undefined);
-                    // A programmatic play() can legitimately reject
-                    // (autoplay policy) — any seek that preceded it still
-                    // happened, which is the part that matters.
-                    if (r && typeof r.catch === 'function')
-                        r.catch(function () { });
-                },
-                pause: function () { if (player) {
-                    player.pause();
+                var PlyrCtor = window.Plyr;
+                var player = null;
+                if (PlyrCtor) {
+                    var plyrAssets = window.BHCPlyrAssets || {};
+                    player = new PlyrCtor(el, {
+                        // Deliberately NOT Plyr's full default control set —
+                        // this is a lesson video, not a media app: no
+                        // download button (a resource step is the real
+                        // "here, take this file" affordance), no PIP clutter.
+                        controls: ['play-large', 'play', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen'],
+                        settings: ['speed'],
+                        speed: { selected: 1, options: [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] },
+                        // Both of Plyr's own shipped defaults point at
+                        // cdn.plyr.io — overridden to this plugin's vendored
+                        // copies so an uploaded/direct-URL lesson never
+                        // reaches a third-party CDN (CLAUDE.md's standing
+                        // self-hosted rule). A YouTube/Vimeo step
+                        // unavoidably contacts its own provider; that is the
+                        // explicit, accepted trade for controlling it.
+                        iconUrl: plyrAssets.iconUrl,
+                        blankVideo: plyrAssets.blankVideo,
+                    });
                 }
-                else if (videoEl) {
-                    videoEl.pause();
-                } },
-                on: function (evt, cb) {
-                    if (player) {
-                        player.on(evt, cb);
+                // No Plyr AND no real <video> means a provider embed we
+                // cannot drive — skip it rather than register an adapter
+                // whose every method silently no-ops.
+                if (!player && !videoEl)
+                    return;
+                var media = {
+                    isProvider: isProvider,
+                    player: player,
+                    currentTime: function () { return player ? player.currentTime : (videoEl ? videoEl.currentTime : 0); },
+                    seek: function (t) { if (player) {
+                        player.currentTime = t;
                     }
                     else if (videoEl) {
-                        videoEl.addEventListener(evt, cb);
+                        videoEl.currentTime = t;
+                    } },
+                    duration: function () {
+                        var d = player ? player.duration : (videoEl ? videoEl.duration : 0);
+                        return (typeof d === 'number' && isFinite(d)) ? d : 0;
+                    },
+                    play: function () {
+                        var r = player ? player.play() : (videoEl ? videoEl.play() : undefined);
+                        // A programmatic play() can legitimately reject
+                        // (autoplay policy) — any seek that preceded it still
+                        // happened, which is the part that matters.
+                        if (r && typeof r.catch === 'function')
+                            r.catch(function () { });
+                    },
+                    pause: function () { if (player) {
+                        player.pause();
                     }
-                },
-            };
-            mediaAdapters.push({ el: el, media: media });
+                    else if (videoEl) {
+                        videoEl.pause();
+                    } },
+                    on: function (evt, cb) {
+                        if (player) {
+                            player.on(evt, cb);
+                        }
+                        else if (videoEl) {
+                            videoEl.addEventListener(evt, cb);
+                        }
+                    },
+                };
+                mediaAdapters.push({ el: el, media: media });
+            }
+            catch (err) {
+                if (window.console && console.warn)
+                    console.warn('bh-courses: video adapter setup failed for a step, skipping it.', err);
+            }
         });
         function mediaFor(el) {
             if (!el)
@@ -440,7 +450,7 @@
             var media = mediaFor(video);
             if (!media)
                 return;
-            var step = video.closest('.bhc-step');
+            var step = video.closest('.bhc-step, [data-step-index]');
             var index = parseInt((_a = step.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10);
             var lastSent = -1;
             function sendProgress(percent) {
@@ -516,7 +526,7 @@
             var media = mediaFor(video);
             if (!media)
                 return;
-            var annotationStep = video.closest('.bhc-step');
+            var annotationStep = video.closest('.bhc-step, [data-step-index]');
             var annotationStepIndex = annotationStep ? parseInt((_a = annotationStep.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10) : -1;
             var annotations;
             try {
@@ -785,7 +795,7 @@
                 // DOM (rendered up front, just hidden), same as every
                 // other step.
                 var targetIndex = parseInt((_a = target.dataset.targetIndex) !== null && _a !== void 0 ? _a : '0', 10);
-                lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+                lesson.querySelectorAll('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
                 var nextBlock = lesson.querySelector('.bhc-lesson-next');
                 if (nextBlock)
                     nextBlock.style.display = 'none';
@@ -794,7 +804,7 @@
             }
             if (!target.classList.contains('bhc-mark-complete'))
                 return;
-            var step = target.closest('.bhc-step');
+            var step = target.closest('.bhc-step, [data-step-index]');
             var index = parseInt((_b = step.dataset.stepIndex) !== null && _b !== void 0 ? _b : '-1', 10);
             var body = new URLSearchParams({
                 action: 'bhc_mark_complete',
@@ -907,7 +917,7 @@
             if (!target.classList.contains('bhc-stepper-dot') || target.disabled)
                 return;
             var targetIndex = parseInt((_a = target.dataset.targetIndex) !== null && _a !== void 0 ? _a : '0', 10);
-            lesson.querySelectorAll('.bhc-step').forEach(function (el) { el.style.display = 'none'; });
+            lesson.querySelectorAll('.bhc-step, [data-step-index]').forEach(function (el) { el.style.display = 'none'; });
             var nextBlock = lesson.querySelector('.bhc-lesson-next');
             if (nextBlock)
                 nextBlock.style.display = 'none';
@@ -989,7 +999,7 @@
             if (!form.classList.contains('bhc-quiz-form'))
                 return;
             e.preventDefault();
-            var step = form.closest('.bhc-step');
+            var step = form.closest('.bhc-step, [data-step-index]');
             var index = parseInt((_a = step.dataset.stepIndex) !== null && _a !== void 0 ? _a : '-1', 10);
             // Retry-audit pass, AJ's own standing ask: quiz submission
             // is explicitly NOT safe to blind-retry — the server side
