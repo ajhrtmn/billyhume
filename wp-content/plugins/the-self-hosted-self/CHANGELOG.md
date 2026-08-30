@@ -9,6 +9,8 @@ has been reworded or dropped.
 
 ---
 
+3.20.11 — Refresh bundled/bh-contest.zip (3.15.5, page auto-create hardening).
+
 3.20.10 — Refresh bundled/bh-courses.zip (0.16.3, "+ Add a step" button).
 
 3.20.9 — Refresh bundled/bh-courses.zip (0.16.2, courses classic editor).
