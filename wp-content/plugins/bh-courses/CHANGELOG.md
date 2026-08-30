@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.20 — Extract the lesson-step DOM helpers (bhcStepClassName /
+bhcReassertStepClass / bhcSetVisibleStep + BHC_STEP_SELECTOR) to module
+scope in courses.ts and expose them as window.BHCLessonStepDom, so the
+unit runner can cover the exact logic behind this session's most
+expensive bug — Etch blanking class="" off step wrappers. Behaviour
+identical (showStep() now calls bhcSetVisibleStep for the display
+toggle, then layers focus/animation/counter as before). New
+tests/unit/lesson-step-dom.test.ts (12 cases, jsdom) — verified it goes
+red when the selector is regressed back to `.bhc-step` only.
+
 0.16.19 — Now that 0.16.18 is actually live, two things confirmed by
 inspecting the real DOM:
 1. The step wrapper's class IS stripped client-side by the Etch site's

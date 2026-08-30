@@ -1,7 +1,7 @@
 {
   "name": "the-self-hosted-self-dev-tooling",
   "private": true,
-  "description": "Dev-only tooling for this repo: TypeScript sources (wp-content/plugins/*/assets/ts/), CSS linting, unit tests, and browser-driven UX audits. Not a runtime dependency \u2014 plugins ship pre-compiled .js and plain .css, and the FTP deploy syncs plugin folders verbatim with no build step. node_modules/ is gitignored.",
+  "description": "Dev-only tooling for this repo: TypeScript sources (wp-content/plugins/*/assets/ts/), CSS linting, unit tests, and browser-driven UX audits. Not a runtime dependency — plugins ship pre-compiled .js and plain .css, and the FTP deploy syncs plugin folders verbatim with no build step. node_modules/ is gitignored.",
   "scripts": {
     "build:the-self-hosted-self": "tsc -p wp-content/plugins/the-self-hosted-self/tsconfig.json",
     "watch:the-self-hosted-self": "tsc -p wp-content/plugins/the-self-hosted-self/tsconfig.json --watch",
@@ -33,6 +33,7 @@
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.10",
     "@storybook/html-vite": "^10.5.10",
+    "jsdom": "^29.1.1",
     "lit": "^3.3.3",
     "storybook": "^10.5.10",
     "stylelint": "^17.14.1",

@@ -126,6 +126,50 @@ interface BHCMedia {
     on(event: string, handler: () => void): void;
 }
 
+/* ---- lesson step DOM helpers ----------------------------------------
+ * Pure and hoisted to module scope so the unit runner can reach them
+ * (tests/unit/lesson-step-dom.test.ts loads the compiled courses.js in
+ * jsdom and reads window.BHCLessonStepDom). Every one is written to not
+ * depend on the `.bhc-step` class surviving: on the live Etch site the
+ * theme's hydration blanks class="" off each step wrapper on load, so
+ * selection and the rebuilt class both key on the data-step-* attrs
+ * render-lesson.php emits alongside. See ETCH-COMPATIBILITY-NOTES.md.
+ * ------------------------------------------------------------------- */
+var BHC_STEP_SELECTOR = '.bhc-step, [data-step-index]';
+
+function bhcStepClassName(type: string, done: boolean): string {
+    return 'bhc-step' + (type ? ' bhc-step-' + type : '') + (done ? ' bhc-step-done' : '');
+}
+
+/** Rebuild the wrapper's class from its data-step-* attrs, but only if
+ *  the `.bhc-step` class has actually gone missing — a no-op otherwise. */
+function bhcReassertStepClass(el: HTMLElement): void {
+    if (el.classList.contains('bhc-step')) return;
+    el.className = bhcStepClassName(el.dataset.stepType || '', !!el.dataset.stepDone);
+}
+
+/** Show exactly the step at `index`, hide the rest. Pure display toggle
+ *  — showStep() layers the focus move, entering animation and step
+ *  counter on top of this. Returns the index it actually showed, or -1
+ *  if no wrapper matched. */
+function bhcSetVisibleStep(root: ParentNode, index: number): number {
+    var shown = -1;
+    root.querySelectorAll<HTMLElement>(BHC_STEP_SELECTOR).forEach(function (el) {
+        var isTarget = parseInt(el.dataset.stepIndex ?? '-1', 10) === index;
+        el.style.display = isTarget ? '' : 'none';
+        if (isTarget) shown = index;
+    });
+    return shown;
+}
+
+// Harmless in the browser (a 4-key object); the unit runner reads it.
+(window as unknown as Record<string, unknown>).BHCLessonStepDom = {
+    SELECTOR: BHC_STEP_SELECTOR,
+    className: bhcStepClassName,
+    reassert: bhcReassertStepClass,
+    setVisible: bhcSetVisibleStep,
+};
+
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
         // Catalog filter bar: works as a plain GET form with zero JS
@@ -252,25 +296,18 @@ interface BHCMedia {
         var stepCount = parseInt(lesson.dataset.stepCount ?? '0', 10);
 
         // The live (Etch) site's frontend hydration blanks class="bhc-step
-        // …" off each step wrapper on load — server HTML is correct
-        // (verified), something client-side strips it. Rebuild the class
-        // from the data-* attributes render-lesson.php emits alongside, so
-        // the card styling and every '.bhc-step' selector below keep
-        // working. Because the strip's timing vs. this script isn't
-        // guaranteed, re-assert for a few seconds via an observer rather
-        // than just once. No-op wherever the class already survived.
-        function reassertStepClass(el: HTMLElement) {
-            if (el.classList.contains('bhc-step')) return;
-            var t = el.dataset.stepType || '';
-            el.className = 'bhc-step' + (t ? ' bhc-step-' + t : '') + (el.dataset.stepDone ? ' bhc-step-done' : '');
-        }
+        // …" off each step wrapper on load. bhcReassertStepClass rebuilds
+        // it from the data-step-* attrs; because the strip's timing vs.
+        // this script isn't guaranteed, re-assert for a few seconds via
+        // an observer rather than just once. No-op where the class
+        // already survived. See ETCH-COMPATIBILITY-NOTES.md.
         var stepWrappers = lesson.querySelectorAll<HTMLElement>('[data-step-index]');
-        stepWrappers.forEach(reassertStepClass);
+        stepWrappers.forEach(bhcReassertStepClass);
         try {
             var classGuard = new MutationObserver(function (muts) {
                 muts.forEach(function (m) {
                     var t = m.target as HTMLElement;
-                    if (m.attributeName === 'class' && t.hasAttribute('data-step-index')) reassertStepClass(t);
+                    if (m.attributeName === 'class' && t.hasAttribute('data-step-index')) bhcReassertStepClass(t);
                 });
             });
             stepWrappers.forEach(function (el) { classGuard.observe(el, { attributes: true, attributeFilter: ['class'] }); });
@@ -278,9 +315,9 @@ interface BHCMedia {
         } catch (e) { /* no MutationObserver — the one-shot pass above still ran */ }
 
         function showStep(index: number) {
-            lesson!.querySelectorAll<HTMLElement>('.bhc-step, [data-step-index]').forEach(function (el) {
+            bhcSetVisibleStep(lesson!, index);
+            lesson!.querySelectorAll<HTMLElement>(BHC_STEP_SELECTOR).forEach(function (el) {
                 var isTarget = parseInt(el.dataset.stepIndex ?? '-1', 10) === index;
-                el.style.display = isTarget ? '' : 'none';
                 el.classList.remove('bhc-step-entering');
                 if (isTarget) {
                     // Force a reflow so re-adding the class retriggers the
