@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.12 — Regenerate stale bundled zips flagged by the freshness
+panel: bh-contest (3.15.8 -> 3.15.9), bh-feedback (0.2.0 -> 0.2.1).
+No code change.
+
 3.21.11 — Refresh bundled bh-courses.zip (0.16.17, front-end lesson
 JS resilient to the step wrapper losing its class attribute). No core code change.
 
