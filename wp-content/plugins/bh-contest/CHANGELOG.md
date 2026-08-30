@@ -6,6 +6,10 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.7 — Contest Submissions portal panel: each submission's vote
+count is a designed figure (.bhi-datum) instead of a plain "N votes"
+sentence — same treatment the Overview panels now use.
+
 3.15.6 — Blanket-clear text-decoration on the ecosystem's own
 headings / *-label / *-badge / *-kicker elements inside .bh-container
 — a builder-theme global rule was drawing a line-through + underline

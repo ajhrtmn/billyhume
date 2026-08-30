@@ -153,8 +153,14 @@ class BHC_PortalPanel {
 
             echo '<div class="bhi-portal-course-card">';
             echo '<h3>' . esc_html($course->post_title) . '</h3>';
+            // The % is a designed figure at the end of the track (same
+            // .bhi-datum vocabulary as the Overview panels), not a plain
+            // "X% complete" sentence under the bar.
+            echo '<div class="bhi-progress-row">';
             echo '<div class="bhi-portal-progress-bar"><div class="bhi-portal-progress-fill" style="width:' . (int) $percent . '%;"></div></div>';
-            echo '<p>' . (int) $percent . '% complete' . ($completed ? ' — <strong>Completed</strong>' : '') . '</p>';
+            echo '<span class="bhi-datum bhi-progress-figure"><span class="bhi-datum-value">' . (int) $percent . '%</span>'
+                . '<span class="bhi-datum-label">' . ($completed ? '&#10003; complete' : 'done') . '</span></span>';
+            echo '</div>';
             if (!$accessible) {
                 echo '<p class="bhi-portal-course-locked">&#128274; Access has lapsed — <a href="' . esc_url((string) get_permalink($course_id)) . '">view options</a></p>';
             } else {

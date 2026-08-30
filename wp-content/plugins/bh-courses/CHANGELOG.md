@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.4 — My Courses portal panel: each course's completion % is now
+a designed figure at the end of its progress track (the .bhi-datum
+value + caption vocabulary the Overview panels use), not a plain
+"X% complete" sentence under the bar.
+
 0.16.3 — A real, always-visible "+ Add a step" button. Gutenberg's
 own end-of-list appender is unreliable and often absent on mobile
 ("where's the add button?" from the field). This one is a self-owned

@@ -111,9 +111,12 @@ class BH_PortalPanel {
             echo '<div class="bhi-submission-card-head"><h3>' . esc_html($sub->post_title ?: '(untitled)') . '</h3>';
             echo '<span class="bhi-submission-status ' . esc_attr($status_class) . '">' . esc_html($status_label) . '</span></div>';
             echo '<p class="bhi-overview-dim">' . esc_html($contest ? $contest->post_title : '(unknown contest)') . '</p>';
-            echo '<p class="bhi-submission-votes">' . (int) $votes . ' vote' . ($votes === 1 ? '' : 's');
-            if ($pending_id) echo ' <span class="bhi-overview-dim">(replacement pending review)</span>';
-            echo '</p>';
+            // Vote count as a designed figure (.bhi-datum, same vocabulary
+            // as the Overview panels) rather than a plain sentence.
+            echo '<div class="bhi-datum bhi-submission-votes">'
+                . '<span class="bhi-datum-value">' . (int) $votes . '</span>'
+                . '<span class="bhi-datum-label">vote' . ($votes === 1 ? '' : 's')
+                . ($pending_id ? ' &middot; replacement pending review' : '') . '</span></div>';
 
             // Real bug, found live: get_permalink($sub->ID) always returns
             // a plausible-looking URL string, but bh_submission is
