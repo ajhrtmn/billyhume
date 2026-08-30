@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.13.0 — The [bh_archive] page now leads with a real contests
+landing: every published contest as a card linking to its own page,
+grouped "Open now" (accepting submissions / voting open) → "Coming up"
+→ "Past contests", each with its live phase label. The
+everything-ever-submitted track library it used to be is still there,
+now under a "Track library" heading below the cards. Server-rendered,
+no JS — this is the part people need to find a live contest to enter or
+vote in. Brand line "Archive" → "Contests".
+
 3.12.5 — `.bh-container` is transparent by default instead of painting
 `var(--bh-bg)`, so the host theme's page background shows through and the
 player reads as part of the site rather than a dark slab dropped on it.

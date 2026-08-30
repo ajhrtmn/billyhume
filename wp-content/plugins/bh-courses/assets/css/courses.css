@@ -584,6 +584,29 @@ a.bhc-pagination-number:hover {
     padding: 0 2px;
 }
 
+/* ---- course single page shell ----
+   Same self-constrain + centre the lesson layout and catalog wrap use.
+   The template renders straight into a full-bleed <main> on a block
+   theme (Etch) with no prose container to inherit a width from, so
+   without this the header/hero and lesson list sprawled edge to edge.
+   Matches .bhc-lesson-layout / .bhc-catalog-wrap at 1200px so all three
+   views align. The back-link above it is a sibling under <main>, so it
+   gets a matching left offset rather than a shared wrapper (no PHP
+   change). */
+.bhc-course-view {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 20px;
+    box-sizing: border-box;
+}
+.bhc-back-to-catalog.ous-back-link {
+    margin-left: max(20px, calc((100% - 1200px) / 2));
+}
+@media (max-width: 600px) {
+    .bhc-course-view { padding-inline: 16px; }
+    .bhc-back-to-catalog.ous-back-link { margin-left: 16px; }
+}
+
 /* ---- course detail header (Section 2.7) ---- */
 .bhc-course-header {
     display: flex;

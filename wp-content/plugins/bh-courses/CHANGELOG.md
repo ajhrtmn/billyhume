@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.14.1 — Course single page (/courses/<slug>/) was rendering
+full-bleed into Etch's <main> with no width cap, so the header/hero and
+lesson list sprawled edge to edge while the lesson and catalog views
+next to it were capped at 1200px and centred. `.bhc-course-view` now
+gets the same `max-width: 1200px; margin-inline: auto; padding-inline`
+treatment; the "All courses" back-link above it gets a matching left
+offset. Mobile keeps a 16px gutter.
+
 0.14.0 — In-lesson-editor Bunny Stream workflow, so an author never
 leaves the editor (needs the Bunny API key in Media & CDN Setup;
 without it the step still takes a pasted GUID):

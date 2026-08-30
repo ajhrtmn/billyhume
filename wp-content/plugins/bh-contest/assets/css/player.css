@@ -1089,6 +1089,64 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
     .bh-np-info { display: none; }
 }
 
+/* ---------------- Contests landing (above the track library) ---------------- */
+.bh-contests-landing { margin-bottom: calc(32px * var(--bh-space-scale)); }
+.bh-contests-landing-heading {
+    font-family: var(--bh-font-display);
+    font-weight: 700;
+    font-size: calc(18px * var(--bh-font-scale));
+    color: var(--bh-text);
+    margin: calc(24px * var(--bh-space-scale)) 0 calc(12px * var(--bh-space-scale));
+}
+.bh-contests-landing-heading:first-child { margin-top: 0; }
+.bh-contests-landing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: calc(16px * var(--bh-space-scale));
+}
+.bh-contest-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--bh-surface);
+    border: 1px solid var(--bh-border);
+    border-radius: var(--bh-radius);
+    padding: calc(18px * var(--bh-space-scale));
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .15s ease, transform .15s ease;
+}
+.bh-contest-card:hover {
+    border-color: var(--bh-accent);
+    transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+    .bh-contest-card { transition: none; }
+    .bh-contest-card:hover { transform: none; }
+}
+.bh-contest-card-phase {
+    align-self: flex-start;
+    font-size: calc(11px * var(--bh-font-scale));
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: 2px 9px;
+    border-radius: 999px;
+    color: var(--phase-color, var(--bh-text-dim));
+    background: color-mix(in srgb, var(--phase-color, var(--bh-border)) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--phase-color, var(--bh-border)) 40%, transparent);
+}
+.bh-contest-card-title {
+    font-family: var(--bh-font-display);
+    font-weight: 600;
+    font-size: calc(16px * var(--bh-font-scale));
+    color: var(--bh-text);
+}
+.bh-contest-card-excerpt {
+    font-size: calc(13px * var(--bh-font-scale));
+    color: var(--bh-text-dim);
+    line-height: 1.45;
+}
+
 /* ---------------- Archive / Library ---------------- */
 .bh-archive-controls {
     display: flex;
