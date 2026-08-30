@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.12.4 — Same full-bleed problem bh-courses 0.12.2 fixed, on the contest
+side: `.bh-container` (the player, the archive, the reveal stage) had no
+max-width, so on desktop a "Title · Artist · Vote" row stretched ~1400px
+and read as broken. `.bh-container` now `max-width: 1200px; margin-inline:
+auto` (matches bh-courses so the LMS and the contest look like one
+system). `.bh-now-playing-bar` keeps its full-viewport background (it's a
+dock) but its content lines up with the 1200px column above it via
+`padding: 0 max(28px, (100% - 1200px) / 2)`. Also merged the two adjacent
+`.bh-container` rule blocks (stylelint no-duplicate-selectors).
+
 3.12.3 — Link audit (every visible ecosystem link crawled + HTTP-checked
 against real content on a staging copy): all internal links resolve, all
 account sub-pages valid, back-links correct. One cleanup: the player

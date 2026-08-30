@@ -887,6 +887,11 @@ a.bhc-pagination-number:hover {
     margin-bottom: 14px;
     /* clears the theme's floating (position:absolute) site header */
     padding-top: var(--bhc-header-clearance);
+    /* align with .bhc-lesson-layout below it (same max-width + centring) */
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 20px;
+    box-sizing: border-box;
 }
 .bhc-lesson-breadcrumb a {
     font-weight: 600;
@@ -908,18 +913,22 @@ a.bhc-pagination-number:hover {
     display: flex;
     gap: 28px;
     align-items: flex-start;
+    /* Self-constrain + centre, the same way .bhc-catalog-wrap does.
+       The template renders straight into a full-bleed <main> on a
+       block/builder theme (Etch) — there is no theme prose container to
+       inherit a width from — so without this the two-column layout
+       sprawled edge to edge and the readable content (video/text, which
+       is itself capped further in) ended up jammed against the left
+       viewport edge with dead space filling the right half. An earlier
+       version bumped `.oust-container-narrow`'s max-width, but that
+       container only exists on the old the-self-hosted-self theme, not
+       here. Matches .bhc-catalog-wrap's 1200px so lesson and catalog
+       align. */
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 20px;
+    box-sizing: border-box;
 }
-/* Gives the two-column layout (step content + sidebar) real breathing
-   room instead of squeezing into the theme's 800px prose-reading
-   width — see class-render-lesson.php's own comment on why this
-   replaces the `alignwide` class that used to sit on .bhc-lesson-layout
-   itself. A plain max-width bump on the page's own narrow container
-   inherits its already-correct centering/responsive behavior with no
-   transform or viewport-unit math for a scrollbar to throw off. Scoped
-   to this one template (single-bh_lesson is WordPress's own body class
-   for a singular bh_lesson post) so no other page's narrow column is
-   affected. */
-body.single-bh_lesson .oust-container-narrow { max-width: 1100px; }
 .bhc-lesson-main {
     flex: 1 1 auto;
     min-width: 0;

@@ -6,6 +6,17 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.12.2 — The lesson template renders straight into a full-bleed <main>
+on a block/builder theme (Etch — no prose container to inherit a width
+from), so on desktop the two-column layout sprawled edge to edge with the
+readable content jammed against the left viewport edge and dead space
+filling the right half. `.bhc-lesson-layout` / `.bhc-lesson-breadcrumb`
+now self-constrain: `max-width: 1200px; margin-inline: auto;
+padding-inline: 20px` — the same treatment `.bhc-catalog-wrap` already
+uses, so the catalog and the lesson align. Removed the dead
+`body.single-bh_lesson .oust-container-narrow` rule (that container only
+exists on the old the-self-hosted-self theme).
+
 0.12.1 — Front-end styling fixes found while verifying the ecosystem
 against real (Billy Hume) content on a staging copy.
 

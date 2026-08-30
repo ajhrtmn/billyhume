@@ -86,9 +86,8 @@
     border-radius: 0;
     background: none;
 }
-.bh-container { line-height: 1.4; }
-
 .bh-container {
+    line-height: 1.4;
     background-color: var(--bh-bg);
     color: var(--bh-text);
     font-family: var(--bh-font-body);
@@ -98,6 +97,14 @@
        themes overlay the page top and expect each section to pad for
        it). Tunable per-site; set to 0 for themes with a static header. */
     padding-top: var(--bh-header-clearance, 72px);
+    /* Self-constrain + centre. The shortcode renders straight into a
+       full-bleed <main> on a block/builder theme, so without this the
+       whole player (a vote list, a category row) stretched edge to edge
+       — a 1400px-wide "Title · Artist · Vote" row reads as broken.
+       1200px matches bh-courses' catalog/lesson width so the LMS and the
+       contest look like one system. */
+    max-width: 1200px;
+    margin-inline: auto;
 }
 
 /* ---------------- Header ---------------- */
@@ -402,7 +409,11 @@
     display: flex;
     align-items: center;
     gap: calc(24px * var(--bh-space-scale));
-    padding: 0 calc(28px * var(--bh-space-scale));
+    /* Background spans the viewport (it's a dock), but the content
+       inside lines up with the 1200px player column above it: symmetric
+       side padding that grows to (viewport - 1200) / 2 once there's room,
+       never less than the base 28px. No inner wrapper needed. */
+    padding: 0 max(calc(28px * var(--bh-space-scale)), calc((100% - 1200px) / 2));
     z-index: 9999;
 }
 /* Real bug, caught live: the-self-hosted-self's own bottom user bar
