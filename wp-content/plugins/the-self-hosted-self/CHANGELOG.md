@@ -9,6 +9,12 @@ has been reworded or dropped.
 
 ---
 
+3.21.15 — sign_bunny() now emits autoplay=false&preload=true
+explicitly (+ the existing responsive=true), built via http_build_query
+and filterable through bhy_media_token_bunny_params — a lesson video
+shouldn't autostart, and this beats depending on the Bunny library's
+own Autoplay toggle. Also refreshes bundled bh-courses.zip.
+
 3.21.14 — Refresh bundled bh-courses.zip (0.16.19 — rebuild the step
 wrapper class Etch strips client-side; keep the watch-% figure visible
 after completion).

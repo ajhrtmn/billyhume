@@ -127,17 +127,22 @@ class BHY_MediaToken {
         $token = hash('sha256', $s['bunny_token_key'] . $video_guid . $expiry);
         $token = (string) apply_filters('bhy_media_token_bunny', $token, $video_guid, $expiry, $s['bunny_token_key']);
 
-        // responsive=true — tell Bunny's player to fill the iframe
-        // rather than letterbox to its own fixed frame (our wrapper
-        // already holds the 16:9 aspect box). No autoplay / muted: this
-        // is a lesson, the student presses play.
-        return sprintf(
-            'https://iframe.mediadelivery.net/embed/%s/%s?token=%s&expires=%d&responsive=true',
-            rawurlencode($s['bunny_library_id']),
-            rawurlencode($video_guid),
-            rawurlencode($token),
-            $expiry
-        );
+        // responsive=true — fill our 16:9 wrapper instead of letterboxing
+        // to Bunny's own fixed frame. autoplay=false EXPLICITLY — a
+        // lesson video is something the student chooses to start, and
+        // passing it beats relying on the Bunny library's own Autoplay
+        // toggle being set the way we want. Filterable for the rare
+        // caller that does want it (e.g. a hero/trailer context).
+        $params = apply_filters('bhy_media_token_bunny_params', [
+            'token'      => $token,
+            'expires'    => $expiry,
+            'responsive' => 'true',
+            'autoplay'   => 'false',
+            'preload'    => 'true',
+        ], $video_guid);
+        return 'https://iframe.mediadelivery.net/embed/'
+            . rawurlencode($s['bunny_library_id']) . '/' . rawurlencode($video_guid)
+            . '?' . http_build_query($params);
     }
 
     /**
