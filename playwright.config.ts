@@ -41,6 +41,15 @@ export default defineConfig({
       testMatch: /logged-in\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // Post-deploy smoke canary — see tests/ux/smoke.spec.ts. Crudest
+    // possible "did the site render or die" check against WP_BASE_URL,
+    // no credentials, no measurement. Separate project because it's a
+    // deploy gate concern, not a UX audit, and wants to run alone/fast.
+    {
+      name: 'smoke',
+      testMatch: /smoke\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'admin',

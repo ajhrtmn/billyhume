@@ -177,6 +177,57 @@ jobs:
           PW_STORYBOOK: '1'
         run: npx playwright test --project=storybook
 
+  # Post-deploy smoke canary — the single highest-value CI gap named by
+  # the 2026-08-30 tech-debt audit. `master` auto-deploys to live via
+  # deploy-ftp.yml, and this session every regression that reached a
+  # human (a PHP fatal from an unescaped quote in a CSS-in-PHP string, a
+  # white-screen step container, a bundle frozen at an old version by a
+  # host page-cache) would have been caught here first.
+  #
+  # It points at the REAL LIVE SITE rather than provisioning a parallel
+  # WordPress instance — same call, and same read-only-by-construction
+  # safety (page.goto + text assertions only, no login, no form submit),
+  # as the ux-audit job in storybook-audit.yml. Default target is the
+  # Bluehost production site; override with the SMOKE_BASE_URL repo
+  # variable, or SMOKE_EXTRA_PATHS for extra URLs on a given run.
+  #
+  # This is a CANARY, not a pre-deploy GATE: on a `master` push the FTP
+  # sync has usually already run by the time this fires, so it tells you
+  # prod broke rather than stopping the break. A true gate needs
+  # @wordpress/env with the plugins activated and pages seeded — the
+  # db-integration-tests level of effort, tracked as the follow-up.
+  #
+  # continue-on-error while it graduates, same posture as
+  # db-integration-tests / storybook-visual above: the spec was written
+  # and run locally against the live site the same session it was added,
+  # but this is its first run from GitHub's own runners.
+  smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm ci
+        run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Smoke the live site
+        env:
+          WP_BASE_URL: ${{ vars.SMOKE_BASE_URL || 'https://billyhume.net' }}
+          SMOKE_EXTRA_PATHS: ${{ vars.SMOKE_EXTRA_PATHS }}
+        run: npx playwright test --project=smoke
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: tests/ux/report
+          retention-days: 14
+
   typescript:
     runs-on: ubuntu-latest
     steps:
