@@ -75,6 +75,7 @@ class BHI_Portal {
         // themed login card (the page itself renders it via the
         // shortcode, but a panel deep-link should land on the base URL).
         add_action('template_redirect', [self::class, 'maybe_redirect_panel_when_logged_out']);
+        add_action('template_redirect', [self::class, 'never_cache_portal']);
         add_action('wp_ajax_ous_portal_live_status', [self::class, 'ajax_live_status']);
 
         // Without an overview tab, the portal landed a visitor on a bare
@@ -608,6 +609,21 @@ class BHI_Portal {
         exit;
     }
 
+    // The account page is per-user by definition — the login form when
+    // logged out, the personal dashboard when logged in. A full-page
+    // cache that served the logged-out HTML to a user who just
+    // authenticated is exactly the "logs in but stays on the login
+    // page" bug reported from live. DONOTCACHEPAGE covers every major
+    // WP cache plugin (Rocket, W3TC, WP Super Cache, LiteSpeed, the
+    // Bluehost/Endurance cache); nocache_headers() also stops the
+    // browser's own HTTP cache from re-showing the login page on the
+    // post-login redirect to the same URL.
+    public static function never_cache_portal(): void {
+        if (!self::is_portal_context()) return;
+        if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+        nocache_headers();
+    }
+
     /**
      * A real, branded fan-facing login/register screen — replaces the
      * previous behavior of bouncing a logged-out portal visitor to
@@ -724,6 +740,11 @@ class BHI_Portal {
     submitBtn.disabled = true;
     return fetch(restBase + path, {
       method: 'POST',
+      // Explicit — some mobile in-app browsers still default fetch to
+      // credentials:'omit', which drops the Set-Cookie the auth
+      // response carries, so wp_signon()'s session never lands and the
+      // redirect comes straight back to this form.
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(function (res) {
@@ -746,7 +767,12 @@ class BHI_Portal {
     }
     submitJSON('/login', body, btn).then(function (result) {
       if (result.ok) {
-        window.location.href = redirectTo;
+        // Cache-buster on the hop back: if a full-page cache still holds
+        // the logged-out HTML for this exact URL, a plain navigation to
+        // it can re-render the login form even though the session now
+        // exists. A unique query arg forces a fresh render; the portal
+        // ignores unknown args.
+        window.location.href = redirectTo + (redirectTo.indexOf('?') > -1 ? '&' : '?') + '_li=' + Date.now();
         return;
       }
       if (result.data && result.data.data && result.data.data.requires_2fa) {
@@ -768,7 +794,7 @@ class BHI_Portal {
     };
     submitJSON('/register', body, btn).then(function (result) {
       if (result.ok) {
-        window.location.href = redirectTo;
+        window.location.href = redirectTo + (redirectTo.indexOf('?') > -1 ? '&' : '?') + '_li=' + Date.now();
         return;
       }
       showError((result.data && result.data.message) || 'Could not create your account.');

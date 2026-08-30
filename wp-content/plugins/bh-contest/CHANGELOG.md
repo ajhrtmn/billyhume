@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.4 — .bh-brand (the "Contests" / "Archive" page heading) explicitly
+clears text-decoration — a builder-theme global typography rule was
+putting a line-through + underline on it (text-decoration propagates
+to descendant text). Reported from live.
+
 3.15.3 — Contest player page: the "All contests" back-link now points
 at the Contest Library (the lifecycle browser), not the Archive (the
 flat entry catalog); falls back to the archive if the library page

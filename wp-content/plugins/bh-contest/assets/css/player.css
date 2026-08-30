@@ -146,6 +146,11 @@
     font-size: calc(20px * var(--bh-font-scale));
     font-weight: 600;
     letter-spacing: -0.02em;
+    /* Live-reported: some builder-theme global typography rules put a
+       line-through + underline on this heading (text-decoration
+       propagates to descendant text unless the element sets its own).
+       Explicitly clear it. */
+    text-decoration: none;
 }
 .bh-brand span { color: var(--bh-accent); }
 .bh-brand-logo {

@@ -9,6 +9,19 @@ has been reworded or dropped.
 
 ---
 
+3.20.8 — Fix "logs in but stays on the login page" on the live
+account portal.
+
+- The /account/ page is now DONOTCACHEPAGE + nocache_headers()
+  (BHI_Portal::never_cache_portal) — a full-page cache was serving
+  the logged-out login HTML to users who had just authenticated.
+- The login/register fetch sends credentials:'same-origin' so the
+  Set-Cookie the auth response carries is actually kept (some mobile
+  in-app browsers default fetch to credentials:'omit').
+- Post-login redirect carries a cache-buster arg so an already-cached
+  copy of the URL can't re-show the form during the transition.
+- Also refreshes bundled/bh-contest.zip (3.15.4).
+
 3.20.7 — BHY_BlockStyle's generic "Advanced Styles" panel now skips
 an excludable set of blocks — bhc/* (bh-courses lesson steps) by
 default. A content-primitive step block is authored for its content,
