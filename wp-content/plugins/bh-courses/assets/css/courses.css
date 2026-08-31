@@ -1847,15 +1847,68 @@ video.bhc-step-video {
    description/step prose was inheriting the block theme's own light
    styling (a stray <blockquote> rendered near-white on near-white);
    these pin it to the design tokens. */
+/* Lists render as lists — the theme-isolation reset at the top of this
+   file strips list-style/padding, so authored bullets and numbers
+   vanished into flat lines. Restored, with accent markers as a small
+   considered touch. */
+.bhc-course-description ul,
+.bhc-course-description ol,
+.bhc-step-text ul,
+.bhc-step-text ol {
+    margin: 10px 0;
+    padding-left: 1.5em;
+}
+.bhc-course-description ul,
+.bhc-step-text ul { list-style: disc; }
+.bhc-course-description ol,
+.bhc-step-text ol { list-style: decimal; }
+.bhc-course-description li,
+.bhc-step-text li {
+    margin: 5px 0;
+    padding-left: 4px;
+}
+.bhc-course-description li::marker,
+.bhc-step-text li::marker {
+    color: var(--bh-accent);
+}
+.bhc-course-description li ul,
+.bhc-course-description li ol,
+.bhc-step-text li ul,
+.bhc-step-text li ol { margin: 4px 0; }
+
+/* Blockquote — a quiet editorial aside, not a filled slab. A hairline
+   accent rule, a hanging quotation mark, italic text at body size. */
 .bhc-course-description blockquote,
 .bhc-step-text blockquote {
-    margin: 14px 0;
-    padding: 10px 16px;
-    border-left: 3px solid var(--bh-accent);
-    border-radius: 0 8px 8px 0;
-    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
-    color: var(--bh-text);
+    position: relative;
+    margin: 20px 0;
+    padding: 2px 0 2px 26px;
+    border: 0;
+    border-left: 2px solid color-mix(in srgb, var(--bh-accent) 55%, transparent);
+    background: none;
+    color: color-mix(in srgb, var(--bh-text) 88%, var(--bh-text-dim));
     font-style: italic;
+    font-size: 0.98em;
+    line-height: 1.65;
+}
+.bhc-course-description blockquote::before,
+.bhc-step-text blockquote::before {
+    content: "\201C";
+    position: absolute;
+    left: 6px;
+    top: 0.05em;
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: normal;
+    font-size: 1.9em;
+    line-height: 1;
+    color: var(--bh-accent);
+    opacity: 0.4;
+    pointer-events: none;
+}
+.bhc-course-description blockquote p,
+.bhc-step-text blockquote p {
+    margin: 0 0 6px;
+    font-size: inherit;
 }
 .bhc-course-description blockquote > :last-child,
 .bhc-step-text blockquote > :last-child {

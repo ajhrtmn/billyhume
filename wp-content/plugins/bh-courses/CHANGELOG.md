@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.26 — Course/lesson prose: lists render as lists again (the
+theme-isolation reset was stripping list-style + padding, so authored
+<ul>/<ol> collapsed to flat lines) with accent ::marker bullets; the
+blockquote is redesigned from a filled accent slab with oversized text
+into a quiet editorial aside — hairline accent rule, hanging quotation
+mark, italic at body size.
+
 0.16.25 — Chapter tap feedback. On iOS a tap on our chapter button
 (outside the cross-origin Bunny/provider iframe) is not a user-
 activation the iframe accepts for the follow-up play(), so the seek
