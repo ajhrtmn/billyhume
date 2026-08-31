@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.21.29 — Refresh bundled bh-contest.zip (3.15.10, admin vote-breakdown
+pie charts).
+
 3.21.28 — Eco-nav gains a "Support" entry (get_option bhm_tiers_page_id),
 next to Courses/Contests/Account. Refresh bundled bh-monetization-woo.zip (0.6.5).
 

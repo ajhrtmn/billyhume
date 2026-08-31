@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.15.9
+ * Version:     3.15.10
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.15.9');
+define('BH_VER',        '3.15.10');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -20,7 +20,7 @@ define('BH_MAX_BYTES',  20 * 1024 * 1024);  // max upload size
 define('BH_REG_THROTTLE', 3);               // max registrations per IP per hour
 define('BH_LOGIN_MAX_FAILS', 5);            // failed logins (per username+IP) before a 15-minute lockout
 
-foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'contest-library', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
+foreach (['tables', 'activator', 'post-types', 'helpers', 'auth', 'api', 'admin-menus', 'admin-list-tables', 'admin-reports', 'admin-moderation', 'admin-metaboxes', 'admin', 'contest-wizard', 'debug', 'crm-integration', 'console', 'reveal', 'discord', 'archive', 'contest-library', 'style-surfaces', 'element-surface', 'portal-panel', 'judging', 'charts', 'rounds', 'share-cards', 'blocks', 'test-suite'] as $f) {
     require_once BH_PATH . "includes/class-$f.php";
 }
 

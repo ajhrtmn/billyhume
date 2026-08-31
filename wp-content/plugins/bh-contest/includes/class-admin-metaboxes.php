@@ -194,6 +194,20 @@ class BH_AdminMetaboxes {
         add_meta_box('bh_contest_share_cards', 'Shareable images', [self::class, 'render_contest_share_cards_box'], 'bh_contest', 'side', 'default');
 
         add_meta_box('bh_contest_style', 'Contest Branding & Style', [self::class, 'render_contest_style_box'], 'bh_contest', 'normal', 'default');
+
+        // Vote breakdown pies — the two overview charts (by category, by
+        // song) inline on the editor, with a link through to the full
+        // per-category breakdown on the Results page. Only worth showing
+        // once the contest exists and could have votes.
+        add_meta_box('bh_contest_charts', 'Vote breakdown', [self::class, 'render_contest_charts_box'], 'bh_contest', 'normal', 'default');
+    }
+
+    public static function render_contest_charts_box(\WP_Post $post): void {
+        if ($post->post_status === 'auto-draft' || !class_exists('BH_Charts')) {
+            echo '<p class="description">Charts appear here once the contest is saved and votes start coming in.</p>';
+            return;
+        }
+        BH_Charts::render_section((int) $post->ID, ['compact' => true, 'heading' => false]);
     }
 
     public static function render_contest_settings_box(\WP_Post $post): void {

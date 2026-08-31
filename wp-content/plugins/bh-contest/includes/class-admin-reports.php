@@ -316,6 +316,12 @@ class BH_AdminReports {
         echo '<p><label><input type="checkbox" id="bh-autorefresh" checked> Auto-refresh every 8s</label> '
            . '&nbsp;·&nbsp; <span id="bh-updated-at" style="color:#666;">Not yet refreshed live.</span></p>';
 
+        // Pie breakdowns — votes per category, per song, and per song
+        // within each category (plus judge-score pies on a judged /
+        // hybrid contest). Independent of the category picker above:
+        // always shows every breakdown for the whole contest.
+        if (class_exists('BH_Charts')) BH_Charts::render_section($cid, ['heading' => true]);
+
         $cat_col = $all ? '<th>Category</th>' : '';
         echo '<p>Click the <strong>Votes</strong> or <strong>Plays</strong> headers to sort. (Sort resets on each live refresh.)</p>';
         echo '<div class="bhy-table-wrap">';

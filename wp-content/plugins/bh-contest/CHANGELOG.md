@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.10 - Admin vote-breakdown pie charts (BH_Charts). Three donut
+breakdowns Billy asked for: votes per category, votes per song
+(overall), and the per-song split within each category - plus
+judge-score pies on a judged/hybrid contest. Plain inline SVG
+(stroke-dasharray donut, no chart library), category-palette colours
+from BHY_Style, legend with value + %. Rendered on the Contest
+Results page (full set) and as a compact two-pie metabox on the
+contest editor that links through to the full breakdown. Server
+snapshot - reload to refresh; the Results table already covers live.
+
 3.15.9 — Contest surfaces (any page with a contest shortcode/block,
 single bh_contest) opt into the ecosystem's standalone chrome
 (bh_standalone_surface).
