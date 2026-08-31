@@ -9,6 +9,10 @@ has been reworded or dropped.
 
 ---
 
+3.21.26 — Refresh bundled bh-courses.zip (0.16.28).
+
+3.21.25 — Refresh bundled bh-courses.zip (0.16.27).
+
 3.21.24 — Refresh bundled bh-courses.zip (0.16.26).
 
 3.21.23 — Refresh bundled bh-courses.zip (0.16.25).

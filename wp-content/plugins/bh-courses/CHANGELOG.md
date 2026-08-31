@@ -6,6 +6,18 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.28 - List markers: dropped the browser disc for a small accent
+diamond (4px rotated square, sits on the first line's cap height) via
+a custom ::before; nested lists get a hollow diamond; <ol> keeps real
+tabular numerals, accent-toned. list-style is none throughout so the
+theme-isolation reset is moot.
+
+0.16.27 - Follow-up to 0.16.26: list bullets still did not show. Our
+own theme-isolation reset (.bhc-course-view :where(li){list-style:none})
+is a declaration on the li itself, which beats a list-style set only on
+the ul. Set list-style-type on `ul > li` / `ol > li` directly
+(specificity 0,1,2 > the reset's 0,1,0).
+
 0.16.26 — Course/lesson prose: lists render as lists again (the
 theme-isolation reset was stripping list-style + padding, so authored
 <ul>/<ol> collapsed to flat lines) with accent ::marker bullets; the

@@ -1856,20 +1856,52 @@ video.bhc-step-video {
 .bhc-step-text ul,
 .bhc-step-text ol {
     margin: 10px 0;
-    padding-left: 1.5em;
+    padding-left: 0;
+    list-style: none;
 }
-.bhc-course-description ul,
-.bhc-step-text ul { list-style: disc; }
-.bhc-course-description ol,
-.bhc-step-text ol { list-style: decimal; }
 .bhc-course-description li,
 .bhc-step-text li {
-    margin: 5px 0;
-    padding-left: 4px;
+    position: relative;
+    margin: 6px 0;
+    padding-left: 1.4em;
+    line-height: 1.55;
 }
-.bhc-course-description li::marker,
-.bhc-step-text li::marker {
+/* Bullets are a small accent diamond, not a browser disc — geometric,
+   deliberate, sits on the cap line of the first row. Custom marker via
+   ::before (list-style stays none) so its size/colour/position are ours
+   and the theme-isolation reset up top is a non-issue. */
+.bhc-course-description ul > li::before,
+.bhc-step-text ul > li::before {
+    content: "";
+    position: absolute;
+    left: 0.15em;
+    top: 0.62em;
+    width: 5px;
+    height: 5px;
+    background: var(--bh-accent);
+    transform: rotate(45deg);
+    border-radius: 1px;
+}
+/* Nested list: a hollow diamond, one level quieter. */
+.bhc-course-description li ul > li::before,
+.bhc-step-text li ul > li::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--bh-accent);
+}
+/* Ordered lists keep real numerals, accent-toned. */
+.bhc-course-description ol,
+.bhc-step-text ol { counter-reset: bhc-li; }
+.bhc-course-description ol > li,
+.bhc-step-text ol > li { counter-increment: bhc-li; }
+.bhc-course-description ol > li::before,
+.bhc-step-text ol > li::before {
+    content: counter(bhc-li) ".";
+    position: absolute;
+    left: 0;
+    top: 0;
     color: var(--bh-accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
 }
 .bhc-course-description li ul,
 .bhc-course-description li ol,
