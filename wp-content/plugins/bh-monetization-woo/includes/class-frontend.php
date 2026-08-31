@@ -50,6 +50,14 @@ class BHM_Frontend {
         // most of the time. The admin screen still lets an artist
         // override it explicitly if they'd rather.
         add_action('save_post_page', [self::class, 'maybe_remember_tiers_page']);
+        // And if no such page exists at all, create one — the same
+        // self-provisioning bh-courses/bh-contest/bh-streaming do for
+        // their own pages (OUS_Pages::ensure). Without this, every
+        // "See supporter tiers" / "Become a supporter" link fell back
+        // to home_url('/') — reported live as "the tiers button goes
+        // nowhere". admin_init, never plugins_loaded (wp_insert_post
+        // reaches for permalinks; $wp_rewrite isn't up yet that early).
+        add_action('admin_init', [self::class, 'ensure_tiers_page']);
         // Same auto-detect for the gift-claim page — BHM_Gifts::redeem_page_url()
         // needs a real page to point a claim link at, and requiring a
         // manual setting before gifting can be tested at all would be a
@@ -122,6 +130,20 @@ class BHM_Frontend {
         if ($post && $post->post_status === 'publish' && has_shortcode($post->post_content, 'bhm_tiers')) {
             update_option('bhm_tiers_page_id', $post_id);
         }
+    }
+
+    /**
+     * Guarantee a real page behind BHM_Tiers::tiers_page_url(). Adopts a
+     * hand-made [bhm_tiers] / bhm/tiers page if one exists, otherwise
+     * creates "Supporter Tiers". Cheap early-return once bhm_tiers_page_id
+     * points at a live page — see OUS_Pages::ensure().
+     */
+    public static function ensure_tiers_page(): void {
+        // method_exists, not class_exists: a peer plugin can deploy ahead
+        // of core, and then the class is present while the method isn't
+        // (this exact shape took the site down once for bh-courses).
+        if (!method_exists('OUS_Pages', 'ensure')) return;
+        OUS_Pages::ensure('bhm_tiers', 'bhm_tiers_page_id', __('Supporter Tiers', 'bh-monetization-woo'), ['bhm/tiers']);
     }
 
     public static function maybe_remember_gift_redeem_page(int $post_id): void {

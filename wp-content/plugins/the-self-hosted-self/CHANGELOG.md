@@ -9,6 +9,9 @@ has been reworded or dropped.
 
 ---
 
+3.21.27 — Refresh bundled bh-monetization-woo.zip (0.6.4, tiers page
+self-provisioning).
+
 3.21.26 — Refresh bundled bh-courses.zip (0.16.28).
 
 3.21.25 — Refresh bundled bh-courses.zip (0.16.27).

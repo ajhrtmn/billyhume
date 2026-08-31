@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.4 - Self-provision the supporter-tiers page. BHM_Tiers::tiers_page_url() fell back to home_url('/') whenever bhm_tiers_page_id
+was unset - which it is on any site where nobody hand-made a page
+carrying [bhm_tiers], so every "See supporter tiers" / "Become a
+supporter" link went to the home page ("the tiers button goes
+nowhere", reported live). BHM_Frontend::ensure_tiers_page() now runs
+on admin_init and OUS_Pages::ensure('bhm_tiers', 'bhm_tiers_page_id',
+'Supporter Tiers', ['bhm/tiers'])s it - adopting a hand-made page if
+one exists, creating one otherwise. Same pattern bh-courses/bh-contest/
+bh-streaming already use for their own pages.
+
 0.6.3 — Real bug, found live stress-testing the Membership & Wallet
 portal panel: "See supporter tiers" silently looped back to the
 current page instead of going anywhere. bhm_tiers_page_id had gone
