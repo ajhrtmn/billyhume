@@ -772,9 +772,28 @@ window.BHCLessonStepDom = {
                 d.textContent = s == null ? '' : String(s);
                 return d.innerHTML;
             }
-            function seekTo(seconds) {
+            function seekTo(seconds, tappedItem) {
                 media.seek(seconds);
                 media.play();
+                // On iOS a tap on THIS button (outside the cross-origin
+                // Bunny/provider iframe) is not a user-activation the
+                // iframe will accept for play() — the seek lands but the
+                // paused player keeps showing its poster, so the tap
+                // feels dead. Acknowledge it ourselves: mark the target
+                // chapter active now (there may be no 'timeupdate' to do
+                // it), pulse it, and bring the video into view.
+                if (tappedItem) {
+                    items.forEach(function (it) { it.classList.toggle('active', it === tappedItem); });
+                    tappedItem.classList.remove('bhc-chapter-jumped');
+                    void tappedItem.offsetWidth;
+                    tappedItem.classList.add('bhc-chapter-jumped');
+                }
+                var v = wrap;
+                if (v && typeof v.scrollIntoView === 'function') {
+                    var r = v.getBoundingClientRect();
+                    if (r.top < 0 || r.bottom > window.innerHeight)
+                        v.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
             }
             if (!chapters.length)
                 return;
@@ -835,7 +854,7 @@ window.BHCLessonStepDom = {
                     + '<span class="bhc-video-chapter-item-time">' + formatTime(chapter.time) + '</span>'
                     + '<span class="bhc-video-chapter-item-title">' + escText(chapter.title || 'Chapter ' + (i + 1)) + '</span>'
                     + '</button>';
-                item.querySelector('button').addEventListener('click', function () { seekTo(chapter.time); });
+                item.querySelector('button').addEventListener('click', function () { seekTo(chapter.time, item); });
                 list.appendChild(item);
                 items.push(item);
             });

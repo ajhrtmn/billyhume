@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.25 — Chapter tap feedback. On iOS a tap on our chapter button
+(outside the cross-origin Bunny/provider iframe) is not a user-
+activation the iframe accepts for the follow-up play(), so the seek
+landed but the paused player kept showing its poster and the tap felt
+dead. seekTo() now also marks the tapped chapter active immediately
+(there may be no timeupdate to do it), pulses the row (.bhc-chapter-
+jumped) and scrolls the video into view. The seek itself already
+worked — verified player.js setCurrentTime against the live Bunny
+embed.
+
 0.16.24 — The "current lesson" row in the lesson nav was a full
 --bh-accent-muted-bg fill + 3px border + slide-in animation — in the
 portal's full-width nav that read as an errant text box next to the

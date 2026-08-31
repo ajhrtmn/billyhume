@@ -1597,6 +1597,19 @@ video.bhc-step-video {
     border-left-color: var(--bh-accent);
     background: var(--bh-accent-muted-bg, var(--bh-surface-2));
 }
+/* Instant "your tap registered" feedback — the seek lands even when a
+   cross-origin iframe refuses the follow-up play() on iOS, so the row
+   itself has to acknowledge the jump. */
+.bhc-video-chapter-item.bhc-chapter-jumped {
+    animation: bhc-chapter-jump .5s ease;
+}
+@keyframes bhc-chapter-jump {
+    0%   { background: color-mix(in srgb, var(--bh-accent) 34%, transparent); }
+    100% { background: var(--bh-accent-muted-bg, var(--bh-surface-2)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .bhc-video-chapter-item.bhc-chapter-jumped { animation: none; }
+}
 .bhc-video-chapter-item-btn {
     display: flex;
     align-items: baseline;
