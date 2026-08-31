@@ -1080,19 +1080,24 @@ a.bhc-pagination-number:hover {
     padding: 8px 6px;
     font-size: 13px;
 }
-/* --bh-accent-soft is a LIGHT hover-state tint in this dark theme, not
-   a text-safe background — pairing it with --bh-text (near-white) gave
-   ~1.4:1 contrast, nearly illegible. --bh-accent-muted-bg is the
-   derived-from-accent-and-surface token built for exactly this case. */
-.bhc-sidebar-lesson-list li.bhc-lesson-current {
-    background: var(--bh-accent-muted-bg, var(--bh-surface-2));
-    border-left: 3px solid var(--bh-accent);
-    border-radius: 4px;
+/* "You are here" is a quiet pointer, not a filled panel: an accent rail
+   + a barely-there wash + a slightly firmer title. The old full
+   --bh-accent-muted-bg fill + 3px border read as an errant text box in
+   the portal's full-width lesson nav, next to the plainer rows around
+   it. Same treatment as .bhc-lesson-list li.bhc-lesson-current below so
+   the two list variants match. No entrance animation here — the row
+   shouldn't slide on every lesson load; the stepper has its own. */
+.bhc-sidebar-lesson-list li.bhc-lesson-current,
+.bhc-lesson-list li.bhc-lesson-current {
+    background: color-mix(in srgb, var(--bh-accent) 8%, transparent);
+    box-shadow: inset 3px 0 0 var(--bh-accent);
     font-weight: 600;
-    padding-left: 3px;
-    animation: bhc-step-in 0.35s ease both;
 }
-.bhc-sidebar-lesson-list li.bhc-lesson-current a { color: var(--bh-text); }
+.bhc-sidebar-lesson-list li.bhc-lesson-current a,
+.bhc-lesson-list li.bhc-lesson-current > a,
+.bhc-lesson-list li.bhc-lesson-current > span:first-child {
+    color: var(--bh-text);
+}
 /* The stepper (below) already got a "just landed here" entrance and a
    completion pop; the sidebar's own current-lesson row and checkmarks
    had none of that motion, reading flat/static next to it. Reusing the
@@ -1888,9 +1893,9 @@ video.bhc-step-video {
     color: var(--bh-text);
     font-weight: 700;
 }
-.bhc-lesson-list li.bhc-lesson-current {
-    box-shadow: inset 2px 0 0 var(--bh-accent);
-}
+/* .bhc-lesson-list li.bhc-lesson-current is styled together with the
+   sidebar variant up by .bhc-sidebar-lesson-list — kept in one place
+   so "current" looks identical in both. */
 /* Submitting a review is not the page's primary action — the Continue
    CTA above is. Sized to its label, not stretched full width. */
 .bhc-review-submit {

@@ -6,6 +6,13 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.24 — The "current lesson" row in the lesson nav was a full
+--bh-accent-muted-bg fill + 3px border + slide-in animation — in the
+portal's full-width nav that read as an errant text box next to the
+plainer rows. Now a quiet pointer: accent rail (inset 3px) + an 8%
+accent wash + firmer title, no entrance animation, and identical
+between the sidebar and full-width list variants.
+
 0.16.23 — Course-view detail polish: progress track 12%%->18%% (the
 unfilled portion was near-invisible on black); done-lesson title
 opacity 0.66->0.72; the review star picker's idle state is now a hollow
