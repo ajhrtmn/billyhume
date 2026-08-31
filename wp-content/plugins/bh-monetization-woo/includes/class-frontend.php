@@ -187,10 +187,39 @@ class BHM_Frontend {
 
     /* ---------- tier picker ---------- */
 
+    /**
+     * The tiers page a fan lands on before any tier exists. Was a single
+     * bare "<p>No supporter tiers are set up yet.</p>" — a dead end on a
+     * page the portal's own "See supporter tiers" button points at.
+     * Now a real, framed empty state (matches the .bhm-tier-card
+     * vocabulary), with a first-run shortcut for the site owner.
+     */
+    private static function render_tiers_empty(bool $commerce_ready): string {
+        $star = '<svg class="bhm-tiers-empty-icon" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.79l-5.2 2.73.99-5.8-4.21-4.1 5.82-.85z" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+        $body = $commerce_ready
+            ? '<p class="bhm-tiers-empty-lead">Supporter tiers aren\'t open yet.</p>'
+              . '<p class="bhm-tiers-empty-note">This is where you\'ll be able to back the music directly &mdash; a recurring pledge in exchange for members-only perks. Check back soon.</p>'
+            : '<p class="bhm-tiers-empty-lead">Supporter tiers aren\'t available yet.</p>'
+              . '<p class="bhm-tiers-empty-note">The store connection still needs to be finished before tiers can go live.</p>';
+
+        // Site owner sees the way to fix it, right here.
+        $admin = '';
+        if (current_user_can('edit_posts')) {
+            $admin = '<p class="bhm-tiers-empty-admin"><a href="' . esc_url(admin_url('post-new.php?post_type=bhm_tier')) . '">&rarr; Add your first tier</a>'
+                   . ' <span class="bhm-tiers-empty-admin-hint">(only you can see this)</span></p>';
+        }
+
+        return '<div class="bhm-tiers-empty">' . $star
+             . '<h2 class="bhm-tiers-empty-title">Supporter tiers</h2>'
+             . $body . $admin . '</div>';
+    }
+
     public static function render_tiers(): string {
-        if (!BH_Commerce::available()) return '<p>Supporter tiers aren\'t available yet.</p>';
-        $tiers = BHM_Tiers::all();
-        if (!$tiers) return '<p>No supporter tiers are set up yet.</p>';
+        $tiers = BH_Commerce::available() ? BHM_Tiers::all() : [];
+        if (!$tiers) {
+            return self::render_tiers_empty(BH_Commerce::available());
+        }
 
         $user_id = get_current_user_id();
         // Pre-pass, not computed inside the render loop below — a fan

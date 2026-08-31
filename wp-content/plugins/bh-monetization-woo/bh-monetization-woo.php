@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.6.4
+ * Version:     0.6.5
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.6.4');
+define('BHM_VER',  '0.6.5');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
@@ -54,6 +54,16 @@ add_action('plugins_loaded', function () {
     }
 
     BHM_Activator::maybe_upgrade();
+
+    // The tiers page gets the ecosystem's standalone chrome (theme
+    // nav/footer hidden, the slim eco-nav bar instead), same as the
+    // course catalog and contest library — a fan arriving from the
+    // portal's "See supporter tiers" shouldn't drop into the raw theme.
+    add_filter('bh_standalone_surface', function ($is) {
+        if ($is) return true;
+        $tiers_page = (int) get_option('bhm_tiers_page_id', 0);
+        return $tiers_page && is_page($tiers_page);
+    });
 
     add_action('init',          ['BHM_Tiers', 'init']);
     add_action('init',          ['BHM_Gate', 'init']);

@@ -92,6 +92,7 @@ class OUS_MenuSync {
         $known = [
             'Courses'  => (int) get_option('bhc_catalog_page_id', 0),
             'Contests' => (int) get_option('bh_contest_library_page_id', 0),
+            'Support'  => (int) get_option('bhm_tiers_page_id', 0),
             'Account'  => class_exists('BHI_Portal') ? (int) get_option('bhi_portal_page_id', 0) : 0,
         ];
         $items = [];

@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.5 - The tiers page a fan lands on from the portal's "See supporter
+tiers" button was a single bare "<p>No supporter tiers are set up
+yet.</p>" dropped into the raw theme. Now: a framed empty state
+(BHM_Frontend::render_tiers_empty - star icon, heading, fan-facing
+copy, an admin-only "Add your first tier" shortcut) styled to the
+.bhm-tier-card vocabulary; the tiers page also gets the ecosystem's
+standalone chrome (theme nav/footer hidden, eco-nav bar shown) like
+the course catalog and contest library, and a "Support" entry in the
+eco-nav (core 3.21.28).
+
 0.6.4 - Self-provision the supporter-tiers page. BHM_Tiers::tiers_page_url() fell back to home_url('/') whenever bhm_tiers_page_id
 was unset - which it is on any site where nobody hand-made a page
 carrying [bhm_tiers], so every "See supporter tiers" / "Become a

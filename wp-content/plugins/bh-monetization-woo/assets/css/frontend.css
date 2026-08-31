@@ -198,3 +198,52 @@
 }
 .bhm-thankyou-banner h2 { margin-top: 0; }
 .bhm-thankyou-banner ul { padding-left: 18px; }
+
+/* Tiers page, before any tier exists — a framed empty state, not the
+   bare dead-end <p> a fan used to land on from the portal's own
+   "See supporter tiers" button. Card vocabulary, centred, calm. */
+.bhm-tiers-empty {
+    max-width: 460px;
+    margin: 40px auto;
+    padding: 36px 28px;
+    text-align: center;
+    background: var(--bh-surface, #220C0A);
+    border: 1px solid var(--bh-border, #3D1B14);
+    border-radius: 12px;
+    color: var(--bh-text, #EDDFCB);
+}
+.bhm-tiers-empty-icon {
+    color: var(--bh-accent, #C1503A);
+    opacity: 0.85;
+    margin-bottom: 14px;
+}
+.bhm-tiers-empty-title {
+    margin: 0 0 10px;
+    font-family: var(--bh-font-heading, inherit);
+    font-size: 20px;
+    font-weight: 600;
+}
+.bhm-tiers-empty-lead {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+.bhm-tiers-empty-note {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--bh-text-dim, #B99584);
+}
+.bhm-tiers-empty-admin {
+    margin: 18px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--bh-border, #3D1B14);
+    font-size: 13px;
+}
+.bhm-tiers-empty-admin a {
+    color: var(--bh-accent, #C1503A);
+    font-weight: 600;
+}
+.bhm-tiers-empty-admin-hint {
+    color: var(--bh-text-dim, #B99584);
+}
