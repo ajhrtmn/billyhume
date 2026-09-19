@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.15.11
+ * Version:     3.15.12
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.15.11');
+define('BH_VER',        '3.15.12');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -114,6 +114,27 @@ add_action('plugins_loaded', function () {
         return false;
     });
     add_action('init',          ['BH_ShareCards', 'init']);
+
+    // Design Suite Phase 2 (see bh-courses 0.16.31/0.16.32 for the first
+    // real component_tokens() registrations) — this plugin's first.
+    // .bh-contest-badge (player.css) is a genuinely separate hardcoded
+    // implementation from the shared .bh-badge core already tokenized,
+    // not just a class-name coincidence, so it gets its own group rather
+    // than being folded into "badge". Exact-prior-value fallback
+    // guarantee, same as every other group.
+    if (class_exists('BHY_Style')) {
+        add_filter('bhy_style_component_tokens', function ($components) {
+            $components['contest_badge'] = [
+                'label' => 'Contest badge',
+                'tokens' => [
+                    'font_size' => ['label' => 'Text size',   'type' => 'size', 'min' => 8,  'max' => 14, 'step' => 1, 'unit' => 'px', 'default' => 10],
+                    'padding_h' => ['label' => 'Horizontal padding', 'type' => 'size', 'min' => 2, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 7],
+                    'radius'    => ['label' => 'Corner radius', 'type' => 'size', 'min' => 0, 'max' => 20, 'step' => 1, 'unit' => 'px', 'default' => 4],
+                ],
+            ];
+            return $components;
+        });
+    }
 
     // Registers this plugin's seeding/reset actions into the shared Debug
     // Tools page; production-safety checks are centralized in OUS_Debug.

@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.12 - Design Suite Phase 2: this plugin's first component_tokens()
+registration, "Contest badge" (.bh-contest-badge in player.css — text size,
+horizontal padding, corner radius). A genuinely separate hardcoded
+implementation from core's already-tokenized shared .bh-badge, not a
+naming coincidence, so it gets its own group. Exact prior hardcoded values
+kept as CSS fallbacks; the existing "Contest Library (catalog)" Design
+Suite preview surface already renders a real .bh-contest-badge, so the
+sliders are live there with no surface changes needed.
+
 3.15.11 - Design Suite pass: dropped "New Contest wizard" (admin-only tool,
 not a front-end style-token surface — AJ's direction was to keep this page
 to real visitor-facing GUIs). Added the real gap instead: [bh_contest_library]

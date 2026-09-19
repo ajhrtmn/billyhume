@@ -1315,8 +1315,8 @@ body.bhi-has-user-bar .bh-now-playing-bar { bottom: var(--bhi-user-bar-height, 5
 }
 .bh-contest-card-badges { display: flex; gap: 5px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 .bh-contest-badge {
-    font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
-    padding: 2px 7px; border-radius: 4px;
+    font-size: var(--bh-comp-contest_badge-font_size, 10px); font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    padding: 2px var(--bh-comp-contest_badge-padding_h, 7px); border-radius: var(--bh-comp-contest_badge-radius, 4px);
     color: var(--bh-text-dim);
     border: 1px solid var(--bh-border);
     white-space: nowrap;
