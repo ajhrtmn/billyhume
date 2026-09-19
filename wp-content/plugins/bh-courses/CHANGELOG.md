@@ -6,6 +6,16 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.32 - Design Suite Phase 2 continued: two more component_tokens()
+groups — "Lesson sidebar" (radius, padding, lesson-row text size; distinct
+from the pre-existing flat "Lesson sidebar width" slider, which only
+controls the column's flex-basis) and "Progress bar" (height, corner
+radius — shared by the catalog card's own footer bar and the larger course-
+page variant, which only overrides height further). Same exact-prior-value
+fallback guarantee as 0.16.31's course card group. Both preview surfaces
+(Course Catalog, Lesson Steps & Quiz) already used the real classes, so no
+surface changes were needed to see these live.
+
 0.16.31 - Design Suite Phase 2: the catalog card (.bhc-course-card in
 courses.css) is now a registered component_tokens() group ("Course card" —
 radius, padding, gap, title font size, title font), the second real group

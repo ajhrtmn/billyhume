@@ -306,8 +306,8 @@
 }
 
 .bhc-progress-bar {
-    height: 6px;
-    border-radius: 999px;
+    height: var(--bh-comp-progress_bar-height, 6px);
+    border-radius: var(--bh-comp-progress_bar-radius, 999px);
     background: color-mix(in srgb, var(--bh-text) 18%, transparent);
     overflow: hidden;
 }
@@ -1045,8 +1045,8 @@ a.bhc-pagination-number:hover {
     top: 20px;
     background: var(--bh-surface);
     border: 1px solid var(--bh-border);
-    border-radius: 10px;
-    padding: 16px;
+    border-radius: var(--bh-comp-course_sidebar-radius, 10px);
+    padding: var(--bh-comp-course_sidebar-padding, 16px);
     box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
 }
 .bhc-sidebar-lesson-list li a {
@@ -1094,7 +1094,7 @@ a.bhc-pagination-number:hover {
 .bhc-sidebar-lesson-list::-webkit-scrollbar-thumb:hover { opacity: .9; }
 .bhc-sidebar-lesson-list li {
     padding: 8px 6px;
-    font-size: 13px;
+    font-size: var(--bh-comp-course_sidebar-item_font_size, 13px);
 }
 /* "You are here" is a quiet pointer, not a filled panel: an accent rail
    + a barely-there wash + a slightly firmer title. The old full

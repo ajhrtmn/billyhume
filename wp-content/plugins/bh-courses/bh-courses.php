@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.31
+ * Version:     0.16.32
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.31');
+define('BHC_VER',  '0.16.32');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -108,6 +108,27 @@ add_action('plugins_loaded', function () {
                     'gap'            => ['label' => 'Space between elements', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 8],
                     'title_font_size' => ['label' => 'Title text size', 'type' => 'size', 'min' => 13, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 17],
                     'title_font'     => ['label' => 'Title font', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
+                ],
+            ];
+            // Third/fourth groups: the lesson sidebar shell (distinct
+            // from the existing flat "Lesson sidebar width" slider,
+            // which only controls the column's flex-basis) and the
+            // progress bar shared by the catalog card footer and the
+            // lesson layout's larger variant. Same byte-identical-
+            // default guarantee as course_card above.
+            $components['course_sidebar'] = [
+                'label' => 'Lesson sidebar',
+                'tokens' => [
+                    'radius'         => ['label' => 'Corner radius', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
+                    'padding'        => ['label' => 'Padding',       'type' => 'size', 'min' => 0, 'max' => 32, 'step' => 1, 'unit' => 'px', 'default' => 16],
+                    'item_font_size' => ['label' => 'Lesson row text size', 'type' => 'size', 'min' => 11, 'max' => 18, 'step' => 1, 'unit' => 'px', 'default' => 13],
+                ],
+            ];
+            $components['progress_bar'] = [
+                'label' => 'Progress bar',
+                'tokens' => [
+                    'height' => ['label' => 'Bar height', 'type' => 'size', 'min' => 4, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 6],
+                    'radius' => ['label' => 'Bar corner radius', 'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 999],
                 ],
             ];
             return $components;
