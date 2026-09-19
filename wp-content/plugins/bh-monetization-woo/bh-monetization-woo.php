@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.6.5
+ * Version:     0.6.6
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.6.5');
+define('BHM_VER',  '0.6.6');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
@@ -77,6 +77,33 @@ add_action('plugins_loaded', function () {
     add_action('init',          ['BHM_Frontend', 'init']);
     add_action('init',          ['BHM_Blocks', 'init']);
     add_action('init',          ['BHM_StyleSurface', 'init']);
+    // Design Suite Phase 2 (see bh-courses 0.16.31/0.16.32, bh-contest
+    // 3.15.12 for the pattern this follows). Two groups: the tier card
+    // shell (.bhm-tier-card) and .bhm-btn -- the latter is this
+    // ecosystem's one real button component, reused as-is by bh-streaming
+    // (frontend.css is the only place its CSS lives, but the class isn't
+    // bh-monetization-woo-exclusive). Exact prior hardcoded values kept
+    // as fallbacks, same guarantee as every other group.
+    if (class_exists('BHY_Style')) {
+        add_filter('bhy_style_component_tokens', function ($components) {
+            $components['tier_card'] = [
+                'label' => 'Supporter tier card',
+                'tokens' => [
+                    'radius'  => ['label' => 'Corner radius', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 8],
+                    'padding' => ['label' => 'Padding',       'type' => 'size', 'min' => 0, 'max' => 32, 'step' => 1, 'unit' => 'px', 'default' => 20],
+                ],
+            ];
+            $components['button'] = [
+                'label' => 'Button',
+                'tokens' => [
+                    'radius'    => ['label' => 'Corner radius',      'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 6],
+                    'padding_v' => ['label' => 'Vertical padding',   'type' => 'size', 'min' => 4, 'max' => 20,  'step' => 1, 'unit' => 'px', 'default' => 10],
+                    'padding_h' => ['label' => 'Horizontal padding', 'type' => 'size', 'min' => 8, 'max' => 32,  'step' => 1, 'unit' => 'px', 'default' => 18],
+                ],
+            ];
+            return $components;
+        });
+    }
     add_action('init',          ['BHM_Debug', 'init']);
     add_action('init',          ['BHM_MockCommerce', 'init']);
     add_action('init',          ['BHM_CRMIntegration', 'init']);

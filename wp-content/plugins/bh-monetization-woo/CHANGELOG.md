@@ -6,6 +6,14 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.6 - Design Suite Phase 2: two component_tokens() groups -- "Supporter
+tier card" (.bhm-tier-card radius/padding) and "Button" (.bhm-btn
+radius/vertical padding/horizontal padding, this ecosystem's one real
+button component, also used as-is by bh-streaming). Exact prior hardcoded
+values kept as CSS fallbacks. The existing "Supporter Tiers" Design Suite
+preview surface already renders real .bhm-tier-card/.bhm-btn markup, so
+both are live there with no surface changes.
+
 0.6.5 - The tiers page a fan lands on from the portal's "See supporter
 tiers" button was a single bare "<p>No supporter tiers are set up
 yet.</p>" dropped into the raw theme. Now: a framed empty state
