@@ -152,6 +152,16 @@ class BHC_PortalPanel {
             $accessible = !class_exists('BHC_Gate') || BHC_Gate::user_can_access_course($user_id, $course_id);
 
             echo '<div class="bhi-portal-course-card">';
+            // Same featured-image-or-placeholder pattern as the /courses/
+            // catalog card (class-render-catalog.php) — a course's
+            // Featured Image (set from the course editor's own metabox,
+            // 'thumbnail' post-type support) now shows here too, not just
+            // on the public catalog.
+            if (has_post_thumbnail($course_id)) {
+                echo '<div class="bhi-portal-course-thumb">' . get_the_post_thumbnail($course_id, 'medium') . '</div>';
+            } else {
+                echo '<div class="bhi-portal-course-thumb bhi-portal-course-thumb-placeholder" aria-hidden="true"></div>';
+            }
             echo '<h3>' . esc_html($course->post_title) . '</h3>';
             // The % is a designed figure at the end of the track (same
             // .bhi-datum vocabulary as the Overview panels), not a plain

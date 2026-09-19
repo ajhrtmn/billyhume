@@ -6,6 +6,26 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.29 - Lesson-screen sizing controls, live in the Design Suite (requires
+the-self-hosted-self 3.21.31+): three new sliders under Design Suite -> Plugin
+adjustments — "Lesson sidebar width" (`--bh-custom-course_sidebar_width`,
+200-380px), "Lesson video max width" (`--bh-custom-course_video_width`,
+480-1200px), and "Lesson caption text size" (`--bh-custom-course_caption_size`,
+12-22px) — plus one font field under Plugin fonts, "Lesson caption font"
+(`--bh-custom-font-course_caption`). All four wired into courses.css with the
+previous hardcoded values (240px / 820px / 13px) kept as the fallback, so an
+unconfigured site is unchanged. Also gave `.bhc-sidebar-lesson-list` a themed
+thin scrollbar (accent-colored thumb) instead of the bare browser default.
+`BHC_PortalPanel`'s "My Courses" card now shows the course's Featured Image
+(or an accent-gradient placeholder matching the /courses/ catalog card) —
+previously that card had no image at all, only the catalog did.
+Not yet addressed from the same round of feedback: no closed-caption/subtitle
+system exists in this codebase at all (the "caption" field is a plain text
+line under the video, not a `<track>`/VTT subtitle track) — Bunny Stream's
+embed is a cross-origin iframe, so local CSS can't reach into its own player
+chrome; and there's no per-course toggle yet to hide the instructor avatar on
+a catalog card.
+
 0.16.28 - List markers: dropped the browser disc for a small accent
 diamond (4px rotated square, sits on the first line's cap height) via
 a custom ::before; nested lists get a hollow diamond; <ol> keeps real

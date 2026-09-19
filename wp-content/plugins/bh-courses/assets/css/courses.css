@@ -1039,7 +1039,8 @@ a.bhc-pagination-number:hover {
 }
 .bhc-course-sidebar {
     box-sizing: border-box; /* required — the mobile breakpoint below sets width:100% on this element, and without border-box its own padding+border would push it past the container's edge instead of being absorbed into that 100% */
-    flex: 0 0 240px;
+    /* Design Suite -> Plugin adjustments -> "Lesson sidebar width" */
+    flex: 0 0 var(--bh-custom-course_sidebar_width, 240px);
     position: sticky;
     top: 20px;
     background: var(--bh-surface);
@@ -1075,7 +1076,22 @@ a.bhc-pagination-number:hover {
     margin-top: 10px;
     max-height: 60vh;
     overflow-y: auto;
+    /* Themed scrollbar instead of the bare browser default (Billy asked
+       for "better scroll bar visuals"): a thin accent-colored thumb on a
+       barely-there track, in both scrollbar-styling dialects. Firefox
+       reads scrollbar-width/-color; everything else reads the
+       ::-webkit-scrollbar-* rules below. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--bh-accent) transparent;
 }
+.bhc-sidebar-lesson-list::-webkit-scrollbar { width: 6px; }
+.bhc-sidebar-lesson-list::-webkit-scrollbar-track { background: transparent; }
+.bhc-sidebar-lesson-list::-webkit-scrollbar-thumb {
+    background: var(--bh-accent);
+    border-radius: 999px;
+    opacity: .6;
+}
+.bhc-sidebar-lesson-list::-webkit-scrollbar-thumb:hover { opacity: .9; }
 .bhc-sidebar-lesson-list li {
     padding: 8px 6px;
     font-size: 13px;
@@ -1399,7 +1415,11 @@ video.bhc-step-video {
     border: 0;
 }
 .bhc-step-caption {
-    font-size: 13px;
+    /* Design Suite -> Plugin adjustments -> "Lesson caption text size" /
+       Plugin fonts -> "Lesson caption font". Falls back to the previous
+       hardcoded values when neither is set. */
+    font-size: var(--bh-custom-course_caption_size, 13px);
+    font-family: var(--bh-custom-font-course_caption, inherit);
     color: var(--bh-text-dim);
     margin-bottom: 12px;
 }
@@ -1414,7 +1434,8 @@ video.bhc-step-video {
        area (too wide to watch) or letting a small source shrink to a
        thumbnail. */
     width: 100%;
-    max-width: 820px;
+    /* Design Suite -> Plugin adjustments -> "Lesson video max width" */
+    max-width: var(--bh-custom-course_video_width, 820px);
     margin-inline: auto;
 }
 .bhc-video-overlay {

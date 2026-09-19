@@ -89,6 +89,15 @@ class BHY_Gallery {
         // admin page the <select> itself lives on.
         $font_url = class_exists('BHY_Style') ? BHY_Style::preview_all_fonts_url() : '';
         if ($font_url) wp_enqueue_style('bhy-font-preview', $font_url, [], null);
+
+        // The shared colour resolver, so the live preview's buildCssText()
+        // derives --bh-on-* / --bh-text-muted / --bh-focus / … from the
+        // same recipe table (BHY_Contrast::spec()) a save runs through —
+        // one spec, two engines (PHP + this JS), no third hand-kept list.
+        if (class_exists('BHY_Contrast')) {
+            wp_enqueue_script('bhy-contrast-core', OUS_URL . 'assets/js/contrast-core.js', [], OUS_VER, false);
+            wp_localize_script('bhy-contrast-core', 'bhyContrastSpec', BHY_Contrast::spec());
+        }
     }
 
     // DESIGN-SUITE-UNIFICATION-PLAN.md Phase 1 — relocated from a
@@ -180,6 +189,12 @@ class BHY_Gallery {
         // separate code path for "a plugin's slider" vs. "our slider".
         foreach (BHY_Style::custom_sliders() as $key => $def) {
             $s['custom_' . $key] = $s['custom'][$key] ?? ($def['default'] ?? 0);
+        }
+        // Same flattening for the font analogue (custom_fonts()) — a
+        // distinct 'customfont_' prefix so a font field's id/name can
+        // never collide with a numeric slider field of the same key.
+        foreach (BHY_Style::custom_fonts() as $key => $def) {
+            $s['customfont_' . $key] = $s['custom_fonts'][$key] ?? ($def['default'] ?? '');
         }
         $surfaces = apply_filters('bhy_style_surfaces', []);
         $grouped = [];
@@ -419,6 +434,21 @@ class BHY_Gallery {
             echo '<h3>Plugin adjustments</h3>';
             foreach ($custom_sliders as $key => $def) {
                 BHY_UI::slider_row('custom_' . $key, $def['label'] ?? $key, $s, $def['min'] ?? 0, $def['max'] ?? 100, $def['step'] ?? 1, $def['unit'] ?? '');
+            }
+            echo '</div>';
+        }
+
+        // Plugin-registered custom fonts — same "shows up for free"
+        // treatment as the sliders above, one plain text field per
+        // registration (see BHY_Style::custom_fonts()'s docblock).
+        $custom_fonts = BHY_Style::custom_fonts();
+        if ($custom_fonts) {
+            echo '<div class="bhy-token-group" data-token-group="custom-fonts">';
+            echo '<h3>Plugin fonts</h3>';
+            foreach ($custom_fonts as $key => $def) {
+                $field_id = 'customfont_' . $key;
+                echo '<div class="bhel-field-row"><label for="' . esc_attr($field_id) . '">' . esc_html($def['label'] ?? $key) . '</label> ';
+                echo '<input type="text" id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id) . '" value="' . esc_attr($s[$field_id] ?? '') . '" class="regular-text" placeholder="' . esc_attr($def['default'] ?? '') . '"></div>';
             }
             echo '</div>';
         }
@@ -684,6 +714,31 @@ class BHY_Gallery {
                     vars[varName] = input.value + (input.dataset.unit || '');
                 });
 
+                // Plugin-registered custom fonts (render_controls()'s
+                // "Plugin fonts" group) — every <input id="customfont_*">
+                // maps to --bh-custom-font-<key>, mirroring inline_css()'s
+                // server-side naming. Live preview always falls back to
+                // sans-serif (the real fallback family isn't localized
+                // here); the saved render uses the registered def's own.
+                document.querySelectorAll('input[id^="customfont_"]').forEach(function (input) {
+                    var varName = '--bh-custom-font-' + input.id.slice('customfont_'.length);
+                    var val = (input.value || input.placeholder || '').replace(/["{};]/g, '').trim();
+                    if (val) vars[varName] = '"' + val + '", sans-serif';
+                });
+                // (listener that triggers this rebuild on keystroke is
+                // registered further down, alongside the other input
+                // groups' listeners — this block only feeds buildCssText())
+
+                // Derived roles (--bh-accent-contrast / -hover / -pressed,
+                // --bh-on-*, --bh-text-muted / -disabled, --bh-border-strong,
+                // --bh-ui*, --bh-focus) — same resolver a save runs, fed the
+                // seed values just collected. Degrades to seeds-only if the
+                // script somehow isn't present.
+                if (window.BhyContrast && window.bhyContrastSpec) {
+                    var derived = window.BhyContrast.resolve(vars, window.bhyContrastSpec);
+                    Object.keys(derived).forEach(function (k) { vars[k] = derived[k]; });
+                }
+
                 var out = ':root{';
                 Object.keys(vars).forEach(function (k) { out += k + ':' + vars[k] + ';'; });
                 out += '}';
@@ -717,6 +772,11 @@ class BHY_Gallery {
 
             // Brand wordmark fields.
             document.querySelectorAll('.bhy-brand-input').forEach(function (input) {
+                input.addEventListener('input', refreshAllFrames);
+            });
+
+            // Plugin-registered custom font fields ("Plugin fonts" group).
+            document.querySelectorAll('input[id^="customfont_"]').forEach(function (input) {
                 input.addEventListener('input', refreshAllFrames);
             });
 

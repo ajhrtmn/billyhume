@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.28
+ * Version:     0.16.29
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.28');
+define('BHC_VER',  '0.16.29');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -73,6 +73,26 @@ add_action('plugins_loaded', function () {
     add_action('init', ['BHC_Privacy', 'init']);
     add_action('init', ['BHC_Debug', 'init']);
     add_action('init', ['BHC_StyleSurface', 'init']);
+    // Design Suite "Plugin adjustments" tokens for the lesson screen —
+    // sidebar width, video window width, and caption text size/font are
+    // all things Billy asked to be able to change himself. Registered
+    // via BHY_Style's own extension points (custom_sliders()/
+    // custom_fonts()) rather than a new bh-courses-only settings UI, so
+    // they land in the one place every other per-plugin token lives and
+    // persist through the one bhy_style_settings option. Consumed in
+    // assets/css/courses.css as var(--bh-custom-<key>[, fallback]).
+    if (class_exists('BHY_Style')) {
+        add_filter('bhy_style_custom_sliders', function ($sliders) {
+            $sliders['course_sidebar_width'] = ['label' => 'Lesson sidebar width', 'min' => 200, 'max' => 380, 'step' => 10, 'unit' => 'px', 'default' => 240];
+            $sliders['course_video_width']   = ['label' => 'Lesson video max width', 'min' => 480, 'max' => 1200, 'step' => 10, 'unit' => 'px', 'default' => 820];
+            $sliders['course_caption_size']  = ['label' => 'Lesson caption text size', 'min' => 12, 'max' => 22, 'step' => 1, 'unit' => 'px', 'default' => 14];
+            return $sliders;
+        });
+        add_filter('bhy_style_custom_fonts', function ($fonts) {
+            $fonts['course_caption'] = ['label' => 'Lesson caption font', 'default' => 'Inter', 'fallback' => 'sans-serif'];
+            return $fonts;
+        });
+    }
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,
     // then 1" ordering (3 = data-binding v1, 2 = Gutenberg block, both
     // already shipped in the-self-hosted-self 3.4.46/3.4.47). First real

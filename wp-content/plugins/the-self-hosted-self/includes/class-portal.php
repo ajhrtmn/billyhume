@@ -1239,7 +1239,15 @@ class BHI_Portal {
   }
   .bhi-portal-main .bhi-view-link { margin-left:12px; font-size:13px; }
   .bhi-portal-course-list { display:grid; gap:16px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); margin-top:12px; }
-  .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); }
+  .bhi-portal-course-card { border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius-sm, 8px); padding:16px; background:var(--bh-surface, #fff); overflow:hidden; }
+  /* Course thumbnail (the course's own Featured Image) — bleeds to the
+     card's edges like the /courses/ catalog card's .bhc-card-thumb does,
+     so a course image set once shows up consistently everywhere the
+     course is listed. The placeholder mirrors that card's accent-wash
+     treatment rather than an empty grey box. */
+  .bhi-portal-course-thumb { aspect-ratio:16/9; margin:-16px -16px 12px; overflow:hidden; }
+  .bhi-portal-course-thumb img { display:block; width:100%; height:100%; object-fit:cover; }
+  .bhi-portal-course-thumb-placeholder { background:linear-gradient(135deg, var(--bh-accent, #2271b1), var(--bh-accent-soft, #6ea8e0)); }
   .bhi-portal-course-card h3 { margin:0 0 8px; font-size:15px; }
   .bhi-portal-course-locked { color:var(--bh-text-dim, #6b7280); font-size:13px; }
   .bhi-portal-progress-bar { height:6px; border-radius:3px; background:var(--bh-surface-2, #e2e2e2); overflow:hidden; }

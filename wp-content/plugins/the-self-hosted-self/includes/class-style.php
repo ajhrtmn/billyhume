@@ -657,17 +657,18 @@ class BHY_Style {
         foreach ($var_names as $field => $css_var) {
             if (isset($overrides[$field])) $vars[$css_var] = self::safe_color($merged[$field]);
         }
-        // If this entity overrides either color that --bh-accent-muted-bg
-        // derives from, recompute it here too — otherwise a scoped accent/
-        // surface override would leave the SITE-WIDE muted-bg (computed
-        // from the un-overridden colors) applied underneath it, drifting
-        // out of sync with whichever accent this entity actually uses.
-        if (isset($overrides['color_accent']) || isset($overrides['color_surface'])) {
-            $vars['--bh-accent-muted-bg'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 18%, ' . self::safe_color($merged['color_surface']) . ')';
-        }
-        if (isset($overrides['color_accent'])) {
-            $vars['--bh-accent-hover'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 85%, black)';
-            $vars['--bh-accent-pressed'] = 'color-mix(in srgb, ' . self::safe_color($merged['color_accent']) . ' 70%, black)';
+        // Any per-entity colour override can shift what the DERIVED roles
+        // (--bh-accent-muted-bg / -contrast / -hover / -pressed and the
+        // context-aware roles) should be — otherwise the site-wide
+        // derived values, computed from the un-overridden seeds, stay
+        // applied underneath and drift out of sync with this entity's
+        // actual colours. Recompute the whole derived set from the merged
+        // seeds through the one resolver, same as inline_css().
+        $seed_fields = array_flip(array_keys(array_diff_key($var_names, ['color_overlay' => 1])));
+        if (array_intersect_key($overrides, $seed_fields)) {
+            foreach (BHY_Contrast::for_settings($merged) as $css_var => $val) {
+                $vars[$css_var] = $val;
+            }
         }
 
         return [
@@ -680,36 +681,12 @@ class BHY_Style {
     // consuming plugin's own stylesheet already reads from — enqueued
     // after that stylesheet so it wins the cascade. The stylesheets
     // themselves never need to change per site; only this changes.
-    /**
-     * Which of two candidate inks reads better on $bg — plain WCAG
-     * relative-luminance contrast, the same formula tests/ux/audit.ts
-     * measures with, so the value this picks is the value that audit
-     * scores. Used for --bh-accent-contrast (see inline_css()).
-     */
-    private static function ink_on(string $bg, string $light_ink, string $dark_ink): string {
-        return self::contrast($light_ink, $bg) >= self::contrast($dark_ink, $bg) ? $light_ink : $dark_ink;
-    }
-
-    private static function contrast(string $a, string $b): float {
-        $la = self::relative_luminance($a);
-        $lb = self::relative_luminance($b);
-        $hi = max($la, $lb);
-        $lo = min($la, $lb);
-        return ($hi + 0.05) / ($lo + 0.05);
-    }
-
-    private static function relative_luminance(string $hex): float {
-        $hex = ltrim(trim($hex), '#');
-        if (strlen($hex) === 3) $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
-        if (strlen($hex) < 6 || !ctype_xdigit(substr($hex, 0, 6))) return 0.0;
-        $ch = [];
-        foreach ([0, 2, 4] as $i) {
-            $v = hexdec(substr($hex, $i, 2)) / 255;
-            $ch[] = $v <= 0.03928 ? $v / 12.92 : pow(($v + 0.055) / 1.055, 2.4);
-        }
-        return 0.2126 * $ch[0] + 0.7152 * $ch[1] + 0.0722 * $ch[2];
-    }
-
+    //
+    // WHY (3.21.30): the WCAG luminance/contrast/ink_on helpers that used
+    // to live here moved to BHY_Color (pure, no-WP, reusable), and every
+    // colour DERIVED from a seed — the four accent tokens plus the new
+    // context-aware roles — is now produced by BHY_Contrast::resolve()
+    // from one recipe table. See class-contrast.php.
     public static function inline_css(?int $entity_id = null): string {
         $s = self::get($entity_id);
         $vars = [
@@ -721,52 +698,20 @@ class BHY_Style {
         $decls = '';
         foreach ($vars as $name => $val) $decls .= $name . ':' . self::safe_color($val) . ';';
 
-        // Derived, not a hand-picked field like color_accent_soft above —
-        // that field has zero enforced relationship to color_accent, so
-        // an admin picking colors independently can (and did, confirmed
-        // live in bh-courses/bh-contest before this existed) land on a
-        // near-illegible ~1.4:1 contrast pairing with --bh-text. This is
-        // a small, fixed proportion of the CHOSEN accent mixed into the
-        // CHOSEN surface — always dominated by surface (so always dark
-        // enough for light text on top), and it recomputes automatically
-        // for whatever accent/surface pair Settings & Style ends up with,
-        // rather than needing a second correctly-contrasting color to be
-        // hand-picked every time. Any consuming stylesheet should reach
-        // for this — never --bh-accent-soft — behind body text; soft
-        // stays reserved for its original one-off job (lightening an
-        // already-accent-colored element on hover).
-        $decls .= '--bh-accent-muted-bg:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 18%, ' . self::safe_color($s['color_surface']) . ');';
-
-        // --bh-accent-contrast: the ink that sits ON a filled accent
-        // surface (a primary button, a filled nav pill), not beside it.
-        // REAL BUG this fixes, found 2026-08-25 by the first ecosystem-wide
-        // front-end audit: this token was CONSUMED in 15 places across the
-        // theme and front-nav.css but DEFINED nowhere, so every use fell
-        // through to its own hardcoded fallback -- and those fallbacks
-        // disagreed, 11 saying dark (#150705) and 4 saying white (#fff).
-        // Both cannot be right on the same fill, and the white ones
-        // measured 4.13:1 (needs 4.5) once the accent was lightened.
-        //
-        // Derived rather than hand-picked, same reasoning as the muted-bg
-        // above: pick whichever of the theme's own ink/ground colours has
-        // more contrast against the CHOSEN accent, so it stays correct for
-        // any accent an admin picks instead of needing a matching ink to be
-        // hand-chosen every time. Exactly the lesson the admin skin already
-        // learned with --shsas-accent-text (its bridge mapped every FILL
-        // colour but never the foreground meant to sit on one).
-        $decls .= '--bh-accent-contrast:' . self::safe_color(self::ink_on($s['color_accent'], $s['color_text'], $s['color_bg'])) . ';';
-
-        // Same derivation logic, different job: a button using
-        // --bh-accent as its own background with light/white text on
-        // top needs its :hover state to get DARKER (more contrast), not
-        // lighter — --bh-accent-soft lightens, which is exactly backwards
-        // for that combination (confirmed live: a real bug this session,
-        // white text over a lightened accent-soft hover). Buttons that
-        // pair --bh-accent with DARK text don't need this — lightening
-        // already improves their contrast on hover, so they're unaffected
-        // by leaving them on --bh-accent-soft.
-        $decls .= '--bh-accent-hover:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 85%, black);';
-        $decls .= '--bh-accent-pressed:color-mix(in srgb, ' . self::safe_color($s['color_accent']) . ' 70%, black);';
+        // Every colour derived FROM those seeds — the four accent tokens
+        // that used to be hand-rolled here (--bh-accent-muted-bg /
+        // -contrast / -hover / -pressed, still emitted byte-for-byte) and
+        // the context-aware roles added in 3.21.30 (--bh-on-*,
+        // --bh-text-muted / -disabled, --bh-border-strong, --bh-ui* ,
+        // --bh-focus) — comes from one recipe table now: BHY_Contrast.
+        // The old inline comments explaining WHY muted-bg / -contrast /
+        // -hover exist are preserved in class-contrast.php's SPEC and in
+        // CHANGELOG 3.21.30. Debug Tools -> Contrast Audit shows every
+        // pairing measured against the current theme.
+        $derived = $entity_id === null
+            ? BHY_Contrast::global_palette()
+            : BHY_Contrast::for_settings($s);
+        foreach ($derived as $var => $val) $decls .= $var . ':' . $val . ';';
 
         $fd = self::font_family($s, 'display');
         $fb = self::font_family($s, 'body');
@@ -807,6 +752,18 @@ class BHY_Style {
             $decls .= '--bh-custom-' . $safe_key . ':' . self::safe_number($val, $def['min'] ?? 0, $def['max'] ?? 999999, $def['default'] ?? 0) . ($def['unit'] ?? '') . ';';
         }
 
+        // Plugin-registered custom fonts (custom_fonts() above) — same
+        // treatment, a distinct --bh-custom-font-<key> namespace so a
+        // font token can never collide with a numeric slider token of
+        // the same key.
+        foreach (self::custom_fonts() as $key => $def) {
+            $safe_key = sanitize_key($key);
+            $val = trim((string) ($s['custom_fonts'][$key] ?? ''));
+            if ($val === '') $val = trim((string) ($def['default'] ?? ''));
+            $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($def['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
+            if ($val !== '') $decls .= '--bh-custom-font-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
+        }
+
         return ':root{' . $decls . '}';
     }
 
@@ -835,6 +792,28 @@ class BHY_Style {
     /** @return array<string, mixed> */
     public static function custom_sliders(): array {
         return apply_filters('bhy_style_custom_sliders', []);
+    }
+
+    /**
+     * Font-family analogue of custom_sliders() above — same
+     * registration/render/save/inline_css shape, for a plugin token
+     * that's a font choice rather than a number. Registered from a
+     * plugin's own bootstrap:
+     *
+     *     add_filter('bhy_style_custom_fonts', function ($fonts) {
+     *         $fonts['caption'] = ['label' => 'Caption font', 'default' => 'Inter', 'fallback' => 'sans-serif'];
+     *         return $fonts;
+     *     });
+     *
+     * Shows up in the Design Suite's "Plugin adjustments" area as a
+     * plain text field (one font name, same shape as font_display/
+     * font_body's existing "Custom" escape hatch), persists under
+     * bhy_style_settings['custom_fonts'][key], and is emitted as
+     * --bh-custom-font-<key> by inline_css().
+     */
+    /** @return array<string, mixed> */
+    public static function custom_fonts(): array {
+        return apply_filters('bhy_style_custom_fonts', []);
     }
 
     /**
@@ -881,6 +860,15 @@ class BHY_Style {
             }
         }
 
+        $custom_fonts = self::custom_fonts();
+        if ($custom_fonts) {
+            $data['custom_fonts'] = [];
+            foreach ($custom_fonts as $key => $def) {
+                $raw = sanitize_text_field($incoming['customfont_' . $key] ?? ($def['default'] ?? ''));
+                $data['custom_fonts'][$key] = $raw !== '' ? $raw : (string) ($def['default'] ?? '');
+            }
+        }
+
         return $data;
     }
 
@@ -921,6 +909,12 @@ class BHY_Style {
         if (strcasecmp($val, 'transparent') === 0) return 'transparent';
         if (preg_match('/^#[0-9a-fA-F]{3,8}$/', $val)) return $val;
         if (preg_match('/^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\)$/', $val)) return $val;
+        // okl(ch|ab) and a plain sRGB color-mix() — the shapes BHY_Contrast
+        // and the Design Suite now emit. Character class is deliberately
+        // tight (no nested parens beyond one color-mix level, no ; or {})
+        // so this stays a value sanitiser, not an expression evaluator.
+        if (preg_match('/^okl(ch|ab)\(\s*[0-9%.\s\/-]+\)$/i', $val)) return $val;
+        if (preg_match('/^color-mix\(in srgb,\s*[#a-z0-9()%.,\s-]+\)$/i', $val)) return $val;
         return '#000000';
     }
 
