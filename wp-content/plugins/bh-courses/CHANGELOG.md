@@ -4,7 +4,33 @@ Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why versio
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
+0.16.34 - Real bug found and fixed tracing Phase 3's live Customizer
+preview against the actual /courses/ page: the "Course card" group's
+radius/padding/gap tokens (added in 0.16.31) never actually worked there
+-- .bhc-course-card's markup also carries core's shared .ous-catalog-card
+class (catalog.css, enqueued after courses.css), which silently wins
+those same properties at equal specificity on the real page. They only
+ever appeared to work in this plugin's own isolated Design Suite preview
+surface, which never loads catalog.css. Dropped those three tokens (the
+REAL, working controls are core's existing global "Corner radius"/
+"Spacing" sliders, which .ous-catalog-card already consumes); kept only
+title_font_size/title_font, which catalog.css never touches. Also fixed
+.bhc-card-thumb's bleed margin, which referenced the now-dead token
+instead of the real active padding source (--bh-space-scale) -- a latent
+alignment bug that predates this session's token work.
+
+Also: two new "Hide instructor byline" toggle controls (core's new
+component_tokens() 'toggle' type) -- one for the catalog card, one for
+the single course page's "Taught by" row, since they're separate elements.
+
 ---
+
+0.16.33 - Design Suite Phase 3 (core's BHY_Customizer, this session):
+registered a bhy_customizer_default_preview_url filter pointing the new
+"Open Live Editor" button at the real course catalog page (when one is
+set via bhc_catalog_page_id) instead of the site home — that's where
+essentially all of this plugin's component_tokens()/custom_sliders()
+controls actually show an effect.
 
 0.16.32 - Design Suite Phase 2 continued: two more component_tokens()
 groups — "Lesson sidebar" (radius, padding, lesson-row text size; distinct

@@ -788,6 +788,16 @@ class BHY_Style {
                     if ($val === '') continue;
                     $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($tdef['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
                     $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
+                } elseif ($type === 'toggle') {
+                    // Show/hide a whole element via a CSS keyword swap
+                    // rather than 0/1 (plain CSS can't branch on a numeric
+                    // custom property) — a plugin's stylesheet reads
+                    // display:var(--bh-comp-<group>-<key>, <its own 'off'
+                    // keyword>) directly, no JS/markup change needed.
+                    $on  = self::css_safe_string_keyword($tdef['on']  ?? 'none');
+                    $off = self::css_safe_string_keyword($tdef['off'] ?? 'flex');
+                    $val = !empty($stored) ? $on : $off;
+                    $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . $val . ';';
                 } else { // 'size' (default)
                     $val = self::safe_number($stored, $tdef['min'] ?? 0, $tdef['max'] ?? 999999, $tdef['default'] ?? 0);
                     $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . $val . ($tdef['unit'] ?? 'px') . ';';
@@ -869,10 +879,20 @@ class BHY_Style {
      *                 'badge_font_size' => ['label' => 'Badge text size',         'type' => 'size',  'min' => 9, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 11],
      *                 'accent'          => ['label' => 'Badge color',            'type' => 'color', 'default' => '#2271b1'],
      *                 'heading_font'    => ['label' => 'Title font',             'type' => 'font',  'default' => 'Inter', 'fallback' => 'sans-serif'],
+     *                 'show_author'     => ['label' => 'Show author byline',     'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
      *             ],
      *         ];
      *         return $components;
      *     });
+     *
+     * 'toggle' is a checkbox — a plain CSS keyword swap (not 0/1; plain
+     * CSS can't branch on a numeric custom property), for show/hide an
+     * ENTIRE element rather than tuning one of its properties. The
+     * consuming stylesheet reads display:var(--bh-comp-<group>-<key>,
+     * <its own normal display value>) directly; no markup/JS change
+     * needed on the plugin side. 'on'/'off' are the CSS keyword ('none',
+     * 'flex', 'block', etc) for each checkbox state — default 'none'/
+     * 'flex' if omitted.
      *
      * Each token type resolves through the exact same sanitizers/
      * emitters the flat mechanisms already use (safe_number for
@@ -956,6 +976,11 @@ class BHY_Style {
                     } elseif ($type === 'font') {
                         $raw = sanitize_text_field($incoming[$field] ?? ($tdef['default'] ?? ''));
                         $data['components'][$group][$key] = $raw !== '' ? $raw : (string) ($tdef['default'] ?? '');
+                    } elseif ($type === 'toggle') {
+                        // Unchecked checkboxes are simply absent from
+                        // $incoming, same as every other checkbox in this
+                        // codebase — no separate "unset" sentinel needed.
+                        $data['components'][$group][$key] = !empty($incoming[$field]);
                     } else {
                         $data['components'][$group][$key] = self::safe_number($incoming[$field] ?? null, $tdef['min'] ?? 0, $tdef['max'] ?? 999999, $tdef['default'] ?? 0);
                     }
@@ -983,6 +1008,19 @@ class BHY_Style {
     public static function css_safe_string($val): string {
         $val = preg_replace('/[";{}]/', '', (string) $val);
         return '"' . trim($val) . '"';
+    }
+
+    /**
+     * A 'toggle' component token's 'on'/'off' definition is a bare CSS
+     * keyword (display: none/flex/block/grid/inline-flex/inline/…), not
+     * an arbitrary string — restricted to a fixed allowlist rather than
+     * css_safe_string()'s quote-and-escape treatment, since this value is
+     * never quoted in the emitted custom property.
+     */
+    public static function css_safe_string_keyword($val): string {
+        $val = strtolower(trim((string) $val));
+        $allowed = ['none', 'block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'contents'];
+        return in_array($val, $allowed, true) ? $val : 'none';
     }
 
     /**

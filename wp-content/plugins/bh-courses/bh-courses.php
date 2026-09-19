@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Courses
  * Description: Courses made of ordered, multistep/multipart lessons — text, images, and quizzes/progress-checks in any sequence — with per-student progress tracking and optional supporter-tier gating via BH Monetization. Depends only on The Self-Hosted Self's shared identity.
- * Version:     0.16.32
+ * Version:     0.16.34
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHC_VER',  '0.16.32');
+define('BHC_VER',  '0.16.34');
 
 define('BHC_PATH', plugin_dir_path(__FILE__));
 define('BHC_URL',  plugin_dir_url(__FILE__));
@@ -94,20 +94,34 @@ add_action('plugins_loaded', function () {
         });
         // Phase 2 of the Design Suite grouped-component work (see core's
         // component_tokens() docblock, which uses this exact group as its
-        // worked example): the catalog card — .bhc-course-card in
-        // courses.css — as one collapsible "Course card" section instead
-        // of more flat sliders. Values mirror the hardcoded CSS defaults
-        // exactly, so an unconfigured site renders byte-identical to
-        // before this existed.
+        // worked example). Real bug caught tracing Phase 3's live
+        // Customizer preview against the ACTUAL /courses/ page (not just
+        // this plugin's own isolated Design Suite preview, which only
+        // loads courses.css): .bhc-course-card's markup also carries
+        // core's shared .ous-catalog-card class (catalog.css — the
+        // deliberate courses/contests card-shape unification), enqueued
+        // AFTER courses.css, so at equal specificity its own
+        // border-radius/padding silently won on the real page every
+        // time, no matter what this group's now-removed radius/padding/
+        // gap tokens were set to — they only ever appeared to work in
+        // the isolated preview surface, which never loaded catalog.css.
+        // Fixed by dropping those three (the REAL, working controls for
+        // this card's shape are core's existing global "Corner radius"/
+        // "Spacing" scale sliders, which .ous-catalog-card already
+        // consumes) and keeping only the two properties catalog.css
+        // never touches: the title's own font-size/font-family.
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['course_card'] = [
                 'label' => 'Course card',
                 'tokens' => [
-                    'radius'         => ['label' => 'Card corner radius', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
-                    'padding'        => ['label' => 'Card padding',       'type' => 'size', 'min' => 0, 'max' => 32, 'step' => 1, 'unit' => 'px', 'default' => 16],
-                    'gap'            => ['label' => 'Space between elements', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 8],
-                    'title_font_size' => ['label' => 'Title text size', 'type' => 'size', 'min' => 13, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 17],
-                    'title_font'     => ['label' => 'Title font', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
+                    'title_font_size'   => ['label' => 'Title text size', 'type' => 'size', 'min' => 13, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 17],
+                    'title_font'        => ['label' => 'Title font', 'type' => 'font', 'default' => 'Inter', 'fallback' => 'sans-serif'],
+                    // AJ, 2026-09-19: a control to hide the instructor
+                    // byline on catalog cards. First real use of the
+                    // 'toggle' token type (class-style.php) — checked =
+                    // hidden, matching the "Show author byline" phrasing
+                    // in that type's own docblock example.
+                    'hide_author'       => ['label' => 'Hide instructor byline', 'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
                 ],
             ];
             // Third/fourth groups: the lesson sidebar shell (distinct
@@ -131,7 +145,26 @@ add_action('plugins_loaded', function () {
                     'radius' => ['label' => 'Bar corner radius', 'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 999],
                 ],
             ];
+            // The single-course page's own "Taught by" instructor row
+            // (.bhc-course-instructor-row) — a distinct element from the
+            // catalog card's byline above, not affected by the same
+            // control.
+            $components['course_page'] = [
+                'label' => 'Course page',
+                'tokens' => [
+                    'hide_author' => ['label' => 'Hide "Taught by" instructor row', 'type' => 'toggle', 'on' => 'none', 'off' => 'flex', 'default' => false],
+                ],
+            ];
             return $components;
+        });
+        // Most of the tokens registered above only ever show up on the
+        // course catalog, so that's a far more useful default "Open Live
+        // Editor" (BHY_Customizer) destination than the site home — first
+        // registrant of bhy_customizer_default_preview_url wins if a
+        // later plugin doesn't override again.
+        add_filter('bhy_customizer_default_preview_url', function ($url) {
+            $catalog = (int) get_option('bhc_catalog_page_id', 0);
+            return $catalog ? get_permalink($catalog) : $url;
         });
     }
     // DESIGN-SUITE-UNIFICATION-PLAN.md — the "1" in AJ's "Do 3, then 2,

@@ -212,6 +212,21 @@ class BHY_Gallery {
         echo '<h1>Design Suite</h1>';
         if (isset($_GET['saved'])) echo '<div class="notice notice-success is-dismissible"><p>Saved.</p></div>';
 
+        // Phase 3 — the "Components" section's live counterpart: the same
+        // granular tokens, edited from inside the native WP Customizer
+        // while looking at the real rendered page (BHY_Customizer). The
+        // Customizer's own `return` param is what sends its native Close
+        // (X) button back HERE — no bespoke "switch back" UI needed, just
+        // wiring the URL WordPress already understands.
+        if (class_exists('BHY_Customizer')) {
+            $customize_url = add_query_arg([
+                'url'                    => rawurlencode(BHY_Customizer::default_preview_url()),
+                'autofocus[panel]'       => 'bhy_live_design',
+                'return'                 => rawurlencode(admin_url('admin.php?page=bh-style')),
+            ], admin_url('customize.php'));
+            echo '<p class="bhy-live-editor-cta"><a href="' . esc_url($customize_url) . '" class="button button-primary">Open Live Editor — edit Components on the real page</a> <span class="description">Same Component tokens as below, previewed against the actual site; its own Close button brings you back here.</span></p>';
+        }
+
         // Hidden for now (AJ, 2026-09-19) as part of pruning Design Suite
         // down to front-end/user-facing surfaces — this is a dev-tool
         // panel (Node build + UX audit runner), same category as the
@@ -493,6 +508,10 @@ class BHY_Gallery {
                     if ($type === 'font') {
                         echo '<div class="bhel-field-row"><label for="' . esc_attr($field_id) . '">' . esc_html($tdef['label'] ?? $key) . '</label> ';
                         echo '<input type="text" id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id) . '" value="' . esc_attr($s[$field_id] ?? '') . '" class="regular-text bhy-comp-font" placeholder="' . esc_attr($tdef['default'] ?? '') . '"></div>';
+                        continue;
+                    }
+                    if ($type === 'toggle') {
+                        echo '<div class="bhel-field-row"><label><input type="checkbox" id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id) . '" value="1" class="bhy-comp-toggle"' . checked(!empty($s[$field_id]), true, false) . '> ' . esc_html($tdef['label'] ?? $key) . '</label></div>';
                         continue;
                     }
                     BHY_UI::slider_row($field_id, $tdef['label'] ?? $key, $s, $tdef['min'] ?? 0, $tdef['max'] ?? 100, $tdef['step'] ?? 1, $tdef['unit'] ?? 'px');
@@ -810,6 +829,8 @@ class BHY_Gallery {
                         } else if (tdef.type === 'font') {
                             var val = (input.value || input.placeholder || '').replace(/["{};]/g, '').trim();
                             if (val) vars[varName] = '"' + val + '", sans-serif';
+                        } else if (tdef.type === 'toggle') {
+                            vars[varName] = input.checked ? (tdef.on || 'none') : (tdef.off || 'flex');
                         } else {
                             vars[varName] = input.value + (tdef.unit || 'px');
                         }
@@ -873,6 +894,9 @@ class BHY_Gallery {
             // range] / .bhy-swatch-controls input[type=text] above).
             document.querySelectorAll('.bhy-comp-font').forEach(function (input) {
                 input.addEventListener('input', refreshAllFrames);
+            });
+            document.querySelectorAll('.bhy-comp-toggle').forEach(function (input) {
+                input.addEventListener('change', refreshAllFrames);
             });
 
             var themeSwatches = document.querySelectorAll('.bhy-theme-swatch');

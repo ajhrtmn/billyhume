@@ -2,14 +2,14 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.21.34
+ * Version:     3.21.36
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.21.34');
+define('OUS_VER', '3.21.36');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -49,7 +49,7 @@ if (is_readable(OUS_PATH . 'vendor/autoload.php')) {
  * Streaming stay genuinely separate — someone who only wants one of
  * them shouldn't have to install the other.
  */
-foreach (['tables', 'view', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'contrast-test-suite', 'design-suite', 'storybook-panel', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
+foreach (['tables', 'view', 'pages', 'registry', 'dashboard', 'installer', 'activation-manager', 'setup-wizard', 'banner', 'menu-merge', 'menu-icons', 'admin-guard', 'list-table', 'debug', 'debug-log', 'qm-integration', 'reliable-store', 'test-runner', 'core-test-suite', 'reliability-test-suite', 'api-docs', 'profiles', 'public-profile', 'reports', 'auth', 'two-factor', 'member-hardening', 'identity-activator', 'style', 'color', 'contrast', 'ui', 'style-gallery', 'customizer', 'notifications', 'jobs', 'roles', 'role-assignment', 'audit', 'revisions', 'search', 'admin-layout', 'content', 'commerce-provider', 'commerce-provider-woocommerce', 'commerce-providers', 'commerce', 'rewrite-healer', 'portal', 'portal-layout', 'menu-sync', 'visibility', 'studio', 'studio-test-suite', 'codebase-docs', 'event', 'identity', 'toast', 'badge', 'element-data', 'element', 'element-test-suite', 'contrast-test-suite', 'design-suite', 'storybook-panel', 'gutenberg-block', 'block-style', 'share-card', 'media-wizard', 'media-token', 'seo', 'metrics', 'user-bar', 'campaigns', 'page-surface', 'privacy', 'dmca', 'dmca-notices', 'mail', 'integration', 'hypermedia', 'github-updates'] as $f) {
     require_once OUS_PATH . "includes/class-$f.php";
 }
 
@@ -341,6 +341,11 @@ add_filter('bh_element_surfaces', ['BHI_Portal', 'register_element_surface']);
 // and anything rendering during init must find the engine already up.
 add_action('init', ['BHY_View', 'init'], 5);
 add_action('init', ['BHY_Gallery', 'init']);
+// Design Suite Phase 3: extends the native WP Customizer with the same
+// component_tokens()/custom_sliders()/custom_fonts() controls as the
+// "Components" section above, previewed live against the real page. See
+// class-customizer.php's own docblock.
+BHY_Customizer::init();
 add_action('init', ['BHY_UI', 'init_shared_admin_assets']);
 BHY_UI::pin_hidden_submenus_to_bottom();
 

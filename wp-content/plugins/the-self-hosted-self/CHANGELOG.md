@@ -9,6 +9,49 @@ has been reworded or dropped.
 
 ---
 
+3.21.36 - component_tokens() gains a 'toggle' type (checkbox) alongside
+size/color/font — shows/hides a whole element via a CSS keyword swap
+(display: var(--bh-comp-<group>-<key>, <off-keyword>), 'on'/'off' declared
+per-token, e.g. 'none'/'flex') rather than a numeric 0/1, since plain CSS
+can't branch on a numeric custom property. Wired through every existing
+layer: BHY_Style::inline_css()/save_from_input() (new
+css_safe_string_keyword() allowlist sanitizer), the Design Suite admin
+page's render/JS live-preview, and BHY_Customizer's Phase 3 Customizer
+panel (native checkbox control + postMessage preview). First real use:
+bh-courses 0.16.34's "Hide instructor byline" controls.
+
+3.21.35 - Design Suite Phase 3: BHY_Customizer extends the native WP
+Customizer (WP_Customize_Manager) with a "Design Suite (Live)" panel —
+the same component_tokens()/custom_sliders()/custom_fonts() controls as
+the admin page's "Components" section, but edited live against the real
+rendered page via postMessage, and saved through the exact same
+bhy_style_settings option (WP Customize's native array-syntax option
+settings, e.g. bhy_style_settings[components][badge][radius], deep-merge
+into it on save — no second storage mechanism). New files:
+class-customizer.php (registration + preview-script localization),
+class-customize-range-control.php (a plain <input type=range> control,
+since core ships none in the classic Customizer; required lazily from
+inside customize_register, never at top-level bootstrap, since it
+extends WP_Customize_Control which only exists in a real Customizer
+request), assets/ts/customizer-preview.ts -> customizer-preview.js (binds
+each wp.customize() setting to its --bh-custom-*/--bh-comp-<group>-<key>
+CSS variable on <html>).
+
+Per AJ's own suggestion (extending WordPress's native "Customize" instead
+of a bespoke click-to-select canvas) — deliberately scoped to the
+granular per-component tokens only; global scheme editing (colors, quick
+themes) stays the Design Suite admin page's job. The two are one click
+apart either direction: a new "Open Live Editor" button on the Design
+Suite page links into the Customizer with WordPress's own native `return`
+URL param set back to the Design Suite page, so the Customizer's stock
+Close (X) button is the "switch back" affordance — no custom toggle UI
+built or needed.
+
+NOT runtime-verified against a live WP+MySQL Customizer session in this
+pass (php -l clean on all three PHP files, tsc clean, both localize
+schemas hand-traced against BHY_Style's real registrations) — verify the
+panel actually renders and previews live before calling this done.
+
 3.21.34 - Design Suite: hid the Storybook dev-tool panel (BH_Storybook_Panel
 — Node build + UX audit runner) from the top of the page for now, per AJ.
 Same "front-end/user-facing only, no dev/admin tooling" pruning direction as

@@ -147,14 +147,28 @@
    soft accent-tinted glow, giving the browsing moment some life without
    touching layout (translateY, not a scale, so nothing shifts its
    neighbors or triggers reflow). */
+/* Real bug caught tracing Phase 3's live Customizer preview (2026-09-19):
+   this card's markup also carries core's shared .ous-catalog-card class
+   (catalog.css, enqueued AFTER this file) — at equal specificity its
+   background/border/radius/padding/gap/shadow silently win over the
+   equivalents below on the real page every time, so those properties
+   here are dead code (the isolated Design Suite preview surface never
+   loads catalog.css, which is why a "Course card" radius/padding/gap
+   slider previously appeared to work there and nowhere else — see
+   bh-courses.php's component_tokens() registration, since corrected to
+   drop those three). Left as plain fallback values, not removed
+   outright and not token-wired, since a genuine full de-duplication
+   against .ous-catalog-card (including its own, currently-also-dead
+   :hover rule below) is a separate, deliberate cleanup pass, not a
+   silent-drop-in fix. */
 .bhc-course-card {
     background: var(--bh-surface);
     border: 1px solid var(--bh-border);
-    border-radius: var(--bh-comp-course_card-radius, 10px);
-    padding: var(--bh-comp-course_card-padding, 16px);
+    border-radius: 10px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: var(--bh-comp-course_card-gap, 8px);
+    gap: 8px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
@@ -195,8 +209,15 @@
    once cards stopped being stretched to match their tallest sibling. */
 .bhc-card-thumb {
     position: relative;
-    margin: calc(var(--bh-comp-course_card-padding, 16px) * -1) calc(var(--bh-comp-course_card-padding, 16px) * -1) 0;
-    border-radius: var(--bh-comp-course_card-radius, 10px) var(--bh-comp-course_card-radius, 10px) 0 0;
+    /* Must bleed by exactly the card's REAL active padding or the thumb's
+       edges misalign against the card border — that's .ous-catalog-card's
+       own calc(16px * var(--bh-space-scale)), not a hardcoded 16px (see
+       .bhc-course-card's docblock above for why this element can't just
+       read its own padding). Same for radius: .ous-catalog-card resolves
+       to var(--bh-radius), the global scale token, not a course-card-
+       specific one. */
+    margin: calc(-16px * var(--bh-space-scale, 1)) calc(-16px * var(--bh-space-scale, 1)) 0;
+    border-radius: var(--bh-radius, 12px) var(--bh-radius, 12px) 0 0;
     aspect-ratio: 16 / 9;
     overflow: hidden;
 }
@@ -498,7 +519,7 @@
 }
 .bhc-card-lesson-count { color: var(--bh-text-dim); }
 .bhc-card-instructor {
-    display: flex;
+    display: var(--bh-comp-course_card-hide_author, flex);
     align-items: center;
     gap: 6px;
     font-size: 12px;
@@ -733,7 +754,7 @@ a.bhc-pagination-number:hover {
     font-size: 28px;
 }
 .bhc-course-instructor-row {
-    display: flex;
+    display: var(--bh-comp-course_page-hide_author, flex);
     align-items: center;
     gap: 10px;
 }

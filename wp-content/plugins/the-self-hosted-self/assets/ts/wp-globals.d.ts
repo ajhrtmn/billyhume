@@ -114,6 +114,14 @@ interface WpBlocksApi {
     createBlock(name: string, attributes?: Record<string, unknown>, innerBlocks?: unknown[]): WpBlockInstance;
 }
 
+interface WpCustomizeValue<T> {
+    bind(callback: (newValue: T) => void): void;
+}
+
+interface WpCustomizePreviewApi {
+    (id: string, callback: (value: WpCustomizeValue<string>) => void): void;
+}
+
 interface WpGlobal {
     element?: WpElementApi;
     blocks?: WpBlocksApi;
@@ -123,6 +131,7 @@ interface WpGlobal {
     hooks?: WpHooksApi;
     i18n?: WpI18nApi;
     apiFetch?: WpApiFetch;
+    customize?: WpCustomizePreviewApi;
 }
 
 interface Window {
