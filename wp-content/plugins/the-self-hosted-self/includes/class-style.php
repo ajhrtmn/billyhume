@@ -821,6 +821,25 @@ class BHY_Style {
         // preview element is NOT inside a shadow root like every real
         // registered surface is.
         if ($include_custom_css) {
+            // Structured rules from the visual rule editor first (real
+            // typed values, already sanitized per-property in
+            // save_from_input() against css_property_registry()), THEN
+            // the raw-text escape hatch — so a hand-typed override below
+            // always wins the cascade over a visually-built rule above
+            // it, matching the on-page ordering (rules list, then the
+            // "Advanced / raw CSS" textarea underneath it).
+            foreach ((array) ($s['custom_css_rules'] ?? []) as $rule) {
+                if (!is_array($rule) || empty($rule['selector']) || empty($rule['declarations'])) continue;
+                $selector = self::sanitize_css_selector($rule['selector']) . (string) ($rule['state'] ?? '');
+                $decl_str = '';
+                foreach ((array) $rule['declarations'] as $property => $value) {
+                    $safe_property = preg_replace('/[^a-z-]/', '', sanitize_key((string) $property));
+                    if ($safe_property === '') continue;
+                    $decl_str .= $safe_property . ':' . $value . ';';
+                }
+                if ($decl_str !== '') $css .= "\n" . $selector . '{' . $decl_str . '}';
+            }
+
             $custom = trim((string) ($s['custom_css'] ?? ''));
             if ($custom !== '') {
                 $css .= "\n" . str_ireplace(['</style', '<script'], ['<\/style', '<\/script'], $custom);
@@ -933,6 +952,156 @@ class BHY_Style {
     }
 
     /**
+     * The visual Custom CSS rule editor's property list (AJ, 2026-09-19:
+     * "actual controls for editing the css properties, not just a
+     * custom CSS text box"). A curated set of the properties someone
+     * actually reaches for when tweaking a real element — not an
+     * exhaustive CSS property dump — each mapped to the SAME control
+     * types component_tokens() already uses (size/color/font) plus a
+     * new 'keyword' type (a closed dropdown of valid values, since a
+     * property like display or text-align only ever wants one of a
+     * handful of words, never a free number or color). Extensible via
+     * filter so a plugin can add its own properties the same way it
+     * adds component_tokens() groups, but this list is deliberately not
+     * "all of CSS" — see BHY_CustomCssRules's docblock for the rest of
+     * this feature's shape.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function css_property_registry(): array {
+        $registry = [
+            'color'            => ['label' => 'Text color',        'type' => 'color'],
+            'background-color' => ['label' => 'Background color',  'type' => 'color'],
+            'border-color'     => ['label' => 'Border color',      'type' => 'color'],
+            'font-family'      => ['label' => 'Font',               'type' => 'font', 'fallback' => 'sans-serif'],
+            'font-size'        => ['label' => 'Font size',          'type' => 'size', 'min' => 8,  'max' => 96,  'step' => 1, 'unit' => 'px', 'default' => 16],
+            'font-weight'      => ['label' => 'Font weight',        'type' => 'keyword', 'options' => ['400' => 'Normal', '600' => 'Semibold', '700' => 'Bold', '800' => 'Extra bold'], 'default' => '400'],
+            'line-height'      => ['label' => 'Line height',        'type' => 'size', 'min' => 0.8, 'max' => 3, 'step' => 0.05, 'unit' => '', 'default' => 1.4],
+            'letter-spacing'   => ['label' => 'Letter spacing',     'type' => 'size', 'min' => -2, 'max' => 8, 'step' => 0.1, 'unit' => 'px', 'default' => 0],
+            'text-align'       => ['label' => 'Text align',         'type' => 'keyword', 'options' => ['left' => 'Left', 'center' => 'Center', 'right' => 'Right', 'justify' => 'Justify'], 'default' => 'left'],
+            'text-transform'   => ['label' => 'Text transform',     'type' => 'keyword', 'options' => ['none' => 'None', 'uppercase' => 'Uppercase', 'lowercase' => 'Lowercase', 'capitalize' => 'Capitalize'], 'default' => 'none'],
+            'text-decoration'  => ['label' => 'Text decoration',    'type' => 'keyword', 'options' => ['none' => 'None', 'underline' => 'Underline', 'line-through' => 'Strikethrough'], 'default' => 'none'],
+            'padding'          => ['label' => 'Padding (all sides)', 'type' => 'size', 'min' => 0, 'max' => 100, 'step' => 1, 'unit' => 'px', 'default' => 0],
+            'margin'           => ['label' => 'Margin (all sides)', 'type' => 'size', 'min' => -100, 'max' => 100, 'step' => 1, 'unit' => 'px', 'default' => 0],
+            'gap'              => ['label' => 'Gap',                'type' => 'size', 'min' => 0, 'max' => 100, 'step' => 1, 'unit' => 'px', 'default' => 0],
+            'width'            => ['label' => 'Width',              'type' => 'size', 'min' => 0, 'max' => 2000, 'step' => 1, 'unit' => 'px', 'default' => 100],
+            'max-width'        => ['label' => 'Max width',          'type' => 'size', 'min' => 0, 'max' => 2000, 'step' => 1, 'unit' => 'px', 'default' => 100],
+            'height'           => ['label' => 'Height',             'type' => 'size', 'min' => 0, 'max' => 2000, 'step' => 1, 'unit' => 'px', 'default' => 100],
+            'min-height'       => ['label' => 'Min height',         'type' => 'size', 'min' => 0, 'max' => 2000, 'step' => 1, 'unit' => 'px', 'default' => 100],
+            'border-width'     => ['label' => 'Border width',       'type' => 'size', 'min' => 0, 'max' => 20, 'step' => 1, 'unit' => 'px', 'default' => 1],
+            'border-style'     => ['label' => 'Border style',       'type' => 'keyword', 'options' => ['none' => 'None', 'solid' => 'Solid', 'dashed' => 'Dashed', 'dotted' => 'Dotted'], 'default' => 'solid'],
+            'border-radius'    => ['label' => 'Corner radius',      'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 0],
+            'opacity'          => ['label' => 'Opacity',            'type' => 'size', 'min' => 0, 'max' => 1, 'step' => 0.05, 'unit' => '', 'default' => 1],
+            'display'          => ['label' => 'Display',            'type' => 'keyword', 'options' => ['block' => 'Block', 'inline-block' => 'Inline block', 'inline' => 'Inline', 'flex' => 'Flex', 'inline-flex' => 'Inline flex', 'grid' => 'Grid', 'none' => 'None (hide)'], 'default' => 'block'],
+            'position'         => ['label' => 'Position',           'type' => 'keyword', 'options' => ['static' => 'Static', 'relative' => 'Relative', 'absolute' => 'Absolute', 'fixed' => 'Fixed', 'sticky' => 'Sticky'], 'default' => 'static'],
+            'flex-direction'   => ['label' => 'Flex direction',     'type' => 'keyword', 'options' => ['row' => 'Row', 'column' => 'Column', 'row-reverse' => 'Row reverse', 'column-reverse' => 'Column reverse'], 'default' => 'row'],
+            'justify-content'  => ['label' => 'Justify content',    'type' => 'keyword', 'options' => ['flex-start' => 'Start', 'center' => 'Center', 'flex-end' => 'End', 'space-between' => 'Space between', 'space-around' => 'Space around'], 'default' => 'flex-start'],
+            'align-items'      => ['label' => 'Align items',        'type' => 'keyword', 'options' => ['stretch' => 'Stretch', 'flex-start' => 'Start', 'center' => 'Center', 'flex-end' => 'End'], 'default' => 'stretch'],
+            'z-index'          => ['label' => 'Stack order (z-index)', 'type' => 'size', 'min' => -10, 'max' => 999, 'step' => 1, 'unit' => '', 'default' => 0],
+            'cursor'           => ['label' => 'Cursor',             'type' => 'keyword', 'options' => ['default' => 'Default', 'pointer' => 'Pointer', 'not-allowed' => 'Not allowed', 'text' => 'Text', 'grab' => 'Grab'], 'default' => 'default'],
+        ];
+        return apply_filters('bhy_style_css_properties', $registry);
+    }
+
+    /**
+     * The pseudo-class states the visual rule editor offers per rule —
+     * "all potential element states" (AJ) scoped to the ones that are
+     * actually meaningful CSS states on an arbitrary element, rather
+     * than every named pseudo-class CSS has. Appended directly to the
+     * rule's selector (e.g. ".foo:hover") at emission time.
+     *
+     * @return array<string, string>
+     */
+    public static function css_state_options(): array {
+        return ['' => 'Normal', ':hover' => 'Hover', ':focus' => 'Focus', ':focus-visible' => 'Focus (keyboard)', ':active' => 'Pressed', ':disabled' => 'Disabled'];
+    }
+
+    /**
+     * One property value, sanitized according to its registered type —
+     * the one place a raw value from either editor (the admin form's
+     * $_POST, or the Customizer control's already-JSON-decoded value)
+     * turns into a real, trusted CSS value. $raw may already be a fully-
+     * formed value from a previous save (re-sanitized defensively, same
+     * as every other round-trip in this class) or fresh user input.
+     *
+     * @param array<string, mixed> $pdef
+     * @param mixed $raw
+     */
+    public static function sanitize_css_property_value(array $pdef, $raw): string {
+        $type = $pdef['type'] ?? 'text';
+        if ($type === 'color') {
+            return self::safe_color(sanitize_text_field($raw));
+        }
+        if ($type === 'keyword') {
+            $options = $pdef['options'] ?? [];
+            return array_key_exists((string) $raw, $options) ? (string) $raw : (string) ($pdef['default'] ?? array_key_first($options));
+        }
+        if ($type === 'font') {
+            // Accepts either a bare font name (fresh input) or an
+            // already-formatted "name", fallback value (re-sanitizing a
+            // previously-saved value) — strip back to the bare name
+            // first so re-sanitizing never doubles up the fallback.
+            $bare = preg_replace('/^"?([^",]+)"?.*$/', '$1', (string) $raw);
+            $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($pdef['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
+            return self::css_safe_string(sanitize_text_field($bare)) . ', ' . $fallback;
+        }
+        // 'size'
+        $num = self::safe_number($raw, $pdef['min'] ?? -99999, $pdef['max'] ?? 99999, $pdef['default'] ?? 0);
+        return $num . ($pdef['unit'] ?? '');
+    }
+
+    /**
+     * The visual Custom CSS rule editor's shared sanitizer — takes
+     * either shape either editor produces (the admin form's per-rule
+     * 'props' list of {property, value} pairs, or the Customizer
+     * control's own {selector, state, declarations: {property: value}}
+     * objects) and returns the one canonical stored shape: an array of
+     * {selector, state, declarations: {property: value}}, every
+     * property an allowlisted css_property_registry() key and every
+     * value re-sanitized through sanitize_css_property_value().
+     *
+     * @param array<int, mixed> $incoming_rules
+     * @return array<int, array<string, mixed>>
+     */
+    public static function sanitize_custom_css_rules($incoming_rules): array {
+        if (!is_array($incoming_rules)) return [];
+        $registry = self::css_property_registry();
+        $states = self::css_state_options();
+        $out = [];
+        foreach ($incoming_rules as $rule) {
+            if (!is_array($rule)) continue;
+            $selector = self::sanitize_css_selector($rule['selector'] ?? '');
+            if ($selector === '') continue;
+            $state = (string) ($rule['state'] ?? '');
+            if (!array_key_exists($state, $states)) $state = '';
+
+            $declarations = [];
+            // Form-post shape: a list of {property, value} rows (a
+            // property can't be an array key in $_POST field names the
+            // way the admin page's dynamic rows are indexed).
+            $incoming_props = is_array($rule['props'] ?? null) ? $rule['props'] : [];
+            foreach ($incoming_props as $prop_row) {
+                if (!is_array($prop_row)) continue;
+                $property = str_replace('_', '-', sanitize_key($prop_row['property'] ?? ''));
+                if (!isset($registry[$property])) continue; // strict allowlist, not a filter
+                $declarations[$property] = self::sanitize_css_property_value($registry[$property], $prop_row['value'] ?? '');
+            }
+            // Customizer control shape: already a {property: value} map
+            // (JSON round-trips objects/associative arrays natively, so
+            // there's no need for the form-post's flat-array workaround).
+            $incoming_declarations = is_array($rule['declarations'] ?? null) ? $rule['declarations'] : [];
+            foreach ($incoming_declarations as $property => $raw_value) {
+                $property = str_replace('_', '-', sanitize_key((string) $property));
+                if (!isset($registry[$property])) continue;
+                $declarations[$property] = self::sanitize_css_property_value($registry[$property], $raw_value);
+            }
+
+            if ($declarations) $out[] = ['selector' => $selector, 'state' => $state, 'declarations' => $declarations];
+        }
+        return $out;
+    }
+
+    /**
      * Single authority for turning a raw associative array (either
      * $_POST from BHY_Gallery::save() or the decoded JSON body from
      * BH_Element::rest_save_site_tokens()) into a sanitized style-settings
@@ -1010,16 +1179,28 @@ class BHY_Style {
             }
         }
 
-        // The escape hatch for "get really granular in a custom way"
-        // (AJ, 2026-09-19) beyond the registered component_tokens()
-        // groups — raw selector-scoped CSS, same trust model as WP
-        // core's own Additional CSS Customizer control (this page
-        // already requires the same capability as every other style
-        // token here; sanitization happens at emission time in
-        // inline_css(), not by mangling what the admin typed). The
-        // Customizer's click-to-select "Copy CSS selector" action feeds
-        // this by giving AJ a real, specific selector to paste in,
-        // rather than needing to inspect markup by hand.
+        // The VISUAL Custom CSS rule editor (AJ, 2026-09-19: "actual
+        // controls for editing the css properties, not just a custom
+        // CSS text box") — a list of {selector, state, declarations}
+        // rows, each declaration a real typed control (css_property_
+        // registry()'s type), rather than free-typed CSS text. Stored
+        // structured (not pre-flattened to a CSS string) so both editors
+        // (this admin page's form, and BHY_Customizer's own copy of this
+        // same editor — "both sides should be able to have access to
+        // the rule builder", AJ) can re-render real controls with the
+        // current values on load. Shared sanitizer: sanitize_custom_css_
+        // rules() below, since the Customizer posts a JSON-decoded PHP
+        // array of the same shape, not a $_POST-style flat form.
+        $data['custom_css_rules'] = self::sanitize_custom_css_rules(
+            is_array($incoming['custom_css_rules'] ?? null) ? $incoming['custom_css_rules'] : []
+        );
+
+        // The raw-text escape hatch for anything the visual editor above
+        // doesn't cover — same trust model as WP core's own Additional
+        // CSS Customizer control (this page already requires the same
+        // capability as every other style token here; sanitization
+        // happens at emission time in inline_css(), not by mangling
+        // what the admin typed).
         $data['custom_css'] = isset($incoming['custom_css']) ? substr((string) $incoming['custom_css'], 0, 20000) : '';
 
         return $data;
@@ -1055,6 +1236,20 @@ class BHY_Style {
         $val = strtolower(trim((string) $val));
         $allowed = ['none', 'block', 'inline', 'inline-block', 'flex', 'inline-flex', 'grid', 'inline-grid', 'contents'];
         return in_array($val, $allowed, true) ? $val : 'none';
+    }
+
+    /**
+     * A CSS selector typed/pasted by an admin (the visual Custom CSS
+     * rule editor's "selector" field — usually filled from the
+     * Customizer's "Copy CSS selector" action). Whitelist rather than
+     * blacklist: only characters that ever legitimately appear in a
+     * real selector survive, which as a side effect makes breaking out
+     * of the generated CSS block (or the <style> tag it lives in)
+     * structurally impossible rather than merely filtered.
+     */
+    public static function sanitize_css_selector($val): string {
+        $val = preg_replace('/[^a-zA-Z0-9 \.\#\-\_\>\+\~\:\[\]\=\"\047,\*]/', '', (string) $val);
+        return trim((string) $val);
     }
 
     /**

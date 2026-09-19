@@ -116,14 +116,21 @@ interface WpBlocksApi {
 
 interface WpCustomizeValue<T> {
     bind(callback: (newValue: T) => void): void;
+    get(): T;
+    set(value: T): void;
 }
 
 interface WpCustomizePreviewApi {
-    (id: string, callback: (value: WpCustomizeValue<string>) => void): void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- this
+    // ambient pilot is deliberately loose (see file docblock); a setting's
+    // value can be a string, boolean, or a whole rule-array (see
+    // customizer-css-rules-control.ts), so the generic stays open here.
+    (id: string, callback: (value: WpCustomizeValue<any>) => void): void;
     preview?: { send(event: string, data?: unknown): void };
     bind?(event: string, callback: (...args: unknown[]) => void): void;
     previewer?: { bind(event: string, callback: (data: unknown) => void): void };
     section?(id: string): { focus(): void } | undefined;
+    control?(id: string, callback: (control: { container: unknown }) => void): void;
 }
 
 interface WpGlobal {

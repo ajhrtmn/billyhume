@@ -7,7 +7,101 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
----
+3.21.42 - The visual Custom CSS rule editor now lives directly in the
+Customizer too, not just the Design Suite admin page (AJ: "Does that also
+exist on the customizer style gui?" -> "Can it stay all on the customizer
+side instead of jumping to the backend. Its weird" -> "Both sides should
+be able to have acces to the rule builder").
+
+- New BHY_Customize_Css_Rules_Control (class-customize-css-rules-
+  control.php) + customizer-css-rules-control.ts: the same rule-builder
+  UI, driven directly against the Customize API (wp.customize(id).get()/
+  .set()) rather than WP_Customize_Control::link()'s single-form-field
+  helper, since this control's value is a whole array of rule objects —
+  Customizer settings transport arbitrary JS values structurally (JSON
+  under the hood, both over postMessage and in the save request), so the
+  array survives intact on every side without a hidden JSON-string field.
+- Extracted BHY_Style::sanitize_custom_css_rules()/sanitize_css_property_
+  value() out of save_from_input() so BOTH editors — the admin page's
+  form-post shape and the Customizer control's already-decoded array
+  shape — sanitize through the exact same allowlist/per-type logic
+  before anything becomes real CSS, writing the identical custom_css_
+  rules option key either way.
+- The right-click "Add custom rule for this element" action no longer
+  opens the Design Suite admin page in a new tab (AJ found the jump-out
+  "weird") — it now sends the selector straight to the Customizer
+  control's own setting, which appends a new rule and focuses the
+  Custom CSS section, so the new rule just appears already open, live,
+  without leaving the Customizer.
+- Both rule-editor UIs got flex-direction:column layouts in their own
+  (different-width) sidebars rather than sharing one fixed-width
+  assumption, since the Customizer's controls column is narrower still
+  than the Design Suite admin page's.
+- Real bug caught live (AJ: "seems to bork if you create a rule, but
+  dont populate it, but then right click to select and element for a
+  rule to add"): an in-progress rule with no selector yet was silently
+  dropped from the value pushed to the setting — harmless alone, but the
+  moment an external change arrived (the right-click "Add custom rule"
+  message), the control's own re-render rebuilt the whole list from
+  that truncated array, wiping out the rule the admin hadn't finished
+  typing into yet. Every rule row is now always included in the live
+  editing buffer, complete or not; the real sanitizer still drops
+  genuinely-empty rules at actual Publish/Save time, unchanged.
+- Verified the full loop for real this time: added a rule through actual
+  UI interaction (not a direct API call) in the Customizer, watched it
+  take effect live, clicked Publish, and confirmed the real /courses/
+  page reflected it; separately verified the Design Suite admin page's
+  own copy of the editor saves and reflects correctly too, confirming
+  both truly share the same option.
+
+3.21.40 - The visual Custom CSS rule editor (AJ: "actual controls for
+editing the css properties, not just a custom CSS text box... I wonder if
+there are any JS libraries designed for just this" — evaluated GrapesJS's
+Style Manager/Tweakpane/dat.GUI, recommended building it custom to reuse
+the token-editor controls already shipped rather than pull in a
+page-builder-shaped dependency; AJ agreed).
+
+- New BHY_Style::css_property_registry() — a curated ~28-property list
+  (colors, typography, box model, flex/position, a few keyword
+  properties like display/text-align/cursor), each mapped to a real
+  control type (color/size/keyword/font), extensible via the
+  bhy_style_css_properties filter the same way component_tokens() groups
+  are. New css_state_options() for the "all potential element states"
+  ask -- hover/focus/focus-visible/active/disabled, appended to the
+  rule's selector as a real pseudo-class at emission time.
+- Storage is structured (custom_css_rules: an array of {selector, state,
+  declarations}), not pre-flattened text, so the admin page re-renders
+  real controls with their saved values on every visit -- sanitized
+  per-property against the registry in save_from_input() (only a
+  registered property name ever becomes real CSS; its value goes through
+  the exact same safe_number/safe_color/keyword-allowlist sanitizers the
+  component_tokens() types already use), turned into real CSS text in
+  inline_css() (structured rules first, then the pre-existing raw-text
+  box underneath, so a hand-typed override always wins the cascade).
+- BHY_Gallery gets the actual editor: one collapsible block per rule
+  (an EDITABLE selector field plus a state dropdown -- AJ: "make sure
+  you can actually edit the selector... more custom refinement is
+  needed" -- the auto-computed selector from click-to-select is a
+  starting point, not a locked value), each with its own property rows
+  that swap in the right control (native color picker, number+unit,
+  closed dropdown, font field) the moment a property is chosen from a
+  select. Mirrored PHP (initial render) / JS (add rule, add property,
+  remove, property-change) construction, same field-naming convention,
+  so a row built either way saves identically.
+- BHY_Customizer's right-click menu gains "Add custom rule for this
+  element..." alongside "Copy CSS selector" (AJ: "still do the custom
+  selectors, along side the visual controls") -- opens Design Suite in
+  a new tab with a rule already started for that exact element's
+  selector.
+
+Verified live: added a rule targeting the course card's instructor
+byline, set display to none via the visual dropdown, saved, confirmed it
+persisted with correct values on a fresh page load, and confirmed the
+real /courses/ page actually hides the byline on every card. Also fixed
+a real overflow bug caught in the same pass -- the ~380px controls
+column clipped the state dropdown/remove button in a plain flex row;
+fixed with flex-wrap + min-width:0 throughout, plus a proper empty-state
+hint when no rules exist yet.
 
 3.21.39 - Fixed "Copy CSS selector" (3.21.38) not actually copying,
 reported live by AJ. Two real, separate bugs found tracing it:

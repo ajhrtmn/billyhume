@@ -41,7 +41,7 @@ class BHY_Customizer {
         $wp_customize->add_panel('bhy_live_design', [
             'title'       => 'Design Suite (Live)',
             'description' => 'The same granular tokens as Settings & Style → Design Suite\'s "Components" section, edited here while looking at the real page. Saves to the exact same site-wide settings.'
-                . "\n\n" . 'Click any styled element in the preview to jump straight to its section below. Right-click it for a menu of every component at that point (useful when one is nested inside another, like a badge inside a card) — each menu item either jumps to that section or, for "Copy CSS selector," copies a real CSS selector for that exact element to your clipboard so you can paste it into Design Suite\'s "Custom CSS" box for anything these controls don\'t cover.',
+                . "\n\n" . 'Click any styled element in the preview to jump straight to its section below. Right-click it for a menu of every component at that point (useful when one is nested inside another, like a badge inside a card), plus "Add custom rule for this element" (starts a new rule in the Custom CSS section below, right here) and "Copy CSS selector" (for the Advanced box in that same section).',
             'priority'    => 30,
         ]);
 
@@ -70,12 +70,44 @@ class BHY_Customizer {
         // binding for this one setting, kept out of the generic schema
         // loop since it's not a --bh-* variable) is simpler and just as
         // fast for a single <style> tag swap.
-        if (class_exists('WP_Customize_Code_Editor_Control')) {
-            $wp_customize->add_section('bhy_live_custom_css', [
-                'title'       => 'Custom CSS',
-                'panel'       => 'bhy_live_design',
-                'description' => 'For anything the Component sections above don\'t cover. Right-click an element in the preview and choose "Copy CSS selector" to get a real selector to start from.',
+        $wp_customize->add_section('bhy_live_custom_css', [
+            'title'       => 'Custom CSS',
+            'panel'       => 'bhy_live_design',
+            'description' => 'For anything the Component sections above don\'t cover. Right-click an element in the preview for "Add custom rule for this element" (starts a rule below, prefilled) or "Copy CSS selector" (for the Advanced box).',
+        ]);
+
+        // The visual rule editor — same one as the Design Suite admin
+        // page's "Custom CSS" section (BHY_Gallery::render_css_rule_
+        // row()), rebuilt as a real control so it lives directly in the
+        // Customizer too ("Both sides should be able to have acces to
+        // the rule builder" — AJ). Both write the exact same
+        // custom_css_rules option key through the exact same
+        // BHY_Style::sanitize_custom_css_rules() sanitizer.
+        if (class_exists('BHY_Style')) {
+            require_once __DIR__ . '/class-customize-css-rules-control.php';
+            $wp_customize->add_setting('bhy_style_settings[custom_css_rules]', [
+                'type'              => 'option',
+                'default'           => BHY_Style::get()['custom_css_rules'] ?? [],
+                'sanitize_callback' => ['BHY_Style', 'sanitize_custom_css_rules'],
+                'transport'         => 'postMessage',
             ]);
+            $wp_customize->add_control(new \BHY_Customize_Css_Rules_Control($wp_customize, 'bhy_style_settings[custom_css_rules]', [
+                'section'  => 'bhy_live_custom_css',
+                'settings' => 'bhy_style_settings[custom_css_rules]',
+                'priority' => 5,
+            ]));
+        }
+
+        // The raw-text escape hatch underneath the rule editor — same
+        // option key/trust boundary as the Design Suite admin page's own
+        // "Advanced / raw CSS" textarea, WP core's own Code Editor
+        // control (used by its native "Additional CSS" feature) rather
+        // than inventing our own. 'selective_refresh' isn't used since a
+        // full stylesheet replace on every keystroke via postMessage
+        // (see enqueue_preview_script()'s dedicated binding for this one
+        // setting) is simpler and just as fast for a single <style> tag
+        // swap.
+        if (class_exists('WP_Customize_Code_Editor_Control')) {
             $wp_customize->add_setting('bhy_style_settings[custom_css]', [
                 'type'              => 'option',
                 'default'           => '',
@@ -85,10 +117,11 @@ class BHY_Customizer {
                 'transport' => 'postMessage',
             ]);
             $wp_customize->add_control(new \WP_Customize_Code_Editor_Control($wp_customize, 'bhy_style_settings[custom_css]', [
-                'label'     => 'Custom CSS',
+                'label'     => 'Advanced / raw CSS',
                 'section'   => 'bhy_live_custom_css',
                 'settings'  => 'bhy_style_settings[custom_css]',
                 'code_type' => 'text/css',
+                'priority'  => 20,
             ]));
         }
 

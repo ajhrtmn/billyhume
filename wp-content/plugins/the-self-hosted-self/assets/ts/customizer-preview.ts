@@ -47,6 +47,32 @@ interface BhyCustomizerSchemaEntry {
         });
     });
 
+    // The visual rule editor's own setting (BHY_Customize_Css_Rules_
+    // Control) — an array of {selector, state, declarations} objects,
+    // turned into real CSS text here the same way BHY_Style::inline_css()
+    // does server-side. Its <style> tag is created FIRST (before the raw
+    // Custom CSS one below), matching inline_css()'s own emission order,
+    // so a hand-typed raw override still wins the cascade in preview too.
+    interface BhyCssRule { selector: string; state?: string; declarations?: Record<string, string>; }
+    function ruleToCssText(rule: BhyCssRule): string {
+        if (!rule || !rule.selector || !rule.declarations) return '';
+        const decls = Object.keys(rule.declarations).map(function (prop) {
+            return prop + ':' + (rule.declarations as Record<string, string>)[prop] + ';';
+        }).join('');
+        return decls ? rule.selector + (rule.state || '') + '{' + decls + '}' : '';
+    }
+    wpApi.customize!('bhy_style_settings[custom_css_rules]', function (value) {
+        value.bind(function (rules: BhyCssRule[]) {
+            let tag = document.getElementById('bhy-custom-css-rules-preview') as HTMLStyleElement | null;
+            if (!tag) {
+                tag = document.createElement('style');
+                tag.id = 'bhy-custom-css-rules-preview';
+                document.head.appendChild(tag);
+            }
+            tag.textContent = (rules || []).map(ruleToCssText).join('\n');
+        });
+    });
+
     // Custom CSS (BHY_Customizer::register()'s WP_Customize_Code_Editor_
     // Control) — not a --bh-* variable, so kept out of the generic
     // schema loop above; just swaps one <style> tag's whole content on
@@ -241,7 +267,7 @@ interface BhyCustomizerSchemaEntry {
                 document.body.removeChild(scratch);
                 if (copied) {
                     copyItem.textContent = 'Copied!';
-                    setTimeout(closeMenu, 600);
+                    setTimeout(closeMenu, 700);
                     return;
                 }
                 // Last resort: a selectable input right in the menu —
@@ -256,6 +282,25 @@ interface BhyCustomizerSchemaEntry {
                 copyItem.appendChild(field);
                 field.focus();
                 field.select();
+            });
+            // "Add custom rule for this element" (AJ, 2026-09-19: keep a
+            // way to do custom selectors alongside the visual controls;
+            // "Can it stay all on the customizer side instead of jumping
+            // to the backend. Its weird" — stays in-Customizer now,
+            // rather than the earlier version of this which opened the
+            // Design Suite admin page in a new tab): sends the selector
+            // straight to BHY_Customize_Css_Rules_Control's own setting
+            // (customizer-css-rules-control.ts's previewer.bind handler),
+            // which appends a new rule and focuses the Custom CSS
+            // section — the new rule just appears there, already open.
+            // The selector field there is a plain editable text input,
+            // not read-only — this is a starting point, not a locked
+            // value, since the auto-computed selector is a heuristic
+            // (tag+2 classes+parent) that sometimes needs hand-refinement.
+            addItem('Add custom rule for this element…', function () {
+                const preview = getPreview();
+                if (preview) preview.send('bhy-add-custom-rule', selector);
+                closeMenu();
             });
             document.body.appendChild(menu);
         }, true);

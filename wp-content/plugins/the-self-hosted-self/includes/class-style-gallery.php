@@ -225,7 +225,7 @@ class BHY_Gallery {
                 'return'                 => rawurlencode(admin_url('admin.php?page=bh-style')),
             ], admin_url('customize.php'));
             echo '<p class="bhy-live-editor-cta"><a href="' . esc_url($customize_url) . '" class="button button-primary">Open Live Editor — edit Components on the real page</a></p>';
-            echo '<p class="description">Same Component tokens as below, previewed against the actual site. Inside it: <strong>click</strong> any styled element (a card, badge, button…) to jump straight to its controls; <strong>right-click</strong> for a menu of every matching component at that point (useful when one is nested inside another) plus "Copy CSS selector" for the Custom CSS box further down this page. Its own Close (X) button brings you back here.</p>';
+            echo '<p class="description">Same Component tokens as below, previewed against the actual site — and its own Custom CSS section (with the exact same rule builder as the one on this page, further down) so you never have to leave it. Inside it: <strong>click</strong> any styled element (a card, badge, button…) to jump straight to its controls; <strong>right-click</strong> for a menu of every matching component at that point (useful when one is nested inside another), plus "Add custom rule for this element" and "Copy CSS selector". Its own Close (X) button brings you back here.</p>';
         }
 
         // Hidden for now (AJ, 2026-09-19) as part of pruning Design Suite
@@ -531,19 +531,45 @@ class BHY_Gallery {
         }
 
         // The granular escape hatch beyond the registered Components
-        // above: raw selector-scoped CSS (see BHY_Style::save_from_input()
-        // /inline_css()'s own docblocks). Filled in from the Customizer's
-        // click-to-select "Copy CSS selector" action (see
-        // BHY_Customizer/customizer-preview.ts) — this box is where that
-        // copied selector actually gets used. Only applies to the real
-        // site/Customizer preview, not the shadow-DOM surfaces above
-        // (each of which already gets it correctly via its own
-        // sandboxed <style id="bhy-vars">) — the note here says so
-        // explicitly rather than leaving that a silent surprise.
-        echo '<div class="bhy-token-group" data-token-group="custom-css">';
+        // above — a VISUAL rule editor (AJ, 2026-09-19: "actual controls
+        // for editing the css properties, not just a custom CSS text
+        // box"): pick a selector (filled in from the Customizer's
+        // click-to-select right-click menu — either "Copy CSS selector"
+        // pasted here, or the newer "Add custom rule for this element"
+        // which deep-links straight into a prefilled new rule below, see
+        // BHY_Customizer/customizer-preview.ts), an optional state
+        // (hover/focus/etc — css_state_options()), then add one or more
+        // real properties from css_property_registry() — each renders
+        // its OWN correctly-typed control (color picker, ranged
+        // slider+unit, a closed dropdown for keyword properties, a font
+        // field), not a text field to hand-type a value into. Declared
+        // rules are stored structured (BHY_Style::save_from_input()) and
+        // turned into real CSS text at emission time
+        // (BHY_Style::inline_css()). The raw textarea underneath remains
+        // for anything even this doesn't cover.
+        echo '<div class="bhy-token-group" data-token-group="custom-css" id="custom-css">';
         echo '<h3>Custom CSS <span class="description" style="text-transform:none;font-weight:400;">(for anything the Components above don\'t cover)</span></h3>';
-        echo '<p class="description">Real CSS, any selector. <strong>How to get a selector:</strong> open <a href="' . esc_url(add_query_arg(['url' => rawurlencode(class_exists('BHY_Customizer') ? BHY_Customizer::default_preview_url() : home_url('/'))], admin_url('customize.php'))) . '">the Live Editor</a>, right-click anything on the page, and choose "Copy CSS selector" — paste it here and add whatever properties you want. Preview: reload the real page or the Live Editor after saving (this box doesn\'t live-preview in the canvas above, since those previews are sandboxed per-surface and a real page selector wouldn\'t match anything in them anyway).</p>';
-        echo '<textarea name="custom_css" id="custom_css" rows="8" class="large-text code" placeholder="' . esc_attr('.bhc-course-card .bhc-card-instructor {' . "\n" . '    display: none;' . "\n" . '}') . '">' . esc_textarea((string) ($s['custom_css'] ?? '')) . '</textarea>';
+        echo '<p class="description">This is the exact same rule builder as the <a href="' . esc_url(add_query_arg(['url' => rawurlencode(class_exists('BHY_Customizer') ? BHY_Customizer::default_preview_url() : home_url('/'))], admin_url('customize.php'))) . '">Live Editor</a>\'s own Custom CSS section — right-clicking an element there adds a rule directly in the Customizer without leaving it, but you can build rules here just as well, or come back to fine-tune one later. <strong>How to get a selector without opening the Live Editor:</strong> not really practical by hand — right-click is the way. Preview: reload the real page after saving (rules here don\'t live-preview in the canvas above, since those previews are sandboxed per-surface and a real page selector wouldn\'t match anything in them anyway).</p>';
+
+        $rules = is_array($s['custom_css_rules'] ?? null) ? $s['custom_css_rules'] : [];
+        // A rule started via the Customizer's "Add custom rule for this
+        // element" deep-link (?add_selector=...) lands as one extra,
+        // still-empty rule pre-filled with that selector, appended after
+        // whatever's already saved — never silently discarded, and
+        // never auto-saved until the admin actually presses Save.
+        $prefill_selector = isset($_GET['add_selector']) ? BHY_Style::sanitize_css_selector(wp_unslash($_GET['add_selector'])) : '';
+        if ($prefill_selector !== '') $rules[] = ['selector' => $prefill_selector, 'state' => '', 'declarations' => []];
+
+        echo '<div id="bhy-css-rules">';
+        foreach (array_values($rules) as $i => $rule) {
+            self::render_css_rule_row($i, is_array($rule) ? $rule : []);
+        }
+        echo '</div>';
+        echo '<button type="button" id="bhy-add-rule" class="button">+ Add rule</button>';
+
+        echo '<h4 style="margin-top:24px;">Advanced / raw CSS</h4>';
+        echo '<p class="description">Real CSS text, for anything the rule editor above can\'t express.</p>';
+        echo '<textarea name="custom_css" id="custom_css" rows="6" class="large-text code" placeholder="' . esc_attr('.some-selector {' . "\n" . '    /* ... */' . "\n" . '}') . '">' . esc_textarea((string) ($s['custom_css'] ?? '')) . '</textarea>';
         echo '</div>';
 
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
@@ -568,12 +594,126 @@ class BHY_Gallery {
     }
 
     /**
+     * One row of the visual Custom CSS rule editor — a selector, an
+     * optional state, and its own list of typed property controls. Also
+     * called from JS's mirrored buildRuleRow() when "+ Add rule" is
+     * clicked, so the markup/name conventions here (custom_css_rules[i]
+     * [selector|state|props[j][property|value]]) MUST match that JS
+     * exactly, or a newly-added rule would silently fail to save.
+     *
+     * @param array<string, mixed> $rule
+     */
+    private static function render_css_rule_row(int $i, array $rule): void {
+        $selector = (string) ($rule['selector'] ?? '');
+        $state = (string) ($rule['state'] ?? '');
+        $declarations = is_array($rule['declarations'] ?? null) ? $rule['declarations'] : [];
+        echo '<div class="bhy-css-rule" data-rule-index="' . esc_attr((string) $i) . '">';
+        echo '<div class="bhy-css-rule-header">';
+        echo '<input type="text" class="regular-text code" name="custom_css_rules[' . esc_attr((string) $i) . '][selector]" value="' . esc_attr($selector) . '" placeholder=".some-selector">';
+        echo '<select name="custom_css_rules[' . esc_attr((string) $i) . '][state]">';
+        foreach (BHY_Style::css_state_options() as $val => $label) {
+            echo '<option value="' . esc_attr($val) . '"' . selected($state, $val, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select>';
+        echo '<button type="button" class="button-link-delete bhy-remove-rule">Remove rule</button>';
+        echo '</div>';
+        echo '<div class="bhy-css-rule-props">';
+        $j = 0;
+        foreach ($declarations as $property => $value) {
+            self::render_css_prop_row($i, $j, (string) $property, (string) $value);
+            $j++;
+        }
+        echo '</div>';
+        echo '<button type="button" class="button bhy-add-prop">+ Add property</button>';
+        echo '</div>';
+    }
+
+    /** One property row inside a rule — a property picker plus whatever control that property's registered type needs. */
+    private static function render_css_prop_row(int $i, int $j, string $property, string $value): void {
+        $registry = BHY_Style::css_property_registry();
+        echo '<div class="bhy-css-prop-row" data-prop-index="' . esc_attr((string) $j) . '">';
+        echo '<select class="bhy-prop-select" name="custom_css_rules[' . esc_attr((string) $i) . '][props][' . esc_attr((string) $j) . '][property]">';
+        echo '<option value="">Choose a property…</option>';
+        foreach ($registry as $key => $def) {
+            echo '<option value="' . esc_attr($key) . '"' . selected($property, $key, false) . '>' . esc_html($def['label'] ?? $key) . '</option>';
+        }
+        echo '</select>';
+        echo '<span class="bhy-prop-control-slot">';
+        if ($property !== '' && isset($registry[$property])) {
+            self::render_css_prop_control($i, $j, $property, $registry[$property], $value);
+        }
+        echo '</span>';
+        echo '<button type="button" class="button-link-delete bhy-remove-prop">&times;</button>';
+        echo '</div>';
+    }
+
+    /**
+     * The actual typed control for one property — mirrors JS's
+     * buildPropControl() in render_script() exactly (same field name,
+     * same control shape per type) so a control rendered here on page
+     * load and one built by JS after picking a property from the
+     * dropdown are indistinguishable to the save handler.
+     *
+     * @param array<string, mixed> $def
+     */
+    private static function render_css_prop_control(int $i, int $j, string $property, array $def, string $value): void {
+        $name = 'custom_css_rules[' . $i . '][props][' . $j . '][value]';
+        $type = $def['type'] ?? 'text';
+        if ($type === 'color') {
+            $val = $value !== '' ? $value : (string) ($def['default'] ?? '#000000');
+            echo '<input type="color" name="' . esc_attr($name) . '" value="' . esc_attr($val) . '">';
+        } elseif ($type === 'keyword') {
+            $options = $def['options'] ?? [];
+            echo '<select name="' . esc_attr($name) . '">';
+            foreach ($options as $opt_val => $opt_label) {
+                echo '<option value="' . esc_attr($opt_val) . '"' . selected($value, $opt_val, false) . '>' . esc_html($opt_label) . '</option>';
+            }
+            echo '</select>';
+        } elseif ($type === 'font') {
+            // Stored value already carries the fallback ("Inter", sans-
+            // serif) — strip it back down to just the font name for the
+            // editable field, matching how component-token font fields
+            // already round-trip.
+            $display = preg_replace('/^"?([^",]+)"?.*$/', '$1', $value);
+            echo '<input type="text" class="regular-text" name="' . esc_attr($name) . '" value="' . esc_attr($display) . '" placeholder="' . esc_attr($def['default'] ?? 'Inter') . '">';
+        } else { // 'size'
+            $num = is_numeric($value) ? $value : preg_replace('/[a-z%]+$/i', '', $value);
+            $num = $num !== '' && is_numeric($num) ? $num : ($def['default'] ?? 0);
+            echo '<input type="number" step="' . esc_attr((string) ($def['step'] ?? 1)) . '" min="' . esc_attr((string) ($def['min'] ?? '')) . '" max="' . esc_attr((string) ($def['max'] ?? '')) . '" name="' . esc_attr($name) . '" value="' . esc_attr((string) $num) . '" style="width:90px;"> <span class="description">' . esc_html($def['unit'] ?? '') . '</span>';
+        }
+    }
+
+    /**
      * @param array<string, mixed> $surfaces
      * @param array<string, mixed> $s
      */
     private static function render_script($surfaces, $s): void {
         ?>
         <style><?php echo BHY_UI::admin_page_css(); ?></style>
+        <style>
+        /* Visual Custom CSS rule editor — kept out of BHY_UI::admin_page_css()'s
+           own giant single-quoted string on purpose (a stray apostrophe in a
+           comment there once took the whole file down; see CLAUDE.md).
+           Every row is flex-wrap + min-width:0 on its text inputs/selects —
+           the controls column here is only ~380px, and a plain flex row of
+           a text input + a dropdown + a button will happily force itself
+           wider than that and clip/scroll unless the input is explicitly
+           allowed to shrink below its intrinsic content width. */
+        .bhy-css-rule { border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius-sm, 6px); padding: 12px; margin-bottom: 10px; background: var(--bhy-surface, #fff); transition: border-color var(--bhy-transition, 150ms ease); }
+        .bhy-css-rule:focus-within { border-color: var(--bhy-accent, #2271b1); }
+        .bhy-css-rule-header { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; max-width: 100%; }
+        .bhy-css-rule-header input[type="text"] { flex: 1 1 160px; min-width: 0; }
+        .bhy-css-rule-header select { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+        .bhy-css-rule-header .bhy-remove-rule { flex: 0 0 auto; white-space: nowrap; }
+        .bhy-css-rule-props { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+        .bhy-css-prop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 100%; padding-bottom: 8px; border-bottom: 1px solid var(--bhy-border, #f0f0f1); }
+        .bhy-css-prop-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .bhy-css-prop-row .bhy-prop-select { flex: 1 1 140px; min-width: 0; max-width: 100%; }
+        .bhy-css-prop-control-slot, .bhy-prop-control-slot { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 120px; min-width: 0; max-width: 100%; }
+        .bhy-prop-control-slot input[type="text"], .bhy-prop-control-slot input[type="number"] { min-width: 0; max-width: 100%; }
+        .bhy-css-prop-row .bhy-remove-prop { flex: 0 0 auto; }
+        #bhy-css-rules:empty::before { content: "No custom rules yet — add one below, or right-click an element in the Live Editor."; display: block; color: var(--bhy-ink-dim, #787c82); font-style: italic; font-size: 13px; padding: 4px 0 12px; }
+        </style>
         <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css(null, false)); ?></style>
         <script>
         <?php echo BHY_UI::swatch_js("refreshAllFrames();"); ?>
@@ -948,6 +1088,136 @@ class BHY_Gallery {
             // previous visit never got drawn into a freshly loaded page's
             // frames at all, since nothing had "changed" yet to trigger it.
             refreshAllFrames();
+        })();
+        </script>
+        <script>
+        // The visual Custom CSS rule editor (BHY_Gallery::render_css_rule_
+        // row()/render_css_prop_row()/render_css_prop_control() render the
+        // exact same markup server-side on page load; this handles adding/
+        // removing rules and properties, and swapping a property row's
+        // control when its dropdown selection changes — MUST build the
+        // exact same field names/control shapes those PHP methods do, or
+        // a row added here would silently fail to save.
+        var bhyCssPropertyRegistry = <?php echo wp_json_encode(BHY_Style::css_property_registry()); ?>;
+        var bhyCssStateOptions = <?php echo wp_json_encode(BHY_Style::css_state_options()); ?>;
+        (function () {
+            var rulesWrap = document.getElementById('bhy-css-rules');
+            var addRuleBtn = document.getElementById('bhy-add-rule');
+            if (!rulesWrap || !addRuleBtn) return;
+
+            function escapeHtml(str) {
+                var div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
+
+            function buildPropControl(name, property, value) {
+                var def = bhyCssPropertyRegistry[property];
+                if (!def) return '';
+                if (def.type === 'color') {
+                    return '<input type="color" name="' + name + '" value="' + escapeHtml(value || def.default || '#000000') + '">';
+                }
+                if (def.type === 'keyword') {
+                    var html = '<select name="' + name + '">';
+                    Object.keys(def.options || {}).forEach(function (optVal) {
+                        var sel = optVal === value ? ' selected' : '';
+                        html += '<option value="' + escapeHtml(optVal) + '"' + sel + '>' + escapeHtml(def.options[optVal]) + '</option>';
+                    });
+                    return html + '</select>';
+                }
+                if (def.type === 'font') {
+                    var display = (value || '').replace(/^"?([^",]+)"?.*$/, '$1');
+                    return '<input type="text" class="regular-text" name="' + name + '" value="' + escapeHtml(display) + '" placeholder="' + escapeHtml(def.default || 'Inter') + '">';
+                }
+                // 'size'
+                var num = value && !isNaN(parseFloat(value)) ? parseFloat(value) : (def.default || 0);
+                return '<input type="number" step="' + (def.step || 1) + '" min="' + (def.min ?? '') + '" max="' + (def.max ?? '') + '" name="' + name + '" value="' + num + '" style="width:90px;"> <span class="description">' + escapeHtml(def.unit || '') + '</span>';
+            }
+
+            function buildPropRow(ruleIndex, propIndex) {
+                var row = document.createElement('div');
+                row.className = 'bhy-css-prop-row';
+                row.dataset.propIndex = String(propIndex);
+                var namePrefix = 'custom_css_rules[' + ruleIndex + '][props][' + propIndex + ']';
+                var options = '<option value="">Choose a property…</option>';
+                Object.keys(bhyCssPropertyRegistry).forEach(function (key) {
+                    options += '<option value="' + escapeHtml(key) + '">' + escapeHtml(bhyCssPropertyRegistry[key].label) + '</option>';
+                });
+                row.innerHTML = '<select class="bhy-prop-select" name="' + namePrefix + '[property]">' + options + '</select>'
+                    + '<span class="bhy-prop-control-slot"></span>'
+                    + '<button type="button" class="button-link-delete bhy-remove-prop">&times;</button>';
+                return row;
+            }
+
+            function buildRuleRow(ruleIndex) {
+                var rule = document.createElement('div');
+                rule.className = 'bhy-css-rule';
+                rule.dataset.ruleIndex = String(ruleIndex);
+                var stateOptions = '';
+                Object.keys(bhyCssStateOptions).forEach(function (val) {
+                    stateOptions += '<option value="' + escapeHtml(val) + '">' + escapeHtml(bhyCssStateOptions[val]) + '</option>';
+                });
+                rule.innerHTML = '<div class="bhy-css-rule-header">'
+                    + '<input type="text" class="regular-text code" name="custom_css_rules[' + ruleIndex + '][selector]" value="" placeholder=".some-selector">'
+                    + '<select name="custom_css_rules[' + ruleIndex + '][state]">' + stateOptions + '</select>'
+                    + '<button type="button" class="button-link-delete bhy-remove-rule">Remove rule</button>'
+                    + '</div>'
+                    + '<div class="bhy-css-rule-props"></div>'
+                    + '<button type="button" class="button bhy-add-prop">+ Add property</button>';
+                return rule;
+            }
+
+            function nextRuleIndex() {
+                var existing = rulesWrap.querySelectorAll('.bhy-css-rule');
+                var max = -1;
+                existing.forEach(function (el) { max = Math.max(max, parseInt(el.dataset.ruleIndex, 10) || 0); });
+                return max + 1;
+            }
+
+            function nextPropIndex(rule) {
+                var existing = rule.querySelectorAll('.bhy-css-prop-row');
+                var max = -1;
+                existing.forEach(function (el) { max = Math.max(max, parseInt(el.dataset.propIndex, 10) || 0); });
+                return max + 1;
+            }
+
+            addRuleBtn.addEventListener('click', function () {
+                var rule = buildRuleRow(nextRuleIndex());
+                rulesWrap.appendChild(rule);
+                rule.querySelector('.bhy-add-prop').click();
+            });
+
+            rulesWrap.addEventListener('click', function (e) {
+                var target = e.target;
+                if (target.classList.contains('bhy-remove-rule')) {
+                    target.closest('.bhy-css-rule').remove();
+                } else if (target.classList.contains('bhy-add-prop')) {
+                    var rule = target.closest('.bhy-css-rule');
+                    var propsWrap = rule.querySelector('.bhy-css-rule-props');
+                    propsWrap.appendChild(buildPropRow(rule.dataset.ruleIndex, nextPropIndex(rule)));
+                } else if (target.classList.contains('bhy-remove-prop')) {
+                    target.closest('.bhy-css-prop-row').remove();
+                }
+            });
+
+            rulesWrap.addEventListener('change', function (e) {
+                if (!e.target.classList.contains('bhy-prop-select')) return;
+                var select = e.target;
+                var row = select.closest('.bhy-css-prop-row');
+                var rule = select.closest('.bhy-css-rule');
+                var slot = row.querySelector('.bhy-prop-control-slot');
+                var namePrefix = 'custom_css_rules[' + rule.dataset.ruleIndex + '][props][' + row.dataset.propIndex + ']';
+                slot.innerHTML = select.value ? buildPropControl(namePrefix + '[value]', select.value, '') : '';
+            });
+
+            // A rule pre-filled from the Customizer's "Add custom rule for
+            // this element" deep-link (?add_selector=...) arrives with a
+            // selector but zero properties — start it with one empty
+            // property row so the admin isn't looking at a selector with
+            // nothing to fill in.
+            rulesWrap.querySelectorAll('.bhy-css-rule').forEach(function (rule) {
+                if (!rule.querySelector('.bhy-css-prop-row')) rule.querySelector('.bhy-add-prop').click();
+            });
         })();
         </script>
         <?php
