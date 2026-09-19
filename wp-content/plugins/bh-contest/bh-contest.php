@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Contest
  * Description: Music contest voting platform with a sleek, native-feeling player.
- * Version:     3.15.12
+ * Version:     3.15.13
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  */
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BH_VER',        '3.15.12');
+define('BH_VER',        '3.15.13');
 
 define('BH_PATH',       plugin_dir_path(__FILE__));
 define('BH_URL',        plugin_dir_url(__FILE__));
@@ -126,6 +126,7 @@ add_action('plugins_loaded', function () {
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['contest_badge'] = [
                 'label' => 'Contest badge',
+                'selector' => '.bh-contest-badge',
                 'tokens' => [
                     'font_size' => ['label' => 'Text size',   'type' => 'size', 'min' => 8,  'max' => 14, 'step' => 1, 'unit' => 'px', 'default' => 10],
                     'padding_h' => ['label' => 'Horizontal padding', 'type' => 'size', 'min' => 2, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 7],

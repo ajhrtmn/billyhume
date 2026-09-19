@@ -262,7 +262,7 @@ class BHY_Style {
             // its padding/radius/font-size/weight are real Design Suite
             // controls instead of numbers hardcoded here. Falls back to
             // the exact previous values when unconfigured.
-            . '.bh-badge{display:inline-block;padding:var(--bh-comp-badge-padding_v,2px) var(--bh-comp-badge-padding_h,10px);border-radius:var(--bh-comp-badge-radius,999px);font-size:var(--bh-comp-badge-font_size,11px);font-weight:var(--bh-comp-badge-font_weight,600);white-space:nowrap;background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}'
+            . '.bh-badge{display:inline-block;padding:var(--bh-comp-badge-padding_v,2px) var(--bh-comp-badge-padding_h,10px);border-radius:var(--bh-comp-badge-radius,999px);font-size:var(--bh-comp-badge-font_size,11px);font-weight:var(--bh-comp-badge-font_weight,600);white-space:nowrap;background:var(--bh-comp-badge-bg_color,#f0f0f1);color:var(--bh-comp-badge-text_color,#646970);}'
             . '.bh-badge-success{background:var(--bh-success-bg);color:var(--bh-success);}'
             . '.bh-badge-warning{background:var(--bh-warning-bg);color:var(--bh-warning);}'
             . '.bh-badge-danger{background:var(--bh-danger-bg);color:var(--bh-danger);}'
@@ -694,7 +694,7 @@ class BHY_Style {
     // colour DERIVED from a seed — the four accent tokens plus the new
     // context-aware roles — is now produced by BHY_Contrast::resolve()
     // from one recipe table. See class-contrast.php.
-    public static function inline_css(?int $entity_id = null): string {
+    public static function inline_css(?int $entity_id = null, bool $include_custom_css = true): string {
         $s = self::get($entity_id);
         $vars = [
             '--bh-bg' => $s['color_bg'], '--bh-surface' => $s['color_surface'], '--bh-surface-2' => $s['color_surface_2'],
@@ -805,7 +805,29 @@ class BHY_Style {
             }
         }
 
-        return ':root{' . $decls . '}';
+        $css = ':root{' . $decls . '}';
+
+        // Raw custom CSS (see save_from_input()'s docblock note on it) —
+        // real selectors, so appended as-is rather than folded into the
+        // :root block above. Only defense here is against breaking out
+        // of the <style> tag this gets embedded in; the admin-only trust
+        // boundary is the same one every other token on this page
+        // already crosses (font names, custom colors are free text too).
+        // $include_custom_css=false exists for exactly one caller
+        // (BHY_Gallery's own light-DOM ".bhy-token-preview" scale-
+        // reference swatches, class-style-gallery.php) — an arbitrary
+        // admin-typed selector there would apply to the REAL admin page
+        // chrome around it, not a sandboxed preview, since that one
+        // preview element is NOT inside a shadow root like every real
+        // registered surface is.
+        if ($include_custom_css) {
+            $custom = trim((string) ($s['custom_css'] ?? ''));
+            if ($custom !== '') {
+                $css .= "\n" . str_ireplace(['</style', '<script'], ['<\/style', '<\/script'], $custom);
+            }
+        }
+
+        return $css;
     }
 
     /**
@@ -987,6 +1009,18 @@ class BHY_Style {
                 }
             }
         }
+
+        // The escape hatch for "get really granular in a custom way"
+        // (AJ, 2026-09-19) beyond the registered component_tokens()
+        // groups — raw selector-scoped CSS, same trust model as WP
+        // core's own Additional CSS Customizer control (this page
+        // already requires the same capability as every other style
+        // token here; sanitization happens at emission time in
+        // inline_css(), not by mangling what the admin typed). The
+        // Customizer's click-to-select "Copy CSS selector" action feeds
+        // this by giving AJ a real, specific selector to paste in,
+        // rather than needing to inspect markup by hand.
+        $data['custom_css'] = isset($incoming['custom_css']) ? substr((string) $incoming['custom_css'], 0, 20000) : '';
 
         return $data;
     }

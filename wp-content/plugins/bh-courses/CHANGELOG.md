@@ -4,6 +4,12 @@ Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why versio
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
+0.16.35 - Registered 'selector' on all 4 of this plugin's component_tokens()
+groups (course_card, course_sidebar, progress_bar, course_page) for core's
+new click-to-select/right-click Customizer feature — clicking a real
+course card, sidebar, progress bar, or the course-page instructor row in
+the Customizer's live preview now jumps straight to that section.
+
 0.16.34 - Real bug found and fixed tracing Phase 3's live Customizer
 preview against the actual /courses/ page: the "Course card" group's
 radius/padding/gap tokens (added in 0.16.31) never actually worked there

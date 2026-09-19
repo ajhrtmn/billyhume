@@ -120,6 +120,10 @@ interface WpCustomizeValue<T> {
 
 interface WpCustomizePreviewApi {
     (id: string, callback: (value: WpCustomizeValue<string>) => void): void;
+    preview?: { send(event: string, data?: unknown): void };
+    bind?(event: string, callback: (...args: unknown[]) => void): void;
+    previewer?: { bind(event: string, callback: (data: unknown) => void): void };
+    section?(id: string): { focus(): void } | undefined;
 }
 
 interface WpGlobal {

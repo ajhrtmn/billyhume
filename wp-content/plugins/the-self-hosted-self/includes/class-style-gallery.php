@@ -224,7 +224,8 @@ class BHY_Gallery {
                 'autofocus[panel]'       => 'bhy_live_design',
                 'return'                 => rawurlencode(admin_url('admin.php?page=bh-style')),
             ], admin_url('customize.php'));
-            echo '<p class="bhy-live-editor-cta"><a href="' . esc_url($customize_url) . '" class="button button-primary">Open Live Editor — edit Components on the real page</a> <span class="description">Same Component tokens as below, previewed against the actual site; its own Close button brings you back here.</span></p>';
+            echo '<p class="bhy-live-editor-cta"><a href="' . esc_url($customize_url) . '" class="button button-primary">Open Live Editor — edit Components on the real page</a></p>';
+            echo '<p class="description">Same Component tokens as below, previewed against the actual site. Inside it: <strong>click</strong> any styled element (a card, badge, button…) to jump straight to its controls; <strong>right-click</strong> for a menu of every matching component at that point (useful when one is nested inside another) plus "Copy CSS selector" for the Custom CSS box further down this page. Its own Close (X) button brings you back here.</p>';
         }
 
         // Hidden for now (AJ, 2026-09-19) as part of pruning Design Suite
@@ -529,6 +530,22 @@ class BHY_Gallery {
             echo '</div>';
         }
 
+        // The granular escape hatch beyond the registered Components
+        // above: raw selector-scoped CSS (see BHY_Style::save_from_input()
+        // /inline_css()'s own docblocks). Filled in from the Customizer's
+        // click-to-select "Copy CSS selector" action (see
+        // BHY_Customizer/customizer-preview.ts) — this box is where that
+        // copied selector actually gets used. Only applies to the real
+        // site/Customizer preview, not the shadow-DOM surfaces above
+        // (each of which already gets it correctly via its own
+        // sandboxed <style id="bhy-vars">) — the note here says so
+        // explicitly rather than leaving that a silent surprise.
+        echo '<div class="bhy-token-group" data-token-group="custom-css">';
+        echo '<h3>Custom CSS <span class="description" style="text-transform:none;font-weight:400;">(for anything the Components above don\'t cover)</span></h3>';
+        echo '<p class="description">Real CSS, any selector. <strong>How to get a selector:</strong> open <a href="' . esc_url(add_query_arg(['url' => rawurlencode(class_exists('BHY_Customizer') ? BHY_Customizer::default_preview_url() : home_url('/'))], admin_url('customize.php'))) . '">the Live Editor</a>, right-click anything on the page, and choose "Copy CSS selector" — paste it here and add whatever properties you want. Preview: reload the real page or the Live Editor after saving (this box doesn\'t live-preview in the canvas above, since those previews are sandboxed per-surface and a real page selector wouldn\'t match anything in them anyway).</p>';
+        echo '<textarea name="custom_css" id="custom_css" rows="8" class="large-text code" placeholder="' . esc_attr('.bhc-course-card .bhc-card-instructor {' . "\n" . '    display: none;' . "\n" . '}') . '">' . esc_textarea((string) ($s['custom_css'] ?? '')) . '</textarea>';
+        echo '</div>';
+
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
 
         // OUS_Revisions consumer, ROADMAP-search-and-revisions.md
@@ -557,7 +574,7 @@ class BHY_Gallery {
     private static function render_script($surfaces, $s): void {
         ?>
         <style><?php echo BHY_UI::admin_page_css(); ?></style>
-        <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css()); ?></style>
+        <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css(null, false)); ?></style>
         <script>
         <?php echo BHY_UI::swatch_js("refreshAllFrames();"); ?>
         // Schema for grouped component tokens (BHY_Style::component_tokens())

@@ -31,6 +31,7 @@ class BHY_Customizer {
     public static function init() {
         add_action('customize_register', [__CLASS__, 'register']);
         add_action('customize_preview_init', [__CLASS__, 'enqueue_preview_script']);
+        add_action('customize_controls_enqueue_scripts', [__CLASS__, 'enqueue_controls_script']);
     }
 
     public static function register($wp_customize) {
@@ -39,7 +40,8 @@ class BHY_Customizer {
 
         $wp_customize->add_panel('bhy_live_design', [
             'title'       => 'Design Suite (Live)',
-            'description' => 'The same granular tokens as Settings & Style → Design Suite\'s "Components" section, edited here while looking at the real page. Saves to the exact same site-wide settings.',
+            'description' => 'The same granular tokens as Settings & Style → Design Suite\'s "Components" section, edited here while looking at the real page. Saves to the exact same site-wide settings.'
+                . "\n\n" . 'Click any styled element in the preview to jump straight to its section below. Right-click it for a menu of every component at that point (useful when one is nested inside another, like a badge inside a card) — each menu item either jumps to that section or, for "Copy CSS selector," copies a real CSS selector for that exact element to your clipboard so you can paste it into Design Suite\'s "Custom CSS" box for anything these controls don\'t cover.',
             'priority'    => 30,
         ]);
 
@@ -56,6 +58,38 @@ class BHY_Customizer {
             foreach ($fonts as $key => $def) {
                 self::add_font_control($wp_customize, 'bhy_live_plugin_adjustments', 'bhy_style_settings[custom_fonts][' . $key . ']', $def);
             }
+        }
+
+        // The Customizer-side counterpart of the Design Suite admin
+        // page's "Custom CSS" textarea (BHY_Gallery::render_controls())
+        // — same option key, same trust boundary, WP core's own
+        // Code Editor control (used by its native "Additional CSS"
+        // feature) rather than inventing our own. 'selective_refresh'
+        // isn't used since a full stylesheet replace on every keystroke
+        // via postMessage (see enqueue_preview_script()'s dedicated
+        // binding for this one setting, kept out of the generic schema
+        // loop since it's not a --bh-* variable) is simpler and just as
+        // fast for a single <style> tag swap.
+        if (class_exists('WP_Customize_Code_Editor_Control')) {
+            $wp_customize->add_section('bhy_live_custom_css', [
+                'title'       => 'Custom CSS',
+                'panel'       => 'bhy_live_design',
+                'description' => 'For anything the Component sections above don\'t cover. Right-click an element in the preview and choose "Copy CSS selector" to get a real selector to start from.',
+            ]);
+            $wp_customize->add_setting('bhy_style_settings[custom_css]', [
+                'type'              => 'option',
+                'default'           => '',
+                'sanitize_callback' => function ($val) {
+                    return substr(str_ireplace(['</style', '<script'], ['<\/style', '<\/script'], (string) $val), 0, 20000);
+                },
+                'transport' => 'postMessage',
+            ]);
+            $wp_customize->add_control(new \WP_Customize_Code_Editor_Control($wp_customize, 'bhy_style_settings[custom_css]', [
+                'label'     => 'Custom CSS',
+                'section'   => 'bhy_live_custom_css',
+                'settings'  => 'bhy_style_settings[custom_css]',
+                'code_type' => 'text/css',
+            ]));
         }
 
         foreach (BHY_Style::component_tokens() as $group => $def) {
@@ -207,6 +241,41 @@ class BHY_Customizer {
             }
         }
         wp_localize_script('bhy-customizer-preview', 'bhyCustomizerSchema', $schema);
+
+        // Click-to-select / right-click ancestor picker: a plugin that
+        // wants its component "clickable" in the live preview declares
+        // a 'selector' on its component_tokens() group (the real CSS
+        // selector for that component's root element — e.g. '.bh-badge',
+        // '.bhc-course-sidebar'). This is intentionally the full extent
+        // of the "click an element to edit it" feature: a click walks up
+        // the DOM from the click point, finds the nearest ancestor
+        // matching any registered selector, and jumps the CONTROLS pane
+        // to that group's section — no floating inspector panel, no
+        // persistent overlay, no linked-component/instance system (the
+        // page-builder saga's actual mistake, per CLAUDE.md). Right-click
+        // does the same walk but collects EVERY matching ancestor (for
+        // nested components — a badge inside a card) and shows a small
+        // native-styled menu to pick which one's section to jump to.
+        $selectors = [];
+        foreach (BHY_Style::component_tokens() as $group => $def) {
+            if (!empty($def['selector'])) {
+                $selectors[] = ['group' => sanitize_key($group), 'selector' => (string) $def['selector'], 'label' => $def['label'] ?? $group];
+            }
+        }
+        wp_localize_script('bhy-customizer-preview', 'bhyCustomizerSelectors', $selectors);
+    }
+
+    public static function enqueue_controls_script() {
+        wp_add_inline_script('customize-controls', "
+            (function () {
+                wp.customize.bind('ready', function () {
+                    wp.customize.previewer.bind('bhy-jump-to-section', function (group) {
+                        var section = wp.customize.section('bhy_live_component_' + group);
+                        if (section) section.focus();
+                    });
+                });
+            })();
+        ");
     }
 
     /**

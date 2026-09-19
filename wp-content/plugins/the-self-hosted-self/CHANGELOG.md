@@ -9,6 +9,52 @@ has been reworded or dropped.
 
 ---
 
+3.21.38 - Two follow-ups to 3.21.37's click-to-select/right-click work,
+per AJ's "get really granular in a custom way" + "GUI instructs the user
+well in itself" asks:
+
+- New "Custom CSS" escape hatch — a real, selector-scoped CSS textarea
+  (BHY_Style's custom_css, sanitized minimally at emission the same way
+  WP core trusts its own "Additional CSS" Customizer control, since this
+  page already requires the same capability as every other token here).
+  Available both in the Design Suite admin page and, via WP core's own
+  WP_Customize_Code_Editor_Control, inside the live Customizer — same
+  option, same live preview (a swapped <style> tag). inline_css() gained
+  an $include_custom_css param so it can be safely excluded from the ONE
+  light-DOM (non-shadow-root) preview surface in class-style-gallery.php
+  that a stray broad selector could otherwise visibly break.
+- The right-click menu in the Customizer preview now always offers "Copy
+  CSS selector" for whatever was clicked (not just registered
+  components), feeding that Custom CSS box with a real, usable selector
+  instead of requiring dev-tools inspection. Hover highlighting (a dashed
+  outline) now marks any element that matches a registered component,
+  so "click things to edit them" is discoverable without reading docs.
+  The Design Suite page's "Open Live Editor" button text and the
+  Customizer panel's own description both now explain click/right-click/
+  Copy-selector directly in the GUI, not just in a changelog.
+- badge_css()'s neutral badge variant gained real background/text-color
+  component tokens (previously only the .bh-badge-success/-warning/
+  -danger hardcoded variants had a color path) — a first concrete step
+  on "more complete and standardized" per-element property coverage.
+
+3.21.37 - BHY_Customizer gains click-to-select and a right-click ancestor
+picker inside the live preview iframe: a component_tokens() group can now
+declare a 'selector' (its real CSS root selector, e.g. '.bh-badge') and
+clicking any matching element on the real page jumps the Customizer
+controls pane straight to that group's section (deepest/most-specific
+match on a plain click); right-clicking where multiple registered
+components are nested (a badge inside a card) shows a small menu listing
+every matched ancestor to choose from. Deliberately the full extent of
+this feature — a jump-to-section shortcut, not a floating inspector
+panel, persistent overlay, or linked-component/instance system (the
+actual mistake the deleted page-builder made, per CLAUDE.md's "page-
+builder saga"). New customize_controls_enqueue_scripts listener
+(wp.customize.previewer.bind) on the controls side; the preview side adds
+click/contextmenu handlers only when at least one component registered a
+selector. 'selector' added to all 7 existing groups (core's badge;
+bh-courses' course_card/course_sidebar/progress_bar/course_page;
+bh-contest's contest_badge; bh-monetization-woo's tier_card/button).
+
 3.21.36 - component_tokens() gains a 'toggle' type (checkbox) alongside
 size/color/font — shows/hides a whole element via a CSS keyword swap
 (display: var(--bh-comp-<group>-<key>, <off-keyword>), 'on'/'off' declared

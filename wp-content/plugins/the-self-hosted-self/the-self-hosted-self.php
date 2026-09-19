@@ -2,14 +2,14 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.21.36
+ * Version:     3.21.38
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.21.36');
+define('OUS_VER', '3.21.38');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -122,12 +122,24 @@ add_action('init',          ['OUS_GithubUpdates', 'init']);
 add_filter('bhy_style_component_tokens', function ($components) {
     $components['badge'] = [
         'label' => 'Badges & pills',
+        // Click-to-select in BHY_Customizer's live preview (class-
+        // customizer.php) — the real CSS selector for this component's
+        // root element, so clicking any actual badge on a real page
+        // jumps straight to this section.
+        'selector' => '.bh-badge',
         'tokens' => [
             'padding_v'   => ['label' => 'Vertical padding',   'type' => 'size', 'min' => 0, 'max' => 10, 'step' => 1, 'unit' => 'px', 'default' => 2],
             'padding_h'   => ['label' => 'Horizontal padding', 'type' => 'size', 'min' => 4, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
             'radius'      => ['label' => 'Corner radius',      'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 999],
             'font_size'   => ['label' => 'Text size',          'type' => 'size', 'min' => 9, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 11],
             'font_weight' => ['label' => 'Text weight',        'type' => 'size', 'min' => 400, 'max' => 800, 'step' => 100, 'unit' => '', 'default' => 600],
+            // "More complete and standardized" (AJ, 2026-09-19): the
+            // neutral badge variant's own background/text color, editable
+            // like every other property here instead of only being
+            // reachable via the .bh-badge-success/-warning/-danger
+            // hardcoded variant classes.
+            'bg_color'    => ['label' => 'Background color', 'type' => 'color', 'default' => '#f0f0f1'],
+            'text_color'  => ['label' => 'Text color',       'type' => 'color', 'default' => '#646970'],
         ],
     ];
     return $components;

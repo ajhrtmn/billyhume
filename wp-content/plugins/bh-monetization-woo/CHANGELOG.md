@@ -6,6 +6,10 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.7 - Registered 'selector' ('.bhm-tier-card', '.bhm-btn') on both
+component_tokens() groups for core's new click-to-select/right-click
+Customizer feature.
+
 0.6.6 - Design Suite Phase 2: two component_tokens() groups -- "Supporter
 tier card" (.bhm-tier-card radius/padding) and "Button" (.bhm-btn
 radius/vertical padding/horizontal padding, this ecosystem's one real

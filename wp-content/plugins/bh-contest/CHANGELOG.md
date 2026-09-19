@@ -6,6 +6,10 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.13 - Registered 'selector' ('.bh-contest-badge') on the contest_badge
+component_tokens() group for core's new click-to-select/right-click
+Customizer feature.
+
 3.15.12 - Design Suite Phase 2: this plugin's first component_tokens()
 registration, "Contest badge" (.bh-contest-badge in player.css — text size,
 horizontal padding, corner radius). A genuinely separate hardcoded

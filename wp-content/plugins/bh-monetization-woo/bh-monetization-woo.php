@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BH Monetization (WooCommerce)
  * Description: Artist monetization for bh-streaming — subscriptions, tips, pay-per-play, track/album purchase with lossless+compressed delivery, streaming-tier access, and refund/velocity fraud-pattern flagging — all backed by WooCommerce, never a parallel payments stack.
- * Version:     0.6.6
+ * Version:     0.6.7
  * Requires PHP: 8.2
  * Requires Plugins: the-self-hosted-self
  * Ecosystem: The Self-Hosted Self
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('BHM_VER',  '0.6.6');
+define('BHM_VER',  '0.6.7');
 
 define('BHM_PATH', plugin_dir_path(__FILE__));
 define('BHM_URL',  plugin_dir_url(__FILE__));
@@ -88,6 +88,7 @@ add_action('plugins_loaded', function () {
         add_filter('bhy_style_component_tokens', function ($components) {
             $components['tier_card'] = [
                 'label' => 'Supporter tier card',
+                'selector' => '.bhm-tier-card',
                 'tokens' => [
                     'radius'  => ['label' => 'Corner radius', 'type' => 'size', 'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 8],
                     'padding' => ['label' => 'Padding',       'type' => 'size', 'min' => 0, 'max' => 32, 'step' => 1, 'unit' => 'px', 'default' => 20],
@@ -95,6 +96,7 @@ add_action('plugins_loaded', function () {
             ];
             $components['button'] = [
                 'label' => 'Button',
+                'selector' => '.bhm-btn',
                 'tokens' => [
                     'radius'    => ['label' => 'Corner radius',      'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 6],
                     'padding_v' => ['label' => 'Vertical padding',   'type' => 'size', 'min' => 4, 'max' => 20,  'step' => 1, 'unit' => 'px', 'default' => 10],
