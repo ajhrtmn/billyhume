@@ -9,6 +9,35 @@ has been reworded or dropped.
 
 ---
 
+3.21.39 - Fixed "Copy CSS selector" (3.21.38) not actually copying,
+reported live by AJ. Two real, separate bugs found tracing it:
+
+1. The plain-click "jump to section" listener is a CAPTURE-phase
+   listener on `document`, so it ran BEFORE the context menu's own
+   bubble-phase click listener ever got a chance to fire — its
+   unconditional closeMenu() wiped the menu (and the click's target)
+   out of the DOM before the menu item's own handler could act, even
+   though that handler called stopPropagation(). Fixed by skipping that
+   listener entirely when the click landed inside the currently-open
+   menu; the dedicated "click outside closes it" listener (a genuine
+   bubble-phase listener, which correctly runs AFTER a menu item's own
+   handler) already owned closing it from everywhere else.
+2. Once the menu could actually respond to its own click:
+   navigator.clipboard.writeText() rejects with a silent NotAllowedError
+   in WP's own Customizer preview iframe (no clipboard-write permission
+   delegated to it — not something fixable from this plugin's JS).
+   Replaced with document.execCommand('copy') via a scratch textarea,
+   which works because it's synchronous and tied directly to the
+   click's own user gesture rather than subject to the async Clipboard
+   API's permission policy; falls back further to a plain selectable
+   text field, kept in the still-open menu, if even that's blocked —
+   guaranteed to work regardless of clipboard permissions either way.
+
+Verified live: a real click now shows "Copied!" and the menu closes
+itself after a beat; forcing the execCommand path to fail (as an
+untrusted/synthetic click does) correctly falls through to the visible,
+selectable text field instead of silently doing nothing.
+
 3.21.38 - Two follow-ups to 3.21.37's click-to-select/right-click work,
 per AJ's "get really granular in a custom way" + "GUI instructs the user
 well in itself" asks:

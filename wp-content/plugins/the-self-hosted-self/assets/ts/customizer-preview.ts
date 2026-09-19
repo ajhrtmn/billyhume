@@ -153,8 +153,21 @@ interface BhyCustomizerSchemaEntry {
         }, true);
 
         document.addEventListener('click', function (e) {
-            closeMenu();
             const target = e.target as Element | null;
+            // Real bug caught live: this is a CAPTURE-phase listener on
+            // `document`, so it runs BEFORE a menu item's own bubble-
+            // phase click listener ever gets a chance to fire — an
+            // unconditional closeMenu() here was wiping the context menu
+            // (including "Copy CSS selector") out of the DOM before its
+            // own click handler could run, even though that handler
+            // called stopPropagation(). Skip entirely when the click
+            // landed inside the open menu; the dedicated "click outside
+            // closes it" listener further down (a bubble-phase listener,
+            // which correctly runs AFTER the menu item's own handler)
+            // already owns closing it from anywhere else.
+            const menu = document.getElementById('bhy-select-menu');
+            if (menu && target && menu.contains(target)) return;
+            closeMenu();
             if (!target) return;
             const matches = matchesFor(target);
             if (!matches.length) return;
@@ -201,13 +214,48 @@ interface BhyCustomizerSchemaEntry {
                 menu.appendChild(divider);
             }
             const selector = computeSelector(target);
+            // Real bug caught live: WP's own Customizer preview iframe
+            // has no clipboard-write permission delegated to it, so
+            // navigator.clipboard.writeText() rejects with a silent
+            // NotAllowedError in every browser tested — not something
+            // fixable from this plugin's JS (we don't control that
+            // iframe's `allow` attribute). document.execCommand('copy')
+            // is deprecated but still works here since it's synchronous
+            // and tied directly to the click's own user gesture, not
+            // subject to the async Clipboard API's permission policy.
+            // Falls back further to a plain selectable text field if
+            // even that's blocked, so there's always a way to get the
+            // selector out by hand.
             const copyItem = addItem('Copy CSS selector (' + selector + ')', function () {
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(selector).then(function () {
-                        copyItem.textContent = 'Copied!';
-                        setTimeout(closeMenu, 600);
-                    });
+                let copied = false;
+                const scratch = document.createElement('textarea');
+                scratch.value = selector;
+                scratch.style.cssText = 'position:fixed;top:-9999px;left:-9999px;';
+                document.body.appendChild(scratch);
+                scratch.select();
+                try {
+                    copied = document.execCommand('copy');
+                } catch (err) {
+                    copied = false;
                 }
+                document.body.removeChild(scratch);
+                if (copied) {
+                    copyItem.textContent = 'Copied!';
+                    setTimeout(closeMenu, 600);
+                    return;
+                }
+                // Last resort: a selectable input right in the menu —
+                // guaranteed to work regardless of clipboard permissions.
+                copyItem.textContent = 'Select and copy:';
+                const field = document.createElement('input');
+                field.type = 'text';
+                field.value = selector;
+                field.readOnly = true;
+                field.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:4px 6px;font:12px monospace;';
+                field.addEventListener('click', function (ev) { ev.stopPropagation(); field.select(); });
+                copyItem.appendChild(field);
+                field.focus();
+                field.select();
             });
             document.body.appendChild(menu);
         }, true);
