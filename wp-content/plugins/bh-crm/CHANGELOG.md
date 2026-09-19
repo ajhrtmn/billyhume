@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+2.4.24 - Design Suite pass: dropped "Project Tracker (kanban)" from the
+style gallery — a management tool, not a front-end style-token surface (AJ's
+direction: keep this page to visitor-facing GUIs only, for now). "CRM profile
+page (live)" is unaffected.
+
 2.4.23 — The person view's "View public profile page" link now also
 checks BHI_PublicProfile::public_enabled() (core 3.21.16 hid public
 profile pages by default). An existing profile_public=1 row no longer

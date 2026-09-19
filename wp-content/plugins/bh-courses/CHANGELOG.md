@@ -6,6 +6,35 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.30 - Design Suite parity pass: the "Course Catalog" and "Lesson Steps &
+Quiz" preview surfaces (class-style-surface.php) were thin stand-ins that had
+drifted from the real markup — rebuilt to match BHC_Render_Catalog::
+render_course_card() and the real .bhc-lesson-layout shell (sidebar + video +
+caption together, not an isolated fragment) class-for-class, so the sidebar-
+width/video-width/caption sliders actually show their effect in the preview.
+
+Course description excerpts on the catalog card are now real rendered HTML
+(BHC_Render_Catalog::rich_excerpt(), DOM-walked so truncation always closes
+its tags) instead of get_the_excerpt()'s always-plain-text auto-excerpt
+(bh_course has no 'excerpt' support, so a bold word or a list in the
+description never survived to the card before this) — wrapped in
+.bhc-step-text so it picks up the same diamond-bullet/quote-mark typography
+the lesson body already has.
+
+Per-step captions (image/video/resource-description/audio-compare — 4 render
+sites, 8 save-path fields in class-steps.php) are now real rich text: the
+block editor's Caption/Description field is wp.blockEditor.RichText (bold/
+italic/link/strikethrough) instead of a plain TextControl that silently
+stripped any markup on save (sanitize_text_field -> wp_kses_post), and the
+front end renders it as a <div> (not a <p> — a <p> can't legally hold block
+content) with the .bhc-step-text class. Not done: full block-level list/
+quote authoring inside a single caption field — that needs real nested
+blocks (InnerBlocks) the way the course description's own Paragraph/List/
+Quote blocks work, not a single embedded RichText; quiz question text and
+checklist items are unchanged (a <legend>'s content model can't legally hold
+block-level markup like a list, so that one is a real HTML constraint, not
+an oversight).
+
 0.16.29 - Lesson-screen sizing controls, live in the Design Suite (requires
 the-self-hosted-self 3.21.31+): three new sliders under Design Suite -> Plugin
 adjustments — "Lesson sidebar width" (`--bh-custom-course_sidebar_width`,

@@ -250,6 +250,38 @@
         });
     }
 
+    /**
+     * A short rich-text caption/description field — bold/italic/link/
+     * strikethrough via RichText's own default toolbar, same formatting
+     * surface bhc/text's and bhc/callout's own RichText fields already
+     * give a lesson author, in place of a plain wp.components.TextControl
+     * that silently stripped any markup on save (BHC_Steps::save() used
+     * sanitize_text_field() before this). RichText has no built-in
+     * label, so this pairs it with the same block-editor label markup
+     * TextControl renders, to keep an identical look for what's still a
+     * single labeled field from the author's point of view. Full block-
+     * level content (a real bulleted list, a blockquote) isn't
+     * authorable from a single embedded RichText the way the course
+     * description's own real Paragraph/List/Quote blocks allow — that's
+     * a Gutenberg RichText-vs-InnerBlocks constraint, not a missing
+     * feature here — but the render side (class-render-lesson.php) still
+     * renders whatever comes through wp_kses_post() with the lesson
+     * body's own .bhc-step-text list/quote styling, so a pasted list
+     * still looks right even though the toolbar itself won't build one.
+     */
+    function CaptionField(props: any) {
+        return el('div', { className: 'bhc-caption-field components-base-control' },
+            el('label', { className: 'components-base-control__label' }, props.label),
+            el(wp.blockEditor.RichText, {
+                tagName: 'div',
+                className: 'bhc-caption-richtext',
+                value: props.value,
+                placeholder: props.placeholder,
+                onChange: props.onChange,
+            })
+        );
+    }
+
     /** A chosen file, shown as a real row rather than a bare id. */
     function chosenFile(icon: any, name: any, note: any, changeButton: any) {
         return el('div', { className: 'bhc-studio-chosen' },
@@ -340,8 +372,9 @@
                         ids.map(function (id: any) { return el(AttachmentThumb, { key: id, id: id }); }))
                     : pickerPlaceholder('format-image', __('No image chosen yet'), __('Pick one or more images to show at this point in the lesson.'), picker),
                 ids.length ? el('div', { key: 'change', style: { marginBottom: '12px' } }, picker) : null,
-                el(wp.components.TextControl, {
-                    key: 'cap', label: __('Caption'), value: attrs.caption,
+                el(CaptionField, {
+                    key: 'cap',
+                    label: __('Caption'), value: attrs.caption,
                     placeholder: __('Optional — shown beneath the image'),
                     onChange: function (v: any) { setAttrs({ caption: v }); },
                 }),
@@ -981,7 +1014,7 @@
                     // "options for this step" panel, rather than loose
                     // controls trailing off after the media.
                     el('div', { key: 'settings', className: 'bhc-studio-settings' },
-                        el(wp.components.TextControl, {
+                        el(CaptionField, {
                             key: 'cap', label: __('Caption'), value: attrs.caption,
                             placeholder: __('Optional — shown beneath the video'),
                             onChange: function (v: any) { setAttrs({ caption: v }); },
@@ -1048,7 +1081,7 @@
                     ? chosenFile('media-default', mediaName(media, attrs.attachment_id), null, picker)
                     : pickerPlaceholder('media-default', __('No file chosen yet'), __('A worksheet, PDF, or reference doc a student can download from this step.'), picker),
                 el(wp.components.TextControl, { key: 'label', label: __('Label'), value: attrs.label, placeholder: __('e.g. Worksheet.pdf'), onChange: function (v: any) { setAttrs({ label: v }); } }),
-                el(wp.components.TextControl, { key: 'desc', label: __('Description'), value: attrs.description, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ description: v }); } }),
+                el(CaptionField, { key: 'desc', label: __('Description'), value: attrs.description, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ description: v }); } }),
             ]);
         },
         save: function () { return null; }, // dynamic — server renderer is BHC_ContentBridge's bhc/resource callback
@@ -1172,7 +1205,7 @@
             return stepShell('controls-volumeon', __('Audio A/B Compare'), null, blockProps, [
                 el(ClipPicker, { key: 'a', idKey: 'attachment_id_a', labelKey: 'label_a', defaultLabel: 'A' }),
                 el(ClipPicker, { key: 'b', idKey: 'attachment_id_b', labelKey: 'label_b', defaultLabel: 'B' }),
-                el(wp.components.TextControl, { key: 'cap', label: __('Caption'), value: attrs.caption, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ caption: v }); } }),
+                el(CaptionField, { key: 'cap', label: __('Caption'), value: attrs.caption, placeholder: __('Optional'), onChange: function (v: any) { setAttrs({ caption: v }); } }),
             ]);
         },
         save: function () { return null; },

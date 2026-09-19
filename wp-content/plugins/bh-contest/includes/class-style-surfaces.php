@@ -41,47 +41,80 @@ class BH_StyleSurfaces {
             'group' => 'Contest', 'label' => 'Results Reveal',
             'render' => [self::class, 'reveal_preview'],
         ];
-        // Design Suite gallery gap: the guided "New Contest" wizard
-        // (BH_ContestWizard, built this session — VISION.md's own
-        // "it just works" principle) is a real wp-admin screen
-        // (.wrap/.button/.notice — WP core's own admin chrome), so
-        // this preview loads WP core's own common.min.css rather than
-        // this plugin's player.css (which the OTHER three surfaces
-        // above correctly use, since their real markup uses THIS
-        // plugin's own custom classes instead).
-        $surfaces['bh-contest-wizard'] = [
-            'group' => 'Contest', 'label' => 'New Contest wizard',
-            'render' => [self::class, 'wizard_preview'],
+        // Real, visitor-facing contest catalog/archive card grid
+        // ([bh_contest_library], BH_Contest_Library) — this was never
+        // registered as a surface at all despite being exactly the kind
+        // of front-end, style-token-driven view this gallery is for
+        // (same "Open now / Starting soon / Wrapped" grouped card grid
+        // a fan actually sees at /contests/). Static, matching that
+        // class's real markup — same convention as reveal_preview()
+        // above rather than invoking the real DB query.
+        $surfaces['bh-contest-library'] = [
+            'group' => 'Contest', 'label' => 'Contest Library (catalog)',
+            'render' => [self::class, 'library_preview'],
         ];
         return $surfaces;
     }
 
     /** @return array{css_url:string, html:string|false} */
-    public static function wizard_preview(): array {
+    public static function library_preview(): array {
         ob_start();
         ?>
-<div class="wrap" style="background:#f0f0f1;color:#1d2327;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif;padding:16px;margin:0;">
-    <h1>New Contest &mdash; Guided Setup</h1>
-    <p class="description">Covers what every contest needs to run. Rounds, Discord notifications, contact-field customization, and branding all stay on the real edit screen with sensible defaults.</p>
+<div class="bh-container bh-contest-library">
+    <div class="bh-contests-landing">
+        <p class="bh-contest-library-lead">2 contests, tracked from first submission to final results.</p>
 
-    <h2>1. Name</h2>
-    <p><input type="text" style="width:100%;max-width:480px;" value="Summer Anthem Contest"></p>
+        <div class="bh-contests-landing-section is-open">
+            <h2 class="bh-contests-landing-heading"><span class="bh-contests-landing-heading-dot" aria-hidden="true"></span>Open now<span class="bh-contests-landing-count">1</span></h2>
+            <div class="bh-contests-landing-grid">
+                <a href="#" class="bh-contest-card tone-live is-ending">
+                    <div class="bh-contest-card-cover" data-placeholder="1" style="background:linear-gradient(135deg,var(--bh-accent),var(--bh-cat-2,var(--bh-accent-soft)));">
+                        <span class="bh-contest-phase-pill"><span class="bh-contest-phase-dot" aria-hidden="true"></span>Voting open</span>
+                        <span class="bh-contest-countdown"><span class="bh-contest-countdown-label">Voting closes</span><span class="bh-contest-countdown-value">in 2 days</span></span>
+                    </div>
+                    <div class="bh-contest-card-body">
+                        <div class="bh-contest-card-headline">
+                            <h3 class="bh-contest-card-title">Summer Anthem Contest</h3>
+                            <div class="bh-contest-card-badges"><span class="bh-contest-badge">2 categories</span></div>
+                        </div>
+                        <p class="bh-contest-card-excerpt">Submit your best summer-vibe track for a shot at the top spot.</p>
+                        <ul class="bh-contest-card-stats">
+                            <li><span class="dashicons dashicons-groups" aria-hidden="true"></span>18 entries</li>
+                            <li><span class="dashicons dashicons-chart-bar" aria-hidden="true"></span>212 votes</li>
+                        </ul>
+                    </div>
+                    <ol class="bh-contest-track" aria-label="Contest progress">
+                        <li class="is-done"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Submissions</span></li>
+                        <li class="is-current"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Voting</span></li>
+                        <li class="is-todo"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Results</span></li>
+                    </ol>
+                </a>
+            </div>
+        </div>
 
-    <h2>2. Submissions</h2>
-    <p><label><input type="checkbox" checked> Open the moment this contest is published (recommended)</label></p>
-
-    <h2>3. Voting</h2>
-    <p>Opens: <input type="datetime-local"> <button class="button button-small">When submissions close</button></p>
-    <p>Closes: <input type="datetime-local"></p>
-
-    <h2>4. Categories <span class="description">(optional)</span></h2>
-    <textarea rows="3" style="width:100%;max-width:480px;font-family:inherit;">Best Vocals
-Best Production</textarea>
-
-    <p style="margin-top:20px;"><button class="button button-primary button-hero">Create contest</button></p>
+        <div class="bh-contests-landing-section is-past">
+            <h2 class="bh-contests-landing-heading"><span class="bh-contests-landing-heading-dot" aria-hidden="true"></span>Wrapped<span class="bh-contests-landing-count">1</span></h2>
+            <div class="bh-contests-landing-grid">
+                <a href="#" class="bh-contest-card tone-done">
+                    <div class="bh-contest-card-cover" data-placeholder="1" style="background:linear-gradient(135deg,var(--bh-cat-3,var(--bh-accent)),var(--bh-accent-soft));">
+                        <span class="bh-contest-phase-pill"><span class="bh-contest-phase-dot" aria-hidden="true"></span>Results in</span>
+                    </div>
+                    <div class="bh-contest-card-body">
+                        <div class="bh-contest-card-headline"><h3 class="bh-contest-card-title">Spring Songwriting Sprint</h3></div>
+                        <div class="bh-contest-card-feature">🏆 Winner: "Glass Horizon" — Echo Parade</div>
+                    </div>
+                    <ol class="bh-contest-track" aria-label="Contest progress">
+                        <li class="is-done"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Submissions</span></li>
+                        <li class="is-done"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Voting</span></li>
+                        <li class="is-done"><span class="bh-contest-track-dot" aria-hidden="true"></span><span class="bh-contest-track-label">Results</span></li>
+                    </ol>
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
         <?php
-        return ['css_url' => admin_url('css/common.min.css'), 'html' => ob_get_clean()];
+        return ['css_url' => self::css_url(), 'html' => ob_get_clean()];
     }
 
     private static function css_url(): string {

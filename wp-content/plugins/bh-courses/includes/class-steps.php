@@ -101,7 +101,7 @@ class BHC_Steps {
                 $clean[] = ['type' => 'text', 'content' => wp_kses_post($step['content'] ?? '')];
             } elseif ($type === 'image') {
                 $ids = array_map('intval', (array) ($step['attachment_ids'] ?? []));
-                $clean[] = ['type' => 'image', 'attachment_ids' => array_filter($ids), 'caption' => sanitize_text_field($step['caption'] ?? '')];
+                $clean[] = ['type' => 'image', 'attachment_ids' => array_filter($ids), 'caption' => wp_kses_post($step['caption'] ?? '')];
             } elseif ($type === 'video') {
                 $source = in_array($step['source'] ?? '', ['url', 'cloudflare_stream', 'bunny_stream', 'signed_r2'], true) ? $step['source'] : 'upload';
                 if ($source === 'bunny_stream') {
@@ -116,7 +116,7 @@ class BHC_Steps {
                     // than trusting free text into an embed URL.
                     $guid = strtolower(trim((string) ($step['bunny_guid'] ?? '')));
                     if (!$guid || !preg_match('/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/', $guid)) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'bunny_stream', 'bunny_guid' => $guid, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'bunny_stream', 'bunny_guid' => $guid, 'caption' => wp_kses_post($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 } elseif ($source === 'signed_r2') {
                     // Private delivery via BHY_MediaToken::sign_r2() — the
                     // step stores only the object key (path within the
@@ -128,7 +128,7 @@ class BHC_Steps {
                     // relative path: letters/digits/_-./ and no traversal.
                     $key = ltrim(trim((string) ($step['r2_key'] ?? '')), '/');
                     if ($key === '' || strpos($key, '..') !== false || !preg_match('#^[A-Za-z0-9._/-]+$#', $key)) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'signed_r2', 'r2_key' => $key, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'signed_r2', 'r2_key' => $key, 'caption' => wp_kses_post($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 } elseif ($source === 'cloudflare_stream') {
                     // OSS-integration master plan Phase 6 follow-up — a
                     // third video source alongside upload/url, gated in
@@ -146,7 +146,7 @@ class BHC_Steps {
                     // rather than trusting free text into an iframe src.
                     $uid = strtolower(trim((string) ($step['stream_uid'] ?? '')));
                     if (!$uid || !preg_match('/^[a-f0-9]{32}$/', $uid)) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'cloudflare_stream', 'stream_uid' => $uid, 'caption' => sanitize_text_field($step['caption'] ?? '')];
+                    $clean[] = ['type' => 'video', 'source' => 'cloudflare_stream', 'stream_uid' => $uid, 'caption' => wp_kses_post($step['caption'] ?? '')];
                 } elseif ($source === 'url') {
                     // esc_url_raw() only SANITIZES characters (strips
                     // disallowed ones, encodes the rest) — it does not
@@ -173,11 +173,11 @@ class BHC_Steps {
                     if (!$raw || !filter_var($raw, FILTER_VALIDATE_URL)) continue;
                     $url = esc_url_raw($raw);
                     if (!$url) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'url', 'video_url' => $url, 'caption' => wp_kses_post($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 } else {
                     $attachment_id = (int) ($step['attachment_id'] ?? 0);
                     if (!$attachment_id) continue;
-                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => sanitize_text_field($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
+                    $clean[] = ['type' => 'video', 'source' => 'upload', 'attachment_id' => $attachment_id, 'caption' => wp_kses_post($step['caption'] ?? ''), 'watch_threshold' => self::sanitize_watch_threshold($step['watch_threshold'] ?? null), 'annotations' => self::sanitize_annotations($step['annotations'] ?? []), 'chapters' => self::sanitize_chapters($step['chapters'] ?? [])];
                 }
             } elseif ($type === 'quiz') {
                 $questions = [];
@@ -223,7 +223,7 @@ class BHC_Steps {
                     'type' => 'resource',
                     'attachment_id' => $attachment_id,
                     'label' => sanitize_text_field($step['label'] ?? ''),
-                    'description' => sanitize_text_field($step['description'] ?? ''),
+                    'description' => wp_kses_post($step['description'] ?? ''),
                 ];
             } elseif ($type === 'callout') {
                 $content = wp_kses_post($step['content'] ?? '');
@@ -259,7 +259,7 @@ class BHC_Steps {
                     'attachment_id_b' => $id_b,
                     'label_a' => sanitize_text_field($step['label_a'] ?? '') ?: 'A',
                     'label_b' => sanitize_text_field($step['label_b'] ?? '') ?: 'B',
-                    'caption' => sanitize_text_field($step['caption'] ?? ''),
+                    'caption' => wp_kses_post($step['caption'] ?? ''),
                 ];
             }
         }

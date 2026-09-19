@@ -6,6 +6,15 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+3.15.11 - Design Suite pass: dropped "New Contest wizard" (admin-only tool,
+not a front-end style-token surface — AJ's direction was to keep this page
+to real visitor-facing GUIs). Added the real gap instead: [bh_contest_library]
+(BH_Contest_Library, the public "Open now / Starting soon / Wrapped" contest
+catalog at /contests/) had never been registered as a bhy_style_surfaces
+entry at all — added as "Contest Library (catalog)", static mockup matching
+its real card/phase-pill/track markup, same convention every other surface
+here already uses.
+
 3.15.10 - Admin vote-breakdown pie charts (BH_Charts). Three donut
 breakdowns Billy asked for: votes per category, votes per song
 (overall), and the per-song split within each category - plus

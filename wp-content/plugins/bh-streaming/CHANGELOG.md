@@ -6,6 +6,11 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.6.3 - Design Suite pass: dropped "PRO Registration wizard" from the style
+gallery — a real wp-admin tool, not a front-end, style-token-driven surface
+(AJ's direction: keep this page to visitor-facing GUIs only, for now).
+"Library & Now Playing" is unaffected.
+
 0.6.2 — bhs/player (bhs-blocks.ts) was still registered as block API
 version 1, a real WordPress deprecation ("may work as a non-iframe
 editor") — added `apiVersion: 3`. Found while diagnosing a separate,

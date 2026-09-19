@@ -9,6 +9,18 @@ has been reworded or dropped.
 
 ---
 
+3.21.32 - Design Suite: pruned to front-end-only surfaces, per AJ's direction
+("only important and relevant and adjustable front end GUIs, no admin GUIs
+for now"). Removed OUS_StyleSurface entirely (its one registration, "Media &
+CDN Setup wizard," was the whole class) — bh-contest/bh-streaming/bh-crm each
+dropped their own admin-only entry (New Contest wizard / PRO Registration
+wizard / Project Tracker kanban) in the same pass, each in its own plugin's
+changelog. Refreshed bundled bh-contest.zip (3.15.11), bh-streaming.zip
+(0.6.3), bh-crm.zip (2.4.24), and bh-courses.zip (0.16.30) for the changes
+those plugins made in this same pass.
+
+---
+
 3.21.31 — Design Suite: font-token extension point. `BHY_Style::custom_fonts()`
 is the font-family analogue of the existing `custom_sliders()` mechanism — a
 plugin registers `add_filter('bhy_style_custom_fonts', ...)` from its own

@@ -267,7 +267,17 @@ class BHC_Render_Catalog {
 
         if ($instructor) echo '<div class="bhc-card-instructor">' . get_avatar($instructor->ID, 20) . ' <span>' . esc_html($instructor->display_name ?: $instructor->user_login) . '</span></div>';
 
-        echo '<div class="bhc-excerpt">' . wp_kses_post(get_the_excerpt($course->ID)) . '</div>';
+        // rich_excerpt(), not get_the_excerpt(): bh_course has no
+        // 'excerpt' support (class-post-types.php), so get_the_excerpt()
+        // always took the auto-generated path, which unconditionally
+        // strips ALL markup (wp_trim_words() calls wp_strip_all_tags())
+        // — a course description written with bold text or a list in
+        // the block editor always showed as a flat sentence on the
+        // card. bhc-step-text reuses the exact same diamond-bullet/
+        // numeral/quote-mark typography the lesson body and caption
+        // text use (courses.css), so a card's excerpt now looks like
+        // the same "product," not a plainer preview of it.
+        echo '<div class="bhc-excerpt bhc-step-text">' . self::rich_excerpt($course->ID) . '</div>';
         // Real live-caught issue: cards without a logged-in progress
         // footer (no $uid, or locked) or without an excerpt were still
         // visibly shorter than their siblings even after the image/
@@ -285,6 +295,64 @@ class BHC_Render_Catalog {
         echo '</div>';
         echo '</div>';
         return ob_get_clean();
+    }
+
+    /**
+     * A truncated preview of the course description that PRESERVES
+     * basic rich-text formatting (bold/italic/lists/blockquote) instead
+     * of always collapsing to a flat sentence. Restricted to a small,
+     * safe tag allowlist via wp_kses(), then walked node-by-node via
+     * DOMDocument so truncation always lands on a text boundary and
+     * every open tag gets force-closed — never a dangling `<ul>` or an
+     * orphaned `</li>` from a naive substr() on markup.
+     */
+    private static function rich_excerpt(int $course_id, int $max_chars = 170): string {
+        $raw = get_post_field('post_content', $course_id);
+        if ($raw === '' || $raw === false) return '';
+
+        $html = apply_filters('the_content', $raw);
+        $allowed = ['p' => [], 'strong' => [], 'em' => [], 'b' => [], 'i' => [], 'ul' => [], 'ol' => [], 'li' => [], 'blockquote' => [], 'br' => []];
+        $html = wp_kses($html, $allowed);
+        if (mb_strlen(wp_strip_all_tags($html)) <= $max_chars) return $html;
+
+        // DOMDocument ships with PHP's standard ext-dom, present on any
+        // realistic host — but this is a display nicety, not something
+        // worth a fatal over, so fall back to the old plain-text trim
+        // if it's somehow unavailable.
+        if (!class_exists('DOMDocument')) return wp_trim_words(wp_strip_all_tags($html), 26);
+
+        $doc = new DOMDocument();
+        libxml_use_internal_errors(true);
+        $doc->loadHTML('<?xml encoding="utf-8" ?><div>' . $html . '</div>', LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        $root = $doc->getElementsByTagName('div')->item(0);
+        if (!$root) return wp_trim_words(wp_strip_all_tags($html), 26);
+
+        $budget = $max_chars;
+        $truncated = false;
+        $walk = function (\DOMNode $node) use (&$walk, &$budget, &$truncated) {
+            foreach (iterator_to_array($node->childNodes) as $child) {
+                if ($truncated) { $node->removeChild($child); continue; }
+                if ($child instanceof \DOMText) {
+                    $len = mb_strlen($child->textContent);
+                    if ($len <= $budget) { $budget -= $len; continue; }
+                    $cut = mb_substr($child->textContent, 0, max(0, $budget));
+                    $last_space = mb_strrpos($cut, ' ');
+                    if ($last_space !== false) $cut = mb_substr($cut, 0, $last_space);
+                    $child->textContent = rtrim($cut) . '…';
+                    $budget = 0;
+                    $truncated = true;
+                } else {
+                    $walk($child);
+                    if ($budget <= 0) $truncated = true;
+                }
+            }
+        };
+        $walk($root);
+
+        $out = '';
+        foreach (iterator_to_array($root->childNodes) as $child) $out .= $doc->saveHTML($child);
+        return $out;
     }
 
     // A plain GET form (works with zero JS — courses.js progressively

@@ -308,7 +308,7 @@ class BHC_Render_Lesson {
             foreach ($step['attachment_ids'] as $attachment_id) {
                 echo wp_get_attachment_image($attachment_id, 'large', false, ['class' => 'bhc-step-image']);
             }
-            if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
+            if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         } elseif ($step['type'] === 'video') {
             // ROADMAP-ux-polish-and-feature-parity-2026-07.md 4b: only the
@@ -466,7 +466,7 @@ class BHC_Render_Lesson {
                     }
                 }
             }
-            if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
+            if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
 
             $uid = get_current_user_id();
             $watched = ($uid && $trackable) ? BHC_Progress::watched_percent($uid, $lesson_id, $index) : 0;
@@ -571,7 +571,7 @@ class BHC_Render_Lesson {
             } else {
                 echo '<p class="bhc-empty">File not found.</p>';
             }
-            if (!empty($step['description'])) echo '<p class="bhc-step-caption">' . esc_html($step['description']) . '</p>';
+            if (!empty($step['description'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['description']) . '</div>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         } elseif ($step['type'] === 'callout') {
             $variant = in_array($step['variant'] ?? '', BHC_Steps::CALLOUT_VARIANTS, true) ? $step['variant'] : 'tip';
@@ -613,7 +613,7 @@ class BHC_Render_Lesson {
             } else {
                 echo '<p class="bhc-empty">One or both audio files not found.</p>';
             }
-            if (!empty($step['caption'])) echo '<p class="bhc-step-caption">' . esc_html($step['caption']) . '</p>';
+            if (!empty($step['caption'])) echo '<div class="bhc-step-caption bhc-step-text">' . wp_kses_post($step['caption']) . '</div>';
             echo '<button type="button" class="bhc-btn bhc-mark-complete"' . ($is_done ? ' disabled' : '') . '>' . ($is_done ? 'Completed' : 'Mark complete &amp; continue') . '</button>';
         }
         return ob_get_clean();
