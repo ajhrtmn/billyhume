@@ -196,6 +196,14 @@ class BHY_Gallery {
         foreach (BHY_Style::custom_fonts() as $key => $def) {
             $s['customfont_' . $key] = $s['custom_fonts'][$key] ?? ($def['default'] ?? '');
         }
+        // Same flattening for grouped component tokens — 'comp_<group>_<key>'
+        // so each one hands straight to slider_row()/swatch_field() exactly
+        // like a built-in field.
+        foreach (BHY_Style::component_tokens() as $group => $def) {
+            foreach (($def['tokens'] ?? []) as $key => $tdef) {
+                $s['comp_' . $group . '_' . $key] = $s['components'][$group][$key] ?? ($tdef['default'] ?? '');
+            }
+        }
         $surfaces = apply_filters('bhy_style_surfaces', []);
         $grouped = [];
         foreach ($surfaces as $key => $surface) $grouped[$surface['group']][$key] = $surface;
@@ -453,6 +461,49 @@ class BHY_Gallery {
             echo '</div>';
         }
 
+        // Grouped component tokens (BHY_Style::component_tokens()) — the
+        // Phase-1 "real granular control over every little thing" surface:
+        // one collapsible <details> per registered COMPONENT (a card, a
+        // badge, a button — not one per property), so a dozen-plus small
+        // sizing/color/font properties for one real UI piece read as a
+        // single named, scannable section rather than flooding "Plugin
+        // adjustments" with a hundred ungrouped sliders. Collapsed by
+        // default, same posture as "Advanced colors"/"Category colors"
+        // above — most visits don't need to open most of these.
+        $components = BHY_Style::component_tokens();
+        if ($components) {
+            echo '<div class="bhy-token-group" data-token-group="components">';
+            echo '<h3>Components <span class="description" style="text-transform:none;font-weight:400;">(granular control per real UI piece — card, badge, button, etc.)</span></h3>';
+            foreach ($components as $group => $def) {
+                echo '<details class="bhel-style-group"><summary class="bhel-style-group-title">' . esc_html($def['label'] ?? $group) . '</summary><div class="bhel-style-group-body">';
+                $color_tokens = [];
+                foreach (($def['tokens'] ?? []) as $key => $tdef) {
+                    $field_id = 'comp_' . $group . '_' . $key;
+                    $type = $tdef['type'] ?? 'size';
+                    if ($type === 'color') {
+                        $color_tokens[$key] = $tdef; // batched into one swatch grid below, same as the built-in color sections
+                        continue;
+                    }
+                    if ($type === 'font') {
+                        echo '<div class="bhel-field-row"><label for="' . esc_attr($field_id) . '">' . esc_html($tdef['label'] ?? $key) . '</label> ';
+                        echo '<input type="text" id="' . esc_attr($field_id) . '" name="' . esc_attr($field_id) . '" value="' . esc_attr($s[$field_id] ?? '') . '" class="regular-text bhy-comp-font" placeholder="' . esc_attr($tdef['default'] ?? '') . '"></div>';
+                        continue;
+                    }
+                    BHY_UI::slider_row($field_id, $tdef['label'] ?? $key, $s, $tdef['min'] ?? 0, $tdef['max'] ?? 100, $tdef['step'] ?? 1, $tdef['unit'] ?? 'px');
+                }
+                if ($color_tokens) {
+                    echo '<div class="bhy-swatch-grid">';
+                    foreach ($color_tokens as $key => $tdef) {
+                        $field_id = 'comp_' . $group . '_' . $key;
+                        BHY_UI::swatch_field($field_id, $field_id, $tdef['label'] ?? $key, (string) ($s[$field_id] ?? ''), (string) ($tdef['default'] ?? ''));
+                    }
+                    echo '</div>';
+                }
+                echo '</div></details>';
+            }
+            echo '</div>';
+        }
+
         echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
 
         // OUS_Revisions consumer, ROADMAP-search-and-revisions.md
@@ -484,6 +535,11 @@ class BHY_Gallery {
         <style id="bhy-preview-vars"><?php echo str_replace(':root', '.bhy-token-preview', BHY_Style::inline_css()); ?></style>
         <script>
         <?php echo BHY_UI::swatch_js("refreshAllFrames();"); ?>
+        // Schema for grouped component tokens (BHY_Style::component_tokens())
+        // — read directly by buildCssText() below rather than parsed back
+        // out of a field id, since a group or key can itself contain an
+        // underscore and "comp_<group>_<key>" isn't otherwise unambiguous.
+        var bhyComponentTokens = <?php echo wp_json_encode(BHY_Style::component_tokens()); ?>;
         (function () {
             var frames = document.querySelectorAll('.bhy-story-frame');
             var buttons = document.querySelectorAll('.bhy-story-btn');
@@ -729,6 +785,31 @@ class BHY_Gallery {
                 // registered further down, alongside the other input
                 // groups' listeners — this block only feeds buildCssText())
 
+                // Grouped component tokens — read straight from the
+                // localized schema (bhyComponentTokens) rather than
+                // parsed back out of a field id (see its declaration
+                // above for why). size/color/font fields already exist
+                // as real DOM inputs via slider_row()/swatch_field()/the
+                // plain text control render_controls() renders for each.
+                Object.keys(bhyComponentTokens || {}).forEach(function (group) {
+                    var tokens = (bhyComponentTokens[group] || {}).tokens || {};
+                    Object.keys(tokens).forEach(function (key) {
+                        var tdef = tokens[key];
+                        var fieldId = 'comp_' + group + '_' + key;
+                        var input = document.getElementById(fieldId);
+                        if (!input) return;
+                        var varName = '--bh-comp-' + group + '-' + key;
+                        if (tdef.type === 'color') {
+                            vars[varName] = input.value.trim() || input.placeholder || tdef.default;
+                        } else if (tdef.type === 'font') {
+                            var val = (input.value || input.placeholder || '').replace(/["{};]/g, '').trim();
+                            if (val) vars[varName] = '"' + val + '", sans-serif';
+                        } else {
+                            vars[varName] = input.value + (tdef.unit || 'px');
+                        }
+                    });
+                });
+
                 // Derived roles (--bh-accent-contrast / -hover / -pressed,
                 // --bh-on-*, --bh-text-muted / -disabled, --bh-border-strong,
                 // --bh-ui*, --bh-focus) — same resolver a save runs, fed the
@@ -777,6 +858,14 @@ class BHY_Gallery {
 
             // Plugin-registered custom font fields ("Plugin fonts" group).
             document.querySelectorAll('input[id^="customfont_"]').forEach(function (input) {
+                input.addEventListener('input', refreshAllFrames);
+            });
+
+            // Component-token font fields ("Components" group) — size
+            // sliders and color swatches in that same section already
+            // get their listener for free (.bhy-slider-row input[type=
+            // range] / .bhy-swatch-controls input[type=text] above).
+            document.querySelectorAll('.bhy-comp-font').forEach(function (input) {
                 input.addEventListener('input', refreshAllFrames);
             });
 

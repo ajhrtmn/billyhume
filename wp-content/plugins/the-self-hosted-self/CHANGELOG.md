@@ -9,6 +9,22 @@ has been reworded or dropped.
 
 ---
 
+3.21.33 - Design Suite Phase 1: BHY_Style::component_tokens(), the grouped
+sibling of custom_sliders()/custom_fonts() — a plugin registers a whole
+COMPONENT's worth of size/color/font properties at once (a card, a badge, a
+button), rendered as one named, collapsible "Components" section instead of
+flooding "Plugin adjustments" with a hundred ungrouped sliders. Each token
+type (size/color/font) resolves through the same sanitizers the flat
+mechanisms already use; emitted as --bh-comp-<group>-<key>, persisted under
+bhy_style_settings['components'][group][key].
+
+First real registration, proving the mechanism end to end: the shared
+.bh-badge component (every badge/pill ecosystem-wide — course difficulty
+tags, contest category chips, "buy once," etc.) now has 5 live-editable
+tokens (padding, corner radius, text size/weight). Verified live: dragging
+the radius slider visibly squares off badges on the real Course Catalog
+preview without saving.
+
 3.21.32 - Design Suite: pruned to front-end-only surfaces, per AJ's direction
 ("only important and relevant and adjustable front end GUIs, no admin GUIs
 for now"). Removed OUS_StyleSurface entirely (its one registration, "Media &

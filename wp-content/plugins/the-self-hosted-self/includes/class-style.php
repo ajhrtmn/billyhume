@@ -255,7 +255,14 @@ class BHY_Style {
             . '--bh-warning:#8a5a00;--bh-warning-bg:#fef3e2;'
             . '--bh-danger:#b3261e;--bh-danger-bg:#fbe4e2;'
             . '}'
-            . '.bh-badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600;white-space:nowrap;background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}'
+            // Design Suite Phase 1 proof-of-concept: the shared .bh-badge
+            // component (every badge/pill ecosystem-wide — course
+            // difficulty, contest categories, "buy once," etc.) is now a
+            // registered component_tokens() group ('badge', below), so
+            // its padding/radius/font-size/weight are real Design Suite
+            // controls instead of numbers hardcoded here. Falls back to
+            // the exact previous values when unconfigured.
+            . '.bh-badge{display:inline-block;padding:var(--bh-comp-badge-padding_v,2px) var(--bh-comp-badge-padding_h,10px);border-radius:var(--bh-comp-badge-radius,999px);font-size:var(--bh-comp-badge-font_size,11px);font-weight:var(--bh-comp-badge-font_weight,600);white-space:nowrap;background:var(--bh-surface-2,#f0f0f1);color:var(--bh-text-dim,#646970);}'
             . '.bh-badge-success{background:var(--bh-success-bg);color:var(--bh-success);}'
             . '.bh-badge-warning{background:var(--bh-warning-bg);color:var(--bh-warning);}'
             . '.bh-badge-danger{background:var(--bh-danger-bg);color:var(--bh-danger);}'
@@ -764,6 +771,30 @@ class BHY_Style {
             if ($val !== '') $decls .= '--bh-custom-font-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
         }
 
+        // Grouped component tokens (component_tokens() above) — one
+        // --bh-comp-<group>-<key> var per token, sanitized by its own
+        // declared 'type' the same way the flat mechanisms already do.
+        foreach (self::component_tokens() as $group => $def) {
+            $safe_group = sanitize_key($group);
+            foreach (($def['tokens'] ?? []) as $key => $tdef) {
+                $safe_key = sanitize_key($key);
+                $stored = $s['components'][$group][$key] ?? null;
+                $type = $tdef['type'] ?? 'size';
+                if ($type === 'color') {
+                    $val = self::safe_color($stored ?? ($tdef['default'] ?? '#000000'));
+                    $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . $val . ';';
+                } elseif ($type === 'font') {
+                    $val = trim((string) ($stored ?? '')) ?: trim((string) ($tdef['default'] ?? ''));
+                    if ($val === '') continue;
+                    $fallback = preg_replace('/[^a-z-]/', '', strtolower((string) ($tdef['fallback'] ?? 'sans-serif'))) ?: 'sans-serif';
+                    $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . self::css_safe_string($val) . ', ' . $fallback . ';';
+                } else { // 'size' (default)
+                    $val = self::safe_number($stored, $tdef['min'] ?? 0, $tdef['max'] ?? 999999, $tdef['default'] ?? 0);
+                    $decls .= '--bh-comp-' . $safe_group . '-' . $safe_key . ':' . $val . ($tdef['unit'] ?? 'px') . ';';
+                }
+            }
+        }
+
         return ':root{' . $decls . '}';
     }
 
@@ -817,6 +848,49 @@ class BHY_Style {
     }
 
     /**
+     * The GROUPED sibling of custom_sliders()/custom_fonts() above —
+     * those two are fine for a small handful of one-off tokens (the
+     * lesson screen has three sliders and a font, that's genuinely all
+     * it needs), but a real component (a card, a badge, a button) has
+     * a dozen-plus small properties, and a flat list of a hundred
+     * ungrouped sliders is unusable, not "granular control" — it's
+     * noise. This is the schema a plugin registers a whole COMPONENT
+     * through at once, rendered as one named, collapsible section
+     * (BHY_Gallery::render_controls()'s "Components" area) instead of
+     * flooding the flat "Plugin adjustments" list.
+     *
+     * Registered from a plugin's own bootstrap:
+     *
+     *     add_filter('bhy_style_component_tokens', function ($components) {
+     *         $components['course_card'] = [
+     *             'label' => 'Course card',
+     *             'tokens' => [
+     *                 'thumb_radius'    => ['label' => 'Thumbnail corner radius', 'type' => 'size',  'min' => 0, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
+     *                 'badge_font_size' => ['label' => 'Badge text size',         'type' => 'size',  'min' => 9, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 11],
+     *                 'accent'          => ['label' => 'Badge color',            'type' => 'color', 'default' => '#2271b1'],
+     *                 'heading_font'    => ['label' => 'Title font',             'type' => 'font',  'default' => 'Inter', 'fallback' => 'sans-serif'],
+     *             ],
+     *         ];
+     *         return $components;
+     *     });
+     *
+     * Each token type resolves through the exact same sanitizers/
+     * emitters the flat mechanisms already use (safe_number for
+     * 'size', safe_color for 'color', css_safe_string+fallback for
+     * 'font') — this is a grouping/rendering layer on top of the same
+     * primitives, not a second parallel system. Persists under
+     * bhy_style_settings['components'][group][key]; emitted as
+     * --bh-comp-<group>-<key> (size/color) or
+     * --bh-comp-<group>-<key>-font (font), read directly by the
+     * plugin's own stylesheet, e.g.
+     * var(--bh-comp-course_card-thumb_radius, 10px).
+     */
+    /** @return array<string, mixed> */
+    public static function component_tokens(): array {
+        return apply_filters('bhy_style_component_tokens', []);
+    }
+
+    /**
      * Single authority for turning a raw associative array (either
      * $_POST from BHY_Gallery::save() or the decoded JSON body from
      * BH_Element::rest_save_site_tokens()) into a sanitized style-settings
@@ -866,6 +940,26 @@ class BHY_Style {
             foreach ($custom_fonts as $key => $def) {
                 $raw = sanitize_text_field($incoming['customfont_' . $key] ?? ($def['default'] ?? ''));
                 $data['custom_fonts'][$key] = $raw !== '' ? $raw : (string) ($def['default'] ?? '');
+            }
+        }
+
+        $components = self::component_tokens();
+        if ($components) {
+            $data['components'] = [];
+            foreach ($components as $group => $def) {
+                $data['components'][$group] = [];
+                foreach (($def['tokens'] ?? []) as $key => $tdef) {
+                    $field = 'comp_' . $group . '_' . $key;
+                    $type = $tdef['type'] ?? 'size';
+                    if ($type === 'color') {
+                        $data['components'][$group][$key] = self::safe_color(sanitize_text_field($incoming[$field] ?? ($tdef['default'] ?? '#000000')));
+                    } elseif ($type === 'font') {
+                        $raw = sanitize_text_field($incoming[$field] ?? ($tdef['default'] ?? ''));
+                        $data['components'][$group][$key] = $raw !== '' ? $raw : (string) ($tdef['default'] ?? '');
+                    } else {
+                        $data['components'][$group][$key] = self::safe_number($incoming[$field] ?? null, $tdef['min'] ?? 0, $tdef['max'] ?? 999999, $tdef['default'] ?? 0);
+                    }
+                }
             }
         }
 

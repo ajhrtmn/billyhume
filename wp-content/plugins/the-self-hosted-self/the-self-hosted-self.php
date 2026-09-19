@@ -2,14 +2,14 @@
 /**
  * Plugin Name: The Self-Hosted Self
  * Description: The ecosystem core — shared accounts/profiles (with public profile pages), shared design tokens with a Storybook-patterned live preview gallery, a shared reports/moderation queue, and one dashboard for installing/activating everything else. The single required base; BH Contest and BH Streaming are separate feature plugins that depend on this one.
- * Version:     3.21.32
+ * Version:     3.21.33
  * Requires PHP: 8.2
  */
 if (!defined('ABSPATH')) exit;
 
 // Version history: see this plugin's CHANGELOG.md (and git log).
 
-define('OUS_VER', '3.21.32');
+define('OUS_VER', '3.21.33');
 
 define('OUS_PATH', plugin_dir_path(__FILE__));
 define('OUS_URL',  plugin_dir_url(__FILE__));
@@ -114,6 +114,24 @@ add_action('init',          ['OUS_Campaigns', 'init']);
 add_action('init',          ['OUS_Integration', 'init']);
 add_action('init',          ['OUS_Hypermedia', 'init']);
 add_action('init',          ['OUS_GithubUpdates', 'init']);
+// Design Suite Phase 1 — first real registered component: the shared
+// .bh-badge (every badge/pill ecosystem-wide: course difficulty tags,
+// contest category chips, "buy once," etc. — class-style.php's own
+// badge_css()). Proves the component_tokens() grouping mechanism end to
+// end before other plugins register their own components against it.
+add_filter('bhy_style_component_tokens', function ($components) {
+    $components['badge'] = [
+        'label' => 'Badges & pills',
+        'tokens' => [
+            'padding_v'   => ['label' => 'Vertical padding',   'type' => 'size', 'min' => 0, 'max' => 10, 'step' => 1, 'unit' => 'px', 'default' => 2],
+            'padding_h'   => ['label' => 'Horizontal padding', 'type' => 'size', 'min' => 4, 'max' => 24, 'step' => 1, 'unit' => 'px', 'default' => 10],
+            'radius'      => ['label' => 'Corner radius',      'type' => 'size', 'min' => 0, 'max' => 999, 'step' => 1, 'unit' => 'px', 'default' => 999],
+            'font_size'   => ['label' => 'Text size',          'type' => 'size', 'min' => 9, 'max' => 16, 'step' => 1, 'unit' => 'px', 'default' => 11],
+            'font_weight' => ['label' => 'Text weight',        'type' => 'size', 'min' => 400, 'max' => 800, 'step' => 100, 'unit' => '', 'default' => 600],
+        ],
+    ];
+    return $components;
+});
 // The first registration — BH_Mail as the always-works transactional-
 // email default, no enhancer registered yet (a real ESP swap point
 // exists inside BH_Mail::deliver() itself, but nothing implements it
