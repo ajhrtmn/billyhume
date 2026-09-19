@@ -6,6 +6,18 @@ Entries are newest-first, exactly as written in-file. Nothing reworded or droppe
 
 ---
 
+0.16.31 - Design Suite Phase 2: the catalog card (.bhc-course-card in
+courses.css) is now a registered component_tokens() group ("Course card" —
+radius, padding, gap, title font size, title font), the second real group
+after core's badge proof-of-concept. Card radius/padding/gap and the h3
+title's font-size/font-family now resolve through --bh-comp-course_card-*
+custom properties with the exact prior hardcoded values as fallbacks, so an
+unconfigured site renders byte-identical to 0.16.30. Not yet done: the
+Design Suite catalog preview surface still needs a pass to make the new
+sliders visibly move something live (same pattern as the badge radius
+slider on the Course Catalog preview) — verify before calling this feature-
+complete for the card.
+
 0.16.30 - Design Suite parity pass: the "Course Catalog" and "Lesson Steps &
 Quiz" preview surfaces (class-style-surface.php) were thin stand-ins that had
 drifted from the real markup — rebuilt to match BHC_Render_Catalog::

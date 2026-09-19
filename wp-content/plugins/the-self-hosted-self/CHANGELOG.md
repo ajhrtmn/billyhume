@@ -9,6 +9,13 @@ has been reworded or dropped.
 
 ---
 
+3.21.34 - Design Suite: hid the Storybook dev-tool panel (BH_Storybook_Panel
+— Node build + UX audit runner) from the top of the page for now, per AJ.
+Same "front-end/user-facing only, no dev/admin tooling" pruning direction as
+the earlier surface cleanup, just a config flip this time rather than a
+deletion — $show_storybook_panel in class-style-gallery.php's render();
+flip it back to true to restore. The panel/class itself is untouched.
+
 3.21.33 - Design Suite Phase 1: BHY_Style::component_tokens(), the grouped
 sibling of custom_sliders()/custom_fonts() — a plugin registers a whole
 COMPONENT's worth of size/color/font properties at once (a card, a badge, a
