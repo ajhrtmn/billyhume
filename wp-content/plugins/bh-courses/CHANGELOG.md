@@ -4,6 +4,14 @@ Moved out of `bh-courses.php` on 2026-08-23. See `CONVENTIONS.md` for why versio
 
 Entries are newest-first, exactly as written in-file. Nothing reworded or dropped.
 
+0.16.36 - Moved the lesson Studio's block-editor CSS (two inline PHP
+strings in BHC_ContentBridge::add_studio_block_editor_styles(), ~350
+lines) into assets/css/studio-editor.css, read into the same
+$settings['styles'] entry. Now linted by stylelint and safe from the
+stray-apostrophe class of fatal. Runtime-verified: the editor styles
+output for a bh_lesson is identical to before (whitespace-insensitive);
+the two entries are now one, with the same CSS in the same order.
+
 0.16.35 - Registered 'selector' on all 4 of this plugin's component_tokens()
 groups (course_card, course_sidebar, progress_bar, course_page) for core's
 new click-to-select/right-click Customizer feature — clicking a real

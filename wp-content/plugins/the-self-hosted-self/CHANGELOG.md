@@ -7,6 +7,30 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.43 - Moved the four large CSS blocks out of PHP strings into real
+stylesheets, so stylelint and the accent check can see them and a stray
+apostrophe can no longer fatal the site (the class-ui.php incident).
+
+- BHY_UI::design_system_css() -> assets/css/design-system.css and
+  BHY_UI::admin_page_css() -> assets/css/admin-page.css. Both methods
+  still return the same string (read from the file), so every caller,
+  including the Design Suite page, is unchanged.
+- The account portal's ~600-line CSS -> assets/css/portal.css, now
+  enqueued as a real, cacheable stylesheet under the same 'ous-portal'
+  handle instead of an inline <style>. Icon mask URLs are plain relative
+  paths (../icons/pi-*.svg) instead of PHP-echoed absolute URLs.
+  BHI_Portal::portal_css() is removed (its only caller was the enqueue).
+- The front-end user bar's CSS -> assets/css/user-bar.css, enqueued as a
+  real stylesheet under the same 'bhi-user-bar' handle.
+
+Runtime-verified on a live Local install: each block's output was
+captured before the change and compared after (whitespace-insensitive):
+all identical. Front page, /account/, wp-login and both stylesheets load
+200 with no PHP errors; Test Runner unchanged (701/711, the 10 failures
+are the pre-existing bh-registry ones). The moved CSS now shows 176
+pre-existing stylelint findings (mostly one-line multi-declaration
+rules), previously invisible inside PHP; not fixed in this change.
+
 3.21.42 - The visual Custom CSS rule editor now lives directly in the
 Customizer too, not just the Design Suite admin page (AJ: "Does that also
 exist on the customizer style gui?" -> "Can it stay all on the customizer

@@ -1,0 +1,296 @@
+/* ============================================================
+   LAYER 1 — TOKENS. Custom properties only, no selectors.
+   New color/spacing/type value? It goes here, named, with a
+   fallback the rest of this file can reference. See
+   STYLE-SYSTEM.md at the plugins root for the full 4-layer
+   model (tokens / utilities / components / plugin-local) this
+   file and class-style.php both follow.
+   ============================================================ */
+:root {
+    --bhy-space-1: 4px; --bhy-space-2: 8px; --bhy-space-3: 12px; --bhy-space-4: 16px;
+    --bhy-space-5: 20px; --bhy-space-6: 24px; --bhy-space-8: 32px;
+    --bhy-text-xs: 11px; --bhy-text-sm: 12px; --bhy-text-base: 13px; --bhy-text-md: 14px;
+    --bhy-text-lg: 16px; --bhy-text-xl: 20px; --bhy-text-2xl: 24px;
+    /* How far a sticky element must sit below the WordPress admin
+       bar. Below 782px core switches #wpadminbar to
+       position:absolute so it scrolls away entirely, and anything
+       still reserving space for it leaves a dead band that page
+       content shows through. That exact bug shipped twice --
+       the front-end site header and this quicknav -- so the offset
+       is a token now rather than a literal repeated per surface. */
+    --bhy-admin-bar-offset: 32px;
+    --bhy-ink: #1d2327; --bhy-ink-dim: #646970; --bhy-border: #dcdcde; --bhy-surface: #fff;
+    --bhy-subtle: #f6f7f7; --bhy-accent: #2271b1;
+    --bhy-success: #1a7f37; --bhy-success-bg: #dafbe1;
+    --bhy-warning: #8a5a00; --bhy-warning-bg: #fef3e2;
+    --bhy-danger: #b3261e; --bhy-danger-bg: #fbe4e2;
+    --bhy-radius: 8px; --bhy-radius-sm: 6px;
+    /* 3.4.33 additions - additive only, nothing above changed.
+       A single shared micro-transition timing (hover/select/
+       expand states across the Design Suite shell) plus a
+       couple of named surface tints so "hovered row" and
+       "selected row" read the same way everywhere instead of
+       each screen picking its own ad hoc rgba value. */
+    --bhy-transition: 150ms ease;
+    --bhy-hover-tint: #f6f7f7;
+    --bhy-selected-tint: #f0f6fc;
+    --bhy-focus-ring: 0 0 0 2px rgba(34, 113, 177, .25);
+}
+.bhy-shell h1 { font-size: var(--bhy-text-2xl); margin-bottom: var(--bhy-space-2); }
+.bhy-shell .description { font-size: var(--bhy-text-base); color: var(--bhy-ink-dim); margin-bottom: var(--bhy-space-4); }
+
+/* ============================================================
+   LAYER 3 — COMPONENTS. Named, reusable UI pieces that
+   compose tokens + utilities (card/alert/badge/table below).
+   New admin screen needs a status pill, a notice box, a
+   surface panel, or a wide table? Check here BEFORE hand-
+   rolling one inline — this is the whole reason those got
+   reinvented per call site in the 2026-08 style audit.
+   ============================================================ */
+
+/* Card — the one surface treatment every custom admin
+   screen should reuse instead of inventing its own
+   background/border/radius combination inline. */
+.bhy-card {
+    background: var(--bhy-surface); border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius);
+    padding: var(--bhy-space-4) var(--bhy-space-5); margin-bottom: var(--bhy-space-5);
+}
+.bhy-card > h2, .bhy-card > h3 {
+    font-size: var(--bhy-text-sm); text-transform: uppercase; letter-spacing: .04em;
+    margin: 0 0 var(--bhy-space-3); color: var(--bhy-ink-dim);
+}
+
+/* Alert — left-border-accented, Primer-style; one shared
+   shape for warning/success/danger/info instead of each
+   admin screen picking its own ad hoc colors/padding. */
+@media screen and (max-width: 782px) {
+    :root { --bhy-admin-bar-offset: 0px; }
+}
+/* Any admin surface that needs to stick below the bar should use
+   this rather than hardcoding a pixel value. */
+.bhy-sticky-below-bar { position: sticky; top: var(--bhy-admin-bar-offset); }
+.bhy-alert {
+    border: 1px solid var(--bhy-border); border-left-width: 4px; border-radius: var(--bhy-radius-sm);
+    padding: var(--bhy-space-3) var(--bhy-space-4); margin-bottom: var(--bhy-space-4); font-size: var(--bhy-text-base);
+}
+.bhy-alert strong { display: inline-block; margin-right: var(--bhy-space-2); }
+/* Body text is ALWAYS the readable ink; the hue carries meaning
+   through the left border and the background tint, which is where
+   it can be saturated without costing legibility. Setting `color`
+   to the hue itself put a saturated colour on a 16% tint of that
+   same colour — measured 3.36:1 (success), 4.00:1 (warning) and
+   4.15:1 (danger) in light mode, 4.38:1 (danger) in dark. All
+   below AA. .bhy-alert-info was already correct and is the
+   pattern the other three now follow.
+
+   The TITLE gets ink too. Tinting it was tried and measured at
+   3.36/4.00/4.15:1 — it fails for the same reason the body did.
+   The WCAG 3:1 large-text allowance needs >=18.66px bold and this
+   is ~13px, so there is no exception to lean on. The hue still
+   carries the signal through the 4px left border and the
+   background tint, which is where saturation costs nothing;
+   `strong` keeps the emphasis through weight. Per the brief:
+   usefulness beats the decorative reading.
+
+   NOTE: no apostrophes in this comment, deliberately. It sits
+   inside a single-quoted PHP string, and an unescaped one here
+   silently terminates that string and fatals the whole site —
+   the documented incident in CLAUDE.md, reproduced live while
+   writing this very comment and caught by `php -l`. */
+.bhy-alert-warning { background: var(--bhy-warning-bg); border-left-color: var(--bhy-warning); color: var(--bhy-ink); }
+.bhy-alert-success { background: var(--bhy-success-bg); border-left-color: var(--bhy-success); color: var(--bhy-ink); }
+.bhy-alert-danger  { background: var(--bhy-danger-bg);  border-left-color: var(--bhy-danger);  color: var(--bhy-ink); }
+.bhy-alert-info    { background: var(--bhy-subtle);     border-left-color: var(--bhy-accent);  color: var(--bhy-ink); }
+
+.bhy-alert :is(ul, p:last-child) { margin-bottom: 0; }
+
+/* Badge/pill — status chips (Approved/Pending, live/off-air,
+   vote counts) all reuse this instead of one-off inline
+   background+radius+padding per call site. */
+.bhy-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: var(--bhy-text-xs); font-weight: 600;
+    padding: 2px 10px; border-radius: 999px; line-height: 1.6; white-space: nowrap;
+}
+.bhy-badge-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.bhy-badge-neutral { background: #f0f0f1; color: var(--bhy-ink-dim); }
+.bhy-badge-success { background: var(--bhy-success-bg); color: var(--bhy-success); }
+.bhy-badge-warning { background: var(--bhy-warning-bg); color: var(--bhy-warning); }
+.bhy-badge-danger  { background: var(--bhy-danger-bg);  color: var(--bhy-danger); }
+/* The white-space:nowrap on .bhy-badge above is correct for a
+   FIXED-vocabulary label ("up to date", "Approved") — no
+   length risk to guard against. A badge wrapping dynamic/
+   unbounded content (a user-entered tag, an artist-chosen
+   category) needs bounding too, or nowrap alone just blows
+   out the layout instead of wrapping ugly — add this
+   alongside .bhy-badge for that case. Pair with a real
+   title="..." attribute carrying the full text. */
+.bhy-badge-truncate { overflow: hidden; text-overflow: ellipsis; max-width: 160px; vertical-align: bottom; }
+
+/* ---- LAYER 2 (utilities, not a component) — kept here next
+   to .bhy-badge since that's their most common pairing, but
+   these are generic single-purpose helpers, not one named
+   "thing." See STYLE-SYSTEM.md. ----
+   Text-overflow utilities — the admin-side counterpart to
+   the front-end .bh-truncate/.bh-clamp-* in class-style.php
+   (see that own docblock for the full per-content-type
+   reasoning: single-line content truncates with an
+   ellipsis + title attr, multi-line content clamps at a
+   fixed line count). These are for everything else in an
+   admin table/list that is not a badge. */
+.bhy-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bhy-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Table wrapper — every wide admin table gets the same
+   horizontal-scroll behavior, and (via container query) a
+   denser padding once its own available width drops below
+   a comfortable reading width, rather than only reacting to
+   the whole browser window's size. Covers both real
+   WP_List_Table output (.wp-list-table) and the plainer
+   .widefat tables several plugins build by hand (BH
+   Courses' Student Progress — genuinely one column per
+   lesson, the actual worst-case width in this whole
+   ecosystem — and the Job Queue debug table) — the default
+   posture everywhere in this ecosystem is "just use core
+   WordPress admin styling as-is," this wrapper is the one
+   deliberate deviation, and only because a wide data table
+   with no horizontal-scroll affordance is a genuinely bad
+   experience on anything narrower than a desktop, not
+   because plain admin tables needed a makeover. */
+/* max-height caps every wrapped table at a reasonable number
+   of visible rows before IT scrolls internally, rather than
+   the table pushing the whole admin page taller and taller
+   the more rows it happens to have. overflow-y: auto here
+   (not just overflow-x) makes THIS wrapper the nearest
+   scrolling ancestor, which is also what makes the sticky
+   header below correctly stick to the top of the wrapper's
+   own scroll — not the outer page's.
+
+   Two sizes, not one, because "how much scroll room does
+   this table deserve" genuinely depends on what else is on
+   the same screen: the DEFAULT (~10-12 rows, 420px) is for
+   a table that's one of several cards on the same page —
+   bh-streaming's four stats tables, the Debug Tools page's
+   several plugin sections, a CRM detail view's activity
+   list — where giving any one of them a tall scroll area
+   would just push its siblings further down for no reason.
+   .bhy-table-wrap--tall (~20-24 rows, 760px) opts in for the
+   opposite case: a page whose ENTIRE reason for existing is
+   that one list — Reports/moderation queue, Registry
+   Submissions review, a People directory — where the table
+   IS the page, and cramming it into the same small window
+   as a multi-card dashboard would waste most of the screen. */
+.bhy-table-wrap { container-type: inline-size; overflow-x: auto; overflow-y: auto; max-height: 420px; -webkit-overflow-scrolling: touch; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
+.bhy-table-wrap.bhy-table-wrap--tall { max-height: 760px; }
+/* Safety net for wide tables that were never wrapped. An audit on
+   2026-08-24 found 21 table.widefat instances rendered without
+   .bhy-table-wrap against 18 with it, so more than half the wide
+   tables in the ecosystem ignored the convention. The visible
+   result was reported from a phone: Project Tracker overflowed
+   horizontally, its table measuring 586px with overflow visible
+   and no scroll parent.
+
+   Making the table itself a scrolling block is the fix that does
+   not require touching 21 call sites in 12 files, and it covers
+   any table added later that forgets the wrapper. The wrapped
+   case is restored to display:table immediately below, since a
+   scroll container inside a scroll container is not wanted.
+
+   Only below 782px: on a desktop the table has room and normal
+   table layout is preferable. */
+@media (max-width: 782px) {
+    .wrap table.widefat, .wrap table.wp-list-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .bhy-table-wrap table.widefat, .bhy-table-wrap table.wp-list-table {
+        display: table;
+        overflow-x: visible;
+    }
+}
+.bhy-table-wrap table.wp-list-table, .bhy-table-wrap table.widefat { border: none; margin: 0; }
+.bhy-table-wrap table.wp-list-table thead th, .bhy-table-wrap table.widefat thead th { position: sticky; top: 0; background: var(--bhy-subtle); z-index: 1; white-space: nowrap; }
+/* Hover highlight — makes a dense, striped table easier to
+   scan/track across columns on a single row; doesn't fight
+   .striped's own alternating background since this is just
+   a slightly darker overlay on whichever row the pointer is
+   actually over. */
+.bhy-table-wrap table.wp-list-table tbody tr:hover, .bhy-table-wrap table.widefat tbody tr:hover { background: var(--bhy-subtle); }
+/* Sortable column headers (see BHY_UI's shared JS) — a plain
+   visual affordance (pointer cursor, a caret hinting "this
+   is clickable") on any <th data-sort> inside a
+   table.bhy-sortable, so a plugin opts in by adding one class
+   and one data attribute per column, no separate JS to write. */
+table.bhy-sortable thead th[data-sort] { cursor: pointer; user-select: none; }
+table.bhy-sortable thead th[data-sort]::after { content: "\2195"; opacity: .35; margin-left: 4px; font-size: var(--bhy-text-xs); }
+table.bhy-sortable thead th[data-sort].bhy-sort-asc::after { content: "\2191"; opacity: 1; }
+table.bhy-sortable thead th[data-sort].bhy-sort-desc::after { content: "\2193"; opacity: 1; }
+/* Search box above a sortable/filterable table — same card-
+   adjacent look as everything else, not a bare unstyled
+   <input>. */
+input.bhy-table-search { width: 100%; max-width: 320px; margin-bottom: var(--bhy-space-3); padding: 6px 10px; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius-sm); font-size: var(--bhy-text-base); }
+/* Copy-to-clipboard button — a small icon-ish button that
+   sits right next to a URL/code value instead of relying on
+   "click the box, select all, ctrl+c" as the only way to
+   grab it. */
+.bhy-copy-btn { font-size: var(--bhy-text-xs); padding: 2px 8px; margin-left: var(--bhy-space-2); cursor: pointer; }
+.bhy-copy-btn.bhy-copied { color: var(--bhy-success); border-color: var(--bhy-success); }
+@container (max-width: 640px) {
+    .bhy-table-wrap table.wp-list-table th, .bhy-table-wrap table.wp-list-table td,
+    .bhy-table-wrap table.widefat th, .bhy-table-wrap table.widefat td { padding: 6px 8px; font-size: var(--bhy-text-sm); white-space: nowrap; }
+}
+
+/* Range slider — same "detented" feel the quick-theme swatch
+   picker and radius_sm slider already had: a visible filled
+   track (not just a bare thumb on a flat line) plus tick
+   marks at each step so discrete values read as discrete. */
+input.bhy-range {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 999px;
+    background: linear-gradient(to right, var(--bhy-accent) 0%, var(--bhy-accent) var(--bhy-range-pct, 50%), #e2e2e2 var(--bhy-range-pct, 50%), #e2e2e2 100%);
+    cursor: pointer; margin: var(--bhy-space-2) 0;
+}
+input.bhy-range::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    border: 2px solid var(--bhy-accent); box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer;
+}
+input.bhy-range::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--bhy-accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,.25); cursor: pointer;
+}
+
+/* In-context help tooltip — a small "?" badge any admin
+   screen can drop next to a label/control via BHY_UI::tip().
+   Hover OR keyboard focus reveals the bubble (never
+   hover-only — a field label's worth of context shouldn't
+   be unreachable from the keyboard), positioned by JS in
+   print_design_system_js() rather than pure CSS since a
+   fixed ::after placement clips against real metabox edges
+   on narrower screens. */
+.bhy-tip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%; margin-left: 4px;
+    background: var(--bhy-surface-2, #f0f0f1); color: var(--bhy-text-dim, #6b7280);
+    font-size: 10.5px; font-weight: 700; line-height: 1; cursor: help;
+    border: 1px solid var(--bhy-border, #dcdcde); vertical-align: middle;
+}
+.bhy-tip:hover, .bhy-tip:focus-visible {
+    background: var(--bhy-accent, #2271b1); color: #fff; border-color: var(--bhy-accent, #2271b1); outline: none;
+}
+.bhy-tip-bubble {
+    /* Fixed dark chip regardless of the current admin color
+       scheme — QA fix: this originally read
+       background:var(--bhy-text, ...), but that token is
+       the admin design system's theme-relative FOREGROUND
+       text color, not a fixed dark chrome color (confirmed
+       live: the portal's identical mistake, --bh-text,
+       rendered as a washed-out light-cream box on the
+       site's real dark theme instead of a proper dark
+       tooltip). A transient overlay like this should look
+       the same regardless of theme. */
+    position: fixed; z-index: 100000; max-width: 280px; padding: 8px 11px;
+    background: #1d2327; color: #fff; font-size: var(--bhy-text-xs, 12px);
+    font-weight: 400; line-height: 1.4; border-radius: var(--bhy-radius-sm, 6px);
+    box-shadow: 0 2px 10px rgba(0,0,0,.3); pointer-events: none; opacity: 0;
+    transform: translateY(2px); transition: opacity .12s ease, transform .12s ease;
+}
+.bhy-tip-bubble.is-visible { opacity: 1; transform: translateY(0); }
