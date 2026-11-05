@@ -593,3 +593,70 @@
 .bhi-portal .bhi-portal-wallet-chip .dashicons { width:16px; height:16px; }
 .bhi-portal .bhi-achievement-badge .dashicons { width:14px; height:14px; }
 .bhi-portal .bhi-portal-empty .dashicons { width:32px; height:32px; }
+
+/* ---- Logged-out login / create-account card (BHI_Portal::login_html()) ---- */
+.bhi-portal-login {
+  min-height:60vh; display:flex; align-items:center; justify-content:center;
+  color:var(--bh-text, #1d2327);
+  padding:24px; box-sizing:border-box;
+}
+.bhi-login-card {
+  width:100%; max-width:380px; background:var(--bh-surface, #fff);
+  border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 10px);
+  padding:32px 28px; box-sizing:border-box;
+}
+.bhi-login-brand { font-family:var(--bh-font-display, inherit); font-weight:700; font-size:18px; text-align:center; margin-bottom:4px; }
+.bhi-login-sub { text-align:center; color:var(--bh-text-dim, #6b7280); font-size:13px; margin-bottom:24px; }
+.bhi-login-tabs { display:flex; gap:4px; margin-bottom:20px; background:var(--bh-surface-2, #f0f0f1); border-radius:var(--bh-radius-sm, 8px); padding:3px; }
+.bhi-login-tab {
+  flex:1; text-align:center; padding:8px 0; border-radius:calc(var(--bh-radius-sm, 8px) - 2px); font-size:13px; font-weight:600;
+  cursor:pointer; color:var(--bh-text-dim, #6b7280); background:transparent; border:none; font-family:inherit;
+}
+.bhi-login-tab.is-active { background:var(--bh-surface, #fff); color:var(--bh-text, #1d2327); }
+.bhi-login-field { margin-bottom:14px; }
+.bhi-login-field label { display:block; font-size:12.5px; font-weight:600; margin-bottom:5px; color:var(--bh-text-dim, #6b7280); }
+.bhi-login-field input {
+  width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--bh-border, #e2e2e2);
+  border-radius:var(--bh-radius-sm, 6px); font-size:14px; background:var(--bh-bg, #fff); color:inherit;
+}
+.bhi-login-submit {
+  width:100%; padding:10px 0; border:none; border-radius:var(--bh-radius-sm, 6px); background:var(--bh-accent, #2271b1);
+  /* --bh-accent-contrast is derived for legibility on whichever accent is chosen. */
+  color:var(--bh-accent-contrast, #fff); font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;
+}
+.bhi-login-submit:disabled { opacity:0.6; cursor:default; }
+.bhi-login-error {
+  display:none; background:#fbeaea; color:#b32d2e; border-radius:var(--bh-radius-sm, 6px);
+  padding:9px 11px; font-size:13px; margin-bottom:14px;
+}
+.bhi-login-foot { text-align:center; margin-top:16px; font-size:12.5px; }
+.bhi-login-foot a { color:var(--bh-accent, #2271b1); text-decoration:none; }
+.bhi-login-panel[hidden] { display:none; }
+.bhi-login-hint { margin: 4px 0 0; font-size: 12px; color: var(--bh-text-dim, #6b7280); }
+.bhi-login-check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0 0 12px; cursor: pointer; }
+
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.bhi-login-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* ---- "Confirm your email" banner inside the logged-in portal ---- */
+.bhi-portal .bhi-portal-verify {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--bh-border, #e2e2e2);
+  border-left: 4px solid var(--bh-accent, #2271b1);
+  border-radius: var(--bh-radius-sm, 6px);
+  background: var(--bh-surface, #fff);
+}
+.bhi-portal .bhi-portal-verify p { margin: 0 0 8px; }
+.bhi-portal .bhi-portal-verify p:last-child { margin-bottom: 0; }
+.bhi-portal .bhi-portal-verify-resend {
+  padding: 6px 12px;
+  border: 1px solid var(--bh-accent, #2271b1);
+  border-radius: var(--bh-radius-sm, 6px);
+  background: transparent;
+  color: var(--bh-accent, #2271b1);
+  font: inherit;
+  cursor: pointer;
+}
+.bhi-portal .bhi-portal-verify-resend:disabled { opacity: 0.6; cursor: default; }
+.bhi-portal .bhi-portal-verify-status { margin-left: 8px; font-size: 13px; color: var(--bh-text-dim, #6b7280); }

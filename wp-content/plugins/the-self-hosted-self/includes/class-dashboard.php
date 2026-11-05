@@ -155,6 +155,7 @@ class OUS_Dashboard {
             echo '</div>';
         }
 
+        if (class_exists('BHI_Auth')) BHI_Auth::render_settings_card();
         self::render_status_block();
         self::render_element_slot();
 

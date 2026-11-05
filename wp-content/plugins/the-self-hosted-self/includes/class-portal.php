@@ -76,6 +76,7 @@ class BHI_Portal {
         // shortcode, but a panel deep-link should land on the base URL).
         add_action('template_redirect', [self::class, 'maybe_redirect_panel_when_logged_out']);
         add_action('template_redirect', [self::class, 'never_cache_portal']);
+        add_action('template_redirect', [self::class, 'maybe_redirect_logged_in']);
         add_action('wp_ajax_ous_portal_live_status', [self::class, 'ajax_live_status']);
 
         // Without an overview tab, the portal landed a visitor on a bare
@@ -626,7 +627,7 @@ class BHI_Portal {
         if ($html === null) {
             $html = is_user_logged_in()
                 ? self::portal_content()
-                : self::login_html(home_url('/' . self::REWRITE_SLUG . '/'));
+                : self::login_html();
         }
         return $html;
     }
@@ -636,6 +637,15 @@ class BHI_Portal {
         // Scoped to .bhi-portal so nothing leaks onto the surrounding themed page.
         wp_enqueue_style('ous-portal', OUS_URL . 'assets/css/portal.css', [], OUS_VER);
         if (is_user_logged_in() && class_exists('OUS_Hypermedia')) OUS_Hypermedia::enqueue();
+
+        wp_enqueue_script('ous-portal-auth', OUS_URL . 'assets/js/portal-auth.js', [], OUS_VER, true);
+        $config = [
+            'restBase' => esc_url_raw(rest_url('bhi/v1')),
+            'redirectTo' => self::post_login_redirect(),
+            // Only logged-in visitors get a REST nonce; a logged-out nonce is the same for everyone and protects nothing.
+            'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '',
+        ];
+        wp_add_inline_script('ous-portal-auth', 'window.BHIPortalAuth = ' . wp_json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';', 'before');
     }
 
     /** A logged-out deep link to /account/{panel}/ has nothing to show —
@@ -660,189 +670,102 @@ class BHI_Portal {
         if (!self::is_portal_context()) return;
         if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
         nocache_headers();
+        // The login form and account actions must never be framed by another site (clickjacking).
+        if (!headers_sent()) {
+            header('X-Frame-Options: SAMEORIGIN');
+            header("Content-Security-Policy: frame-ancestors 'self'", false);
+            header('Referrer-Policy: same-origin');
+        }
     }
 
     /**
-     * A real, branded fan-facing login/register screen — replaces the
-     * previous behavior of bouncing a logged-out portal visitor to
-     * WordPress's own generic wp-login.php. Posts to the existing
-     * bhi/v1/login and bhi/v1/register REST routes (BHI_Auth) — the
-     * exact same endpoints the contest player's own embedded auth form
-     * already uses, so this is a second front-end onto proven auth
-     * logic (brute-force lockout, 2FA challenge, registration
-     * throttling), never a parallel implementation of any of it.
-     * wp_signon() (inside BHI_Auth::login()) sets the real auth cookies
-     * server-side, so a successful REST call is followed by a plain
-     * full-page redirect to pick up the new session — no client-side
-     * session state to manage here.
+     * The branded fan-facing login/register screen shown at /account/ when
+     * logged out. Posts to bhi/v1/login and bhi/v1/register (BHI_Auth),
+     * the same endpoints the contest player uses; behaviour lives in
+     * assets/ts/portal-auth.ts, styles in assets/css/portal.css.
      */
-    private static function login_html(string $redirect_to): string {
+    private static function login_html(): string {
+        $registration_open = !class_exists('BHI_Auth') || BHI_Auth::registration_open();
+        $honeypot = class_exists('BHI_Auth') ? BHI_Auth::HONEYPOT_FIELD : 'website';
         ob_start();
         ?>
-<style>
-  .bhi-portal-login {
-    min-height:60vh; display:flex; align-items:center; justify-content:center;
-    color:var(--bh-text, #1d2327);
-    padding:24px; box-sizing:border-box;
-  }
-  .bhi-login-card {
-    width:100%; max-width:380px; background:var(--bh-surface, #fff);
-    border:1px solid var(--bh-border, #e2e2e2); border-radius:var(--bh-radius, 10px);
-    padding:32px 28px; box-sizing:border-box;
-  }
-  .bhi-login-brand { font-family:var(--bh-font-display, inherit); font-weight:700; font-size:18px; text-align:center; margin-bottom:4px; }
-  .bhi-login-sub { text-align:center; color:var(--bh-text-dim, #6b7280); font-size:13px; margin-bottom:24px; }
-  .bhi-login-tabs { display:flex; gap:4px; margin-bottom:20px; background:var(--bh-surface-2, #f0f0f1); border-radius:var(--bh-radius-sm, 8px); padding:3px; }
-  .bhi-login-tab {
-    flex:1; text-align:center; padding:8px 0; border-radius:calc(var(--bh-radius-sm, 8px) - 2px); font-size:13px; font-weight:600;
-    cursor:pointer; color:var(--bh-text-dim, #6b7280); background:transparent; border:none; font-family:inherit;
-  }
-  .bhi-login-tab.is-active { background:var(--bh-surface, #fff); color:var(--bh-text, #1d2327); }
-  .bhi-login-field { margin-bottom:14px; }
-  .bhi-login-field label { display:block; font-size:12.5px; font-weight:600; margin-bottom:5px; color:var(--bh-text-dim, #6b7280); }
-  .bhi-login-field input {
-    width:100%; box-sizing:border-box; padding:9px 11px; border:1px solid var(--bh-border, #e2e2e2);
-    border-radius:var(--bh-radius-sm, 6px); font-size:14px; background:var(--bh-bg, #fff); color:inherit;
-  }
-  .bhi-login-submit {
-    width:100%; padding:10px 0; border:none; border-radius:var(--bh-radius-sm, 6px); background:var(--bh-accent, #2271b1);
-    /* 2026-08-26: was hardcoded #fff -- same class of bug as
-       --bh-accent-contrast (class-style.php), just a literal instead of
-       a fallback this time. Found by the front-end audit's continuation
-       pass: 4.13:1 white-on-#C85C48, needs 4.5. --bh-accent-contrast is
-       exactly the token derived for this job (measured against whichever
-       accent is actually chosen), the fallback keeps the pre-existing
-       white for installs on an older the-self-hosted-self without it. */
-    color:var(--bh-accent-contrast, #fff); font-size:14px; font-weight:600; cursor:pointer; margin-top:4px;
-  }
-  .bhi-login-submit:disabled { opacity:0.6; cursor:default; }
-  .bhi-login-error {
-    display:none; background:#fbeaea; color:#b32d2e; border-radius:var(--bh-radius-sm, 6px);
-    padding:9px 11px; font-size:13px; margin-bottom:14px;
-  }
-  .bhi-login-foot { text-align:center; margin-top:16px; font-size:12.5px; }
-  .bhi-login-foot a { color:var(--bh-accent, #2271b1); text-decoration:none; }
-  .bhi-login-panel[hidden] { display:none; }
-</style>
 <div class="bhi-portal-login">
 <div class="bhi-login-card">
   <div class="bhi-login-brand"><?php echo esc_html(get_bloginfo('name')); ?></div>
-  <div class="bhi-login-sub">Sign in to your account</div>
+  <div class="bhi-login-sub"><?php echo $registration_open ? 'Log in or create your account' : 'Log in to your account'; ?></div>
 
-  <div class="bhi-login-tabs">
-    <button type="button" class="bhi-login-tab is-active" data-panel="login">Log in</button>
-    <button type="button" class="bhi-login-tab" data-panel="register">Create account</button>
+  <?php if ($registration_open): ?>
+  <div class="bhi-login-tabs" role="tablist">
+    <button type="button" class="bhi-login-tab is-active" data-panel="login" role="tab" aria-selected="true">Log in</button>
+    <button type="button" class="bhi-login-tab" data-panel="register" role="tab" aria-selected="false">Create account</button>
   </div>
+  <?php endif; ?>
 
-  <div class="bhi-login-error" id="bhi-login-error"></div>
+  <div class="bhi-login-error" id="bhi-login-error" role="alert" aria-live="assertive"></div>
 
-  <form class="bhi-login-panel" id="bhi-login-panel-login">
-    <div class="bhi-login-field"><label for="bhi-login-username">Username or email</label><input type="text" id="bhi-login-username" autocomplete="username" required></div>
-    <div class="bhi-login-field"><label for="bhi-login-password">Password</label><input type="password" id="bhi-login-password" autocomplete="current-password" required></div>
-    <div class="bhi-login-field" id="bhi-login-2fa-field" hidden><label for="bhi-login-2fa">6-digit code</label><input type="text" id="bhi-login-2fa" inputmode="numeric" autocomplete="one-time-code"></div>
+  <form class="bhi-login-panel" id="bhi-login-panel-login" novalidate>
+    <div class="bhi-login-field"><label for="bhi-login-username">Username or email</label><input type="text" id="bhi-login-username" name="username" autocomplete="username" maxlength="100" required></div>
+    <div class="bhi-login-field"><label for="bhi-login-password">Password</label><input type="password" id="bhi-login-password" name="password" autocomplete="current-password" maxlength="200" required></div>
+    <div class="bhi-login-field" id="bhi-login-2fa-field" hidden><label for="bhi-login-2fa">6-digit code</label><input type="text" id="bhi-login-2fa" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></div>
+    <label class="bhi-login-check"><input type="checkbox" id="bhi-login-remember" name="remember" checked> Keep me signed in</label>
     <button type="submit" class="bhi-login-submit">Log in</button>
     <div class="bhi-login-foot"><a href="<?php echo esc_url(wp_lostpassword_url(home_url('/' . self::REWRITE_SLUG . '/'))); ?>">Forgot your password?</a></div>
   </form>
 
-  <form class="bhi-login-panel" id="bhi-login-panel-register" hidden>
-    <div class="bhi-login-field"><label for="bhi-reg-username">Username</label><input type="text" id="bhi-reg-username" autocomplete="username" required></div>
-    <div class="bhi-login-field"><label for="bhi-reg-email">Email</label><input type="email" id="bhi-reg-email" autocomplete="email" required></div>
-    <div class="bhi-login-field"><label for="bhi-reg-password">Password</label><input type="password" id="bhi-reg-password" autocomplete="new-password" minlength="8" required></div>
+  <?php if ($registration_open): ?>
+  <form class="bhi-login-panel" id="bhi-login-panel-register" hidden novalidate>
+    <div class="bhi-login-field"><label for="bhi-reg-username">Username</label><input type="text" id="bhi-reg-username" name="username" autocomplete="username" maxlength="60" required>
+      <p class="bhi-login-hint">Letters, numbers, spaces, and . - _ @</p></div>
+    <div class="bhi-login-field"><label for="bhi-reg-email">Email</label><input type="email" id="bhi-reg-email" name="email" autocomplete="email" maxlength="100" required></div>
+    <div class="bhi-login-field"><label for="bhi-reg-password">Password</label><input type="password" id="bhi-reg-password" name="password" autocomplete="new-password" minlength="8" maxlength="200" required>
+      <p class="bhi-login-hint">At least 8 characters. A short phrase of a few words works well.</p></div>
+    <div class="bhi-login-trap" aria-hidden="true"><label for="bhi-reg-<?php echo esc_attr($honeypot); ?>">Leave this empty</label><input type="text" id="bhi-reg-<?php echo esc_attr($honeypot); ?>" name="<?php echo esc_attr($honeypot); ?>" tabindex="-1" autocomplete="off"></div>
     <button type="submit" class="bhi-login-submit">Create account</button>
   </form>
+  <?php endif; ?>
 </div>
-<script>
-(function () {
-  var redirectTo = <?php echo wp_json_encode($redirect_to); ?>;
-  var restBase = <?php echo wp_json_encode(esc_url_raw(rest_url('bhi/v1'))); ?>;
-  var tabs = document.querySelectorAll('.bhi-login-tab');
-  var panels = { login: document.getElementById('bhi-login-panel-login'), register: document.getElementById('bhi-login-panel-register') };
-  var errorBox = document.getElementById('bhi-login-error');
-
-  tabs.forEach(function (tab) {
-    tab.addEventListener('click', function () {
-      tabs.forEach(function (t) { t.classList.remove('is-active'); });
-      tab.classList.add('is-active');
-      var target = tab.dataset.panel;
-      Object.keys(panels).forEach(function (key) { panels[key].hidden = key !== target; });
-      errorBox.style.display = 'none';
-    });
-  });
-
-  function showError(message) {
-    errorBox.textContent = message;
-    errorBox.style.display = 'block';
-  }
-
-  function submitJSON(path, body, submitBtn) {
-    submitBtn.disabled = true;
-    return fetch(restBase + path, {
-      method: 'POST',
-      // Explicit — some mobile in-app browsers still default fetch to
-      // credentials:'omit', which drops the Set-Cookie the auth
-      // response carries, so wp_signon()'s session never lands and the
-      // redirect comes straight back to this form.
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(function (res) {
-      return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-    }).finally(function () {
-      submitBtn.disabled = false;
-    });
-  }
-
-  document.getElementById('bhi-login-panel-login').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = e.target.querySelector('.bhi-login-submit');
-    var body = {
-      username: document.getElementById('bhi-login-username').value,
-      password: document.getElementById('bhi-login-password').value,
-    };
-    var codeField = document.getElementById('bhi-login-2fa');
-    if (!document.getElementById('bhi-login-2fa-field').hidden && codeField.value) {
-      body.code = codeField.value;
-    }
-    submitJSON('/login', body, btn).then(function (result) {
-      if (result.ok) {
-        // Cache-buster on the hop back: if a full-page cache still holds
-        // the logged-out HTML for this exact URL, a plain navigation to
-        // it can re-render the login form even though the session now
-        // exists. A unique query arg forces a fresh render; the portal
-        // ignores unknown args.
-        window.location.href = redirectTo + (redirectTo.indexOf('?') > -1 ? '&' : '?') + '_li=' + Date.now();
-        return;
-      }
-      if (result.data && result.data.data && result.data.data.requires_2fa) {
-        document.getElementById('bhi-login-2fa-field').hidden = false;
-        showError(result.data.message || 'Enter your 2FA code.');
-        return;
-      }
-      showError((result.data && result.data.message) || 'Login failed.');
-    });
-  });
-
-  document.getElementById('bhi-login-panel-register').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var btn = e.target.querySelector('.bhi-login-submit');
-    var body = {
-      username: document.getElementById('bhi-reg-username').value,
-      email: document.getElementById('bhi-reg-email').value,
-      password: document.getElementById('bhi-reg-password').value,
-    };
-    submitJSON('/register', body, btn).then(function (result) {
-      if (result.ok) {
-        window.location.href = redirectTo + (redirectTo.indexOf('?') > -1 ? '&' : '?') + '_li=' + Date.now();
-        return;
-      }
-      showError((result.data && result.data.message) || 'Could not create your account.');
-    });
-  });
-})();
-</script>
 </div>
         <?php
         return (string) ob_get_clean();
+    }
+
+    /**
+     * Where to send someone after they log in or sign up: the page that
+     * sent them here (?redirect_to=, same site only), else the portal.
+     */
+    public static function post_login_redirect(?string $requested = null): string {
+        $default = home_url('/' . self::REWRITE_SLUG . '/');
+        if ($requested === null) $requested = isset($_GET['redirect_to']) ? (string) wp_unslash($_GET['redirect_to']) : '';
+        $requested = trim($requested);
+        if ($requested === '') return $default;
+        // wp_validate_redirect() refuses other hosts, protocol-relative //evil, and non-http schemes.
+        $clean = esc_url_raw($requested, ['http', 'https']);
+        if ($clean === '') return $default;
+        $target = wp_validate_redirect($clean, $default);
+        if ($target === '') return $default;
+        $path = (string) wp_parse_url($target, PHP_URL_PATH);
+        if (strpos($path, 'wp-login.php') !== false || strpos($path, 'admin-post.php') !== false) return $default;
+        return $target;
+    }
+
+    /** A logged-in visitor arriving with a valid ?redirect_to= goes straight there. */
+    public static function maybe_redirect_logged_in(): void {
+        if (!is_user_logged_in() || !isset($_GET['redirect_to']) || !self::is_account_request()) return;
+        $target = self::post_login_redirect();
+        if ($target === home_url('/' . self::REWRITE_SLUG . '/')) return;
+        wp_safe_redirect($target);
+        exit;
+    }
+
+    /** "Confirm your email" prompt with a resend button, for accounts that haven't verified yet. */
+    private static function verify_banner_html(): string {
+        if (!class_exists('BHI_Auth')) return '';
+        $user = wp_get_current_user();
+        if (!$user->exists() || BHI_Auth::is_email_verified($user->ID)) return '';
+        return '<div class="bhi-portal-verify" role="status">'
+            . '<p><strong>Confirm your email.</strong> We sent a link to ' . esc_html($user->user_email) . '. Some features, like voting, need a confirmed email.</p>'
+            . '<p><button type="button" class="bhi-portal-verify-resend">Send the link again</button> <span class="bhi-portal-verify-status" aria-live="polite"></span></p>'
+            . '</div>';
     }
 
     /**
@@ -923,6 +846,7 @@ class BHI_Portal {
   </nav>
   <main class="bhi-portal-main">
     <?php
+    echo self::verify_banner_html(); // phpcs:ignore -- escaped inside verify_banner_html().
     $panel = self::get_panel($active);
     if ($panel) {
         ob_start();

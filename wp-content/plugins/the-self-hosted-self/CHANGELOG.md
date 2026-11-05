@@ -7,6 +7,60 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.44 - Security hardening of fan sign-up/login (BHI_Auth, class-auth.php)
+and the account portal's login flow (BHI_Portal). No second factor is
+assumed (2FA stays optional), so the password and throttles are the
+barrier.
+
+Security:
+- Login/register/logout/resend-verification refuse requests whose Origin
+  (or Referer, when Origin is absent) is another site or opaque "null":
+  closes login CSRF (logging a visitor into an attacker's account) and
+  forced-logout CSRF. bhi/v1 responses no longer carry the CORS headers
+  core reflects for any Origin.
+- Logout ends the server-side session even without an X-WP-Nonce.
+  Previously REST reset the user to 0 first, so only the cookie was
+  cleared and a copied cookie stayed valid.
+- Login lockout is keyed to the account (login name, email, any case all
+  count together) plus IP, and a second per-IP limit across accounts
+  (30 / 15 min) stops password spraying. A wrong 2FA code now counts as a
+  failure (it was uncounted, allowing unlimited code guesses).
+- Sign-up honors a new dashboard switch (previously always open, ignoring
+  every setting); rejects common passwords and passwords containing the
+  username/email; rejects (instead of silently rewriting) usernames like
+  "José"; caps field lengths (hashing DoS); adds a honeypot and a 20
+  attempts/hour/IP limit alongside the 5 accounts/hour limit; ignores
+  avatar_id/banner_id at sign-up (claiming another user's private upload).
+- Client IP for all throttles: REMOTE_ADDR unless an admin picks a proxy
+  header (Cloudflare / X-Real-IP / X-Forwarded-For right-most entry).
+- /account/ sends X-Frame-Options SAMEORIGIN, CSP frame-ancestors 'self'
+  and Referrer-Policy same-origin (clickjacking).
+- Failed-registration log entries no longer include the email address.
+
+Flow:
+- After login or sign-up, people return to the page that sent them
+  (?redirect_to=, same site only, validated by post_login_redirect());
+  locked-content "Log in" links now pass the current page.
+- New "Confirm your email" banner with a resend button in the portal, a
+  welcome toast after sign-up, a "Keep me signed in" checkbox, and real
+  error messages for network failures and non-JSON server errors.
+- Login card CSS moved into assets/css/portal.css and its JS into
+  assets/ts/portal-auth.ts (compiled to assets/js/portal-auth.js).
+
+Dashboard: new "Fan accounts" card (BHI_Auth::render_settings_card()) with
+the sign-up switch (on by default, so existing sites are unchanged) and
+the visitor-IP source. Nonce + manage_options checked on save.
+
+Tests: new "auth & sign-up security" Test Runner suite (35 assertions).
+
+Runtime-verified on a live Local install: 479/479 Test Runner assertions
+pass; cross-site login/sign-up/logout/resend all 403; lockout, spray
+limit, sign-up flood limit, session-ending logout, redirect validation,
+anti-framing headers, the closed-sign-up path and the dashboard form's
+CSRF/capability checks all exercised over HTTP or in-process. NOT
+exercised in a real browser: the new portal-auth.js form handling (it
+type-checks under strict tsc).
+
 3.21.43 - Moved the four large CSS blocks out of PHP strings into real
 stylesheets, so stylelint and the accent check can see them and a stray
 apostrophe can no longer fatal the site (the class-ui.php incident).

@@ -42,7 +42,14 @@ class OUS_Visibility {
     // class-portal.php), falling back to core's own wp_login_url() so
     // this still works standalone if the portal isn't active.
     public static function render_login_notice(string $message = ''): string {
-        $login_url = class_exists('BHI_Portal') ? home_url('/' . BHI_Portal::REWRITE_SLUG . '/') : wp_login_url(home_url($_SERVER['REQUEST_URI'] ?? '/'));
+        // The portal validates redirect_to against this site before using it (BHI_Portal::post_login_redirect()).
+        // Built from home_url()'s own origin, never the client-supplied Host header.
+        $home = (array) wp_parse_url(home_url());
+        $here = ($home['scheme'] ?? 'https') . '://' . ($home['host'] ?? '') . (isset($home['port']) ? ':' . (int) $home['port'] : '')
+            . wp_unslash($_SERVER['REQUEST_URI'] ?? '/');
+        $login_url = class_exists('BHI_Portal')
+            ? add_query_arg('redirect_to', rawurlencode($here), home_url('/' . BHI_Portal::REWRITE_SLUG . '/'))
+            : wp_login_url($here);
         $message = $message ?: __('Log in to view this.', 'the-self-hosted-self');
         return '<div class="ous-login-required"><p>' . esc_html($message) . '</p><p><a class="button ous-login-required-cta" href="' . esc_url($login_url) . '">' . esc_html__('Log In', 'the-self-hosted-self') . '</a></p></div>';
     }

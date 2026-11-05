@@ -22,6 +22,7 @@ class OUS_CoreTestSuite {
      */
     public static function register($suites): array {
         $suites['the-self-hosted-self'] = ['label' => 'The Self-Hosted Self (core)', 'callback' => [self::class, 'run']];
+        $suites['the-self-hosted-self-auth'] = ['label' => 'The Self-Hosted Self (auth & sign-up security)', 'callback' => [self::class, 'run_auth']];
         return $suites;
     }
 
@@ -237,6 +238,70 @@ class OUS_CoreTestSuite {
 
             if ($orig === false) { delete_option(BHY_MediaToken::OPTION); } else { update_option(BHY_MediaToken::OPTION, $orig); }
         }
+
+        return $rows;
+    }
+
+    /** @return array<int, mixed> */
+    public static function run_auth(): array {
+        if (!class_exists('BHI_Auth') || !class_exists('BHI_Portal')) {
+            return [['name' => 'BHI_Auth / BHI_Portal not loaded', 'pass' => false, 'message' => 'Skipped.']];
+        }
+        $rows = [];
+        $site = ['https://fans.example'];
+
+        // Origin check (login/logout CSRF).
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::is_same_origin_request('https://fans.example', null, $site), 'origin: same origin is allowed');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::is_same_origin_request('HTTPS://Fans.Example:443', null, $site), 'origin: case and default port are normalized');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('https://evil.example', null, $site), 'origin: another site is refused');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('https://fans.example.evil.example', null, $site), 'origin: look-alike host is refused');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('http://fans.example', null, $site), 'origin: http downgrade of the https site is refused');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('https://fans.example:8443', null, $site), 'origin: different port is refused');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('null', null, $site), 'origin: opaque "null" origin (sandboxed iframe) is refused');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request(null, 'https://evil.example/page', $site), 'origin: foreign Referer is refused when Origin is absent');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::is_same_origin_request(null, 'https://fans.example/account/', $site), 'origin: same-site Referer is allowed when Origin is absent');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::is_same_origin_request(null, null, $site), 'origin: no browser headers at all (non-browser client) is allowed');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::is_same_origin_request('https://evil.example', 'https://fans.example/', $site), 'origin: a same-site Referer cannot override a foreign Origin');
+
+        // Client IP: proxy headers are only trusted when an admin chose one.
+        $server = ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_CF_CONNECTING_IP' => '198.51.100.7', 'HTTP_X_FORWARDED_FOR' => '6.6.6.6, 198.51.100.8'];
+        $rows[] = OUS_TestRunner::assert_same('203.0.113.9', BHI_Auth::client_ip($server, ''), 'ip: forwarding headers are ignored by default');
+        $rows[] = OUS_TestRunner::assert_same('198.51.100.7', BHI_Auth::client_ip($server, 'HTTP_CF_CONNECTING_IP'), 'ip: Cloudflare header used when chosen');
+        $rows[] = OUS_TestRunner::assert_same('198.51.100.8', BHI_Auth::client_ip($server, 'HTTP_X_FORWARDED_FOR'), 'ip: X-Forwarded-For uses the proxy-appended (right-most) entry, not the spoofable left one');
+        $rows[] = OUS_TestRunner::assert_same('203.0.113.9', BHI_Auth::client_ip(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_CF_CONNECTING_IP' => 'not-an-ip'], 'HTTP_CF_CONNECTING_IP'), 'ip: an invalid header value falls back to REMOTE_ADDR');
+        $rows[] = OUS_TestRunner::assert_same('203.0.113.9', BHI_Auth::client_ip($server, 'HTTP_X_EVIL'), 'ip: a header outside the allowlist is never trusted');
+
+        // Usernames: rejected, never silently rewritten.
+        $rows[] = OUS_TestRunner::assert_same('', BHI_Auth::username_problem('fan_name.1'), 'username: plain name accepted');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::username_problem('José') !== '', 'username: accented name rejected (not silently changed to "Jose")');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::username_problem('<b>x</b>') !== '', 'username: markup rejected');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::username_problem(str_repeat('a', 61)) !== '', 'username: over 60 characters rejected');
+
+        // Passwords: the main barrier, since 2FA is optional.
+        $rows[] = OUS_TestRunner::assert_same('', BHI_Auth::password_problem('river otter lamp', 'fan1', 'fan1@example.com'), 'password: a short phrase is accepted');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem('short') !== '', 'password: under 8 characters rejected');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem('Password123') !== '', 'password: common password rejected (case-insensitive)');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem('aaaaaaaaaa') !== '', 'password: one repeated character rejected');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem('billyfan2024', 'billyfan', 'x@example.com') !== '', 'password: containing the username rejected');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem('mymail-rocks', 'someone', 'mymail@example.com') !== '', 'password: containing the email name rejected');
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::password_problem(str_repeat('ab1', 70)) !== '', 'password: over 200 characters rejected (hashing DoS)');
+
+        // Post-login redirect: same site only.
+        $default = home_url('/' . BHI_Portal::REWRITE_SLUG . '/');
+        $rows[] = OUS_TestRunner::assert_same(home_url('/some-contest/'), BHI_Portal::post_login_redirect(home_url('/some-contest/')), 'redirect: same-site page is honored');
+        $rows[] = OUS_TestRunner::assert_same($default, BHI_Portal::post_login_redirect('https://evil.example/phish'), 'redirect: another site falls back to the portal');
+        $rows[] = OUS_TestRunner::assert_same($default, BHI_Portal::post_login_redirect('//evil.example/phish'), 'redirect: protocol-relative URL falls back to the portal');
+        $rows[] = OUS_TestRunner::assert_same($default, BHI_Portal::post_login_redirect('javascript:alert(1)'), 'redirect: javascript: URL falls back to the portal');
+        $rows[] = OUS_TestRunner::assert_same($default, BHI_Portal::post_login_redirect(site_url('/wp-login.php?action=logout')), 'redirect: wp-login.php targets fall back to the portal');
+        $rows[] = OUS_TestRunner::assert_same($default, BHI_Portal::post_login_redirect(''), 'redirect: empty falls back to the portal');
+
+        // Sign-up switch: on by default so existing sites keep working.
+        $orig = get_option(BHI_Auth::OPTION_REGISTRATION_OPEN, null);
+        delete_option(BHI_Auth::OPTION_REGISTRATION_OPEN);
+        $rows[] = OUS_TestRunner::assert_true(BHI_Auth::registration_open(), 'sign-up: open by default when never configured');
+        update_option(BHI_Auth::OPTION_REGISTRATION_OPEN, '0');
+        $rows[] = OUS_TestRunner::assert_false(BHI_Auth::registration_open(), 'sign-up: closed when switched off on the dashboard');
+        if ($orig === null) { delete_option(BHI_Auth::OPTION_REGISTRATION_OPEN); } else { update_option(BHI_Auth::OPTION_REGISTRATION_OPEN, $orig); }
 
         return $rows;
     }
