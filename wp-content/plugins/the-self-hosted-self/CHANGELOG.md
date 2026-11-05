@@ -7,6 +7,20 @@ why version history lives here and in git rather than in source.
 Entries are newest-first, exactly as they were written in-file. Nothing
 has been reworded or dropped.
 
+3.21.45 - Comment cleanup across core (CONVENTIONS.md: comments answer
+"why" in three lines or fewer; history lives here and in git).
+- Long narrative and changelog-style comment blocks trimmed in
+  the-self-hosted-self.php, class-activation-manager.php,
+  class-admin-guard.php, class-api-docs.php, admin.css, admin-page.css,
+  catalog.css, design-system.css and assets/ts/components/index.ts. No CSS
+  rules changed (verified with comments stripped).
+- Deliberately switched off: the element-builder Test Runner suite
+  (BH_Element_TestSuite) and OUS_ApiDocs' REST route. The standalone API
+  Docs page (add_menu(), already unhooked) is commented out; the Debug
+  Tools API Docs section is unchanged.
+- The element system's own hooks (BH_Element_Data/BH_Element init and the
+  dashboard/portal bh_element_surfaces filters) are kept.
+
 3.21.44 - Security hardening of fan sign-up/login (BHI_Auth, class-auth.php)
 and the account portal's login flow (BHI_Portal). No second factor is
 assumed (2FA stays optional), so the password and throttles are the

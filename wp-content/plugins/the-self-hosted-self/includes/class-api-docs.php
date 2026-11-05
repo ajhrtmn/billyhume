@@ -1,11 +1,6 @@
 <?php
 if (!defined('ABSPATH')) exit;
 
-// OUS_VER 3.4.19 — register_debug_section() now sets 'group' =>
-// OUS_Debug::GROUP_REFERENCE (Debug Tools reorganization pass — see
-// class-debug.php's own docblock), filing this under "Reference &
-// Docs" instead of the default bucket. No other change.
-
 /**
  * Turns the REST routes this ecosystem already registers (BHI_Auth,
  * BHI_Reports, and anything any peer plugin registers via its own
@@ -37,12 +32,9 @@ class OUS_ApiDocs {
         // resolution fails for this specific standalone page
         // (get_current_screen() resolves to the PARENT page's hook, not
         // this one), denying access every time despite registration and
-        // capability both being correct. See VISION.md's "New dev/
-        // admin-only pages default to a Debug Tools SECTION" entry. The
-        // real, working access point is register_debug_section() below.
-        // add_menu() itself is left defined (not deleted) in case a
-        // future fix for the underlying WordPress issue re-enables it.
-        add_action('rest_api_init', [self::class, 'register_routes']);
+        // capability both being correct.
+
+        // add_action('rest_api_init', [self::class, 'register_routes']);
         add_filter('ous_debug_tools', [self::class, 'register_debug_section']);
     }
 
@@ -62,48 +54,20 @@ class OUS_ApiDocs {
     }
 
     // The reliable primary way to reach this content — renders the API
-    // docs inline on the Debug Tools page. The standalone
-    // admin.php?page=ous-api-docs page is left registered as a
-    // secondary/bonus access point (see add_menu() below), but
-    // WordPress consistently blocks that standalone page for reasons
-    // never fully root-caused even with registration and capability
-    // both confirmed correct — so this section, not that page, is
-    // what to actually use and link to.
+    // docs inline on the Debug Tools page.
     public static function render_debug_section(): void {
         self::render_content();
     }
 
-    // Dev/reference tooling, not something a site owner needs on a live
-    // production install — same production lock OUS_Debug's own menu
-    // uses (wp_get_environment_type()-gated, overridable via
-    // OUS_DEBUG_TOOLS_FORCE in wp-config.php for a live site that
-    // genuinely needs to inspect its own API surface). A generated API
-    // reference is a build-time/dev-time artifact, not a fan/customer-
-    // facing feature — no reason for it to clutter a real site's admin
-    // menu, or to be reachable at all once "which routes exist" isn't a
-    // question anyone actively developing against this install is asking.
+
     public static function add_menu(): void {
-        // The is_locked() gate that used to wrap this call is removed —
-        // API Docs and Codebase Docs were the only two pages in the
-        // ecosystem that conditionally skipped their own
-        // add_submenu_page() call before registering. Every other admin
-        // page (Debug Tools itself, Job Queue, every peer plugin's own
-        // screens) registers unconditionally; is_locked() was designed
-        // to gate destructive seed/reset actions, not a read-only
-        // viewer page's mere existence in the menu. The conditional
-        // registration path denied access even when logging proved
-        // registration had succeeded (a real hook_suffix returned) and
-        // current_user_can('manage_options') was true — the conditional
-        // path itself, not is_locked()'s internal logic, was the
-        // problem. Registering unconditionally like every other working
-        // page removes that asymmetry.
-        $hook = add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
-        if (class_exists('OUS_DebugLog')) {
-            OUS_DebugLog::log_throttled('info', 'api_docs_registered', 60,
-                'add_submenu_page() for API Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
-                ['hook_suffix' => $hook], 'API Docs'
-            );
-        }
+        // $hook = add_submenu_page('ous-debug', 'API Docs', 'API Docs', 'manage_options', 'ous-api-docs', [self::class, 'render']);
+        // if (class_exists('OUS_DebugLog')) {
+        //     OUS_DebugLog::log_throttled('info', 'api_docs_registered', 60,
+        //         'add_submenu_page() for API Docs returned: ' . ($hook === false ? 'FALSE (registration failed)' : "'$hook'"),
+        //         ['hook_suffix' => $hook], 'API Docs'
+        //     );
+        // }
     }
 
     public static function register_routes(): void {

@@ -30,38 +30,12 @@
 }
 .bhy-story-frame {
     width: 100%; height: 600px; max-height: 75vh; border: 0; display: none;
-    /* 3.4.61 — real, live-confirmed regression from the no-
-       iframes swap: "the Now Playing Bar is escaping the
-       styles of its container and displaying on the full
-       page." An iframe naturally contained position:fixed
-       descendants to ITS OWN viewport — a shadow root inside
-       a same-document div does NOT do this by default;
-       position:fixed still resolves against the real page
-       viewport unless some ancestor establishes a CSS
-       "containing block" for fixed-position descendants
-       (per spec: a transform, perspective, filter, or
-       contain:layout/paint/strict/content). overflow:hidden
-       ALONE (already set on .bhy-canvas above) does NOT do
-       this — that was the gap. contain:layout here gives
-       every shadow-hosted story's own position:fixed
-       elements (bh-contest's now-playing bar being the first
-       one that actually surfaced it) a real containing block
-       again, restoring the exact visual containment an
-       iframe used to give for free. */
     contain: layout;
 }
-/* Surface switches used to be an instant, unannounced snap
-   (display:none -> block with zero transition) — everything
-   else on this page now has some motion, this was the one
-   remaining silent state change. animation (not transition)
-   so it plays every time the class is freshly added, not
-   just on a property change. */
+
 .bhy-story-frame.active { display: block; animation: bhy-frame-in 250ms ease; }
 @keyframes bhy-frame-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-/* A whole theme preset just repainted every color/font/scale
-   token at once — this gives that "instant delight" moment a
-   real, brief acknowledgment instead of everything just
-   silently repainting with no event marking it happened. */
+
 .bhy-canvas.bhy-canvas-flash { animation: bhy-canvas-flash 600ms ease; }
 @keyframes bhy-canvas-flash {
     0% { box-shadow: inset 0 0 0 1px rgba(255,255,255,.03), 0 0 0 3px var(--bhy-accent, #2271b1); }
@@ -93,11 +67,6 @@
     border-color: var(--bhy-accent, #2271b1); box-shadow: var(--bhy-focus-ring, 0 0 0 2px rgba(34,113,177,.25)); outline: none;
 }
 
-/* Always-visible sample chips proving every scale/shape token
-   (radius, radius_sm, bar_height, font_scale, space_scale) is
-   actually applying — independent of which registered surface
-   is currently selected in the canvas, since no single surface
-   is guaranteed to visibly use every token. */
 .bhy-token-preview {
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--bhy-space-2, 8px);
     background: var(--bhy-subtle, #f6f7f7); border: 1px solid var(--bhy-border, #dcdcde); border-radius: var(--bhy-radius, 8px);
@@ -157,18 +126,6 @@
 .bhy-slider-row .bhy-slider-val { color: var(--bhy-ink-dim, #646970); font-variant-numeric: tabular-nums; }
 .bhy-slider-row input { width: 100%; }
 
-/* PAGE-BUILDER-DELETE-KEEP-AUDIT.md cleanup (2026-07-13) --
-   ported from the now-deleted assets/css/element-builder.css,
-   where these two rule sets used to live. Genuinely needed
-   here: BHY_Gallery::render_controls() (the real Styles
-   settings form, kept as-is through this cleanup) uses
-   .bhel-field-row for its brand-wordmark row and
-   .bhel-style-group for its Advanced-colors/Category-colors
-   details disclosures -- moved into this shared file rather
-   than re-duplicated inside class-style-gallery.php own
-   render_script(), since this is now a core piece of the
-   design system, not something specific to the deleted
-   builder UI. */
 .bhel-field-row { margin-bottom: var(--bhy-space-3, 10px); }
 .bhel-field-row label { display: block; font-size: var(--bhy-text-sm, 12px); font-weight: 600; margin-bottom: 3px; color: var(--bhy-ink, #1d2327); }
 .bhel-field-row input[type=text], .bhel-field-row input[type=number], .bhel-field-row select, .bhel-field-row textarea {
@@ -189,10 +146,6 @@
 .bhel-style-group[open] > .bhel-style-group-title::before { transform: rotate(90deg); }
 .bhel-style-group-body { padding-top: var(--bhy-space-1, 4px); padding-bottom: var(--bhy-space-2, 6px); }
 
-/* Save was previously the last thing in a tall, internally
-   scrolling column — easy to lose track of after adjusting a
-   dozen controls. Sticking it to the bottom of the panel
-   keeps it in view without needing its own scroll container. */
 .bhy-controls p.submit {
     position: sticky; bottom: -16px; margin: var(--bhy-space-5, 18px) -20px -16px; padding: var(--bhy-space-3, 12px) var(--bhy-space-5, 20px);
     background: var(--bhy-surface, #fff); border-top: 1px solid var(--bhy-border, #dcdcde); box-shadow: 0 -4px 8px rgba(0,0,0,.04);

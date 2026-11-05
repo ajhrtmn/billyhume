@@ -15,9 +15,7 @@
        bar. Below 782px core switches #wpadminbar to
        position:absolute so it scrolls away entirely, and anything
        still reserving space for it leaves a dead band that page
-       content shows through. That exact bug shipped twice --
-       the front-end site header and this quicknav -- so the offset
-       is a token now rather than a literal repeated per surface. */
+       content shows through. */
     --bhy-admin-bar-offset: 32px;
     --bhy-ink: #1d2327; --bhy-ink-dim: #646970; --bhy-border: #dcdcde; --bhy-surface: #fff;
     --bhy-subtle: #f6f7f7; --bhy-accent: #2271b1;
@@ -25,12 +23,6 @@
     --bhy-warning: #8a5a00; --bhy-warning-bg: #fef3e2;
     --bhy-danger: #b3261e; --bhy-danger-bg: #fbe4e2;
     --bhy-radius: 8px; --bhy-radius-sm: 6px;
-    /* 3.4.33 additions - additive only, nothing above changed.
-       A single shared micro-transition timing (hover/select/
-       expand states across the Design Suite shell) plus a
-       couple of named surface tints so "hovered row" and
-       "selected row" read the same way everywhere instead of
-       each screen picking its own ad hoc rgba value. */
     --bhy-transition: 150ms ease;
     --bhy-hover-tint: #f6f7f7;
     --bhy-selected-tint: #f0f6fc;
@@ -44,8 +36,7 @@
    compose tokens + utilities (card/alert/badge/table below).
    New admin screen needs a status pill, a notice box, a
    surface panel, or a wide table? Check here BEFORE hand-
-   rolling one inline — this is the whole reason those got
-   reinvented per call site in the 2026-08 style audit.
+   rolling one inline.
    ============================================================ */
 
 /* Card — the one surface treatment every custom admin
@@ -89,14 +80,7 @@
    is ~13px, so there is no exception to lean on. The hue still
    carries the signal through the 4px left border and the
    background tint, which is where saturation costs nothing;
-   `strong` keeps the emphasis through weight. Per the brief:
-   usefulness beats the decorative reading.
-
-   NOTE: no apostrophes in this comment, deliberately. It sits
-   inside a single-quoted PHP string, and an unescaped one here
-   silently terminates that string and fatals the whole site —
-   the documented incident in CLAUDE.md, reproduced live while
-   writing this very comment and caught by `php -l`. */
+   `strong` keeps the emphasis through weight. */
 .bhy-alert-warning { background: var(--bhy-warning-bg); border-left-color: var(--bhy-warning); color: var(--bhy-ink); }
 .bhy-alert-success { background: var(--bhy-success-bg); border-left-color: var(--bhy-success); color: var(--bhy-ink); }
 .bhy-alert-danger  { background: var(--bhy-danger-bg);  border-left-color: var(--bhy-danger);  color: var(--bhy-ink); }
@@ -129,7 +113,8 @@
 /* ---- LAYER 2 (utilities, not a component) — kept here next
    to .bhy-badge since that's their most common pairing, but
    these are generic single-purpose helpers, not one named
-   "thing." See STYLE-SYSTEM.md. ----
+   "thing."
+
    Text-overflow utilities — the admin-side counterpart to
    the front-end .bh-truncate/.bh-clamp-* in class-style.php
    (see that own docblock for the full per-content-type
@@ -181,16 +166,9 @@
    as a multi-card dashboard would waste most of the screen. */
 .bhy-table-wrap { container-type: inline-size; overflow-x: auto; overflow-y: auto; max-height: 420px; -webkit-overflow-scrolling: touch; border: 1px solid var(--bhy-border); border-radius: var(--bhy-radius); }
 .bhy-table-wrap.bhy-table-wrap--tall { max-height: 760px; }
-/* Safety net for wide tables that were never wrapped. An audit on
-   2026-08-24 found 21 table.widefat instances rendered without
-   .bhy-table-wrap against 18 with it, so more than half the wide
-   tables in the ecosystem ignored the convention. The visible
-   result was reported from a phone: Project Tracker overflowed
-   horizontally, its table measuring 586px with overflow visible
-   and no scroll parent.
+/* Safety net for wide tables that were never wrapped.
 
-   Making the table itself a scrolling block is the fix that does
-   not require touching 21 call sites in 12 files, and it covers
+   Making the table itself a scrolling block is the fix, and it covers
    any table added later that forgets the wrapper. The wrapped
    case is restored to display:table immediately below, since a
    scroll container inside a scroll container is not wanted.
@@ -216,7 +194,7 @@
    a slightly darker overlay on whichever row the pointer is
    actually over. */
 .bhy-table-wrap table.wp-list-table tbody tr:hover, .bhy-table-wrap table.widefat tbody tr:hover { background: var(--bhy-subtle); }
-/* Sortable column headers (see BHY_UI's shared JS) — a plain
+/* Sortable column headers — a plain
    visual affordance (pointer cursor, a caret hinting "this
    is clickable") on any <th data-sort> inside a
    table.bhy-sortable, so a plugin opts in by adding one class
@@ -277,16 +255,6 @@ input.bhy-range::-moz-range-thumb {
     background: var(--bhy-accent, #2271b1); color: #fff; border-color: var(--bhy-accent, #2271b1); outline: none;
 }
 .bhy-tip-bubble {
-    /* Fixed dark chip regardless of the current admin color
-       scheme — QA fix: this originally read
-       background:var(--bhy-text, ...), but that token is
-       the admin design system's theme-relative FOREGROUND
-       text color, not a fixed dark chrome color (confirmed
-       live: the portal's identical mistake, --bh-text,
-       rendered as a washed-out light-cream box on the
-       site's real dark theme instead of a proper dark
-       tooltip). A transient overlay like this should look
-       the same regardless of theme. */
     position: fixed; z-index: 100000; max-width: 280px; padding: 8px 11px;
     background: #1d2327; color: #fff; font-size: var(--bhy-text-xs, 12px);
     font-weight: 400; line-height: 1.4; border-radius: var(--bhy-radius-sm, 6px);

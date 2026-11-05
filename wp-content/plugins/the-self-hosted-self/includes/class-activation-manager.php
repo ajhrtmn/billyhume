@@ -4,18 +4,13 @@ if (!defined('ABSPATH')) exit;
 /**
  * Pure activation orchestration — resolving and executing the correct
  * order (dependencies before dependents, installing anything missing
- * along the way). No redirects, no nonces; OUS_Dashboard's admin-post
- * handlers own the HTTP side and call into this.
+ * along the way). No redirects, no nonces;
  */
 class OUS_ActivationManager {
     // Activates $key AND any inactive/missing dependencies first, in
     // order — for a plugin registered with real dependencies via the
     // filter (see class-registry.php), a person clicking "Activate"
-    // shouldn't need to already understand what has to go first. Neither
-    // bh-contest nor bh-streaming currently declares a dependency here
-    // (their one real dependency is this same plugin, already active by
-    // definition if you're looking at this dashboard) — this exists for
-    // whatever gets registered with a real one later.
+    // shouldn't need to already understand what has to go first.
     public static function activate_with_dependencies(string $key): bool {
         if (!isset(OUS_Registry::all()[$key])) return false;
 

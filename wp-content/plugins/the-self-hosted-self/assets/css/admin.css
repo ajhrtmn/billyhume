@@ -1,22 +1,3 @@
-/*
- * Ecosystem dashboard cards + status badges.
- *
- * Every value here reads a --bhy-* token (BHY_UI::print_design_system_css(),
- * class-ui.php) with its previous hardcoded hex kept as the fallback, so
- * nothing changes visually on a stock install but the whole file now
- * participates in the shared token system instead of standing outside it.
- *
- * Why this mattered enough to migrate: this stylesheet predated the
- * --bhy-* system and hardcoded WP core's default light palette (#fff,
- * #dcdcde, #555). That made it one of several parallel "how does this
- * ecosystem get its colors" mechanisms — a real trap for anyone adding
- * a screen later, and the reason the admin skin had to override these
- * class names one at a time from the outside. Consuming the tokens means
- * any consumer that redefines them (the admin skin's dark theme does
- * exactly this) re-themes these cards automatically, with no per-class
- * override needed and no knowledge of this file required.
- */
-
 .ous-dashboard .ous-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -35,9 +16,7 @@
     justify-content: space-between;
     margin-bottom: var(--bhy-space-2, 8px);
 }
-/* Was #555 — a one-off that matched neither --bhy-ink (#1d2327) nor
-   --bhy-ink-dim (#646970). Snapped to ink-dim, the token that actually
-   means "secondary body copy." */
+
 .ous-card-desc {
     color: var(--bhy-ink-dim, #646970);
     font-size: var(--bhy-text-base, 13px);
@@ -71,14 +50,6 @@
     color: var(--bhy-ink-dim, #787c82);
 }
 
-/* Feature-maturity badges (OUS_Badge) — distinct from the install-status
-   trio above (active/inactive/missing describe whether a PLUGIN is
-   running; these describe whether a specific FEATURE has been verified
-   against a live account/API yet). Alpha shares warning's tokens since
-   it carries the same "proceed with care" meaning; beta/experimental
-   keep their own literals because the token set has no blue/violet
-   member to point at — a real gap worth noting rather than forcing
-   them onto a semantically wrong token just to look consistent. */
 .ous-badge-alpha {
     background: var(--bhy-warning-bg, #f0e6c8);
     color: var(--bhy-warning, #8a5a00);

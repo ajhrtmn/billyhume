@@ -2,7 +2,6 @@
 if (!defined('ABSPATH')) exit;
 
 /**
- * DRY/SOLID audit Phase 4: the exact two-part check
  * `current_user_can($cap) || !wp_verify_nonce($nonce, $action)` (usually
  * negated as the guard-clause condition for a wp_die()/redirect/JSON
  * error) was duplicated nearly word-for-word at 18+ admin-post/admin-
